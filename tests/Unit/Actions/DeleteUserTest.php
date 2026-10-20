@@ -22,13 +22,14 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 it('may delete a user', function (): void {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['translation_language' => 'ja']);
 
     $action = resolve(DeleteUser::class);
 
     $action->handle($user);
 
     expect($user->exists)->toBeFalse();
+    $this->assertModelMissing($user);
 });
 
 it('erases the commits of a deleted user along with the replies under them', function (): void {

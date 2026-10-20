@@ -18,7 +18,8 @@ export function useCommitTranslation(commit: Commit) {
     } | null>(null);
     const [showsOriginal, setShowsOriginal] = useState(false);
     const translation =
-        generated?.body === commit.body
+        generated?.body === commit.body &&
+        generated.translation?.language === commit.translation?.language
             ? generated.translation
             : commit.translation;
     const request = useHttp<

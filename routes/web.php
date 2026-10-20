@@ -93,6 +93,7 @@ use App\Http\Controllers\UserRemotesController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
 use App\Http\Controllers\UserTimezoneController;
+use App\Http\Controllers\UserTranslationLanguageController;
 use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
@@ -390,6 +391,8 @@ Route::middleware('auth')->group(function (): void {
 
     // User Timezone...
     Route::put('settings/timezone', [UserTimezoneController::class, 'update'])->name('user-timezone.update');
+
+    Route::put('settings/translation-language', [UserTranslationLanguageController::class, 'update'])->name('user-translation-language.update');
 
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
 

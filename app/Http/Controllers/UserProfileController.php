@@ -6,16 +6,24 @@ namespace App\Http\Controllers;
 
 use App\Actions\UpdateUserProfile;
 use App\Models\User;
+use App\Services\CommitTranslations;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
+use Locale;
 
 final readonly class UserProfileController
 {
-    public function edit(#[CurrentUser] User $user): Response
+    public function edit(#[CurrentUser] User $user, CommitTranslations $translations): Response
     {
         return Inertia::render('user-profile/edit', [
+            'translationLanguage' => $user->translation_language,
+            'translationLanguages' => collect($translations->languages())->map(fn (string $code): array => [
+                'code' => $code,
+                'name' => Locale::getDisplayLanguage($code, 'en'),
+                'nativeName' => Locale::getDisplayLanguage($code, $code),
+            ])->sortBy('name')->values()->all(),
             'preferredLane' => $user->preferredLane(),
             'automaticLane' => $user->automaticLane(),
             'githubSyncedAt' => $user->github_synced_at?->toIso8601String(),

@@ -18,6 +18,16 @@ use Laravel\Ai\Embeddings;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Tools\Request as ToolRequest;
 
+it('uses the reserved bot handle in its instructions after the real tom joins', function (): void {
+    User::factory()->create(['username' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $owner = User::factory()->create(['username' => 'tom']);
+    $question = Commit::factory()->for($owner)->create(['body' => '@devnull-tom hello']);
+
+    $instructions = new Tom($question)->instructions();
+
+    expect($instructions)->toContain('You are Tom (@devnull-tom)', 'The latest message is by @tom.');
+});
+
 it('executes semantic and statistics tools through OpenCode and sends only public evidence', function (): void {
     config(['ai.providers.opencode.key' => 'test-opencode', 'services.openai.key' => 'test']);
     resolve(Features::class)->update(Feature::Translations, false);

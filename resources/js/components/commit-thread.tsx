@@ -1281,6 +1281,7 @@ function ReplyComposer({
             <div className="grid">
                 <MentionTextarea
                     ref={textareaRef}
+                    reply={parent.id}
                     id={`reply-${parent.id}`}
                     name="body"
                     rows={1}

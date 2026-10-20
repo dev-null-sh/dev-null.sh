@@ -188,3 +188,14 @@ it('requires authentication to sync', function (): void {
 
     Http::assertNothingSent();
 });
+
+it('shows the private translation preference and supported choices only in own settings', function (): void {
+    $user = User::factory()->create(['translation_language' => 'ja']);
+    $other = User::factory()->create(['translation_language' => 'de']);
+
+    $this->actingAs($user)->get(route('user-profile.edit', ['user_id' => $other->id]))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('translationLanguage', 'ja')
+        ->where('translationLanguages', fn ($languages): bool => collect($languages)->contains(fn ($language): bool => $language['code'] === 'hu' && $language['name'] === 'Hungarian' && $language['nativeName'] === 'magyar'))
+        ->missing('auth.user.translation_language'));
+});
