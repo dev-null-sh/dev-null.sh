@@ -35,9 +35,13 @@ export type StoryPerson = {
     name: string;
 };
 
+/**
+ * Someone with a commit on production. The username is theirs on /dev/null, or null when they aren't on it.
+ */
 export type StoryContributor = {
     login: string;
     commits: number;
+    username: string | null;
 };
 
 export const storyBefore: StoryEvent[] = [
@@ -180,54 +184,4 @@ export const storyAfter: StoryEvent[] = [
             replies: 5,
         },
     },
-];
-
-/**
- * Everyone with a commit on production, most commits first. Bots and agents are left out.
- */
-export const storyContributors: StoryContributor[] = [
-    { login: 'xHeaven', commits: 199 },
-    { login: 'nunomaduro', commits: 176 },
-    { login: 'mnapoli', commits: 61 },
-    { login: 'brendt', commits: 42 },
-    { login: 'simonhamp', commits: 18 },
-    { login: 'paulinevos', commits: 16 },
-    { login: 'jubianchi', commits: 16 },
-    { login: 'MrPunyapal', commits: 15 },
-    { login: 'sadiqk2', commits: 8 },
-    { login: 'camilleislasse', commits: 6 },
-    { login: 'hbenabdallah', commits: 5 },
-    { login: 'vtlxx', commits: 5 },
-    { login: 'robelsust', commits: 4 },
-    { login: 'HelgeSverre', commits: 4 },
-    { login: 'SanderMuller', commits: 3 },
-    { login: 'MaximeGoncalves', commits: 3 },
-    { login: 'mathiasonea', commits: 3 },
-    { login: 'fernandofreamunde', commits: 3 },
-    { login: 'mon4ssi', commits: 2 },
-    { login: 'hbenjacquet', commits: 2 },
-    { login: 'Akiyo974', commits: 2 },
-    { login: 'Chemaclass', commits: 2 },
-    { login: 'eznix86', commits: 2 },
-    { login: 'BENNIEV-ZA', commits: 2 },
-    { login: 'ahosker', commits: 2 },
-    { login: 'eramitgupta', commits: 1 },
-    { login: 'utsavsomaiya', commits: 1 },
-    { login: 'tooinfinity', commits: 1 },
-    { login: 'murrant', commits: 1 },
-    { login: 'RobinMalfait', commits: 1 },
-    { login: 'prateekbhujel', commits: 1 },
-    { login: 'ondrejmirtes', commits: 1 },
-    { login: 'lazarospsa', commits: 1 },
-    { login: 'kachelle', commits: 1 },
-    { login: 'kadirtikil', commits: 1 },
-    { login: 'jjaybrown', commits: 1 },
-    { login: 'GTS-MEGHNI', commits: 1 },
-    { login: 'faissaloux', commits: 1 },
-    { login: 'fabpl', commits: 1 },
-    { login: 'danielh-official', commits: 1 },
-    { login: 'chrisgocode', commits: 1 },
-    { login: 'AmanuelLegese', commits: 1 },
-    { login: 'alaminfirdows', commits: 1 },
-    { login: 'aaqidmasoodi', commits: 1 },
 ];
