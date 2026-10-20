@@ -443,7 +443,9 @@ A signed request sees what the web shows you, such as your own pending commits. 
 
 Signed request bodies are JSON, so app commits are text only: no images, polls, or link-card choice. Pinning, Remotes, scheduling, search, and translations are web-only for now. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
 
-Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
+On a phone with the mobile app installed, links to profiles, their followers, commits, and Remotes conversations open in the app instead of the browser. The site says which app may open them in `/.well-known/apple-app-site-association` for iOS and `/.well-known/assetlinks.json` for Android, from the app IDs in the mobile config.
+
+Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php), [app links](app/Http/Controllers/AppleAppSiteAssociationController.php).
 
 ### Bug reports and feature requests
 

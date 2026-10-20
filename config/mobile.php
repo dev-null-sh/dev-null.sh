@@ -10,4 +10,15 @@ return [
      */
     'redirect_uri_prefixes' => ['devnull://'],
 
+    /*
+     * The app that opens dev-null.sh links when it's installed, as the files phones fetch from /.well-known name it.
+     * iOS wants its team and bundle ID. Android wants its package name and the SHA-256 fingerprints of the keys it's
+     * signed with.
+     */
+    'ios_app_ids' => explode(',', (string) env('MOBILE_IOS_APP_IDS', 'J68WFCX458.com.simonhamp.devnull')),
+
+    'android_package' => env('MOBILE_ANDROID_PACKAGE', 'com.simonhamp.devnull'),
+
+    'android_certificate_fingerprints' => array_filter(explode(',', (string) env('MOBILE_ANDROID_CERTIFICATE_FINGERPRINTS'))),
+
 ];

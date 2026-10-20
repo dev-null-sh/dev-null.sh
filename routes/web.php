@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Enums\Log;
 use App\Http\Controllers\AboutController;
+use App\Http\Controllers\AppleAppSiteAssociationController;
+use App\Http\Controllers\AssetLinksController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
@@ -154,6 +156,13 @@ Route::middleware(RememberIntendedUrl::class)->group(function (): void {
         ->scopeBindings()
         ->whereNumber('photo')
         ->name('commit-photo.show');
+});
+
+// The mobile app's links...
+Route::middleware('cache.headers:public;max_age=3600')->group(function (): void {
+    Route::get('.well-known/apple-app-site-association', [AppleAppSiteAssociationController::class, 'show'])
+        ->name('apple-app-site-association.show');
+    Route::get('.well-known/assetlinks.json', [AssetLinksController::class, 'show'])->name('asset-links.show');
 });
 
 // Sitemaps...
