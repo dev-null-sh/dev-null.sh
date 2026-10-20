@@ -162,3 +162,15 @@ test('unrelated reads do not wait for a follow', async () => {
     assert.equal(config.url, unrelated.url.href);
     finish(follow);
 });
+
+test('a follow from an instant log does not send a stale range boundary', async () => {
+    const instant = page();
+    delete instant.props.commits;
+    stop = trackFollowRequests(instant);
+
+    const follow = visit('follow', true);
+    const config = await start(follow);
+
+    assert.equal(config.headers?.['X-Log-Through'], undefined);
+    finish(follow);
+});
