@@ -77,6 +77,18 @@ it('only notifies the level reached, not the ones skipped on the way', function 
     expect(levelNotifications($user))->toBe([3]);
 });
 
+it('does not notify a skipped level when dropping back down to it', function (): void {
+    $user = User::factory()->create();
+    $commits = Commit::factory()->for($user)->count(14)->create();
+    $action = resolve(CreateLevelNotification::class);
+
+    $action->handle($user);
+    $commits->take(2)->each->delete();
+    $action->handle($user);
+
+    expect(levelNotifications($user))->toBe([3]);
+});
+
 it('counts only the XP everyone can see', function (): void {
     $user = User::factory()->create();
     Commit::factory()->for($user)->count(3)->create();
