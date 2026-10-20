@@ -503,7 +503,7 @@ Sources: [repository insights](app/Ai/Tools/RepositoryInsights.php), [community 
 
 ### Hello world replies
 
-An approved commit or reply whose entire text is **hello world**, including variants such as **Hello, World!**, can receive an automatic **“Hello, {name}.”** reply from **@world**, which notifies its author like any reply. A pending commit waits for approval. The bot replies only once to that commit. It is a small greeting feature, separate from Tom's question-answering role.
+An approved commit or reply whose entire text is **hello world**, including variants such as **Hello, World!**, can receive an automatic **“Hello, {name}.”** reply from **@world**, which notifies its author like any reply. A pending commit waits for approval. The bot replies only once to that commit. If the real GitHub owner of `world` signs in, the bot moves to **@devnull-world** and keeps replying with its existing profile and history. The human gets a separate account. It is a small greeting feature, separate from Tom's question-answering role.
 
 Sources: [greeting matching](app/Services/HelloWorld.php), [world reply](app/Actions/CreateWorldReply.php).
 
@@ -574,6 +574,8 @@ The idea to make Tom everyone's first friend appears on [day two at 7:29:26](htt
 Originally, Tom had no particular purpose beyond that nod to MySpace. He now has a narrowly scoped bot implementation powered by **DeepSeek Flash through OpenCode Zen**: simple friendly chat, explaining /dev/null's features, origins, stack and lore using this knowledge base, or finding public commits about a topic using semantic search. Greetings, thanks, jokes and small talk get a friendly reply without a search. He is not a general-purpose assistant: unrelated tasks, coding help and professional advice are outside his role. This requires configured provider credentials and a running queue worker; it is not a claim that a particular deployment has enabled him.
 
 Tag **@tom** in a public commit or reply, or reply directly to one of his posts without tagging him. Once it is approved, Tom can reply under that commit, at most once, addressing its author rather than the thread's root poster. Replies further down the thread still need to tag him unless their direct parent is a Tom post. Mentions in code do not summon him. His replies use the normal commit moderation and notification pipeline. He does not reply to himself, across a block, in private messages, or to deleted or unapproved commits.
+
+If the real GitHub owner of `tom` signs in, the bot moves to **@devnull-tom** with the same profile, posts and friendships. Mention **@devnull-tom** to summon him after that; direct replies and mentions captured before the rename still reach the bot. New mentions of the human **@tom** do not summon him. He remains every newcomer's first friend.
 
 Tom remembers at most twelve public ancestor posts, with a 12,000-character budget shared with the current question. This follows the current reply branch, not sibling branches or other threads. Older context drops out; there is no separate permanent AI memory. Search results are bounded and only public commits are exposed, never pending, rejected or deleted posts. He has no browsing or write tools.
 

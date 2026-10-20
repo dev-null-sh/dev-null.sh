@@ -156,6 +156,11 @@ final class Commit extends Model
         return $this->belongsToMany(User::class, 'stars')->withTimestamps();
     }
 
+    public function isAddressedTo(User $user): bool
+    {
+        return in_array($user->id, $this->mentions ?? [], true) || $this->parent?->user_id === $user->id;
+    }
+
     /**
      * Approved commits are visible to everyone but people across a block. Authors can also see their own.
      */

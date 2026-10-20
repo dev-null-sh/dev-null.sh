@@ -129,7 +129,7 @@ export default function Show() {
                         or similarly significant effects on you.
                     </p>
                     <p>
-                        Tagging @tom in a public commit asks our AI bot to reply
+                        Tagging our AI bot in a public commit asks it to reply
                         publicly. The tagged text, a limited window of public
                         replies leading to it, and relevant public posts and
                         knowledge-base excerpts are sent through OpenCode to
