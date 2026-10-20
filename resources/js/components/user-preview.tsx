@@ -5,8 +5,8 @@ import { createPortal } from 'react-dom';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
-import { ContributorBadge } from '@/components/contributor-badge';
 import { BioText } from '@/components/bio-text';
+import { ContributorBadge } from '@/components/contributor-badge';
 import {
     FollowLabel,
     onFollowHttpException,

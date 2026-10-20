@@ -57,3 +57,29 @@ it('reads a warm cache without calling GitHub', function (): void {
 
     Http::assertNothingSent();
 });
+
+it('fetches from GitHub when the cache cannot be read', function (): void {
+    Http::fake(['api.github.com/repos/nunomaduro/dev-null.sh/contributors*' => Http::response([
+        ['type' => 'User', 'login' => 'octocat', 'contributions' => 1],
+    ])]);
+
+    Cache::partialMock()
+        ->shouldReceive('get')
+        ->once()
+        ->andThrow(new RuntimeException('Cache read failed'));
+
+    expect(resolve(RepositoryContributorsQuery::class)->usernames())->toBe(['octocat']);
+});
+
+it('returns usernames when the cache cannot be written', function (): void {
+    Http::fake(['api.github.com/repos/nunomaduro/dev-null.sh/contributors*' => Http::response([
+        ['type' => 'User', 'login' => 'octocat', 'contributions' => 1],
+    ])]);
+
+    Cache::partialMock()
+        ->shouldReceive('put')
+        ->once()
+        ->andThrow(new RuntimeException('Cache write failed'));
+
+    expect(resolve(RepositoryContributorsQuery::class)->usernames())->toBe(['octocat']);
+});
