@@ -17,6 +17,7 @@ import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
+import type { TranslationLanguage } from '@/lib/translation-languages';
 import { formatFullDateTime, formatSyncedAgo } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Lane } from '@/types';
@@ -31,7 +32,7 @@ export default function Edit({
     profileUrl,
 }: {
     translationLanguage: string | null;
-    translationLanguages: { code: string; name: string }[];
+    translationLanguages: TranslationLanguage[];
     preferredLane: Lane | null;
     automaticLane: number;
     githubSyncedAt: string | null;

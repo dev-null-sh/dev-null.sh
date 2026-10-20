@@ -22,6 +22,7 @@ final readonly class UserProfileController
             'translationLanguages' => collect($translations->languages())->map(fn (string $code): array => [
                 'code' => $code,
                 'name' => Locale::getDisplayLanguage($code, 'en'),
+                'nativeName' => Locale::getDisplayLanguage($code, $code),
             ])->sortBy('name')->values()->all(),
             'preferredLane' => $user->preferredLane(),
             'automaticLane' => $user->automaticLane(),

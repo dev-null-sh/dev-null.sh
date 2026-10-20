@@ -196,6 +196,6 @@ it('shows the private translation preference and supported choices only in own s
     $this->actingAs($user)->get(route('user-profile.edit', ['user_id' => $other->id]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('translationLanguage', 'ja')
-        ->where('translationLanguages', fn ($languages): bool => collect($languages)->contains(fn ($language): bool => $language['code'] === 'ja' && $language['name'] === 'Japanese'))
+        ->where('translationLanguages', fn ($languages): bool => collect($languages)->contains(fn ($language): bool => $language['code'] === 'hu' && $language['name'] === 'Hungarian' && $language['nativeName'] === 'magyar'))
         ->missing('auth.user.translation_language'));
 });
