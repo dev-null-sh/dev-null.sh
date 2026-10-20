@@ -5,9 +5,8 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import SiteActivityController from '@/actions/App/Http/Controllers/SiteActivityController';
 import TrafficController from '@/actions/App/Http/Controllers/TrafficController';
+import { settingsTabs } from '@/layouts/settings/tabs';
 import { clearTabSlide } from '@/lib/utils';
-import { edit as editAppearance } from '@/routes/appearance';
-import { edit as editProfile } from '@/routes/user-profile';
 
 const tabGroups = [
     [
@@ -15,7 +14,7 @@ const tabGroups = [
         LogController.show('latest').url,
         LogController.show('trending').url,
     ],
-    [editProfile().url, editAppearance().url],
+    settingsTabs.map((tab) => tab.href.url),
     [
         OperationsController.show().url,
         FeatureController.index().url,
@@ -23,6 +22,22 @@ const tabGroups = [
         TrafficController.show().url,
     ],
 ];
+
+/**
+ * Which way the content under the tabs slides on a visit from one tab to another of the same group, or `null` when the
+ * visit does not move between such tabs.
+ */
+export function tabSlide(from: string, to: string): 'forward' | 'back' | null {
+    const tabs = tabGroups.find(
+        (urls) => urls.includes(from) && urls.includes(to),
+    );
+
+    if (tabs === undefined || from === to) {
+        return null;
+    }
+
+    return tabs.indexOf(to) > tabs.indexOf(from) ? 'forward' : 'back';
+}
 
 /**
  * Tells the view transition which way the content under the tabs slides when a visit goes from one tab to another.
@@ -45,20 +60,18 @@ export function useTabSlide(): void {
                 return;
             }
 
-            const from = window.location.pathname;
-            const to = visit.url.pathname;
-            const tabs = tabGroups.find(
-                (urls) => urls.includes(from) && urls.includes(to),
+            const slide = tabSlide(
+                window.location.pathname,
+                visit.url.pathname,
             );
 
-            if (tabs === undefined || from === to) {
+            if (slide === null) {
                 clearTabSlide();
 
                 return;
             }
 
-            document.documentElement.dataset.tabSlide =
-                tabs.indexOf(to) > tabs.indexOf(from) ? 'forward' : 'back';
+            document.documentElement.dataset.tabSlide = slide;
         });
     }, []);
 }

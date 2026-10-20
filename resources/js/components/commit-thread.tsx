@@ -70,6 +70,7 @@ import {
     formatRelativeTime,
     isDeleted,
     laneOf,
+    laneStrokeStyle,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type {
@@ -574,17 +575,17 @@ export function ThreadSpine({
         <span
             aria-hidden
             className={cn(
-                'absolute bottom-0 left-1/2 border-l border-dashed',
+                'absolute bottom-0 left-1/2 w-px -translate-x-1/2',
                 className,
             )}
-            style={{ borderColor: laneOf(thread.commit) }}
+            style={laneStrokeStyle(laneOf(thread.commit))}
             data-test="thread-spine"
         />
     );
 }
 
 const replyLink =
-    'absolute left-[calc(var(--indent)+12px)] border-l border-dashed sm:left-[calc(var(--indent)+14px)]';
+    'absolute left-[calc(var(--indent)+12px)] w-px sm:left-[calc(var(--indent)+14px)]';
 
 function ReplyLinks({
     previousLane,
@@ -598,14 +599,11 @@ function ReplyLinks({
     return (
         <span aria-hidden>
             {previousLane === null ? (
-                <span
-                    className="absolute top-0 left-[calc(var(--spine)-0.5px)] h-[22px] w-[calc(var(--indent)-var(--spine)-3px)] rounded-bl-xl border-b border-l border-dashed border-(--lane) sm:h-6"
-                    data-test="thread-elbow"
-                />
+                <ThreadElbow />
             ) : (
                 <span
                     className={cn(replyLink, 'top-0 h-1.5')}
-                    style={{ borderColor: previousLane }}
+                    style={laneStrokeStyle(previousLane)}
                     data-test="reply-link"
                 />
             )}
@@ -615,10 +613,33 @@ function ReplyLinks({
                         replyLink,
                         'top-[38px] bottom-0 sm:top-[42px]',
                     )}
-                    style={{ borderColor: lane }}
+                    style={laneStrokeStyle(lane)}
+                    data-test="reply-tail"
                 />
             )}
         </span>
+    );
+}
+
+function ThreadElbow() {
+    return (
+        <svg
+            aria-hidden
+            className="pointer-events-none absolute top-0 left-(--spine) h-[22px] w-[calc(var(--indent)-var(--spine)-4px)] overflow-visible sm:h-6"
+            viewBox="0 0 32 24"
+            preserveAspectRatio="none"
+            fill="none"
+            data-test="thread-elbow"
+        >
+            {/* Quarter-circle corner matching rounded-bl-xl. */}
+            <path
+                d="M 0 0 L 0 12 Q 0 23.5 12 23.5 L 32 23.5"
+                stroke="var(--lane)"
+                strokeWidth="1"
+                strokeDasharray="2 2"
+                vectorEffect="non-scaling-stroke"
+            />
+        </svg>
     );
 }
 
@@ -685,13 +706,13 @@ export function ThreadReplies({
                                         replyLink,
                                         'top-0 h-5 sm:h-5.5',
                                     )}
-                                    style={{
-                                        borderColor: laneOf(
+                                    style={laneStrokeStyle(
+                                        laneOf(
                                             thread.replies[
                                                 thread.replies.length - 1
                                             ],
                                         ),
-                                    }}
+                                    )}
                                 />
                             )}
                             <MoreRepliesButton
@@ -813,7 +834,7 @@ function ReplyItem({
     if (isDeleted(reply)) {
         return (
             <article
-                className="relative pt-2.5 pl-(--indent)"
+                className="relative cursor-default pt-2.5 pl-(--indent)"
                 data-reply
                 data-test="reply-tombstone"
             >
@@ -923,12 +944,20 @@ function CommitReply({
 
     return (
         <article
-            className="relative pt-2.5 pl-(--indent)"
+            className={cn(
+                'relative pt-2.5 pl-(--indent)',
+                wasDeleted ? 'cursor-default' : 'cursor-pointer',
+            )}
             data-reply
+            data-permalink={wasDeleted ? undefined : permalink.url}
             data-test="reply"
         >
-            {links}
-            <div className="flex gap-2 sm:gap-2.5">
+            <div
+                className={cn(
+                    'relative isolate flex gap-2 before:absolute before:-inset-x-2 before:-top-1.5 before:-bottom-1.5 before:-z-10 before:rounded-lg before:transition-colors sm:gap-2.5',
+                    { 'reply-hover:before:bg-accent': !wasDeleted },
+                )}
+            >
                 <div className="relative shrink-0">
                     <UserPreview user={reply.user} anchor={avatarRef}>
                         <Link
@@ -1098,6 +1127,7 @@ function CommitReply({
                     )}
                 </div>
             </div>
+            {links}
 
             <ThreadReplies thread={thread} depth={depth} />
         </article>

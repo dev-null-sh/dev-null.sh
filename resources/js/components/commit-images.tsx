@@ -22,6 +22,24 @@ export function commitImageAlt(
 export type ShownImage = Pick<CommitImage, 'id' | 'url' | 'description'> &
     Partial<Pick<CommitImage, 'width' | 'height'>>;
 
+/**
+ * Tall images in a grid cell stay contained so they aren't blown up to fill the width.
+ * Landscape and square images cover the cell so the collage doesn't leave empty bands.
+ */
+export function gridImageObjectFit(
+    image: Pick<ShownImage, 'width' | 'height'>,
+): 'object-contain' | 'object-cover' {
+    if (
+        image.width !== undefined &&
+        image.height !== undefined &&
+        image.height > image.width
+    ) {
+        return 'object-contain';
+    }
+
+    return 'object-cover';
+}
+
 export function replaceFailedImage(image: HTMLImageElement): void {
     if (image.getAttribute('src') !== '/favicon.svg') {
         image.src = '/favicon.svg';
@@ -152,10 +170,10 @@ export function CommitImages({
                             isSingle={!hasMultipleImages}
                             alt={commitImageAlt(image, index, images.length)}
                             className={cn(
-                                'w-full object-cover data-fallback:object-contain',
+                                'w-full',
                                 hasMultipleImages
-                                    ? 'h-full'
-                                    : 'max-h-[max(32rem,calc(100cqw*512/530))]',
+                                    ? cn('h-full', gridImageObjectFit(image))
+                                    : 'max-h-[max(32rem,calc(100cqw*512/530))] object-contain',
                             )}
                         />
                     );
