@@ -628,6 +628,44 @@ test('a draft that mentions a bug suggests /bug, keeps the text when used, and c
     );
 });
 
+test('switching a discounted commit to an issue enforces the literal limit for the button and shortcut', () => {
+    draft.body =
+        'bug ' + 'a'.repeat(3972) + ' https://example.com/long-path-here';
+    let view = render();
+    assert.equal(
+        view.fields.find(
+            (element) => element.props['data-test'] === 'create-commit-button',
+        )!.props.disabled,
+        false,
+    );
+    const hint = view.fields.find(
+        (element) => element.type === IssueCommandHint,
+    )!;
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        (hint.props.onUse as (kind: string) => void)('bug');
+        view = render();
+        keyDown(view, 'Enter', { metaKey: true });
+        assert.equal(http.submit.mock.calls.length, 0);
+        assert.equal(
+            view.fields.find(
+                (element) => element.props['data-test'] === 'open-issue-button',
+            )!.props.disabled,
+            true,
+        );
+
+        draft.body = 'a'.repeat(3965) + ' https://example.com/long-path-here';
+        assert.equal(
+            render().fields.find(
+                (element) => element.props['data-test'] === 'open-issue-button',
+            )!.props.disabled,
+            false,
+        );
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});
+
 test('commands are not offered while the draft has images, a poll or a schedule', () => {
     draft.images = [image];
     draft.body = '/';
