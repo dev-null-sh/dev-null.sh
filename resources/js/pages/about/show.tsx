@@ -16,6 +16,7 @@ import {
 import AppLayout from '@/layouts/app-layout';
 import type {
     StoryCommit,
+    StoryContributor,
     StoryEvent,
     StoryEventKind,
     StoryStream,
@@ -24,7 +25,6 @@ import {
     storyAfter,
     storyAfterLane,
     storyBefore,
-    storyContributors,
     storyFounders,
     storyStreams,
 } from '@/lib/about';
@@ -264,10 +264,18 @@ function Stream({ stream }: { stream: StoryStream }) {
     );
 }
 
-function Contributors() {
+function Contributors({ contributors }: { contributors: StoryContributor[] }) {
+    if (contributors.length === 0) {
+        return (
+            <p className="text-sm text-muted-foreground">
+                The contributor list is temporarily unavailable. Please check
+                back later.
+            </p>
+        );
+    }
     return (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
-            {storyContributors.map((contributor) => (
+            {contributors.map((contributor) => (
                 <li key={contributor.login}>
                     <a
                         href={`https://github.com/${contributor.login}`}
@@ -301,7 +309,11 @@ function Contributors() {
     );
 }
 
-export default function Show() {
+export default function Show({
+    contributors,
+}: {
+    contributors: StoryContributor[];
+}) {
     const { repository } = usePage().props;
     return (
         <>
@@ -392,7 +404,7 @@ export default function Show() {
 
                 <DocumentSection id="contributors" title="Contributors">
                     <p>Everyone who has a commit on production. Thank you.</p>
-                    <Contributors />
+                    <Contributors contributors={contributors} />
                     <p className="text-muted-foreground">
                         Want to be on this list?{' '}
                         <a
