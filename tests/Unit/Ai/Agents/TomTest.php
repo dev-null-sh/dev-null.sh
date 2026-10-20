@@ -38,13 +38,14 @@ it('executes semantic, history and statistics tools through OpenCode and sends o
     Commit::factory()->create(['body' => 'Deleted secret', 'deleted_at' => now(), 'embedding' => embeddingVector(0)]);
     KnowledgeBaseSection::factory()->create(['headings' => ['Stack'], 'content' => 'The platform uses PostgreSQL.', 'embedding' => embeddingVector(0)]);
     $question = Commit::factory()->create(['body' => '@tom explain the database and find posts about it']);
+    User::factory()->create(['github_id' => '123', 'username' => 'alice-local']);
     Http::fake([
         'api.openai.com/v1/decisions' => Http::response(relevanceResponse([true])),
         'api.github.com/repos/nunomaduro/dev-null.sh/languages' => Http::response(['PHP' => 123]),
         'api.github.com/search/issues*' => Http::response(['incomplete_results' => false, 'items' => []]),
         'api.github.com/search/commits*' => Http::response(['incomplete_results' => false, 'items' => [[
             'html_url' => 'https://github.com/nunomaduro/dev-null.sh/commit/abc',
-            'author' => ['login' => 'alice'], 'committer' => ['login' => 'not-the-author'],
+            'author' => ['login' => 'alice', 'id' => 123], 'committer' => ['login' => 'not-the-author'],
             'commit' => ['message' => "feat: database search\n\nsecret trailer", 'author' => ['email' => 'secret@example.com', 'date' => '2025-01-01T00:00:00Z']],
         ]]]),
         'opencode.ai/zen/v1/chat/completions' => Http::sequence()->push([
@@ -77,6 +78,7 @@ it('executes semantic, history and statistics tools through OpenCode and sends o
             && str_contains($tools, 'Public database topic')
             && str_contains($tools, '"languages":{"PHP":123}')
             && str_contains($tools, '"commit_author":"alice"')
+            && str_contains($tools, '"mention":"@alice-local"')
             && str_contains(stripslashes($tools), 'https://github.com/nunomaduro/dev-null.sh/commit/abc')
             && ! str_contains($tools, 'not-the-author')
             && str_contains($tools, '"count":1')

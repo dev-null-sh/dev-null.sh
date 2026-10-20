@@ -33,6 +33,19 @@ function block(part: string): BodySegment {
 }
 
 /**
+ * Applies the callback to prose, leaving committed code as written, just like the server.
+ */
+export function mapProse(
+    text: string,
+    callback: (prose: string) => string,
+): string {
+    return text
+        .split(codePattern)
+        .map((part, index) => (index % 2 === 0 ? callback(part) : part))
+        .join('');
+}
+
+/**
  * Applies the callback to the prose being typed only, leaving the code as written.
  */
 export function mapTypedProse(
