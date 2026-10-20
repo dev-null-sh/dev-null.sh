@@ -36,6 +36,7 @@ final readonly class AuthenticateSshSignature
                 $withImages ? $this->payloadFile($request) : $request->getContent(),
                 $request->headers->get('X-SSH-Signature', '') ?? '',
                 $withImages ? fn (): array => $this->imageHashes($request) : null,
+                $request->headers->get('X-Commit-Scheduled') === '1',
             );
         } catch (InvalidArgumentException $invalidArgumentException) {
             abort(401, $invalidArgumentException->getMessage());
@@ -45,6 +46,7 @@ final readonly class AuthenticateSshSignature
 
         $request->merge([
             'body' => $commit['body'],
+            'scheduled_at' => $commit['scheduled_at'],
             'reply_to' => $commit['reply_to'],
         ]);
 

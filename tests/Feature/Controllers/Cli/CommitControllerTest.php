@@ -485,3 +485,24 @@ it('answers unexpected errors in plain text', function (): void {
 
     Exceptions::assertReported(RuntimeException::class);
 });
+
+it('schedules a signed terminal commit and validates its time', function (string $time, int $status): void {
+    $payload = implode("\n", [(string) now()->timestamp, bin2hex(random_bytes(16)), '', $time, 'Tomorrow update.']);
+    $this->call('POST', route('cli-commit.store'), server: [
+        'CONTENT_TYPE' => 'text/plain; charset=utf-8',
+        'HTTP_X_COMMIT_SCHEDULED' => '1',
+        'HTTP_X_SSH_SIGNATURE' => $this->keyPair->sign($payload, 'devnull-scheduled-commit'),
+    ], content: $payload)->assertStatus($status);
+
+    expect($this->user->commits()->count())->toBe(0);
+    if ($status === 201) {
+        expect(App\Models\ScheduledCommit::query()->sole()->body)->toBe('Tomorrow update.');
+    } else {
+        expect(App\Models\ScheduledCommit::query()->count())->toBe(0);
+    }
+})->with([
+    'future with offset' => [fn () => now()->addDay()->toIso8601String(), 201],
+    'past' => [fn () => now()->subDay()->toIso8601String(), 422],
+    'too far ahead' => [fn () => now()->addDays(31)->toIso8601String(), 422],
+    'missing timezone' => [fn () => now()->addDay()->format('Y-m-d\TH:i:s'), 422],
+]);

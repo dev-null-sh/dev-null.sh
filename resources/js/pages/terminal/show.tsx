@@ -67,6 +67,15 @@ export default function Show({ url }: { url: string }) {
                         label="image command"
                         code={`curl -fsSL ${url}/commit | bash -s -- --image shipped.png 'Shipped!'`}
                     />
+                    <CopyableCode
+                        label="schedule command"
+                        code={`curl -fsSL ${url}/commit | bash -s -- --schedule '${new Date(Date.now() + 86400000).toISOString().replace(/\.\d{3}Z$/, '+00:00')}' 'Tomorrow’s update.'`}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                        Schedule up to 30 days ahead using an ISO 8601 date with
+                        a timezone. You can include images. Replies cannot be
+                        scheduled.
+                    </p>
                 </div>
             </section>
 

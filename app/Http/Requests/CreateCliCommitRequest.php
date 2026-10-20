@@ -8,6 +8,7 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitByReferenceQuery;
 use App\Rules\CommitReference;
+use App\Rules\ScheduledCommitLimit;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
@@ -36,7 +37,8 @@ final class CreateCliCommitRequest extends FormRequest
 
         return [
             'body' => CreateCommitRequest::BODY_RULES,
-            'reply_to' => ['nullable', 'string', new CommitReference($user)],
+            'scheduled_at' => [$this->header('X-Commit-Scheduled') === '1' ? 'required' : 'nullable', 'date_format:Y-m-d\TH:i:sP', 'after:now', 'before_or_equal:'.now()->addDays(30)->toIso8601String(), new ScheduledCommitLimit($user)],
+            'reply_to' => ['prohibited_with:scheduled_at', 'nullable', 'string', new CommitReference($user)],
             'images' => $attachmentRules['images'],
             'images.*' => $attachmentRules['images.*'],
         ];

@@ -5,6 +5,10 @@
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- 'Hello world!'
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --reply 0be0130 'Agreed!'
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --image shipped.png 'Shipped!'
+#   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --schedule '2026-10-21T09:00:00+03:00' 'Tomorrow update.'
+#
+# `--schedule` takes an ISO 8601 date with a timezone, up to 30 days ahead.
+# Scheduled commits can include images, but cannot be replies.
 #
 # `--reply` takes the hash of a commit (as shown on /dev/null) or its link. `--image` takes the
 # path of a JPEG, PNG or WebP file of up to 10 MB, up to 3 times. A `--` ends the options,
@@ -48,10 +52,17 @@ main() {
     command -v "$command" > /dev/null || fail "$command is required."
   done
 
+  local scheduled_at=""
   local reply_to=""
   local images=()
   while :; do
     case "${1:-}" in
+      --schedule)
+        [ -n "${2:-}" ] || fail "--schedule requires an ISO 8601 date with a timezone, such as 2026-10-21T09:00:00+03:00."
+        [ -z "$scheduled_at" ] || fail "--schedule can only be given once."
+        scheduled_at="$2"
+        shift 2
+        ;;
       --reply)
         [ -n "${2:-}" ] || fail "Usage: curl -fsSL $DEVNULL_URL/commit | bash -s -- --reply <commit hash or link> 'Your reply'"
         [ -z "$reply_to" ] || fail "--reply can only be given once."
@@ -75,6 +86,17 @@ main() {
   if [ "${#images[@]}" -gt 0 ]; then
     has_images=true
     NAMESPACE="devnull-commit-images"
+  fi
+
+  local schedule_headers=()
+  if [ -n "$scheduled_at" ]; then
+    [ -z "$reply_to" ] || fail "Scheduled commits cannot be replies."
+    printf '%s' "$scheduled_at" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$' || fail "--schedule requires an ISO 8601 date with a timezone."
+    NAMESPACE="devnull-scheduled-commit"
+    if $has_images; then
+      NAMESPACE="devnull-scheduled-commit-images"
+    fi
+    schedule_headers=(--header 'X-Commit-Scheduled: 1')
   fi
 
   # It goes on its own line of the signed payload.
@@ -166,7 +188,13 @@ main() {
 
   local nonce
   nonce="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
-  if $has_images; then
+  if [ -n "$scheduled_at" ]; then
+    if $has_images; then
+      printf '%s\n%s\n%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$scheduled_at" "$hashes" "$message" > "$TMP_DIR/commit"
+    else
+      printf '%s\n%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$scheduled_at" "$message" > "$TMP_DIR/commit"
+    fi
+  elif $has_images; then
     printf '%s\n%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$hashes" "$message" > "$TMP_DIR/commit"
   else
     printf '%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$message" > "$TMP_DIR/commit"
@@ -190,10 +218,10 @@ main() {
   # runs from inside the private directory, so curl's --form parser, which gives , ; and " special
   # meaning, only ever sees the fixed file names, never a path.
   if $has_images; then
-    (cd "$TMP_DIR" && request --max-time 600 --speed-limit 1024 --speed-time 60 --header "X-SSH-Signature: $signature" \
+    (cd "$TMP_DIR" && request --max-time 600 --speed-limit 1024 --speed-time 60 --header "X-SSH-Signature: $signature" "${schedule_headers[@]}" \
       --form "payload=@commit" "${image_fields[@]}" "$DEVNULL_URL/api/cli/commits") || exit 1
   else
-    request --header 'Content-Type: text/plain; charset=utf-8' --header "X-SSH-Signature: $signature" \
+    request --header 'Content-Type: text/plain; charset=utf-8' --header "X-SSH-Signature: $signature" "${schedule_headers[@]}" \
       --data-binary @"$TMP_DIR/commit" "$DEVNULL_URL/api/cli/commits"
   fi
   sanitize < "$TMP_DIR/response"

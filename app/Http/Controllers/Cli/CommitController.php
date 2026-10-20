@@ -5,16 +5,24 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Cli;
 
 use App\Actions\CreateCommit;
+use App\Actions\CreateScheduledCommit;
 use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCliCommitRequest;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\Response;
 
 final readonly class CommitController
 {
-    public function store(CreateCliCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): Response
+    public function store(CreateCliCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, CreateScheduledCommit $schedule): Response
     {
+        if ($request->filled('scheduled_at')) {
+            $scheduled = $schedule->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images());
+
+            return response('Scheduled for '.$scheduled->scheduled_at->toIso8601String().': '.route('scheduled-commit.index')."\n", 201)->header('Content-Type', 'text/plain; charset=utf-8');
+        }
+
         $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), images: $request->images());
 
         $url = route('commit.show', [$user, $commit]);

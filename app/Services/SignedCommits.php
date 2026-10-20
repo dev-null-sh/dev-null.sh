@@ -30,18 +30,24 @@ final readonly class SignedCommits
 
     /**
      * @param  (Closure(): list<string>)|null  $imageHashes
-     * @return array{user: User, reply_to: string|null, body: string}
+     * @return array{user: User, reply_to: string|null, body: string, scheduled_at: string|null}
      */
-    public function verify(string $payload, string $signature, ?Closure $imageHashes = null): array
+    public function verify(string $payload, string $signature, ?Closure $imageHashes = null, bool $scheduled = false): array
     {
         $withImages = $imageHashes instanceof Closure;
 
-        $publicKey = $this->sshSignatures->verify($payload, $signature, $withImages ? self::ImagesNamespace : self::Namespace);
+        $publicKey = $this->sshSignatures->verify($payload, $signature, $scheduled ? ($withImages ? 'devnull-scheduled-commit-images' : 'devnull-scheduled-commit') : ($withImages ? self::ImagesNamespace : self::Namespace));
 
-        $lines = $withImages ? 5 : 4;
+        $lines = ($withImages ? 5 : 4) + ($scheduled ? 1 : 0);
         $parts = explode("\n", $payload, $lines);
 
         throw_if(count($parts) !== $lines || ! mb_check_encoding($payload, 'UTF-8'), InvalidArgumentException::class, 'Malformed payload.');
+
+        $scheduledAt = null;
+        if ($scheduled) {
+            $scheduledAt = $parts[3];
+            array_splice($parts, 3, 1);
+        }
 
         if ($withImages) {
             [$timestamp, $nonce, $replyTo, $signedHashes, $body] = $parts;
@@ -76,6 +82,7 @@ final readonly class SignedCommits
             'user' => $user,
             'reply_to' => $replyTo === '' ? null : $replyTo,
             'body' => mb_trim($body),
+            'scheduled_at' => $scheduledAt,
         ];
     }
 }
