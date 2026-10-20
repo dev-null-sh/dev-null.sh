@@ -7,9 +7,11 @@ import {
     LogOut,
     Settings,
     Shield,
+    UserPlus,
     UserRound,
 } from 'lucide-react';
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
+import GitHubInviteController from '@/actions/App/Http/Controllers/GitHubInviteController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
@@ -84,6 +86,17 @@ export function UserMenuContent({ user }: Props) {
                     >
                         <Settings className="mr-2" />
                         Settings
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={GitHubInviteController.index()}
+                        onClick={cleanup}
+                        data-test="invite-link"
+                    >
+                        <UserPlus className="mr-2" />
+                        Invite from GitHub
                     </Link>
                 </DropdownMenuItem>
                 {auth.isAdmin && (

@@ -143,7 +143,9 @@ Follow or unfollow from a developer's profile or a follow control elsewhere in t
 
 **Who to follow** suggests developers in the side column or within the log on smaller screens, each with the first line of their bio and why they are suggested (how many people you follow follow them, or their follower count). Someone who already follows you gets **Follow back**. Show or hide these suggestions in Settings → Appearance. You can also follow back from the notifications list.
 
-Sources: [follow import](app/Actions/CreateUserGitHubFollows.php), [appearance settings](resources/js/pages/appearance/update.tsx), [notifications page](resources/js/pages/notification/index.tsx).
+**Invite from GitHub**, in the account menu, lists the people you follow on GitHub who are not on /dev/null yet (up to 1,000, with the GitHub list refreshed every six hours). **Invite** shares a ready message with a link to your profile through the device's share sheet, or copies it. /dev/null never contacts them and does not record who invited whom; once they sign up, the GitHub follow import makes you follow them.
+
+Sources: [follow import](app/Actions/CreateUserGitHubFollows.php), [GitHub invites](app/Queries/GitHubInviteesQuery.php), [appearance settings](resources/js/pages/appearance/update.tsx), [notifications page](resources/js/pages/notification/index.tsx).
 
 ### Following, Latest, and Trending logs
 

@@ -59,21 +59,35 @@ final readonly class GitHub
      */
     public function accountIds(string $path, int $maxPages): array
     {
-        $ids = [];
+        return array_column($this->accounts($path, $maxPages), 'id');
+    }
+
+    /**
+     * The accounts in a paginated list, such as the followers of a user, up to the given number of pages.
+     *
+     * @return list<array{id: string, login: string, avatar_url: string}>
+     */
+    public function accounts(string $path, int $maxPages): array
+    {
+        $accounts = [];
 
         for ($page = 1; $page <= $maxPages; $page++) {
-            /** @var list<array{id: int}> $accounts */
-            $accounts = $this->request()->get($path, ['per_page' => self::PerPage, 'page' => $page])->throw()->json();
+            /** @var list<array{id: int, login: string, avatar_url?: string}> $response */
+            $response = $this->request()->get($path, ['per_page' => self::PerPage, 'page' => $page])->throw()->json();
 
-            foreach ($accounts as $account) {
-                $ids[] = (string) $account['id'];
+            foreach ($response as $account) {
+                $accounts[] = [
+                    'id' => (string) $account['id'],
+                    'login' => $account['login'],
+                    'avatar_url' => $account['avatar_url'] ?? "https://avatars.githubusercontent.com/u/{$account['id']}?v=4",
+                ];
             }
 
-            if (count($accounts) < self::PerPage) {
+            if (count($response) < self::PerPage) {
                 break;
             }
         }
 
-        return $ids;
+        return $accounts;
     }
 }

@@ -40,6 +40,7 @@ use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FeatureController;
+use App\Http\Controllers\GitHubInviteController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
@@ -232,6 +233,9 @@ Route::middleware('auth')->group(function (): void {
     // Onboarding...
     Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
     Route::put('onboarding', [OnboardingController::class, 'update'])->name('onboarding.update');
+
+    // Invite people from GitHub...
+    Route::get('invite', [GitHubInviteController::class, 'index'])->name('github-invite.index');
 
     // Private starred commits...
     Route::get('starred', [StarredCommitController::class, 'index'])->name('starred.index');

@@ -1,4 +1,7 @@
-export type ProfileShareData = { title: string; url: string };
+/**
+ * The text, when given, goes before the link, both in the share sheet and in what is copied.
+ */
+export type ProfileShareData = { title: string; url: string; text?: string };
 
 export async function shareProfile(
     data: ProfileShareData,
@@ -18,7 +21,10 @@ export async function shareProfile(
     }
 
     try {
-        return (await copy(data.url)) ? 'copied' : 'failed';
+        const copied =
+            data.text === undefined ? data.url : `${data.text} ${data.url}`;
+
+        return (await copy(copied)) ? 'copied' : 'failed';
     } catch {
         return 'failed';
     }

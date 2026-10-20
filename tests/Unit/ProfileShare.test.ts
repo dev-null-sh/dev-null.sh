@@ -77,3 +77,19 @@ void test('reports clipboard failure', async () => {
         'failed',
     );
 });
+
+void test('copies the text before the URL when there is one', async () => {
+    const copied: string[] = [];
+    const result = await shareProfile(
+        { ...data, text: 'Join me:' },
+        undefined,
+        async (value) => {
+            copied.push(value);
+
+            return true;
+        },
+    );
+
+    assert.equal(result, 'copied');
+    assert.deepEqual(copied, [`Join me: ${data.url}`]);
+});
