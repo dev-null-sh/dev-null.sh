@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Enums\Log;
 use App\Http\Controllers\AboutController;
-use App\Http\Controllers\BookmarkController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
@@ -73,6 +72,7 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\StarredCommitController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\TrafficController;
 use App\Http\Controllers\UserActivityGraphController;
@@ -233,14 +233,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
     Route::put('onboarding', [OnboardingController::class, 'update'])->name('onboarding.update');
 
-    // Private saved commits...
-    Route::get('saved', [BookmarkController::class, 'index'])->name('bookmark.index');
-    Route::put('commits/{commit}/bookmark', [BookmarkController::class, 'store'])
-        ->middleware('throttle:bookmarks')
-        ->name('bookmark.store');
-    Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])
-        ->middleware('throttle:bookmarks')
-        ->name('bookmark.destroy');
+    // Private starred commits...
+    Route::get('starred', [StarredCommitController::class, 'index'])->name('starred.index');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');

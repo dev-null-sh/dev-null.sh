@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Actions\CreateTomFriendship;
 use App\Actions\CreateWorldReply;
-use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\ProductFunnelQuery;
@@ -35,14 +34,14 @@ it('counts the signups of the range, leaving the bots out', function (): void {
     expect(($this->funnel)()['signups'])->toBe(2);
 });
 
-it('activates readers who starred or saved commits by three other people within twelve hours', function (): void {
+it('activates readers who starred commits by three other people within twelve hours', function (): void {
     $reader = User::factory()->create(['created_at' => '2026-10-10 08:00:00']);
     $authors = User::factory()->count(3)->create(['created_at' => '2026-09-01 00:00:00']);
     $commits = $authors->map(fn (User $author): Commit => Commit::factory()->for($author)->create());
 
     ($this->star)($reader, $commits[0], '2026-10-10 09:00:00');
     ($this->star)($reader, $commits[1], '2026-10-10 19:59:59');
-    Bookmark::factory()->create(['user_id' => $reader->id, 'commit_id' => $commits[2]->id, 'created_at' => '2026-10-10 20:00:00']);
+    ($this->star)($reader, $commits[2], '2026-10-10 20:00:00');
 
     expect(($this->funnel)())
         ->activated->toBe(1)
@@ -77,7 +76,6 @@ it('does not activate readers who found fewer than three people in time', functi
     ($this->star)($reader, Commit::factory()->for($author)->create(), '2026-10-10 09:00:00');
     ($this->star)($reader, Commit::factory()->for($tom)->create(), '2026-10-10 09:00:00');
     ($this->star)($reader, Commit::factory()->for($late)->create(), '2026-10-10 20:00:01');
-    Bookmark::factory()->create(['user_id' => $reader->id, 'commit_id' => Commit::factory()->for($reader)->create()->id, 'created_at' => '2026-10-10 09:00:00']);
 
     expect(($this->funnel)())
         ->activated->toBe(0)

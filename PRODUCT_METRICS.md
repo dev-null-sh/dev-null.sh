@@ -8,7 +8,7 @@ Status: **implemented** metrics are on the Metrics tab. **Not yet** metrics are 
 
 ## Principles
 
-- **Store as little as possible.** Most metrics are computed from data the app already has (users, commits, stars, bookmarks, follows) and from Fathom, which is anonymous. Only three things were added for metrics: the last day each person was seen, one anonymous count of active people per day, and two anonymous Fathom events for the conversion rate.
+- **Store as little as possible.** Most metrics are computed from data the app already has (users, commits, stars, follows) and from Fathom, which is anonymous. Only three things were added for metrics: the last day each person was seen, one anonymous count of active people per day, and two anonymous Fathom events for the conversion rate.
 - **No personal attribution.** Nobody's referrer, landing page or campaign is stored. Where people come from is read from Fathom, in aggregate.
 - **Bots are left out** everywhere: Tom and @world (`User::BOT_GITHUB_IDS`).
 - **Read trends, not thresholds, at first.** With a few days of history, metrics say little on their own. a16z notes that they only become predictive with a few thousand active users and several cohorts past day 30.
@@ -47,7 +47,7 @@ The funnel follows the people who **signed up in the selected range** (all time 
 ### Activation
 
 - **Activated**: within **12 hours** of signing up, the person got something from the network, as a reader or as an author:
-  - **Reader**: starred or saved commits written by **3 or more different people** (not themselves, not bots).
+  - **Reader**: starred  written by **3 or more different people** (not themselves, not bots).
   - **Author**: posted (a commit or a reply), and someone else (not a bot) replied to it, quoted it or starred it, all within the 12 hours.
 - **Activation rate** = activated ÷ signups at least 12 hours old.
 - **Activation by signup day**: a chart of the activation rate of each day's signups, to see whether a change to the product moves it. It is computed from existing data, so it goes back to the launch. A day's bar stays lighter until its last signups are 12 hours old. It is not an A/B test: a launch or a viral post also changes who signs up, so read a trend over several days, not one bar.

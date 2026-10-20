@@ -2,7 +2,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import {
     Activity,
     BookOpen,
-    Bookmark,
+    Star,
     FileText,
     LogOut,
     Settings,
@@ -10,9 +10,9 @@ import {
     UserRound,
 } from 'lucide-react';
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
-import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
+import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import { GitHubIcon } from '@/components/github-icon';
 import {
@@ -55,11 +55,11 @@ export function UserMenuContent({ user }: Props) {
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full cursor-pointer"
-                        href={BookmarkController.index()}
+                        href={StarredCommitController.index()}
                         onClick={cleanup}
                     >
-                        <Bookmark className="mr-2" />
-                        Saved
+                        <Star className="mr-2" />
+                        Starred
                     </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

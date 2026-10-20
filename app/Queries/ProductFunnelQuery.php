@@ -124,7 +124,7 @@ final readonly class ProductFunnelQuery
 
     /**
      * Activated, for each signup day that has eligible signups, oldest first: within 12 hours of signing up, someone
-     * starred or saved commits by 3 or more other people, or posted and got a reply, a quote or a star from someone
+     * starred commits by 3 or more other people, or posted and got a reply, a quote or a star from someone
      * else. Only the signups at least 12 hours old are eligible.
      *
      * @return list<array{date: string, activated: int, eligible: int}>
@@ -146,8 +146,6 @@ final readonly class ProductFunnelQuery
                 join humans a on a.id = c.user_id
                 where c.user_id <> n.id and c.id in (
                     select s.commit_id from stars s where s.user_id = n.id and s.created_at <= n.until
-                    union all
-                    select b.commit_id from bookmarks b where b.user_id = n.id and b.created_at <= n.until
                 )
             ) >= 3 or exists (
                 select 1 from commits p
