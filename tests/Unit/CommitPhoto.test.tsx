@@ -261,6 +261,60 @@ test('restores a directly loaded photo after closing a reply photo', () => {
     assert.equal(browserWindow.history.back.mock.calls.length, 1);
 });
 
+test('retains a changed direct-photo slide when returning from a nested photo through Forward and Close', () => {
+    navigate('/@author/commits/image-post/photos/1', {
+        photo: { commit, index: 0 },
+    });
+    const reply = { ...commit, id: 'reply-image' };
+    openCommitPhoto(reply, 0);
+    const replyUrl = window.location.href;
+    historyVisit('/@author/commits/image-post/photos/1');
+    showCommitPhoto(props.photo as Parameters<typeof showCommitPhoto>[0], 1);
+    props.livePollResult = 42;
+
+    assert.equal(historyVisit(replyUrl).mock.calls.length, 1);
+    closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
+    assert.equal(
+        historyVisit('/@author/commits/image-post/photos/2').mock.calls.length,
+        1,
+    );
+    assert.deepEqual(props.photo, { commit, index: 1 });
+    assert.equal(props.livePollResult, 42);
+    assert.equal(lastVisit.preserveState, true);
+});
+
+test('retains the commit replacing a restored direct viewer when returning from a nested photo', () => {
+    navigate('/@author/commits/image-post/photos/1', {
+        photo: { commit, index: 0 },
+    });
+    openCommitPhoto({ ...commit, id: 'reply-image' }, 0);
+    const replyUrl = window.location.href;
+    historyVisit('/@author/commits/image-post/photos/1');
+    closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
+    assert.equal(window.location.pathname, '/@author/commits/image-post');
+
+    historyVisit(replyUrl);
+    closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
+    assert.equal(
+        historyVisit('/@author/commits/image-post').mock.calls.length,
+        1,
+    );
+    assert.equal(props.photo, undefined);
+    assert.equal(lastVisit.preserveState, true);
+});
+
+test('leaves standalone direct-gallery history to Inertia before a nested photo session exists', () => {
+    navigate('/@author/commits/image-post/photos/1', {
+        photo: { commit, index: 0 },
+    });
+    showCommitPhoto(props.photo as Parameters<typeof showCommitPhoto>[0], 1);
+
+    assert.equal(
+        historyVisit('/@author/commits/image-post/photos/2').mock.calls.length,
+        0,
+    );
+});
+
 for (const outcome of [
     'pending',
     'cancelled',

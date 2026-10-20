@@ -140,9 +140,9 @@ export function openCommitPhoto(commit: Commit, index: number): void {
 }
 
 export function showCommitPhoto(photo: CommitPhoto, index: number): void {
-    if (photo.backgroundUrl) {
+    if (photo.backgroundUrl || photoPages.has(window.location.href)) {
         photoPages.set(
-            new URL(commitPhotoUrl(photo.commit, index), photo.backgroundUrl)
+            new URL(commitPhotoUrl(photo.commit, index), window.location.href)
                 .href,
             { ...photo, index },
         );
@@ -162,11 +162,15 @@ export function closeCommitPhoto(photo: CommitPhoto): void {
         return;
     }
 
+    const url = CommitController.show({
+        user: photo.commit.user,
+        commit: photo.commit,
+    }).url;
+    if (photoPages.has(window.location.href)) {
+        photoPages.set(new URL(url, window.location.href).href, undefined);
+    }
     router.replace({
-        url: CommitController.show({
-            user: photo.commit.user,
-            commit: photo.commit,
-        }).url,
+        url,
         props: (props) => ({ ...props, photo: undefined }),
         preserveScroll: true,
         preserveState: true,
