@@ -26,3 +26,26 @@ it('only lists followed people with active streams and respects mutes and blocks
 it('returns no live people when none are followed', function (): void {
     expect(resolve(LiveFollowingQuery::class)->get(User::factory()->create()))->toBeEmpty();
 });
+
+it('shows at most three live people and excludes followers the viewer does not follow back', function (): void {
+    $viewer = User::factory()->create();
+    $live = [
+        'live_platform' => LivePlatform::YouTube,
+        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'live_ends_at' => now()->addHours(2),
+    ];
+    $followed = User::factory()->count(5)->create($live);
+    $viewer->following()->attach($followed->modelKeys());
+    $follower = User::factory()->create($live);
+    $follower->following()->attach($viewer);
+
+    $shown = resolve(LiveFollowingQuery::class)->get($viewer);
+
+    expect($shown)->toHaveCount(3);
+    foreach ($shown as $person) {
+        expect($followed->modelKeys())->toContain($person->id);
+    }
+
+    $viewer->following()->detach();
+    expect(resolve(LiveFollowingQuery::class)->get($viewer))->toBeEmpty();
+});

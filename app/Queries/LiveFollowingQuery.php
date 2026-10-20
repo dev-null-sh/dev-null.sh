@@ -20,7 +20,8 @@ final readonly class LiveFollowingQuery
             ->whereNotNull('live_url')
             ->whereNotIn('users.id', $user->mutedIds())
             ->whereNotIn('users.id', $user->idsAcrossBlocks())
-            ->orderBy('live_ends_at')
+            ->inRandomOrder()
+            ->limit(3)
             ->get()->toBase();
     }
 }
