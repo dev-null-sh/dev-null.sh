@@ -1,0 +1,146 @@
+export type Point = { x: number; y: number };
+
+/**
+ * A node of the commit graph, measured where it is drawn: its centre and the radius of its outer ring.
+ *
+ * A node follows `after` on the same trunk (the thread rail, or the previous reply at the same depth), and branches
+ * off `parent` when it is the first reply to it.
+ */
+export type GraphNode = Point & {
+    id: string;
+    radius: number;
+    lane: string;
+    after?: string;
+    parent?: string;
+    dashed?: boolean;
+};
+
+export type GraphEdge = {
+    id: string;
+    from: string;
+    to: string;
+    d: string;
+    start: Point;
+    end: Point;
+    fromLane: string;
+    toLane: string;
+    dashed: boolean;
+};
+
+const cornerRadius = 12;
+
+/**
+ * Every line between the nodes, each one a single path so its dashes and its fade run on without a seam. Lines go
+ * from centre to centre: the canvas cuts the nodes out, so a line always meets a ring exactly and never crosses one.
+ */
+export function graphEdges(nodes: GraphNode[]): GraphEdge[] {
+    const byId = new Map(nodes.map((node) => [node.id, node]));
+    const edges: GraphEdge[] = [];
+
+    for (const node of nodes) {
+        const previous =
+            node.after === undefined ? undefined : byId.get(node.after);
+
+        if (previous) {
+            edges.push(trunk(previous, node));
+        }
+
+        const parent =
+            node.parent === undefined ? undefined : byId.get(node.parent);
+
+        if (parent) {
+            const continues = nodes.some(
+                (other) => other.after === parent.id && other.y > node.y,
+            );
+
+            edges.push(branch(parent, node, continues));
+        }
+    }
+
+    return edges;
+}
+
+/**
+ * How long a new line waits before drawing itself in: a node that scales in overshoots its ring, so the line would
+ * run over it. A node still waiting to scale in, like an end dot that only pops once its line is drawn, doesn't hold
+ * the line back.
+ */
+export function entranceDelay(
+    animations: { name: string; remaining: number; isWaiting?: boolean }[],
+): number {
+    return Math.max(
+        0,
+        ...animations
+            .filter(
+                (animation) =>
+                    animation.name === 'node-in' && !animation.isWaiting,
+            )
+            .map((animation) => animation.remaining),
+    );
+}
+
+/**
+ * Whether a line shows in the viewport, given how far down the viewport its canvas starts. A line that shows up off
+ * screen, like those of cards loaded ahead of the scroll, has no one to draw itself in for.
+ */
+export function isOnScreen(
+    edge: GraphEdge,
+    canvasTop: number,
+    viewportHeight: number,
+): boolean {
+    const top = canvasTop + Math.min(edge.start.y, edge.end.y);
+    const bottom = canvasTop + Math.max(edge.start.y, edge.end.y);
+
+    return bottom >= 0 && top <= viewportHeight;
+}
+
+export function sameNodes(a: GraphNode[], b: GraphNode[]): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function trunk(from: GraphNode, to: GraphNode): GraphEdge {
+    return {
+        id: `${from.id}->${to.id}`,
+        from: from.id,
+        to: to.id,
+        d:
+            from.x === to.x
+                ? `M ${from.x} ${from.y} V ${to.y}`
+                : `M ${from.x} ${from.y} L ${to.x} ${to.y}`,
+        start: { x: from.x, y: from.y },
+        end: { x: to.x, y: to.y },
+        fromLane: from.lane,
+        toLane: to.lane,
+        dashed: to.dashed ?? from.dashed ?? false,
+    };
+}
+
+/**
+ * The first reply hangs off its parent with a rounded corner. When the parent's trunk goes on below the reply, the
+ * branch only starts at the corner, so it doesn't draw a second line over the trunk.
+ */
+function branch(from: GraphNode, to: GraphNode, continues: boolean): GraphEdge {
+    const radius = Math.max(
+        0,
+        Math.min(cornerRadius, to.x - from.x, to.y - from.y),
+    );
+    const corner = to.y - radius;
+    const start = continues
+        ? { x: from.x, y: corner }
+        : { x: from.x, y: from.y };
+    const head = continues
+        ? `M ${from.x} ${corner}`
+        : `M ${from.x} ${from.y} V ${corner}`;
+
+    return {
+        id: `${from.id}->${to.id}`,
+        from: from.id,
+        to: to.id,
+        d: `${head} Q ${from.x} ${to.y} ${from.x + radius} ${to.y} H ${to.x}`,
+        start,
+        end: { x: to.x, y: to.y },
+        fromLane: from.lane,
+        toLane: to.lane,
+        dashed: true,
+    };
+}

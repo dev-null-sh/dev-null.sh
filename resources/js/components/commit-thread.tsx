@@ -33,7 +33,8 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
-import { RailDot } from '@/components/graph-rail';
+import { useGraphNode, useGraphOverlay } from '@/components/graph-canvas';
+import { RailDot, railDotRing } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
@@ -640,7 +641,9 @@ export function ThreadSpine({
     thread: Thread;
     className?: string;
 }) {
-    if (!thread.isOpen || !thread.replies?.length) {
+    const isOverlaid = useGraphOverlay();
+
+    if (isOverlaid || !thread.isOpen || !thread.replies?.length) {
         return null;
     }
 
@@ -719,10 +722,15 @@ function ThreadElbow() {
 export function ThreadReplies({
     thread,
     depth,
+    graphParent,
 }: {
     thread: Thread;
     depth: number;
+    /** In a graph canvas, the node the first reply branches off. */
+    graphParent?: string;
 }) {
+    const isOverlaid = useGraphOverlay();
+
     if (!thread.isOpen) {
         return null;
     }
@@ -751,8 +759,23 @@ export function ThreadReplies({
                             reply={reply}
                             parent={thread.commit}
                             depth={depth + 1}
+                            graph={
+                                isFlattened
+                                    ? {}
+                                    : {
+                                          after:
+                                              index === 0
+                                                  ? undefined
+                                                  : replies[index - 1].id,
+                                          parent:
+                                              index === 0
+                                                  ? (graphParent ??
+                                                    thread.commit.id)
+                                                  : undefined,
+                                      }
+                            }
                             links={
-                                isFlattened ? null : (
+                                isFlattened || isOverlaid ? null : (
                                     <ReplyLinks
                                         previousLane={
                                             index === 0
@@ -772,25 +795,38 @@ export function ThreadReplies({
                     ))}
                     {thread.hasMore && (
                         <div className="relative pt-1.5 pl-(--indent)">
-                            {!isFlattened && thread.replies.length > 0 && (
-                                <span
-                                    aria-hidden
-                                    className={cn(
-                                        replyLink,
-                                        'top-0 h-5 sm:h-5.5',
-                                    )}
-                                    style={laneStrokeStyle(
-                                        laneOf(
-                                            thread.replies[
-                                                thread.replies.length - 1
-                                            ],
-                                        ),
-                                    )}
-                                />
-                            )}
+                            {!isFlattened &&
+                                !isOverlaid &&
+                                thread.replies.length > 0 && (
+                                    <span
+                                        aria-hidden
+                                        className={cn(
+                                            replyLink,
+                                            'top-0 h-5 sm:h-5.5',
+                                        )}
+                                        style={laneStrokeStyle(
+                                            laneOf(
+                                                thread.replies[
+                                                    thread.replies.length - 1
+                                                ],
+                                            ),
+                                        )}
+                                    />
+                                )}
                             <MoreRepliesButton
                                 thread={thread}
                                 isFlattened={depth + 1 > maxIndentDepth}
+                                graph={
+                                    isFlattened
+                                        ? {}
+                                        : thread.replies.length > 0
+                                          ? { after: thread.replies.at(-1)?.id }
+                                          : {
+                                                parent:
+                                                    graphParent ??
+                                                    thread.commit.id,
+                                            }
+                                }
                             />
                         </div>
                     )}
@@ -834,10 +870,20 @@ function moreRepliesLabel(thread: Thread): string {
 function MoreRepliesButton({
     thread,
     isFlattened,
+    graph,
 }: {
     thread: Thread;
     isFlattened: boolean;
+    graph: ReplyGraph;
 }) {
+    const dotRef = useGraphNode({
+        id: `${thread.commit.id}:more`,
+        lane: 'var(--muted-foreground)',
+        dashed: true,
+        ring: railDotRing,
+        ...graph,
+    });
+
     return (
         <div className="flex max-w-full items-center gap-0.5 text-[13px] text-muted-foreground">
             <button
@@ -851,7 +897,9 @@ function MoreRepliesButton({
                     aria-hidden
                     className="relative flex size-6 shrink-0 items-center justify-center [--lane:var(--muted-foreground)] sm:size-7"
                 >
-                    <RailDot />
+                    <span ref={dotRef} className="flex">
+                        <RailDot />
+                    </span>
                 </span>
                 {thread.isLoading ? (
                     <span role="status">Loading replies…</span>
@@ -889,20 +937,34 @@ function MoreRepliesButton({
     );
 }
 
+type ReplyGraph = { after?: string; parent?: string };
+
+/** A reply avatar's ring is a 2px ring, 2px away from the picture. */
+const replyRing = 4;
+
 function ReplyItem({
     reply,
     parent,
     depth,
     links,
+    graph,
     onDeleted,
 }: {
     reply: ThreadCommit;
     parent: ThreadCommit;
     depth: number;
     links: ReactNode;
+    graph: ReplyGraph;
     onDeleted: () => void;
 }) {
     const thread = useThread(reply);
+    const nodeRef = useGraphNode({
+        id: reply.id,
+        lane: laneOf(reply),
+        dashed: true,
+        ring: isDeleted(reply) ? 0 : replyRing,
+        ...graph,
+    });
 
     if (isDeleted(reply)) {
         return (
@@ -915,6 +977,7 @@ function ReplyItem({
                 <div className="flex gap-2 sm:gap-2.5">
                     <div className="relative shrink-0">
                         <span
+                            ref={nodeRef}
                             aria-hidden
                             className="block size-6 rounded-full border-2 border-dashed border-rail sm:size-7"
                         />
@@ -946,6 +1009,7 @@ function ReplyItem({
             depth={depth}
             links={links}
             thread={thread}
+            nodeRef={nodeRef}
             onDeleted={onDeleted}
         />
     );
@@ -957,6 +1021,7 @@ function CommitReply({
     depth,
     links,
     thread,
+    nodeRef,
     onDeleted,
 }: {
     reply: Commit;
@@ -964,6 +1029,7 @@ function CommitReply({
     depth: number;
     links: ReactNode;
     thread: Thread;
+    nodeRef: (element: HTMLElement | null) => void;
     onDeleted: () => void;
 }) {
     const { auth } = usePage().props;
@@ -1034,7 +1100,10 @@ function CommitReply({
                 <div className="relative shrink-0">
                     <UserPreview user={reply.user} anchor={avatarRef}>
                         <Link
-                            ref={avatarRef}
+                            ref={(element: HTMLAnchorElement | null) => {
+                                avatarRef.current = element;
+                                nodeRef(element);
+                            }}
                             href={show(reply.user)}
                             className="block rounded-full"
                         >

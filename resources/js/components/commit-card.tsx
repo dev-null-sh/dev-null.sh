@@ -19,11 +19,13 @@ import {
     useThread,
 } from '@/components/commit-thread';
 import { useCommitTranslation } from '@/components/commit-translation';
+import { useGraphNode } from '@/components/graph-canvas';
 import {
     GraphRail,
     RailAvatar,
     RailDot,
     RailSegment,
+    railDotRing,
 } from '@/components/graph-rail';
 import { LinkPreview } from '@/components/link-preview';
 import { LiveStreamTrigger } from '@/components/live-stream-card';
@@ -82,9 +84,12 @@ export function CommitCard({
     hasRailTail = true,
     exceptReplyId,
     threadPosition,
+    graphAfter,
 }: {
     commit: Commit;
     previousLane?: string;
+    /** In a graph canvas, the node the commit follows on the rail. */
+    graphAfter?: string;
     isDimmed?: boolean;
     isPreviousDimmed?: boolean;
     isHighlighted?: boolean;
@@ -112,6 +117,12 @@ export function CommitCard({
     const now = useNow();
     const { bodyRef, ...translation } = useCommitTranslation(commit);
     const nodeRef = useRef<HTMLAnchorElement>(null);
+    const graphNodeRef = useGraphNode({
+        id: commit.id,
+        lane: laneColor(commit.user.lane),
+        after: graphAfter,
+        ring: isGroupedWithPrevious ? railDotRing : 0,
+    });
     const deleteButtonRef = useRef<HTMLButtonElement>(null);
     const thread = useThread(
         commit,
@@ -126,6 +137,9 @@ export function CommitCard({
     >('idle');
 
     const hasVisibleReplies = thread.isOpen && !!thread.replies?.length;
+    const endsOnDot =
+        hasRailTail && railNodePosition !== 'bottom' && endsWithDot;
+    const graphEndId = `${commit.id}:end`;
     const isOwn = commit.user_id === auth.user?.id;
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
@@ -247,6 +261,11 @@ export function CommitCard({
                     isDimmed={isDimmed}
                     isPreviousDimmed={isPreviousDimmed}
                     onHoverChange={onAuthorHover}
+                    graph={{
+                        id: commit.id,
+                        endId: graphEndId,
+                        measuresNode: false,
+                    }}
                     node={
                         <UserPreview
                             user={commit.user}
@@ -259,7 +278,12 @@ export function CommitCard({
                                 className="flex"
                             >
                                 <Link
-                                    ref={nodeRef}
+                                    ref={(
+                                        element: HTMLAnchorElement | null,
+                                    ) => {
+                                        nodeRef.current = element;
+                                        graphNodeRef(element);
+                                    }}
                                     href={show(commit.user)}
                                     tabIndex={-1}
                                     className={cn(
@@ -588,7 +612,13 @@ export function CommitCard({
                                     { 'opacity-70': isDimmed },
                                 )}
                             >
-                                <ThreadReplies thread={thread} depth={0} />
+                                <ThreadReplies
+                                    thread={thread}
+                                    depth={0}
+                                    graphParent={
+                                        endsOnDot ? graphEndId : commit.id
+                                    }
+                                />
                             </div>
                         </div>
                     </>
@@ -599,11 +629,15 @@ export function CommitCard({
 }
 
 export function CommitTombstone({
+    id,
     previousLane,
     endsWithDot = false,
+    graphAfter,
 }: {
+    id?: string;
     previousLane?: string;
     endsWithDot?: boolean;
+    graphAfter?: string;
 }) {
     return (
         <article className="flex" data-test="commit-tombstone">
@@ -611,6 +645,7 @@ export function CommitTombstone({
                 lane="var(--rail)"
                 previousLane={previousLane}
                 endsWithDot={endsWithDot}
+                graph={id ? { id, after: graphAfter } : undefined}
                 node={
                     <span className="size-12 rounded-full border-2 border-dashed border-rail bg-card" />
                 }

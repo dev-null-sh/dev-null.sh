@@ -1,0 +1,170 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import {
+    entranceDelay,
+    graphEdges,
+    isOnScreen,
+    sameNodes,
+} from '../../resources/js/lib/graph.ts';
+import type { GraphNode } from '../../resources/js/lib/graph.ts';
+
+const node = (
+    overrides: Partial<GraphNode> & Pick<GraphNode, 'id'>,
+): GraphNode => ({
+    x: 32,
+    y: 0,
+    radius: 24,
+    lane: 'var(--lane-1)',
+    ...overrides,
+});
+
+void test('joins a node to the one before it on the same trunk with a straight solid line', () => {
+    const [edge] = graphEdges([
+        node({ id: 'a', y: 40 }),
+        node({ id: 'b', y: 200, after: 'a', lane: 'var(--lane-2)' }),
+    ]);
+
+    assert.equal(edge.d, 'M 32 40 V 200');
+    assert.equal(edge.dashed, false);
+    assert.equal(edge.fromLane, 'var(--lane-1)');
+    assert.equal(edge.toLane, 'var(--lane-2)');
+    assert.deepEqual(edge.start, { x: 32, y: 40 });
+    assert.deepEqual(edge.end, { x: 32, y: 200 });
+});
+
+void test('dashes a trunk that a dashed node asks for', () => {
+    const [edge] = graphEdges([
+        node({ id: 'a', y: 40 }),
+        node({ id: 'b', y: 200, after: 'a', dashed: true }),
+    ]);
+
+    assert.equal(edge.dashed, true);
+});
+
+void test('branches a first reply off its parent with one dashed elbow', () => {
+    const [edge] = graphEdges([
+        node({ id: 'parent', y: 40 }),
+        node({ id: 'reply', x: 100, y: 160, radius: 18, parent: 'parent' }),
+    ]);
+
+    assert.equal(edge.d, 'M 32 40 V 148 Q 32 160 44 160 H 100');
+    assert.equal(edge.dashed, true);
+    assert.deepEqual(edge.end, { x: 100, y: 160 });
+});
+
+void test('branches off the trunk at the reply instead of doubling it when the trunk goes on below', () => {
+    const edges = graphEdges([
+        node({ id: 'parent', y: 40 }),
+        node({ id: 'reply', x: 100, y: 160, parent: 'parent' }),
+        node({ id: 'sibling', y: 400, after: 'parent', dashed: true }),
+    ]);
+    const branch = edges.find((edge) => edge.id === 'parent->reply');
+
+    assert.ok(branch);
+    assert.equal(branch.d, 'M 32 148 Q 32 160 44 160 H 100');
+});
+
+void test('keeps the full elbow when the trunk below ends before the reply', () => {
+    const edges = graphEdges([
+        node({ id: 'parent', y: 40 }),
+        node({ id: 'next', y: 100, after: 'parent' }),
+        node({ id: 'reply', x: 100, y: 160, parent: 'parent' }),
+    ]);
+    const branch = edges.find((edge) => edge.id === 'parent->reply');
+
+    assert.ok(branch);
+    assert.equal(branch.d, 'M 32 40 V 148 Q 32 160 44 160 H 100');
+});
+
+void test('tightens the corner when the reply sits closer than the corner radius', () => {
+    const [edge] = graphEdges([
+        node({ id: 'parent', y: 40 }),
+        node({ id: 'reply', x: 40, y: 160, parent: 'parent' }),
+    ]);
+
+    assert.equal(edge.d, 'M 32 40 V 152 Q 32 160 40 160 H 40');
+});
+
+void test('tells a measure that moved nothing from one that moved a node', () => {
+    const measured = [node({ id: 'a', y: 40 }), node({ id: 'b', y: 200 })];
+
+    assert.equal(
+        sameNodes(measured, [
+            node({ id: 'a', y: 40 }),
+            node({ id: 'b', y: 200 }),
+        ]),
+        true,
+    );
+    assert.equal(
+        sameNodes(measured, [
+            node({ id: 'a', y: 40 }),
+            node({ id: 'b', y: 304 }),
+        ]),
+        false,
+    );
+    assert.equal(sameNodes(measured, measured.slice(0, 1)), false);
+});
+
+void test('names the nodes a line joins', () => {
+    const edges = graphEdges([
+        node({ id: 'parent', y: 40 }),
+        node({ id: 'reply', x: 100, y: 160, parent: 'parent' }),
+        node({ id: 'next', y: 400, after: 'parent' }),
+    ]);
+
+    assert.deepEqual(
+        edges.map((edge) => [edge.from, edge.to]),
+        [
+            ['parent', 'reply'],
+            ['parent', 'next'],
+        ],
+    );
+});
+
+void test('waits for the nodes of a line to finish scaling in before drawing it', () => {
+    assert.equal(
+        entranceDelay([
+            { name: 'node-in', remaining: 650 },
+            { name: 'node-in', remaining: 300 },
+            { name: 'star-pop', remaining: 900 },
+        ]),
+        650,
+    );
+    assert.equal(entranceDelay([{ name: 'node-in', remaining: -20 }]), 0);
+    assert.equal(
+        entranceDelay([
+            { name: 'node-in', remaining: 400 },
+            { name: 'node-in', remaining: 1900, isWaiting: true },
+        ]),
+        400,
+    );
+    assert.equal(entranceDelay([]), 0);
+});
+
+void test('tells whether a line shows in the viewport, from where its canvas sits', () => {
+    const [line] = graphEdges([
+        node({ id: 'a', y: 1000 }),
+        node({ id: 'b', y: 1200, after: 'a' }),
+    ]);
+
+    assert.equal(isOnScreen(line, -900, 800), true, 'inside the viewport');
+    assert.equal(
+        isOnScreen(line, -500, 800),
+        true,
+        'its top within the viewport',
+    );
+    assert.equal(isOnScreen(line, -1150, 800), true, 'crossing the top edge');
+    assert.equal(isOnScreen(line, 0, 800), false, 'below the viewport');
+    assert.equal(isOnScreen(line, -1300, 800), false, 'above the viewport');
+    assert.equal(isOnScreen(line, -200, 800), true, 'touching the bottom edge');
+});
+
+void test('leaves out links to nodes that are not measured', () => {
+    assert.deepEqual(
+        graphEdges([
+            node({ id: 'b', after: 'missing' }),
+            node({ id: 'c', parent: 'missing' }),
+        ]),
+        [],
+    );
+});
