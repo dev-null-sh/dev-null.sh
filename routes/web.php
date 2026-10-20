@@ -39,6 +39,7 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
+use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
@@ -363,6 +364,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('operations/failed-jobs/{failedJob}/retry', [FailedJobRetryController::class, 'store'])
         ->whereUuid('failedJob')
         ->name('failed-job-retry.store');
+    Route::delete('operations/failed-jobs', [FailedJobsController::class, 'destroy'])->name('failed-jobs.destroy');
     Route::delete('operations/failed-jobs/{failedJob}', [FailedJobController::class, 'destroy'])
         ->whereUuid('failedJob')
         ->name('failed-job.destroy');
@@ -374,7 +376,7 @@ Route::middleware('auth')->group(function (): void {
         ->name('mention-suggestion.index');
 
     Route::get('search/issues', [IssueSuggestionController::class, 'index'])
-        ->middleware('throttle:people')
+        ->middleware('throttle:issue-suggestions')
         ->name('issue-suggestion.index');
 
     // User Profile...
