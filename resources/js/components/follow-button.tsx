@@ -155,7 +155,10 @@ export function FollowButton({
         <Button
             variant={isFollowing ? 'outline' : 'default'}
             size={size}
-            className={cn('group/follow', className)}
+            className={cn(
+                'group/follow disabled:pointer-events-auto',
+                className,
+            )}
             asChild
         >
             <Link
