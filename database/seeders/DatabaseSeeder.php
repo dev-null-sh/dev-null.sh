@@ -75,7 +75,8 @@ final class DatabaseSeeder extends Seeder
      */
     private function seedNotifications(User $localDeveloper, Collection $users): void
     {
-        [$follower, $stargazer, $replier, $mentioner] = $users->random(4)->values()->all();
+        [$stargazer, $replier, $mentioner] = $users->random(3)->values()->all();
+        $follower = $localDeveloper->followers()->inRandomOrder()->firstOrFail();
         $commit = $localDeveloper->commits()->firstOrFail();
 
         Notification::factory()->for($localDeveloper, 'recipient')->for($follower, 'actor')->create([
