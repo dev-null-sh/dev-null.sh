@@ -122,7 +122,16 @@ export function AchievementsShelf({
         clearTimeout(hoverTimer.current);
 
         if (openedByHover.current) {
-            hoverTimer.current = setTimeout(() => setOpen(false), 200);
+            hoverTimer.current = setTimeout(() => {
+                if (
+                    rowRef.current?.contains(document.activeElement) ||
+                    contentRef.current?.contains(document.activeElement)
+                ) {
+                    return;
+                }
+
+                setOpen(false);
+            }, 200);
         }
     };
 
@@ -185,7 +194,11 @@ export function AchievementsShelf({
                 open={open}
                 onOpenChange={(value) => {
                     clearTimeout(hoverTimer.current);
-                    openedByHover.current = false;
+
+                    if (value) {
+                        openedByHover.current = false;
+                    }
+
                     setOpen(value);
                 }}
             >
@@ -254,6 +267,13 @@ export function AchievementsShelf({
                     className="max-h-(--radix-popover-content-available-height) w-96 max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain"
                     onPointerEnter={() => clearTimeout(hoverTimer.current)}
                     onPointerLeave={scheduleClose}
+                    onEscapeKeyDown={() => {
+                        if (
+                            contentRef.current?.contains(document.activeElement)
+                        ) {
+                            rowRef.current?.focus();
+                        }
+                    }}
                     onOpenAutoFocus={(event) => {
                         event.preventDefault();
 
