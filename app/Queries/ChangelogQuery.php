@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Cache;
 
 /**
  * @phpstan-type GitHubPullRequest array{number: int, title: string, html_url: string, merged_at: string|null, updated_at: string, merge_commit_sha: string, user: array{id: int, login: string, avatar_url: string}}
- * @phpstan-type ChangelogPullRequest array{number: int, type: string|null, breaking: bool, title: string, url: string, sha: string, commit_url: string, merged_at: string, author: array{login: string, avatar: string, lane: int|string|null}}
+ * @phpstan-type ChangelogPullRequest array{number: int, type: string|null, breaking: bool, title: string, url: string, sha: string, commit_url: string, merged_at: string, author: array{login: string, avatar: string, username: string|null, lane: int|string|null}}
  */
 final readonly class ChangelogQuery
 {
@@ -131,8 +131,8 @@ final readonly class ChangelogQuery
     }
 
     /**
-     * Authors who are on /dev/null keep the lane they chose there. They are found by their GitHub account, since a
-     * username can change on either side.
+     * Authors who are on /dev/null keep the lane they chose there, and link to their profile. They are found by their
+     * GitHub account, since a username can change on either side.
      *
      * @param  array<int, GitHubPullRequest>  $merged
      * @return array{pullRequests: list<ChangelogPullRequest>, olderBefore: string|null}
@@ -141,10 +141,12 @@ final readonly class ChangelogQuery
     {
         usort($merged, fn (array $a, array $b): int => strcmp((string) $b['merged_at'], (string) $a['merged_at']));
 
-        $lanes = User::query()
+        $users = User::query()
             ->whereIn('github_id', array_unique(array_map(fn (array $pullRequest): string => (string) $pullRequest['user']['id'], $merged)))
-            ->get()
-            ->mapWithKeys(fn (User $user): array => [$user->github_id => $user->lane()]);
+            ->get();
+
+        $lanes = $users->mapWithKeys(fn (User $user): array => [$user->github_id => $user->lane()]);
+        $usernames = $users->mapWithKeys(fn (User $user): array => [$user->github_id => $user->username]);
 
         return [
             'pullRequests' => array_map(fn (array $pullRequest): array => [
@@ -157,6 +159,7 @@ final readonly class ChangelogQuery
                 'author' => [
                     'login' => $pullRequest['user']['login'],
                     'avatar' => $pullRequest['user']['avatar_url'],
+                    'username' => $usernames->get((string) $pullRequest['user']['id']),
                     'lane' => $lanes->get((string) $pullRequest['user']['id']),
                 ],
             ], $merged),
