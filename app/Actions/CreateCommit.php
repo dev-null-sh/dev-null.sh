@@ -92,7 +92,8 @@ final readonly class CreateCommit
             $this->createWorldReply->handle($commit);
 
             if ($commit->status === CommitStatus::Approved
-                && $user->github_id !== CreateTomFriendship::GITHUB_ID && filled(config('ai.providers.opencode.key'))
+                && $user->github_id !== CreateTomFriendship::GITHUB_ID
+                && filled(config('ai.providers.opencode.key')) && filled(config('ai.providers.openai.key'))
             ) {
                 $tom = $this->tomQuery->get();
 
