@@ -29,6 +29,12 @@ type Registry = {
 
 const GraphContext = createContext<Registry | null>(null);
 
+/**
+ * True once the canvas has measured its nodes. Until then, as on the server, the rail pieces stay, so the first paint
+ * matches the server's and a page without JavaScript keeps its rail.
+ */
+const GraphDrawingContext = createContext(false);
+
 const strokeWidth = 2;
 
 const dash = '4 4';
@@ -40,7 +46,7 @@ const fadeHold = 0.5;
  * Whether the lines around a node are drawn by a graph canvas, in which case the node's own rail pieces stay out.
  */
 export function useGraphOverlay(): boolean {
-    return useContext(GraphContext) !== null;
+    return useContext(GraphDrawingContext);
 }
 
 /**
@@ -80,7 +86,10 @@ export function WithoutGraph({ children }: { children: ReactNode }) {
 }
 
 /**
- * A span that is a node of the surrounding graph canvas, when given a spec. A fresh one scales in.
+ * A span that is a node of the surrounding graph canvas, when given a spec.
+ *
+ * A fresh node scales in only when it shows up after its canvas first drew, like a commit just posted to the feed:
+ * one already there when the page opens stays still, as its lines do.
  */
 export function GraphAnchor({
     spec,
@@ -91,11 +100,15 @@ export function GraphAnchor({
     spec: GraphNodeSpec | null;
     isFresh?: boolean;
 }) {
+    const isInCanvas = useContext(GraphContext) !== null;
+    const isDrawing = useGraphOverlay();
+    const [showsUpLive] = useState(!isInCanvas || isDrawing);
+
     return (
         <span
             ref={useGraphNode(spec)}
             className={cn(className, {
-                'motion-safe:animate-node-in': isFresh,
+                'motion-safe:animate-node-in': isFresh && showsUpLive,
             })}
             {...props}
         />
@@ -156,6 +169,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     const frame = useRef(0);
     const [nodes, setNodes] = useState<GraphNode[]>([]);
     const [size, setSize] = useState<Size>({ width: 0, height: 0 });
+    const [isDrawing, setIsDrawing] = useState(false);
 
     const read = useCallback(() => {
         const container = containerRef.current;
@@ -188,6 +202,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                 ? current
                 : { width: box.width, height: box.height },
         );
+        setIsDrawing(true);
         setNodes((current) =>
             sameNodes(current, measured) ? current : measured,
         );
@@ -320,79 +335,83 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
 
     return (
         <GraphContext.Provider value={registry}>
-            <div ref={containerRef} className="relative">
-                {children}
-                <svg
-                    ref={canvasRef}
-                    aria-hidden
-                    className="pointer-events-none absolute inset-0 z-[5] overflow-visible"
-                    width={size.width}
-                    height={size.height}
-                    fill="none"
-                    data-test="graph-canvas"
-                >
-                    <defs>
-                        <mask
-                            id={`${id}-nodes`}
-                            maskUnits="userSpaceOnUse"
-                            x={0}
-                            y={0}
-                            width={size.width}
-                            height={size.height}
-                        >
-                            <rect
+            <GraphDrawingContext.Provider value={isDrawing}>
+                <div ref={containerRef} className="relative">
+                    {children}
+                    <svg
+                        ref={canvasRef}
+                        aria-hidden
+                        className="pointer-events-none absolute inset-0 z-[5] overflow-visible"
+                        width={size.width}
+                        height={size.height}
+                        fill="none"
+                        data-test="graph-canvas"
+                    >
+                        <defs>
+                            <mask
+                                id={`${id}-nodes`}
+                                maskUnits="userSpaceOnUse"
+                                x={0}
+                                y={0}
                                 width={size.width}
                                 height={size.height}
-                                fill="white"
-                            />
-                            {nodes.map((node) => (
-                                <circle
-                                    key={node.id}
-                                    cx={node.x}
-                                    cy={node.y}
-                                    r={node.radius}
-                                    fill="black"
+                            >
+                                <rect
+                                    width={size.width}
+                                    height={size.height}
+                                    fill="white"
+                                />
+                                {nodes.map((node) => (
+                                    <circle
+                                        key={node.id}
+                                        cx={node.x}
+                                        cy={node.y}
+                                        r={node.radius}
+                                        fill="black"
+                                    />
+                                ))}
+                            </mask>
+                            {edges.map((edge, index) => (
+                                <EdgeDefs
+                                    key={edge.id}
+                                    id={`${id}-${index}`}
+                                    edge={edge}
+                                    drawDelay={entering.get(edge.id)}
+                                    onDrawn={onDrawn}
                                 />
                             ))}
-                        </mask>
-                        {edges.map((edge, index) => (
-                            <EdgeDefs
-                                key={edge.id}
-                                id={`${id}-${index}`}
-                                edge={edge}
-                                drawDelay={entering.get(edge.id)}
-                                onDrawn={onDrawn}
-                            />
-                        ))}
-                    </defs>
-                    <g mask={`url(#${id}-nodes)`}>
-                        {edges.map((edge, index) => (
-                            <path
-                                key={edge.id}
-                                d={edge.d}
-                                style={{
-                                    stroke:
-                                        edge.fromLane === edge.toLane
-                                            ? edge.fromLane
-                                            : `url(#${id}-${index}-fade)`,
-                                }}
-                                strokeWidth={strokeWidth}
-                                strokeDasharray={edge.dashed ? dash : undefined}
-                                mask={
-                                    entering.has(edge.id)
-                                        ? `url(#${id}-${index}-draw)`
-                                        : undefined
-                                }
-                                data-test={
-                                    edge.dashed
-                                        ? 'graph-edge-dashed'
-                                        : 'graph-edge'
-                                }
-                            />
-                        ))}
-                    </g>
-                </svg>
-            </div>
+                        </defs>
+                        <g mask={`url(#${id}-nodes)`}>
+                            {edges.map((edge, index) => (
+                                <path
+                                    key={edge.id}
+                                    d={edge.d}
+                                    style={{
+                                        stroke:
+                                            edge.fromLane === edge.toLane
+                                                ? edge.fromLane
+                                                : `url(#${id}-${index}-fade)`,
+                                    }}
+                                    strokeWidth={strokeWidth}
+                                    strokeDasharray={
+                                        edge.dashed ? dash : undefined
+                                    }
+                                    mask={
+                                        entering.has(edge.id)
+                                            ? `url(#${id}-${index}-draw)`
+                                            : undefined
+                                    }
+                                    data-test={
+                                        edge.dashed
+                                            ? 'graph-edge-dashed'
+                                            : 'graph-edge'
+                                    }
+                                />
+                            ))}
+                        </g>
+                    </svg>
+                </div>
+            </GraphDrawingContext.Provider>
         </GraphContext.Provider>
     );
 }
