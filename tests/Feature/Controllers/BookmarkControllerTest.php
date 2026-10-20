@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateBookmark;
 use App\Enums\CommitStatus;
 use App\Models\Bookmark;
 use App\Models\Commit;
@@ -23,6 +24,35 @@ it('saves a visible commit idempotently for the authenticated user', function ()
     $this->assertDatabaseCount('bookmarks', 1);
     $this->assertDatabaseHas('bookmarks', ['user_id' => $user->id, 'commit_id' => $commit->id]);
     $this->assertDatabaseCount('notifications', 0);
+});
+
+it('saves a bookmark with one insert and keeps its original timestamps', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $action = resolve(CreateBookmark::class);
+
+    $this->travelTo(now()->subDay());
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $action->handle($user, $commit);
+
+    $queries = collect(DB::getQueryLog())->pluck('query');
+    DB::disableQueryLog();
+
+    expect($queries)->toHaveCount(1)
+        ->and($queries->first())->toStartWith('insert into "bookmarks"');
+
+    $bookmark = Bookmark::query()->sole();
+
+    $this->travelBack();
+
+    $action->handle($user, $commit);
+
+    expect(Bookmark::query()->count())->toBe(1)
+        ->and($bookmark->fresh()->created_at->equalTo($bookmark->created_at))->toBeTrue()
+        ->and($bookmark->fresh()->updated_at->equalTo($bookmark->updated_at))->toBeTrue();
 });
 
 it('renders a private empty saved page', function (): void {

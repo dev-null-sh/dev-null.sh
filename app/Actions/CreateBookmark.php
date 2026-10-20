@@ -12,9 +12,13 @@ final readonly class CreateBookmark
 {
     public function handle(User $user, Commit $commit): void
     {
-        Bookmark::query()->firstOrCreate([
+        $now = now();
+
+        Bookmark::query()->insertOrIgnore([
             'user_id' => $user->id,
             'commit_id' => $commit->id,
+            'created_at' => $now,
+            'updated_at' => $now,
         ]);
     }
 }
