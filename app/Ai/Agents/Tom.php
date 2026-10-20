@@ -6,6 +6,7 @@ namespace App\Ai\Agents;
 
 use App\Actions\CreateTomFriendship;
 use App\Ai\Tools\CommunityStats;
+use App\Ai\Tools\ReportCommit;
 use App\Ai\Tools\RepositoryInsights;
 use App\Ai\Tools\SearchCommits;
 use App\Ai\Tools\SearchKnowledgeBase;
@@ -86,6 +87,7 @@ final class Tom implements Agent, Conversational, HasProviderOptions, HasTools
             new RepositoryInsights,
             new SearchRepositoryHistory,
             new CommunityStats,
+            new ReportCommit($this->commit),
         ];
     }
 

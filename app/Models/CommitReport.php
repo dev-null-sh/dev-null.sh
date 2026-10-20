@@ -35,6 +35,7 @@ final class CommitReport extends Model
         'spam' => 'Spam or misleading links',
         'harassment' => 'Harassment or hate',
         'unsafe' => 'Harmful or private information',
+        'ai_slop' => 'Low-effort AI-generated content',
         'other' => 'Something else',
     ];
 
