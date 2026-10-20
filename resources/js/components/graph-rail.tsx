@@ -190,7 +190,7 @@ export function RailAvatar({
         <span className="relative flex rounded-full bg-card">
             <span
                 className={cn(
-                    'relative flex rounded-full border-2 border-(--lane) p-0.5 transition-[border-color,opacity] duration-200',
+                    'relative flex rounded-full border-2 border-(--lane) p-0.5 transition-opacity duration-200',
                     dimmedNode,
                     {
                         'border-dashed': progress === 0,
