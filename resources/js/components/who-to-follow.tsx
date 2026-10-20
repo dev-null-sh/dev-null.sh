@@ -1,5 +1,5 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
-import { Ban, Ellipsis, EyeOff, RefreshCw } from 'lucide-react';
+import { Ellipsis, EyeOff, RefreshCw, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import SuggestionDismissalController from '@/actions/App/Http/Controllers/SuggestionDismissalController';
 import {
@@ -89,7 +89,7 @@ function DismissButton({
                     className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                     data-test="suggested-dismiss-button"
                 >
-                    <Ban aria-hidden className="size-4" />
+                    <X aria-hidden className="size-4" />
                 </button>
             </TooltipTrigger>
             <TooltipContent>
