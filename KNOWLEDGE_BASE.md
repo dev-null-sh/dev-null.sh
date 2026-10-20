@@ -309,6 +309,8 @@ Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [
 
 Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, and moderation messages about rejected commits (approvals do not notify). The navigation shows unread activity and checks for more every 30 seconds. Related activity is grouped, with expandable details: stars per commit, follows per day, and replies and mentions per thread. Filters (Replies, Quotes, Stars, Mentions, Follows, Moderation) are remembered, and the unread count follows them. Opening the inbox marks all notifications read. You can follow back or unfollow from follower notifications.
 
+On phones, **Replies**, **Quotes**, and **Stars** share one row with a **More notification filters** (`…`) button for **Mentions**, **Follows**, and **Moderation**. The menu stays open while you toggle filters so you can change several at once.
+
 Pending replies, quotes, and mentions wait for approval before notifying others. Self-actions do not notify you; mentioning the parent or quoted author does not duplicate their reply or quote notification. A new follower notifies only once even if they unfollow and follow again. Deleted or unavailable sources, mutes, and blocks affect which notifications remain visible. Rejected commits can produce a moderation message with a reason, without revealing a moderator's identity.
 
 Sources: [notifications page](resources/js/pages/notification/index.tsx), [notification filtering](app/Queries/NotificationBuilder.php), [grouping](app/Queries/NotificationGroupsQuery.php), [moderation notifications](app/Actions/UpdateCommitStatuses.php).

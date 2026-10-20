@@ -34,6 +34,7 @@ import {
     useIsFollowing,
 } from '@/components/follow-button';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
+import { NotificationFilters } from '@/components/notification-filters';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import {
@@ -273,46 +274,13 @@ export default function Index({
                 <div className="flex h-14 items-center px-4 sm:px-6">
                     <h1 className="font-semibold">Notifications</h1>
                 </div>
-                <div className="@container px-4 pb-3 sm:px-6">
-                    <div
-                        role="group"
-                        aria-label="Filter notifications"
-                        className="mx-auto grid w-fit grid-cols-[repeat(2,max-content)] gap-2 @2xs:grid-cols-[repeat(3,max-content)] @min-[33rem]:grid-cols-[repeat(6,max-content)]"
-                    >
-                        {filterOptions
-                            .filter((option) => option.type !== 'all')
-                            .map((option) => {
-                                const isActive = enabled.includes(option.type);
-
-                                return (
-                                    <button
-                                        key={option.type}
-                                        type="button"
-                                        aria-pressed={isActive}
-                                        onClick={() =>
-                                            changeFilters(
-                                                isActive
-                                                    ? enabled.filter(
-                                                          (type) =>
-                                                              type !==
-                                                              option.type,
-                                                      )
-                                                    : [...enabled, option.type],
-                                            )
-                                        }
-                                        className={cn(
-                                            'rounded-md border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-                                            isActive
-                                                ? 'border-primary/30 bg-primary-soft text-primary hover:bg-primary/15'
-                                                : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
-                                        )}
-                                    >
-                                        {option.label}
-                                    </button>
-                                );
-                            })}
-                    </div>
-                </div>
+                <NotificationFilters
+                    options={filterOptions.filter(
+                        (option) => option.type !== 'all',
+                    )}
+                    enabled={enabled}
+                    onChange={changeFilters}
+                />
                 {arrivals > 0 && (
                     <div className="pointer-events-none absolute inset-x-0 top-full flex justify-center pt-3">
                         <button
