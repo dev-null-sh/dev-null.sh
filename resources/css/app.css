@@ -423,6 +423,12 @@ html body[data-scroll-locked] {
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Keep sticky headers opaque while controls animate within the page. */
+:root[data-view-transition='in-place']::view-transition-old(*.tab-header),
+:root[data-view-transition='in-place']::view-transition-new(*.tab-header) {
+    animation: none;
+}
+
 ::view-transition-group(*.indicator-label) {
     z-index: 1;
 }
