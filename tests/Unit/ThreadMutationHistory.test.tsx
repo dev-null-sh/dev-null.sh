@@ -137,3 +137,88 @@ test('revalidates restored document history even when both cached props and repl
     );
     assert.equal(restored.isOpen, true);
 });
+
+test('waits for history revalidation before loading another reply page', async () => {
+    saved = {
+        replies: [reply('one'), reply('two'), reply('three')],
+        nextCursor: 'next',
+        isOpen: true,
+    };
+    vi.stubGlobal('performance', {
+        getEntriesByType: () => [{ type: 'back_forward' }],
+    });
+    let finish!: (value: unknown) => void;
+    const fetch = vi.fn(
+        () =>
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const thread = mount('pagination-during-refresh');
+    for (const effect of effects.splice(0)) effect();
+    assert.equal(thread.isLoading, true);
+    thread.loadMore();
+    thread.loadAll();
+    assert.equal(fetch.mock.calls.length, 1);
+    finish({
+        ok: true,
+        json: async () => ({
+            data: [reply('fresh')],
+            next_cursor: null,
+            prev_cursor: null,
+        }),
+    });
+    await vi.waitFor(() =>
+        assert.deepEqual(
+            saved.replies?.map((row) => row.id),
+            ['fresh'],
+        ),
+    );
+});
+
+test('does not let a delayed history refresh overwrite a newer deletion refresh', async () => {
+    saved = {
+        replies: [reply('one'), reply('deleted')],
+        nextCursor: null,
+        isOpen: true,
+    };
+    vi.stubGlobal('performance', {
+        getEntriesByType: () => [{ type: 'back_forward' }],
+    });
+    let finish!: (value: unknown) => void;
+    const fetch = vi
+        .fn()
+        .mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    finish = resolve;
+                }),
+        )
+        .mockResolvedValue({
+            ok: true,
+            json: async () => ({
+                data: [reply('one')],
+                next_cursor: null,
+                prev_cursor: null,
+            }),
+        });
+    vi.stubGlobal('fetch', fetch);
+    const thread = mount('mutation-during-refresh');
+    for (const effect of effects.splice(0)) effect();
+    thread.onDeleted();
+    await vi.waitFor(() => assert.equal(saved.replies?.length, 1));
+    finish({
+        ok: true,
+        json: async () => ({
+            data: [reply('one'), reply('deleted')],
+            next_cursor: null,
+            prev_cursor: null,
+        }),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.deepEqual(
+        saved.replies?.map((row) => row.id),
+        ['one'],
+    );
+});

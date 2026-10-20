@@ -279,7 +279,8 @@ export function useThread(
         },
         historyKey,
     );
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(shouldLoadReplies);
+    const replyRequest = useRef(0);
     const [isReplying, setIsReplying] = useState(false);
 
     const [previousPreview, setPreviousPreview] = useState(preview);
@@ -314,12 +315,21 @@ export function useThread(
                   ? Infinity
                   : replies.length + extra;
 
+        const request = ++replyRequest.current;
         setIsLoading(true);
 
         fetchRepliesUntil(commit, minimum, repliesPerPage, isPreview, except)
-            .then((page) => applyPage(page.data, page.next_cursor))
+            .then((page) => {
+                if (request === replyRequest.current) {
+                    applyPage(page.data, page.next_cursor);
+                }
+            })
             .catch(() => undefined)
-            .finally(() => setIsLoading(false));
+            .finally(() => {
+                if (request === replyRequest.current) {
+                    setIsLoading(false);
+                }
+            });
     };
 
     const loadUntil = (minimum: number) => {
@@ -327,6 +337,7 @@ export function useThread(
             return;
         }
 
+        const request = ++replyRequest.current;
         setIsLoading(true);
 
         fetchRepliesAfter(
@@ -337,9 +348,17 @@ export function useThread(
             isPreview,
             except,
         )
-            .then((page) => applyPage(page.data, page.next_cursor))
+            .then((page) => {
+                if (request === replyRequest.current) {
+                    applyPage(page.data, page.next_cursor);
+                }
+            })
             .catch(() => undefined)
-            .finally(() => setIsLoading(false));
+            .finally(() => {
+                if (request === replyRequest.current) {
+                    setIsLoading(false);
+                }
+            });
     };
 
     const commitId = commit.id;
@@ -350,6 +369,8 @@ export function useThread(
         }
 
         let isCurrent = true;
+        const request = ++replyRequest.current;
+        setIsLoading(true);
 
         fetchRepliesUntil(
             { id: commitId },
@@ -359,7 +380,7 @@ export function useThread(
             except,
         )
             .then((page) => {
-                if (isCurrent) {
+                if (isCurrent && request === replyRequest.current) {
                     setThread((current) => ({
                         ...current,
                         replies: page.data,
@@ -367,7 +388,12 @@ export function useThread(
                     }));
                 }
             })
-            .catch(() => undefined);
+            .catch(() => undefined)
+            .finally(() => {
+                if (isCurrent && request === replyRequest.current) {
+                    setIsLoading(false);
+                }
+            });
 
         return () => {
             isCurrent = false;
