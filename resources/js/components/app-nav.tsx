@@ -15,7 +15,7 @@ import {
     UserRound,
 } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
@@ -56,6 +56,9 @@ import type { Log, NavItem, Profile } from '@/types';
 
 const navLabelClassName =
     'max-w-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] nav-wide:max-w-40 nav-wide:opacity-100 motion-reduce:transition-none';
+
+const mobileNavMotionClassName =
+    'transition-transform duration-350 ease-[cubic-bezier(0.4,0,0.2,1)] motion-reduce:transition-none';
 
 /**
  * Guests see the same items, each taking them to sign in.
@@ -493,33 +496,28 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     );
 }
 
-export function MobileCommitButton({
-    isHidden,
-    onCompose,
-}: {
-    isHidden: boolean;
-    onCompose: () => void;
-}) {
+export function MobileCommitButton({ onCompose }: { onCompose: () => void }) {
     return (
         <Button
             type="button"
+            size="icon"
+            variant="ghost"
             onClick={onCompose}
-            inert={isHidden}
             aria-label="Write a commit"
             title="Write a commit"
-            className={cn(
-                'absolute right-4 bottom-full mb-4 size-14 rounded-full shadow-lg transition-opacity duration-200 [view-transition-name:mobile-commit-button] md:hidden',
-                { 'pointer-events-none opacity-0': isHidden },
-            )}
+            className="group pointer-events-auto absolute inset-0 size-11 rounded-full text-muted-foreground transition-colors [view-transition-name:mobile-commit-button] hover:bg-transparent hover:text-foreground motion-reduce:transition-none md:hidden"
             data-test="mobile-commit-button"
         >
-            <SquarePen className="size-6" />
+            <span className="flex h-8 w-11 items-center justify-center rounded-full transition-colors group-hover:bg-accent motion-reduce:transition-none">
+                <SquarePen className="size-5" />
+            </span>
         </Button>
     );
 }
 
 /**
- * Shares its real height, safe area included, as `--mobile-nav-height`, so full-screen pages can end right above it.
+ * Shares its reserved height, safe area included, as `--mobile-nav-height`. The footprint stays
+ * stable while the inner dock shrinks, so full-screen pages and toasts do not jump.
  */
 export function MobileNav({ children }: { children?: ReactNode }) {
     const { auth } = usePage().props;
@@ -542,12 +540,81 @@ export function MobileNav({ children }: { children?: ReactNode }) {
             item.title !== 'Saved' &&
             !menuItems.some((menuItem) => menuItem.title === item.title),
     );
+    const isMenuActive = menuItems.some((item) => item.isActive);
+    const itemCount = items.length + 1 + (children ? 1 : 0);
     const nav = useRef<HTMLElement>(null);
+    const dock = useRef<HTMLDivElement>(null);
+    const [isCompact, setIsCompact] = useState(false);
+
+    useEffect(() => {
+        const mobile = window.matchMedia('(max-width: 767px)');
+        const root = document.documentElement;
+        let compact = false;
+        let frame = 0;
+        let previousY = 0;
+        let direction = 0;
+        let directionStart = 0;
+
+        const update = () => {
+            frame = 0;
+
+            if (root.hasAttribute('data-keyboard-open')) {
+                return;
+            }
+
+            // Clamp elastic overscroll so iOS bounce does not reverse the dock.
+            const y = Math.max(
+                0,
+                Math.min(
+                    window.scrollY,
+                    root.scrollHeight - window.innerHeight,
+                ),
+            );
+            const nextDirection = Math.sign(y - previousY);
+
+            if (nextDirection !== 0 && nextDirection !== direction) {
+                directionStart = previousY;
+                direction = nextDirection;
+            }
+
+            previousY = y;
+            let next = compact;
+
+            if (!mobile.matches || y <= 24) {
+                next = false;
+            } else if (direction > 0 && y > 80 && y - directionStart >= 32) {
+                next = true;
+            } else if (direction < 0 && directionStart - y >= 24) {
+                next = false;
+            }
+
+            if (next !== compact) {
+                compact = next;
+                setIsCompact(next);
+            }
+        };
+        const onScroll = () => {
+            if (frame === 0) {
+                frame = window.requestAnimationFrame(update);
+            }
+        };
+
+        update();
+        window.addEventListener('scroll', onScroll, { passive: true });
+        mobile.addEventListener('change', onScroll);
+
+        return () => {
+            window.cancelAnimationFrame(frame);
+            window.removeEventListener('scroll', onScroll);
+            mobile.removeEventListener('change', onScroll);
+        };
+    }, []);
 
     useLayoutEffect(() => {
         const element = nav.current;
+        const surface = dock.current;
 
-        if (element === null) {
+        if (element === null || surface === null) {
             return;
         }
 
@@ -558,6 +625,29 @@ export function MobileNav({ children }: { children?: ReactNode }) {
 
             if (height > 0) {
                 root.style.setProperty('--mobile-nav-height', `${height}px`);
+
+                const width = surface.getBoundingClientRect().width;
+
+                if (width > 0) {
+                    // Leave room for 44px targets, including compose, on narrow screens.
+                    const compactWidth = Math.min(
+                        width,
+                        Math.max(
+                            itemCount * 44 + 18,
+                            Math.min(width - 24, 296),
+                        ),
+                    );
+                    surface.style.setProperty(
+                        '--dock-scale',
+                        `${compactWidth / width}`,
+                    );
+                    surface.style.setProperty(
+                        '--dock-inset',
+                        `${(width - compactWidth) / 2}px`,
+                    );
+                }
+            } else if (window.matchMedia('(min-width: 48rem)').matches) {
+                root.style.removeProperty('--mobile-nav-height');
             }
         });
 
@@ -567,112 +657,168 @@ export function MobileNav({ children }: { children?: ReactNode }) {
             observer.disconnect();
             root.style.removeProperty('--mobile-nav-height');
         };
-    }, []);
+    }, [itemCount]);
+
+    // Only the surface scales. Fixed-size controls translate between evenly spaced slots.
+    const itemPosition = (index: number, offset = 0) => ({
+        transform: isCompact
+            ? `translate(calc(var(--dock-inset, 0px) * ${(itemCount - 1 - 2 * index) / itemCount} + ${offset}px), 2px)`
+            : `translate(${offset}px, 0px)`,
+    });
 
     return (
         <nav
             ref={nav}
             aria-label="Main"
-            className="fixed inset-x-0 bottom-0 z-20 flex border-t bg-card pb-[env(safe-area-inset-bottom)] [view-transition-name:mobile-nav] md:hidden [:root[data-keyboard-open]_&]:hidden"
+            className="pointer-events-none fixed inset-x-0 bottom-0 z-20 flex h-[calc(4.25rem+env(safe-area-inset-bottom))] items-end justify-center pr-[max(0.75rem,env(safe-area-inset-right))] pb-[calc(0.75rem+env(safe-area-inset-bottom))] pl-[max(0.75rem,env(safe-area-inset-left))] [view-transition-name:mobile-nav] md:hidden [:root[data-keyboard-open]_&]:hidden"
         >
-            {children}
-            {items.map((item) => (
-                <NavLink
-                    key={item.title}
-                    item={item}
+            <div
+                ref={dock}
+                data-compact={isCompact}
+                className="relative grid h-14 w-[min(100%,21.5rem)] auto-cols-fr grid-flow-col place-items-center px-[9px]"
+            >
+                <div
+                    aria-hidden
+                    data-mobile-nav-surface
                     className={cn(
-                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium tracking-tight text-muted-foreground',
-                        { 'text-primary': item.isActive },
+                        'pointer-events-auto absolute inset-0 origin-bottom rounded-full border bg-card/95 shadow-lg backdrop-blur-md',
+                        mobileNavMotionClassName,
                     )}
-                >
-                    <span className="relative isolate flex h-8 w-14 max-w-full items-center justify-center">
-                        {item.isActive && (
-                            <span
-                                aria-hidden
-                                className="absolute inset-0 -z-10 rounded-full bg-primary-soft [view-transition-name:mobile-nav-active-item]"
-                            />
-                        )}
-                        <span
-                            className="flex [view-transition-class:mobile-nav-icon]"
-                            style={{
-                                viewTransitionName: `mobile-nav-${item.title.toLowerCase()}`,
-                            }}
-                        >
-                            <NavIcon item={item} />
-                        </span>
-                    </span>
-                    <span className="max-w-full truncate">{item.title}</span>
-                </NavLink>
-            ))}
-            <DropdownMenu>
-                <DropdownMenuTrigger
-                    aria-label="More navigation"
-                    className={cn(
-                        'flex min-w-0 flex-1 flex-col items-center gap-1 py-1 text-[11px] font-medium tracking-tight text-muted-foreground',
-                        {
-                            'text-primary': menuItems.some(
-                                (item) => item.isActive,
-                            ),
-                        },
-                    )}
-                >
-                    <span
+                    style={{
+                        transform: isCompact
+                            ? 'scale(var(--dock-scale, 1), 0.928571429)'
+                            : 'scale(1)',
+                    }}
+                />
+                {items.map((item, index) => (
+                    <div
+                        key={item.title}
                         className={cn(
-                            'flex h-8 w-14 max-w-full items-center justify-center rounded-full',
+                            'pointer-events-auto relative size-11',
+                            mobileNavMotionClassName,
+                        )}
+                        style={itemPosition(index)}
+                    >
+                        <NavLink
+                            item={item}
+                            className={cn(
+                                'group flex size-full items-center justify-center rounded-full text-muted-foreground outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring',
+                                { 'text-primary': item.isActive },
+                            )}
+                        >
+                            <span className="relative isolate flex h-8 w-11 items-center justify-center rounded-full transition-colors group-hover:bg-accent motion-reduce:transition-none">
+                                {item.isActive && (
+                                    <span
+                                        aria-hidden
+                                        className="absolute inset-0 -z-10 rounded-full bg-primary-soft [view-transition-name:mobile-nav-active-item]"
+                                    />
+                                )}
+                                <span
+                                    className="flex [view-transition-class:mobile-nav-icon]"
+                                    style={{
+                                        viewTransitionName: `mobile-nav-${item.title.toLowerCase()}`,
+                                    }}
+                                >
+                                    <NavIcon item={item} />
+                                </span>
+                            </span>
+                            <span className="sr-only">{item.title}</span>
+                        </NavLink>
+                    </div>
+                ))}
+                {children && (
+                    <div
+                        className={cn(
+                            'pointer-events-none relative size-11 before:absolute before:inset-y-3 before:-left-1.5 before:w-px before:bg-border max-[360px]:before:hidden',
+                            mobileNavMotionClassName,
+                        )}
+                        style={itemPosition(items.length)}
+                    >
+                        {children}
+                    </div>
+                )}
+                <DropdownMenu>
+                    <DropdownMenuTrigger
+                        aria-label="More navigation"
+                        style={itemPosition(itemCount - 1, 4)}
+                        className={cn(
+                            'group pointer-events-auto relative flex size-11 items-center justify-center rounded-full text-muted-foreground outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring',
+                            mobileNavMotionClassName,
                             {
-                                'bg-primary-soft': menuItems.some(
-                                    (item) => item.isActive,
-                                ),
+                                'text-primary': isMenuActive,
                             },
                         )}
                     >
-                        <MobileMenuIcon className="size-5" />
-                    </span>
-                    <span>Menu</span>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                    className="w-48 md:hidden"
-                    side="top"
-                    align="end"
-                >
-                    {menuItems.map((item) => (
-                        <DropdownMenuItem key={item.title} asChild>
-                            {auth.user === null ? (
-                                <a href={toUrl(item.href)} className="min-h-11">
-                                    {item.icon && <item.icon />}
-                                    {item.title}
-                                </a>
-                            ) : (
-                                <Link
-                                    href={item.href}
-                                    prefetch={item.prefetch ?? true}
-                                    viewTransition
-                                    aria-current={
-                                        item.isActive ? 'page' : undefined
-                                    }
-                                    className={cn('min-h-11', {
-                                        'bg-primary-soft text-primary':
-                                            item.isActive,
-                                    })}
-                                >
-                                    {item.icon && <item.icon />}
-                                    {item.title}
-                                </Link>
+                        <span
+                            className={cn(
+                                'flex h-8 w-11 items-center justify-center rounded-full transition-[background-color,scale] group-hover:bg-accent group-active:scale-95 group-data-[state=open]:bg-accent motion-reduce:transition-none',
+                                {
+                                    'bg-primary-soft': isMenuActive,
+                                },
                             )}
-                        </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuItem
-                        className="min-h-11"
-                        onSelect={() => {
-                            load();
-                            setIsChangelogOpen(true);
-                        }}
+                        >
+                            {auth.user === null ? (
+                                <MobileMenuIcon className="size-5" />
+                            ) : (
+                                <UserAvatar
+                                    user={auth.user}
+                                    className="size-6"
+                                    pixels={48}
+                                />
+                            )}
+                        </span>
+                        <span className="sr-only">Menu</span>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                        className="w-56 origin-(--radix-dropdown-menu-content-transform-origin) rounded-2xl p-2 shadow-lg duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)] data-[state=closed]:duration-150 motion-reduce:animate-none! md:hidden"
+                        side="top"
+                        align="end"
+                        sideOffset={12}
+                        collisionPadding={12}
                     >
-                        <History />
-                        Changelog
-                    </DropdownMenuItem>
-                </DropdownMenuContent>
-            </DropdownMenu>
+                        {menuItems.map((item) => (
+                            <DropdownMenuItem
+                                key={item.title}
+                                className="min-h-12 rounded-xl px-3"
+                                asChild
+                            >
+                                {auth.user === null ? (
+                                    <a href={toUrl(item.href)}>
+                                        {item.icon && <item.icon />}
+                                        {item.title}
+                                    </a>
+                                ) : (
+                                    <Link
+                                        href={item.href}
+                                        prefetch={item.prefetch ?? true}
+                                        viewTransition
+                                        aria-current={
+                                            item.isActive ? 'page' : undefined
+                                        }
+                                        className={cn({
+                                            'bg-primary-soft text-primary':
+                                                item.isActive,
+                                        })}
+                                    >
+                                        {item.icon && <item.icon />}
+                                        {item.title}
+                                    </Link>
+                                )}
+                            </DropdownMenuItem>
+                        ))}
+                        <DropdownMenuItem
+                            className="min-h-12 rounded-xl px-3"
+                            onSelect={() => {
+                                load();
+                                setIsChangelogOpen(true);
+                            }}
+                        >
+                            <History />
+                            Changelog
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
             <ChangelogDialog
                 open={isChangelogOpen}
                 onOpenChange={setIsChangelogOpen}
