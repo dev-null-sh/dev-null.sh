@@ -97,6 +97,11 @@ final class Commit extends Model
     ];
 
     /**
+     * @var array{body_segments: list<array<string, string|null>>, preview_segments: list<array<string, string|null>>|null}|null
+     */
+    private ?array $segments = null;
+
+    /**
      * @return array<string, string>
      */
     public function casts(): array
@@ -137,7 +142,11 @@ final class Commit extends Model
             return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
-        return [...parent::toArray(), ...resolve(CommitBodies::class)->segments($this->body), 'is_checking' => $this->isBeingChecked()];
+        if ($this->segments === null || $this->isDirty('body')) {
+            $this->segments = resolve(CommitBodies::class)->segments($this->body);
+        }
+
+        return [...parent::toArray(), ...$this->segments, 'is_checking' => $this->isBeingChecked()];
     }
 
     /**

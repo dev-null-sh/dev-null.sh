@@ -17,6 +17,7 @@ import OperationsLayout from '@/layouts/operations/layout';
 import { formatCount } from '@/lib/numbers';
 import { cn, formatZonedDate } from '@/lib/utils';
 import type {
+    ActivationDay,
     ActiveUsers,
     ActivityBucket,
     CommitResponses,
@@ -275,43 +276,6 @@ function FunnelValue({ funnel }: { funnel: Funnel }) {
             <Definition title="Retention">
                 {retentionDefinition(funnel)}
             </Definition>
-
-            <div className="col-span-full my-4 border-t border-dashed" />
-
-            {rate('referral', 'referral rate')}
-            <div className="self-center font-mono text-[13px]">
-                <div
-                    aria-hidden
-                    className="flex h-3 overflow-hidden rounded-full bg-muted"
-                >
-                    <span
-                        className="bg-(--lane-2)"
-                        style={{
-                            width: `${(funnel.rates.referral ?? 0) * 100}%`,
-                        }}
-                    />
-                </div>
-                <div className="mt-2 flex justify-between gap-3 text-muted-foreground">
-                    <span>
-                        members{' '}
-                        {funnel.referral
-                            ? formatCount(funnel.referral.members)
-                            : '–'}
-                    </span>
-                    <span>
-                        team{' '}
-                        {funnel.referral
-                            ? formatCount(funnel.referral.team)
-                            : '–'}
-                    </span>
-                </div>
-            </div>
-            <Definition title="Referral">
-                Visits from outside that start on a member's profile or commit
-                rather than the team's: when it rises, members bring people in,
-                not us. Referral rate = member visits ÷ visits starting on a
-                profile or commit.
-            </Definition>
         </div>
     );
 }
@@ -322,77 +286,191 @@ function FunnelSkeleton() {
             aria-hidden
             className="animate-in space-y-3 delay-300 duration-300 fill-mode-both fade-in"
         >
-            {[0, 1, 2, 3, 4].map((row) => (
+            {[0, 1, 2, 3].map((row) => (
                 <Skeleton key={row} className="h-24 w-full rounded-lg" />
             ))}
         </div>
     );
 }
 
-function ActiveUserCounts({ counts }: { counts: ActivityBucket[] }) {
-    if (counts.length === 0) {
+type DailyBar = {
+    date: string;
+    value: number;
+    isPartial: boolean;
+    label: string;
+};
+
+/**
+ * One slot per day of the range, so charts of the same range line up, with a bar on the days that have one, as tall as
+ * its value against the tallest, which a line at the top names. A partial day, still counting, is lighter. Tooltips of
+ * the bars near an edge align with it, so they stay on screen.
+ */
+function DailyBars({
+    range,
+    bars,
+    caption,
+    column,
+    empty,
+    format,
+}: {
+    range: TrafficRange;
+    bars: DailyBar[];
+    caption: string;
+    column: string;
+    empty: string;
+    format: (value: number) => string;
+}) {
+    if (bars.length === 0) {
         return (
             <p className="rounded-lg border px-4 py-2.5 font-mono text-[13px] text-muted-foreground">
-                nothing yet: days are counted from the day tracking started
+                {empty}
             </p>
         );
     }
 
-    const top = Math.max(1, ...counts.map((day) => day.count));
-    const today = utcDate();
+    const top = Math.max(Number.MIN_VALUE, ...bars.map((bar) => bar.value));
     const label = (date: string) => formatZonedDate(date, 'UTC');
+    const byDate = new Map(bars.map((bar) => [bar.date, bar]));
+    const dates: string[] = [];
+
+    for (
+        let day = Date.parse(range.from);
+        day <= Date.parse(range.to);
+        day += 86_400_000
+    ) {
+        dates.push(new Date(day).toISOString().slice(0, 10));
+    }
 
     return (
-        <figure>
-            <div className="flex h-48 items-end gap-1 border-b border-rail sm:gap-2">
-                {counts.map((day) => (
-                    <div
-                        key={day.date}
-                        className="group relative flex h-full flex-1 items-end"
-                    >
+        <figure className="pt-5">
+            <div className="relative flex h-48 items-end gap-1 border-b border-rail sm:gap-2">
+                <div className="pointer-events-none absolute inset-x-0 top-0 border-t border-dashed border-rail">
+                    <span className="absolute bottom-full left-0 mb-0.5 font-mono text-xs text-muted-foreground tabular-nums">
+                        {format(top)}
+                    </span>
+                </div>
+                {dates.map((date, index) => {
+                    const bar = byDate.get(date);
+
+                    return (
                         <div
-                            className={cn(
-                                'w-full rounded-t',
-                                day.date === today
-                                    ? 'bg-primary/40'
-                                    : 'bg-primary',
+                            key={date}
+                            className="group relative flex h-full flex-1 items-end"
+                        >
+                            {bar && (
+                                <>
+                                    <div
+                                        className={cn(
+                                            'w-full rounded-t',
+                                            bar.isPartial
+                                                ? 'bg-primary/40'
+                                                : 'bg-primary',
+                                        )}
+                                        style={{
+                                            height: `${(bar.value / top) * 100}%`,
+                                        }}
+                                    />
+                                    <div
+                                        className={cn(
+                                            'pointer-events-none absolute bottom-full z-10 mb-2 hidden rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block',
+                                            index < dates.length / 3
+                                                ? 'left-0'
+                                                : index >=
+                                                    (dates.length * 2) / 3
+                                                  ? 'right-0'
+                                                  : 'left-1/2 -translate-x-1/2',
+                                        )}
+                                    >
+                                        <p className="text-muted-foreground">
+                                            {label(date)}
+                                            {bar.isPartial && ', so far'}
+                                        </p>
+                                        <p className="font-medium tabular-nums">
+                                            {bar.label}
+                                        </p>
+                                    </div>
+                                </>
                             )}
-                            style={{ height: `${(day.count / top) * 100}%` }}
-                        />
-                        <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 hidden -translate-x-1/2 rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block">
-                            <p className="text-muted-foreground">
-                                {label(day.date)}
-                                {day.date === today && ', so far'}
-                            </p>
-                            <p className="font-medium tabular-nums">
-                                {formatCount(day.count)} active
-                            </p>
                         </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
             <div className="mt-1.5 flex justify-between font-mono text-xs text-muted-foreground">
-                <span>{label(counts[0].date)}</span>
-                <span>{label(counts[counts.length - 1].date)}</span>
+                <span>{label(range.from)}</span>
+                <span>{label(range.to)}</span>
             </div>
             <table className="sr-only">
-                <caption>Daily active users</caption>
+                <caption>{caption}</caption>
                 <thead>
                     <tr>
                         <th scope="col">Day</th>
-                        <th scope="col">Active users</th>
+                        <th scope="col">{column}</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {counts.map((day) => (
-                        <tr key={day.date}>
-                            <th scope="row">{day.date}</th>
-                            <td>{day.count}</td>
+                    {bars.map((bar) => (
+                        <tr key={bar.date}>
+                            <th scope="row">{bar.date}</th>
+                            <td>{bar.label}</td>
                         </tr>
                     ))}
                 </tbody>
             </table>
         </figure>
+    );
+}
+
+function ActivationByDay({
+    range,
+    days,
+}: {
+    range: TrafficRange;
+    days: ActivationDay[];
+}) {
+    return (
+        <DailyBars
+            range={range}
+            bars={days.map((day) => {
+                const rate = day.activated / day.eligible;
+
+                return {
+                    date: day.date,
+                    value: rate,
+                    isPartial: !day.complete,
+                    label: `${percent(rate)} of ${formatCount(day.eligible)} sign-ups`,
+                };
+            })}
+            caption="Activation rate by signup day"
+            column="Activation rate"
+            format={percent}
+            empty="nothing yet: a signup day shows once its first sign-ups are 12 hours old"
+        />
+    );
+}
+
+function ActiveUserCounts({
+    range,
+    counts,
+}: {
+    range: TrafficRange;
+    counts: ActivityBucket[];
+}) {
+    const today = utcDate();
+
+    return (
+        <DailyBars
+            range={range}
+            bars={counts.map((day) => ({
+                date: day.date,
+                value: day.count,
+                isPartial: day.date === today,
+                label: `${formatCount(day.count)} active`,
+            }))}
+            caption="Daily active users"
+            column="Active users"
+            format={formatCount}
+            empty="nothing yet: days are counted from the day tracking started"
+        />
     );
 }
 
@@ -434,6 +512,24 @@ export default function Show({
             >
                 <Deferred data="funnel" fallback={<FunnelSkeleton />}>
                     {funnel && <FunnelValue funnel={funnel} />}
+                </Deferred>
+            </Section>
+
+            <Section title="Daily active users" meta="by day, utc">
+                <ActiveUserCounts range={range} counts={activeUserCounts} />
+            </Section>
+
+            <Section title="Activation by signup day" meta="by day, utc">
+                <Deferred
+                    data="funnel"
+                    fallback={<Skeleton className="h-48 w-full rounded-lg" />}
+                >
+                    {funnel && (
+                        <ActivationByDay
+                            range={range}
+                            days={funnel.activation_by_day}
+                        />
+                    )}
                 </Deferred>
             </Section>
 
@@ -521,10 +617,6 @@ export default function Show({
                         ]}
                     />
                 </div>
-            </Section>
-
-            <Section title="Daily active users" meta="by day, utc">
-                <ActiveUserCounts counts={activeUserCounts} />
             </Section>
         </>
     );

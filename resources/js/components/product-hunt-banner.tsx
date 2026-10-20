@@ -1,10 +1,9 @@
-import { ArrowBigUp } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 const PRODUCT_HUNT_URL = 'https://www.producthunt.com/products/dev-null';
 
 /**
- * The launch goes live at 12:01 AM PDT on October 20th, and the strip stays up for its 24 hours, counting them down,
+ * The launch goes live at 12:01 AM PDT on October 20th, and the strip stays up for 24 hours,
  * then quietly stops rendering. A tab left open across either moment picks it up within a second.
  */
 const LAUNCH_STARTS_AT = Date.parse('2026-10-20T00:01:00-07:00');
@@ -29,8 +28,6 @@ export function ProductHuntBanner() {
         return null;
     }
 
-    const remaining = LAUNCH_ENDS_AT - now;
-
     return (
         <a
             href={PRODUCT_HUNT_URL}
@@ -46,22 +43,7 @@ export function ProductHuntBanner() {
                     <span className="font-medium text-(--lane-0)">
                         Product Hunt
                     </span>
-                    .{' '}
-                    <span className="hidden text-(--muted-foreground) sm:inline">
-                        Upvote now.
-                    </span>
-                </span>
-
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-(--lane-0) px-2.5 py-1 text-[13px] font-semibold text-(--background) transition-transform group-hover:-translate-y-0.5">
-                    <ArrowBigUp className="size-4 fill-current" />
-                    Upvote
-                </span>
-
-                <span
-                    className="hidden font-mono text-[13px] text-(--muted-foreground) tabular-nums lg:inline"
-                    suppressHydrationWarning
-                >
-                    {formatRemaining(remaining)} left
+                    .
                 </span>
             </div>
 
@@ -76,16 +58,4 @@ export function ProductHuntBanner() {
             </div>
         </a>
     );
-}
-
-function formatRemaining(milliseconds: number): string {
-    const seconds = Math.floor(milliseconds / 1000);
-
-    return [
-        Math.floor(seconds / 3600),
-        Math.floor((seconds % 3600) / 60),
-        seconds % 60,
-    ]
-        .map((part) => String(part).padStart(2, '0'))
-        .join(':');
 }

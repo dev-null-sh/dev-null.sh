@@ -50,6 +50,23 @@ it('activates readers who starred or saved commits by three other people within 
         ->rates->activation->toBe(1.0);
 });
 
+it('tells activation for each signup day, the days whose last signups are still within their 12 hours as incomplete', function (): void {
+    $other = User::factory()->create(['created_at' => '2026-09-01 00:00:00']);
+    $author = User::factory()->create(['created_at' => '2026-10-17 08:00:00']);
+    User::factory()->create(['created_at' => '2026-10-17 09:00:00']);
+    User::factory()->create(['created_at' => '2026-10-18 23:00:00']);
+    User::factory()->create(['created_at' => '2026-10-19 00:00:00']);
+    User::factory()->create(['created_at' => '2026-10-19 00:00:01']);
+
+    ($this->star)($other, Commit::factory()->for($author)->create(['created_at' => '2026-10-17 09:00:00']), '2026-10-17 10:00:00');
+
+    expect(($this->funnel)()['activation_by_day'])->toBe([
+        ['date' => '2026-10-17', 'activated' => 1, 'eligible' => 2, 'complete' => true],
+        ['date' => '2026-10-18', 'activated' => 0, 'eligible' => 1, 'complete' => true],
+        ['date' => '2026-10-19', 'activated' => 0, 'eligible' => 1, 'complete' => false],
+    ]);
+});
+
 it('does not activate readers who found fewer than three people in time', function (): void {
     $reader = User::factory()->create(['created_at' => '2026-10-10 08:00:00']);
     $author = User::factory()->create(['created_at' => '2026-09-01 00:00:00']);
@@ -154,41 +171,28 @@ it('has no retention before tracking started, or before signups got through thei
         ->retention_full_on->toBe('2026-11-02');
 });
 
-it('counts visitors and conversion from Fathom events, and splits outside visits between members and the team', function (): void {
-    config(['app.admins' => ['nunomaduro', 'mnapoli'], 'services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
+it('counts visitors and conversion from Fathom events', function (): void {
+    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
 
-    Http::fake(function (Request $request) {
-        $filters = $request->data()['filters'] ?? null;
-
-        return Http::response([match (true) {
-            ($request->data()['entity_name'] ?? null) === 'guest-visit' => ['unique_conversions' => '400'],
-            ($request->data()['entity_name'] ?? null) === 'signup' => ['unique_conversions' => '3'],
-            str_contains((string) $filters, 'nunomaduro|mnapoli') => ['visits' => '30'],
-            default => ['visits' => '50'],
-        }]);
-    });
+    Http::fake(fn (Request $request) => Http::response([match ($request->data()['entity_name'] ?? null) {
+        'guest-visit' => ['unique_conversions' => '400'],
+        'signup' => ['unique_conversions' => '3'],
+    }]));
 
     User::factory()->count(4)->create(['created_at' => '2026-10-02 00:00:00']);
 
     expect(($this->funnel)())
         ->visitors->toBe(400)
         ->signups->toBe(4)
-        ->referral->toBe(['members' => 20, 'team' => 30])
-        ->rates->conversion->toBe(0.0075)
-        ->rates->referral->toBe(0.4);
-
-    Http::assertSent(fn (Request $request): bool => ($request->data()['aggregates'] ?? null) === 'visits'
-        && json_decode((string) $request->data()['filters'], true) === [['property' => 'entry_page', 'operator' => 'matching', 'value' => '^/@[^/]+(/commits/[^/]+)?/?$']]);
+        ->rates->conversion->toBe(0.0075);
 });
 
-it('has no visitors, conversion or referral without Fathom', function (): void {
+it('has no visitors or conversion without Fathom', function (): void {
     User::factory()->create(['created_at' => '2026-10-02 00:00:00']);
 
     expect(($this->funnel)())
         ->visitors->toBeNull()
-        ->referral->toBeNull()
-        ->rates->conversion->toBeNull()
-        ->rates->referral->toBeNull();
+        ->rates->conversion->toBeNull();
 });
 
 it('compares the last seven days with the seven before when the range is all time', function (): void {
@@ -210,7 +214,6 @@ it('compares the last seven days with the seven before when the range is all tim
         'conversion' => null,
         'activation' => 0.5,
         'retention' => null,
-        'referral' => null,
     ]);
 });
 
@@ -232,11 +235,11 @@ it('has no changes until the period before started after the launch', function (
     User::factory()->create(['created_at' => '2026-10-15 10:00:00']);
 
     expect(($this->funnel)('2026-10-15', '2026-10-19', isAllTime: true)['changes'])
-        ->toBe(['conversion' => null, 'activation' => null, 'retention' => null, 'referral' => null]);
+        ->toBe(['conversion' => null, 'activation' => null, 'retention' => null]);
 });
 
 it('stops asking Fathom once it has no answer', function (): void {
-    config(['app.admins' => ['admin'], 'services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
+    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
     ($this->trackSince)('2026-09-01');
 
     Http::fake(['api.usefathom.com/*' => Http::response(status: 500)]);
@@ -245,19 +248,7 @@ it('stops asking Fathom once it has no answer', function (): void {
 
     expect(($this->funnel)('2026-09-01', '2026-10-19', isAllTime: true))
         ->visitors->toBeNull()
-        ->referral->toBeNull()
         ->rates->conversion->toBeNull();
 
     Http::assertSentCount(1);
-});
-
-it('has no referral without admins to tell the team apart', function (): void {
-    config(['app.admins' => [], 'services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
-
-    Http::fake(['api.usefathom.com/*' => Http::response([['unique_conversions' => '10', 'visits' => '10']])]);
-
-    expect(($this->funnel)())
-        ->visitors->toBe(10)
-        ->referral->toBeNull()
-        ->rates->referral->toBeNull();
 });

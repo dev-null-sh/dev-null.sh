@@ -281,10 +281,12 @@ it('counts commits newer than a given commit', function (): void {
 
 it('counts new commits since a commit that was deleted, without deleted ones', function (): void {
     $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $user->following()->attach($followed);
 
-    $seen = Commit::factory()->for($user)->create(['created_at' => now()->subMinutes(5)]);
-    Commit::factory()->for($user)->create();
-    Commit::factory()->for($user)->create()->delete();
+    $seen = Commit::factory()->for($followed)->create(['created_at' => now()->subMinutes(5)]);
+    Commit::factory()->for($followed)->create();
+    Commit::factory()->for($followed)->create()->delete();
     $seen->delete();
 
     $response = $this->actingAs($user)
@@ -302,11 +304,13 @@ it('counts new commits since a commit that was deleted, without deleted ones', f
 
 it('counts commits created in the same second after a given commit', function (): void {
     $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $user->following()->attach($followed);
     $createdAt = now()->startOfSecond();
 
-    Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c7', 'created_at' => $createdAt]);
-    $seen = Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c8', 'created_at' => $createdAt]);
-    Commit::factory()->for($user)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c9', 'created_at' => $createdAt]);
+    Commit::factory()->for($followed)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c7', 'created_at' => $createdAt]);
+    $seen = Commit::factory()->for($followed)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c8', 'created_at' => $createdAt]);
+    Commit::factory()->for($followed)->create(['id' => '01a14074-2549-72dc-8b4d-cb2ab04034c9', 'created_at' => $createdAt]);
 
     $response = $this->actingAs($user)
         ->withHeaders([
@@ -320,6 +324,23 @@ it('counts commits created in the same second after a given commit', function ()
     $response->assertOk()
         ->assertJsonPath('props.newCommitsCount', 1);
 });
+
+it('does not count their own new commits, committed from another device', function (Log $log): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $user->following()->attach($other);
+
+    $seen = Commit::factory()->for($other)->create(['created_at' => now()->subMinutes(5)]);
+    Commit::factory()->for($user)->count(2)->create();
+    Commit::factory()->for($other)->create();
+
+    $this->actingAs($user)->get(route('log.show', [$log, 'since' => $seen->id]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount',
+    ])->assertOk()->assertJsonPath('props.newCommitsCount', 1);
+})->with([Log::Following, Log::Latest]);
 
 it('does not count new commits on a regular visit', function (): void {
     $response = $this->actingAs(User::factory()->create())

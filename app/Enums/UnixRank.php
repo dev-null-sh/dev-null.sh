@@ -25,6 +25,11 @@ enum UnixRank: string
         };
     }
 
+    public static function forLevel(int $level): ?self
+    {
+        return array_find(self::cases(), fn (self $rank): bool => $rank->level() === $level);
+    }
+
     public function level(): int
     {
         return match ($this) {

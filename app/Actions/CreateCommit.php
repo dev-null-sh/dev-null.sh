@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Dto\NewPoll;
 use App\Enums\CommitStatus;
+use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\ReplyAsTom;
@@ -98,6 +99,10 @@ final readonly class CreateCommit
                 if ($tom instanceof User && $commit->isAddressedTo($tom)) {
                     dispatch(new ReplyAsTom($commit->id));
                 }
+            }
+
+            if ($commit->status === CommitStatus::Approved) {
+                dispatch(new CheckUserLevel($user))->afterCommit();
             }
 
             if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation && filled(config('services.openai.key'))) {

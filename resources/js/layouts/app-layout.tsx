@@ -80,7 +80,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 )}
                 <div
                     data-nav-rail
-                    className="sticky top-0 hidden h-svh w-20 shrink-0 md:block lg:w-(--sidebar-width)"
+                    className="sticky top-[var(--launch-banner-height,0px)] hidden h-[calc(100svh-var(--launch-banner-height,0px))] w-20 shrink-0 md:block lg:w-(--sidebar-width)"
                 >
                     <AppNav onSearch={openSearch} onCompose={compose} />
                 </div>
