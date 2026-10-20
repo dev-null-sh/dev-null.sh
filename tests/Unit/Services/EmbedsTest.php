@@ -9,6 +9,36 @@ use App\Services\EmbedProviders\YouTube;
 use App\Services\Embeds;
 use Uri\WhatWg\Url;
 
+it('only embeds direct GIF URLs after the unfurler has verified them', function (): void {
+    expect(resolve(Embeds::class)->for('https://example.com/cat.gif'))->toBeNull()
+        ->and(resolve(Embeds::class)->for('https://example.com/cat.gif', 'https://cdn.example.com/cat.gif')?->toArray())->toBe([
+            'provider' => 'GIF',
+            'kind' => 'gif',
+            'src' => 'https://cdn.example.com/cat.gif',
+            'aspect_ratio' => '1 / 1',
+            'height' => null,
+            'poster' => null,
+        ]);
+});
+
+it('honors the GIF selectors independently', function (): void {
+    $embeds = resolve(Embeds::class);
+    config(['embeds.only' => ['gif']]);
+
+    expect($embeds->for('https://giphy.com/gifs/cat-JIX9t2j0ZTN9S'))->toBeNull()
+        ->and($embeds->for('https://example.com/cat.gif', 'https://example.com/cat.gif')?->provider)->toBe('GIF');
+
+    config(['embeds.only' => ['giphy']]);
+
+    expect($embeds->for('https://giphy.com/gifs/cat-JIX9t2j0ZTN9S')?->provider)->toBe('GIPHY')
+        ->and($embeds->for('https://example.com/cat.gif', 'https://example.com/cat.gif'))->toBeNull();
+
+    config(['embeds.enabled' => false]);
+
+    expect($embeds->for('https://giphy.com/gifs/cat-JIX9t2j0ZTN9S'))->toBeNull()
+        ->and($embeds->for('https://example.com/cat.gif', 'https://example.com/cat.gif'))->toBeNull();
+});
+
 it('embeds links to a provider', function (): void {
     expect(resolve(Embeds::class)->for('https://www.youtube.com/watch?v=dQw4w9WgXcQ')?->toArray())->toBe([
         'provider' => 'YouTube',

@@ -38,6 +38,107 @@ beforeEach(function (): void {
     });
 });
 
+it('verifies external GIFs from a small header without storing their bytes', function (string $signature): void {
+    $options = [];
+    Http::fake(function (Request $request, array $sent) use (&$options, $signature): PromiseInterface {
+        $options = $sent;
+
+        return Http::response($signature."\x01\x00\x01\x00\x80\x00\x00", 206, ['Content-Type' => 'IMAGE/GIF; charset=binary']);
+    });
+
+    $preview = unfurl('https://example.com/cat.GIF?token=keep');
+
+    expect($preview->gif_url)->toBe('https://example.com/cat.GIF?token=keep')
+        ->and($preview->image_url)->toBeNull()
+        ->and($preview->fetched_at)->not->toBeNull()
+        ->and($options['sink'])->toBeInstanceOf(LimitedResponseBody::class)
+        ->and($options['sink']->write(str_repeat('x', 33)))->toBe(32)
+        ->and($options['sink']->getSize())->toBe(32);
+
+    Http::assertSent(fn (Request $request): bool => $request->header('Range') === ['bytes=0-31']
+        && $request->header('Accept') === ['image/gif']);
+})->with(['GIF87a', 'GIF89a']);
+
+it('reads GIF dimensions as bytes rather than UTF-8 text', function (): void {
+    Http::fake(['https://example.com/cat.gif' => Http::response("GIF89a\xc2\x80\x01\x00\x80\x00\x00", 206, ['Content-Type' => 'image/gif'])]);
+
+    expect(unfurl('https://example.com/cat.gif')->gif_url)->toBe('https://example.com/cat.gif');
+});
+
+it('does not trust a GIF extension or a content type without a valid header', function (string $body, string $contentType): void {
+    Http::fake(['https://example.com/*' => Http::response($body, 200, ['Content-Type' => $contentType])]);
+
+    expect(unfurl('https://example.com/cat.gif')->gif_url)->toBeNull();
+})->with([
+    'html' => ['<title>A page</title>', 'text/html'],
+    'spoofed type' => ['<script>alert(1)</script>', 'image/gif'],
+    'wrong type' => ["GIF89a\x01\x00\x01\x00\x80\x00\x00", 'image/png'],
+    'truncated' => ['GIF89a', 'image/gif'],
+    'wrong signature' => ["GIF90a\x01\x00\x01\x00\x80\x00\x00", 'image/gif'],
+    'zero width' => ["GIF89a\x00\x00\x01\x00\x80\x00\x00", 'image/gif'],
+    'zero height' => ["GIF89a\x01\x00\x00\x00\x80\x00\x00", 'image/gif'],
+    'zero height with wide canvas' => ["GIF89a\x00\x01\x00\x00\x80\x00\x00", 'image/gif'],
+    'incomplete screen descriptor' => ["GIF89a\x01\x00\x01\x00\x80\x00", 'image/gif'],
+]);
+
+it('keeps only the final public HTTPS GIF URL after redirects', function (): void {
+    Http::fake([
+        'https://example.com/cat.gif' => Http::response(status: 302, headers: ['Location' => 'https://www.example.com/media?id=cat']),
+        'https://www.example.com/media?id=cat' => Http::response("GIF89a\x01\x00\x01\x00\x80\x00\x00", 200, ['Content-Type' => 'image/gif']),
+    ]);
+
+    $preview = unfurl('https://example.com/cat.gif');
+
+    expect($preview->url)->toBe('https://example.com/cat.gif')
+        ->and($preview->gif_url)->toBe('https://www.example.com/media?id=cat');
+    Http::assertSentCount(2);
+});
+
+it('does not follow GIF redirects to unsafe destinations', function (string $destination): void {
+    Http::fake(['https://example.com/cat.gif' => Http::response(status: 302, headers: ['Location' => $destination])]);
+
+    expect(unfurl('https://example.com/cat.gif')->gif_url)->toBeNull();
+    Http::assertSentCount(1);
+})->with([
+    'downgrade' => 'http://www.example.com/cat.gif',
+    'private address' => 'https://10.0.0.1/cat.gif',
+    'private DNS' => 'https://internal.example.com/cat.gif',
+    'mixed DNS' => 'https://mixed.example.com/cat.gif',
+    'credentials' => 'https://user:secret@www.example.com/cat.gif',
+    'port' => 'https://www.example.com:8443/cat.gif',
+]);
+
+it('does not embed HTTP GIFs or treat a query string as a GIF path', function (string $url): void {
+    Http::fake(['*' => Http::response("GIF89a\x01\x00\x01\x00\x80\x00\x00", 200, ['Content-Type' => 'image/gif'])]);
+
+    expect(unfurl($url)->gif_url)->toBeNull();
+})->with([
+    'HTTP' => 'http://example.com/cat.gif',
+    'query' => 'https://example.com/page?image=cat.gif',
+]);
+
+it('does not keep oversized redirected GIF URLs', function (): void {
+    $destination = 'https://www.example.com/'.str_repeat('x', 2048);
+    Http::fake([
+        'https://example.com/cat.gif' => Http::response(status: 302, headers: ['Location' => $destination]),
+        $destination => Http::response("GIF89a\x01\x00\x01\x00\x80\x00\x00", 200, ['Content-Type' => 'image/gif']),
+    ]);
+
+    expect(unfurl('https://example.com/cat.gif')->gif_url)->toBeNull();
+});
+
+it('clears a previously verified GIF when refetching fails permanently', function (): void {
+    Http::fake(['https://example.com/cat.gif' => Http::response(status: 404)]);
+    $preview = LinkPreview::factory()->create([
+        'url' => 'https://example.com/cat.gif',
+        'gif_url' => 'https://example.com/old.gif',
+    ]);
+
+    resolve(UpdateLinkPreview::class)->handle($preview);
+
+    expect($preview->refresh()->gif_url)->toBeNull();
+});
+
 function unfurl(string $url): LinkPreview
 {
     $linkPreview = LinkPreview::factory()->create(['url' => $url]);
@@ -450,7 +551,7 @@ it('throws unexpected errors without marking the link as fetched', function (): 
 it('stops repeated redirect destinations before fetching them again', function (array $responses, int $requests): void {
     Http::fake($responses);
 
-    expect(unfurl('https://example.com/start.gif')->title)->toBeNull();
+    expect(unfurl('https://example.com/start.gif')->gif_url)->toBeNull();
     Http::assertSentCount($requests);
 })->with([
     'self loop' => [fn (): array => [
@@ -468,7 +569,7 @@ it('stops repeated redirect destinations before fetching them again', function (
 it('does not refetch redirects with a missing or invalid location', function (?string $location): void {
     Http::fake(['https://example.com/*' => Http::response(status: 302, headers: $location === null ? [] : ['Location' => $location])]);
 
-    expect(unfurl('https://example.com/start.gif')->title)->toBeNull();
+    expect(unfurl('https://example.com/start.gif')->gif_url)->toBeNull();
     Http::assertSentCount(1);
 })->with([null, '', '   ', 'https://invalid host/cat.gif']);
 
@@ -488,7 +589,7 @@ it('reduces each hop timeout to the remaining overall budget', function (): void
         return Http::response(status: 302, headers: ['Location' => '/hop-'.count($timeouts).'.gif']);
     });
 
-    expect(unfurl('https://example.com/start.gif')->title)->toBeNull()
+    expect(unfurl('https://example.com/start.gif')->gif_url)->toBeNull()
         ->and($timeouts)->toBe([5.0, 3.0, 1.0])
         ->and($connectTimeouts)->toBe([3, 3.0, 1.0]);
     Http::assertSentCount(3);
@@ -502,7 +603,7 @@ it('does not connect if resolving an address exhausted the budget', function ():
     }));
     Http::fake();
 
-    expect(unfurl('https://example.com/start.gif')->title)->toBeNull();
+    expect(unfurl('https://example.com/start.gif')->gif_url)->toBeNull();
     Http::assertNothingSent();
 });
 
@@ -518,9 +619,20 @@ it('rechecks changed DNS answers before following a redirect', function (): void
     });
     Http::fake(['https://example.com/start.gif' => Http::response(status: 302, headers: ['Location' => '/next.gif'])]);
 
-    expect(unfurl('https://example.com/start.gif')->title)->toBeNull();
+    expect(unfurl('https://example.com/start.gif')->gif_url)->toBeNull();
     Http::assertSentCount(1);
 });
+
+it('accepts only final GIF URLs within the storage length limit', function (int $length, bool $valid): void {
+    $base = 'https://www.example.com/';
+    $destination = $base.str_repeat('x', $length - mb_strlen($base));
+    Http::fake([
+        'https://example.com/cat.gif' => Http::response(status: 302, headers: ['Location' => $destination]),
+        $destination => Http::response("GIF89a\x01\x00\x01\x00\x80\x00\x00", 200, ['Content-Type' => 'image/gif']),
+    ]);
+
+    expect(unfurl('https://example.com/cat.gif')->gif_url)->toBe($valid ? $destination : null);
+})->with([[2048, true], [2049, false]]);
 
 it('pins the explicit port carried by a prepared request', function (): void {
     $options = [];

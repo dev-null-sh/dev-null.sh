@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Dto\LinkPreviewMetadata;
 use App\Dto\LinkPreviewRequest;
 use App\Models\LinkPreview;
+use App\Services\GifLinks;
 use App\Services\LinkPreviewAddress;
 use App\Services\LinkPreviewBudget;
 use App\Services\LinkPreviewHttpClient;
@@ -24,11 +25,14 @@ final readonly class UpdateLinkPreview
 
     private const string HEADER_ACCEPT = 'Accept';
 
+    private const string HEADER_RANGE = 'Range';
+
     private const string HTML_CONTENT_TYPE = 'text/html';
 
     public function __construct(
         private LinkPreviewAddress $addresses,
         private LinkPreviewBudget $budget,
+        private GifLinks $gifLinks,
         private LinkPreviewHttpClient $http,
         private LinkPreviewParser $parser,
     ) {
@@ -53,6 +57,7 @@ final readonly class UpdateLinkPreview
     private function fetchMetadata(string $url): LinkPreviewMetadata
     {
         $page = Url::parse($url);
+        $isGif = $this->gifLinks->isGifUrl($page);
         $deadline = $this->budget->start();
         $visited = [];
 
@@ -64,7 +69,7 @@ final readonly class UpdateLinkPreview
             }
 
             $visited[$source] = true;
-            $request = $this->prepareRequest($page, $deadline);
+            $request = $this->prepareRequest($page, $isGif, $deadline);
 
             if (! $request instanceof LinkPreviewRequest) {
                 return new LinkPreviewMetadata;
@@ -74,7 +79,7 @@ final readonly class UpdateLinkPreview
             $response->throwIf($response->serverError() || $response->tooManyRequests());
 
             if (! $response->redirect()) {
-                return $this->responseMetadata($response, $page);
+                return $this->responseMetadata($response, $page, $isGif);
             }
 
             $page = $this->redirectPage($response, $page);
@@ -83,8 +88,12 @@ final readonly class UpdateLinkPreview
         return new LinkPreviewMetadata;
     }
 
-    private function prepareRequest(Url $page, float $deadline): ?LinkPreviewRequest
+    private function prepareRequest(Url $page, bool $isGif, float $deadline): ?LinkPreviewRequest
     {
+        if ($isGif && $page->getScheme() !== 'https') {
+            return null;
+        }
+
         $address = $this->addresses->get($page);
         $remaining = $this->budget->remaining($deadline);
 
@@ -95,8 +104,8 @@ final readonly class UpdateLinkPreview
         return new LinkPreviewRequest(
             url: $page,
             address: $address,
-            headers: [self::HEADER_ACCEPT => self::HTML_CONTENT_TYPE],
-            maxBodyBytes: self::MAX_BODY_BYTES,
+            headers: $this->requestHeaders($isGif),
+            maxBodyBytes: $isGif ? GifLinks::HEADER_BYTES : self::MAX_BODY_BYTES,
             timeoutSeconds: $remaining,
         );
     }
@@ -112,10 +121,26 @@ final readonly class UpdateLinkPreview
         return Url::parse($location, $page);
     }
 
-    private function responseMetadata(Response $response, Url $page): LinkPreviewMetadata
+    /**
+     * @return array<string, string>
+     */
+    private function requestHeaders(bool $isGif): array
+    {
+        if (! $isGif) {
+            return [self::HEADER_ACCEPT => self::HTML_CONTENT_TYPE];
+        }
+
+        return [self::HEADER_ACCEPT => GifLinks::CONTENT_TYPE, self::HEADER_RANGE => sprintf('bytes=0-%d', GifLinks::HEADER_BYTES - 1)];
+    }
+
+    private function responseMetadata(Response $response, Url $page, bool $isGif): LinkPreviewMetadata
     {
         if (! $response->successful()) {
             return new LinkPreviewMetadata;
+        }
+
+        if ($isGif) {
+            return $this->getGifMetadata($response, $page);
         }
 
         if (! $this->isHtml($response)) {
@@ -123,6 +148,13 @@ final readonly class UpdateLinkPreview
         }
 
         return $this->parser->parse($this->body($response), $page);
+    }
+
+    private function getGifMetadata(Response $response, Url $page): LinkPreviewMetadata
+    {
+        $url = $this->gifLinks->getVerifiedUrl($page, $response->header('Content-Type'), $this->body($response));
+
+        return new LinkPreviewMetadata(gifUrl: $url);
     }
 
     private function isHtml(Response $response): bool

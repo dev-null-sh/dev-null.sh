@@ -16,12 +16,13 @@ final readonly class LinkPreviewMetadata implements Arrayable
         public ?string $description = null,
         public ?string $imageUrl = null,
         public ?string $siteName = null,
+        public ?string $gifUrl = null,
     ) {
         //
     }
 
     /**
-     * @return array{title: string|null, description: string|null, image_url: string|null, site_name: string|null}
+     * @return array{title: string|null, description: string|null, image_url: string|null, site_name: string|null, gif_url: string|null}
      */
     public function toArray(): array
     {
@@ -30,6 +31,7 @@ final readonly class LinkPreviewMetadata implements Arrayable
             'description' => $this->description,
             'image_url' => $this->imageUrl,
             'site_name' => $this->siteName,
+            'gif_url' => $this->gifUrl,
         ];
     }
 }

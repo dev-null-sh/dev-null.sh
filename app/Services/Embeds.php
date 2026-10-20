@@ -16,7 +16,10 @@ final readonly class Embeds
         //
     }
 
-    public function for(string $url): ?Embed
+    /**
+     * The GIF URL is metadata verified by the link unfurler, never a client-supplied attachment.
+     */
+    public function for(string $url, ?string $gifUrl = null): ?Embed
     {
         $parsed = Url::parse($url);
 
@@ -32,7 +35,13 @@ final readonly class Embeds
             }
         }
 
-        return null;
+        $only = config()->array('embeds.only');
+
+        if ($gifUrl === null || ($only !== [] && ! in_array('gif', $only, true))) {
+            return null;
+        }
+
+        return Embed::gif('GIF', $gifUrl);
     }
 
     /**

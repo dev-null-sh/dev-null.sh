@@ -18,6 +18,7 @@ return [
 
     'enabled' => (bool) env('EMBEDS_ENABLED', true),
 
+    // "gif" selects verified external GIFs; the other keys select providers below.
     'only' => array_values(array_filter(array_map(trim(...), explode(',', (string) env('EMBEDS_PROVIDERS', ''))))),
 
     'providers' => [
