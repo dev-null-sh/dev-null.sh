@@ -50,7 +50,7 @@ The funnel follows the people who **signed up in the selected range** (all time 
   - **Reader**: starred  written by **3 or more different people** (not themselves, not bots).
   - **Author**: posted (a commit or a reply), and someone else (not a bot) replied to it, quoted it or starred it, all within the 12 hours.
 - **Activation rate** = activated ÷ signups at least 12 hours old.
-- **Activation by signup day**: a chart of the activation rate of each day's signups, to see whether a change to the product moves it. It is computed from existing data, so it goes back to the launch. A day's bar stays lighter until its last signups are 12 hours old. It is not an A/B test: a launch or a viral post also changes who signs up, so read a trend over several days, not one bar.
+- **Activation by signup day**: a chart of the activation rate of each day's signups, to see whether a change to the product moves it. It is computed from existing data, so it goes back to the launch. A day's bar stays lighter until its last signups are 12 hours old, and a dashed line marks the activation rate of the whole range. It is not an A/B test: a launch or a viral post also changes who signs up, so read a trend over several days, not one bar.
 - Why these choices:
   - Activation means *receiving* value. Posting is giving value; for an author, the value is the reaction. Someone who posts into the void is the most likely to leave, so posting alone does not count.
   - A star is cheap: counting distinct authors instead of stars means the feed showed several interesting people, not one friend.
@@ -86,7 +86,7 @@ The funnel follows the people who **signed up in the selected range** (all time 
 | First posts answered | The same, for commits that were their author's first post of any kind. |
 | Follows, first 24h | Median number of people a newcomer followed themselves in their first 24 hours. Follows imported from GitHub are left out: they are created in the transaction that records the import, so follows made in the 10 seconds before either side's import are taken for imported ones. |
 | Followed back | Share of those follows that were followed back since. |
-| Daily active users | A chart of the people seen each day of the range, from `active_user_counts`. Today's bar is still counting. |
+| Daily active users | A chart of the people seen each day of the range, from `active_user_counts`. Today's bar is still counting; a dashed line marks the average of the other days. |
 
 ## Benchmarks
 

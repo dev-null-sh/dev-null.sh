@@ -24,6 +24,13 @@ vi.doMock('../../resources/js/lib/storage', () => ({
 vi.doMock('react', () => ({
     ...React,
     useEffect: () => {},
+    useRef: (initial: unknown) => {
+        const index = cursor++;
+        if (!(index in state)) {
+            state[index] = { current: initial };
+        }
+        return state[index];
+    },
     useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) =>
         snapshot(),
     useState: (initial: unknown) => {
@@ -179,5 +186,31 @@ test('offers recent searches before suggestions and selects them with the keyboa
     state = [];
     keyDown('ArrowDown', false);
     keyDown('ArrowDown', false);
+    assert.equal(input().props['aria-activedescendant'], 'search-suggestion-0');
+});
+
+test('clears recent searches, keeps other accounts intact, and focuses the search input', () => {
+    state = [];
+    storage.clear();
+    userId = 'author';
+    rememberSearch('author', 'older query');
+    rememberSearch('author', 'latest query');
+    rememberSearch('other', 'another query');
+    keyDown('ArrowDown', false);
+    const field = input();
+    const focus = vi.fn();
+    (field.props.ref as { current: { focus: () => void } | null }).current = { focus };
+
+    cursor = 0;
+    const dialog = SearchDialog({ open: true, onOpenChange: () => {} });
+    const clear = elements(dialog)
+        .flatMap((element) => elements(element.props.heading as ReactNode))
+        .find((element) => element.props['aria-label'] === 'Clear recent searches');
+    assert.ok(clear);
+    (clear.props.onClick as () => void)();
+
+    assert.equal(storage.has('recent-searches:author'), false);
+    assert.deepEqual(useRecentSearches('other'), ['another query']);
+    assert.equal(focus.mock.calls.length, 1);
     assert.equal(input().props['aria-activedescendant'], 'search-suggestion-0');
 });

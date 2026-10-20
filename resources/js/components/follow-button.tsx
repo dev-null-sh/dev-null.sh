@@ -1,3 +1,4 @@
+import type { VisitOptions } from '@inertiajs/core';
 import { Link, router, usePage } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
 import type { ComponentProps } from 'react';
@@ -14,7 +15,45 @@ import { signIn } from '@/lib/auth';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import { show as userPreview } from '@/routes/user-preview';
-import type { User } from '@/types';
+import type { Commit, CursorPaginated, User } from '@/types';
+
+/**
+ * A follow changes the Following log, but never the draw or loaded pages of another log.
+ */
+export function followVisitOptions(
+    component: string,
+    log: unknown,
+    commits?: CursorPaginated<Commit>,
+): Pick<VisitOptions, 'only' | 'headers'> {
+    if (component !== 'log/show') {
+        return { headers: { 'X-Follow-Request': 'true' } };
+    }
+
+    const through = commits?.data.at(-1)?.id;
+
+    return log === 'following'
+        ? {
+              only: [
+                  'auth.user',
+                  'liveFollowing',
+                  'commits',
+                  'suggestions',
+                  'newCommitsCount',
+              ],
+              // Link has no reset option; both controls must replace infinite-scroll results.
+              headers: {
+                  'X-Follow-Request': 'true',
+                  'X-Inertia-Reset': 'commits',
+                  ...(through && {
+                      'X-Log-Through': through,
+                  }),
+              },
+          }
+        : {
+              only: ['auth.user', 'liveFollowing'],
+              headers: { 'X-Follow-Request': 'true' },
+          };
+}
 
 /**
  * The pointer is still on the button right after a follow, so it keeps saying "Following" until the pointer leaves instead of flipping to a red "Unfollow".
@@ -222,7 +261,10 @@ export function FollowButton({
     size?: ComponentProps<typeof Button>['size'];
     className?: string;
 } & Omit<InertiaLinkProps, 'href' | 'as' | 'method' | 'size' | 'className'>) {
-    const { auth } = usePage().props;
+    const {
+        component,
+        props: { auth, log, commits },
+    } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const [isFollowing, setIsFollowing] = useIsFollowing(
         user,
         initialIsFollowing,
@@ -282,10 +324,12 @@ export function FollowButton({
                 }}
                 onSuccess={(page) => {
                     setIsFollowing(!isFollowing);
+                    router.flushAll();
                     onSuccess?.(page);
                 }}
                 onMouseLeave={onMouseLeave}
                 {...props}
+                {...followVisitOptions(component, log, commits)}
             >
                 <FollowLabel
                     isFollowing={isFollowing}

@@ -13,12 +13,19 @@ use App\Jobs\ModerateCommit;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+
+beforeEach(function (): void {
+    config(['ai.providers.openai.key' => 'test', 'ai.providers.opencode.key' => 'test']);
+});
 
 it('creates one reply through the normal moderation pipeline and never replaces a deleted reply', function (): void {
     config(['services.openai.key' => 'test']);
     Queue::fake([ModerateCommit::class, EmbedCommit::class, ReplyAsTom::class]);
     Tom::fake(['A developer community, with rusty friends. :-D'])->preventStrayPrompts();
+    Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $root = Commit::factory()->create();
     $commit = Commit::factory()->for($root, 'parent')->create(['body' => '@tom what is this place?', 'mentions' => ['tom' => $tom->id]]);
@@ -35,6 +42,7 @@ it('creates one reply through the normal moderation pipeline and never replaces 
     Queue::assertPushed(EmbedCommit::class, fn (EmbedCommit $job): bool => $job->commit->is($reply));
     Queue::assertNotPushed(ReplyAsTom::class);
     Tom::assertPrompted('@tom what is this place?');
+    Http::assertSentCount(1);
 
     $reply->delete();
     resolve(CreateTomReply::class)->handle($commit->id);
@@ -42,7 +50,6 @@ it('creates one reply through the normal moderation pipeline and never replaces 
 });
 
 it('queues a mention only after approval and ignores code mentions', function (): void {
-    config(['ai.providers.opencode.key' => 'test']);
     Queue::fake([ReplyAsTom::class]);
     User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $user = User::factory()->create();
@@ -58,9 +65,9 @@ it('queues a mention only after approval and ignores code mentions', function ()
 });
 
 it('answers direct replies without a mention only after approval', function (bool $approved, string $username): void {
-    config(['ai.providers.opencode.key' => 'test']);
     Queue::fake([ReplyAsTom::class]);
     Tom::fake(['Glad to help.']);
+    Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
     $tom = User::factory()->create(['username' => $username, 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $root = Commit::factory()->create();
     $answer = Commit::factory()->for($root, 'parent')->for($tom)->create();
@@ -88,7 +95,6 @@ it('answers direct replies without a mention only after approval', function (boo
 })->with([true, false])->with(['tom', 'devnull-tom']);
 
 it('does not answer deeper replies without a mention', function (bool $approved): void {
-    config(['ai.providers.opencode.key' => 'test']);
     Queue::fake([ReplyAsTom::class]);
     Tom::fake()->preventStrayPrompts();
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
@@ -106,14 +112,41 @@ it('does not answer deeper replies without a mention', function (bool $approved)
     expect($commit->replies()->count())->toBe(0);
 })->with([true, false]);
 
+it('does not queue or execute Tom replies when either provider is unconfigured', function (bool $approved, string $provider): void {
+    config(['ai.providers.'.$provider.'.key' => null]);
+    Queue::fake([ReplyAsTom::class]);
+    Tom::fake()->preventStrayPrompts();
+    User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $user = User::factory()->create();
+    config(['app.admins' => $approved ? [$user->username] : []]);
+
+    $commit = resolve(CreateCommit::class)->handle($user, '@tom hello');
+    resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
+    new ReplyAsTom($commit->id)->handle(resolve(CreateTomReply::class));
+
+    Queue::assertNotPushed(ReplyAsTom::class);
+    Tom::assertNeverPrompted();
+    Http::assertNothingSent();
+    expect($commit->refresh()->status)->toBe(CommitStatus::Approved);
+    expect($commit->replies()->count())->toBe(0);
+})->with([true, false])->with(['openai', 'opencode']);
+
 it('keeps a Tom reply reserved beyond its full provider budget and job timeout', function (): void {
+    $providerBudget = collect([
+        'classification' => 40,
+        'model steps' => 7 * 40,
+        'query embeddings' => 4 * 70,
+        'relevance checks' => 2 * 60,
+        'repository insights' => 2 * 10 * 5,
+        'repository history' => 2 * 2 * 5,
+    ])->sum();
     $queue = Queue::connection('database');
     $queue->push(new ReplyAsTom(fake()->uuid()), queue: 'tom-timeout');
 
     $job = $queue->pop('tom-timeout');
 
     expect($job)->not->toBeNull();
-    expect($job->timeout())->toBeGreaterThan(520);
+    expect($job->timeout())->toBeGreaterThan($providerBudget);
 
     foreach (['database', 'beanstalkd', 'redis'] as $connection) {
         expect(config()->integer('queue.connections.'.$connection.'.retry_after'))->toBeGreaterThan($job->timeout());
@@ -130,6 +163,7 @@ it('keeps a Tom reply reserved beyond its full provider budget and job timeout',
 
 it('does not prompt for ineligible mentions', function (string $case): void {
     Tom::fake()->preventStrayPrompts();
+    Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
 
@@ -149,10 +183,28 @@ it('does not prompt for ineligible mentions', function (string $case): void {
     resolve(CreateTomReply::class)->handle($commit->id);
 
     Tom::assertNeverPrompted();
+    Http::assertNothingSent();
     expect($commit->replies()->count())->toBe(0);
 })->with(['pending', 'rejected', 'deleted', 'author gone', 'self', 'unmentioned', 'wrong identity', 'renamed', 'blocked', 'blocker']);
 
+it('does not ask Tom to answer when the tool decision fails', function (bool $malformed): void {
+    Http::fake(['api.openai.com/v1/decisions' => $malformed
+        ? Http::response(['answers' => [['name' => 'SearchCommits', 'type' => 'predicate', 'probability' => [1]]]])
+        : Http::response('sensitive provider response', 500)]);
+    Tom::fake()->preventStrayPrompts();
+    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
+
+    expect(fn () => new ReplyAsTom($commit->id)->handle(resolve(CreateTomReply::class)))
+        ->toThrow(RuntimeException::class, 'Tom reply failed for commit '.$commit->id.'.');
+
+    Tom::assertNeverPrompted();
+    Http::assertSent(fn (Request $request): bool => str_contains($request['input'], '@tom hello'));
+    expect($commit->replies()->count())->toBe(0);
+})->with(['provider error' => false, 'malformed probability' => true]);
+
 it('discards a generated answer if its parent changes while the model is running', function (string $change): void {
+    Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
     Tom::fake(function () use ($commit, $tom, $change): string {
@@ -172,6 +224,7 @@ it('discards a generated answer if its parent changes while the model is running
 })->with(['deleted', 'rejected', 'blocked']);
 
 it('retries failed or blank responses without retaining provider content', function (?string $response): void {
+    Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
     Tom::fake(fn (): string => $response ?? throw new RuntimeException('sensitive provider response'));
@@ -191,9 +244,9 @@ it('retries failed or blank responses without retaining provider content', funct
 ]);
 
 it('queues and answers mentions of the reserved tom handle after approval', function (bool $approved): void {
-    config(['ai.providers.opencode.key' => 'test']);
     Queue::fake([ReplyAsTom::class]);
     Tom::fake(['Still here. :-D'])->preventStrayPrompts();
+    Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
     $tom = User::factory()->create(['username' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $owner = User::factory()->create(['username' => 'tom']);
     $user = User::factory()->create();
@@ -213,9 +266,9 @@ it('queues and answers mentions of the reserved tom handle after approval', func
 })->with([true, false]);
 
 it('still answers a captured mention when tom is renamed before approval', function (): void {
-    config(['ai.providers.opencode.key' => 'test']);
     Queue::fake([ReplyAsTom::class]);
     Tom::fake(['I remember.'])->preventStrayPrompts();
+    Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), '@tom hello');
     $tom->update(['username' => 'devnull-tom']);
@@ -230,7 +283,6 @@ it('still answers a captured mention when tom is renamed before approval', funct
 });
 
 it('does not queue or answer a mention of the real tom', function (bool $approved): void {
-    config(['ai.providers.opencode.key' => 'test']);
     Queue::fake([ReplyAsTom::class]);
     Tom::fake()->preventStrayPrompts();
     User::factory()->create(['username' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);

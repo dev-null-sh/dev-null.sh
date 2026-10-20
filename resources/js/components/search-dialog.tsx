@@ -2,7 +2,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { ArrowRight, History, Search, Sparkles } from 'lucide-react';
 import type { KeyboardEvent, ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import UserSearchController from '@/actions/App/Http/Controllers/UserSearchController';
@@ -10,7 +10,11 @@ import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
-import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
+import {
+    clearRecentSearches,
+    rememberSearch,
+    useRecentSearches,
+} from '@/hooks/use-recent-searches';
 import { searchCandidates } from '@/lib/chat';
 import {
     searchCommits,
@@ -70,6 +74,7 @@ export function SearchDialog({
     const recentSearches = useRecentSearches(userId);
     const keys = useKeyLabels();
     const [query, setQuery] = useState('');
+    const input = useRef<HTMLInputElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const isPicking = onPickDeveloper !== undefined;
 
@@ -223,6 +228,7 @@ export function SearchDialog({
                     <div className="flex items-center gap-3 border-b px-4">
                         <Search className="size-5 shrink-0 text-muted-foreground" />
                         <input
+                            ref={input}
                             autoFocus
                             maxLength={100}
                             value={query}
@@ -286,7 +292,31 @@ export function SearchDialog({
                                     key={option.id}
                                     option={option}
                                     term={term}
-                                    heading={headingBefore(options, index)}
+                                    heading={
+                                        option.kind === 'recent' &&
+                                        index === 0 ? (
+                                            <span className="flex items-center justify-between gap-3">
+                                                {headings.recent}
+                                                <button
+                                                    type="button"
+                                                    aria-label="Clear recent searches"
+                                                    className="rounded px-1.5 py-1 font-sans text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary"
+                                                    onClick={() => {
+                                                        if (userId !== null)
+                                                            clearRecentSearches(
+                                                                userId,
+                                                            );
+                                                        setActiveIndex(0);
+                                                        input.current?.focus();
+                                                    }}
+                                                >
+                                                    Clear
+                                                </button>
+                                            </span>
+                                        ) : (
+                                            headingBefore(options, index)
+                                        )
+                                    }
                                     isActive={index === activeIndex}
                                     onHover={() => setActiveIndex(index)}
                                     onOpen={close}
