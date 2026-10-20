@@ -7,6 +7,8 @@ use App\Enums\Log;
 use App\Jobs\CheckUserLevel;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Database\DatabaseTransactionsManager;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 
@@ -21,6 +23,34 @@ it('may star a commit', function (): void {
 
     $response->assertOk()
         ->assertExactJson(['starred' => true, 'stars_count' => 2]);
+
+    expect($user->hasStarred($commit))->toBeTrue();
+});
+
+it('stars while a unique level-check job already holds a database cache lock', function (): void {
+    config(['cache.default' => 'database']);
+
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $lock = Cache::lock('laravel_unique_job:'.CheckUserLevel::class.':'.$user->id, 3600);
+
+    expect($lock->get())->toBeTrue();
+
+    // The test transaction manager runs after-commit callbacks before its wrapping transaction ends.
+    // Use the production manager to keep the callback pending until the outer transaction commits.
+    $connection = DB::connection();
+    $testManager = $this->app['db.transactions'];
+    $manager = new DatabaseTransactionsManager;
+    $manager->begin($connection->getName(), $connection->transactionLevel());
+
+    $connection->setTransactionManager($manager);
+
+    try {
+        $this->actingAs($user)->postJson(route('commit-star.store', $commit))
+            ->assertOk()->assertExactJson(['starred' => true, 'stars_count' => 1]);
+    } finally {
+        $connection->setTransactionManager($testManager);
+    }
 
     expect($user->hasStarred($commit))->toBeTrue();
 });
