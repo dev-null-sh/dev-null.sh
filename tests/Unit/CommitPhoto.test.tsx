@@ -6,19 +6,56 @@ import type { Commit } from '../../resources/js/types';
 const listeners = new Map<string, (event: unknown) => void>();
 let props: Record<string, unknown> = {};
 const historyListeners = new Map<string, EventListener>();
+type HistoryState = {
+    page: { url: string; props: Record<string, unknown>; version?: string };
+    [key: string]: unknown;
+};
+const historyStates = new Map<string, HistoryState>();
 const browserWindow = {
     location: new URL('http://localhost'),
-    history: { back: vi.fn() },
+    dispatchEvent: vi.fn(),
+    history: {
+        back: vi.fn(),
+        state: null as HistoryState | null,
+        replaceState: (
+            data: HistoryState,
+            _unused: string,
+            url?: string | URL | null,
+        ) => {
+            if (url) {
+                browserWindow.location = new URL(url, browserWindow.location);
+            }
+            browserWindow.history.state = structuredClone(data);
+            historyStates.set(
+                browserWindow.location.href,
+                structuredClone(data),
+            );
+        },
+    },
     addEventListener: (name: string, callback: EventListener) =>
         historyListeners.set(name, callback),
     removeEventListener: (name: string) => historyListeners.delete(name),
 };
+const replaceHistoryState = browserWindow.history.replaceState;
 const cancelRequests = vi.fn();
+const decryptHistory = vi.fn(async () =>
+    structuredClone(browserWindow.history.state?.page),
+);
 let lastVisit: { preserveState?: boolean; preserveScroll?: boolean };
 
 function navigate(url: string, nextProps: Record<string, unknown>) {
     props = nextProps;
     browserWindow.location = new URL(url, 'http://localhost');
+    browserWindow.history.state = {
+        page: {
+            url: browserWindow.location.href,
+            props: structuredClone(props),
+        },
+    };
+    historyStates.set(
+        browserWindow.location.href,
+        structuredClone(browserWindow.history.state),
+    );
     listeners.get('navigate')?.({ detail: { page: { url, props } } });
 }
 
@@ -29,23 +66,36 @@ function clientVisit(
         preserveState?: boolean;
         preserveScroll?: boolean;
         onSuccess?: () => void;
+        onFinish?: () => void;
     },
     pushes = true,
 ) {
     lastVisit = options;
     props = options.props(props);
     browserWindow.location = new URL(options.url, 'http://localhost');
+    const state = {
+        page: {
+            url: browserWindow.location.href,
+            props: structuredClone(props),
+        },
+    };
     if (pushes) {
+        browserWindow.history.state = state;
+        historyStates.set(browserWindow.location.href, structuredClone(state));
         listeners.get('navigate')?.({
             detail: { page: { url: options.url, props } },
         });
+    } else {
+        browserWindow.history.replaceState(state, '', options.url);
     }
     options.onSuccess?.();
+    options.onFinish?.();
 }
 
 vi.doMock('@inertiajs/react', () => ({
     router: {
         cancelAll: cancelRequests,
+        decryptHistory,
         on: (name: string, callback: (event: unknown) => void) => {
             listeners.set(name, callback);
             return () => listeners.delete(name);
@@ -74,6 +124,14 @@ beforeEach(() => {
     vi.stubGlobal('window', browserWindow);
     browserWindow.history.back.mockClear();
     cancelRequests.mockClear();
+    decryptHistory
+        .mockReset()
+        .mockImplementation(async () =>
+            structuredClone(browserWindow.history.state?.page),
+        );
+    browserWindow.dispatchEvent.mockClear();
+    historyStates.clear();
+    browserWindow.history.state = null;
     stop = trackCommitPhotoPage();
     navigate('/log/latest?since=first', {});
 });
@@ -177,21 +235,28 @@ for (const overrides of [
     });
 }
 
-function historyVisit(url: string) {
+async function historyVisit(url: string, state?: HistoryState | null) {
     browserWindow.location = new URL(url, 'http://localhost');
+    const target =
+        state === undefined
+            ? (historyStates.get(browserWindow.location.href) ?? null)
+            : state;
+    browserWindow.history.state = structuredClone(target);
     const event = new Event('popstate');
+    Object.defineProperty(event, 'state', { value: target });
     const intercepted = vi.spyOn(event, 'stopImmediatePropagation');
     historyListeners.get('popstate')?.(event);
+    await new Promise(setImmediate);
     return intercepted;
 }
 
-test('closes a photo through history while retaining the live background page and scroll', () => {
+test('closes a photo through history while retaining the live background page and scroll', async () => {
     openCommitPhoto(commit, 0);
     props.livePollResult = 42;
     closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
     assert.equal(browserWindow.history.back.mock.calls.length, 1);
 
-    const intercepted = historyVisit('/log/latest?since=first');
+    const intercepted = await historyVisit('/log/latest?since=first');
 
     assert.equal(intercepted.mock.calls.length, 1);
     assert.equal(props.photo, undefined);
@@ -201,14 +266,14 @@ test('closes a photo through history while retaining the live background page an
     assert.equal(backgroundVisit().url.pathname, '/log/latest');
 });
 
-test('preserves the background on browser Back and Forward, including a changed slide', () => {
+test('preserves the background on browser Back and Forward, including a changed slide', async () => {
     openCommitPhoto(commit, 0);
     showCommitPhoto(props.photo as Parameters<typeof showCommitPhoto>[0], 1);
     const photoUrl = window.location.href;
 
-    historyVisit('/log/latest?since=first');
+    await historyVisit('/log/latest?since=first');
     assert.equal(props.photo, undefined);
-    historyVisit(photoUrl);
+    await historyVisit(photoUrl);
 
     assert.deepEqual(props.photo, {
         commit,
@@ -220,12 +285,15 @@ test('preserves the background on browser Back and Forward, including a changed 
     assert.equal(backgroundVisit().url.pathname, '/log/latest');
 });
 
-test('leaves history to other pages and an old photo session to Inertia', () => {
+test('leaves history to other pages and an old photo session to Inertia', async () => {
     openCommitPhoto(commit, 0);
-    assert.equal(historyVisit('/@another').mock.calls.length, 0);
+    assert.equal((await historyVisit('/@another')).mock.calls.length, 0);
     navigate('/@another', {});
 
-    assert.equal(historyVisit('/log/latest?since=first').mock.calls.length, 0);
+    assert.equal(
+        (await historyVisit('/log/latest?since=first')).mock.calls.length,
+        0,
+    );
 });
 
 test('closes a directly loaded photo on its commit without going back', () => {
@@ -240,7 +308,7 @@ test('closes a directly loaded photo on its commit without going back', () => {
     assert.equal(lastVisit.preserveState, true);
 });
 
-test('restores a directly loaded photo after closing a reply photo', () => {
+test('restores a directly loaded photo after closing a reply photo', async () => {
     const original = { commit, index: 1 };
     navigate('/@author/commits/image-post/photos/2', { photo: original });
     const reply = { ...commit, id: 'reply-image' };
@@ -248,7 +316,8 @@ test('restores a directly loaded photo after closing a reply photo', () => {
     closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
 
     assert.equal(
-        historyVisit('/@author/commits/image-post/photos/2').mock.calls.length,
+        (await historyVisit('/@author/commits/image-post/photos/2')).mock.calls
+            .length,
         1,
     );
     assert.deepEqual(props.photo, original);
@@ -261,21 +330,22 @@ test('restores a directly loaded photo after closing a reply photo', () => {
     assert.equal(browserWindow.history.back.mock.calls.length, 1);
 });
 
-test('retains a changed direct-photo slide when returning from a nested photo through Forward and Close', () => {
+test('retains a changed direct-photo slide when returning from a nested photo through Forward and Close', async () => {
     navigate('/@author/commits/image-post/photos/1', {
         photo: { commit, index: 0 },
     });
     const reply = { ...commit, id: 'reply-image' };
     openCommitPhoto(reply, 0);
     const replyUrl = window.location.href;
-    historyVisit('/@author/commits/image-post/photos/1');
+    await historyVisit('/@author/commits/image-post/photos/1');
     showCommitPhoto(props.photo as Parameters<typeof showCommitPhoto>[0], 1);
     props.livePollResult = 42;
 
-    assert.equal(historyVisit(replyUrl).mock.calls.length, 1);
+    assert.equal((await historyVisit(replyUrl)).mock.calls.length, 1);
     closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
     assert.equal(
-        historyVisit('/@author/commits/image-post/photos/2').mock.calls.length,
+        (await historyVisit('/@author/commits/image-post/photos/2')).mock.calls
+            .length,
         1,
     );
     assert.deepEqual(props.photo, { commit, index: 1 });
@@ -283,34 +353,35 @@ test('retains a changed direct-photo slide when returning from a nested photo th
     assert.equal(lastVisit.preserveState, true);
 });
 
-test('retains the commit replacing a restored direct viewer when returning from a nested photo', () => {
+test('retains the commit replacing a restored direct viewer when returning from a nested photo', async () => {
     navigate('/@author/commits/image-post/photos/1', {
         photo: { commit, index: 0 },
     });
     openCommitPhoto({ ...commit, id: 'reply-image' }, 0);
     const replyUrl = window.location.href;
-    historyVisit('/@author/commits/image-post/photos/1');
+    await historyVisit('/@author/commits/image-post/photos/1');
     closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
     assert.equal(window.location.pathname, '/@author/commits/image-post');
 
-    historyVisit(replyUrl);
+    await historyVisit(replyUrl);
     closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
     assert.equal(
-        historyVisit('/@author/commits/image-post').mock.calls.length,
+        (await historyVisit('/@author/commits/image-post')).mock.calls.length,
         1,
     );
     assert.equal(props.photo, undefined);
     assert.equal(lastVisit.preserveState, true);
 });
 
-test('leaves standalone direct-gallery history to Inertia before a nested photo session exists', () => {
+test('leaves standalone direct-gallery history to Inertia before a nested photo session exists', async () => {
     navigate('/@author/commits/image-post/photos/1', {
         photo: { commit, index: 0 },
     });
     showCommitPhoto(props.photo as Parameters<typeof showCommitPhoto>[0], 1);
 
     assert.equal(
-        historyVisit('/@author/commits/image-post/photos/2').mock.calls.length,
+        (await historyVisit('/@author/commits/image-post/photos/2')).mock.calls
+            .length,
         0,
     );
 });
@@ -321,7 +392,7 @@ for (const outcome of [
     'httpException',
     'networkError',
 ]) {
-    test(`retains photo history after a ${outcome} full visit`, () => {
+    test(`retains photo history after a ${outcome} full visit`, async () => {
         openCommitPhoto(commit, 0);
         props.livePollResult = 42;
         const visit = backgroundVisit({ async: false, id: 'full-visit' });
@@ -334,7 +405,7 @@ for (const outcome of [
         }
 
         assert.equal(
-            historyVisit('/log/latest?since=first').mock.calls.length,
+            (await historyVisit('/log/latest?since=first')).mock.calls.length,
             1,
         );
         assert.equal(props.photo, undefined);
@@ -345,7 +416,7 @@ for (const outcome of [
 }
 
 for (const outcome of ['success', 'error']) {
-    test(`releases photo history after a full visit commits with ${outcome}, even at the same URL`, () => {
+    test(`releases photo history after a full visit commits with ${outcome}, even at the same URL`, async () => {
         openCommitPhoto(commit, 0);
         const visit = backgroundVisit({ async: false, id: 'full-visit' });
         listeners.get('start')?.({ detail: { visit } });
@@ -355,14 +426,14 @@ for (const outcome of ['success', 'error']) {
         });
 
         assert.equal(
-            historyVisit('/log/latest?since=first').mock.calls.length,
+            (await historyVisit('/log/latest?since=first')).mock.calls.length,
             0,
         );
     });
 }
 
 for (const outcome of ['success', 'error']) {
-    test(`uses the committed photo page for polling after a full replacement with ${outcome}`, () => {
+    test(`uses the committed photo page for polling after a full replacement with ${outcome}`, async () => {
         openCommitPhoto(commit, 0);
         const photoUrl = window.location.href;
         const visit = backgroundVisit({ async: false, id: 'full-visit' });
@@ -375,14 +446,14 @@ for (const outcome of ['success', 'error']) {
         assert.equal(backgroundVisit().url.href, photoUrl);
         assert.equal(backgroundVisit().preserveUrl, false);
         assert.equal(
-            historyVisit('/log/latest?since=first').mock.calls.length,
+            (await historyVisit('/log/latest?since=first')).mock.calls.length,
             0,
         );
     });
 }
 
 for (const outcome of ['success', 'error']) {
-    test(`keeps photo history after a preserved-state commit mutation with ${outcome}`, () => {
+    test(`keeps photo history after a preserved-state commit mutation with ${outcome}`, async () => {
         openCommitPhoto(commit, 0);
         const visit = backgroundVisit({
             ...commitMutationOptions('commit/show'),
@@ -398,7 +469,7 @@ for (const outcome of ['success', 'error']) {
 
         closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
         assert.equal(
-            historyVisit('/log/latest?since=first').mock.calls.length,
+            (await historyVisit('/log/latest?since=first')).mock.calls.length,
             1,
         );
         assert.equal(props.photo, undefined);
@@ -406,10 +477,10 @@ for (const outcome of ['success', 'error']) {
         assert.equal(lastVisit.preserveState, true);
     });
 
-    test(`keeps Forward photo history after a preserved-state background mutation with ${outcome}`, () => {
+    test(`keeps Forward photo history after a preserved-state background mutation with ${outcome}`, async () => {
         openCommitPhoto(commit, 0);
         const photoUrl = window.location.href;
-        historyVisit('/log/latest?since=first');
+        await historyVisit('/log/latest?since=first');
         const visit = backgroundVisit({
             ...commitMutationOptions('log/show'),
             async: false,
@@ -421,13 +492,13 @@ for (const outcome of ['success', 'error']) {
             detail: { page: { props }, visitId: visit.id },
         });
 
-        assert.equal(historyVisit(photoUrl).mock.calls.length, 1);
+        assert.equal((await historyVisit(photoUrl)).mock.calls.length, 1);
         assert.equal((props.photo as { commit: Commit }).commit.id, commit.id);
         assert.equal(lastVisit.preserveState, true);
     });
 }
 
-test('releases photo history when a preserved-state response changes the background session', () => {
+test('releases photo history when a preserved-state response changes the background session', async () => {
     openCommitPhoto(commit, 0);
     const visit = backgroundVisit({
         async: false,
@@ -442,10 +513,13 @@ test('releases photo history when a preserved-state response changes the backgro
         detail: { page: { props }, visitId: visit.id },
     });
 
-    assert.equal(historyVisit('/log/latest?since=first').mock.calls.length, 0);
+    assert.equal(
+        (await historyVisit('/log/latest?since=first')).mock.calls.length,
+        0,
+    );
 });
 
-test('keeps photo history when a background poll commits during a full visit', () => {
+test('keeps photo history when a background poll commits during a full visit', async () => {
     openCommitPhoto(commit, 0);
     const visit = backgroundVisit({ async: false, id: 'full-visit' });
     listeners.get('start')?.({ detail: { visit } });
@@ -453,13 +527,120 @@ test('keeps photo history when a background poll commits during a full visit', (
         detail: { page: { props }, visitId: 'poll' },
     });
 
-    assert.equal(historyVisit('/log/latest?since=first').mock.calls.length, 1);
+    assert.equal(
+        (await historyVisit('/log/latest?since=first')).mock.calls.length,
+        1,
+    );
 });
 
-test('removes the history listener when photo tracking stops', () => {
+test('leaves an older occurrence of the same photo URL to Inertia after a new background session', async () => {
+    openCommitPhoto(commit, 0);
+    const photoUrl = window.location.href;
+    const oldPhotoState = structuredClone(browserWindow.history.state);
+    navigate('/@author', {});
+    openCommitPhoto(commit, 0);
+    await historyVisit('/@author');
+
+    assert.equal(
+        (await historyVisit(photoUrl, oldPhotoState)).mock.calls.length,
+        0,
+    );
+});
+
+test('restores distinct entries sharing a photo URL within the same session', async () => {
+    const sourceUrl = 'http://localhost/@author/commits/image-post/photos/1';
+    navigate(sourceUrl, { photo: { commit, index: 0 } });
+    openCommitPhoto({ ...commit, id: 'reply-image' }, 0);
+    const sourceState = structuredClone(historyStates.get(sourceUrl));
+    const replyUrl = window.location.href;
+    openCommitPhoto(commit, 0);
+    await historyVisit(replyUrl);
+
+    assert.equal(
+        (await historyVisit(sourceUrl, sourceState)).mock.calls.length,
+        1,
+    );
+    assert.deepEqual(props.photo, { commit, index: 0 });
+    closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
+    assert.equal(window.location.pathname, '/@author/commits/image-post');
+});
+
+test('retains a photo entry through framework history replacements for scrolling or remembered state', async () => {
+    openCommitPhoto(commit, 0);
+    const photoUrl = window.location.href;
+    browserWindow.history.replaceState(
+        { page: { url: photoUrl, props: structuredClone(props) } },
+        '',
+    );
+    const replacedState = structuredClone(browserWindow.history.state);
+    await historyVisit('/log/latest?since=first');
+
+    assert.equal(
+        (await historyVisit(photoUrl, replacedState)).mock.calls.length,
+        1,
+    );
+    assert.equal((props.photo as { commit: Commit }).commit.id, commit.id);
+});
+
+test('falls back to native history when a photo entry cannot be decrypted', async () => {
+    openCommitPhoto(commit, 0);
+    const visit = lastVisit;
+    decryptHistory.mockRejectedValueOnce(new Error('History key unavailable'));
+
+    assert.equal(
+        (await historyVisit('/log/latest?since=first')).mock.calls.length,
+        1,
+    );
+    assert.equal(browserWindow.dispatchEvent.mock.calls.length, 1);
+    assert.equal(lastVisit, visit);
+});
+
+test('falls back to native history for a photo entry from a different app version', async () => {
+    openCommitPhoto(commit, 0);
+    const source = structuredClone(
+        historyStates.get('http://localhost/log/latest?since=first'),
+    );
+    assert.ok(source);
+    source.page.version = 'old-version';
+
+    await historyVisit('/log/latest?since=first', source);
+
+    assert.equal(browserWindow.dispatchEvent.mock.calls.length, 1);
+});
+
+test('ignores a decoded photo entry superseded by a second Back', async () => {
+    openCommitPhoto(commit, 0);
+    const firstUrl = window.location.href;
+    const first = structuredClone(browserWindow.history.state);
+    openCommitPhoto({ ...commit, id: 'reply-image' }, 0);
+    let decode!: (page: NonNullable<HistoryState>['page']) => void;
+    decryptHistory.mockImplementationOnce(
+        () =>
+            new Promise((resolve) => {
+                decode = resolve;
+            }),
+    );
+
+    const backToPhoto = historyVisit(firstUrl, first);
+    await Promise.resolve();
+    const backToSource = historyVisit('/log/latest?since=first');
+    assert.ok(first);
+    decode(first.page);
+    await Promise.all([backToPhoto, backToSource]);
+
+    assert.equal(props.photo, undefined);
+    assert.equal(window.location.pathname, '/log/latest');
+    assert.equal(lastVisit.preserveState, true);
+});
+
+test('removes the history listener when photo tracking stops', async () => {
     openCommitPhoto(commit, 0);
     stop();
 
     assert.equal(historyListeners.has('popstate'), false);
-    assert.equal(historyVisit('/log/latest?since=first').mock.calls.length, 0);
+    assert.equal(browserWindow.history.replaceState, replaceHistoryState);
+    assert.equal(
+        (await historyVisit('/log/latest?since=first')).mock.calls.length,
+        0,
+    );
 });
