@@ -327,7 +327,6 @@ it('shows guests the profile with its approved commits and a link preview', func
             ->where('isMuting', false)
             ->has('commits.data', 1)
             ->where('commits.data.0.body', 'A commit everyone may read')
-            ->where('commits.data.0.is_saved', false)
             ->where('streaks.longest', 1)
             ->has('activity'))
         ->assertSee('<title>The Octocat (@octocat) on /dev/null</title>', false)
