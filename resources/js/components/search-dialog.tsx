@@ -22,6 +22,8 @@ import {
     searchesCommits,
     searchIntent,
 } from '@/lib/search-intent';
+import type { FoundDeveloper, Option } from '@/lib/search-options';
+import { activeIndexFor, optionsFor } from '@/lib/search-options';
 import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, User } from '@/types';
@@ -36,12 +38,6 @@ const commitDebounce = 350;
 const commitLimit = 5;
 
 type Found<T> = { term: string; items: T[]; throttled?: boolean };
-
-type Option =
-    | { kind: 'developer'; id: string; user: User; reason?: string | null }
-    | { kind: 'commit'; id: string; commit: Commit }
-    | { kind: 'all'; id: string }
-    | { kind: 'suggestion'; id: string; term: string };
 
 const suggestionOptions: Option[] = suggestedQueries.map((term, index) => ({
     kind: 'suggestion',
@@ -66,7 +62,7 @@ export function SearchDialog({
 }) {
     const keys = useKeyLabels();
     const [query, setQuery] = useState('');
-    const [activeIndex, setActiveIndex] = useState(0);
+    const [activeId, setActiveId] = useState<string | null>(null);
     const isPicking = onPickDeveloper !== undefined;
 
     const term = query.trim();
@@ -113,15 +109,17 @@ export function SearchDialog({
         results.length === 0;
     const options =
         isPicking || !(isEmpty || foundNothing) ? results : suggestionOptions;
+    const activeIndex = activeIndexFor(options, activeId);
 
     const type = (value: string) => {
         setQuery(value);
-        setActiveIndex(0);
+        setActiveId(null);
     };
 
     const close = () => {
         onOpenChange(false);
         setQuery('');
+        setActiveId(null);
     };
 
     const openOption = (option: Option) => {
@@ -150,14 +148,15 @@ export function SearchDialog({
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
             const step = event.key === 'ArrowDown' ? 1 : -1;
-            setActiveIndex(
-                (index) => (index + step + options.length) % options.length,
+            setActiveId(
+                options[(activeIndex + step + options.length) % options.length]
+                    .id,
             );
         }
 
         if (event.key === 'Enter') {
             event.preventDefault();
-            const option = options[Math.min(activeIndex, options.length - 1)];
+            const option = options[activeIndex];
 
             if (option.kind !== 'developer' || !option.reason) {
                 openOption(option);
@@ -259,7 +258,7 @@ export function SearchDialog({
                                     term={term}
                                     heading={headingBefore(options, index)}
                                     isActive={index === activeIndex}
-                                    onHover={() => setActiveIndex(index)}
+                                    onHover={() => setActiveId(option.id)}
                                     onOpen={close}
                                     onPick={type}
                                     onPickDeveloper={
@@ -373,8 +372,6 @@ function useDebouncedSearch<T>(
     };
 }
 
-type FoundDeveloper = { user: User; reason?: string | null };
-
 async function searchRemoteCandidates(
     term: string,
     signal: AbortSignal,
@@ -407,33 +404,6 @@ function searchDevelopers(
         .then((data: { users: User[] }) =>
             data.users.map((user) => ({ user })),
         );
-}
-
-function optionsFor(
-    intent: ReturnType<typeof searchIntent>,
-    developers: FoundDeveloper[],
-    commits: Commit[],
-    commitTerm: string,
-): Option[] {
-    const developerOptions: Option[] = developers.map(({ user, reason }) => ({
-        kind: 'developer',
-        id: `developer-${user.id}`,
-        user,
-        reason,
-    }));
-    const commitOptions: Option[] = commits.map((commit) => ({
-        kind: 'commit',
-        id: `commit-${commit.id}`,
-        commit,
-    }));
-    const seeAll: Option[] =
-        commitTerm === '' ? [] : [{ kind: 'all', id: 'all' }];
-
-    if (intent === 'topic') {
-        return [...commitOptions, ...seeAll, ...developerOptions];
-    }
-
-    return [...developerOptions, ...commitOptions, ...seeAll];
 }
 
 const headings: Record<Option['kind'], ReactNode> = {
