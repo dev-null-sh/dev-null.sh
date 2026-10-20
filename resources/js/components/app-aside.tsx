@@ -1,12 +1,14 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
+import ChangelogController from '@/actions/App/Http/Controllers/ChangelogController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
-import { ChangelogPopover } from '@/components/changelog-popover';
+import { BioText } from '@/components/bio-text';
 import { GitHubIcon } from '@/components/github-icon';
+import { LiveFollowing } from '@/components/live-following';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
@@ -33,7 +35,7 @@ export function AppAside({
     );
 
     return (
-        <aside className="sticky top-0 hidden h-svh w-80 shrink-0 [scrollbar-width:none] flex-col gap-8 overflow-y-auto px-6 py-6 xl:flex">
+        <aside className="sticky top-0 hidden h-svh w-80 shrink-0 scrollbar-none flex-col gap-8 overflow-y-auto p-6 xl:flex">
             <button
                 type="button"
                 onClick={onSearch}
@@ -157,49 +159,54 @@ export function AppAside({
                     </dl>
                     {user.bio && (
                         <p className="mt-3 text-sm text-pretty text-muted-foreground">
-                            {user.bio}
+                            <BioText bio={user.bio} />
                         </p>
                     )}
                 </section>
             )}
 
+            <LiveFollowing />
             <WhoToFollow />
 
-            <div className="mt-auto space-y-2 text-sm text-muted-foreground">
-                <button
-                    type="button"
-                    onClick={onShowShortcuts}
-                    className="flex items-center gap-2 rounded-sm transition-colors hover:text-foreground"
+            <div className="-mt-4 flex gap-4 border-t pt-4 text-sm text-muted-foreground">
+                <Link
+                    href={AboutController.show()}
+                    className="transition-colors hover:text-foreground"
                 >
-                    Keyboard shortcuts
-                    <kbd className="min-w-5 rounded border border-b-2 bg-muted px-1 text-center font-mono text-xs">
-                        ?
-                    </kbd>
-                </button>
-                <div className="flex gap-4">
+                    About
+                </Link>
+                <nav aria-label="Legal" className="flex gap-4">
                     <Link
-                        href={AboutController.show()}
+                        href={TermsController.show()}
                         className="transition-colors hover:text-foreground"
                     >
-                        About
+                        Terms
                     </Link>
-                    <nav aria-label="Legal" className="flex gap-4">
-                        <Link
-                            href={TermsController.show()}
-                            className="transition-colors hover:text-foreground"
-                        >
-                            Terms
-                        </Link>
-                        <Link
-                            href={PrivacyController.show()}
-                            className="transition-colors hover:text-foreground"
-                        >
-                            Privacy
-                        </Link>
-                    </nav>
-                    <ChangelogPopover />
-                </div>
+                    <Link
+                        href={PrivacyController.show()}
+                        className="transition-colors hover:text-foreground"
+                    >
+                        Privacy
+                    </Link>
+                </nav>
+                <Link
+                    href={ChangelogController.index()}
+                    className="transition-colors hover:text-foreground"
+                >
+                    Changelog
+                </Link>
             </div>
+
+            <button
+                type="button"
+                onClick={onShowShortcuts}
+                className="mt-auto flex items-center gap-2 self-start rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground"
+            >
+                Keyboard shortcuts
+                <kbd className="min-w-5 rounded border border-b-2 bg-muted px-1 text-center font-mono text-xs">
+                    ?
+                </kbd>
+            </button>
         </aside>
     );
 }

@@ -8,6 +8,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { commitStateKey } from '@/lib/commit-state';
@@ -20,6 +21,7 @@ export const BookmarkRemovalContext = createContext<
 
 export function useBookmark(commit: Commit) {
     const { auth } = usePage().props;
+    const commitNotFound = useCommitNotFound();
     const [isSaved, setIsSaved] = useSharedState(
         commitStateKey('is_saved', commit.id),
         commit.is_saved ?? false,
@@ -38,11 +40,18 @@ export function useBookmark(commit: Commit) {
             return;
         }
 
+        let isNotFound = false;
+
         try {
             const response = await request.submit(
                 isSaved
                     ? BookmarkController.destroy(commit)
                     : BookmarkController.store(commit),
+                {
+                    onHttpException: (response) => {
+                        isNotFound = commitNotFound(commit.id, response);
+                    },
+                },
             );
 
             setIsSaved(response.is_saved);
@@ -52,7 +61,9 @@ export function useBookmark(commit: Commit) {
                 onRemoved?.(commit.id);
             }
         } catch {
-            toast.error('Could not update your saved commits. Try again.');
+            if (!isNotFound) {
+                toast.error('Could not update your saved commits. Try again.');
+            }
         }
     };
 

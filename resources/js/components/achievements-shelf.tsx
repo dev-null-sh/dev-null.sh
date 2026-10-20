@@ -1,7 +1,9 @@
 import {
     Award,
+    BotOff,
     Box,
     ChevronRight,
+    Cookie,
     FileCode,
     Flame,
     GitMerge,
@@ -19,6 +21,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { dropConfetti } from '@/lib/confetti';
 import { cn } from '@/lib/utils';
 import type { Achievements } from '@/types';
 
@@ -34,6 +37,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     sparkles: Sparkles,
     'git-merge': GitMerge,
     key: Key,
+    cookie: Cookie,
+    'bot-off': BotOff,
 };
 
 export function AchievementsShelf({
@@ -114,7 +119,13 @@ export function AchievementsShelf({
                             <TooltipTrigger asChild>
                                 <button
                                     type="button"
-                                    onClick={onInspect}
+                                    onClick={() => {
+                                        if (badge.unlocked) {
+                                            dropConfetti();
+                                        }
+
+                                        onInspect();
+                                    }}
                                     className={cn(
                                         'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs transition-colors select-none',
                                         badge.unlocked

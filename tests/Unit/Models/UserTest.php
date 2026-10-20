@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Ban;
 use App\Models\Commit;
+use App\Models\Device;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ test('to array', function (): void {
             'timezone',
             'lane',
             'has_github_account',
+            'live',
         ]);
 });
 
@@ -49,6 +51,14 @@ it('has ssh keys', function (): void {
     SshKey::factory()->create();
 
     expect($user->sshKeys)->toHaveCount(2);
+});
+
+it('has devices', function (): void {
+    $user = User::factory()->create();
+    Device::factory()->for($user)->count(2)->create();
+    Device::factory()->create();
+
+    expect($user->devices)->toHaveCount(2);
 });
 
 it('has following and followers', function (): void {

@@ -54,6 +54,9 @@ final readonly class SessionController
 
         if ($user->wasRecentlyCreated) {
             $createTomFriendship->handle($user);
+
+            // Counted by Fathom in the browser, for the conversion rate of the metrics...
+            Inertia::flash('signedUp', true);
         }
 
         dispatch(new SyncGitHubSshKeysJob($user));

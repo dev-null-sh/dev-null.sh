@@ -2,17 +2,22 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
+use App\Ai\Agents\CommitTranslator;
 use App\Enums\NotificationType;
 use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Device;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\SshKey;
 use App\Models\User;
+use App\Services\CommitTranslations;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 
@@ -49,11 +54,13 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'has_sponsors_listing' => true,
         'preferred_lane' => 3,
         'timezone' => 'Europe/Budapest',
+        'translation_language' => 'ja',
         'lane_color' => '#1a2b3c',
         'pasteis_mode' => true,
         'pasteis_received' => 17,
         'pasteis_given_today' => 6,
         'pasteis_given_on' => '2026-10-15',
+        'last_seen_at' => now()->toDateString(),
         'remember_token' => 'never-export-this-token',
     ]);
     $original = $user->fresh()->getAttributes();
@@ -86,6 +93,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'has_sponsors_listing' => true,
             'preferred_lane' => 3,
             'timezone' => 'Europe/Budapest',
+            'translation_language' => 'ja',
             'lane_color' => '#1a2b3c',
             'pasteis_mode' => true,
             'pasteis_received' => 17,
@@ -95,6 +103,10 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'remotes_from' => 'following',
             'pull_receipts' => true,
             'pinned_commit_id' => null,
+            'live_platform' => null,
+            'live_url' => null,
+            'live_ends_at' => null,
+            'last_seen_at' => now()->toDateString(),
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
@@ -110,6 +122,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'messages' => [],
         'notifications' => [],
         'ssh_keys' => [],
+        'devices' => [],
         'sessions' => [],
     ]);
     expect($response->streamedContent())->not->toContain('never-export-this-token')
@@ -142,6 +155,9 @@ it('exports all the signed-in users commits including replies, deleted ones, and
     $otherReply = Commit::factory()->for($other)->create(['parent_id' => $approved->id, 'body' => 'Another developer reply body']);
     Commit::factory()->for($other)->pending()->create();
 
+    CommitTranslator::fake([['source_language' => 'en', 'body' => 'Unicode-ondersteuning geleverd 🚀']]);
+    resolve(CreateCommitTranslation::class)->handle($approved, 'nl');
+
     $response = $this->actingAs($user)->get(route('export', ['user_id' => $other->id]));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
     $commits = collect($data['commits'])->keyBy('id');
@@ -154,6 +170,11 @@ it('exports all the signed-in users commits including replies, deleted ones, and
         'parent_id' => null,
         'quoted_commit_id' => null,
         'body' => $approved->body,
+        'cached_translations' => [
+            'source_language' => 'en',
+            'translations' => ['nl' => 'Unicode-ondersteuning geleverd 🚀'],
+            'expires_at' => now()->addDays(7)->getTimestamp(),
+        ],
         'status' => 'approved',
         'pasteis_count' => 3,
         'images' => [],
@@ -285,18 +306,20 @@ it('exports received notifications without revealing moderators', function (): v
         'commit_id' => $commit->id,
         'reason' => 'Looks like spam.',
     ]);
+    Notification::factory()->for($user, 'recipient')->leveledUp(3)->create();
     Notification::factory()->for($friend, 'recipient')->for($moderator, 'actor')->create();
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
     $notifications = collect($data['notifications'])->keyBy('type');
 
-    expect($notifications)->toHaveCount(2)
+    expect($notifications)->toHaveCount(3)
         ->and($notifications['followed'])->toBe([
             'type' => 'followed',
             'actor' => 'friendly-dev',
             'commit_id' => null,
             'reason' => null,
+            'level' => null,
             'read_at' => now()->toIso8601String(),
             'created_at' => now()->toIso8601String(),
         ])
@@ -305,6 +328,16 @@ it('exports received notifications without revealing moderators', function (): v
             'actor' => null,
             'commit_id' => $commit->id,
             'reason' => 'Looks like spam.',
+            'level' => null,
+            'read_at' => null,
+            'created_at' => now()->toIso8601String(),
+        ])
+        ->and($notifications['leveled_up'])->toBe([
+            'type' => 'leveled_up',
+            'actor' => null,
+            'commit_id' => null,
+            'reason' => null,
+            'level' => 3,
             'read_at' => null,
             'created_at' => now()->toIso8601String(),
         ])
@@ -349,17 +382,44 @@ it('exports ssh key fingerprints and sessions without session ids or payloads', 
         );
 });
 
-it('exports all records across chunk boundaries without omissions or duplicates', function (): void {
+it('exports the devices approved for the app, oldest first', function (): void {
     $user = User::factory()->create();
-    $commits = Commit::factory()->for($user)->count(501)->create();
-    $following = User::factory()->count(501)->create();
-    $user->following()->attach($following->modelKeys());
+    $older = Device::factory()->for($user)->create(['name' => 'devnull on iPad', 'approved_at' => now()->subWeek(), 'last_used_at' => now()->subDay()]);
+    $newer = Device::factory()->for($user)->create(['name' => 'devnull on iPhone', 'approved_at' => now()->subDay()]);
+    $other = Device::factory()->create();
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
+    expect($data['devices'])->toBe([
+        ['name' => 'devnull on iPad', 'fingerprint' => $older->fingerprint, 'approved_at' => now()->subWeek()->toIso8601String(), 'last_used_at' => now()->subDay()->toIso8601String()],
+        ['name' => 'devnull on iPhone', 'fingerprint' => $newer->fingerprint, 'approved_at' => now()->subDay()->toIso8601String(), 'last_used_at' => null],
+    ])
+        ->and($response->streamedContent())->not->toContain($other->fingerprint);
+});
+
+it('exports all records across chunk boundaries without omissions or duplicates', function (): void {
+    config(['cache.default' => 'database']);
+    $user = User::factory()->create();
+    $commits = Commit::factory()->for($user)->count(501)->create();
+    $following = User::factory()->count(501)->create();
+    $user->following()->attach($following->modelKeys());
+    $translated = $commits->sortBy('id')->last();
+    $cached = ['source_language' => 'de', 'translations' => ['en' => 'Good morning'], 'expires_at' => now()->addDay()->getTimestamp()];
+    Cache::put(resolve(CommitTranslations::class)->key($translated), $cached, 60);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    DB::enableQueryLog();
+    DB::flushQueryLog();
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+    $cacheReads = collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'from "cache"'));
+    DB::disableQueryLog();
+
     expect(collect($data['commits'])->pluck('id')->sort()->values()->all())->toBe($commits->pluck('id')->sort()->values()->all())
-        ->and(collect($data['following'])->pluck('username')->sort()->values()->all())->toBe($following->pluck('username')->sort()->values()->all());
+        ->and(collect($data['following'])->pluck('username')->sort()->values()->all())->toBe($following->pluck('username')->sort()->values()->all())
+        ->and(collect($data['commits'])->keyBy('id')[$translated->id]['cached_translations'])->toBe($cached)
+        ->and($data['commits'][0]['cached_translations'])->toBeNull()
+        ->and($cacheReads)->toHaveCount(2);
 });
 
 it('exports who the user mutes and blocks, but never who mutes or blocks them', function (): void {

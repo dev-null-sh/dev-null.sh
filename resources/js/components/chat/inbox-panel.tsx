@@ -180,7 +180,7 @@ export function InboxPanel({
                         autoComplete="off"
                         spellCheck={false}
                         className={cn(
-                            'w-full min-w-0 rounded-md border bg-card pr-9 pl-9 text-base outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none md:text-sm [&::-webkit-search-cancel-button]:hidden',
+                            'w-full min-w-0 rounded-md border bg-card px-9 text-base outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none md:text-sm [&::-webkit-search-cancel-button]:hidden',
                             isCompact ? 'h-8' : 'h-9',
                         )}
                         data-test="conversation-search"
@@ -211,18 +211,13 @@ export function InboxPanel({
                         aria-selected={tab === name}
                         onClick={() => showTab(name)}
                         className={cn(
-                            'flex flex-1 justify-center font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:-outline-offset-2',
+                            'relative flex flex-1 justify-center font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:-outline-offset-2',
                             isCompact ? 'text-sm' : 'text-[15px]',
                             { 'text-foreground': tab === name },
                         )}
                         data-test={`conversation-tab-${name}`}
                     >
-                        <span
-                            className={cn(
-                                'relative',
-                                isCompact ? 'py-2.5' : 'py-3',
-                            )}
-                        >
+                        <span className={cn(isCompact ? 'py-2.5' : 'py-3')}>
                             {label}
                             {name === 'fetched' && (requests ?? 0) > 0 && (
                                 <span className="ml-1.5 inline-flex min-w-5 justify-center rounded-full bg-primary px-1.5 font-mono text-[11px] leading-5 text-primary-foreground tabular-nums">
@@ -230,20 +225,20 @@ export function InboxPanel({
                                     <span className="sr-only"> waiting</span>
                                 </span>
                             )}
-                            {tab === name && (
-                                <span
-                                    aria-hidden
-                                    className="absolute inset-x-0 bottom-0 h-[3px] rounded-full bg-primary"
-                                />
-                            )}
                         </span>
+                        {tab === name && (
+                            <span
+                                aria-hidden
+                                className="absolute inset-x-0 bottom-0 h-[3px] bg-primary"
+                            />
+                        )}
                     </button>
                 ))}
             </div>
 
             <div
                 role="tabpanel"
-                className="min-h-0 flex-1 [scrollbar-width:thin] overflow-y-auto overscroll-contain"
+                className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain"
             >
                 <ConversationList
                     conversations={list}

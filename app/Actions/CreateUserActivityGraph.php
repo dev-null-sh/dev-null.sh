@@ -80,7 +80,7 @@ final readonly class CreateUserActivityGraph
         $width = self::GRID_X + $columns * self::STEP - (self::STEP - self::CELL) + self::PADDING;
 
         return view('svg.activity-graph', [
-            'username' => $user->username,
+            'mention' => $user->mention(),
             'width' => $width,
             'height' => self::HEIGHT,
             'padding' => self::PADDING,

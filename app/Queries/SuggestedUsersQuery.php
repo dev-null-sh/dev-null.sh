@@ -43,7 +43,7 @@ final readonly class SuggestedUsersQuery
                 'users.id',
             )
             ->select(['users.*', 'network.followed_by_following_count'])
-            ->addSelect(['followers_count' => $this->followersCount($following)])
+            ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
             ->whereIn('users.id', $this->committers($user))
             ->orderByDesc('followed_by_following_count')
             ->orderByDesc('followers_count')
@@ -54,10 +54,10 @@ final readonly class SuggestedUsersQuery
         // Ranked before looking for commits, so only the most followed are looked up rather than every candidate.
         $popularPool = User::query()
             ->fromSub($this->candidates($user, $followingIds)
-                ->whereNotIn('users.id', $followedByFollowing)
+                ->whereNotExists($this->followedByFollowing($user, $following))
                 ->select('users.*')
                 ->selectRaw('0 as followed_by_following_count')
-                ->addSelect(['followers_count' => $this->followersCount($following)])
+                ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
                 ->orderByDesc('followers_count')
                 ->latest('users.id'), 'users')
             ->whereIn('users.id', $this->committers($user))
@@ -117,6 +117,25 @@ final readonly class SuggestedUsersQuery
     }
 
     /**
+     * Whether someone the user follows follows the candidate. A not in over the same people is checked row by row
+     * against every one of them once they outgrow the database's working memory, which takes minutes for someone
+     * who follows a few thousand people, while a not exists is answered as an anti join.
+     *
+     * @param  BelongsToMany<User, User>  $following
+     */
+    private function followedByFollowing(User $user, BelongsToMany $following): QueryBuilder
+    {
+        $followed = $following->getRelatedPivotKeyName();
+        $follower = $following->getForeignPivotKeyName();
+
+        return $following->newPivotStatement()
+            ->from($following->getTable().' as followed_by_following')
+            ->join($following->getTable().' as followed_by_user', "followed_by_user.{$followed}", '=', "followed_by_following.{$follower}")
+            ->where("followed_by_user.{$follower}", $user->id)
+            ->whereColumn("followed_by_following.{$followed}", 'users.id');
+    }
+
+    /**
      * @param  BelongsToMany<User, User>  $following
      */
     private function followersCount(BelongsToMany $following): QueryBuilder
@@ -124,6 +143,15 @@ final readonly class SuggestedUsersQuery
         return $following->newPivotStatement()
             ->selectRaw('count(*)')
             ->whereColumn($following->getQualifiedRelatedPivotKeyName(), 'users.id');
+    }
+
+    private function followsUser(User $user): QueryBuilder
+    {
+        $followers = $user->followers();
+
+        return $followers->newPivotQuery()
+            ->selectRaw('count(*) > 0')
+            ->whereColumn($followers->getQualifiedRelatedPivotKeyName(), 'users.id');
     }
 
     private function committers(User $user): CommitBuilder

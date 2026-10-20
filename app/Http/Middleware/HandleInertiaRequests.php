@@ -5,16 +5,20 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Enums\Log;
+use App\Enums\RepliesPerPage;
 use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
+use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Middleware;
+use Symfony\Component\HttpFoundation\Response;
 
 final class HandleInertiaRequests extends Middleware
 {
@@ -31,6 +35,24 @@ final class HandleInertiaRequests extends Middleware
     public function version(Request $request): ?string
     {
         return parent::version($request);
+    }
+
+    /**
+     * A deploy sends a page built for the previous version back for a full reload. That page already took the flashed
+     * data off the session, so it is flashed again for the reload: the composer learns its commit went through.
+     */
+    public function onVersionChange(Request $request, Response $response): Response
+    {
+        /** @var array{flash?: array<string, mixed>} $page */
+        $page = $response instanceof JsonResponse ? $response->getData(true) : [];
+
+        $response = parent::onVersionChange($request, $response);
+
+        if (($page['flash'] ?? []) !== []) {
+            Inertia::flash($page['flash']);
+        }
+
+        return $response;
     }
 
     /**
@@ -67,6 +89,11 @@ final class HandleInertiaRequests extends Middleware
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
+            'liveFollowing' => fn (): Collection => $user instanceof User && ! $request->routeIs('onboarding.show')
+                ? resolve(LiveFollowingQuery::class)->get($user)
+                : collect(),
+            'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
+            'repliesPerPage' => RepliesPerPage::of($request)->value,
             // Onboarding has no sidebar to show them in, and the people followed during it change who is suggested.
             ...$user instanceof User && $showsWhoToFollow && ! $request->routeIs('onboarding.show') ? [
                 'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get(

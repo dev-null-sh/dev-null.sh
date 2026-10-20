@@ -1,11 +1,6 @@
-import { Head, Link, usePage } from '@inertiajs/react';
-import type { CSSProperties } from 'react';
-import LogController from '@/actions/App/Http/Controllers/LogController';
-import AppLogo from '@/components/app-logo';
-import { Button } from '@/components/ui/button';
-import { laneColor } from '@/lib/utils';
+import { Head, usePage } from '@inertiajs/react';
+import { ErrorMessage, useHomeAction } from '@/components/error-message';
 import { home } from '@/routes';
-import type { Profile } from '@/types';
 
 type Status = 403 | 404 | 429 | 500 | 503;
 
@@ -69,71 +64,27 @@ function errorCopy(
 
 export default function ErrorPage({ status }: { status: Status }) {
     const page = usePage();
-    const user: Profile | null = page.props.auth.user;
     const path = page.url.split('?')[0];
-    const copy = errorCopy(status, path, user?.username ?? null);
-    const lane = user ? laneColor(user.lane) : 'var(--rail)';
+    const copy = errorCopy(
+        status,
+        path,
+        page.props.auth.user?.username ?? null,
+    );
+    const homeAction = useHomeAction();
     const action =
-        status === 503
-            ? { label: 'Try again', href: home() }
-            : user && page.props.auth.log
-              ? {
-                    label: 'Back to your log',
-                    href: LogController.show(page.props.auth.log),
-                }
-              : { label: 'Go to the home page', href: home() };
+        status === 503 ? { label: 'Try again', href: home() } : homeAction;
 
     return (
         <>
             <Head title={copy.title} />
 
-            <main
-                className="mx-auto flex min-h-svh w-full max-w-3xl items-center px-4 py-16 sm:px-8"
-                style={{ '--lane': lane } as CSSProperties}
-            >
-                <ol className="w-full">
-                    <li className="flex">
-                        <div
-                            aria-hidden
-                            className="relative w-10 shrink-0 sm:w-16"
-                        >
-                            <span className="absolute top-3.5 bottom-6 left-1/2 w-0.5 -translate-x-1/2 bg-(--lane) mask-b-from-40%" />
-                            <span className="absolute top-3.5 left-1/2 size-3.5 -translate-1/2 rounded-full border-[3px] border-background bg-(--lane) shadow-[0_0_0_2px_var(--lane)]" />
-                        </div>
-                        <div className="min-w-0 flex-1 pb-14 sm:pb-16">
-                            <Link
-                                href={action.href}
-                                aria-label={`/dev/null, ${action.label.toLowerCase()}`}
-                                className="inline-flex"
-                            >
-                                <AppLogo />
-                            </Link>
-                        </div>
-                    </li>
-
-                    <li className="flex">
-                        <div
-                            aria-hidden
-                            className="relative w-10 shrink-0 sm:w-16"
-                        >
-                            <span className="absolute top-2.5 left-1/2 size-3.5 -translate-1/2 rounded-full border-2 border-muted-foreground bg-background" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <p className="font-mono text-[13px] [overflow-wrap:anywhere] text-muted-foreground">
-                                {copy.command}
-                            </p>
-                            <h1 className="mt-4 text-[clamp(1.75rem,4vw,2.5rem)] leading-tight font-semibold tracking-tight text-balance">
-                                {copy.headline}
-                            </h1>
-                            <p className="mt-3 max-w-[42ch] text-lg text-pretty text-muted-foreground">
-                                {copy.description}
-                            </p>
-                            <Button size="lg" className="mt-8" asChild>
-                                <Link href={action.href}>{action.label}</Link>
-                            </Button>
-                        </div>
-                    </li>
-                </ol>
+            <main className="mx-auto flex min-h-svh w-full max-w-3xl items-center px-4 py-16 sm:px-8">
+                <ErrorMessage
+                    command={copy.command}
+                    headline={<h1>{copy.headline}</h1>}
+                    description={<p>{copy.description}</p>}
+                    action={action}
+                />
             </main>
         </>
     );

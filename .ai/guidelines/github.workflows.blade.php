@@ -24,7 +24,7 @@ permissions:
 ## Safe triggers and inputs
 
 - Only `push`, `pull_request`, `schedule`, and `workflow_dispatch` trigger workflows. Never `pull_request_target`, `workflow_run`, `issue_comment`, `issues`, `discussion`, or `repository_dispatch`: those run with a privileged token or on input from strangers.
-- Never interpolate `${{ github.event.* }}`, `${{ github.head_ref }}`, or any other user-controlled value directly into `run:`. Pass it through `env:` and read it as a shell variable, as `lint-pr-title.yml` does with `PR_TITLE`.
+- Never interpolate `$@{{ github.event.* }}`, `$@{{ github.head_ref }}`, or any other user-controlled value directly into `run:`. Pass it through `env:` and read it as a shell variable, as `lint-pr-title.yml` does with `PR_TITLE`.
 - Pull requests from forks run with the read-only token and without secrets, and the repository requires approval before they run at all. Keep those repository settings; a workflow must stay safe even if they were turned off.
 - Jobs run on GitHub-hosted `ubuntu-latest` runners only, never self-hosted, and always with a `timeout-minutes`.
 

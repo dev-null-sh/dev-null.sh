@@ -1,6 +1,6 @@
 import { Image, Reply, SmilePlus } from 'lucide-react';
-import type { PointerEvent, ReactNode, RefObject } from 'react';
-import { useRef, useState } from 'react';
+import type { ReactNode, RefObject } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { show as showMessageImage } from '@/actions/App/Http/Controllers/MessageImageController';
 import MessageLinkPreviewController from '@/actions/App/Http/Controllers/MessageLinkPreviewController';
 import { preloadEmojiGroups } from '@/components/chat/message-reactions';
@@ -11,6 +11,7 @@ import type { ShownImage } from '@/components/commit-images';
 import { ImageViewer } from '@/components/image-viewer';
 import { LinkPreview } from '@/components/link-preview';
 import { bodySegments } from '@/lib/code';
+import { isReplySwipe, replyPull, replyThreshold } from '@/lib/reply-swipe';
 import { cn, laneColor } from '@/lib/utils';
 import type {
     BodySegment,
@@ -95,7 +96,7 @@ export function MessageLinkCard({ message }: { message: Message }) {
     }
 
     return (
-        <div className="w-64 max-w-full sm:w-80 [&>*]:mt-1">
+        <div className="w-64 max-w-full *:mt-1 sm:w-80">
             <LinkPreview
                 refreshUrl={MessageLinkPreviewController.show.url(message.id)}
                 preview={message.link_preview}
@@ -175,7 +176,8 @@ export function ReplyGhost({
 }
 
 /**
- * Lets touch users swipe a message right to reply, and shows its reply button on hover or focus.
+ * Lets touch users pull a message to reply: someone else's to the right, their own to the left. Shows its reply
+ * button on hover or focus.
  */
 export function Repliable({
     isMine,
@@ -186,67 +188,124 @@ export function Repliable({
     onReply: (() => void) | null;
     children: ReactNode;
 }) {
+    const row = useRef<HTMLDivElement>(null);
     const [offset, setOffset] = useState(0);
-    const start = useRef<{ x: number; y: number; id: number } | null>(null);
+    const reply = useRef(onReply);
+    const isReplyable = onReply !== null;
+
+    useEffect(() => {
+        reply.current = onReply;
+    });
+
+    // The listeners are not passive, so a pull can keep the thread from scrolling under it, which React's can't.
+    useEffect(() => {
+        const element = row.current;
+
+        if (element === null || !isReplyable) {
+            return;
+        }
+
+        let start: { x: number; y: number } | null = null;
+        let isPulling = false;
+        let pull = 0;
+
+        const reset = () => {
+            start = null;
+            isPulling = false;
+            pull = 0;
+            setOffset(0);
+        };
+
+        // A second finger anywhere on the screen cancels the pull, so a pinch or a stray touch never replies.
+        const onTouchStart = (event: TouchEvent) => {
+            const touch = event.touches[0];
+
+            if (event.touches.length !== 1 || touch === undefined) {
+                reset();
+
+                return;
+            }
+
+            start = { x: touch.clientX, y: touch.clientY };
+        };
+
+        const onTouchMove = (event: TouchEvent) => {
+            const touch = event.touches[0];
+
+            if (event.touches.length !== 1) {
+                reset();
+
+                return;
+            }
+
+            if (start === null || touch === undefined) {
+                return;
+            }
+
+            const dx = touch.clientX - start.x;
+            const dy = touch.clientY - start.y;
+
+            if (!isPulling) {
+                if (!isReplySwipe(dx, dy)) {
+                    start = null;
+
+                    return;
+                }
+
+                isPulling = true;
+            }
+
+            event.preventDefault();
+            pull = replyPull(dx, isMine);
+            setOffset(pull);
+        };
+
+        const onTouchEnd = (event: TouchEvent) => {
+            if (event.touches.length > 0) {
+                reset();
+
+                return;
+            }
+
+            if (isPulling && pull >= replyThreshold) {
+                navigator.vibrate?.(8);
+                reply.current?.();
+            }
+
+            reset();
+        };
+
+        element.addEventListener('touchstart', onTouchStart, { passive: true });
+        element.addEventListener('touchmove', onTouchMove, { passive: false });
+        element.addEventListener('touchend', onTouchEnd);
+        element.addEventListener('touchcancel', reset);
+
+        return () => {
+            element.removeEventListener('touchstart', onTouchStart);
+            element.removeEventListener('touchmove', onTouchMove);
+            element.removeEventListener('touchend', onTouchEnd);
+            element.removeEventListener('touchcancel', reset);
+        };
+    }, [isMine, isReplyable]);
 
     if (onReply === null) {
         return children;
     }
 
-    // The image viewer is portalled out of the message, but React still bubbles its swipes up to here.
-    const onPointerDown = (event: PointerEvent<HTMLElement>) => {
-        if (
-            event.pointerType === 'touch' &&
-            event.currentTarget.contains(event.target as Node)
-        ) {
-            start.current = {
-                x: event.clientX,
-                y: event.clientY,
-                id: event.pointerId,
-            };
-        }
-    };
-
-    const onPointerMove = (event: PointerEvent) => {
-        const swipe = start.current;
-
-        if (swipe === null || swipe.id !== event.pointerId) {
-            return;
-        }
-
-        if (offset === 0 && Math.abs(event.clientY - swipe.y) > 16) {
-            start.current = null;
-
-            return;
-        }
-
-        setOffset(Math.max(0, Math.min(72, event.clientX - swipe.x)));
-    };
-
-    const end = (isReplying: boolean) => {
-        if (isReplying && offset >= 56) {
-            onReply();
-        }
-
-        start.current = null;
-        setOffset(0);
-    };
-
     return (
         <div
+            ref={row}
             className={cn('group/message flex w-full touch-pan-y', {
                 'justify-end': isMine,
                 'transition-transform duration-200': offset === 0,
             })}
             style={
                 offset > 0
-                    ? { transform: `translateX(${offset}px)` }
+                    ? {
+                          transform: `translateX(${isMine ? -offset : offset}px)`,
+                      }
                     : undefined
             }
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={() => end(true)}
-            onPointerCancel={() => end(false)}
         >
             {children}
         </div>

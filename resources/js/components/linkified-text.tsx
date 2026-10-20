@@ -3,12 +3,14 @@ import type { ReactNode } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
+import { GitHubIcon } from '@/components/github-icon';
 import { UserPreview } from '@/components/user-preview';
 import { typedProse } from '@/lib/code';
+import { mentionPattern } from '@/lib/mentions';
 import { shortenUrl } from '@/lib/urls';
 import { shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
-import type { Commit } from '@/types';
+import type { BodySegment, Commit } from '@/types';
 
 // Keep these rules in sync with app/Services/Urls.php and app/Services/Mentions.php.
 
@@ -35,13 +37,22 @@ const urlPattern = new RegExp(
         String.raw`(?![\p{L}\p{N}_(-]|\.[A-Za-z0-9])(?:[\/?#][^\s<>]*)?`,
     'gu',
 );
-// A GitHub username after an "@" that doesn't follow a letter, digit, "_", ".", "/", "@" or "-", and doesn't run
-// into a path or a domain, so emails, "@inertiajs/react" and "@vue.js" are not mentions.
-const mentionPattern =
-    /(?<![\p{L}\p{N}_./@-])@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})(?![A-Za-z0-9_@/-]|\.[A-Za-z0-9])/gu;
 // A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
 const commitLinkPattern =
     /^https?:\/\/(?:www\.)?dev-null\.sh\/@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/commits\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+// A link to a GitHub repository, or to one of its issues or pull requests, nothing after its name or number, so it can
+// show as GitHub writes it.
+const gitHubLinkPattern =
+    /^https?:\/\/(?:www\.)?github\.com\/([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/([A-Za-z0-9._-]{1,100})(?:\/(issues|pull)\/([1-9][0-9]{0,9}))?$/i;
+// First path segments that are GitHub's own pages rather than an owner, like "github.com/features/actions".
+const gitHubReservedPaths = new Set(
+    [
+        'about apps codespaces collections customer-stories enterprise events explore features issues login marketplace',
+        'new notifications orgs organizations pricing pulls search security settings site sponsors topics trending users',
+    ]
+        .join(' ')
+        .split(' '),
+);
 const schemePattern = /^https?:\/\//i;
 const maxUrlLength = 2048;
 const brackets = [
@@ -59,7 +70,8 @@ function withoutTrailingPunctuation(candidate: string): string {
 
     do {
         previous = url;
-        url = url.replace(/[.,;:!?'"]+$/u, '');
+        // The ellipsis ends a feed excerpt, and smart punctuation closes quotes with ” and ’.
+        url = url.replace(/[.,;:!?'"…”’]+$/u, '');
 
         for (const [open, close] of brackets) {
             if (url.endsWith(close) && count(url, open) < count(url, close)) {
@@ -98,6 +110,17 @@ export function typedLinks(text: string): string[] {
     }
 
     return [...links];
+}
+
+/**
+ * Whether the prose outside code mentions someone, by the same rules that link a mention.
+ */
+export function hasMention(segments: BodySegment[]): boolean {
+    return segments.some(
+        (segment) =>
+            segment.type === 'text' &&
+            segment.text.search(mentionPattern) !== -1,
+    );
 }
 
 // Like X, the hidden parts of a shortened URL stay in the text, so copying it or a screen reader gets the whole URL.
@@ -177,6 +200,91 @@ function CommitLink({
         >
             {label}
         </Link>
+    );
+}
+
+type GitHubItem = { kind: 'issue' | 'pull request'; number: string };
+
+function gitHubLinkTo(href: string): {
+    owner: string;
+    repository: string;
+    item: GitHubItem | null;
+} | null {
+    const match = gitHubLinkPattern.exec(href);
+
+    if (!match || gitHubReservedPaths.has(match[1].toLowerCase())) {
+        return null;
+    }
+
+    return {
+        owner: match[1],
+        repository: match[2],
+        item: match[3]
+            ? {
+                  kind:
+                      match[3].toLowerCase() === 'pull'
+                          ? 'pull request'
+                          : 'issue',
+                  number: match[4],
+              }
+            : null,
+    };
+}
+
+// Like a dev/null commit link, the whole URL stays in the text, so copying it keeps the link.
+function GitHubLink({
+    url,
+    href,
+    owner,
+    repository,
+    item,
+    isStatic,
+}: {
+    url: string;
+    href: string;
+    owner: string;
+    repository: string;
+    item: GitHubItem | null;
+    isStatic: boolean;
+}) {
+    const label = (
+        <>
+            <span className="text-[0px]">{url}</span>
+            <span
+                aria-hidden="true"
+                className="font-mono text-[0.92em] wrap-anywhere select-none"
+            >
+                {/* The mark never wraps onto a line of its own. */}
+                <span className="whitespace-nowrap text-muted-foreground">
+                    <GitHubIcon className="mr-[0.2em] inline-block size-[1.15em] align-[-0.25em] text-foreground" />
+                    {owner.charAt(0)}
+                </span>
+                <span className="text-muted-foreground">{owner.slice(1)}/</span>
+                {repository}
+                {item && `#${item.number}`}
+            </span>
+        </>
+    );
+
+    if (isStatic) {
+        return (
+            <span title={href} className="text-primary">
+                {label}
+            </span>
+        );
+    }
+
+    return (
+        <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer nofollow ugc"
+            title={href}
+            aria-label={`${owner}/${repository}${item ? ` ${item.kind} #${item.number}` : ''} on GitHub`}
+            className="text-primary hover:underline"
+        >
+            {label}
+        </a>
     );
 }
 
@@ -295,6 +403,7 @@ export function LinkifiedText({
         }
 
         const commitLink = commitLinkPattern.exec(linkText);
+        const gitHubLink = gitHubLinkTo(href);
 
         parts.push(
             ...withMentions(
@@ -310,6 +419,16 @@ export function LinkifiedText({
                     url={linkText}
                     username={commitLink[1]}
                     commit={commitLink[2].toLowerCase()}
+                    isStatic={isStatic}
+                />
+            ) : gitHubLink ? (
+                <GitHubLink
+                    key={match.index}
+                    url={linkText}
+                    href={href}
+                    owner={gitHubLink.owner}
+                    repository={gitHubLink.repository}
+                    item={gitHubLink.item}
                     isStatic={isStatic}
                 />
             ) : isStatic ? (

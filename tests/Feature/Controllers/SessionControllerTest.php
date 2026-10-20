@@ -42,7 +42,8 @@ it('creates a user and logs them in', function (): void {
 
     $response = $this->get(route('login.store'));
 
-    $response->assertRedirectToRoute('onboarding.show');
+    $response->assertRedirectToRoute('onboarding.show')
+        ->assertInertiaFlash('signedUp', true);
 
     $user = User::query()->where('github_id', '583231')->sole();
 
@@ -122,7 +123,8 @@ it('updates an existing user on login', function (): void {
 
     $response = $this->get(route('login.store'));
 
-    $response->assertRedirectToRoute('log.show', Log::Following);
+    $response->assertRedirectToRoute('log.show', Log::Following)
+        ->assertInertiaFlashMissing('signedUp');
 
     expect(User::query()->count())->toBeOne()
         ->and($user->refresh()->username)->toBe('octocat');

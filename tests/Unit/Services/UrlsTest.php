@@ -65,6 +65,10 @@ it('strips trailing punctuation', function (string $text, string $url): void {
     'single quotes' => ["'https://example.com'", 'https://example.com'],
     'double quotes' => ['"https://example.com"', 'https://example.com'],
     'several' => ['(https://example.com/a?b=c!?).', 'https://example.com/a?b=c'],
+    'ellipsis' => ['Read https://example.com/launch…', 'https://example.com/launch'],
+    'curly double quotes' => ['He said “https://example.com/launch”.', 'https://example.com/launch'],
+    'curly single quotes' => ['‘https://example.com/launch’', 'https://example.com/launch'],
+    'keeps inner curly quotes and ellipses' => ['https://example.com/it’s…ok', 'https://example.com/it’s…ok'],
     'keeps inner punctuation' => ['https://example.com/a.b,c;d:e!f?g', 'https://example.com/a.b,c;d:e!f?g'],
 ]);
 
@@ -121,6 +125,8 @@ it('strips trailing punctuation from bare domains', function (string $text, stri
     'comma' => ['nativephp.com, laravel.com', 'https://nativephp.com'],
     'question mark' => ['Have you seen nativephp.com?', 'https://nativephp.com'],
     'quotes' => ['"nativephp.com"', 'https://nativephp.com'],
+    'ellipsis after a path' => ['see nativephp.com/docs…', 'https://nativephp.com/docs'],
+    'curly quotes after a path' => ['“nativephp.com/docs”', 'https://nativephp.com/docs'],
     'unbalanced parenthesis after a path' => ['(see nativephp.com/docs).', 'https://nativephp.com/docs'],
     'balanced parentheses in a path' => ['nativephp.com/wiki/Foo_(bar)', 'https://nativephp.com/wiki/Foo_(bar)'],
     'unbalanced bracket after a path' => ['[nativephp.com/docs]', 'https://nativephp.com/docs'],

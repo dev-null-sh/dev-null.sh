@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { flushSync } from 'react-dom';
 import ChangelogController from '@/actions/App/Http/Controllers/ChangelogController';
 import type { Changelog, ChangelogPullRequest } from '@/lib/changelog';
@@ -55,28 +55,30 @@ export function useChangelog(timeZone: string): {
     const [isLoadingOlder, setIsLoadingOlder] = useState(false);
     const [hasOlderFailed, setHasOlderFailed] = useState(false);
 
-    const keep = (next: Changelog) => {
+    const keep = useCallback((next: Changelog) => {
         loaded = next;
         setChangelog(next);
-    };
+    }, []);
+
+    const load = useCallback(() => {
+        if (changelog !== null) {
+            return;
+        }
+
+        setHasFailed(false);
+        request ??= fetchChangelog(timeZone, null);
+        request.then(keep, () => {
+            request = null;
+            setHasFailed(true);
+        });
+    }, [changelog, keep, timeZone]);
 
     return {
         changelog,
         hasFailed,
         isLoadingOlder,
         hasOlderFailed,
-        load: () => {
-            if (changelog !== null) {
-                return;
-            }
-
-            setHasFailed(false);
-            request ??= fetchChangelog(timeZone, null);
-            request.then(keep, () => {
-                request = null;
-                setHasFailed(true);
-            });
-        },
+        load,
         loadOlder: (onLoaded) => {
             if (changelog?.olderBefore == null || isLoadingOlder) {
                 return;

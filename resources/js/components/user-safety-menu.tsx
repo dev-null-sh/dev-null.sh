@@ -4,6 +4,8 @@ import { useState } from 'react';
 import UserBanController from '@/actions/App/Http/Controllers/UserBanController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
+import { rememberBlock } from '@/components/follow-button';
+import { clearMentionSuggestionsCache } from '@/components/mention-textarea';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -30,7 +32,7 @@ export function UserSafetyMenu({
     className,
     onOpenChange,
 }: {
-    user: Pick<User, 'username'>;
+    user: Pick<User, 'id' | 'username'>;
     isMuting: boolean;
     isBlocking: boolean;
     className?: string;
@@ -47,7 +49,10 @@ export function UserSafetyMenu({
         onOpenChange?.(menu || dialog !== null);
     };
 
-    const visit = (action: Parameters<typeof router.visit>[0]) => {
+    const visit = (
+        action: Parameters<typeof router.visit>[0],
+        onSuccess?: () => void,
+    ) => {
         router.visit(action, {
             preserveScroll: true,
             onStart: () => setIsSaving(true),
@@ -55,7 +60,13 @@ export function UserSafetyMenu({
                 setIsSaving(false);
                 changeOpen(false, null);
             },
-            onSuccess: () => router.flushAll(),
+            onSuccess: () => {
+                clearMentionSuggestionsCache();
+
+                onSuccess?.();
+
+                router.flushAll();
+            },
         });
     };
 
@@ -148,7 +159,9 @@ export function UserSafetyMenu({
                             variant="destructive"
                             disabled={isSaving}
                             onClick={() =>
-                                visit(UserBlockController.store(user))
+                                visit(UserBlockController.store(user), () =>
+                                    rememberBlock(user),
+                                )
                             }
                             data-test="confirm-block-button"
                         >

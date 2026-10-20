@@ -143,7 +143,7 @@ export function SearchDialog({
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-        if (options.length === 0) {
+        if (event.nativeEvent.isComposing || options.length === 0) {
             return;
         }
 

@@ -7,7 +7,9 @@ import { FoldedCommitBody } from '@/components/commit-body';
 import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
+import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
+import { dateLocale } from '@/lib/utils';
 import type { BodySegment } from '@/types';
 
 type ScheduledCommit = {
@@ -33,7 +35,7 @@ export default function Index({
 }) {
     const now = useNow();
     const [canceling, setCanceling] = useState<string | null>(null);
-    usePoll(30_000, { only: ['scheduledCommits'] });
+    usePoll(30_000, backgroundPollOptions({ only: ['scheduledCommits'] }));
 
     const labels = {
         pending: 'Submitted for review',
@@ -91,7 +93,7 @@ export default function Index({
                         return (
                             <li
                                 key={scheduled.id}
-                                className="space-y-3 px-5 py-5 sm:px-6"
+                                className="space-y-3 p-5 sm:px-6"
                             >
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
@@ -108,7 +110,7 @@ export default function Index({
                                         >
                                             {new Date(
                                                 scheduled.scheduled_at,
-                                            ).toLocaleString(undefined, {
+                                            ).toLocaleString(dateLocale, {
                                                 dateStyle: 'medium',
                                                 timeStyle: 'short',
                                             })}
@@ -119,7 +121,7 @@ export default function Index({
                                             variant="outline"
                                             size="sm"
                                             disabled={canceling !== null}
-                                            aria-label={`Cancel the commit scheduled for ${new Date(scheduled.scheduled_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}
+                                            aria-label={`Cancel the commit scheduled for ${new Date(scheduled.scheduled_at).toLocaleString(dateLocale, { dateStyle: 'medium', timeStyle: 'short' })}`}
                                             onClick={() => {
                                                 setCanceling(scheduled.id);
                                                 router.delete(
@@ -159,7 +161,7 @@ export default function Index({
                                             (option) => (
                                                 <li
                                                     key={option}
-                                                    className="rounded-md border px-3 py-2 text-[15px] [overflow-wrap:anywhere]"
+                                                    className="rounded-md border px-3 py-2 text-[15px] wrap-anywhere"
                                                 >
                                                     {emojify(option)}
                                                 </li>

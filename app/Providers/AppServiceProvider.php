@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Contracts\Services\DnsResolver;
+use App\Enums\ApiErrorCode;
+use App\Exceptions\ApiException;
 use App\Models\User;
 use App\Services\CodeTheme;
 use App\Services\DnsResolvers\SystemDnsResolver;
@@ -68,12 +70,17 @@ final class AppServiceProvider extends ServiceProvider
     {
         RateLimiter::for('commit-reports', fn (Request $request): Limit => Limit::perMinute(5)->by($this->userId($request)));
 
-        // Every sync costs four GitHub API requests, out of a shared hourly budget...
+        // Every sync costs four GitHub API requests, out of a shared hourly budget. The mobile app shares it, and gets the
+        // same message with a code...
         RateLimiter::for('profile-syncs', function (Request $request): Limit {
             $user = $request->user();
             assert($user instanceof User);
 
-            return Limit::perMinute(1)->by($user->id)->response(function (): RedirectResponse {
+            return Limit::perMinute(1)->by($user->id)->response(function (Request $request, array $headers): JsonResponse|RedirectResponse {
+                if ($request->is('api/*')) {
+                    return new ApiException(ApiErrorCode::RateLimited, __('You just synced. Try again in a minute.'), $headers)->render();
+                }
+
                 Inertia::flash('toast', [
                     'type' => 'error',
                     'message' => 'You just synced. Try again in a minute.',
@@ -83,7 +90,24 @@ final class AppServiceProvider extends ServiceProvider
             });
         });
 
-        RateLimiter::for('api', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip()));
+        // The mobile app's 429 comes with a code. The public API's stays as it is...
+        $rateLimited = fn (Request $request, array $headers): JsonResponse => new ApiException(ApiErrorCode::RateLimited, 'Too Many Attempts.', $headers)->render();
+
+        RateLimiter::for('api', function (Request $request) use ($rateLimited): Limit {
+            $user = $request->user();
+
+            // Signed requests from the mobile app share one budget per user, whichever network the phone is on...
+            return $user instanceof User
+                ? Limit::perMinute(120)->by($user->id)->response($rateLimited)
+                : Limit::perMinute(60)->by((string) $request->ip());
+        });
+
+        // Redeeming a code for a device is limited per key once the signature checks out. Before that, each address gets
+        // a ceiling, so unsigned or badly signed requests can't force signature checks...
+        RateLimiter::for('devices', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip())->response($rateLimited));
+
+        // Approving the devnull app on the web hands out a code each time...
+        RateLimiter::for('mobile-authorizations', fn (Request $request): Limit => Limit::perMinute(10)->by($this->userId($request)));
 
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
         RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));

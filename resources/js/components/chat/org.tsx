@@ -36,7 +36,7 @@ import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Message, OrgMember, OrgRef, OrgRole, User } from '@/types';
 
-export const maxMembers = 15;
+export const maxMembers = 100;
 
 const searchDebounce = 150;
 
@@ -331,7 +331,7 @@ export function OrgMembersDialog({
                 }}
             >
                 <DialogContent
-                    className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+                    className="flex max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
                     onOpenAutoFocus={(event) => {
                         event.preventDefault();
                         (event.currentTarget as HTMLElement).focus();
@@ -707,7 +707,7 @@ export function OrgPeopleDialog({
             }}
         >
             <DialogContent
-                className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+                className="flex max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
                 onCloseAutoFocus={(event) => {
                     // The new org's composer takes focus, so it isn't handed back to the button that opened this.
                     if (isCreated.current) {
@@ -736,7 +736,7 @@ export function OrgPeopleDialog({
                                 </span>
                                 <span
                                     className={cn(
-                                        'shrink-0 font-mono text-xs tabular-nums',
+                                        'min-w-[7ch] shrink-0 text-right font-mono text-xs tabular-nums',
                                         { 'text-foreground': isFull },
                                     )}
                                     data-test="org-people-count"
@@ -778,7 +778,7 @@ export function OrgPeopleDialog({
                                 data-test="org-people-search"
                             />
                         </label>
-                        <div className="flex min-h-7 flex-wrap gap-1.5">
+                        <div className="flex max-h-15.5 min-h-7 flex-wrap gap-1.5 overflow-y-auto overscroll-contain">
                             {picked.length === 0 ? (
                                 <span className="font-mono text-xs leading-7 text-muted-foreground">
                                     nobody picked yet

@@ -22,6 +22,24 @@ export function commitImageAlt(
 export type ShownImage = Pick<CommitImage, 'id' | 'url' | 'description'> &
     Partial<Pick<CommitImage, 'width' | 'height'>>;
 
+/**
+ * Tall images in a grid cell stay contained so they aren't blown up to fill the width.
+ * Landscape and square images cover the cell so the collage doesn't leave empty bands.
+ */
+export function gridImageObjectFit(
+    image: Pick<ShownImage, 'width' | 'height'>,
+): 'object-contain' | 'object-cover' {
+    if (
+        image.width !== undefined &&
+        image.height !== undefined &&
+        image.height > image.width
+    ) {
+        return 'object-contain';
+    }
+
+    return 'object-cover';
+}
+
 export function replaceFailedImage(image: HTMLImageElement): void {
     if (image.getAttribute('src') !== '/favicon.svg') {
         image.src = '/favicon.svg';
@@ -61,10 +79,12 @@ function CommitImageThumbnail({
     image,
     alt,
     className,
+    isSingle,
 }: {
     image: ShownImage;
     alt: string;
     className: string;
+    isSingle: boolean;
 }) {
     const [isLoaded, setIsLoaded] = useState(false);
 
@@ -86,6 +106,8 @@ function CommitImageThumbnail({
                 width={image.width}
                 height={image.height}
                 loading="lazy"
+                decoding="async"
+                data-single-image={isSingle || undefined}
                 onLoad={() => setIsLoaded(true)}
                 onError={(event) => replaceFailedImage(event.currentTarget)}
                 className={cn(
@@ -126,72 +148,79 @@ export function CommitImages({
     const hasMultipleImages = images.length > 1;
 
     return (
-        <div
-            className={cn(
-                'mt-3 grid gap-0.5 overflow-hidden rounded-lg border',
-                {
-                    'h-72 grid-cols-2': hasMultipleImages,
-                },
-            )}
-            data-test="commit-images"
-        >
-            {images.map((image, index) => {
-                const className = cn('relative block min-h-0 bg-muted', {
-                    'row-span-2': images.length === 3 && index === 0,
-                });
-                const thumbnail = (
-                    <CommitImageThumbnail
-                        image={image}
-                        alt={commitImageAlt(image, index, images.length)}
-                        className={cn(
-                            'w-full object-cover data-fallback:object-contain',
-                            hasMultipleImages ? 'h-full' : 'max-h-[32rem]',
-                        )}
-                    />
-                );
+        <div className="@container mt-3">
+            <div
+                className={cn(
+                    'grid gap-0.5 overflow-hidden rounded-lg border',
+                    {
+                        'h-[max(18rem,calc(100cqw*288/530))] grid-cols-2':
+                            hasMultipleImages,
+                    },
+                )}
+                data-test="commit-images"
+                data-image-grid={hasMultipleImages || undefined}
+            >
+                {images.map((image, index) => {
+                    const className = cn('relative block min-h-0 bg-muted', {
+                        'row-span-2': images.length === 3 && index === 0,
+                    });
+                    const thumbnail = (
+                        <CommitImageThumbnail
+                            image={image}
+                            isSingle={!hasMultipleImages}
+                            alt={commitImageAlt(image, index, images.length)}
+                            className={cn(
+                                'w-full',
+                                hasMultipleImages
+                                    ? cn('h-full', gridImageObjectFit(image))
+                                    : 'max-h-[max(32rem,calc(100cqw*512/530))] object-contain',
+                            )}
+                        />
+                    );
 
-                return commit ? (
-                    <a
-                        key={image.id}
-                        href={commitPhotoUrl(commit, index)}
-                        onClick={(event) => {
-                            event.stopPropagation();
+                    return commit ? (
+                        <a
+                            key={image.id}
+                            href={commitPhotoUrl(commit, index)}
+                            onClick={(event) => {
+                                event.stopPropagation();
 
-                            if (isModifiedClick(event)) {
-                                return;
-                            }
+                                if (isModifiedClick(event)) {
+                                    return;
+                                }
 
-                            event.preventDefault();
-                            openCommitPhoto(commit, index);
-                        }}
-                        className={className}
-                    >
-                        {thumbnail}
-                    </a>
-                ) : onOpen ? (
-                    <a
-                        key={image.id}
-                        href={image.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(event) => {
-                            if (isModifiedClick(event)) {
-                                return;
-                            }
+                                event.preventDefault();
+                                openCommitPhoto(commit, index);
+                            }}
+                            className={className}
+                        >
+                            {thumbnail}
+                        </a>
+                    ) : onOpen ? (
+                        <a
+                            key={image.id}
+                            href={image.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(event) => {
+                                if (isModifiedClick(event)) {
+                                    return;
+                                }
 
-                            event.preventDefault();
-                            onOpen(index);
-                        }}
-                        className={className}
-                    >
-                        {thumbnail}
-                    </a>
-                ) : (
-                    <div key={image.id} className={className}>
-                        {thumbnail}
-                    </div>
-                );
-            })}
+                                event.preventDefault();
+                                onOpen(index);
+                            }}
+                            className={className}
+                        >
+                            {thumbnail}
+                        </a>
+                    ) : (
+                        <div key={image.id} className={className}>
+                            {thumbnail}
+                        </div>
+                    );
+                })}
+            </div>
         </div>
     );
 }

@@ -10,45 +10,29 @@ import LanePicker from '@/components/lane-picker';
 import { PasteisModeSetting } from '@/components/pasteis-mode-setting';
 import { RemotesSetting } from '@/components/remotes-setting';
 import TimezonePicker from '@/components/timezone-picker';
+import TranslationLanguageSetting from '@/components/translation-language-setting';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
-import { formatFullDateTime } from '@/lib/utils';
+import type { TranslationLanguage } from '@/lib/translation-languages';
+import { formatFullDateTime, formatSyncedAgo } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Lane } from '@/types';
 
-function formatSyncedAgo(date: string, now: Date): string {
-    const seconds = Math.round(
-        (now.getTime() - new Date(date).getTime()) / 1000,
-    );
-
-    if (seconds < 60) {
-        return 'just now';
-    }
-
-    const [value, unit]: [number, Intl.RelativeTimeFormatUnit] =
-        seconds < 3600
-            ? [Math.floor(seconds / 60), 'minute']
-            : seconds < 86400
-              ? [Math.floor(seconds / 3600), 'hour']
-              : [Math.floor(seconds / 86400), 'day'];
-
-    return new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' }).format(
-        -value,
-        unit,
-    );
-}
-
 export default function Edit({
+    translationLanguage,
+    translationLanguages,
     preferredLane,
     automaticLane,
     githubSyncedAt,
     activityGraphUrl,
     profileUrl,
 }: {
+    translationLanguage: string | null;
+    translationLanguages: TranslationLanguage[];
     preferredLane: Lane | null;
     automaticLane: number;
     githubSyncedAt: string | null;
@@ -130,6 +114,11 @@ export default function Edit({
             />
 
             <TimezonePicker />
+
+            <TranslationLanguageSetting
+                language={translationLanguage}
+                languages={translationLanguages}
+            />
 
             <PasteisModeSetting />
 

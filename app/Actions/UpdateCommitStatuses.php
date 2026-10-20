@@ -6,10 +6,14 @@ namespace App\Actions;
 
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Jobs\CheckUserLevel;
+use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\Poll;
+use App\Models\User;
 use App\Queries\CommitBuilder;
+use App\Queries\TomQuery;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -21,6 +25,7 @@ final readonly class UpdateCommitStatuses
         private CreateMentionNotifications $createMentionNotifications,
         private CreateWorldReply $createWorldReply,
         private UpdateCommitHotScores $updateCommitHotScores,
+        private TomQuery $tomQuery,
     ) {
         //
     }
@@ -79,6 +84,18 @@ final readonly class UpdateCommitStatuses
                 $this->createMentionNotifications->handle(...$commits);
 
                 $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
+
+                if (filled(config('ai.providers.opencode.key')) && ($tom = $this->tomQuery->get()) instanceof User) {
+                    foreach ($commits as $commit) {
+                        if ($commit->user?->github_id !== CreateTomFriendship::GITHUB_ID
+                            && $commit->isAddressedTo($tom)) {
+                            dispatch(new ReplyAsTom($commit->id));
+                        }
+                    }
+                }
+
+                User::query()->whereKey($commits->pluck('user_id')->filter()->unique()->values()->all())->get()
+                    ->each(fn (User $author) => dispatch(new CheckUserLevel($author))->afterCommit());
             }
         });
     }

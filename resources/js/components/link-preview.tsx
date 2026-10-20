@@ -146,7 +146,7 @@ export function LinkPreview({
                     loading="lazy"
                     referrerPolicy="no-referrer"
                     onError={() => setIsImageBroken(true)}
-                    className="my-2 ml-2 size-20 shrink-0 rounded-md bg-muted object-cover"
+                    className="my-2 ml-2 size-20 shrink-0 rounded-md bg-muted object-contain"
                 />
             )}
 
@@ -154,11 +154,11 @@ export function LinkPreview({
                 <span className="truncate font-mono text-[13px] text-muted-foreground">
                     {preview.site_name ?? hostname(preview.url)}
                 </span>
-                <span className="line-clamp-2 text-[15px] leading-snug font-medium break-words">
+                <span className="line-clamp-2 text-[15px] leading-snug font-medium wrap-break-word">
                     {preview.title}
                 </span>
                 {preview.description && (
-                    <span className="mt-0.5 line-clamp-2 text-sm leading-snug break-words text-muted-foreground">
+                    <span className="mt-0.5 line-clamp-2 text-sm leading-snug wrap-break-word text-muted-foreground">
                         {preview.description}
                     </span>
                 )}

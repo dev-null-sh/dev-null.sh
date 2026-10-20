@@ -8,7 +8,7 @@ import type {
     ReactNode,
 } from 'react';
 import { afterAll, afterEach, test, vi } from 'vite-plus/test';
-import type { User } from '../../resources/js/types';
+import type { SuggestedUser, User } from '../../resources/js/types';
 
 let showPreview = false;
 const stateChanges: unknown[] = [];
@@ -26,6 +26,7 @@ vi.doMock('react', () => ({
               : initial,
         (value: unknown) => stateChanges.push(value),
     ],
+    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
 }));
 vi.doMock('react-dom', async () => ({
     ...(await vi.importActual('react-dom')),
@@ -33,8 +34,14 @@ vi.doMock('react-dom', async () => ({
 }));
 
 const { GraphRail } = await import('../../resources/js/components/graph-rail');
+const { UserAvatar } =
+    await import('../../resources/js/components/user-avatar');
+const { ActorAvatar } =
+    await import('../../resources/js/pages/notification/index');
 const { UserPreview } =
     await import('../../resources/js/components/user-preview');
+const { SuggestedUserRow } =
+    await import('../../resources/js/components/who-to-follow');
 
 vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
 vi.stubGlobal('document', { body: {} });
@@ -168,4 +175,70 @@ test('profile preview stays open when its menu is dismissed under the mouse', ()
     vi.runAllTimers();
 
     assert.ok(!stateChanges.includes(false));
+});
+
+test('suggested user row wraps the author in a user preview anchored to their avatar', () => {
+    const user = {
+        id: 'author',
+        name: 'Author',
+        username: 'author',
+        avatar_url: null,
+        lane: 1,
+        timezone: null,
+        followed_by_following_count: 15,
+        followers_count: 20,
+    } as SuggestedUser;
+
+    type PreviewProps = {
+        user: SuggestedUser;
+        anchor: React.RefObject<HTMLSpanElement | null>;
+        children?: ReactNode;
+    };
+    const findPreview = (
+        node: ReactNode,
+    ): ReactElement<PreviewProps> | undefined =>
+        React.Children.toArray(node)
+            .filter((child) => React.isValidElement<PreviewProps>(child))
+            .map((child) =>
+                child.type === UserPreview
+                    ? child
+                    : findPreview(child.props.children),
+            )
+            .find(Boolean);
+
+    const preview = findPreview(SuggestedUserRow({ user }));
+    assert.ok(preview);
+
+    assert.deepEqual(preview.props.user, user);
+    assert.ok(preview.props.anchor);
+});
+
+const actor = {
+    id: 'actor',
+    name: 'Actor',
+    username: 'actor',
+    avatar_url: null,
+    lane: 1,
+} as User;
+
+type ActorPreview = ReactElement<{
+    user: User;
+    anchor: React.RefObject<HTMLSpanElement | null>;
+    children: ReactElement<{
+        ref: React.RefObject<HTMLSpanElement | null>;
+        children: ReactElement<{ user: User }>;
+    }>;
+}>;
+
+test('notification actor avatar previews the actor around the avatar it anchors', () => {
+    const anchor = { current: null };
+    const preview = ActorAvatar({ user: actor, anchor }) as ActorPreview;
+    const avatar = preview.props.children;
+
+    assert.equal(preview.type, UserPreview);
+    assert.equal(preview.props.user, actor);
+    assert.equal(preview.props.anchor, anchor);
+    assert.equal(avatar.props.ref, anchor);
+    assert.equal(avatar.props.children.type, UserAvatar);
+    assert.equal(avatar.props.children.props.user, actor);
 });
