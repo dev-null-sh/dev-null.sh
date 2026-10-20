@@ -47,7 +47,7 @@ export function ChangelogAvatar({
 }
 
 /**
- * An author's /dev/null profile, or their GitHub profile when they aren't on /dev/null.
+ * An author's /dev/null profile, or just the author when they aren't on /dev/null.
  */
 export function ChangelogAuthorLink({
     author,
@@ -58,28 +58,18 @@ export function ChangelogAuthorLink({
     className?: string;
     children: ReactNode;
 }) {
-    if (author.username !== null) {
-        return (
-            <Link
-                href={show({ username: author.username })}
-                aria-label={`@${author.login} on /dev/null`}
-                className={className}
-            >
-                {children}
-            </Link>
-        );
+    if (author.username === null) {
+        return <span className={className}>{children}</span>;
     }
 
     return (
-        <a
-            href={`https://github.com/${author.login}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`@${author.login} on GitHub (opens in a new tab)`}
-            className={className}
+        <Link
+            href={show({ username: author.username })}
+            aria-label={`@${author.username} on /dev/null`}
+            className={cn(className, 'transition-colors hover:text-foreground')}
         >
             {children}
-        </a>
+        </Link>
     );
 }
 
@@ -204,7 +194,7 @@ export function ChangelogLane({
                                 <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
                                     <ChangelogAuthorLink
                                         author={pullRequest.author}
-                                        className="flex min-w-0 items-center gap-1.5 rounded-sm transition-colors hover:text-foreground"
+                                        className="flex min-w-0 items-center gap-1.5 rounded-sm"
                                     >
                                         <ChangelogAvatar
                                             login={pullRequest.author.login}
