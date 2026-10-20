@@ -39,7 +39,7 @@ final class CommunityStats implements Tool
             return 'Provide one location name between 2 and 80 characters.';
         }
 
-        if ($metric === 'bio_language' && ! array_key_exists($term, CommunityStatsQuery::Languages)) {
+        if ($metric === 'bio_language' && ! array_key_exists((string) $term, CommunityStatsQuery::Languages)) {
             return 'Unsupported language. Choose one of: '.implode(', ', array_keys(CommunityStatsQuery::Languages)).'.';
         }
 
