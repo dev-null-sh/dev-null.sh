@@ -1,4 +1,4 @@
-import { Link, router, useHttp, usePage } from '@inertiajs/react';
+import { Link, router, useRemember, useHttp, usePage } from '@inertiajs/react';
 import {
     ChevronDown,
     CornerDownRight,
@@ -241,22 +241,30 @@ export function useThread(
     const isPreview = preview !== undefined;
     const initial = preview ?? initialReplies;
     const { repliesPerPage, continuation } = usePage().props;
-    const [replies, setReplies] = useState<ThreadCommit[] | null>(
-        initial?.data ?? null,
-    );
-    const [nextCursor, setNextCursor] = useState<string | null>(
-        initial?.next_cursor ?? null,
-    );
+    const historyKey = `thread:${commit.id}:${except ?? ''}`;
+    const remembered = router.restore<{
+        replies: ThreadCommit[] | null;
+        nextCursor: string | null;
+        isOpen: boolean;
+    }>(historyKey);
     const [count, setCount] = useSharedState(
         commitStateKey('replies_count', commit.id),
         commit.replies_count ?? 0,
     );
     const [shouldLoadReplies] = useState(
-        (loadsReplies && count > 0) ||
-            (initial !== undefined && changedThreadIds.has(commit.id)),
+        (remembered?.isOpen === true && remembered.replies === null) ||
+            (remembered === undefined &&
+                ((loadsReplies && count > 0) ||
+                    (initial !== undefined &&
+                        changedThreadIds.has(commit.id)))),
     );
-    const [isOpen, setIsOpen] = useState(
-        initial !== undefined || shouldLoadReplies,
+    const [{ replies, nextCursor, isOpen }, setThread] = useRemember(
+        {
+            replies: initial?.data ?? null,
+            nextCursor: initial?.next_cursor ?? null,
+            isOpen: initial !== undefined || shouldLoadReplies,
+        },
+        historyKey,
     );
     const [isLoading, setIsLoading] = useState(false);
     const [isReplying, setIsReplying] = useState(false);
@@ -265,14 +273,20 @@ export function useThread(
     if (preview !== previousPreview) {
         setPreviousPreview(preview);
         if (preview !== undefined && (replies?.length ?? 0) <= repliesPerPage) {
-            setReplies(preview.data);
-            setNextCursor(preview.next_cursor);
+            setThread((current) => ({
+                ...current,
+                replies: preview.data,
+                nextCursor: preview.next_cursor,
+            }));
         }
     }
 
     const applyPage = (loaded: ThreadCommit[], cursor: string | null) => {
-        setReplies(loaded);
-        setNextCursor(cursor);
+        setThread((current) => ({
+            ...current,
+            replies: loaded,
+            nextCursor: cursor,
+        }));
 
         if (cursor === null) {
             setCount(loaded.length);
@@ -327,8 +341,11 @@ export function useThread(
         fetchReplies({ id: commitId }, null, isPreview, repliesPerPage, except)
             .then((page) => {
                 if (isCurrent) {
-                    setReplies(page.data);
-                    setNextCursor(page.next_cursor);
+                    setThread((current) => ({
+                        ...current,
+                        replies: page.data,
+                        nextCursor: page.next_cursor,
+                    }));
                 }
             })
             .catch(() => undefined);
@@ -398,7 +415,7 @@ export function useThread(
                 reload();
             }
 
-            setIsOpen(!isOpen);
+            setThread((current) => ({ ...current, isOpen: !current.isOpen }));
         },
         loadMore: () => loadUntil((replies?.length ?? 0) + repliesPerPage),
         loadAll: () => loadUntil(Infinity),
@@ -410,7 +427,7 @@ export function useThread(
             setCount(parent.replies_count);
 
             if (parent.continuation_id === continuationId) {
-                setIsOpen(true);
+                setThread((current) => ({ ...current, isOpen: true }));
                 reload();
 
                 return;
