@@ -1,3 +1,4 @@
+import type { PendingVisit } from '@inertiajs/core';
 import { router } from '@inertiajs/react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitPhotoController from '@/actions/App/Http/Controllers/CommitPhotoController';
@@ -13,7 +14,7 @@ const photoPages = new Map<string, CommitPhoto | undefined>();
 
 export function trackCommitPhotoPage(): VoidFunction {
     let backgroundUrl: string | undefined;
-    let fullVisitId: string | undefined;
+    let pendingVisit: PendingVisit | undefined;
 
     const onPopState = (event: PopStateEvent) => {
         const url = window.location.href;
@@ -46,26 +47,27 @@ export function trackCommitPhotoPage(): VoidFunction {
     });
     const stopStart = router.on('start', ({ detail: { visit } }) => {
         if (!visit.async) {
-            fullVisitId = visit.id;
+            pendingVisit = visit;
         }
     });
-    const stopSuccess = router.on(
-        'success',
-        ({ detail: { page, visitId } }) => {
-            if (visitId && visitId === fullVisitId) {
-                photoPages.clear();
-                backgroundUrl = (page?.props.photo as CommitPhoto | undefined)
-                    ?.backgroundUrl;
+    const stopResponses = (['success', 'error'] as const).map((event) =>
+        router.on(event, ({ detail: { page, visitId } }) => {
+            if (!visitId || visitId !== pendingVisit?.id) {
+                return;
             }
-        },
+
+            const photo = page?.props.photo as CommitPhoto | undefined;
+            if (
+                pendingVisit.preserveState !== true ||
+                !photoPages.has(window.location.href) ||
+                photo?.backgroundUrl !==
+                    photoPages.get(window.location.href)?.backgroundUrl
+            ) {
+                photoPages.clear();
+            }
+            backgroundUrl = photo?.backgroundUrl;
+        }),
     );
-    const stopError = router.on('error', ({ detail: { page, visitId } }) => {
-        if (visitId && visitId === fullVisitId) {
-            photoPages.clear();
-            backgroundUrl = (page?.props.photo as CommitPhoto | undefined)
-                ?.backgroundUrl;
-        }
-    });
     const stopReload = router.on('before', ({ detail: { visit } }) => {
         if (
             !backgroundUrl ||
@@ -94,8 +96,7 @@ export function trackCommitPhotoPage(): VoidFunction {
         photoPages.clear();
         stopNavigation();
         stopStart();
-        stopSuccess();
-        stopError();
+        stopResponses.forEach((stop) => stop());
         stopReload();
     };
 }

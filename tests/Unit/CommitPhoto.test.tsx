@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
+import { commitMutationOptions } from '../../resources/js/lib/commit-mutation-options';
 import type { Commit } from '../../resources/js/types';
 
 const listeners = new Map<string, (event: unknown) => void>();
@@ -84,6 +85,7 @@ afterEach(() => {
 function backgroundVisit(overrides = {}) {
     const visit = {
         id: 'poll-visit',
+        preserveState: false,
         url: new URL(window.location.href),
         method: 'get',
         async: true,
@@ -324,6 +326,70 @@ for (const outcome of ['success', 'error']) {
         );
     });
 }
+
+for (const outcome of ['success', 'error']) {
+    test(`keeps photo history after a preserved-state commit mutation with ${outcome}`, () => {
+        openCommitPhoto(commit, 0);
+        const visit = backgroundVisit({
+            ...commitMutationOptions('commit/show'),
+            async: false,
+            method: 'delete',
+            id: 'commit-deletion',
+        });
+        listeners.get('start')?.({ detail: { visit } });
+        props.liveReplyCount = 2;
+        listeners.get(outcome)?.({
+            detail: { page: { props }, visitId: visit.id },
+        });
+
+        closeCommitPhoto(props.photo as Parameters<typeof closeCommitPhoto>[0]);
+        assert.equal(
+            historyVisit('/log/latest?since=first').mock.calls.length,
+            1,
+        );
+        assert.equal(props.photo, undefined);
+        assert.equal(props.liveReplyCount, 2);
+        assert.equal(lastVisit.preserveState, true);
+    });
+
+    test(`keeps Forward photo history after a preserved-state background mutation with ${outcome}`, () => {
+        openCommitPhoto(commit, 0);
+        const photoUrl = window.location.href;
+        historyVisit('/log/latest?since=first');
+        const visit = backgroundVisit({
+            ...commitMutationOptions('log/show'),
+            async: false,
+            method: 'delete',
+            id: 'commit-deletion',
+        });
+        listeners.get('start')?.({ detail: { visit } });
+        listeners.get(outcome)?.({
+            detail: { page: { props }, visitId: visit.id },
+        });
+
+        assert.equal(historyVisit(photoUrl).mock.calls.length, 1);
+        assert.equal((props.photo as { commit: Commit }).commit.id, commit.id);
+        assert.equal(lastVisit.preserveState, true);
+    });
+}
+
+test('releases photo history when a preserved-state response changes the background session', () => {
+    openCommitPhoto(commit, 0);
+    const visit = backgroundVisit({
+        async: false,
+        preserveState: true,
+        id: 'new-session',
+    });
+    listeners.get('start')?.({ detail: { visit } });
+    props = {
+        photo: { commit, index: 0, backgroundUrl: 'http://localhost/@another' },
+    };
+    listeners.get('success')?.({
+        detail: { page: { props }, visitId: visit.id },
+    });
+
+    assert.equal(historyVisit('/log/latest?since=first').mock.calls.length, 0);
+});
 
 test('keeps photo history when a background poll commits during a full visit', () => {
     openCommitPhoto(commit, 0);
