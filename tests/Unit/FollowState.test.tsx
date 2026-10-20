@@ -9,6 +9,9 @@ type Props = Record<string, unknown> & { children?: ReactNode };
 
 let showPreview = false;
 type VisitOptions = {
+    only?: string[];
+    preserveScroll?: boolean;
+    preserveState?: boolean;
     onHttpException?: (response: { status: number }) => boolean | void;
     onSuccess?: () => void;
     onError?: () => void;
@@ -269,6 +272,17 @@ test('a follow from their preview shows in who to follow', () => {
     visits.at(-1)?.onSuccess?.();
 
     assert.equal(suggestionLabel(user), 'Unfollow @nuno');
+});
+
+test('a follow from their preview only reloads auth, so the log stays put', () => {
+    const user = suggestion('scrollstay');
+
+    (previewFollowButton(user).props.onClick as () => void)();
+
+    const visit = visits.at(-1);
+    assert.deepEqual(visit?.only, ['auth']);
+    assert.equal(visit?.preserveScroll, true);
+    assert.equal(visit?.preserveState, true);
 });
 
 test('blocking someone you follow from chat shows them as not followed in who to follow', async () => {

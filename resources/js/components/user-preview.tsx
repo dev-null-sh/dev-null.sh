@@ -362,6 +362,7 @@ function UserPreviewContent({
                 ? UserFollowController.store(user)
                 : UserFollowController.destroy(user),
             {
+                only: ['auth'],
                 preserveScroll: true,
                 preserveState: true,
                 onSuccess: () => {
@@ -377,6 +378,7 @@ function UserPreviewContent({
                                 Number(data.isFollowing),
                         },
                     });
+                    router.flushAll();
                 },
                 onHttpException: (response) =>
                     onFollowHttpException(user, response),
