@@ -17,8 +17,6 @@ export function CommitBody({
     className?: string;
     isStatic?: boolean;
 }) {
-    const { auth } = usePage().props;
-
     return (
         <div
             data-commit-body
@@ -27,6 +25,28 @@ export function CommitBody({
                 className,
             )}
         >
+            <BodySegments
+                segments={segments}
+                mentions={mentions}
+                isStatic={isStatic}
+            />
+        </div>
+    );
+}
+
+export function BodySegments({
+    segments,
+    mentions,
+    isStatic = false,
+}: {
+    segments: BodySegment[];
+    mentions: Commit['mentions'];
+    isStatic?: boolean;
+}) {
+    const { auth } = usePage().props;
+
+    return (
+        <>
             {segments.map((segment, index) => {
                 switch (segment.type) {
                     case 'text':
@@ -59,7 +79,7 @@ export function CommitBody({
                         );
                 }
             })}
-        </div>
+        </>
     );
 }
 
