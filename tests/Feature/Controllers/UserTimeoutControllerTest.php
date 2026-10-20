@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Enums\ModerationReason;
+use App\Models\Ban;
 use App\Models\Commit;
 use App\Models\Conversation;
 use App\Models\ScheduledCommit;
@@ -247,6 +249,46 @@ it('holds the scheduled commits of a user in timeout until it is over', function
     $this->artisan('commits:submit-scheduled')->assertSuccessful();
 
     expect($scheduled->refresh()->submitted_at)->not->toBeNull();
+});
+
+it('does not submit a scheduled commit whose author was put in timeout after the batch was selected', function (): void {
+    $first = ScheduledCommit::factory()->create(['scheduled_at' => now()->subMinutes(2)]);
+    $user = User::factory()->create();
+    $second = ScheduledCommit::factory()->for($user)->create(['scheduled_at' => now()->subMinute()]);
+
+    // The timeout lands while the first item of the batch is being submitted, before the second is claimed...
+    Commit::created(function (Commit $commit) use ($first, $user): void {
+        if ($commit->user_id === $first->user_id) {
+            UserTimeout::factory()->for($user)->create(['ends_at' => now()->addHour()]);
+        }
+    });
+
+    try {
+        $this->artisan('commits:submit-scheduled')->assertSuccessful();
+    } finally {
+        Commit::flushEventListeners();
+    }
+
+    expect($first->refresh()->submitted_at)->not->toBeNull()
+        ->and($second->refresh()->submitted_at)->toBeNull()
+        ->and($user->commits()->count())->toBe(0);
+
+    $this->travel(61)->minutes();
+
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+
+    expect($second->refresh()->submitted_at)->not->toBeNull()
+        ->and($user->commits()->count())->toBe(1);
+});
+
+it('does not submit a scheduled commit whose author was banned after the batch was selected', function (): void {
+    $user = User::factory()->create();
+    $scheduled = ScheduledCommit::factory()->for($user)->create(['scheduled_at' => now()->subMinute()]);
+    Ban::factory()->create(['github_id' => $user->github_id]);
+
+    expect(resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id))->toBeFalse()
+        ->and($scheduled->refresh()->submitted_at)->toBeNull()
+        ->and($user->commits()->count())->toBe(0);
 });
 
 it('keeps the timeouts of a deleted account, so signing up again neither ends one nor resets the count', function (): void {

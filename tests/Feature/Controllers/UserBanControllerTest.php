@@ -135,6 +135,18 @@ it('sends everyone else from the banned page to their log', function (): void {
         ->assertRedirectToRoute('log.show', $user->log);
 });
 
+it('lets a banned user read the terms and privacy policy the banned page points to', function (string $route, string $component): void {
+    $user = User::factory()->banned()->create();
+
+    $this->actingAs($user)
+        ->get(route($route))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component($component));
+})->with([
+    'the terms' => ['terms.show', 'terms/show'],
+    'the privacy policy' => ['privacy.show', 'privacy/show'],
+]);
+
 it('lets a banned user sign out', function (): void {
     $user = User::factory()->banned()->create();
 

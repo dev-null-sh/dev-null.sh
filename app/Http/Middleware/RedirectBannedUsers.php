@@ -12,9 +12,10 @@ use Symfony\Component\HttpFoundation\Response;
 final readonly class RedirectBannedUsers
 {
     /**
-     * The routes a banned user still reaches: the page that tells them why, deleting their account, and signing out.
+     * The routes a banned user still reaches: the page that tells them why, the terms and privacy policy it points to,
+     * deleting their account, and signing out.
      */
-    private const array ALLOWED_ROUTES = ['banned.show', 'user.destroy', 'logout'];
+    private const array ALLOWED_ROUTES = ['banned.show', 'terms.show', 'privacy.show', 'user.destroy', 'logout'];
 
     /**
      * A banned user is turned away from everything else, so all they can do is read why and delete their account.
