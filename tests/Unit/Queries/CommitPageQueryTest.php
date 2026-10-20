@@ -35,7 +35,7 @@ it('only counts the stars and saves of the viewer as theirs', function (): void 
         ->and($loaded->starred)->toBeFalse();
 });
 
-it('loads the commit for a guest, who starred and saved nothing', function (): void {
+it('loads the commit for a guest, who starred nothing', function (): void {
     $commit = Commit::factory()->create();
     Commit::factory()->for($commit, 'parent')->create();
     Commit::factory()->for($commit, 'parent')->pending()->create();
