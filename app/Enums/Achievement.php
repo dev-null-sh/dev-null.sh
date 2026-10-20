@@ -18,6 +18,10 @@ enum Achievement: string
     case Pipe = 'pipe';
     case AuthorizedKeys = 'authorized_keys';
     case SweetTooth = 'sweet_tooth';
+    case Patch = 'patch';
+    case Upstream = 'upstream';
+    case Sudoers = 'sudoers';
+    case Mknod = 'mknod';
     case Luddite = 'luddite';
 
     public function label(): string
@@ -35,6 +39,10 @@ enum Achievement: string
             self::Pipe => 'pipe',
             self::AuthorizedKeys => 'authorized_keys',
             self::SweetTooth => 'sweet tooth',
+            self::Patch => 'patch',
+            self::Upstream => 'upstream',
+            self::Sudoers => 'sudoers',
+            self::Mknod => 'mknod',
             self::Luddite => 'luddite',
         };
     }
@@ -54,6 +62,10 @@ enum Achievement: string
             self::Pipe => 'Joined conversations with 5 replies to other developers.',
             self::AuthorizedKeys => 'Provisioned a public SSH key from GitHub.',
             self::SweetTooth => 'Received 100 pastéis across your account.',
+            self::Patch => 'Got a patch merged into /dev/null.',
+            self::Upstream => 'Got 5 patches merged into /dev/null.',
+            self::Sudoers => 'Trusted with 25 merged patches.',
+            self::Mknod => 'Built /dev/null itself with 100 merged patches.',
             self::Luddite => 'Unfollowed Tom. Costs 100 XP until you follow him again.',
         };
     }
@@ -73,6 +85,10 @@ enum Achievement: string
             self::Pipe => 'git-merge',
             self::AuthorizedKeys => 'key',
             self::SweetTooth => 'cookie',
+            self::Patch => 'git-pull-request',
+            self::Upstream => 'upload',
+            self::Sudoers => 'hash',
+            self::Mknod => 'hard-drive',
             self::Luddite => 'bot-off',
         };
     }
@@ -92,6 +108,10 @@ enum Achievement: string
             self::Pipe => 5,
             self::AuthorizedKeys => 1,
             self::SweetTooth => 100,
+            self::Patch => 1,
+            self::Upstream => 5,
+            self::Sudoers => 25,
+            self::Mknod => 100,
             self::Luddite => 1,
         };
     }

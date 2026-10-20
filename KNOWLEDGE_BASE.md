@@ -113,7 +113,7 @@ Sources: [go-live menu](resources/js/components/profile-actions-menu.tsx), [live
 
 ### Achievement badges and XP
 
-Profiles display **13 achievement badges**. Locked badges show progress toward their requirements; unlocked badges are highlighted. Open the achievements dialog from a profile's badge or rank to see the full list.
+Profiles display **17 achievement badges**. Locked badges show progress toward their requirements; unlocked badges are highlighted. Open the achievements dialog from a profile's badge or rank to see the full list.
 
 | Badge | When it unlocks |
 | --- | --- |
@@ -129,13 +129,19 @@ Profiles display **13 achievement badges**. Locked badges show progress toward t
 | **pipe** | Write **5 replies to other developers' commits**, excluding self-replies. Replies still count when their parent commit is soft-deleted. |
 | **authorized_keys** | Have at least one public SSH key linked from GitHub. |
 | **sweet tooth** | Receive **100 pastéis across your account**, not on a single commit. Pastéis mode does not need to be enabled, and the total survives deletion of the awarded commits. |
+| **patch** | Get your first patch merged into the /dev/null source code. |
+| **upstream** | Get **5 patches** merged into the /dev/null source code. |
+| **sudoers** | Get **25 patches** merged into the /dev/null source code. |
+| **mknod** | Get **100 patches** merged into the /dev/null source code. |
 | **luddite** | Stop following Tom while he still follows you. This deducts **100 XP**; following him again removes the badge and penalty. Accounts Tom has never befriended do not qualify. |
 
 Commit counts include replies and quotes. Commit-based badges and XP use non-deleted commits visible to the person viewing the profile, so an author may see progress from pending or rejected commits that other viewers cannot see. Streak badges use the **longest** streak, not the current streak: missing a day does not by itself remove them. Days follow the activity graph's app-timezone grouping, not the user's selected display timezone.
 
-Badges are calculated from current account data, not permanently recorded awards. Removing qualifying activity can reduce progress or lock a badge again; for example, unstarring a commit can remove **stargazer**. When a commit posted on the web unlocks a badge, a toast names it and confetti drops; clicking an unlocked badge drops confetti again. Unlocking a badge does not normally give bonus XP. XP comes from **10 per commit**, **15 per day in the longest streak**, **5 per star received**, **5 per reply to another developer**, and **2 per star given to another developer**. The **luddite** penalty applies once while the badge is unlocked, not once per unfollow, and total XP cannot fall below zero. A qualifying reply contributes both commit XP and reply XP; pastéis do not add XP.
+The contributor badges (**patch**, **upstream**, **sudoers**, and **mknod**) count the patches GitHub credits to your account on the **production** branch of **nunomaduro/dev-null.sh**, the repository /dev/null is built from: one per Git commit on that branch, so a squash-merged pull request counts once. Accounts are matched by numeric GitHub ID, not username, so renaming your account keeps your progress. The contributor list is read hourly, so a merge can take up to an hour to show; until the first read, every account shows zero. If GitHub keeps failing, the last list is kept for up to a day, and only the top 1,000 contributors GitHub lists are read. These badges add no XP, and since no post unlocks them, unlocking one shows no toast or confetti. Tom's top-ten contributor tool is a separate GitHub read.
 
-Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and XP calculation](app/Queries/UserAchievementsQuery.php), [streak calculation](app/Queries/UserStreakQuery.php), [achievements dialog](resources/js/components/achievements-dialog.tsx).
+Badges are calculated from current account data, not permanently recorded awards; the contributor badges use the last contributor list read from GitHub. Removing qualifying activity can reduce progress or lock a badge again; for example, unstarring a commit can remove **stargazer**. When a commit posted on the web unlocks a badge, a toast names it and confetti drops; clicking an unlocked badge drops confetti again. Unlocking a badge does not normally give bonus XP. XP comes from **10 per commit**, **15 per day in the longest streak**, **5 per star received**, **5 per reply to another developer**, and **2 per star given to another developer**. The **luddite** penalty applies once while the badge is unlocked, not once per unfollow, and total XP cannot fall below zero. A qualifying reply contributes both commit XP and reply XP; pastéis do not add XP.
+
+Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and XP calculation](app/Queries/UserAchievementsQuery.php), [streak calculation](app/Queries/UserStreakQuery.php), [contributor counts](app/Queries/UpstreamContributionsQuery.php), [contributor sync](app/Jobs/SyncUpstreamContributions.php), [achievements dialog](resources/js/components/achievements-dialog.tsx).
 
 ### Following developers and suggestions
 
