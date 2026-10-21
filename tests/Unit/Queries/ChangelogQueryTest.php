@@ -70,7 +70,7 @@ it('lists the pull requests merged on the three latest days with merges, newest 
             'sha' => mb_str_pad('377', 40, 'a'),
             'commit_url' => 'https://github.com/nunomaduro/dev-null.sh/commit/'.mb_str_pad('377', 40, 'a'),
             'merged_at' => '2026-10-18T00:53:44Z',
-            'author' => ['login' => 'xHeaven', 'avatar' => 'https://avatars.githubusercontent.com/u/377?v=4', 'username' => null, 'lane' => null],
+            'author' => ['login' => 'xHeaven', 'avatar' => 'https://avatars.githubusercontent.com/u/377?v=4', 'username' => null, 'mention' => null, 'lane' => null],
         ])
         ->and($changelog['pullRequests'][2] ?? [])->toHaveKey('type', null);
 
@@ -164,8 +164,10 @@ it('links each author who is on /dev/null to their profile, found by their GitHu
         pullRequest(1, '2026-10-18T10:00:00Z', login: 'not-on-devnull', githubId: 3),
     ]);
 
-    expect(array_column(array_column(resolve(ChangelogQuery::class)->get('UTC')['pullRequests'] ?? [], 'author'), 'username'))
-        ->toBe(['renamed-on-devnull', null]);
+    $authors = array_column(resolve(ChangelogQuery::class)->get('UTC')['pullRequests'] ?? [], 'author');
+
+    expect(array_column($authors, 'username'))->toBe(['renamed-on-devnull', null])
+        ->and(array_column($authors, 'mention'))->toBe(['@renamed-on-devnull', null]);
 });
 
 it('asks GitHub for a page at most once every thirty minutes', function (): void {

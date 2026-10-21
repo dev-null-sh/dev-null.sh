@@ -79,8 +79,8 @@ export function ChangelogAuthorLink({
                 onClick={onClick}
                 aria-label={
                     author.login === author.username
-                        ? `@${author.login} on /dev/null`
-                        : `@${author.login}, @${author.username} on /dev/null`
+                        ? `${author.mention} on /dev/null`
+                        : `@${author.login}, ${author.mention} on /dev/null`
                 }
                 className={cn(
                     className,
