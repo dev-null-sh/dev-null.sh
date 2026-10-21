@@ -263,6 +263,9 @@ Route::middleware('auth')->group(function (): void {
     Route::post('commits/{commit}/translation', [CommitTranslationController::class, 'store'])
         ->middleware('throttle:10,1,translations:')
         ->name('commit-translation.store');
+    Route::patch('commits/{commit}', [CommitController::class, 'update'])
+        ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
+        ->name('commit.update');
     Route::delete('commits/{commit}', [CommitController::class, 'destroy'])
         ->name('commit.destroy');
     Route::post('commits/{commit}/restoration', [CommitRestorationController::class, 'store'])

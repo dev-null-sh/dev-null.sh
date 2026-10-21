@@ -1,5 +1,6 @@
 import { Ellipsis, Flag, LinkIcon } from 'lucide-react';
 import { useState } from 'react';
+import { CommitEditButton } from '@/components/commit-edit-button';
 import {
     CommitReportButton,
     CommitReportDialog,
@@ -23,6 +24,7 @@ export function CommitSecondaryActions({
 }) {
     return (
         <div className="ml-auto flex items-center gap-0.5">
+            <CommitEditButton commit={commit} />
             <div className="hidden items-center gap-0.5 md:flex">
                 <CopyLinkButton commit={commit} keyShortcut={keyShortcut} />
                 <CommitReportButton commit={commit} />

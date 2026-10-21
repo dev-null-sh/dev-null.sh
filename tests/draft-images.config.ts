@@ -9,6 +9,7 @@ export default defineConfig({
     },
     test: {
         include: [
+            'tests/Unit/CommitEditButton.test.tsx',
             'tests/Unit/CommitPhoto.test.tsx',
             'tests/Unit/CommitSize.test.tsx',
             'tests/Unit/ThreadHistory.test.tsx',
