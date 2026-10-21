@@ -135,14 +135,19 @@ final class AppServiceProvider extends ServiceProvider
             Limit::perDay(300)->by('day:'.$this->userId($request)),
         ]);
 
-        // Every commit search pays for an embedding and a relevance verdict, so it gets a budget of its own...
+        // Every commit search pays for an embedding and a relevance verdict, so it gets a budget of its own. The
+        // mobile app gets the same message with a code...
         RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(15)
             ->by($request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip())
-            ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
-                ['message' => 'Slow down: too many searches. Give it a few seconds.'],
-                429,
-                $headers,
-            )));
+            ->response(function (Request $request, array $headers): JsonResponse {
+                $message = 'Slow down: too many searches. Give it a few seconds.';
+
+                if ($request->is('api/*')) {
+                    return new ApiException(ApiErrorCode::RateLimited, $message, $headers)->render();
+                }
+
+                return response()->json(['message' => $message], 429, $headers);
+            }));
 
         // Exports stream every commit a user ever made...
         RateLimiter::for('exports', fn (Request $request): Limit => Limit::perHour(3)->by($this->userId($request)));
