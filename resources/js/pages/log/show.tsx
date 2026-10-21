@@ -198,9 +198,9 @@ export default function Show({
                         type="button"
                         onClick={reloadNewestFirst}
                         aria-label={`Show ${newCommitsCount} new ${newCommitsCount === 1 ? 'commit' : 'commits'}`}
-                        className="pointer-events-auto mt-3 flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+                        className="pointer-events-auto mt-3 flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
                     >
-                        <ArrowUp className="size-4" />
+                        <ArrowUp className="size-3.5" />
                         <span
                             aria-hidden
                             className="mx-1 flex items-center -space-x-2"
@@ -211,13 +211,13 @@ export default function Show({
                                     <UserAvatar
                                         key={author.id}
                                         user={author}
-                                        pixels={56}
-                                        className="size-7 ring-2 ring-primary"
+                                        pixels={48}
+                                        className="size-6 ring-2 ring-primary"
                                     />
                                 ))}
                         </span>
                         {newCommitAuthors.total > 5 && (
-                            <span className="inline-flex h-7 min-w-7 shrink-0 items-center justify-center rounded-full bg-primary-foreground px-2 text-xs font-semibold whitespace-nowrap text-primary tabular-nums">
+                            <span className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary-foreground px-2 text-xs font-semibold whitespace-nowrap text-primary tabular-nums">
                                 +{newCommitAuthors.total - 5}
                             </span>
                         )}
