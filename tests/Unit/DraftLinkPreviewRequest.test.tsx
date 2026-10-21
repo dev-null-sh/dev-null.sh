@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
+import { setImmediate } from 'node:timers/promises';
 import * as React from 'react';
 import { afterAll, afterEach, test, vi } from 'vite-plus/test';
 import type { LinkPreview } from '../../resources/js/types/commit';
@@ -89,8 +90,7 @@ test('aborts an in-flight request when the selected URL changes without applying
         ok: true,
         json: async () => ({ link_preview: null }),
     } as Response);
-    await Promise.resolve();
-    await Promise.resolve();
+    await setImmediate();
 
     assert.equal(signal?.aborted, true);
     assert.deepEqual(updates, []);
@@ -111,6 +111,59 @@ test('aborts an in-flight request when the component unmounts', () => {
     cleanup();
 
     assert.equal(signal?.aborted, true);
+});
+
+test('applies the returned metadata to the selected preview', async () => {
+    const url = 'https://example.test/preview';
+    const preview: LinkPreview = {
+        url,
+        title: 'Example',
+        description: null,
+        image_url: null,
+        site_name: null,
+        is_pending: false,
+    };
+    vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+            ok: true,
+            json: async () => ({ link_preview: preview }),
+        })),
+    );
+
+    mount(url);
+    runTimers();
+    await setImmediate();
+
+    assert.deepEqual(updates, [{ url, preview }]);
+});
+
+test.each([
+    [
+        'the request fails',
+        async () => {
+            throw new Error('Offline');
+        },
+    ],
+    ['the server rejects the request', async () => ({ ok: false })],
+    [
+        'the response is malformed',
+        async () => ({
+            ok: true,
+            json: async () => {
+                throw new SyntaxError('Invalid JSON');
+            },
+        }),
+    ],
+])('leaves the preview unavailable when %s', async (_reason, fetch) => {
+    const url = 'https://example.test/preview';
+    vi.stubGlobal('fetch', vi.fn(fetch));
+
+    mount(url);
+    runTimers();
+    await setImmediate();
+
+    assert.deepEqual(updates, [{ url, preview: null }]);
 });
 
 function mount(url: string | null): () => void {

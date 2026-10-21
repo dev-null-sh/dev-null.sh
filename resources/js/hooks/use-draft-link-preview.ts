@@ -5,6 +5,29 @@ import type { LinkPreview } from '@/types';
 const PREVIEW_DELAY_MS = 400;
 
 type PreviewResult = { url: string; preview: LinkPreview | null };
+type PreviewResponse = { link_preview: LinkPreview | null };
+
+async function fetchDraftLinkPreview(
+    url: string,
+    signal: AbortSignal,
+): Promise<LinkPreview | null> {
+    try {
+        const response = await fetch(
+            DraftLinkPreviewController.show.url({ query: { url } }),
+            { headers: { Accept: 'application/json' }, signal },
+        );
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const data = (await response.json()) as PreviewResponse;
+
+        return data.link_preview;
+    } catch {
+        return null;
+    }
+}
 
 export function useDraftLinkPreview(url: string | null) {
     const [result, setResult] = useState<PreviewResult | null>(null);
@@ -16,28 +39,13 @@ export function useDraftLinkPreview(url: string | null) {
 
         const controller = new AbortController();
         const load = async () => {
-            try {
-                const response = await fetch(
-                    DraftLinkPreviewController.show.url({ query: { url } }),
-                    {
-                        headers: { Accept: 'application/json' },
-                        signal: controller.signal,
-                    },
-                );
-                const data = response.ok
-                    ? ((await response.json()) as {
-                          link_preview: LinkPreview | null;
-                      })
-                    : { link_preview: null };
+            const preview = await fetchDraftLinkPreview(url, controller.signal);
 
-                if (!controller.signal.aborted) {
-                    setResult({ url, preview: data.link_preview });
-                }
-            } catch {
-                if (!controller.signal.aborted) {
-                    setResult({ url, preview: null });
-                }
+            if (controller.signal.aborted) {
+                return;
             }
+
+            setResult({ url, preview });
         };
 
         const timeout = window.setTimeout(() => void load(), PREVIEW_DELAY_MS);
