@@ -327,7 +327,7 @@ it('suggests the round of people the user refreshed to', function (string $cooki
     $suggested = $middleware->share($request)['suggestedUsers']();
 
     expect($suggested->pluck('id')->all())
-        ->toBe(resolve(SuggestedUsersQuery::class)->get($user, round: $round)->pluck('id')->all());
+        ->toBe(resolve(SuggestedUsersQuery::class)->get($user, round: $round, spares: 3)->pluck('id')->all());
 })->with([
     'next round' => ['1', 1],
     'not a number' => ['abc', 0],

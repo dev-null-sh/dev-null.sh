@@ -148,7 +148,7 @@ export function LiveStreamTrigger({
             <PopoverContent
                 align="start"
                 sideOffset={8}
-                className="w-76 rounded-xl p-3"
+                className="w-76 rounded-lg p-3"
                 onOpenAutoFocus={(event) => event.preventDefault()}
                 onPointerEnter={(event) =>
                     event.pointerType === 'mouse' && hover(true)
@@ -194,7 +194,7 @@ function LiveStreamSheet({
                 <DialogPrimitive.Content
                     aria-describedby={undefined}
                     onOpenAutoFocus={(event) => event.preventDefault()}
-                    className="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t bg-popover p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-popover-foreground shadow-lg duration-200 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-96 sm:-translate-1/2 sm:rounded-2xl sm:border sm:data-[state=closed]:fade-out-0 sm:data-[state=closed]:slide-out-to-bottom-0 sm:data-[state=open]:fade-in-0 sm:data-[state=open]:slide-in-from-bottom-0"
+                    className="fixed inset-x-0 bottom-0 z-50 rounded-t-lg border-t bg-popover p-4 pb-[max(1rem,env(safe-area-inset-bottom))] text-popover-foreground shadow-lg duration-200 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:animate-in data-[state=open]:slide-in-from-bottom sm:inset-x-auto sm:top-1/2 sm:bottom-auto sm:left-1/2 sm:w-96 sm:-translate-1/2 sm:rounded-lg sm:border sm:data-[state=closed]:fade-out-0 sm:data-[state=closed]:slide-out-to-bottom-0 sm:data-[state=open]:fade-in-0 sm:data-[state=open]:slide-in-from-bottom-0"
                     data-test="live-stream-sheet"
                 >
                     <span
