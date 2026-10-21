@@ -30,7 +30,7 @@ final class ProcessExplore implements ShouldBeUniqueUntilProcessing, ShouldQueue
 
     public function __construct()
     {
-        $this->onQueue('explore');
+        $this->onQueue(config()->string('explore.queue'));
     }
 
     public function handle(ExploreContentQuery $content, ExploreBatch $packer, ExploreClassification $decoder, UpdateExploreClassification $persist): void

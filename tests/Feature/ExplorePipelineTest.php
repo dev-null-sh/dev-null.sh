@@ -53,6 +53,18 @@ function exploreFixtureMembership(ExploreTopic $topic, Commit $commit, bool $sou
     }
 }
 
+it('dispatches Explore classification and summaries to the configured queue [EXP-06 EXP-12]', function (string $queue): void {
+    config(['explore.queue' => $queue, 'explore.cohort_size' => 500]);
+    Queue::fake([ProcessExplore::class, SummarizeExplore::class]);
+    $post = Commit::factory()->create();
+    resolve(CreateExploreWork::class)->handle([$post->id]);
+
+    $this->artisan('explore:process --force')->assertSuccessful();
+
+    Queue::assertPushedOn($queue, ProcessExplore::class);
+    Queue::assertPushedOn($queue, SummarizeExplore::class);
+})->with(['dedicated' => 'explore', 'shared default' => 'default', 'custom' => 'discovery']);
+
 it('combines the three Laravel stories with standalone posts and counts overlapping membership once [EXP-02 EXP-03 EXP-07 EXP-08]', function (): void {
     $subject = exploreFixtureTopic();
     $security = exploreFixtureTopic('security');

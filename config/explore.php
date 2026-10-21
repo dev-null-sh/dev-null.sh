@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 return [
     'enabled' => (bool) env('EXPLORE_ENABLED', true),
+    'queue' => env('EXPLORE_QUEUE', 'explore'),
     'cohort_size' => (int) env('EXPLORE_COHORT_SIZE', 500),
     'wait_minutes' => (int) env('EXPLORE_WAIT_MINUTES', 15),
     'request_size' => (int) env('EXPLORE_REQUEST_SIZE', 50),

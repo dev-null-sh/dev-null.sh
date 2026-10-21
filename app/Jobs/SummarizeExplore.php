@@ -29,7 +29,7 @@ final class SummarizeExplore implements ShouldBeUniqueUntilProcessing, ShouldQue
 
     public function __construct()
     {
-        $this->onQueue('explore');
+        $this->onQueue(config()->string('explore.queue'));
     }
 
     public function handle(ExploreContentQuery $content): void

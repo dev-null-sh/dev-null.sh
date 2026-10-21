@@ -28,7 +28,9 @@ final class AppServiceProvider extends ServiceProvider
         $this->app->bind(DnsResolver::class, SystemDnsResolver::class);
         $this->app->bind(Highlighter::class, fn (): Highlighter => new Highlighter(new CodeTheme()));
 
-        DevCommands::artisan('queue:work --queue=default,explore --timeout=900 --tries=3', 'queue');
+        $queues = implode(',', array_unique(['default', config()->string('explore.queue')]));
+
+        DevCommands::artisan('queue:work --queue='.escapeshellarg($queues).' --timeout=900 --tries=3', 'queue');
     }
 
     public function boot(): void
