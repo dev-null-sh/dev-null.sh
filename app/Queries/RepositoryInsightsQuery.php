@@ -22,7 +22,9 @@ final readonly class RepositoryInsightsQuery
      */
     public function get(string $metric): ?array
     {
-        return Cache::remember('repository-insights:'.$metric, 900, function () use ($metric): ?array {
+        $repository = config()->string('services.github.repository');
+
+        return Cache::remember("repository-insights:{$repository}:{$metric}", 900, function () use ($repository, $metric): ?array {
             try {
                 if ($metric === 'recent_changes') {
                     $changelog = $this->changelog->get('UTC');
@@ -45,13 +47,13 @@ final readonly class RepositoryInsightsQuery
                 } else {
                     $path = match ($metric) {
                         'opportunities' => 'search/issues',
-                        'overview' => 'repos/'.ChangelogQuery::Repository,
-                        default => 'repos/'.ChangelogQuery::Repository.'/'.$metric,
+                        'overview' => "repos/{$repository}",
+                        default => "repos/{$repository}/{$metric}",
                     };
                     $parameters = match ($metric) {
                         'contributors' => ['per_page' => 100],
                         'opportunities' => [
-                            'q' => 'repo:'.ChangelogQuery::Repository.' is:issue is:open label:"good first issue","help wanted"',
+                            'q' => 'repo:'.$repository.' is:issue is:open label:"good first issue","help wanted"',
                             'sort' => 'updated', 'order' => 'desc', 'per_page' => 10,
                         ],
                         default => [],
@@ -98,7 +100,7 @@ final readonly class RepositoryInsightsQuery
                     if ($metric === 'overview') {
                         foreach (['open_issues' => 'issue', 'open_pull_requests' => 'pr'] as $key => $type) {
                             $count = $this->github->request()->get('search/issues', [
-                                'q' => 'repo:'.ChangelogQuery::Repository." is:{$type} is:open",
+                                'q' => "repo:{$repository} is:{$type} is:open",
                                 'per_page' => 1,
                             ])->throw()->fluent();
 
@@ -116,8 +118,8 @@ final readonly class RepositoryInsightsQuery
 
             return [
                 'metric' => $metric,
-                'repository' => ChangelogQuery::Repository,
-                'source_url' => 'https://github.com/'.ChangelogQuery::Repository,
+                'repository' => $repository,
+                'source_url' => 'https://github.com/'.$repository,
                 'as_of' => now()->toIso8601String(),
                 'freshness' => 'Cached for 15 minutes. GitHub contributor counts can lag by hours; changelog pages are cached for another 30 minutes. This is not a live deployment status.',
                 ...$data,

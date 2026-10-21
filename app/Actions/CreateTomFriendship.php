@@ -17,6 +17,8 @@ final readonly class CreateTomFriendship
 
     public const string USERNAME = 'tom';
 
+    public const string FALLBACK_USERNAME = 'devnull-tom';
+
     /**
      * Like on MySpace, Tom is everyone's first friend: he follows them and they follow him, without a notification
      * either way, since nobody chose it.
