@@ -205,6 +205,48 @@ it('retains all three search sources through retries and removes only spent tool
     });
 });
 
+it('routes a dated signup question to community statistics and supplies the calendar count as evidence', function (): void {
+    $this->travelTo(now('UTC')->setDate(2026, 10, 21)->startOfDay());
+    config(['ai.providers.openai.key' => 'test-openai', 'ai.providers.opencode.key' => 'test-opencode']);
+    Queue::fake([EmbedCommit::class, ModerateCommit::class, ReplyAsTom::class]);
+    resolve(Features::class)->update(Feature::Translations, false);
+    User::factory()->count(2)->create(['created_at' => '2026-10-20 12:00:00']);
+    User::factory()->create(['created_at' => '2026-10-19 12:00:00']);
+    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $question = Commit::factory()->create(['body' => '@tom how many people joined on October 20, 2026?', 'mentions' => ['tom' => $tom->id]]);
+    Http::fake([
+        'api.openai.com/v1/decisions' => Http::response(['answers' => [
+            ['name' => 'CommunityStats', 'type' => 'predicate', 'probability' => 1],
+        ]]),
+        'opencode.ai/zen/v1/chat/completions' => Http::sequence()->push(['choices' => [['finish_reason' => 'tool_calls', 'message' => [
+            'role' => 'assistant', 'content' => null, 'tool_calls' => [
+                ['id' => 'call-signups', 'type' => 'function', 'function' => [
+                    'name' => 'CommunityStats', 'arguments' => '{"metric":"new_members","start_date":"2026-10-20","end_date":"2026-10-20"}',
+                ]],
+            ],
+        ]]]])->push(['choices' => [['finish_reason' => 'stop', 'message' => [
+            'role' => 'assistant', 'content' => 'Two current members joined on October 20, 2026 (UTC).',
+        ]]]]),
+    ]);
+
+    resolve(CreateTomReply::class)->handle($question->id);
+
+    expect($question->replies()->sole()->body)->toBe('Two current members joined on October 20, 2026 (UTC).');
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/decisions'
+        && str_contains($request['input'], $question->body)
+        && str_contains(json_encode($request['questions']), 'particular calendar date'));
+    Http::assertSent(function (Request $request): bool {
+        if ($request->url() !== 'https://opencode.ai/zen/v1/chat/completions') {
+            return false;
+        }
+
+        $evidence = collect($request['messages'])->where('role', 'tool')->pluck('content')->implode(' ');
+
+        return str_contains($evidence, '"count":2') && str_contains($evidence, '"start_date":"2026-10-20"')
+            && str_contains($evidence, '"end_date":"2026-10-20"') && str_contains($evidence, '"timezone":"UTC"');
+    });
+});
+
 it('uses public thread context for the decision and falls back to chat when no tool is selected', function (): void {
     config(['ai.providers.openai.key' => 'test-openai', 'ai.providers.opencode.key' => 'test-opencode']);
     Queue::fake([EmbedCommit::class, ModerateCommit::class, ReplyAsTom::class]);
