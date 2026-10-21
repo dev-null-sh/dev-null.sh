@@ -3,11 +3,13 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Enums\ModerationReason;
 use App\Http\Middleware\AuthenticateSshSignature;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
+use App\Models\UserTimeout;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Exceptions;
@@ -484,4 +486,36 @@ it('answers unexpected errors in plain text', function (): void {
         ->assertContent("Internal Server Error\n");
 
     Exceptions::assertReported(RuntimeException::class);
+});
+
+it('refuses a signed commit while its author is in timeout, as plain text', function (): void {
+    UserTimeout::factory()->for($this->user)->create(['reason' => ModerationReason::LowEffort, 'ends_at' => now()->addHour()]);
+
+    postSignedCommit(signedCommit($this->keyPair, 'It was DNS.'))
+        ->assertForbidden()
+        ->assertHeader('Content-Type', 'text/plain; charset=utf-8')
+        ->assertContent("You're in timeout for 1 hour (Low-effort posts). You can read, but you can't post until it's over.\n");
+
+    expect($this->user->commits()->count())->toBe(0);
+});
+
+it('refuses a signed commit from a banned author', function (): void {
+    $this->user->update(['banned_at' => now()]);
+
+    postSignedCommit(signedCommit($this->keyPair, 'It was DNS.'))
+        ->assertForbidden()
+        ->assertContent("Your account is banned from /dev/null.\n");
+
+    expect($this->user->commits()->count())->toBe(0);
+});
+
+it('refuses the first commit of a first-time poster, which has to come from the web', function (): void {
+    $this->user->update(['commit_rules_accepted_at' => null]);
+
+    postSignedCommit(signedCommit($this->keyPair, 'It was DNS.'))
+        ->assertForbidden()
+        ->assertHeader('Content-Type', 'text/plain; charset=utf-8')
+        ->assertContent('Welcome! Your first commit has to come from the web, so you can read the commit rules first: '.url('/').". After that, commit from anywhere.\n");
+
+    expect($this->user->commits()->count())->toBe(0);
 });
