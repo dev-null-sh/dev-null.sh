@@ -168,6 +168,7 @@ export default function Index({
 
                     <InboxPanel
                         user={user}
+                        enableLaneSwipe={target === null}
                         activeKey={target === null ? null : targetKey(target)}
                         onOpen={open}
                         onLeaveActive={leave}

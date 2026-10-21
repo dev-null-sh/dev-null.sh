@@ -17,6 +17,7 @@ import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
+import { logLanes } from '@/lib/lane-swipe';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
 export default function Show({
@@ -44,7 +45,9 @@ export default function Show({
     const feedRef = useRef<HTMLDivElement>(null);
     const followAnchor = useRef<{ row: HTMLElement; top: number } | null>(null);
     const [composer, setComposer] = useState<HTMLDivElement | null>(null);
-    useLaneSwipe(feedRef, log);
+    useLaneSwipe(feedRef, log, logLanes, (lane) =>
+        router.visit(LogController.show(lane), { viewTransition: true }),
+    );
     useComposerVisibility(composer, tabsHeight);
 
     useEffect(() => {
