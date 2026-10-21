@@ -49,6 +49,24 @@ it('flashes the created commit', function (): void {
     ])->assertInertiaFlash('achievementsUnlocked', ['init']);
 });
 
+it('keeps the created commit flashed through the reload a deploy forces on the redirect', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Initial commit']);
+
+    $this->get(route('log.show', Log::Following), ['X-Inertia' => 'true', 'X-Inertia-Version' => 'before-the-deploy'])
+        ->assertConflict();
+
+    $page = $this->get(route('log.show', Log::Following))->assertOk()->viewData('page');
+
+    expect($page['flash']['committed'] ?? null)->toBe([
+        'id' => $user->commits()->sole()->id,
+        'body' => 'Initial commit',
+    ]);
+});
+
 it('flashes only the badge the new commit unlocked', function (): void {
     $user = User::factory()->create();
 
@@ -128,20 +146,24 @@ it('may commit a single character', function (string $body): void {
     'joined emoji' => '👨‍👩‍👧',
 ]);
 
-it('requires the body to be at most 4,000 characters', function (): void {
+it('requires the body to be at most 4,000 characters', function (string $body): void {
     $user = User::factory()->create();
 
     $response = $this->actingAs($user)
         ->fromRoute('log.show', Log::Following)
         ->post(route('commit.store'), [
-            'body' => str_repeat('a', 4001),
+            'body' => $body,
         ]);
 
     $response->assertRedirectToRoute('log.show', Log::Following)
         ->assertSessionHasErrors('body');
 
     expect(Commit::query()->count())->toBe(0);
-});
+})->with([
+    'plain text' => str_repeat('a', 4001),
+    'whitespace before a code fence' => "  ```\n".str_repeat('a', 3990).str_repeat("\n", 6).'```',
+    'scheme attached to a Unicode letter' => str_repeat('a', 3975).' éhttps://example.com/long-path-here',
+]);
 
 it('accepts a body of 4,000 characters, counting multibyte characters as one', function (): void {
     $body = str_repeat('é', 3998).'🚀🚀';
@@ -151,6 +173,50 @@ it('accepts a body of 4,000 characters, counting multibyte characters as one', f
         ->assertSessionHasNoErrors();
 
     expect(Commit::query()->sole()->body)->toBe($body);
+});
+
+it('counts long links as 23 characters and preserves their full destinations', function (): void {
+    $url = 'https://example.com/'.str_repeat('x', 2028);
+    $body = str_repeat('é', 3952).' '.$url.' '.$url;
+
+    $this->actingAs(User::factory()->create())
+        ->post(route('commit.store'), ['body' => $body, 'link_preview_url' => null])
+        ->assertSessionHasNoErrors();
+
+    expect(Commit::query()->sole()->body)->toBe($body);
+});
+
+it('rejects one character over the link adjusted allowance', function (): void {
+    $body = str_repeat('a', 3977).' https://example.com/'.str_repeat('x', 500);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit.store'), ['body' => $body])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['body' => 'The body field must not be greater than 4000 characters.']);
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('rejects a link longer than 2048 characters even when its body fits', function (): void {
+    $body = 'Read https://example.com/'.str_repeat('x', 2029);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit.store'), ['body' => $body])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['body' => 'Each link must not be greater than 2048 characters.']);
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('bounds raw storage even when the discounted links would fit', function (): void {
+    $body = str_repeat('https://example.com/'.str_repeat('x', 1980).' ', 20).'x';
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit.store'), ['body' => $body])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('body');
+
+    expect(Commit::query()->count())->toBe(0);
 });
 
 it('collapses runs of blank lines in the prose before measuring the body, leaving code alone', function (): void {
@@ -834,7 +900,6 @@ it('shows guests the commit with its approved replies and a link preview', funct
             ->where('commit.replies_count', 1)
             ->where('commit.stars_count', 1)
             ->where('commit.starred', false)
-            ->where('commit.is_saved', false)
             ->has('ancestors', 0)
             ->has('replies.data', 1)
             ->where('replies.data.0.body', 'A reply everyone may read'))

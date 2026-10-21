@@ -7,6 +7,7 @@ namespace App\Services;
 use Firebase\JWT\JWT;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Str;
 
 /**
  * Acts as the GitHub App installed on this repository only. Its installation tokens are limited to writing issues
@@ -14,10 +15,6 @@ use Illuminate\Support\Facades\Crypt;
  */
 final readonly class GitHubApp
 {
-    private const string Owner = 'nunomaduro';
-
-    private const string Repository = 'dev-null.sh';
-
     public function __construct(private GitHub $github)
     {
         //
@@ -30,7 +27,7 @@ final readonly class GitHubApp
     public function createIssue(string $title, string $body, array $labels): array
     {
         $issue = $this->github->request($this->installationToken())
-            ->post('repos/'.self::Owner.'/'.self::Repository.'/issues', [
+            ->post('repos/'.config()->string('services.github.repository').'/issues', [
                 'title' => $title,
                 'body' => $body,
                 'labels' => $labels,
@@ -48,7 +45,8 @@ final readonly class GitHubApp
      */
     private function installationToken(): string
     {
-        $token = Cache::get('github-app:installation-token');
+        $repository = config()->string('services.github.repository');
+        $token = Cache::get("github-app:{$repository}:installation-token");
 
         if (is_string($token)) {
             return Crypt::decryptString($token);
@@ -57,7 +55,7 @@ final readonly class GitHubApp
         $jwt = $this->jwt();
 
         $installation = $this->github->request($jwt)
-            ->get('repos/'.self::Owner.'/'.self::Repository.'/installation')
+            ->get("repos/{$repository}/installation")
             ->throw()
             ->json('id');
 
@@ -65,7 +63,7 @@ final readonly class GitHubApp
 
         $token = $this->github->request($jwt)
             ->post("app/installations/{$installation}/access_tokens", [
-                'repositories' => [self::Repository],
+                'repositories' => [Str::after($repository, '/')],
                 'permissions' => ['issues' => 'write'],
             ])
             ->throw()
@@ -73,7 +71,7 @@ final readonly class GitHubApp
 
         assert(is_string($token));
 
-        Cache::put('github-app:installation-token', Crypt::encryptString($token), now()->addMinutes(50));
+        Cache::put("github-app:{$repository}:installation-token", Crypt::encryptString($token), now()->addMinutes(50));
 
         return $token;
     }

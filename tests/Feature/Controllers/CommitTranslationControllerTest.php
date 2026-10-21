@@ -452,16 +452,20 @@ it('rate limits generation and does not call the provider after the limit', func
     CommitTranslator::assertPromptedTimes(1);
 });
 
-it('physically prunes expired database translations without deleting fresh or unrelated cache entries', function (): void {
+it('physically prunes expired database cache entries without deleting fresh ones', function (): void {
     config(['cache.default' => 'database']);
     Cache::put('commit-translations:v1:expired', 'expired', 1);
+    Cache::put('open-graph-image:commit:expired', 'expired', 1);
     Cache::put('commit-translations:v1:fresh', 'fresh', 60);
     Cache::put('unrelated', 'keep', 60);
     $this->travel(2)->seconds();
 
-    collect(resolve(Schedule::class)->events())->firstWhere('description', 'prune-commit-translations')->run(app());
+    collect(resolve(Schedule::class)->events())->firstWhere('description', 'prune-expired-cache')->run(app());
 
-    expect(DB::table('cache')->where('key', config('cache.prefix').'commit-translations:v1:expired')->exists())->toBeFalse()
+    expect(DB::table('cache')->whereIn('key', [
+        config('cache.prefix').'commit-translations:v1:expired',
+        config('cache.prefix').'open-graph-image:commit:expired',
+    ])->exists())->toBeFalse()
         ->and(Cache::get('commit-translations:v1:fresh'))->toBe('fresh')
         ->and(Cache::get('unrelated'))->toBe('keep');
 });

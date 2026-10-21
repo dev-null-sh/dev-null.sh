@@ -8,6 +8,7 @@ import UserFollowersController from '@/actions/App/Http/Controllers/UserFollower
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import { BioText } from '@/components/bio-text';
 import { GitHubIcon } from '@/components/github-icon';
+import { LiveFollowing } from '@/components/live-following';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
@@ -43,7 +44,7 @@ export function AppAside({
             >
                 <Search className="size-4" />
                 Search
-                <kbd className="ml-auto rounded border border-b-2 bg-muted px-1.5 font-mono text-xs">
+                <kbd className="ml-auto rounded-sm border border-b-2 bg-muted px-1.5 font-mono text-xs">
                     {keys.combo(keys.mod, 'K')}
                 </kbd>
             </button>
@@ -51,7 +52,7 @@ export function AppAside({
             {user === null ? (
                 <section
                     aria-labelledby="aside-sign-in"
-                    className="rounded-xl border bg-card p-4"
+                    className="rounded-lg border bg-card p-4"
                 >
                     <h2 id="aside-sign-in" className="font-semibold">
                         New to /dev/null?
@@ -164,6 +165,7 @@ export function AppAside({
                 </section>
             )}
 
+            <LiveFollowing />
             <WhoToFollow />
 
             <div className="-mt-4 flex gap-4 border-t pt-4 text-sm text-muted-foreground">
@@ -201,7 +203,7 @@ export function AppAside({
                 className="mt-auto flex items-center gap-2 self-start rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
                 Keyboard shortcuts
-                <kbd className="min-w-5 rounded border border-b-2 bg-muted px-1 text-center font-mono text-xs">
+                <kbd className="min-w-5 rounded-sm border border-b-2 bg-muted px-1 text-center font-mono text-xs">
                     ?
                 </kbd>
             </button>

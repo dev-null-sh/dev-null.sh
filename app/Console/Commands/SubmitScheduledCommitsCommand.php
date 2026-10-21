@@ -9,6 +9,7 @@ use App\Models\ScheduledCommit;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Database\Eloquent\Builder;
 use Throwable;
 
 #[Signature('commits:submit-scheduled')]
@@ -18,7 +19,10 @@ final class SubmitScheduledCommitsCommand extends Command
     public function handle(UpdateScheduledCommitSubmittedAt $action): int
     {
         $failed = false;
+        // The commits of users in timeout wait until it's over, and those of banned users never go out...
         $scheduledCommits = ScheduledCommit::query()->whereNull('submitted_at')->whereNull('canceled_at')
+            ->whereDoesntHave('user.timeouts', fn (Builder $query): Builder => $query->where('ends_at', '>', now()))
+            ->whereDoesntHave('user.ban')
             ->where('scheduled_at', '<=', now())->oldest('scheduled_at')->orderBy('id')->limit(100)->get(['id']);
 
         foreach ($scheduledCommits as $scheduled) {

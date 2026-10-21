@@ -21,7 +21,18 @@ final class ShowLogRequest extends FormRequest
     {
         return [
             'since' => ['nullable', 'uuid'],
+            'through' => ['nullable', 'uuid'],
         ];
+    }
+
+    /**
+     * Keep the loaded range when a follow changes who belongs in the log.
+     */
+    public function through(): ?Commit
+    {
+        return $this->filled('through')
+            ? Commit::query()->withTrashed()->visibleTo($this->user())->find($this->string('through')->value())
+            : null;
     }
 
     /**
@@ -32,5 +43,10 @@ final class ShowLogRequest extends FormRequest
         return $this->filled('since')
             ? Commit::query()->withTrashed()->find($this->string('since')->value())
             : null;
+    }
+
+    public function prepareForValidation(): void
+    {
+        $this->merge(['through' => $this->header('X-Log-Through')]);
     }
 }
