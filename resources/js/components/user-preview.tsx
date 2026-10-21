@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { signIn } from '@/lib/auth';
+import { formatCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
 import { preview } from '@/routes/mention';
@@ -491,7 +492,7 @@ function UserPreviewContent({
                     <>
                         <span>
                             <span className="font-mono font-medium">
-                                {data.user.commits_count}
+                                {formatCount(data.user.commits_count)}
                             </span>{' '}
                             <span className="text-muted-foreground">
                                 {data.user.commits_count === 1
@@ -504,7 +505,7 @@ function UserPreviewContent({
                             className="hover:underline"
                         >
                             <span className="font-mono font-medium">
-                                {data.user.following_count}
+                                {formatCount(data.user.following_count)}
                             </span>{' '}
                             <span className="text-muted-foreground">
                                 following
@@ -515,7 +516,7 @@ function UserPreviewContent({
                             className="hover:underline"
                         >
                             <span className="font-mono font-medium">
-                                {data.user.followers_count}
+                                {formatCount(data.user.followers_count)}
                             </span>{' '}
                             <span className="text-muted-foreground">
                                 {data.user.followers_count === 1

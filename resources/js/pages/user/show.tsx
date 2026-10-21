@@ -41,6 +41,7 @@ import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
+import { formatCount } from '@/lib/numbers';
 import { dateLocale, laneColor, laneTint } from '@/lib/utils';
 import type {
     Achievements,
@@ -116,7 +117,7 @@ export default function Show({
             <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4 sm:px-6">
                 <p className="min-w-0 truncate font-semibold">{user.name}</p>
                 <p className="shrink-0 font-mono text-[13px] text-muted-foreground">
-                    {user.commits_count}{' '}
+                    {formatCount(user.commits_count)}{' '}
                     {pluralize(user.commits_count, 'commit', 'commits')}
                 </p>
             </div>
@@ -373,7 +374,7 @@ export default function Show({
                                     href={stat.href}
                                     className="group-hover:underline"
                                 >
-                                    {stat.count}
+                                    {formatCount(stat.count)}
                                 </Link>
                             </dd>
                         </div>
@@ -392,7 +393,7 @@ export default function Show({
                             className="size-5 shrink-0 object-contain"
                         />
                         <span className="font-mono font-medium text-foreground tabular-nums">
-                            {pasteisCount}
+                            {formatCount(pasteisCount)}
                         </span>
                         {pluralize(pasteisCount, 'pastel', 'pastéis')} received
                     </p>

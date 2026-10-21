@@ -1,10 +1,17 @@
+const separatedFormatter = new Intl.NumberFormat('en-US');
+
 const compactFormatter = new Intl.NumberFormat('en-US', {
     notation: 'compact',
     maximumFractionDigits: 1,
+    roundingMode: 'trunc',
 });
 
+/**
+ * Counts with thousands separators from a thousand (1,250), shortened from ten thousand (10.2k). Shortened counts are
+ * cut, not rounded, so 999,999 never shows as 1m.
+ */
 export function formatCount(count: number): string {
-    return count >= 1000
+    return count >= 10_000
         ? compactFormatter.format(count).toLowerCase()
-        : String(count);
+        : separatedFormatter.format(count);
 }

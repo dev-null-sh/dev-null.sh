@@ -26,7 +26,7 @@ function starLabel(starred: boolean, count: number): string {
 
     const noun = count === 1 ? 'star' : 'stars';
 
-    return `${verb} commit, ${count} ${noun}`;
+    return `${verb} commit, ${formatCount(count)} ${noun}`;
 }
 
 export function CommitStarButton({
@@ -212,7 +212,7 @@ function StarCount({
     const label =
         count === 0
             ? 'No stars yet'
-            : `${count} ${count === 1 ? 'star' : 'stars'}, show who starred`;
+            : `${formatCount(count)} ${count === 1 ? 'star' : 'stars'}, show who starred`;
 
     return (
         <ActionTooltip label={label}>

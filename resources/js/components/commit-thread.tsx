@@ -71,6 +71,7 @@ import {
 } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
+import { formatCount } from '@/lib/numbers';
 import {
     characterCount,
     cn,
@@ -608,7 +609,7 @@ export function ThreadActions({
                                 />
                                 {thread.isOpen
                                     ? 'Hide replies'
-                                    : `${thread.count} ${thread.count === 1 ? 'reply' : 'replies'}`}
+                                    : `${formatCount(thread.count)} ${thread.count === 1 ? 'reply' : 'replies'}`}
                             </button>
                         </ActionTooltip>
                     )}
@@ -827,7 +828,7 @@ function moreRepliesLabel(thread: Thread): string {
     }
 
     return thread.remaining > 1
-        ? `Show the last ${thread.remaining}`
+        ? `Show the last ${formatCount(thread.remaining)}`
         : 'Show more';
 }
 
@@ -881,7 +882,7 @@ function MoreRepliesButton({
                         className="shrink-0 rounded-md px-2 py-0.5 tabular-nums transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground aria-disabled:pointer-events-none"
                         data-test="all-replies-button"
                     >
-                        Show all {thread.remaining}
+                        Show all {formatCount(thread.remaining)}
                     </button>
                 </>
             )}
