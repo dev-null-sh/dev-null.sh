@@ -254,7 +254,7 @@ it('shortens urls for display', function (string $url, string $shortened): void 
 
     expect($urls->shorten($url))->toBe($shortened);
 })->with([
-    'long query' => ['https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc+is%3Apr+state%3Aopen+author%3AxHeaven', 'github.com/nunomaduro/dev-nul…'],
+    'long query' => ['https://github.com/dev-null-sh/dev-null.sh/pulls?q=sort%3Aupdated-desc+is%3Apr+state%3Aopen+author%3AxHeaven', 'github.com/dev-null-sh/dev-nu…'],
     'long path' => ['https://laravel.com/docs/13.x/eloquent-relationships#one-to-many-polymorphic-relations', 'laravel.com/docs/13.x/eloquent…'],
     'www' => ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG', 'youtube.com/watch?v=dQw4w9WgXc…'],
     'port' => ['http://localhost:8000/telescope/requests/9d1f3c2a-1b2c-4d5e-8f90', 'localhost:8000/telescope/requests…'],
@@ -278,8 +278,8 @@ it('shortens urls for display', function (string $url, string $shortened): void 
 it('shortens the urls in prose', function (): void {
     $urls = resolve(Urls::class);
 
-    expect($urls->withShortenedUrls('A lot came! https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc. See https://laravel.com'))
-        ->toBe('A lot came! github.com/nunomaduro/dev-nul…. See laravel.com');
+    expect($urls->withShortenedUrls('A lot came! https://github.com/dev-null-sh/dev-null.sh/pulls?q=sort%3Aupdated-desc. See https://laravel.com'))
+        ->toBe('A lot came! github.com/dev-null-sh/dev-nu…. See laravel.com');
 });
 
 it('does not shorten what it would not link', function (string $text): void {
@@ -287,8 +287,8 @@ it('does not shorten what it would not link', function (string $text): void {
 
     expect($urls->withShortenedUrls($text))->toBe($text);
 })->with([
-    'inline code' => ['run `curl https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc`'],
-    'code block' => ["```\nhttps://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc\n```"],
+    'inline code' => ['run `curl https://github.com/dev-null-sh/dev-null.sh/pulls?q=sort%3Aupdated-desc`'],
+    'code block' => ["```\nhttps://github.com/dev-null-sh/dev-null.sh/pulls?q=sort%3Aupdated-desc\n```"],
     'scheme only' => ['see https:// for details'],
     'longer than 2048 characters' => ['https://example.com/'.str_repeat('a', 2029)],
 ]);
