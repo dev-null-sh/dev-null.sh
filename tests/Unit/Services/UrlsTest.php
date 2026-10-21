@@ -65,6 +65,10 @@ it('strips trailing punctuation', function (string $text, string $url): void {
     'single quotes' => ["'https://example.com'", 'https://example.com'],
     'double quotes' => ['"https://example.com"', 'https://example.com'],
     'several' => ['(https://example.com/a?b=c!?).', 'https://example.com/a?b=c'],
+    'ellipsis' => ['Read https://example.com/launch…', 'https://example.com/launch'],
+    'curly double quotes' => ['He said “https://example.com/launch”.', 'https://example.com/launch'],
+    'curly single quotes' => ['‘https://example.com/launch’', 'https://example.com/launch'],
+    'keeps inner curly quotes and ellipses' => ['https://example.com/it’s…ok', 'https://example.com/it’s…ok'],
     'keeps inner punctuation' => ['https://example.com/a.b,c;d:e!f?g', 'https://example.com/a.b,c;d:e!f?g'],
 ]);
 
@@ -121,6 +125,8 @@ it('strips trailing punctuation from bare domains', function (string $text, stri
     'comma' => ['nativephp.com, laravel.com', 'https://nativephp.com'],
     'question mark' => ['Have you seen nativephp.com?', 'https://nativephp.com'],
     'quotes' => ['"nativephp.com"', 'https://nativephp.com'],
+    'ellipsis after a path' => ['see nativephp.com/docs…', 'https://nativephp.com/docs'],
+    'curly quotes after a path' => ['“nativephp.com/docs”', 'https://nativephp.com/docs'],
     'unbalanced parenthesis after a path' => ['(see nativephp.com/docs).', 'https://nativephp.com/docs'],
     'balanced parentheses in a path' => ['nativephp.com/wiki/Foo_(bar)', 'https://nativephp.com/wiki/Foo_(bar)'],
     'unbalanced bracket after a path' => ['[nativephp.com/docs]', 'https://nativephp.com/docs'],
@@ -203,6 +209,45 @@ it('skips urls in code', function (): void {
         ->toBe('https://laravel.com')
         ->and($urls->first('only `https://example.com` here'))->toBeNull();
 });
+
+it('detects oversized prose urls including the inferred scheme', function (string $text, bool $oversized): void {
+    expect(resolve(Urls::class)->hasOversizedUrl($text))->toBe($oversized);
+})->with([
+    'no links' => ['Hello world', false],
+    '2048 characters' => ['https://example.com/'.str_repeat('x', 2028), false],
+    'sentence punctuation' => ['(https://example.com/'.str_repeat('x', 2028).').', false],
+    '2049 characters' => ['https://example.com/'.str_repeat('x', 2029), true],
+    'bare domain at limit' => ['example.com/'.str_repeat('x', 2028), false],
+    'bare domain over limit' => ['example.com/'.str_repeat('x', 2029), true],
+    'second link oversized' => ['https://example.org https://example.com/'.str_repeat('x', 2029), true],
+    'code is literal' => ['`https://example.com/'.str_repeat('x', 2029).'`', false],
+]);
+
+it('counts each prose link as at most 23 characters', function (string $body, int $length): void {
+    expect(resolve(Urls::class)->characterCount($body))->toBe($length);
+})->with([
+    'unicode text' => ['é🚀 hello', 8],
+    'short bare domain' => ['example.com', 11],
+    'long link' => ['https://example.com/long-path-here', 23],
+    'Unicode letter before a scheme' => ['éhttps://example.com/long-path-here', 35],
+    'Unicode number before a scheme' => ['٤https://example.com/long-path-here', 35],
+    'combining mark before a scheme' => ["\u{0301}https://example.com/long-path-here", 35],
+    'connector punctuation before a scheme' => ["\u{203f}https://example.com/long-path-here", 35],
+    'underscore before a scheme' => ['_https://example.com/long-path-here', 35],
+    'emoji before a scheme' => ['🚀https://example.com/long-path-here', 24],
+    'repeated links' => ['https://example.com/long-path-here https://example.com/long-path-here', 47],
+    'punctuation' => ['(https://example.com/long-path-here).', 26],
+    'balanced brackets' => ['https://example.com/a_(long_article).', 24],
+    'bare domain path' => ['example.com/long-path-here', 23],
+    'inline code' => ['`https://example.com/long-path-here`', 36],
+    'fenced code' => ["```\nhttps://example.com/long-path-here\n```", 42],
+    'unclosed code is prose' => ['`https://example.com/long-path-here', 24],
+    'scheme only' => ['https://', 8],
+    'scheme with punctuation' => ['https://...', 11],
+    'unsupported scheme' => ['javascript:alert(1)', 19],
+    'longest recognized link' => ['https://example.com/'.str_repeat('x', 2028), 23],
+    'oversized link' => ['https://example.com/'.str_repeat('x', 2029), 2049],
+]);
 
 it('shortens urls for display', function (string $url, string $shortened): void {
     $urls = resolve(Urls::class);

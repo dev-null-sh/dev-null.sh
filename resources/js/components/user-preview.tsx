@@ -5,21 +5,28 @@ import { createPortal } from 'react-dom';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
+import { BioText } from '@/components/bio-text';
 import {
     FollowLabel,
+    followVisitOptions,
     onFollowHttpException,
     useFollowHover,
     useIsFollowing,
 } from '@/components/follow-button';
+import {
+    LiveAvatarMarker,
+    LiveStreamCard,
+} from '@/components/live-stream-card';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
+import { signIn } from '@/lib/auth';
 import { toastWhenThrottled } from '@/lib/throttle';
-import { laneColor } from '@/lib/utils';
+import { cn, laneColor } from '@/lib/utils';
 import { preview } from '@/routes/mention';
 import { show } from '@/routes/user';
 import { show as userPreview } from '@/routes/user-preview';
-import type { Profile, User } from '@/types';
+import type { Commit, CursorPaginated, Profile, User } from '@/types';
 
 type PreviewData = {
     isFollowing: boolean;
@@ -278,7 +285,7 @@ export function UserPreview({
                             scheduleClose();
                         }}
                         data-state={isOpen ? 'open' : 'closed'}
-                        className="fixed z-50 w-76 rounded-xl border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] ease-spring data-[state=closed]:scale-70 data-[state=closed]:opacity-0 data-[state=closed]:ease-in motion-safe:transition-[opacity,scale] motion-safe:duration-560 motion-safe:data-[state=closed]:duration-160 starting:scale-70 starting:opacity-0"
+                        className="fixed z-50 w-76 rounded-lg border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] ease-spring data-[state=closed]:scale-70 data-[state=closed]:opacity-0 data-[state=closed]:ease-in motion-safe:transition-[opacity,scale] motion-safe:duration-560 motion-safe:data-[state=closed]:duration-160 starting:scale-70 starting:opacity-0"
                         style={{
                             ...position,
                             transformOrigin: anchor
@@ -321,7 +328,10 @@ function UserPreviewContent({
     onChange: (data: PreviewData) => void;
     onMenuOpenChange: (isOpen: boolean) => void;
 }) {
-    const { auth } = usePage().props;
+    const {
+        component,
+        props: { auth, log, commits },
+    } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
 
@@ -338,6 +348,12 @@ function UserPreviewContent({
      * The button flips right away, but like every other follow control the shared state only changes once the server confirms, so there is nothing to roll back.
      */
     const toggleFollow = () => {
+        if (auth.user === null) {
+            signIn();
+
+            return;
+        }
+
         if (!data || data.isUnavailable || pendingFollows !== null) {
             return;
         }
@@ -352,8 +368,11 @@ function UserPreviewContent({
             {
                 preserveScroll: true,
                 preserveState: true,
+                async: true,
+                ...followVisitOptions(component, log, commits),
                 onSuccess: () => {
                     setIsFollowing(follows);
+                    router.flushAll();
                     onChange({
                         ...data,
                         isFollowing: follows,
@@ -376,11 +395,15 @@ function UserPreviewContent({
     return (
         <div style={{ '--lane': lane } as CSSProperties}>
             <div className="flex items-start justify-between gap-3">
-                <Link href={show(user)} className="rounded-full">
+                <Link href={show(user)} className="relative rounded-full">
                     <UserAvatar
                         user={user}
-                        className="size-14 text-lg ring-2 ring-(--lane) ring-offset-2 ring-offset-popover"
+                        className={cn(
+                            'size-14 text-lg ring-2 ring-(--lane) ring-offset-2 ring-offset-popover',
+                            { 'ring-red-600': user.live },
+                        )}
                     />
+                    {user.live && <LiveAvatarMarker className="ring-popover" />}
                 </Link>
 
                 {!isCurrentUser &&
@@ -440,12 +463,12 @@ function UserPreviewContent({
                 />
                 <span className="truncate">@{user.username}</span>
                 {data?.followsYou && (
-                    <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                    <span className="ml-1 shrink-0 rounded-sm bg-muted px-1.5 py-0.5 font-sans text-xs">
                         Follows you
                     </span>
                 )}
                 {data?.isMuting && (
-                    <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                    <span className="ml-1 shrink-0 rounded-sm bg-muted px-1.5 py-0.5 font-sans text-xs">
                         Muted
                     </span>
                 )}
@@ -453,7 +476,7 @@ function UserPreviewContent({
 
             {user.bio && !data?.isUnavailable && (
                 <p className="mt-2 line-clamp-3 text-sm text-pretty">
-                    {user.bio}
+                    <BioText bio={user.bio} />
                 </p>
             )}
 
@@ -502,9 +525,15 @@ function UserPreviewContent({
                         </Link>
                     </>
                 ) : (
-                    <span className="my-0.5 h-4 w-48 rounded bg-muted-foreground/15 motion-safe:animate-pulse" />
+                    <span className="my-0.5 h-4 w-48 rounded-sm bg-muted-foreground/15 motion-safe:animate-pulse" />
                 )}
             </div>
+
+            {user.live && !data?.isUnavailable && (
+                <div className="mt-4 border-t pt-4">
+                    <LiveStreamCard user={user} stream={user.live} />
+                </div>
+            )}
         </div>
     );
 }

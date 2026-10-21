@@ -69,6 +69,7 @@ it('lists the notifications of the user, newest first', function (): void {
                 'mentions' => [],
                 'status' => 'approved',
                 'is_pinned' => false,
+                'pasteis_count' => 0,
                 'deleted_at' => null,
                 'parent' => [
                     'id' => $reply->parent->id,
@@ -83,6 +84,7 @@ it('lists the notifications of the user, newest first', function (): void {
                     'mentions' => [],
                     'status' => 'approved',
                     'is_pinned' => false,
+                    'pasteis_count' => 0,
                     'deleted_at' => null,
                     'quoted_commit_id' => null,
                 ],

@@ -44,7 +44,7 @@ final class StressSeeder extends Seeder
 
     private const int STARS = 6_000_000;
 
-    private const int BOOKMARKS = 300_000;
+    private const int SAVED_STARS = 300_000;
 
     private const int POLLS = 8_000;
 
@@ -94,7 +94,7 @@ final class StressSeeder extends Seeder
         $this->step('stars', $this->seedStars(...));
         $this->step('link previews and images', $this->seedAttachments(...));
         $this->step('polls', $this->seedPolls(...));
-        $this->step('bookmarks', $this->seedBookmarks(...));
+        $this->step('saved stars', $this->seedSavedStars(...));
         $this->step('mutes, blocks, and reports', $this->seedSafety(...));
         $this->step('notifications', $this->seedNotifications(...));
         $this->step('hot scores', $this->seedHotScores(...));
@@ -551,19 +551,19 @@ final class StressSeeder extends Seeder
             SQL);
     }
 
-    private function seedBookmarks(): void
+    private function seedSavedStars(): void
     {
-        $bookmarks = $this->count(self::BOOKMARKS);
+        $savedStars = $this->count(self::SAVED_STARS);
         $developers = $this->count(self::DEVELOPERS);
         $threads = DB::table('stress_threads')->count();
         $local = $this->count(3_000);
 
         DB::statement(<<<SQL
-            insert into bookmarks (user_id, commit_id, created_at, updated_at)
+            insert into stars (user_id, commit_id, created_at, updated_at)
             select saver.id, saved.id, saved.created_at, saved.created_at
             from (
                 select 1 + floor({$threads} * power(random(), 3))::int as commit_n, floor({$developers} * random())::int as saver_n
-                from generate_series(1, {$bookmarks})
+                from generate_series(1, {$savedStars})
                 union all
                 select 1 + floor({$threads} * random())::int, 0 from generate_series(1, {$local})
             ) as picks
@@ -695,7 +695,7 @@ final class StressSeeder extends Seeder
                 group by roots.id
             )
             update commits set hot_score = round((log(2, (1 + coalesce(engaged.stargazers, 0) + 3 * coalesce(engaged.repliers, 0))::numeric)
-                + extract(epoch from commits.created_at)::numeric / 21600), 6)
+                + extract(epoch from commits.created_at)::numeric / 10800), 6)
             from commits as roots
             left join engaged on engaged.id = roots.id
             where commits.id = roots.id and roots.parent_id is null and roots.deleted_at is null

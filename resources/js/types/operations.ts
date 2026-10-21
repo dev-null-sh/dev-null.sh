@@ -1,3 +1,16 @@
+import type { Activity } from './activity';
+
+export type ActivityMetric = 'commits' | 'replies' | 'signups';
+
+export type SiteActivity = Activity & { metric: ActivityMetric };
+
+export type BreakdownRow = {
+    name: string;
+    count: number;
+};
+
+export type ActivityBreakdowns = Record<'statuses' | 'authors', BreakdownRow[]>;
+
 export type QueueBacklog = {
     queue: string;
     size: number;
@@ -32,10 +45,11 @@ export type LinkPreviewHealth = {
     failed: number;
 };
 
-export type Volume = Record<
-    'signups' | 'commits' | 'replies',
-    { day: number; week: number }
->;
+export type Counter = 'signups' | 'commits' | 'replies' | 'authors';
+
+export type Today = Record<Counter, { today: number; yesterday: number }>;
+
+export type Overall = Record<Counter, number> & { since: string | null };
 
 export type GitHubRateLimit = {
     remaining: number;
@@ -66,4 +80,49 @@ export type Traffic = {
 export type TrafficRange = {
     from: string;
     to: string;
+};
+
+export type MetricsRange = TrafficRange & { all_time: boolean };
+
+export type FunnelRate = 'conversion' | 'activation' | 'retention';
+
+export type ActivationDay = {
+    date: string;
+    activated: number;
+    eligible: number;
+    complete: boolean;
+};
+
+export type Funnel = {
+    visitors: number | null;
+    signups: number;
+    activated: number;
+    activation_eligible: number;
+    activation_by_day: ActivationDay[];
+    retained: number;
+    retention_eligible: number;
+    rates: Record<FunnelRate, number | null>;
+    changes: Record<FunnelRate, number | null>;
+};
+
+export type ActiveUsers = {
+    daily: number;
+    weekly: number;
+    monthly: number;
+    weekly_authors: number;
+};
+
+export type CommitResponses = {
+    commits: number;
+    answered: number;
+    median_minutes: number | null;
+    first_commits: number;
+    first_answered: number;
+};
+
+export type NewcomerFollows = {
+    newcomers: number;
+    median_follows: number | null;
+    follows: number;
+    followed_back: number;
 };

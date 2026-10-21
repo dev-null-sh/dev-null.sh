@@ -1,4 +1,5 @@
-import { Link, usePage } from '@inertiajs/react';
+import type { VisitOptions } from '@inertiajs/core';
+import { Link, router, usePage } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
 import type { ComponentProps } from 'react';
 import { useState } from 'react';
@@ -9,7 +10,45 @@ import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
-import type { User } from '@/types';
+import type { Commit, CursorPaginated, User } from '@/types';
+
+/**
+ * A follow changes the Following log, but never the draw or loaded pages of another log.
+ */
+export function followVisitOptions(
+    component: string,
+    log: unknown,
+    commits?: CursorPaginated<Commit>,
+): Pick<VisitOptions, 'only' | 'headers'> {
+    if (component !== 'log/show') {
+        return { headers: { 'X-Follow-Request': 'true' } };
+    }
+
+    const through = commits?.data.at(-1)?.id;
+
+    return log === 'following'
+        ? {
+              only: [
+                  'auth.user',
+                  'liveFollowing',
+                  'commits',
+                  'suggestions',
+                  'newCommitsCount',
+              ],
+              // Link has no reset option; both controls must replace infinite-scroll results.
+              headers: {
+                  'X-Follow-Request': 'true',
+                  'X-Inertia-Reset': 'commits',
+                  ...(through && {
+                      'X-Log-Through': through,
+                  }),
+              },
+          }
+        : {
+              only: ['auth.user', 'liveFollowing'],
+              headers: { 'X-Follow-Request': 'true' },
+          };
+}
 
 /**
  * The pointer is still on the button right after a follow, so it keeps saying "Following" until the pointer leaves instead of flipping to a red "Unfollow".
@@ -36,6 +75,9 @@ export function useIsFollowing(
 ): [boolean, (isFollowing: boolean) => void] {
     return useSharedState(isFollowingKey(user), isFollowing);
 }
+
+const isPendingKey = (user: Pick<User, 'id'>): string =>
+    `follow_pending:${user.id}`;
 
 const hasBlockKey = (user: Pick<User, 'id'>): string => `has_block:${user.id}`;
 
@@ -80,12 +122,14 @@ export function onFollowHttpException(
 export function FollowLabel({
     isFollowing,
     isJustToggled,
+    followsYou = false,
 }: {
     isFollowing: boolean;
     isJustToggled: boolean;
+    followsYou?: boolean;
 }) {
     if (!isFollowing) {
-        return 'Follow';
+        return followsYou ? 'Follow back' : 'Follow';
     }
 
     if (isJustToggled) {
@@ -102,9 +146,13 @@ export function FollowLabel({
     );
 }
 
+/**
+ * Follows are async visits, so following several people in a row never cancels the follows still on their way. Each person's follow waits for the one before it to answer, so a double click can't follow and then unfollow.
+ */
 export function FollowButton({
     user,
     isFollowing: initialIsFollowing,
+    followsYou = false,
     size,
     className,
     onClick,
@@ -113,13 +161,21 @@ export function FollowButton({
 }: {
     user: Pick<User, 'id' | 'username'>;
     isFollowing: boolean;
+    followsYou?: boolean;
     size?: ComponentProps<typeof Button>['size'];
     className?: string;
 } & Omit<InertiaLinkProps, 'href' | 'as' | 'method' | 'size' | 'className'>) {
-    const { auth } = usePage().props;
+    const {
+        component,
+        props: { auth, log, commits },
+    } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const [isFollowing, setIsFollowing] = useIsFollowing(
         user,
         initialIsFollowing,
+    );
+    const [isPending, setIsPending] = useSharedState<boolean>(
+        isPendingKey(user),
+        false,
     );
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
 
@@ -152,13 +208,18 @@ export function FollowButton({
                 }
                 as="button"
                 preserveScroll
+                async
+                onBefore={() => !isPending}
+                onStart={() => setIsPending(true)}
+                onFinish={() => setIsPending(false)}
+                disabled={isPending}
                 onHttpException={(response) =>
                     onFollowHttpException(user, response)
                 }
                 aria-label={
                     isFollowing
                         ? `Unfollow @${user.username}`
-                        : `Follow @${user.username}`
+                        : `${followsYou ? 'Follow back' : 'Follow'} @${user.username}`
                 }
                 data-test="follow-button"
                 onClick={(event) => {
@@ -167,14 +228,17 @@ export function FollowButton({
                 }}
                 onSuccess={(page) => {
                     setIsFollowing(!isFollowing);
+                    router.flushAll();
                     onSuccess?.(page);
                 }}
                 onMouseLeave={onMouseLeave}
                 {...props}
+                {...followVisitOptions(component, log, commits)}
             >
                 <FollowLabel
                     isFollowing={isFollowing}
                     isJustToggled={isJustToggled}
+                    followsYou={followsYou}
                 />
             </Link>
         </Button>

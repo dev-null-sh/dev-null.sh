@@ -198,9 +198,14 @@ function ConversationRow({
             </span>
             <span className="flex min-w-14 flex-col items-end transition-opacity group-focus-within:opacity-0 group-data-[menu=open]:opacity-0 [@media(hover:hover)]:group-hover:opacity-0">
                 {ahead > 0 ? (
-                    <span className="rounded-full bg-primary px-2 font-mono text-[11px] leading-5 font-medium whitespace-nowrap text-primary-foreground tabular-nums">
-                        {ahead} ahead
-                        <span className="sr-only"> unread</span>
+                    <span
+                        title={`${ahead} unread messages`}
+                        className="rounded-sm bg-primary px-2 font-mono text-[11px] leading-5 font-medium whitespace-nowrap text-primary-foreground tabular-nums"
+                    >
+                        <span aria-hidden>
+                            {ahead > 99 ? '99+' : ahead} ahead
+                        </span>
+                        <span className="sr-only">{ahead} unread messages</span>
                     </span>
                 ) : (
                     conversation.last_message_at && (

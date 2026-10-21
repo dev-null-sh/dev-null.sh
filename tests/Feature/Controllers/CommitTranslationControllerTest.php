@@ -363,7 +363,7 @@ it('holds the translation lock throughout a slow provider retry', function (): v
     expect(Cache::lock($key, 90)->get())->toBeTrue();
 });
 
-it('reports why successful provider responses are rejected without logging their contents', function (string $content, string $reason): void {
+it('reports why successful provider responses are rejected without logging their contents', function (string $content, string $reason, string $message = 'Could not translate this commit. Try again.'): void {
     Exceptions::fake();
     Http::fake([
         'opencode.ai/zen/v1/chat/completions' => Http::response([
@@ -374,7 +374,7 @@ it('reports why successful provider responses are rejected without logging their
 
     $this->actingAs(User::factory()->create())
         ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
-        ->assertServiceUnavailable()->assertJsonPath('message', 'Could not translate this commit. Try again.');
+        ->assertServiceUnavailable()->assertJsonPath('message', $message);
 
     expect(resolve(CommitTranslations::class)->cached($commit))->toBeNull();
     Exceptions::assertReported(fn (CommitProcessingFailed $exception): bool => $exception->getMessage() === 'Translation failed for commit '.$commit->id.' (RuntimeException, code 0). Reason: '.$reason.'.'
@@ -387,8 +387,8 @@ it('reports why successful provider responses are rejected without logging their
     'missing body' => ['{"source_language":"de"}', 'invalid_response_shape'],
     'non-string source' => ['{"source_language":["de"],"body":"Sensitive translation"}', 'invalid_response_shape'],
     'non-string body' => ['{"source_language":"de","body":null}', 'invalid_response_shape'],
-    'unsupported language' => ['{"source_language":"invented","body":"Sensitive translation"}', 'unsupported_source_language'],
-    'regional language code' => ['{"source_language":"de-DE","body":"Sensitive translation"}', 'unsupported_source_language'],
+    'unsupported language' => ['{"source_language":"invented","body":"Sensitive translation"}', 'unsupported_source_language', 'The translation service returned an unsupported source language. Try again.'],
+    'regional language code' => ['{"source_language":"de-DE","body":"Sensitive translation"}', 'unsupported_source_language', 'The translation service returned an unsupported source language. Try again.'],
     'blank translation' => ['{"source_language":"de","body":"   "}', 'empty_translation'],
     'oversized translation' => ['{"source_language":"de","body":"'.str_repeat('x', 16001).'"}', 'translation_too_long'],
 ]);
@@ -452,16 +452,69 @@ it('rate limits generation and does not call the provider after the limit', func
     CommitTranslator::assertPromptedTimes(1);
 });
 
-it('physically prunes expired database translations without deleting fresh or unrelated cache entries', function (): void {
+it('physically prunes expired database cache entries without deleting fresh ones', function (): void {
     config(['cache.default' => 'database']);
     Cache::put('commit-translations:v1:expired', 'expired', 1);
+    Cache::put('open-graph-image:commit:expired', 'expired', 1);
     Cache::put('commit-translations:v1:fresh', 'fresh', 60);
     Cache::put('unrelated', 'keep', 60);
     $this->travel(2)->seconds();
 
-    collect(resolve(Schedule::class)->events())->firstWhere('description', 'prune-commit-translations')->run(app());
+    collect(resolve(Schedule::class)->events())->firstWhere('description', 'prune-expired-cache')->run(app());
 
-    expect(DB::table('cache')->where('key', config('cache.prefix').'commit-translations:v1:expired')->exists())->toBeFalse()
+    expect(DB::table('cache')->whereIn('key', [
+        config('cache.prefix').'commit-translations:v1:expired',
+        config('cache.prefix').'open-graph-image:commit:expired',
+    ])->exists())->toBeFalse()
         ->and(Cache::get('commit-translations:v1:fresh'))->toBe('fresh')
         ->and(Cache::get('unrelated'))->toBe('keep');
+});
+
+it('uses the saved target language instead of the browser language', function (): void {
+    $reader = User::factory()->create(['translation_language' => 'ja']);
+    $commit = Commit::factory()->create(['body' => 'Good morning']);
+    Cache::put(resolve(CommitTranslations::class)->key($commit), [
+        'source_language' => 'en',
+        'translations' => ['ja' => 'おはようございます'],
+        'expires_at' => now()->addWeek()->getTimestamp(),
+    ], 604800);
+
+    $this->actingAs($reader)->withHeader('Accept-Language', 'en-US,en;q=0.9')
+        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.language', 'ja')
+        ->where('commit.translation.available', true)
+        ->where('commit.translation.translated.body_segments.0.text', 'おはようございます'));
+});
+
+it('follows the browser language when the preference is unset', function (): void {
+    $reader = User::factory()->create(['translation_language' => null]);
+    $commit = Commit::factory()->create(['body' => 'Good morning']);
+    Cache::put(resolve(CommitTranslations::class)->key($commit), [
+        'source_language' => 'en',
+        'translations' => [],
+        'expires_at' => now()->addWeek()->getTimestamp(),
+    ], 604800);
+
+    $this->actingAs($reader)->withHeader('Accept-Language', 'ja-JP,ja;q=0.9')
+        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.language', 'ja')
+        ->where('commit.translation.available', true));
+});
+
+it('uses the saved preference to hide translation for matching source languages', function (): void {
+    $reader = User::factory()->create(['translation_language' => 'ja']);
+    $commit = Commit::factory()->create(['body' => 'おはようございます']);
+    Cache::put(resolve(CommitTranslations::class)->key($commit), [
+        'source_language' => 'ja',
+        'translations' => [],
+        'expires_at' => now()->addWeek()->getTimestamp(),
+    ], 604800);
+
+    $this->actingAs($reader)->withHeader('Accept-Language', 'en-US')
+        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.language', 'ja')
+        ->where('commit.translation.available', false));
 });

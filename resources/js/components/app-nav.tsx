@@ -2,10 +2,9 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     Activity,
     Bell,
-    Bookmark,
+    Star,
     GitCommitVertical,
     History,
-    Menu,
     MessagesSquare,
     PanelLeftClose,
     PanelLeftOpen,
@@ -17,17 +16,18 @@ import {
 } from 'lucide-react';
 import type { ReactElement, ReactNode } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
-import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
+import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
 import { GitHubIcon } from '@/components/github-icon';
 import { LogoMenu } from '@/components/logo-menu';
+import { MobileMenuIcon } from '@/components/mobile-menu-icon';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -103,9 +103,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             icon: UserRound,
         },
         {
-            title: 'Saved',
-            href: hrefFor(() => BookmarkController.index()),
-            icon: Bookmark,
+            title: 'Starred',
+            href: hrefFor(() => StarredCommitController.index()),
+            icon: Star,
             prefetch: false,
         },
         ...(auth.isAdmin
@@ -141,7 +141,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                   ? isCurrentOrParentUrl('/log')
                   : item.title === 'Remotes'
                     ? isCurrentOrParentUrl('/remotes')
-                    : isCurrentUrl(item.href)),
+                    : item.title === 'Operations'
+                      ? isCurrentOrParentUrl('/operations')
+                      : isCurrentUrl(item.href)),
     }));
 }
 
@@ -253,7 +255,7 @@ function NavIcon({
                 />
             )}
             {count > 0 && (
-                <span className="absolute -top-1.5 -right-2 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 font-semibold text-primary-foreground tabular-nums">
+                <span className="absolute -top-1.5 -right-2 min-w-4 rounded-sm bg-primary px-1 text-center text-[10px] leading-4 font-semibold text-primary-foreground tabular-nums">
                     {count > 99 ? '99+' : count}
                     <span className="sr-only"> unread</span>
                 </span>
@@ -277,7 +279,7 @@ export function AppNav({
     const iconsOnly = !(useMediaQuery('(min-width: 64rem)') && isLayoutOpen);
 
     return (
-        <header className="flex h-svh w-full scrollbar-none flex-col items-stretch overflow-x-hidden overflow-y-auto px-3.5 py-6 whitespace-nowrap">
+        <header className="flex h-full w-full flex-col items-stretch overflow-hidden px-3.5 py-6 whitespace-nowrap">
             <LogoMenu>
                 <Link
                     href={
@@ -286,7 +288,7 @@ export function AppNav({
                             : LogController.show(auth.log)
                     }
                     viewTransition
-                    className="mb-8 grid grid-rows-[36px_20px] gap-y-1 rounded-md px-3"
+                    className="mb-8 grid shrink-0 grid-rows-[36px_20px] gap-y-1 rounded-md px-3"
                     aria-label={
                         auth.log === null
                             ? '/dev/null, go to the home page'
@@ -301,7 +303,10 @@ export function AppNav({
                 </Link>
             </LogoMenu>
 
-            <nav aria-label="Main" className="flex flex-col gap-1">
+            <nav
+                aria-label="Main"
+                className="flex min-h-0 flex-1 scrollbar-none flex-col gap-1 overflow-y-auto [&>*]:shrink-0"
+            >
                 {items.map((item) => (
                     <NavLink
                         key={item.title}
@@ -349,7 +354,7 @@ export function AppNav({
                         onClick={onSearch}
                         className="flex h-11 items-center gap-3 rounded-lg py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground xl:hidden"
                     >
-                        <Search className="size-5" />
+                        <Search className="size-6 shrink-0" />
                         <span className={navLabelClassName}>Search</span>
                         <kbd className="ml-auto hidden rounded border border-b-2 bg-muted px-1.5 font-mono text-xs nav-wide:block">
                             {keys.combo(keys.mod, 'K')}
@@ -407,11 +412,11 @@ export function AppNav({
             </nav>
 
             {auth.user === null ? (
-                <SignInButton className="mt-auto size-[52px] rounded-lg nav-wide:w-auto" />
+                <SignInButton className="mt-auto size-[52px] shrink-0 rounded-lg nav-wide:w-auto" />
             ) : (
                 <DropdownMenu>
                     <DropdownMenuTrigger
-                        className="mt-auto flex items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-accent data-[state=open]:bg-accent"
+                        className="mt-auto flex shrink-0 items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-accent data-[state=open]:bg-accent"
                         data-test="user-menu-button"
                     >
                         <UserAvatar user={auth.user} className="size-9" />
@@ -459,7 +464,7 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
                     type="button"
                     onClick={onSearch}
                     aria-label="Search"
-                    className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                     <Search className="size-5" />
                 </button>
@@ -503,7 +508,7 @@ export function MobileCommitButton({
             aria-label="Write a commit"
             title="Write a commit"
             className={cn(
-                'absolute right-4 bottom-full mb-4 size-14 rounded-full shadow-lg transition-opacity duration-200 [view-transition-name:mobile-commit-button] md:hidden',
+                'absolute right-4 bottom-full mb-4 size-14 rounded-lg shadow-lg transition-opacity duration-200 [view-transition-name:mobile-commit-button] md:hidden',
                 { 'pointer-events-none opacity-0': isHidden },
             )}
             data-test="mobile-commit-button"
@@ -534,7 +539,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
     );
     const items = allItems.filter(
         (item) =>
-            item.title !== 'Saved' &&
+            item.title !== 'Starred' &&
             !menuItems.some((menuItem) => menuItem.title === item.title),
     );
     const nav = useRef<HTMLElement>(null);
@@ -584,7 +589,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                         {item.isActive && (
                             <span
                                 aria-hidden
-                                className="absolute inset-0 -z-10 rounded-full bg-primary-soft [view-transition-name:mobile-nav-active-item]"
+                                className="absolute inset-0 -z-10 rounded-lg bg-primary-soft [view-transition-name:mobile-nav-active-item]"
                             />
                         )}
                         <span
@@ -613,7 +618,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                 >
                     <span
                         className={cn(
-                            'flex h-8 w-14 max-w-full items-center justify-center rounded-full',
+                            'flex h-8 w-14 max-w-full items-center justify-center rounded-lg',
                             {
                                 'bg-primary-soft': menuItems.some(
                                     (item) => item.isActive,
@@ -621,7 +626,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                             },
                         )}
                     >
-                        <Menu className="size-5" />
+                        <MobileMenuIcon className="size-5" />
                     </span>
                     <span>Menu</span>
                 </DropdownMenuTrigger>

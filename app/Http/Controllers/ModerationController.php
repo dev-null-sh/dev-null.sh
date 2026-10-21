@@ -10,7 +10,9 @@ use App\Http\Requests\ShowModerationRequest;
 use App\Http\Requests\UpdateModerationRequest;
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\CommitTranslations;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -23,7 +25,6 @@ final readonly class ModerationController
         return Inertia::render('moderation/show', [
             'commits' => Inertia::scroll(fn () => Commit::query()
                 ->pending()
-                ->withSavedState($user)
                 ->with([
                     'user',
                     'parent.user',
@@ -33,6 +34,7 @@ final readonly class ModerationController
                 ])
                 ->withStarsFor($user)
                 ->withPollFor($user)
+                ->afterQuery(fn (Collection $commits) => resolve(CommitTranslations::class)->attach($commits, includePending: true))
                 ->oldest()
                 ->oldest('id')
                 ->cursorPaginate(20)

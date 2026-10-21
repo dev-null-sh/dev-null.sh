@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Actions\CreateTomFriendship;
+use App\Actions\CreateWorldReply;
+use App\Dto\LiveStream;
+use App\Enums\LivePlatform;
 use App\Enums\Log;
 use App\Enums\RemotesFrom;
 use Carbon\CarbonInterface;
@@ -15,6 +18,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\DB;
@@ -43,12 +47,19 @@ use Laravel\Passport\HasApiTokens;
  * @property-read int $pasteis_given_today
  * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
+ * @property-read string|null $translation_language
  * @property-read string|null $timezone
+ * @property-read LivePlatform|null $live_platform
+ * @property-read string|null $live_url
+ * @property-read CarbonInterface|null $live_ends_at
  * @property-read Log $log
  * @property-read CarbonInterface|null $onboarded_at
  * @property-read CarbonInterface|null $github_follows_imported_at
  * @property-read string|null $remember_token
  * @property-read CarbonInterface|null $github_synced_at
+ * @property-read CarbonInterface|null $last_seen_at
+ * @property-read CarbonInterface|null $banned_at
+ * @property-read CarbonInterface|null $commit_rules_accepted_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, Commit> $commits
@@ -63,7 +74,10 @@ use Laravel\Passport\HasApiTokens;
  * @property-read Collection<int, SshKey> $sshKeys
  * @property-read Collection<int, PollVote> $pollVotes
  * @property-read Collection<int, Device> $devices
+ * @property-read Collection<int, UserTimeout> $timeouts
+ * @property-read Ban|null $ban
  * @property-read int $commits_count
+ * @property-read int $timeouts_count
  * @property-read int $following_count
  * @property-read int $followers_count
  */
@@ -71,6 +85,7 @@ use Laravel\Passport\HasApiTokens;
     'github_id',
     'email',
     'remember_token',
+    'translation_language',
     'preferred_lane',
     'lane_color',
     'pasteis_mode',
@@ -85,6 +100,12 @@ use Laravel\Passport\HasApiTokens;
     'log',
     'onboarded_at',
     'github_follows_imported_at',
+    'live_platform',
+    'live_url',
+    'live_ends_at',
+    'last_seen_at',
+    'banned_at',
+    'commit_rules_accepted_at',
 ])]
 final class User extends Authenticatable implements OAuthenticatable
 {
@@ -98,10 +119,21 @@ final class User extends Authenticatable implements OAuthenticatable
     public const int DAILY_PASTEIS = 10;
 
     /**
+     * The longest a stream can be shown as live, in hours.
+     */
+    public const int MAX_LIVE_HOURS = 12;
+
+    /**
+     * The accounts that never sign in, which product metrics leave out: Tom and @world.
+     */
+    public const array BOT_GITHUB_IDS = [CreateTomFriendship::GITHUB_ID, CreateWorldReply::GITHUB_ID];
+
+    /**
      * @var array<string, mixed>
      */
     protected $attributes = [
         'log' => Log::Following->value,
+        'translation_language' => null,
         'pasteis_mode' => false,
         'remotes_enabled' => true,
         'remotes_from' => RemotesFrom::Following->value,
@@ -109,7 +141,21 @@ final class User extends Authenticatable implements OAuthenticatable
         'pasteis_received' => 0,
         'pasteis_given_today' => 0,
         'pasteis_given_on' => null,
+        'live_platform' => null,
+        'live_url' => null,
+        'live_ends_at' => null,
+        'last_seen_at' => null,
+        'banned_at' => null,
+        'commit_rules_accepted_at' => null,
     ];
+
+    /**
+     * The bots as a Postgres array, for raw queries that leave them out with `github_id <> all(?::text[])`.
+     */
+    public static function botGitHubIdsArray(): string
+    {
+        return '{'.implode(',', self::BOT_GITHUB_IDS).'}';
+    }
 
     /**
      * @return array<string, string>
@@ -139,11 +185,18 @@ final class User extends Authenticatable implements OAuthenticatable
             'pasteis_given_on' => 'date',
             'pinned_commit_id' => 'string',
             'timezone' => 'string',
+            'translation_language' => 'encrypted',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',
             'remember_token' => 'string',
+            'live_platform' => LivePlatform::class,
+            'live_url' => 'string',
+            'live_ends_at' => 'datetime',
             'github_synced_at' => 'datetime',
+            'last_seen_at' => 'date',
+            'banned_at' => 'datetime',
+            'commit_rules_accepted_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -155,18 +208,6 @@ final class User extends Authenticatable implements OAuthenticatable
     public function commits(): HasMany
     {
         return $this->hasMany(Commit::class);
-    }
-
-    /**
-     * Reports keep an author in moderation for seven days, even if the reported commit is deleted.
-     */
-    public function hasRecentReports(): bool
-    {
-        return CommitReport::query()
-            ->whereNull('dismissed_at')
-            ->where('created_at', '>=', now()->subWeek())
-            ->whereIn('commit_id', $this->commits()->withTrashed()->select('id'))
-            ->exists();
     }
 
     /**
@@ -201,6 +242,43 @@ final class User extends Authenticatable implements OAuthenticatable
     public function devices(): HasMany
     {
         return $this->hasMany(Device::class);
+    }
+
+    /**
+     * Timeouts go by GitHub account, like bans, so they outlive the user and still apply if the same account signs up
+     * again.
+     *
+     * @return HasMany<UserTimeout, $this>
+     */
+    public function timeouts(): HasMany
+    {
+        return $this->hasMany(UserTimeout::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * The timeout the user is in right now, the one that ends last if moderators gave more than one.
+     */
+    public function activeTimeout(): ?UserTimeout
+    {
+        return $this->timeouts()->where('ends_at', '>', now())->latest('ends_at')->first();
+    }
+
+    /**
+     * Bans go by GitHub account, so they outlive the user and still apply if the same account signs up again.
+     *
+     * @return HasOne<Ban, $this>
+     */
+    public function ban(): HasOne
+    {
+        return $this->hasOne(Ban::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * Read from the user rather than the ban, since it's checked on every request.
+     */
+    public function isBanned(): bool
+    {
+        return $this->banned_at !== null;
     }
 
     /**
@@ -335,12 +413,17 @@ final class User extends Authenticatable implements OAuthenticatable
         return [$this->name, $this->username, $this->avatar_url, $this->lane()];
     }
 
+    public function mention(): string
+    {
+        return '@'.$this->username;
+    }
+
     /**
      * How link previews title the user, without repeating a name that is just the username.
      */
     public function nameWithHandle(): string
     {
-        return $this->name === $this->username ? "@{$this->username}" : "{$this->name} (@{$this->username})";
+        return $this->name === $this->username ? $this->mention() : $this->name.' ('.$this->mention().')';
     }
 
     public function isFollowing(self $user): bool
@@ -453,7 +536,18 @@ final class User extends Authenticatable implements OAuthenticatable
             ...parent::toArray(),
             'lane' => $this->lane(),
             'has_github_account' => $this->hasGitHubAccount(),
+            'live' => $this->liveStream()?->toArray(),
         ];
+    }
+
+    /**
+     * The stream the user is on until it runs out, which also hides a stream the scheduler has not cleared yet.
+     */
+    public function liveStream(): ?LiveStream
+    {
+        return $this->live_ends_at?->isFuture() === true
+            ? $this->live_platform?->driver()->stream((string) $this->live_url)
+            : null;
     }
 
     /**

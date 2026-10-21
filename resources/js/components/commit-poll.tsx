@@ -3,9 +3,11 @@ import { Check } from 'lucide-react';
 import { useId, useState } from 'react';
 import { toast } from 'sonner';
 import CommitPollVoteController from '@/actions/App/Http/Controllers/CommitPollVoteController';
+import { BodySegments } from '@/components/commit-body';
 import { Button } from '@/components/ui/button';
+import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
-import { emojify } from '@/lib/emoji';
+import { bodySegments } from '@/lib/code';
 import { cn } from '@/lib/utils';
 import type { Commit, Poll } from '@/types';
 
@@ -35,16 +37,37 @@ function percentage(votes: number, total: number): number {
     return total === 0 ? 0 : Math.round((votes / total) * 100);
 }
 
+// Only mentions the body also makes are linked, since those are the people the commit notifies.
+function OptionLabel({
+    label,
+    mentions,
+    isStatic,
+}: {
+    label: string;
+    mentions: Commit['mentions'];
+    isStatic: boolean;
+}) {
+    return (
+        <BodySegments
+            segments={bodySegments(label)}
+            mentions={mentions}
+            isStatic={isStatic}
+        />
+    );
+}
+
 export function CommitPoll({
     commit,
     poll: initialPoll,
     isStatic = false,
 }: {
-    commit: Pick<Commit, 'id' | 'user_id' | 'status'>;
+    commit: Pick<Commit, 'id' | 'user_id' | 'status'> &
+        Partial<Pick<Commit, 'mentions'>>;
     poll: Poll;
     isStatic?: boolean;
 }) {
     const { auth } = usePage().props;
+    const commitNotFound = useCommitNotFound();
     const now = useNow();
     const id = useId();
     const [poll, setPoll] = useState(initialPoll);
@@ -78,10 +101,15 @@ export function CommitPoll({
             return;
         }
 
+        let isNotFound = false;
+
         try {
             const response = await request.submit(
                 CommitPollVoteController.store(commit),
                 {
+                    onHttpException: (response) => {
+                        isNotFound = commitNotFound(commit.id, response);
+                    },
                     onError: (errors) =>
                         toast.error(
                             Object.values(errors)[0] ?? failedVoteMessage,
@@ -96,7 +124,9 @@ export function CommitPoll({
             setPoll(response.poll);
             router.flushAll();
         } catch {
-            toast.error(failedVoteMessage);
+            if (!isNotFound) {
+                toast.error(failedVoteMessage);
+            }
         }
     };
 
@@ -110,7 +140,11 @@ export function CommitPoll({
                                 key={option.id}
                                 className="rounded-md border px-3 py-2 text-[15px] wrap-anywhere"
                             >
-                                {emojify(option.label)}
+                                <OptionLabel
+                                    label={option.label}
+                                    mentions={commit.mentions ?? null}
+                                    isStatic
+                                />
                             </li>
                         ))}
                     </ul>
@@ -138,7 +172,11 @@ export function CommitPoll({
                                     className="size-4 accent-primary"
                                 />
                                 <span className="min-w-0 wrap-anywhere">
-                                    {emojify(option.label)}
+                                    <OptionLabel
+                                        label={option.label}
+                                        mentions={commit.mentions ?? null}
+                                        isStatic={false}
+                                    />
                                 </span>
                             </label>
                         ))}
@@ -189,7 +227,13 @@ export function CommitPoll({
                                                 option.voted && 'font-medium',
                                             )}
                                         >
-                                            {emojify(option.label)}
+                                            <OptionLabel
+                                                label={option.label}
+                                                mentions={
+                                                    commit.mentions ?? null
+                                                }
+                                                isStatic={isStatic}
+                                            />
                                             {option.voted && (
                                                 <>
                                                     <Check

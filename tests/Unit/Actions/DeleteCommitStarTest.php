@@ -7,6 +7,7 @@ use App\Actions\DeleteCommitStar;
 use App\Models\Commit;
 use App\Models\User;
 use App\Services\TheAlgorithm;
+use Illuminate\Support\Facades\DB;
 
 it('may unstar a commit', function (): void {
     $user = User::factory()->create();
@@ -26,6 +27,23 @@ it('is idempotent', function (): void {
     resolve(DeleteCommitStar::class)->handle($user, $commit);
 
     expect($user->starredCommits()->count())->toBe(0);
+});
+
+it('does not load a thread for rescoring when no star was removed', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    resolve(DeleteCommitStar::class)->handle($user, $commit);
+
+    $queries = collect(DB::getQueryLog())->pluck('query');
+    DB::disableQueryLog();
+
+    expect($queries->filter(
+        fn (string $query): bool => str_contains($query, 'from "commits"')
+    ))->toBeEmpty();
 });
 
 it('removes the notification about the star', function (): void {

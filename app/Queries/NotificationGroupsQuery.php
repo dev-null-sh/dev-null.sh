@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Enums\NotificationType;
 use App\Models\Notification;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -45,6 +46,36 @@ final readonly class NotificationGroupsQuery
         $groups = $query->cursorPaginate($perPage)->appends(request()->except('through'));
 
         $this->loadStackedActors($groups->items());
+
+        return $groups;
+    }
+
+    /**
+     * The inbox shows a quote with the commit it quotes, which is always the recipient's own, so only the recipient's
+     * commits load there: a reply that quotes someone else never brings along a commit the recipient may not see.
+     *
+     * @param  CursorPaginator<int, Notification>  $groups
+     * @return CursorPaginator<int, Notification>
+     */
+    public function withQuotedCommits(User $user, CursorPaginator $groups): CursorPaginator
+    {
+        new Collection($groups->items())->loadMissing([
+            'commit.quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->whereBelongsTo($user),
+        ]);
+
+        return $groups;
+    }
+
+    /**
+     * A star is always on the recipient's own commit, so its images may show beside it: an image-only commit has nothing
+     * else to show.
+     *
+     * @param  CursorPaginator<int, Notification>  $groups
+     * @return CursorPaginator<int, Notification>
+     */
+    public function withStarredCommitImages(CursorPaginator $groups): CursorPaginator
+    {
+        new Collection($groups->items())->where('type', NotificationType::Starred)->loadMissing('commit.images');
 
         return $groups;
     }
@@ -127,7 +158,7 @@ final readonly class NotificationGroupsQuery
                 SELECT visible.id AS notification_id, roots.id, roots.parent_id
                 FROM visible JOIN commits ON commits.id = visible.commit_id
                 JOIN commits AS roots ON roots.id = COALESCE(commits.root_id, commits.id)
-                WHERE visible.type IN ('replied', 'mentioned')
+                WHERE visible.type = 'mentioned'
             ),
             ancestry AS (
                 SELECT threads.notification_id, parent.id, parent.parent_id
@@ -138,9 +169,11 @@ final readonly class NotificationGroupsQuery
             ),
             topics AS (
                 SELECT visible.*,
-                    CASE WHEN visible.type = 'starred' THEN 'starred' ELSE 'activity' END AS topic_kind,
+                    CASE WHEN visible.type = 'starred' THEN 'starred'
+                        WHEN visible.type = 'replied' THEN 'replied' ELSE 'activity' END AS topic_kind,
                     CASE WHEN visible.type = 'followed' THEN visible.recipient_id
                         WHEN visible.type = 'starred' THEN visible.commit_id
+                        WHEN visible.type = 'replied' THEN visible.id
                         ELSE COALESCE(ancestry.id, threads.id, visible.id) END AS topic_id,
                     CASE WHEN visible.type = 'followed' THEN DATE(visible.created_at) END AS topic_day
                 FROM visible LEFT JOIN threads ON threads.notification_id = visible.id

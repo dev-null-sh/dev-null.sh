@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Actions\CreateTomFriendship;
 use App\Enums\Achievement;
 use App\Enums\UnixRank;
 use App\Models\User;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 final readonly class UserAchievementsQuery
@@ -15,6 +17,17 @@ final readonly class UserAchievementsQuery
     public function __construct(private UserStreakQuery $streaks)
     {
         //
+    }
+
+    /**
+     * @return Collection<int, string>
+     */
+    public function unlockedBadgeNames(User $user): Collection
+    {
+        return collect($this->get($user, $user)['badges'])
+            ->filter(fn (array $badge): bool => $badge['unlocked'])
+            ->map(fn (array $badge): string => $badge['name'])
+            ->values();
     }
 
     /**
@@ -30,7 +43,8 @@ final readonly class UserAchievementsQuery
      *         streak: array{count: int, multiplier: int, xp: int},
      *         stars_received: array{count: int, multiplier: int, xp: int},
      *         replies: array{count: int, multiplier: int, xp: int},
-     *         stars_given: array{count: int, multiplier: int, xp: int}
+     *         stars_given: array{count: int, multiplier: int, xp: int},
+     *         luddite: array{count: int, multiplier: int, xp: int}
      *     },
      *     ranks: list<array{
      *         rank: string,
@@ -82,6 +96,8 @@ final readonly class UserAchievementsQuery
 
         $longestStreak = ($streaks ?? $this->streaks->get($user, $viewer))['longest'];
         $hasSshKey = $user->sshKeys()->exists();
+        $hasUnfollowedTom = $user->followers()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists()
+            && ! $user->following()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists();
 
         // XP breakdown: 10 per commit, 15 per streak day, 5 per star received, 5 per reply, 2 per star given
         $commitsXp = $commitsCount * 10;
@@ -89,8 +105,9 @@ final readonly class UserAchievementsQuery
         $starsReceivedXp = $starsReceivedCount * 5;
         $repliesXp = $repliesCount * 5;
         $starsGivenXp = $starsGivenCount * 2;
+        $ludditeXp = $hasUnfollowedTom ? -100 : 0;
 
-        $xp = $commitsXp + $streakXp + $starsReceivedXp + $repliesXp + $starsGivenXp;
+        $xp = max(0, $commitsXp + $streakXp + $starsReceivedXp + $repliesXp + $starsGivenXp + $ludditeXp);
 
         $currentRank = UnixRank::forXp($xp);
         $nextRank = $currentRank->next();
@@ -105,6 +122,7 @@ final readonly class UserAchievementsQuery
             'stars_received' => ['count' => $starsReceivedCount, 'multiplier' => 5, 'xp' => $starsReceivedXp],
             'replies' => ['count' => $repliesCount, 'multiplier' => 5, 'xp' => $repliesXp],
             'stars_given' => ['count' => $starsGivenCount, 'multiplier' => 2, 'xp' => $starsGivenXp],
+            'luddite' => ['count' => $hasUnfollowedTom ? 1 : 0, 'multiplier' => -100, 'xp' => $ludditeXp],
         ];
 
         $ranks = array_map(fn (UnixRank $rank): array => [
@@ -159,6 +177,14 @@ final readonly class UserAchievementsQuery
             Achievement::AuthorizedKeys->value => [
                 'progress' => $hasSshKey ? 1 : 0,
                 'target' => Achievement::AuthorizedKeys->target(),
+            ],
+            Achievement::SweetTooth->value => [
+                'progress' => min($user->pasteis_received, Achievement::SweetTooth->target()),
+                'target' => Achievement::SweetTooth->target(),
+            ],
+            Achievement::Luddite->value => [
+                'progress' => $hasUnfollowedTom ? 1 : 0,
+                'target' => Achievement::Luddite->target(),
             ],
         ];
 
