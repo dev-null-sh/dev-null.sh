@@ -8,8 +8,11 @@ use App\Enums\OrgEvent;
 use App\Enums\OrgRole;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
+use App\Models\MessageImage;
+use App\Models\MessageVoice;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteOrgMember
 {
@@ -20,7 +23,7 @@ final readonly class DeleteOrgMember
 
     /**
      * Removes a member, or lets them leave. They lose access to the org. When the last maintainer goes, the
-     * longest-standing member takes over, and an org nobody is left in is deleted.
+     * longest-standing member takes over, and an org nobody is left in is deleted, with the files of its messages.
      */
     public function handle(User $actor, Conversation $org, User $member): void
     {
@@ -30,7 +33,15 @@ final readonly class DeleteOrgMember
             $remaining = $org->participants()->with('user')->oldest('id')->get();
 
             if ($remaining->isEmpty()) {
+                $messageIds = $org->messages()->select('id');
+                $paths = [
+                    ...MessageImage::query()->whereIn('message_id', $messageIds)->pluck('path'),
+                    ...MessageVoice::query()->whereIn('message_id', $messageIds)->pluck('path'),
+                ];
+
                 $org->delete();
+
+                DB::afterCommit(fn (): bool => Storage::disk()->delete($paths));
 
                 return;
             }

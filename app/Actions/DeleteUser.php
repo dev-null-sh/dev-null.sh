@@ -9,6 +9,7 @@ use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Message;
 use App\Models\MessageImage;
+use App\Models\MessageVoice;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
@@ -28,14 +29,15 @@ final readonly class DeleteUser
     /**
      * The user's top-level commits are erased with every reply under them, and so are their replies, except the ones
      * other people replied to: those stay behind as tombstones with no author or body, so the replies under them keep their thread.
-     * The database cascades the image rows of erased commits and the user's scheduled commits, but the image files are erased here.
+     * The database cascades the image rows of erased commits and the user's scheduled commits, and the voice notes of their
+     * messages, but the files are erased here.
      */
     public function handle(User $user): void
     {
         $imagePaths = DB::transaction(function () use ($user): array {
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
-            $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user)];
+            $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
 
             $translationKeys = Commit::query()->withTrashed()
                 ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
@@ -133,6 +135,20 @@ final readonly class DeleteUser
             ->whereIn('message_id', Message::query()->where('user_id', $user->id)->select('id'))
             ->get(['path'])
             ->map(fn (MessageImage $image): string => $image->path)
+            ->all();
+    }
+
+    /**
+     * The voice notes the user sent in remotes, whose messages go along with them.
+     *
+     * @return array<int, string>
+     */
+    private function messageVoicePaths(User $user): array
+    {
+        return MessageVoice::query()
+            ->whereIn('message_id', Message::query()->where('user_id', $user->id)->select('id'))
+            ->get(['path'])
+            ->map(fn (MessageVoice $voice): string => $voice->path)
             ->all();
     }
 }

@@ -12,6 +12,7 @@ use App\Models\Device;
 use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageImage;
+use App\Models\MessageVoice;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
@@ -295,4 +296,19 @@ it('erases cached translations of the user and replies in their deleted threads'
         ->and(Cache::has($unrelatedKey))->toBeTrue()
         ->and($bodyReads)->toHaveCount(2);
     $this->assertModelMissing($user);
+});
+
+it('erases the voice notes a deleted user sent in remotes, keeping the ones sent to them', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $sent = MessageVoice::factory()->for(Message::factory()->for($user))->create();
+    $received = MessageVoice::factory()->create();
+    Storage::disk()->put($sent->path, 'voice');
+    Storage::disk()->put($received->path, 'voice');
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(Storage::disk()->allFiles('message-voices'))->toBe([$received->path])
+        ->and(MessageVoice::query()->pluck('id')->all())->toBe([$received->id]);
 });
