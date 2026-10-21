@@ -46,6 +46,7 @@ import { useChangelog } from '@/hooks/use-changelog';
 import { useUnreadMessages } from '@/hooks/use-chat';
 import { useCurrentUrl } from '@/hooks/use-current-url';
 import { useMediaQuery } from '@/hooks/use-media-query';
+import { useMobileHeader } from '@/hooks/use-mobile-header';
 import { useNavOpen } from '@/hooks/use-nav-open';
 import { useKeyLabels } from '@/lib/keyboard';
 import { browserTimeZone, cn, toUrl } from '@/lib/utils';
@@ -442,11 +443,20 @@ export function AppNav({
     );
 }
 
+/**
+ * Sticks a full header's height above the screen, so it scrolls away with the page, and comes down from there while
+ * scrolling back up.
+ */
 export function MobileHeader({ onSearch }: { onSearch: () => void }) {
     const { auth } = usePage().props;
+    const header = useRef<HTMLDivElement>(null);
+    useMobileHeader(header);
 
     return (
-        <div className="flex h-14 items-center justify-between border-b px-4 md:hidden">
+        <div
+            ref={header}
+            className="sticky top-below-header z-20 flex h-14 items-center justify-between border-b bg-card px-4 [--top-below-header:--spacing(-14)] [view-transition-class:tab-header] [view-transition-name:mobile-header] md:hidden"
+        >
             <Link
                 href={auth.log === null ? home() : LogController.show(auth.log)}
                 viewTransition
