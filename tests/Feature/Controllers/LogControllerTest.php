@@ -739,3 +739,34 @@ it('rejects an invalid range boundary', function (): void {
         ->getJson(route('log.show', Log::Following))
         ->assertUnprocessable()->assertJsonValidationErrors('through');
 });
+
+it('returns distinct authors when polling for newer commits', function (): void {
+    $viewer = User::factory()->create();
+    $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
+    $author = User::factory()->create();
+    Commit::factory()->count(2)->for($author)->create();
+    Commit::factory()->for($viewer)->create();
+
+    $this->actingAs($viewer)->get(route('log.show', [Log::Latest, 'since' => $older->id]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount,newCommitAuthors',
+    ])->assertOk()
+        ->assertJsonPath('props.newCommitsCount', 2)
+        ->assertJsonPath('props.newCommitAuthors.total', 1)
+        ->assertJsonCount(1, 'props.newCommitAuthors.users')
+        ->assertJsonPath('props.newCommitAuthors.users.0.id', $author->id);
+});
+
+it('clears author previews when reloading without a since cursor', function (): void {
+    $this->actingAs(User::factory()->create())->get(route('log.show', Log::Latest), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount,newCommitAuthors',
+    ])->assertOk()
+        ->assertJsonPath('props.newCommitsCount', 0)
+        ->assertJsonPath('props.newCommitAuthors.total', 0)
+        ->assertJsonPath('props.newCommitAuthors.users', []);
+});
