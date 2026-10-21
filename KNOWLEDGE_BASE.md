@@ -53,6 +53,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Tom's repository insights and community statistics](#toms-repository-insights-and-community-statistics)
   - [Hello world replies](#hello-world-replies)
 - [Stack and hosting](#stack-and-hosting)
+  - [October 21, 2026: PHP security patches and precautionary downtime](#october-21-2026-php-security-patches-and-precautionary-downtime)
 - [Lore](#lore)
   - [Product trailer](#product-trailer)
   - [Built on a livestream](#built-on-a-livestream)
@@ -67,7 +68,7 @@ This file documents the platform's features, stack, and stories. Feature entries
 
 ## Repository
 
-- **Repository:** [nunomaduro/dev-null.sh](https://github.com/nunomaduro/dev-null.sh).
+- **Repository:** [dev-null-sh/dev-null.sh](https://github.com/dev-null-sh/dev-null.sh).
 - **Setup and development:** [README](README.md).
 - **Product terminology and behavior:** [Product guide](PRODUCT.md).
 
@@ -111,7 +112,7 @@ Sources: [go-live menu](resources/js/components/profile-actions-menu.tsx), [live
 
 ### Achievement badges and XP
 
-Profiles have **13 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
+Profiles have **14 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
 
 | Badge | When it unlocks |
 | --- | --- |
@@ -128,10 +129,11 @@ Profiles have **13 achievement badges**. Earned badges appear in a single row, w
 | **authorized_keys** | Have at least one public SSH key linked from GitHub. |
 | **sweet tooth** | Receive **100 pastéis across your account**, not on a single commit. Pastéis mode does not need to be enabled, and the total survives deletion of the awarded commits. |
 | **luddite** | Stop following Tom while he still follows you. This deducts **100 XP**; following him again removes the badge and penalty. Accounts Tom has never befriended do not qualify. |
+| **shell shocked** | “Survived the php2shell downtime of Oct '26. Earns 100 XP.” — accounts created before **October 21, 2026 at 14:00 UTC** receive this badge and **100 bonus XP**. Accounts created at or after that moment do not qualify. |
 
 Commit counts include replies and quotes. Commit-based badges and XP use non-deleted commits visible to the person viewing the profile, so an author may see progress from pending or rejected commits that other viewers cannot see. Streak badges use the **longest** streak, not the current streak: missing a day does not by itself remove them. Days follow the activity graph's app-timezone grouping, not the user's selected display timezone.
 
-Badges are calculated from current account data, not permanently recorded awards. Removing qualifying activity can reduce progress or lock a badge again; for example, unstarring a commit can remove **stargazer**. When a commit posted on the web unlocks a badge, a toast names it and confetti drops; clicking an unlocked badge drops confetti again. Unlocking a badge does not normally give bonus XP. XP comes from **10 per commit**, **15 per day in the longest streak**, **5 per star received**, **5 per reply to another developer**, and **2 per star given to another developer**. The **luddite** penalty applies once while the badge is unlocked, not once per unfollow, and total XP cannot fall below zero. A qualifying reply contributes both commit XP and reply XP; pastéis do not add XP.
+Badges are calculated from current account data, not permanently recorded awards. Removing qualifying activity can reduce progress or lock a badge again; for example, unstarring a commit can remove **stargazer**. **Shell shocked** depends only on when the account was created, so deleting activity does not remove it. When a commit posted on the web unlocks a badge, a toast names it and confetti drops; clicking an unlocked badge drops confetti again. Unlocking a badge does not normally give bonus XP; **shell shocked** contributes **100 XP** once. XP otherwise comes from **10 per commit**, **15 per day in the longest streak**, **5 per star received**, **5 per reply to another developer**, and **2 per star given to another developer**. The **luddite** penalty applies once while the badge is unlocked, not once per unfollow, and total XP cannot fall below zero. A qualifying reply contributes both commit XP and reply XP; pastéis do not add XP.
 
 Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and XP calculation](app/Queries/UserAchievementsQuery.php), [streak calculation](app/Queries/UserStreakQuery.php), [achievements dialog](resources/js/components/achievements-dialog.tsx).
 
@@ -195,7 +197,7 @@ Commit and reply text supports inline code in backticks and fenced code blocks w
 
 Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions are limited to the org's members. Mentions link to profiles and can notify the mentioned developer after approval. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
 
-Typing **#123** in a composer looks up that exact issue or pull request in the configured upstream repository (`nunomaduro/dev-null.sh` by default). The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL. A space or punctuation after the number automatically inserts the match, without treating a pause midway through a longer number as completion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
+Typing **#123** in a composer looks up that exact issue or pull request in the configured upstream repository (`dev-null-sh/dev-null.sh` by default). The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL. A space or punctuation after the number automatically inserts the match, without treating a pause midway through a longer number as completion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
 
 The upstream is configured with `GITHUB_REPOSITORY=owner/repo` through `services.github.repository`. Issue suggestions, issue filing, the changelog, repository insights and history, and public repository links share this setting. Repository-specific caches are scoped to it.
 
@@ -413,7 +415,7 @@ Livestream history: terminal posting was reported working on [day one at 6:32:47
 
 ### GitHub Actions integration
 
-Use `nunomaduro/dev-null.sh/.github/actions/commit@production` to publish updates from a GitHub workflow, for example when a release is published. Settings → Terminal includes a workflow example. The action accepts a commit body, an SSH private key supplied through a GitHub Actions secret, an optional `reply-to` reference, optional image paths (up to three), and an optional `url` for another /dev/null instance.
+Use `dev-null-sh/dev-null.sh/.github/actions/commit@production` to publish updates from a GitHub workflow, for example when a release is published. Settings → Terminal includes a workflow example. The action accepts a commit body, an SSH private key supplied through a GitHub Actions secret, an optional `reply-to` reference, optional image paths (up to three), and an optional `url` for another /dev/null instance.
 
 Generate a dedicated CI key, add its public half to GitHub as a signing or authentication key, and store the private half only in the repository's encrypted secrets. The action supports Ed25519 or RSA keys without a passphrase. It reports the created commit's link and whether it is pending review as a workflow annotation; it has no step outputs, and a refused submission fails the job. The usual moderation and submission limits still apply.
 
@@ -448,7 +450,7 @@ Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/
 
 ### Bug reports and feature requests
 
-Start a fresh commit draft with **`/bug `** or **`/feature `** to switch it into an issue draft. Submitting opens a **public GitHub issue** on `nunomaduro/dev-null.sh`, crediting you, rather than posting a normal commit. The issue includes your browser and screen details (browser, OS, viewport, pixel ratio, language, color scheme, and the current page) in a collapsed Environment section. The composer offers command suggestions and a way to cancel back to a commit. Issue drafts are text-only and accept 3–4,000 characters; remove detected secrets before submission.
+Start a fresh commit draft with **`/bug `** or **`/feature `** to switch it into an issue draft. Submitting opens a **public GitHub issue** on `dev-null-sh/dev-null.sh`, crediting you, rather than posting a normal commit. The issue includes your browser and screen details (browser, OS, viewport, pixel ratio, language, color scheme, and the current page) in a collapsed Environment section. The composer offers command suggestions and a way to cancel back to a commit. Issue drafts are text-only and accept 3–4,000 characters; remove detected secrets before submission.
 
 Empty issue drafts show a short Markdown template: steps and expected versus actual behavior for bugs, or the problem and proposal for features. The first top-level `# Heading` becomes the issue title and is removed from the body; the remaining Markdown is preserved. Without a heading, the first line is used as the title and the full draft remains in the body.
 
@@ -498,13 +500,13 @@ Sources: [last seen tracking](app/Http/Middleware/UpdateLastSeenAt.php), [Fathom
 
 ### Tom's repository insights and community statistics
 
-Tom can read public GitHub data for `nunomaduro/dev-null.sh`: up to ten top contributors by GitHub-reported commit count (excluding bots), recent pull requests merged into `production`, open issues labelled **good first issue** or **help wanted**, stars and forks, separate open-issue and open-PR counts, and repository language bytes. These are read-only tools, not arbitrary repository access. A merge does not prove deployment, and a limited list is not an exhaustive count. GitHub insights are cached for fifteen minutes; contributor data can lag by hours and changelog pages have an additional thirty-minute cache. Public reads reuse the application's existing GitHub OAuth credentials, not a user's token.
+Tom can read public GitHub data for `dev-null-sh/dev-null.sh`: up to ten top contributors by GitHub-reported commit count (excluding bots), recent pull requests merged into `production`, open issues labelled **good first issue** or **help wanted**, stars and forks, separate open-issue and open-PR counts, and repository language bytes. These are read-only tools, not arbitrary repository access. A merge does not prove deployment, and a limited list is not an exhaustive count. GitHub insights are cached for fifteen minutes; contributor data can lag by hours and changelog pages have an additional thirty-minute cache. Public reads reuse the application's existing GitHub OAuth credentials, not a user's token.
 
 For feature attribution, Tom can search all indexed dates of merged `production` PR titles and descriptions and non-merge Git commit messages on the default branch. He translates questions into feature keywords and can retry with synonyms or fewer words. All keywords must match, in any order, rather than as one exact phrase. This is AI-guided keyword search, not a semantic GitHub index. Each search returns up to five best matches of each kind, with source links, dates and GitHub-linked author accounts; descriptions are searched but not returned to the model. Results are cached for fifteen minutes, with at most two searches per reply. This is not a code or diff search: matches may be follow-up fixes, missing matches do not establish absence, and PR or commit authorship does not prove sole implementation or list every co-author. Unknown accounts stay unknown; committers and mergers are not credited as implementers. GitHub failures or incomplete searches are reported as unavailable.
 
 History results include a verified local @mention when the author's stable GitHub account ID matches an onboarded member with a real handle. Internal rename placeholders are excluded until a real handle is restored. Tom uses the verified handle rather than the GitHub login; unmatched accounts remain plain GitHub usernames, without an @. Membership and handles are resolved afresh even when GitHub results are cached, so onboarding, renames and account deletion are reflected immediately. This does not disclose online status or last-seen activity, and account IDs are never sent to the model.
 
-Tom can also count current onboarded members (excluding Tom), members whose accounts were created in the last seven or thirty days, and distinct members who posted approved, non-deleted public commits or replies during those windows. Public-author counts are not online-user counts. These aggregates are cached for five minutes and include their observation time and definition.
+Tom can also count current onboarded members (excluding Tom), members whose accounts were created in the last seven or thirty days, and distinct members who posted approved, non-deleted public commits or replies during those windows. Signup and public-author counts also support a particular date or an inclusive date range, such as “How many people joined on October 20, 2026?” or “How many members posted between October 1 and October 15, 2026?” Calendar dates use **UTC**, including both the first and last day. Today's count is only as of the reported observation time; future dates are not supported. These counts use current onboarded members and do not reconstruct deleted accounts or total membership as it existed on a past date. Public-author counts are not online-user counts. These aggregates are cached for five minutes and include their observation time and definition.
 
 Country questions use whole-term matches against public profile location text, with UK and US aliases; they do not establish nationality or residence or infer countries from cities, names, IP addresses or timezones. Programming-language questions count mentions in public bios using a supported language list and explicit aliases. Ambiguous Go and C mentions require programming phrases. These counts describe profile text, not everyone who uses a language; missing or unrecognized text is not counted. The community tool returns aggregates, never lists of people, private messages or moderation data, and does not combine demographic filters. GitHub failures are reported as unavailable, not zero.
 
@@ -540,9 +542,23 @@ The repository defaults to database-backed queues, cache, and sessions. File sto
 
 The knowledge base is split into Markdown sections by heading and stored with vector embeddings in PostgreSQL. An hourly scheduled job refreshes new or changed sections in production, so knowledge-base changes are picked up within an hour of being deployed. Unchanged sections reuse their embeddings.
 
-An [internal semantic search query](README.md#internal-semantic-search) retrieves the nearest knowledge-base sections using Laravel AI SDK query embeddings through OpenAI and PostgreSQL cosine distance, following the same embedding approach as commit search. Tom's read-only tools expose bounded knowledge-base excerpts and public commit search results to the model. There is no standalone public knowledge-base search endpoint.
+An [internal semantic search query](app/Queries/KnowledgeBaseSearchQuery.php) retrieves the nearest knowledge-base sections using Laravel AI SDK query embeddings through OpenAI and PostgreSQL cosine distance, following the same embedding approach as commit search. Tom's read-only tools expose bounded knowledge-base excerpts and public commit search results to the model. There is no standalone public knowledge-base search endpoint.
 
-Stack references: [PHP dependencies](composer.json), [frontend dependencies](package.json), [database configuration](config/database.php), [setup requirements](README.md#getting-started), [queue configuration](config/queue.php), [cache configuration](config/cache.php), [session configuration](config/session.php), [storage configuration](config/filesystems.php), and [existing AI integration](app/Services/OpenAI.php). Laravel Cloud hosting is confirmed by the project team.
+Stack references: [PHP dependencies](composer.json), [frontend dependencies](package.json), [database configuration](config/database.php), [setup requirements](README.md#contributing), [queue configuration](config/queue.php), [cache configuration](config/cache.php), [session configuration](config/session.php), [storage configuration](config/filesystems.php), and [existing AI integration](app/Services/OpenAI.php). Laravel Cloud hosting is confirmed by the project team.
+
+### October 21, 2026: PHP security patches and precautionary downtime
+
+On **October 21, 2026**, the PHP team published fixes for two critical security vulnerabilities: **CVE-2026-109618** and **CVE-2026-109619**. Both could let someone send specially crafted web requests and make a vulnerable server run the attacker's code **without signing in**. This is called remote code execution. The code would run with the web worker's permissions, not automatically with unrestricted control of the whole machine. These were bugs in PHP itself, not bugs specific to /dev/null.
+
+**CVE-2026-109618 — stopping halfway through a job.** Imagine PHP as a helper sorting a visitor's belongings into labelled boxes. If the helper runs out of room, it suddenly stops, leaving some boxes unfinished. The cleanup helper then mistakes those unfinished boxes for properly packed ones. In PHP, running out of memory could leave internal request data half-prepared, and cleanup could use it as though it were valid. An attacker could deliberately create that situation and manipulate the memory involved to make PHP run unwanted code. The patch makes PHP stop at a safe point when memory runs low, or immediately stop the worker if a higher emergency limit is reached, rather than clean up unfinished data unsafely.
+
+**CVE-2026-109619 — following an old note.** Imagine the helper keeps a note saying where a visitor's box is. The visitor leaves and the space is reused, but the helper forgets to throw the note away. When the next visitor arrives, the helper follows that old note and treats whatever is now there as the original box. PHP could similarly keep references to memory from a finished request and use them during a later request handled by the same worker. An attacker could manipulate the replacement contents to make PHP run unwanted code. The patch resets this leftover internal state so later requests cannot follow those stale references.
+
+The exact attack paths depended on the server setup and application. PHP warned that configuration workarounds were **not a complete fix**: installing the patched PHP releases was the safe solution. The [PHP security announcement](https://www.php.net/archive/2026.php) lists the fixed releases.
+
+On the **morning of October 21, 2026**, the **/dev/null team took the website offline as a precaution while awaiting the patch**. The website returned after **Laravel Cloud automatically applied the PHP security patches**, allowing it to come back safely with these vulnerabilities fixed. This records a precautionary shutdown, not a claim that /dev/null had been exploited.
+
+Sources: [PHP's October 21 security announcement](https://www.php.net/archive/2026.php), [CVE-2026-109618 advisory](https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w), and [CVE-2026-109619 advisory](https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp). The downtime and automatic-patching timeline is the project team's account.
 
 ## Lore
 
@@ -582,7 +598,7 @@ The idea to make Tom everyone's first friend appears on [day two at 7:29:26](htt
 
 Originally, Tom had no particular purpose beyond that nod to MySpace. He now has a narrowly scoped bot implementation powered by **DeepSeek Flash through OpenCode Zen**: simple friendly chat, explaining /dev/null's features, origins, stack and lore using this knowledge base, or finding public commits about a topic using semantic search. Greetings, thanks, jokes and small talk get a friendly reply without a search. He is not a general-purpose assistant: unrelated tasks, coding help and professional advice are outside his role. He is instructed to decline requests to decrypt, decode or deobfuscate strings or code-execution results. This describes the feature, not a claim that a particular deployment has enabled him.
 
-Tom's lookups start with **OpenAI's Decisions API**, which evaluates simple criteria for each read-only tool using the latest message and the same bounded public thread context. Finding social posts uses post search; factual platform questions use the knowledge base; current repository numbers and contribution opportunities use repository insights; "who built this feature" questions use repository history; and supported member counts use community statistics. Tom then runs the selected tools with relevant arguments and answers from their results. A multi-part question can use several tools, and an inconclusive search can lead to a follow-up with different keywords. When no tool is needed, such as small talk, ambiguous requests or anything outside his role, Tom simply replies as regular chat.
+Tom's lookups start with **OpenAI's Decisions API**, which evaluates simple criteria for each read-only tool using the latest message and the same bounded public thread context. Finding social posts and community reactions uses post search; factual platform questions and notable events, including milestones, downtime and security patches, use the knowledge base; current repository numbers and contribution opportunities use repository insights; feature development and attribution questions use repository history; and supported member counts use community statistics. Sources are complementary: a question about a feature's behavior, evolution and community reception can use the knowledge base, posts and repository history together, without needing to request each search explicitly. Tom compiles the relevant evidence into one answer, distinguishing documented facts, community opinions and development history. An inconclusive search can lead to a follow-up with different keywords, and each new reply has a fresh search allowance. When no tool is needed, such as small talk, ambiguous requests or anything outside his role, Tom simply replies as regular chat.
 
 Tag **@tom** in a public commit or reply, or reply directly to one of his posts without tagging him. Once it is approved, Tom can reply under that commit, at most once, addressing its author rather than the thread's root poster. Replies further down the thread still need to tag him unless their direct parent is a Tom post. Mentions in code do not summon him. His replies use the normal commit moderation and notification pipeline. He does not reply to himself, across a block, in private messages, or to deleted or unapproved commits.
 
@@ -610,7 +626,7 @@ Sources:
 
 - [Fernando's post arranging delivery to the crew](https://dev-null.sh/@fernandofreamunde/commits/01a144fe-ed29-7356-af93-03b9724e8af6).
 - [Matthieu's reply thanking him for the pastéis de nata](https://dev-null.sh/@mnapoli/commits/01a1453f-ac59-7077-b99e-98d72547ae8f).
-- [Pastéis mode contribution](https://github.com/nunomaduro/dev-null.sh/pull/286).
+- [Pastéis mode contribution](https://github.com/dev-null-sh/dev-null.sh/pull/286).
 - The project team's account confirms that the emoji and mode are a tribute to Fernando.
 
 ### The pushup break

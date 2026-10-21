@@ -7,6 +7,7 @@ namespace App\Queries;
 use App\Actions\CreateTomFriendship;
 use App\Models\Commit;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 
 final readonly class CommunityStatsQuery
@@ -32,10 +33,10 @@ final readonly class CommunityStatsQuery
     ];
 
     /** @return array<string, mixed> */
-    public function get(string $metric, int $days, string $term): array
+    public function get(string $metric, int $days, string $term, ?string $startDate = null, ?string $endDate = null): array
     {
-        return Cache::remember('community-stats:'.hash('sha256', "{$metric}:{$days}:{$term}"), 300, function () use ($metric, $days, $term): array {
-            $now = now()->toImmutable();
+        return Cache::remember('community-stats:'.hash('sha256', "{$metric}:{$days}:{$term}:{$startDate}:{$endDate}"), 300, function () use ($metric, $days, $term, $startDate, $endDate): array {
+            $now = now('UTC')->toImmutable();
             $users = User::query()->whereNotNull('onboarded_at')->where('github_id', '!=', CreateTomFriendship::GITHUB_ID);
             $population = (clone $users)->count();
             $definition = 'Current onboarded members, excluding Tom.';
@@ -43,15 +44,21 @@ final readonly class CommunityStatsQuery
             $since = null;
 
             if (in_array($metric, ['new_members', 'public_authors'], true)) {
-                $since = $now->subDays($days);
+                $since = $startDate === null ? $now->subDays($days) : CarbonImmutable::parse($startDate, 'UTC')->startOfDay();
+                $period = $startDate === null ? "in the last {$days} days" : "from {$startDate} through {$endDate} (inclusive UTC calendar dates)";
                 $definition = $metric === 'new_members'
-                    ? "Current onboarded members whose accounts were created in the last {$days} days, excluding Tom."
-                    : "Distinct current onboarded members with an approved, non-deleted public post or reply in the last {$days} days, excluding Tom. Not online users.";
+                    ? "Current onboarded members whose accounts were created {$period}, excluding Tom."
+                    : "Distinct current onboarded members with an approved, non-deleted public post or reply {$period}, excluding Tom. Not online users.";
 
-                if ($metric === 'new_members') {
-                    $users->whereBetween('created_at', [$since, $now]);
-                } else {
-                    $users->whereIn('id', Commit::query()->visibleTo(null)->whereBetween('created_at', [$since, $now])->select('user_id'));
+                $activity = $metric === 'new_members' ? $users : Commit::query()->visibleTo(null);
+                $activity->whereBetween('created_at', [$since, $now]);
+
+                if ($endDate !== null) {
+                    $activity->where('created_at', '<', CarbonImmutable::parse($endDate, 'UTC')->addDay()->startOfDay());
+                }
+
+                if ($metric === 'public_authors') {
+                    $users->whereIn('id', $activity->select('user_id'));
                 }
             }
 
@@ -79,6 +86,9 @@ final readonly class CommunityStatsQuery
                 'coverage' => $coverage,
                 'matched_terms' => $terms ?? [],
                 'since' => $since?->toIso8601String(),
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'timezone' => 'UTC',
                 'as_of' => $now->toIso8601String(),
                 'source' => 'Public /dev/null profiles and approved public posts. Profile details reflect the last GitHub sync.',
                 'cache_seconds' => 300,
