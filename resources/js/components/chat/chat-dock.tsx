@@ -187,6 +187,7 @@ function DockedChat({ user }: { user: User }) {
                                     partner={target.partner}
                                     user={user}
                                     isArchived={thread?.is_archived ?? false}
+                                    isMuted={thread?.is_muted ?? false}
                                     onBack={leave}
                                     onBlocked={leaveBlocked}
                                     tools={tools}
@@ -276,6 +277,7 @@ function DirectDockHeader({
     partner,
     user,
     isArchived,
+    isMuted,
     onBack,
     onBlocked,
     tools,
@@ -283,6 +285,7 @@ function DirectDockHeader({
     partner: User;
     user: User;
     isArchived: boolean;
+    isMuted: boolean;
     onBack: () => void;
     onBlocked: () => void;
     tools: ReactNode;
@@ -316,6 +319,7 @@ function DirectDockHeader({
                 title={`@${partner.username}`}
                 user={user}
                 isArchived={isArchived}
+                isMuted={isMuted}
                 onLeave={onBack}
                 onBlocked={onBlocked}
                 className="ml-auto"

@@ -25,7 +25,7 @@ final readonly class ConversationThreadQuery
      * A one-to-one conversation. Reads only show as pulled when both people share them, and only once the partner
      * has merged the conversation.
      *
-     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, partner_read_through_id: int, partner_read_at: string|null, partner_typing: bool, is_archived: bool, access: PushAccess}
+     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, partner_read_through_id: int, partner_read_at: string|null, partner_typing: bool, is_archived: bool, is_muted: bool, access: PushAccess}
      */
     public function get(User $user, User $partner, ?int $after = null, ?int $before = null, ?int $reactionsAfter = null): array
     {
@@ -50,6 +50,7 @@ final readonly class ConversationThreadQuery
             'partner_read_at' => $sharesReads ? $theirs->read_at?->toJSON() : null,
             'partner_typing' => $access === PushAccess::Open && $conversation instanceof Conversation && Cache::has(UpdateConversationTyping::key($partner, $conversation)),
             'is_archived' => $mine?->archived_at !== null,
+            'is_muted' => $mine?->muted_at !== null,
             'access' => $access,
         ];
     }
@@ -57,7 +58,7 @@ final readonly class ConversationThreadQuery
     /**
      * An org the user is in, from where their history starts. Each member's reads show only when both share pulls.
      *
-     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int}>, typing: array<int, string>, is_archived: bool, role: OrgRole|null, access: PushAccess}
+     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int}>, typing: array<int, string>, is_archived: bool, is_muted: bool, role: OrgRole|null, access: PushAccess}
      */
     public function org(User $user, Conversation $org, ?int $after = null, ?int $before = null, ?int $reactionsAfter = null): array
     {
@@ -88,6 +89,7 @@ final readonly class ConversationThreadQuery
                 ->values()
                 ->all(),
             'is_archived' => $mine->archived_at !== null,
+            'is_muted' => $mine->muted_at !== null,
             'role' => $mine->role,
             'access' => PushAccess::Open,
         ];

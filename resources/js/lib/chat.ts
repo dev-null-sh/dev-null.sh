@@ -4,6 +4,7 @@ import ConversationArchiveController from '@/actions/App/Http/Controllers/Conver
 import ConversationDropController from '@/actions/App/Http/Controllers/ConversationDropController';
 import ConversationMergeController from '@/actions/App/Http/Controllers/ConversationMergeController';
 import ConversationMessageController from '@/actions/App/Http/Controllers/ConversationMessageController';
+import ConversationMuteController from '@/actions/App/Http/Controllers/ConversationMuteController';
 import ConversationReadController from '@/actions/App/Http/Controllers/ConversationReadController';
 import ConversationTypingController from '@/actions/App/Http/Controllers/ConversationTypingController';
 import InboxController from '@/actions/App/Http/Controllers/InboxController';
@@ -12,6 +13,7 @@ import OrgArchiveController from '@/actions/App/Http/Controllers/OrgArchiveContr
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import OrgMemberController from '@/actions/App/Http/Controllers/OrgMemberController';
 import OrgMessageController from '@/actions/App/Http/Controllers/OrgMessageController';
+import OrgMuteController from '@/actions/App/Http/Controllers/OrgMuteController';
 import OrgReadController from '@/actions/App/Http/Controllers/OrgReadController';
 import OrgTypingController from '@/actions/App/Http/Controllers/OrgTypingController';
 import RemoteCandidateController from '@/actions/App/Http/Controllers/RemoteCandidateController';
@@ -78,6 +80,7 @@ export type ThreadState = {
     typing: string[];
     role: OrgRole | null;
     is_archived: boolean;
+    is_muted: boolean;
     access: PushAccess;
     pending: PendingMessage[];
     /**
@@ -187,6 +190,8 @@ function urls(target: ChatTarget) {
             typing: ConversationTypingController.update.url(partner),
             stash: ConversationArchiveController.store.url(partner),
             pop: ConversationArchiveController.destroy.url(partner),
+            mute: ConversationMuteController.store.url(partner),
+            unmute: ConversationMuteController.destroy.url(partner),
         };
     }
 
@@ -200,6 +205,8 @@ function urls(target: ChatTarget) {
         typing: OrgTypingController.update.url(org),
         stash: OrgArchiveController.store.url(org),
         pop: OrgArchiveController.destroy.url(org),
+        mute: OrgMuteController.store.url(org),
+        unmute: OrgMuteController.destroy.url(org),
     };
 }
 
@@ -352,9 +359,16 @@ function withReactionChanges(
     );
 }
 
+/**
+ * What a conversation adds to the nav badge: muted ones still show their own count, but never in the badge.
+ */
+function badgeAhead(conversation: ConversationSummary): number {
+    return conversation.is_muted ? 0 : conversation.ahead;
+}
+
 function unreadOf(conversations: ConversationSummary[]): number {
     return conversations.reduce(
-        (total, conversation) => total + conversation.ahead,
+        (total, conversation) => total + badgeAhead(conversation),
         0,
     );
 }
@@ -476,6 +490,7 @@ function emptyThread(target: ChatTarget): ThreadState {
         typing: [],
         role: null,
         is_archived: false,
+        is_muted: false,
         access: 'open',
         pending: [],
         reactions_version: null,
@@ -494,6 +509,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
               typing: thread.typing,
               role: thread.role,
               is_archived: thread.is_archived,
+              is_muted: thread.is_muted,
               access: thread.access,
           }
         : {
@@ -501,6 +517,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
               partner_read_at: thread.partner_read_at,
               partner_typing: thread.partner_typing,
               is_archived: thread.is_archived,
+              is_muted: thread.is_muted,
               access: thread.access,
           };
 }
@@ -573,12 +590,7 @@ async function pollInbox(): Promise<void> {
                 ),
             ),
             requests,
-            unread:
-                unread -
-                watched.reduce(
-                    (total, conversation) => total + conversation.ahead,
-                    0,
-                ),
+            unread: unread - unreadOf(watched),
         });
 
         if (requestsChanged && state.fetched !== null) {
@@ -821,6 +833,7 @@ function touchInbox(target: ChatTarget, message: Message): void {
         partner_read_through_id: existing?.partner_read_through_id ?? 0,
         partner_read_at: existing?.partner_read_at ?? null,
         is_archived: false,
+        is_muted: existing?.is_muted ?? false,
     };
 
     update({
@@ -1264,7 +1277,9 @@ export async function setConversationArchived(
                 state.unread === null
                     ? null
                     : state.unread +
-                      (isArchived ? -conversation.ahead : conversation.ahead),
+                      (isArchived
+                          ? -badgeAhead(conversation)
+                          : badgeAhead(conversation)),
         });
     }
 
@@ -1280,6 +1295,55 @@ export async function setConversationArchived(
     } catch {
         update(previous);
         updateThread(key, () => ({ is_archived: !isArchived }));
+
+        return false;
+    }
+}
+
+/**
+ * Mutes or unmutes the conversation straight away, and undoes it if the server refuses.
+ */
+export async function setConversationMuted(
+    target: ChatTarget,
+    isMuted: boolean,
+): Promise<boolean> {
+    const key = targetKey(target);
+    const previous = {
+        conversations: state.conversations,
+        archived: state.archived,
+        unread: state.unread,
+    };
+    const toggle = (conversations: ConversationSummary[] | null) =>
+        conversations?.map((conversation) =>
+            summaryKey(conversation) === key
+                ? { ...conversation, is_muted: isMuted }
+                : conversation,
+        ) ?? null;
+    const conversation = state.conversations?.find(
+        (item) => summaryKey(item) === key,
+    );
+
+    update({
+        conversations: toggle(state.conversations),
+        archived: toggle(state.archived),
+        unread:
+            state.unread === null || conversation === undefined
+                ? state.unread
+                : state.unread +
+                  (isMuted ? -conversation.ahead : conversation.ahead),
+    });
+    updateThread(key, () => ({ is_muted: isMuted }));
+
+    try {
+        await request(
+            isMuted ? urls(target).mute : urls(target).unmute,
+            isMuted ? 'POST' : 'DELETE',
+        );
+
+        return true;
+    } catch {
+        update(previous);
+        updateThread(key, () => ({ is_muted: !isMuted }));
 
         return false;
     }

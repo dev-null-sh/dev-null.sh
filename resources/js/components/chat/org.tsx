@@ -244,6 +244,7 @@ export function OrgHeader({
                 title={title}
                 user={user}
                 isArchived={thread?.is_archived ?? false}
+                isMuted={thread?.is_muted ?? false}
                 onLeave={onLeft}
                 className={cn('ml-auto', { 'size-9': !isCompact })}
             />

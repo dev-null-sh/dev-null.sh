@@ -88,6 +88,7 @@ export type ConversationSummary = {
     partner_read_through_id: number;
     partner_read_at: string | null;
     is_archived: boolean;
+    is_muted: boolean;
 };
 
 export type Thread = {
@@ -100,6 +101,7 @@ export type Thread = {
     partner_read_at: string | null;
     partner_typing: boolean;
     is_archived: boolean;
+    is_muted: boolean;
     access: PushAccess;
 };
 
@@ -112,6 +114,7 @@ export type OrgThread = {
     members: OrgMember[];
     typing: string[];
     is_archived: boolean;
+    is_muted: boolean;
     role: OrgRole | null;
     access: PushAccess;
 };

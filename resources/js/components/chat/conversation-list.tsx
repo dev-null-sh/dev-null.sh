@@ -1,4 +1,5 @@
 import { Link } from '@inertiajs/react';
+import { BellOff } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
@@ -81,7 +82,12 @@ function ConversationRow({
 }) {
     const now = useNow();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const { partner, last_message: lastMessage, ahead } = conversation;
+    const {
+        partner,
+        last_message: lastMessage,
+        ahead,
+        is_muted: isMuted,
+    } = conversation;
     const target = targetOf(conversation);
     const others = (conversation.members ?? [])
         .map((member) => member.user)
@@ -148,6 +154,7 @@ function ConversationRow({
                         <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
                             org · {others.length + 1}
                         </span>
+                        {isMuted && <MutedGlyph />}
                     </span>
                 ) : (
                     <span className="flex min-w-0 items-baseline gap-1.5">
@@ -165,13 +172,14 @@ function ConversationRow({
                                 @{partner.username}
                             </span>
                         </span>
+                        {isMuted && <MutedGlyph />}
                     </span>
                 )}
                 <span
                     className={cn(
                         'flex min-w-0 items-center gap-1.5 text-muted-foreground',
                         isCompact ? 'text-[13px]' : 'text-sm',
-                        { 'text-foreground': ahead > 0 },
+                        { 'text-foreground': ahead > 0 && !isMuted },
                     )}
                 >
                     {isMine && lastMessage && partner !== null && (
@@ -200,7 +208,12 @@ function ConversationRow({
                 {ahead > 0 ? (
                     <span
                         title={`${ahead} unread messages`}
-                        className="rounded-sm bg-primary px-2 font-mono text-[11px] leading-5 font-medium whitespace-nowrap text-primary-foreground tabular-nums"
+                        className={cn(
+                            'rounded-sm px-2 font-mono text-[11px] leading-5 font-medium whitespace-nowrap tabular-nums',
+                            isMuted
+                                ? 'bg-muted text-muted-foreground'
+                                : 'bg-primary text-primary-foreground',
+                        )}
                     >
                         <span aria-hidden>
                             {ahead > 99 ? '99+' : ahead} ahead
@@ -262,12 +275,26 @@ function ConversationRow({
                     title={title}
                     user={user}
                     isArchived={conversation.is_archived}
+                    isMuted={conversation.is_muted}
                     onLeave={isActive ? onLeaveActive : undefined}
                     onBlocked={isActive ? onLeaveActive : onBlocked}
                     onOpenChange={setIsMenuOpen}
                 />
             </div>
         </li>
+    );
+}
+
+function MutedGlyph() {
+    return (
+        <span
+            title="Muted"
+            className="shrink-0 self-center text-muted-foreground"
+            data-test="conversation-muted"
+        >
+            <BellOff aria-hidden className="size-3.5" />
+            <span className="sr-only">Muted</span>
+        </span>
     );
 }
 

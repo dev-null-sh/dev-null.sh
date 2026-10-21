@@ -3,6 +3,8 @@ import {
     Archive,
     ArchiveRestore,
     Ban,
+    Bell,
+    BellOff,
     Ellipsis,
     LogOut,
     UserRound,
@@ -30,6 +32,7 @@ import {
     blockPartner,
     removeOrgMember,
     setConversationArchived,
+    setConversationMuted,
 } from '@/lib/chat';
 import type { ChatTarget } from '@/lib/chat';
 import { cn } from '@/lib/utils';
@@ -37,7 +40,7 @@ import { show } from '@/routes/user';
 import type { User } from '@/types';
 
 /**
- * Stash (archive), pop (unarchive), and block or leave, from the conversation's own header or from its row in the
+ * Stash (archive), pop (unarchive), mute, and block or leave, from the conversation's own header or from its row in the
  * inbox.
  */
 export function ConversationActions({
@@ -45,6 +48,7 @@ export function ConversationActions({
     title,
     user,
     isArchived,
+    isMuted,
     onLeave,
     onBlocked,
     onOpenChange,
@@ -57,6 +61,7 @@ export function ConversationActions({
     title: string;
     user: User;
     isArchived: boolean;
+    isMuted: boolean;
     /**
      * Called once the conversation leaves the list being shown, so an open thread can step back to the inbox.
      */
@@ -94,6 +99,22 @@ export function ConversationActions({
             archiving
                 ? `Stashed ${title}. It pops back when someone writes.`
                 : `Popped ${title} back into Open.`,
+        );
+    };
+
+    const mute = async () => {
+        const muting = !isMuted;
+
+        if (!(await setConversationMuted(target, muting))) {
+            toast.error('Could not update the conversation. Try again.');
+
+            return;
+        }
+
+        toast.success(
+            muting
+                ? `Muted ${title}. New messages no longer count toward your badge.`
+                : `Unmuted ${title}.`,
         );
     };
 
@@ -167,6 +188,13 @@ export function ConversationActions({
                     <DropdownMenuItem onSelect={() => void archive()}>
                         {isArchived ? <ArchiveRestore /> : <Archive />}
                         {isArchived ? 'Pop' : 'Stash'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        onSelect={() => void mute()}
+                        data-test="mute-conversation"
+                    >
+                        {isMuted ? <Bell /> : <BellOff />}
+                        {isMuted ? 'Unmute' : 'Mute'}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem

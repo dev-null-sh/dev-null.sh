@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read User $user
  * @property-read CarbonInterface|null $read_at
  * @property-read CarbonInterface|null $archived_at
+ * @property-read CarbonInterface|null $muted_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  */
@@ -57,6 +58,7 @@ final class ConversationParticipant extends Model
             'read_through_id' => 'integer',
             'read_at' => 'datetime',
             'archived_at' => 'datetime',
+            'muted_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

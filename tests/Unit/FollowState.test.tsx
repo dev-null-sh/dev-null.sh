@@ -334,6 +334,7 @@ test('blocking someone you follow from chat shows them as not followed in who to
             title: '@chatter',
             user: suggestion('viewer'),
             isArchived: false,
+            isMuted: false,
         }),
         (props) => props['data-test'] === 'confirm-block-button',
     );

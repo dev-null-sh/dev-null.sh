@@ -24,7 +24,7 @@ final readonly class ConversationsQuery
      * One page of a tab, newest first, continuing before a conversation when scrolling down. The term matches the
      * partner's name or handle, already lowercased and without a leading @.
      *
-     * @return array{conversations: Collection<int, array{id: string, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}>, has_more: bool}
+     * @return array{conversations: Collection<int, array{id: string, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool, is_muted: bool}>, has_more: bool}
      */
     public function get(User $user, InboxTab $tab = InboxTab::Open, string $term = '', ?string $before = null): array
     {
@@ -69,6 +69,7 @@ final readonly class ConversationsQuery
                 'theirs.read_at as partner_read_at',
                 'mine.last_message_at as last_message_at',
                 'mine.archived_at as archived_at',
+                'mine.muted_at as muted_at',
             ])
             ->selectSub(
                 Message::query()
@@ -95,7 +96,7 @@ final readonly class ConversationsQuery
     }
 
     /**
-     * Unread messages in open conversations plus fetched requests, for the nav badge.
+     * Unread messages in open, unmuted conversations plus fetched requests, for the nav badge.
      */
     public function unreadCount(User $user): int
     {
@@ -104,7 +105,8 @@ final readonly class ConversationsQuery
                 ->on('mine.conversation_id', '=', 'messages.conversation_id')
                 ->where('mine.user_id', $user->id)
                 ->where('mine.status', RemoteStatus::Open)
-                ->whereNull('mine.archived_at'))
+                ->whereNull('mine.archived_at')
+                ->whereNull('mine.muted_at'))
             ->whereColumn('messages.id', '>', 'mine.read_through_id')
             ->where('messages.user_id', '!=', $user->id)
             ->whereNull('messages.event')
@@ -133,7 +135,7 @@ final readonly class ConversationsQuery
     }
 
     /**
-     * @return array{id: string, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}
+     * @return array{id: string, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool, is_muted: bool}
      */
     private function summary(User $user, Conversation $conversation): array
     {
@@ -156,6 +158,7 @@ final readonly class ConversationsQuery
             'partner_read_through_id' => $sharesReads ? $conversation->partner_read_through_id : 0,
             'partner_read_at' => $sharesReads ? $conversation->partner_read_at?->toJSON() : null,
             'is_archived' => $conversation->archived_at !== null,
+            'is_muted' => $conversation->muted_at !== null,
         ];
     }
 
