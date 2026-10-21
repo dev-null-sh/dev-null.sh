@@ -317,6 +317,14 @@ final class User extends Authenticatable
     /**
      * @return BelongsToMany<User, $this>
      */
+    public function dismissedSuggestions(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'suggestion_dismissals', 'user_id', 'dismissed_id')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
     public function mutedBy(): BelongsToMany
     {
         return $this->belongsToMany(self::class, 'mutes', 'muted_id', 'muter_id')->withTimestamps();
