@@ -21,7 +21,7 @@ export function CommitBody({
         <div
             data-commit-body
             className={cn(
-                'leading-relaxed wrap-break-word whitespace-pre-wrap',
+                'overflow-clip leading-relaxed wrap-break-word whitespace-pre-wrap [overflow-clip-margin:4px]',
                 className,
             )}
         >
@@ -188,7 +188,7 @@ export function CommitBodyExcerpt({
             <CommitBody
                 segments={previewSegments ?? segments}
                 mentions={null}
-                className="text-[15px]"
+                className="flow-root text-[15px]"
                 isStatic
             />
         </div>
