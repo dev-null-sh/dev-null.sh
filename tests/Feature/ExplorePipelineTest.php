@@ -180,12 +180,13 @@ it('groups related posts inside the oldest cohort and preserves full Unicode and
 });
 
 it('splits by bytes without truncating long bodies and processes missing embeddings [EXP-05]', function (): void {
+    config(['explore.request_size' => 10]);
     $posts = Commit::factory()->count(10)->create(['body' => str_repeat('😀', 1000)]);
     $remaining = $posts->toBase();
     $seen = [];
     while ($remaining->isNotEmpty()) {
         $batch = resolve(ExploreBatch::class)->pack($remaining);
-        expect(mb_strlen($batch['prompt']) + mb_strlen(new ExploreClassifier()->instructions()) + 4096)->toBeLessThanOrEqual(32768);
+        expect(mb_strlen($batch['prompt'], '8bit') + mb_strlen(new ExploreClassifier()->instructions(), '8bit') + 4096)->toBeLessThanOrEqual(32768);
         foreach (json_decode($batch['prompt'], true)['commits'] as $row) {
             expect($row[2])->toBe(str_repeat('😀', 1000));
         }
