@@ -235,7 +235,7 @@ Sources: [link rendering](resources/js/components/linkified-text.tsx), [link-car
 
 ### Replies and threads
 
-Reply to a visible commit to continue its thread. Replies use the same text limits, image support, moderation, and submission rate limit as commits. Threads expand inline, a few replies at a time: choose 1, 3, 5, 10, 15, 20, or 25 in Settings → Appearance (3 by default). Opening a commit's own page shows its ancestors and replies. Quotes of a commit are listed among its replies and counted with them. Profiles have a separate Replies tab for authored replies. A reply cannot also be a quote, contain a poll, or be scheduled.
+Reply to a visible commit to continue its thread. Replies use the same text limits, image support, moderation, and submission rate limit as commits. Threads expand inline, a few replies at a time: choose 1, 3, 5, 10, 15, 20, or 25 in Settings → Appearance (3 by default). In logs, once a thread is expanded, **Show less** collapses it back to that first page. Opening a commit's own page shows its ancestors and replies. Quotes of a commit are listed among its replies and counted with them. Profiles have a separate Replies tab for authored replies. A reply cannot also be a quote, contain a poll, or be scheduled.
 
 When an author replies to their own commit, their earliest such reply continues it as a thread. The commit's page reads that thread in order, 10 commits at a time with **Show more of this thread**, each marked with its place, such as `3/7`. Elsewhere, a continued commit shows **Show thread**, which opens its page. The thread stops at the first reply you cannot see, and is hidden if you muted the author.
 

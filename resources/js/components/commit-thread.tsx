@@ -1,6 +1,7 @@
 import { Link, router, useRemember, useHttp, usePage } from '@inertiajs/react';
 import {
     ChevronDown,
+    ChevronUp,
     CornerDownRight,
     ListTree,
     MessageSquareReply,
@@ -8,6 +9,7 @@ import {
 } from 'lucide-react';
 import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
@@ -140,6 +142,7 @@ type Thread = {
     count: number;
     replies: ThreadCommit[] | null;
     hasMore: boolean;
+    canCollapse: boolean;
     continuationId: string | null;
     remaining: number;
     perPage: number;
@@ -150,6 +153,7 @@ type Thread = {
     toggle: () => void;
     loadMore: () => void;
     loadAll: () => void;
+    collapse: () => void;
     startReply: () => void;
     cancelReply: () => void;
     onReplied: (parent: RepliedParent) => void;
@@ -278,14 +282,16 @@ export function useThread(
                 : remembered.replies.length
             : repliesPerPage,
     );
-    const [{ replies, nextCursor, isOpen }, setThread] = useRemember(
-        {
-            replies: initial?.data ?? null,
-            nextCursor: initial?.next_cursor ?? null,
-            isOpen: initial !== undefined || shouldLoadReplies,
-        },
-        historyKey,
-    );
+    const [{ replies, nextCursor, isOpen, shownLimit }, setThread] =
+        useRemember(
+            {
+                replies: initial?.data ?? null,
+                nextCursor: initial?.next_cursor ?? null,
+                isOpen: initial !== undefined || shouldLoadReplies,
+                shownLimit: null as number | null,
+            },
+            historyKey,
+        );
     const [isLoading, setIsLoading] = useState(shouldLoadReplies);
     const replyRequest = useRef(0);
     const [isReplying, setIsReplying] = useState(false);
@@ -366,6 +372,21 @@ export function useThread(
                     setIsLoading(false);
                 }
             });
+    };
+
+    const shown =
+        shownLimit === null ? replies : (replies?.slice(0, shownLimit) ?? null);
+    const showUntil = (minimum: number) => {
+        const isLoaded = replies !== null && minimum <= replies.length;
+
+        setThread((current) => ({
+            ...current,
+            shownLimit: isLoaded && minimum < replies.length ? minimum : null,
+        }));
+
+        if (!isLoaded) {
+            loadUntil(minimum);
+        }
     };
 
     const commitId = commit.id;
@@ -457,10 +478,13 @@ export function useThread(
     return {
         commit,
         count,
-        replies,
-        hasMore: replies !== null && nextCursor !== null,
+        replies: shown,
+        hasMore:
+            replies !== null &&
+            (nextCursor !== null || shown!.length < replies.length),
+        canCollapse: isPreview && (shown?.length ?? 0) > repliesPerPage,
         continuationId,
-        remaining: Math.max(count - (replies?.length ?? 0), 0),
+        remaining: Math.max(count - (shown?.length ?? 0), 0),
         perPage: repliesPerPage,
         isOpen,
         isPreview,
@@ -473,8 +497,13 @@ export function useThread(
 
             setThread((current) => ({ ...current, isOpen: !current.isOpen }));
         },
-        loadMore: () => loadUntil((replies?.length ?? 0) + repliesPerPage),
-        loadAll: () => loadUntil(Infinity),
+        loadMore: () => showUntil((shown?.length ?? 0) + repliesPerPage),
+        loadAll: () => showUntil(Infinity),
+        collapse: () =>
+            setThread((current) => ({
+                ...current,
+                shownLimit: repliesPerPage,
+            })),
         startReply: () => setIsReplying(true),
         cancelReply: () => setIsReplying(false),
         onReplied: (parent) => {
@@ -728,6 +757,7 @@ export function ThreadReplies({
     }
 
     const isFlattened = depth >= maxIndentDepth;
+    const hasFooter = thread.hasMore || thread.canCollapse;
     const layout =
         depth === 0
             ? threadLayouts.root
@@ -762,7 +792,7 @@ export function ThreadReplies({
                                         lane={laneOf(reply)}
                                         hasNext={
                                             index < replies.length - 1 ||
-                                            thread.hasMore
+                                            hasFooter
                                         }
                                     />
                                 )
@@ -770,8 +800,8 @@ export function ThreadReplies({
                             onDeleted={thread.onDeleted}
                         />
                     ))}
-                    {thread.hasMore && (
-                        <div className="relative pt-1.5 pl-(--indent)">
+                    {hasFooter && (
+                        <div className="relative flex items-center gap-0.5 pt-1.5 pl-(--indent) text-[13px] text-muted-foreground">
                             {!isFlattened && thread.replies.length > 0 && (
                                 <span
                                     aria-hidden
@@ -788,10 +818,15 @@ export function ThreadReplies({
                                     )}
                                 />
                             )}
-                            <MoreRepliesButton
-                                thread={thread}
-                                isFlattened={depth + 1 > maxIndentDepth}
-                            />
+                            {thread.hasMore && (
+                                <MoreRepliesButton
+                                    thread={thread}
+                                    isFlattened={depth + 1 > maxIndentDepth}
+                                />
+                            )}
+                            {thread.canCollapse && (
+                                <LessRepliesButton thread={thread} />
+                            )}
                         </div>
                     )}
                 </>
@@ -839,7 +874,7 @@ function MoreRepliesButton({
     isFlattened: boolean;
 }) {
     return (
-        <div className="flex max-w-full items-center gap-0.5 text-[13px] text-muted-foreground">
+        <div className="flex max-w-full min-w-0 items-center gap-0.5">
             <button
                 type="button"
                 onClick={thread.loadMore}
@@ -886,6 +921,45 @@ function MoreRepliesButton({
                 </>
             )}
         </div>
+    );
+}
+
+function LessRepliesButton({ thread }: { thread: Thread }) {
+    return (
+        <>
+            {thread.hasMore && (
+                <span aria-hidden className="opacity-50">
+                    ·
+                </span>
+            )}
+            <button
+                type="button"
+                onClick={(event) => {
+                    const row = event.currentTarget.parentElement!;
+                    const top = row.getBoundingClientRect().top;
+
+                    flushSync(thread.collapse);
+
+                    window.scrollBy(0, row.getBoundingClientRect().top - top);
+                }}
+                className={cn(
+                    'flex shrink-0 items-center gap-2 rounded-md px-2 py-0.5 transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground sm:gap-2.5',
+                    { '-ml-2': !thread.hasMore },
+                )}
+                data-test="less-replies-button"
+            >
+                {!thread.hasMore && (
+                    <span
+                        aria-hidden
+                        className="relative flex size-6 shrink-0 items-center justify-center [--lane:var(--muted-foreground)] sm:size-7"
+                    >
+                        <RailDot />
+                    </span>
+                )}
+                Show less
+                <ChevronUp aria-hidden className="-ml-1 size-4 shrink-0" />
+            </button>
+        </>
     );
 }
 
