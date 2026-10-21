@@ -8,6 +8,7 @@ import {
 } from '@/components/chat/conversation-list';
 import { CandidateRow } from '@/components/chat/org';
 import { useChat } from '@/hooks/use-chat';
+import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import {
     loadMoreConversations,
     loadTab,
@@ -47,6 +48,7 @@ export function InboxPanel({
     onLeaveActive,
     onBlocked,
     isCompact = false,
+    enableLaneSwipe = false,
     empty,
 }: {
     user: User;
@@ -55,6 +57,7 @@ export function InboxPanel({
     onLeaveActive?: () => void;
     onBlocked?: () => void;
     isCompact?: boolean;
+    enableLaneSwipe?: boolean;
     empty: ReactNode;
 }) {
     const {
@@ -71,6 +74,7 @@ export function InboxPanel({
     );
     const [tab, setTab] = useState<Tab>('open');
     const end = useRef<HTMLDivElement>(null);
+    const laneContent = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState('');
     const [found, setFound] = useState<Found | null>(null);
     const term = query.trim().replace(/^@+/u, '');
@@ -140,6 +144,14 @@ export function InboxPanel({
             void loadTab(next);
         }
     };
+
+    useLaneSwipe(
+        laneContent,
+        tab,
+        visibleTabs.map(({ name }) => name),
+        showTab,
+        enableLaneSwipe,
+    );
 
     const loaded = { open: conversations, fetched, stashed: archived }[tab];
     const earlier = found?.tab === tab ? found : null;
@@ -255,6 +267,7 @@ export function InboxPanel({
             </div>
 
             <div
+                ref={laneContent}
                 role="tabpanel"
                 className="min-h-0 flex-1 scrollbar-thin overflow-y-auto overscroll-contain"
             >
