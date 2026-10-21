@@ -30,6 +30,7 @@ return [
 
     'github_app' => [
         'id' => env('GITHUB_APP_ID'),
+        'bot_id' => env('GITHUB_APP_BOT_ID', '344368677'),
         'private_key' => env('GITHUB_APP_PRIVATE_KEY'),
     ],
 

@@ -17,6 +17,7 @@ enum Achievement: string
     case Superstar = 'superstar';
     case Pipe = 'pipe';
     case AuthorizedKeys = 'authorized_keys';
+    case Contributor = 'contributor';
     case SweetTooth = 'sweet_tooth';
     case Luddite = 'luddite';
 
@@ -34,6 +35,7 @@ enum Achievement: string
             self::Superstar => 'superstar',
             self::Pipe => 'pipe',
             self::AuthorizedKeys => 'authorized_keys',
+            self::Contributor => 'contributor',
             self::SweetTooth => 'sweet tooth',
             self::Luddite => 'luddite',
         };
@@ -53,6 +55,7 @@ enum Achievement: string
             self::Superstar => 'Received 25 stars on your commits.',
             self::Pipe => 'Joined conversations with 5 replies to other developers.',
             self::AuthorizedKeys => 'Provisioned a public SSH key from GitHub.',
+            self::Contributor => 'Contributed to /dev/null through GitHub or an in-app bug report or feature request.',
             self::SweetTooth => 'Received 100 pastéis across your account.',
             self::Luddite => 'Unfollowed Tom. Costs 100 XP until you follow him again.',
         };
@@ -72,6 +75,7 @@ enum Achievement: string
             self::Superstar => 'sparkles',
             self::Pipe => 'git-merge',
             self::AuthorizedKeys => 'key',
+            self::Contributor => 'git-pull-request',
             self::SweetTooth => 'cookie',
             self::Luddite => 'bot-off',
         };
@@ -91,6 +95,7 @@ enum Achievement: string
             self::Superstar => 25,
             self::Pipe => 5,
             self::AuthorizedKeys => 1,
+            self::Contributor => 1,
             self::SweetTooth => 100,
             self::Luddite => 1,
         };

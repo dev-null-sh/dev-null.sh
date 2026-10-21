@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('commits:submit-scheduled')->everyMinute()->withoutOverlapping(5);
+Schedule::command('contributors:sync')->hourly()->withoutOverlapping(60)->onOneServer();
 Schedule::job(new EmbedKnowledgeBase())->hourly();
 Schedule::job(new EndLiveStreams())->everyFiveMinutes();
 

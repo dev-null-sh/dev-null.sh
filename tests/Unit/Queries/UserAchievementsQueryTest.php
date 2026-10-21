@@ -10,6 +10,7 @@ use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
 use App\Queries\UserAchievementsQuery;
+use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
@@ -27,12 +28,54 @@ it('calculates initial rank and zero progress for a new user without activity', 
         ->and($result['level_progress'])->toBe(0)
         ->and($result['ranks'])->toHaveCount(6)
         ->and($result['xp_breakdown']['commits']['xp'])->toBe(0)
-        ->and($result['badges'])->toHaveCount(13);
+        ->and($result['badges'])->toHaveCount(14);
 
     foreach ($result['badges'] as $badge) {
         expect($badge['unlocked'])->toBeFalse()
             ->and($badge['progress'])->toBe(0);
     }
+});
+
+it('shows the contributor award to its owner and guests without contacting github', function (bool $contributor): void {
+    $user = User::factory()->create(['is_contributor' => $contributor]);
+    $query = resolve(UserAchievementsQuery::class);
+
+    foreach ([$user, null] as $viewer) {
+        $result = $query->get($user, $viewer);
+
+        expect(collect($result['badges'])->firstWhere('id', Achievement::Contributor->value))->toMatchArray([
+            'name' => 'contributor',
+            'icon' => 'git-pull-request',
+            'target' => 1,
+            'progress' => $contributor ? 1 : 0,
+            'unlocked' => $contributor,
+        ])->and($result['xp'])->toBe(0);
+    }
+
+    Http::assertNothingSent();
+})->with([
+    'not earned' => false,
+    'earned' => true,
+]);
+
+it('does not change xp or rank when the contributor award is earned', function (): void {
+    $user = User::factory()->create(['is_contributor' => false]);
+    Commit::factory()->for($user)->create();
+    $query = resolve(UserAchievementsQuery::class);
+    $before = $query->get($user, $user);
+
+    $user->update(['is_contributor' => true]);
+
+    $after = $query->get($user->refresh(), $user);
+
+    expect($before['xp'])->toBe(25)
+        ->and($after['xp'])->toBe($before['xp'])
+        ->and($after['xp_breakdown'])->toBe($before['xp_breakdown'])
+        ->and($after['rank'])->toBe($before['rank'])
+        ->and($after['level'])->toBe($before['level'])
+        ->and(collect($after['badges'])->firstWhere('id', Achievement::Contributor->value)['unlocked'])->toBeTrue();
+
+    Http::assertNothingSent();
 });
 
 it('unlocks init badge upon first commit and awards xp', function (): void {

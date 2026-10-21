@@ -34,6 +34,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read string|null $location
  * @property-read string|null $website
  * @property-read string|null $company
+ * @property-read bool $is_contributor
  * @property-read bool $has_sponsors_listing
  * @property-read int|null $preferred_lane
  * @property-read string|null $lane_color
@@ -81,6 +82,7 @@ use Illuminate\Support\Facades\DB;
  */
 #[Hidden([
     'github_id',
+    'is_contributor',
     'email',
     'remember_token',
     'translation_language',
@@ -128,6 +130,7 @@ final class User extends Authenticatable
      * @var array<string, mixed>
      */
     protected $attributes = [
+        'is_contributor' => false,
         'log' => Log::Following->value,
         'translation_language' => null,
         'pasteis_mode' => false,
@@ -169,6 +172,7 @@ final class User extends Authenticatable
             'location' => 'string',
             'website' => 'string',
             'company' => 'string',
+            'is_contributor' => 'boolean',
             'has_sponsors_listing' => 'boolean',
             'preferred_lane' => 'integer',
             'lane_color' => 'string',

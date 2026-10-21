@@ -268,6 +268,22 @@ The scheduler dispatches the `App\Jobs\EmbedKnowledgeBase` job every hour, so ch
 
 Scheduled imports currently cover `KNOWLEDGE_BASE.md` only. If the knowledge base is split into more files, schedule the job for each source.
 
+### Contributor badges
+
+The scheduler runs `php artisan contributors:sync` hourly to award the contributor achievement to matching GitHub accounts. It scans all pages of repository issues (including closed issues and pull requests), default-branch commits, issue comments, and inline review comments, using `GITHUB_REPOSITORY` and the existing GitHub OAuth app credentials. Run the command after deployment to backfill existing accounts. Keep the Laravel scheduler running for new accounts and contributions to be recognized.
+
+Successful in-app bug reports and feature requests award the badge immediately. Earned contributor status is retained if activity is later deleted or GitHub is unavailable; it adds no XP. Approval-only reviews and commits without a linked GitHub author are not included.
+
+If persisting the badge fails after GitHub creates an in-app issue, the successful issue response and daily quota accounting are preserved. The badge award retries through the existing default queue using the reporter's immutable GitHub ID. Retry an exhausted job with `php artisan queue:retry <uuid>`. If the retry could not be queued, the application log records the repository, created issue number, and authenticated reporter GitHub ID; use that trusted record with the backfill command below.
+
+Historical in-app reports belong to the GitHub App, and their visible reporter usernames can later be renamed or reclaimed. Backfill those reporters with a reviewed local JSON file, using immutable GitHub account IDs confirmed from trusted historical evidence rather than resolving today's owner of a username:
+
+```json
+{"repository":"nunomaduro/dev-null.sh","reporters":{"123":"456"}}
+```
+
+The example maps issue `123` to reporter GitHub account ID `456`; replace both with reviewed values. Run `php artisan contributors:backfill-reporters /absolute/path/reporters.json`. The command verifies every listed issue against the configured repository, the immutable app bot author (`GITHUB_APP_BOT_ID`, default `344368677`), and the app's trailing attribution footer before awarding any local accounts. It rejects pull requests and invalid mappings, changes nothing if verification fails, and is safe to rerun. Report text and current username ownership alone are insufficient identity evidence; leave uncertain reports out until their attribution has been reviewed. An empty mapping changes nothing, and unregistered reporters are not created automatically.
+
 ## License
 
 Licensed under MIT, as declared in `composer.json`. Based on [Nuno Maduro's Laravel starter kit](https://github.com/nunomaduro/laravel-starter-kit-inertia-react).
