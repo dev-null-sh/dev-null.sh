@@ -24,7 +24,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { dropConfetti } from '@/lib/confetti';
-import { formatCount } from '@/lib/numbers';
+import { formatCount, formatExactCount } from '@/lib/numbers';
 import { cn, laneTint } from '@/lib/utils';
 import type { Achievements, Profile, User } from '@/types';
 
@@ -87,8 +87,11 @@ export function AchievementsDialog({
                         </span>
                     </div>
                     <DialogDescription className="font-mono text-xs text-muted-foreground">
-                        @{user.username} · {formatCount(achievements.xp)} XP ·{' '}
-                        {unlockedCount}/{achievements.badges.length} badges
+                        @{user.username} ·{' '}
+                        <span title={`${formatExactCount(achievements.xp)} XP`}>
+                            {formatCount(achievements.xp)} XP
+                        </span>{' '}
+                        · {unlockedCount}/{achievements.badges.length} badges
                         unlocked
                     </DialogDescription>
                 </DialogHeader>
@@ -96,12 +99,24 @@ export function AchievementsDialog({
                 {/* Rank XP Progress */}
                 <div className="rounded-lg border bg-muted/30 p-3 font-mono text-xs">
                     <div className="flex items-center justify-between text-muted-foreground">
-                        <span>
+                        <span
+                            title={
+                                achievements.next_level_xp
+                                    ? `${formatExactCount(achievements.xp)} / ${formatExactCount(achievements.next_level_xp)} XP`
+                                    : `${formatExactCount(achievements.xp)} XP`
+                            }
+                        >
                             {achievements.next_level_xp
                                 ? `${formatCount(achievements.xp)} / ${formatCount(achievements.next_level_xp)} XP`
                                 : `${formatCount(achievements.xp)} XP`}
                         </span>
-                        <span>
+                        <span
+                            title={
+                                nextRank
+                                    ? `${formatExactCount(nextRank.min_xp - achievements.xp)} XP to ${nextRank.rank}`
+                                    : undefined
+                            }
+                        >
                             {nextRank
                                 ? `${formatCount(nextRank.min_xp - achievements.xp)} XP to ${nextRank.rank}`
                                 : 'Maximum rank (UID 0)'}
