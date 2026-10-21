@@ -57,7 +57,7 @@ enum Achievement: string
             self::AuthorizedKeys => 'Provisioned a public SSH key from GitHub.',
             self::SweetTooth => 'Received 100 pastéis across your account.',
             self::Luddite => 'Unfollowed Tom. Costs 100 XP until you follow him again.',
-            self::ShellShocked => "Survived the php2shell downtime of Oct '26",
+            self::ShellShocked => "Survived the php2shell downtime of Oct '26. Earns 100 XP.",
         };
     }
 

@@ -312,7 +312,7 @@ it('adds the shell shocked reward to activity xp and includes the luddite penalt
         ->and(collect($result['badges'])->firstWhere('id', 'shell_shocked'))->toBe([
             'id' => 'shell_shocked',
             'name' => 'shell shocked',
-            'description' => "Survived the php2shell downtime of Oct '26",
+            'description' => "Survived the php2shell downtime of Oct '26. Earns 100 XP.",
             'icon' => 'bomb',
             'unlocked' => true,
             'progress' => 1,
