@@ -258,7 +258,7 @@ export default function Index({
     return (
         <>
             <Head title="Notifications" />
-            <div ref={header} className="sticky top-0 z-10 border-b bg-card">
+            <div ref={header} className="sticky top-0 z-20 border-b bg-card">
                 <div className="flex h-14 items-center px-4 sm:px-6">
                     <h1 className="font-semibold">Notifications</h1>
                 </div>
