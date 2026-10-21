@@ -121,5 +121,8 @@ it('asks guests to slow down after 15 searches a minute', function (): void {
     $this->getJson(route('api-commit-search.index', ['q' => 'ab']))
         ->assertTooManyRequests()
         ->assertHeader('Retry-After', '60')
-        ->assertExactJson(['message' => 'Slow down: too many searches. Give it a few seconds.']);
+        ->assertExactJson([
+            'message' => 'Slow down: too many searches. Give it a few seconds.',
+            'code' => 'rate_limited',
+        ]);
 });
