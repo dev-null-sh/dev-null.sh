@@ -19,7 +19,7 @@ const embed: Embed = {
     provider: 'GIF',
     kind: 'gif',
     src: 'https://example.com/cat.gif',
-    aspect_ratio: '1 / 1',
+    aspect_ratio: null,
     height: null,
     poster: null,
 };

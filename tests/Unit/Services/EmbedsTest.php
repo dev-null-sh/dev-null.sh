@@ -15,7 +15,7 @@ it('only embeds direct GIF URLs after the unfurler has verified them', function 
             'provider' => 'GIF',
             'kind' => 'gif',
             'src' => 'https://cdn.example.com/cat.gif',
-            'aspect_ratio' => '1 / 1',
+            'aspect_ratio' => null,
             'height' => null,
             'poster' => null,
         ]);

@@ -11,14 +11,13 @@ use Uri\WhatWg\Url;
 
 final readonly class Embeds
 {
+    private const string GIF_PROVIDER = 'GIF';
+
     public function __construct(private Container $container)
     {
         //
     }
 
-    /**
-     * The GIF URL is metadata verified by the link unfurler, never a client-supplied attachment.
-     */
     public function for(string $url, ?string $gifUrl = null): ?Embed
     {
         $parsed = Url::parse($url);
@@ -41,7 +40,7 @@ final readonly class Embeds
             return null;
         }
 
-        return Embed::gif('GIF', $gifUrl);
+        return Embed::gif(self::GIF_PROVIDER, $gifUrl);
     }
 
     /**

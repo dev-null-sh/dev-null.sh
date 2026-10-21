@@ -38,9 +38,6 @@ final readonly class LinkPreviewParser
     }
 
     /**
-     * Returns the first candidate that still has text once entities are decoded and whitespace is collapsed,
-     * truncated to the column's length.
-     *
      * @param  list<string>  $candidates
      */
     private function text(array $candidates, int $limit): ?string
@@ -63,8 +60,6 @@ final readonly class LinkPreviewParser
     }
 
     /**
-     * Returns the first candidate that, resolved against the page URL, is an https URL.
-     *
      * @param  list<string>  $candidates
      */
     private function imageUrl(array $candidates, Url $page): ?string

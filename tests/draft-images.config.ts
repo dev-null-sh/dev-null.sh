@@ -10,6 +10,8 @@ export default defineConfig({
     test: {
         include: [
             'tests/Unit/GifEmbed.test.tsx',
+            'tests/Unit/GifEmbedPlayback.test.tsx',
+            'tests/Unit/GifPlaybackHook.test.tsx',
             'tests/Unit/CommitPhoto.test.tsx',
             'tests/Unit/CommitSize.test.tsx',
             'tests/Unit/ThreadHistory.test.tsx',

@@ -138,7 +138,7 @@ it('includes verified external GIF metadata in the public API', function (): voi
             'provider' => 'GIF',
             'kind' => 'gif',
             'src' => 'https://cdn.example.com/cat.gif',
-            'aspect_ratio' => '1 / 1',
+            'aspect_ratio' => null,
             'height' => null,
             'poster' => null,
         ]);

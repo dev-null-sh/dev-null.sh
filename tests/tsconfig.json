@@ -9,6 +9,8 @@
     "include": [
         "Unit/**/*.test.ts",
         "Unit/GifEmbed.test.tsx",
+        "Unit/GifEmbedPlayback.test.tsx",
+        "Unit/GifPlaybackHook.test.tsx",
         "Unit/CommitPhoto.test.tsx",
         "Unit/DraftStash.test.tsx",
         "Unit/ComposerDraft.test.tsx",

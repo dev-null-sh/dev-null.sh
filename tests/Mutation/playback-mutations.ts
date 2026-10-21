@@ -2,18 +2,18 @@ import type { GifMutation } from './php-gif-mutations.ts';
 
 export const playbackMutations: GifMutation[] = [
     {
-        name: 'autoplay unsupported URLs',
+        name: 'autoplay invalid verified GIF sources',
         source: 'resources/js/lib/gifs.ts',
         test: 'tests/Unit/GifPlayback.test.ts',
-        before: '!reducedMotion && isGifUrl(source)',
+        before: '!reducedMotion && parseHttpsUrl(source) !== null',
         after: '!reducedMotion',
     },
     {
         name: 'ignore reduced motion',
         source: 'resources/js/lib/gifs.ts',
         test: 'tests/Unit/GifPlayback.test.ts',
-        before: '!reducedMotion && isGifUrl(source)',
-        after: 'isGifUrl(source)',
+        before: '!reducedMotion && parseHttpsUrl(source) !== null',
+        after: 'parseHttpsUrl(source) !== null',
     },
     {
         name: 'ignore visibility',
@@ -49,6 +49,20 @@ export const playbackMutations: GifMutation[] = [
         test: 'tests/Unit/GifPlayback.test.ts',
         before: 'playback === GIF_PLAYBACK_MODE.PLAYING',
         after: 'false',
+    },
+    {
+        name: 'keep GIF failures after a manual retry',
+        source: 'resources/js/lib/gifs.ts',
+        test: 'tests/Unit/GifPlayback.test.ts',
+        before: 'failedSource: null,\n        retryCount: state.retryCount + 1',
+        after: 'failedSource: state.failedSource,\n        retryCount: state.retryCount + 1',
+    },
+    {
+        name: 'allow unlimited GIF retries',
+        source: 'resources/js/lib/gifs.ts',
+        test: 'tests/Unit/GifPlayback.test.ts',
+        before: 'state.retryCount < MAX_GIF_RETRIES',
+        after: 'true',
     },
     {
         name: 'allow HTTP',

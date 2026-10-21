@@ -1,7 +1,17 @@
 import type { RefObject } from 'react';
 import { useEffect, useState } from 'react';
 import { useMediaQuery } from '@/hooks/use-media-query';
-import { GIF_PLAYBACK_MODE, isGifPlaying, type GifPlayback } from '@/lib/gifs';
+import {
+    canRetryGifLoad,
+    failGifLoad,
+    GIF_PLAYBACK_MODE,
+    hasGifLoadFailed,
+    isGifPlaying,
+    retryGifLoad,
+    syncGifLoadRetryState,
+    toggleGifPlayback,
+    type GifLoadRetryState,
+} from '@/lib/gifs';
 import type { Embed } from '@/types';
 
 const MIN_VISIBLE_RATIO = 0.1;
@@ -51,15 +61,26 @@ export function useGifPlayback({
 }) {
     const isVisible = useGifVisibility(container);
     const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
-    const [playback, setPlayback] = useState<GifPlayback>(
-        GIF_PLAYBACK_MODE.AUTOMATIC,
-    );
-    const [hasFailed, setHasFailed] = useState(false);
+    const source = embed?.src ?? null;
+    const [retryState, setRetryState] = useState<GifLoadRetryState>({
+        source,
+        failedSource: null,
+        retryCount: 0,
+        playback: GIF_PLAYBACK_MODE.AUTOMATIC,
+    });
+    const currentRetryState = syncGifLoadRetryState(retryState, source);
+
+    if (currentRetryState !== retryState) {
+        setRetryState(currentRetryState);
+    }
+
+    const hasFailed = hasGifLoadFailed(currentRetryState, source);
+    const canRetry = canRetryGifLoad(currentRetryState, source);
     const isPlaying =
         embed !== null &&
         isGifPlaying({
             source: embed.src,
-            playback,
+            playback: currentRetryState.playback,
             isVisible,
             reducedMotion,
             isStatic,
@@ -69,12 +90,13 @@ export function useGifPlayback({
     return {
         isPlaying,
         hasFailed,
-        onError: () => setHasFailed(true),
+        canRetry,
+        retryCount: currentRetryState.retryCount,
+        onError: () => setRetryState((state) => failGifLoad(state, source)),
+        onRetry: () => setRetryState((state) => retryGifLoad(state, source)),
         onToggle: () =>
-            setPlayback(
-                isPlaying
-                    ? GIF_PLAYBACK_MODE.STOPPED
-                    : GIF_PLAYBACK_MODE.PLAYING,
+            setRetryState((state) =>
+                toggleGifPlayback(state, source, isPlaying),
             ),
     };
 }

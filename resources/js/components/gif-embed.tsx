@@ -1,4 +1,4 @@
-import { Play, Square } from 'lucide-react';
+import { Play, RotateCcw, Square } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { useGifPlayback } from '@/hooks/use-gif-playback';
@@ -51,20 +51,52 @@ export function GifEmbed({
 }
 
 function GifMedia({ preview, embed, playback }: GifMediaProps) {
-    const [posterFailed, setPosterFailed] = useState(false);
-
-    if (playback.isPlaying && embed) {
-        return (
-            <img
-                src={embed.src}
-                alt={preview.title ?? 'Animated GIF'}
-                referrerPolicy="no-referrer"
-                onError={playback.onError}
-                className="absolute inset-0 size-full object-contain"
-                data-test="gif-animation"
+    return (
+        <>
+            {/* Retry posters only for new media or a manual retry. */}
+            <GifFallback
+                key={`${embed?.src}:${embed?.poster}:${playback.retryCount}`}
+                preview={preview}
+                embed={embed}
+                playback={playback}
             />
-        );
-    }
+            {playback.isPlaying && embed && (
+                <GifAnimation
+                    key={embed.src}
+                    preview={preview}
+                    embed={embed}
+                    playback={playback}
+                />
+            )}
+        </>
+    );
+}
+
+function GifAnimation({
+    preview,
+    embed,
+    playback,
+}: GifMediaProps & { embed: Embed }) {
+    const [isLoaded, setIsLoaded] = useState(false);
+
+    return (
+        <img
+            src={embed.src}
+            alt={preview.title ?? 'Animated GIF'}
+            referrerPolicy="no-referrer"
+            onLoad={() => setIsLoaded(true)}
+            onError={playback.onError}
+            className={cn(
+                'absolute inset-0 size-full bg-muted object-contain',
+                !isLoaded && 'invisible',
+            )}
+            data-test="gif-animation"
+        />
+    );
+}
+
+function GifFallback({ preview, embed, playback }: GifMediaProps) {
+    const [posterFailed, setPosterFailed] = useState(false);
 
     if (
         embed?.poster &&
@@ -117,19 +149,18 @@ function GifPlaybackButton({
     playback: GifPlaybackState;
     isStatic: boolean;
 }) {
-    if (isStatic || !embed || playback.hasFailed) {
+    if (isStatic || !embed || (playback.hasFailed && !playback.canRetry)) {
         return null;
     }
 
-    const Icon = playback.isPlaying ? Square : Play;
-    const label = playback.isPlaying ? 'Stop' : 'Play';
+    const { Icon, label, onClick } = gifPlaybackControl(playback);
 
     return (
         <Button
             type="button"
             variant="secondary"
             size="icon"
-            onClick={playback.onToggle}
+            onClick={onClick}
             aria-label={`${label} GIF`}
             title={`${label} GIF`}
             className={cn(
@@ -142,6 +173,18 @@ function GifPlaybackButton({
             <Icon className="size-3 fill-current" />
         </Button>
     );
+}
+
+function gifPlaybackControl(playback: GifPlaybackState) {
+    if (playback.hasFailed) {
+        return { Icon: RotateCcw, label: 'Retry', onClick: playback.onRetry };
+    }
+
+    return {
+        Icon: playback.isPlaying ? Square : Play,
+        label: playback.isPlaying ? 'Stop' : 'Play',
+        onClick: playback.onToggle,
+    };
 }
 
 function GifSource({ preview, embed, isStatic }: GifEmbedProps) {

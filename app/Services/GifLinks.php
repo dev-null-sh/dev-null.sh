@@ -15,8 +15,6 @@ final readonly class GifLinks
 
     private const int MIN_HEADER_BYTES = 13;
 
-    private const int MAX_URL_LENGTH = 2048;
-
     private const int SIGNATURE_BYTES = 6;
 
     private const int WIDTH_OFFSET = 6;
@@ -50,7 +48,7 @@ final readonly class GifLinks
 
         $sourceUrl = $url->toAsciiString();
 
-        if (mb_strlen($sourceUrl) > self::MAX_URL_LENGTH) {
+        if (mb_strlen($sourceUrl) > Urls::MAX_LENGTH) {
             return null;
         }
 

@@ -40,6 +40,91 @@ export const GIF_PLAYBACK_MODE = {
 export type GifPlayback =
     (typeof GIF_PLAYBACK_MODE)[keyof typeof GIF_PLAYBACK_MODE];
 
+export const MAX_GIF_RETRIES = 2;
+
+export type GifLoadRetryState = {
+    source: string | null;
+    failedSource: string | null;
+    retryCount: number;
+    playback: GifPlayback;
+};
+
+export function syncGifLoadRetryState(
+    state: GifLoadRetryState,
+    source: string | null,
+): GifLoadRetryState {
+    if (state.source === source) {
+        return state;
+    }
+
+    return {
+        source,
+        failedSource: null,
+        retryCount: 0,
+        playback: state.playback,
+    };
+}
+
+export function hasGifLoadFailed(
+    state: GifLoadRetryState,
+    source: string | null,
+): boolean {
+    return source !== null && state.failedSource === source;
+}
+
+export function canRetryGifLoad(
+    state: GifLoadRetryState,
+    source: string | null,
+): boolean {
+    return (
+        hasGifLoadFailed(state, source) && state.retryCount < MAX_GIF_RETRIES
+    );
+}
+
+export function failGifLoad(
+    state: GifLoadRetryState,
+    source: string | null,
+): GifLoadRetryState {
+    if (state.source !== source || source === null) {
+        return state;
+    }
+
+    return { ...state, failedSource: source };
+}
+
+export function retryGifLoad(
+    state: GifLoadRetryState,
+    source: string | null,
+): GifLoadRetryState {
+    if (!canRetryGifLoad(state, source)) {
+        return state;
+    }
+
+    return {
+        ...state,
+        failedSource: null,
+        retryCount: state.retryCount + 1,
+        playback: GIF_PLAYBACK_MODE.PLAYING,
+    };
+}
+
+export function toggleGifPlayback(
+    state: GifLoadRetryState,
+    source: string | null,
+    isPlaying: boolean,
+): GifLoadRetryState {
+    if (state.source !== source) {
+        return state;
+    }
+
+    return {
+        ...state,
+        playback: isPlaying
+            ? GIF_PLAYBACK_MODE.STOPPED
+            : GIF_PLAYBACK_MODE.PLAYING,
+    };
+}
+
 export function isGifPlaying({
     source,
     playback,
@@ -68,5 +153,5 @@ export function isGifPlaying({
         return true;
     }
 
-    return !reducedMotion && isGifUrl(source);
+    return !reducedMotion && parseHttpsUrl(source) !== null;
 }
