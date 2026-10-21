@@ -8,6 +8,7 @@ const subscribe = (listener: () => void) => {
     listeners.add(listener);
 
     if (interval === undefined) {
+        now = Date.now();
         interval = setInterval(() => {
             now = Date.now();
             listeners.forEach((notify) => notify());

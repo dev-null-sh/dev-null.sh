@@ -190,46 +190,60 @@ export function RailAvatar({
         <span className="relative flex rounded-full bg-card">
             <span
                 className={cn(
-                    'relative flex rounded-full border-2 border-(--lane) p-0.5 transition-[border-color,opacity] duration-200',
+                    'relative flex rounded-full border-2 border-(--lane) p-0.5 transition-opacity duration-200',
                     dimmedNode,
                     {
-                        'border-dashed': progress === 0,
                         'border-red-600': isLive,
-                        'border-transparent':
-                            progress !== undefined && progress > 0,
+                        'border-transparent': progress !== undefined,
                     },
                 )}
             >
-                {progress !== undefined && progress > 0 && (
-                    <svg
-                        viewBox="0 0 48 48"
-                        className="pointer-events-none absolute -inset-0.5 size-12 -rotate-90"
-                        fill="none"
-                        strokeWidth={2}
-                    >
-                        <circle
-                            cx="24"
-                            cy="24"
-                            r="23"
+                {progress !== undefined && (
+                    <>
+                        <span
                             className={cn(
-                                isLive ? 'stroke-red-600' : 'stroke-(--lane)',
-                                'opacity-25',
+                                'pointer-events-none absolute -inset-0.5 rounded-full border-2 border-dashed transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                                isLive ? 'border-red-600' : 'border-(--lane)',
+                                progress > 0 ? 'opacity-0' : 'opacity-100',
                             )}
                         />
-                        <circle
-                            cx="24"
-                            cy="24"
-                            r="23"
-                            pathLength={1}
-                            strokeDasharray={1}
-                            strokeLinecap="round"
-                            strokeDashoffset={1 - Math.min(progress, 1)}
+                        <svg
+                            viewBox="0 0 48 48"
                             className={cn(
-                                isLive ? 'stroke-red-600' : 'stroke-(--lane)',
-                                'transition-[stroke-dashoffset] duration-200',
+                                'pointer-events-none absolute -inset-0.5 size-12 -rotate-90 transition-opacity duration-150 ease-out motion-reduce:transition-none',
+                                progress > 0 ? 'opacity-100' : 'opacity-0',
                             )}
-                        />
-                    </svg>
+                            fill="none"
+                            strokeWidth={2}
+                        >
+                            <circle
+                                cx="24"
+                                cy="24"
+                                r="23"
+                                className={cn(
+                                    isLive
+                                        ? 'stroke-red-600'
+                                        : 'stroke-(--lane)',
+                                    'opacity-25',
+                                )}
+                            />
+                            <circle
+                                cx="24"
+                                cy="24"
+                                r="23"
+                                pathLength={1}
+                                strokeDasharray={1}
+                                strokeLinecap="round"
+                                strokeDashoffset={1 - Math.min(progress, 1)}
+                                className={cn(
+                                    isLive
+                                        ? 'stroke-red-600'
+                                        : 'stroke-(--lane)',
+                                    'transition-[stroke-dashoffset] duration-150 ease-out motion-reduce:transition-none',
+                                )}
+                            />
+                        </svg>
+                    </>
                 )}
                 <UserAvatar user={user} className="size-10" />
             </span>

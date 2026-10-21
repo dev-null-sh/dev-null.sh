@@ -4,11 +4,75 @@ import { App } from '@inertiajs/react';
 import type { ComponentProps, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vite-plus/test';
+import { BodyCounter } from '../../resources/js/components/body-counter';
 import { CommitBody } from '../../resources/js/components/commit-body';
 import {
     LinkifiedText,
     typedLinks,
 } from '../../resources/js/components/linkified-text';
+import { bodyCharacterCount } from '../../resources/js/lib/commit';
+
+test('counts each prose URL once per occurrence, without discounting code or oversized links', () => {
+    const cases: [string, number][] = [
+        ['é🚀 hello', 8],
+        ['example.com', 11],
+        ['https://example.com/long-path-here', 23],
+        ['éhttps://example.com/long-path-here', 35],
+        ['٤https://example.com/long-path-here', 35],
+        ['\u0301https://example.com/long-path-here', 35],
+        ['\u203fhttps://example.com/long-path-here', 35],
+        ['_https://example.com/long-path-here', 35],
+        ['🚀https://example.com/long-path-here', 24],
+        [
+            'https://example.com/long-path-here https://example.com/long-path-here',
+            47,
+        ],
+        ['(https://example.com/long-path-here).', 26],
+        ['https://example.com/a_(long_article).', 24],
+        ['example.com/long-path-here', 23],
+        ['`https://example.com/long-path-here`', 36],
+        ['```\nhttps://example.com/long-path-here\n```', 42],
+        ['`https://example.com/long-path-here', 24],
+        ['https://', 8],
+        ['https://...', 11],
+        ['javascript:alert(1)', 19],
+        ['https://example.com/' + 'x'.repeat(2028), 23],
+        ['https://example.com/' + 'x'.repeat(2029), 2049],
+        ['  hello\r\n\r\n\r\nhttps://example.com/long-path-here  ', 30],
+    ];
+    for (const [body, length] of cases) {
+        assert.equal(bodyCharacterCount(body), length, body);
+    }
+});
+
+test('trims the draft before recognizing fences so code keeps its blank lines', () => {
+    const body = '  ```\n' + 'a'.repeat(3990) + '\n'.repeat(6) + '```';
+
+    assert.equal(bodyCharacterCount(body), 4003);
+});
+
+test('does not discount a URL attached to a Unicode word character', () => {
+    const body = 'a'.repeat(3975) + ' éhttps://example.com/long-path-here';
+
+    assert.equal(bodyCharacterCount(body), 4011);
+    assert.deepEqual(typedLinks(body), []);
+});
+
+test('the counter discounts commit links but not issue links', () => {
+    const body = 'a'.repeat(3976) + ' https://example.com/long-path-here';
+    assert.match(
+        renderToStaticMarkup(<BodyCounter body={body} />),
+        /0 characters left/,
+    );
+    assert.match(
+        renderToStaticMarkup(<BodyCounter body={body} isIssue />),
+        /-11 characters left/,
+    );
+    assert.match(
+        renderToStaticMarkup(<BodyCounter body={body + ' x'} />),
+        /-2 characters left/,
+    );
+});
 
 function renderPage(content: ReactElement): string {
     return renderToStaticMarkup(
@@ -113,6 +177,23 @@ test('shortens the displayed preview link while retaining the full URL', () => {
         url,
     );
 });
+
+for (const [text, trailing] of [
+    // A feed excerpt ends with an ellipsis right after its last word.
+    ['7\nhttps://example.com/launch…', '…'],
+    ['He said “https://example.com/launch”.', '”.'],
+    ['‘https://example.com/launch’', '’'],
+]) {
+    test(`leaves an ellipsis or a curly quote out of the link: ${text}`, () => {
+        const markup = renderToStaticMarkup(
+            <LinkifiedText text={text} mentions={null} />,
+        );
+
+        assert.deepEqual(typedLinks(text), ['https://example.com/launch']);
+        assert.ok(markup.includes('href="https://example.com/launch"'));
+        assert.ok(markup.endsWith(`</a>${trailing}`));
+    });
+}
 
 test('keeps every distinct card URL in order without joining prose across code', () => {
     assert.deepEqual(

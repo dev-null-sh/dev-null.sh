@@ -430,7 +430,7 @@ export function ConversationThread({
                 <button
                     type="button"
                     onClick={jumpToLatest}
-                    className="absolute bottom-[calc(var(--composer-height,4rem)+2.5rem)] left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-3 py-1 font-mono text-xs font-medium text-primary-foreground tabular-nums shadow-lg"
+                    className="absolute bottom-[calc(var(--composer-height,4rem)+2.5rem)] left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-mono text-xs font-medium text-primary-foreground tabular-nums shadow-lg"
                 >
                     <ArrowDown aria-hidden className="size-3.5" />
                     {unseen} new
@@ -612,7 +612,7 @@ const ThreadItem = memo(function ThreadItem({
     if (item.kind === 'day') {
         return (
             <li className="my-3 flex justify-center first:mt-0">
-                <span className="inline-flex items-center gap-1.5 rounded bg-muted py-0.5 pr-2 pl-1.5 font-mono text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 rounded-sm bg-muted py-0.5 pr-2 pl-1.5 font-mono text-[11px] text-muted-foreground">
                     <span
                         aria-hidden
                         className="size-1.5 rounded-full bg-current opacity-60"
@@ -1287,7 +1287,7 @@ function Composer({
                             }}
                             aria-label="Cancel reply"
                             title="Cancel reply (Esc)"
-                            className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+                            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
                             data-test="cancel-reply"
                         >
                             <X aria-hidden className="size-4" />
