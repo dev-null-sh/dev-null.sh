@@ -13,6 +13,13 @@ final readonly class CreateUserMute
      */
     public function handle(User $user, User $muted): void
     {
-        $user->muting()->syncWithoutDetaching([$muted->id]);
+        $now = now();
+
+        $user->muting()->newPivotStatement()->insertOrIgnore([
+            'muter_id' => $user->id,
+            'muted_id' => $muted->id,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
     }
 }

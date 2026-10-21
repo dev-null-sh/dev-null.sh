@@ -24,6 +24,12 @@
         }
     }
 }
+
+/* The launch strip sits above the layout, so the sidebar has less room until it disappears. */
+:root:has([data-test='product-hunt-banner']) {
+    --launch-banner-height: 42px;
+}
+
 @media (min-width: 64rem) {
     [data-nav] {
         --sidebar-width: 256px;
@@ -385,6 +391,15 @@ html body[data-scroll-locked] {
     margin-right: 0 !important;
 }
 
+/* Give the loading bar its own snapshot above the sticky headers during navigation. */
+#nprogress .bar {
+    view-transition-name: page-progress;
+}
+
+::view-transition-group(page-progress) {
+    z-index: 6;
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
     animation-duration: 160ms;
@@ -421,6 +436,12 @@ html body[data-scroll-locked] {
 :root[data-view-transition='theme']::view-transition-new(*) {
     animation-duration: 320ms;
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Keep sticky headers opaque while controls animate within the page. */
+:root[data-view-transition='in-place']::view-transition-old(*.tab-header),
+:root[data-view-transition='in-place']::view-transition-new(*.tab-header) {
+    animation: none;
 }
 
 ::view-transition-group(*.indicator-label) {

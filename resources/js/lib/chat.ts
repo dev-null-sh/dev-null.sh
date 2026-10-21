@@ -1,3 +1,5 @@
+import { router } from '@inertiajs/react';
+import BannedController from '@/actions/App/Http/Controllers/BannedController';
 import ConversationArchiveController from '@/actions/App/Http/Controllers/ConversationArchiveController';
 import ConversationDropController from '@/actions/App/Http/Controllers/ConversationDropController';
 import ConversationMergeController from '@/actions/App/Http/Controllers/ConversationMergeController';
@@ -14,8 +16,10 @@ import OrgReadController from '@/actions/App/Http/Controllers/OrgReadController'
 import OrgTypingController from '@/actions/App/Http/Controllers/OrgTypingController';
 import RemoteCandidateController from '@/actions/App/Http/Controllers/RemoteCandidateController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
+import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import type { ReactionUsage } from '@/lib/reactions';
 import { withReactionUse } from '@/lib/reactions';
+import type { VoiceDraft } from '@/lib/voice-notes';
 import type {
     ConversationSummary,
     InboxPage,
@@ -41,8 +45,8 @@ export type ChatTarget =
     | { kind: 'org'; org: OrgRef };
 
 /**
- * What the composer pushes: the body, the message it replies to, its images, and the link chosen for its card, which
- * is the first link when undefined, or none when null.
+ * What the composer pushes: the body, the message it replies to, its images, the link chosen for its card, which
+ * is the first link when undefined, or none when null, and a voice note, which goes without a body or images.
  */
 export type MessageDraft = {
     body: string;
@@ -50,6 +54,7 @@ export type MessageDraft = {
     images: File[];
     descriptions: string[];
     linkPreviewUrl: string | null | undefined;
+    voice?: VoiceDraft | null;
 };
 
 export type PendingMessage = {
@@ -59,6 +64,7 @@ export type PendingMessage = {
     images: File[];
     image_descriptions: string[];
     link_preview_url: string | null | undefined;
+    voice: VoiceDraft | null;
     created_at: string;
     status: 'staged' | 'rejected';
 };
@@ -289,12 +295,20 @@ async function request<T>(
     });
 
     if (!response.ok) {
-        throw new ChatRequestError(
-            response.status,
-            (await response.json().catch(() => ({}))) as {
-                message?: string;
-            },
-        );
+        const body = (await response.json().catch(() => ({}))) as {
+            message?: string;
+            banned?: boolean;
+        };
+        const timeout = timeoutFrom(response.status, body);
+
+        // A timeout or a ban stops every remote the same way, so the user is told wherever they tried...
+        if (timeout) {
+            showTimeout(timeout);
+        } else if (response.status === 403 && body.banned === true) {
+            router.visit(BannedController.show());
+        }
+
+        throw new ChatRequestError(response.status, body);
     }
 
     return (response.status === 204 ? null : await response.json()) as T;
@@ -870,7 +884,7 @@ function payloadOf(pending: PendingMessage): object | FormData {
             : { link_preview_url: pending.link_preview_url ?? '' }),
     };
 
-    if (pending.images.length === 0) {
+    if (pending.images.length === 0 && pending.voice === null) {
         return fields;
     }
 
@@ -886,6 +900,13 @@ function payloadOf(pending: PendingMessage): object | FormData {
             pending.image_descriptions[index]?.trim() ?? '',
         );
     });
+
+    if (pending.voice !== null) {
+        form.append('voice', pending.voice.file);
+        pending.voice.waveform.forEach((level) =>
+            form.append('voice_waveform[]', String(level)),
+        );
+    }
 
     return form;
 }
@@ -905,6 +926,7 @@ export function sendMessage(target: ChatTarget, draft: MessageDraft): void {
         images: draft.images,
         image_descriptions: draft.descriptions,
         link_preview_url: draft.linkPreviewUrl,
+        voice: draft.voice ?? null,
         created_at: new Date().toISOString(),
         status: 'staged',
     };

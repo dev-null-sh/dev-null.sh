@@ -5,6 +5,7 @@
 - Do not write browser tests (`tests/Browser`, Pest browser plugin, Playwright). Cover behavior with Feature and Unit tests only.
 - Migrations only go up: never write a `down` method. To undo a migration, write a new one.
 - Use the Laravel AI SDK for new AI features and semantic search query embeddings. Load the `ai-sdk-development` skill and keep the embedding provider, model, and dimensions compatible with the stored vectors.
+- Whenever one of Tom's tools is added, removed, or changed, update `App\Services\TomToolDecision`'s decision policy and criteria, Tom's execution guidance (arguments and follow-up limits), and the routing tests in the same change.
 
 ## Minimal code
 
@@ -24,7 +25,8 @@
 
 ## Knowledge base maintenance
 
-- Before finishing any change, check whether `KNOWLEDGE_BASE.md` needs updating to reflect it. Update the relevant sections in the same change when stack, hosting, repository details, platform behavior, or lore have changed; leave it alone when they have not.
+- Before finishing any change, check whether `KNOWLEDGE_BASE.md` needs updating to reflect it. Update it only with information that is relevant or interesting to ordinary users, such as user-facing platform behavior, public privacy disclosures, non-sensitive stack and hosting details, repository details, and lore; leave it alone otherwise.
+- `KNOWLEDGE_BASE.md` feeds Tom's public replies, so never add sensitive operational or admin-only details: admin routes and dashboards, privileged moderation or operations workflows, configuration values, environment variables, credentials or secrets, queue and retry internals, or moderation and reputation thresholds that would help someone evade or abuse moderation.
 - Keep technology descriptions free of version numbers, distinguish planned features from shipped behavior, and verify names, handles, and historical claims rather than guessing.
 - Keep topics under descriptive Markdown headings: each non-empty section is embedded separately, with its parent headings providing context.
 - The scheduler refreshes knowledge-base embeddings hourly in production. Do not manually run production embedding imports as part of an unrelated change.

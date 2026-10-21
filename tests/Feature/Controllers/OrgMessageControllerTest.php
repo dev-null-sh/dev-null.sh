@@ -132,3 +132,21 @@ it('pushes images and the link card the member chose', function (?string $choice
     'another link' => ['https://github.com/laravel', 'https://github.com/laravel'],
     'no card' => ['', null],
 ]);
+
+it('pushes voice notes to the org', function (): void {
+    Storage::fake();
+
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+
+    $this->actingAs($nuno)->post(route('org-message.store', $org), [
+        'client_id' => Str::uuid()->toString(),
+        'voice' => voiceNoteUpload(),
+        'voice_waveform' => voiceNoteWaveform(),
+    ], ['Accept' => 'application/json'])->assertCreated()
+        ->assertJsonPath('message.voice.duration_ms', 2000);
+
+    $this->actingAs($mark)->getJson(route('org-message.index', $org))
+        ->assertJsonPath('messages.1.voice.duration_ms', 2000);
+});

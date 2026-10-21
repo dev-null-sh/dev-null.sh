@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     ArrowUpRight,
     Flag,
@@ -21,7 +21,6 @@ import type {
     StoryStream,
 } from '@/lib/about';
 import {
-    repositoryUrl,
     storyAfter,
     storyAfterLane,
     storyBefore,
@@ -303,6 +302,7 @@ function Contributors() {
 }
 
 export default function Show() {
+    const { repository } = usePage().props;
     return (
         <>
             <Head title="About" />
@@ -396,7 +396,7 @@ export default function Show() {
                     <p className="text-muted-foreground">
                         Want to be on this list?{' '}
                         <a
-                            href={repositoryUrl}
+                            href={`https://github.com/${repository}`}
                             target="_blank"
                             rel="noopener noreferrer"
                         >

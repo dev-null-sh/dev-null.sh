@@ -10,6 +10,7 @@ use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventFraming;
+use App\Http\Middleware\RedirectBannedUsers;
 use App\Http\Middleware\UpdateLastSeenAt;
 use App\Models\User;
 use Illuminate\Foundation\Application;
@@ -51,6 +52,7 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             UpdateLastSeenAt::class,
+            RedirectBannedUsers::class,
         ]);
 
         $middleware->api(append: [

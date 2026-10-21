@@ -510,7 +510,7 @@ function MemberRow({
             </span>
             <span
                 className={cn(
-                    'shrink-0 rounded-full px-2 font-mono text-[11px] leading-5',
+                    'shrink-0 rounded-sm px-2 font-mono text-[11px] leading-5',
                     member.role === 'maintainer'
                         ? 'bg-primary-soft text-primary'
                         : 'bg-muted text-muted-foreground',
@@ -790,7 +790,7 @@ export function OrgPeopleDialog({
                                         type="button"
                                         onClick={() => toggle(person)}
                                         aria-label={`Remove @${person.username}`}
-                                        className="flex h-7 max-w-40 items-center gap-1.5 rounded-full bg-muted pr-2 pl-1 text-xs hover:bg-accent"
+                                        className="flex h-7 max-w-40 items-center gap-1.5 rounded-md bg-muted pr-2 pl-1 text-xs hover:bg-accent"
                                     >
                                         <UserAvatar
                                             user={person}
@@ -946,7 +946,7 @@ export function CandidateRow({
                     <span
                         aria-hidden
                         className={cn(
-                            'grid size-5 shrink-0 place-items-center rounded-full border',
+                            'grid size-5 shrink-0 place-items-center rounded-sm border',
                             {
                                 'border-primary bg-primary text-primary-foreground':
                                     isPicked,

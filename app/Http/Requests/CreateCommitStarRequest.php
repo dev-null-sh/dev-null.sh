@@ -11,9 +11,6 @@ use Illuminate\Foundation\Http\FormRequest;
 
 final class CreateCommitStarRequest extends FormRequest
 {
-    /**
-     * Stars tell authors that others liked their commit, so authors may not star their own.
-     */
     public function authorize(): Response
     {
         $user = $this->user();
@@ -23,7 +20,7 @@ final class CreateCommitStarRequest extends FormRequest
         assert($commit instanceof Commit);
 
         return match (true) {
-            $commit->user_id === $user->id => Response::deny('You cannot star your own commit.'),
+            $commit->user_id === $user->id => Response::deny(),
             $commit->isVisibleTo($user) => Response::allow(),
             default => Response::deny(),
         };

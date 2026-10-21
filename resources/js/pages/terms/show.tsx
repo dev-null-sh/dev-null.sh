@@ -116,8 +116,12 @@ export default function Show() {
                             'Break the law, or post anything illegal.',
                             'Post sexual content involving minors. We report it to the authorities.',
                             'Threaten, harass, or abuse anyone, or post hateful, sexual, or violent content.',
+                            'Post engagement bait: posts that fish for stars, replies, or follows instead of saying something.',
+                            'Post low-effort content: one-word posts, the same post over and over, or copy-pasted memes.',
+                            'Post AI-generated content as your own. Sharing code or output you got from a tool is fine if you say so.',
                             'Share other people’s personal information, impersonate anyone, or infringe anyone’s rights.',
                             'Spam, scam, manipulate the service, or use automated means we don’t provide.',
+                            'Promote yourself by dropping links, referral codes, or the same launch across threads.',
                             'Scrape or collect data from the service, including to train AI models, other than through the public API within its limits.',
                             'Attack, probe, overload, or get around the security or limits of the service.',
                             'Do anything else we consider harmful to the service, its users, or us.',
@@ -139,6 +143,14 @@ export default function Show() {
                         part of the service, or all of it. We have no obligation
                         to monitor content, explain our decisions, or keep the
                         service available.
+                    </p>
+                    <p>
+                        If you break these terms, we may stop you from posting
+                        for a while (a timeout) or ban you. A ban applies to
+                        your GitHub account, so you can't sign up again with it,
+                        even after deleting your account. We keep a record of
+                        timeouts and bans, and the GitHub account they apply to,
+                        after your account is deleted.
                     </p>
                 </DocumentSection>
 

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use App\Actions\CreateTomFriendship;
 use App\Actions\CreateWorldReply;
-use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\ProductFunnelQuery;
@@ -35,19 +34,36 @@ it('counts the signups of the range, leaving the bots out', function (): void {
     expect(($this->funnel)()['signups'])->toBe(2);
 });
 
-it('activates readers who starred or saved commits by three other people within twelve hours', function (): void {
+it('activates readers who starred commits by three other people within twelve hours', function (): void {
     $reader = User::factory()->create(['created_at' => '2026-10-10 08:00:00']);
     $authors = User::factory()->count(3)->create(['created_at' => '2026-09-01 00:00:00']);
     $commits = $authors->map(fn (User $author): Commit => Commit::factory()->for($author)->create());
 
     ($this->star)($reader, $commits[0], '2026-10-10 09:00:00');
     ($this->star)($reader, $commits[1], '2026-10-10 19:59:59');
-    Bookmark::factory()->create(['user_id' => $reader->id, 'commit_id' => $commits[2]->id, 'created_at' => '2026-10-10 20:00:00']);
+    ($this->star)($reader, $commits[2], '2026-10-10 20:00:00');
 
     expect(($this->funnel)())
         ->activated->toBe(1)
         ->activation_eligible->toBe(1)
         ->rates->activation->toBe(1.0);
+});
+
+it('tells activation for each signup day, the days whose last signups are still within their 12 hours as incomplete', function (): void {
+    $other = User::factory()->create(['created_at' => '2026-09-01 00:00:00']);
+    $author = User::factory()->create(['created_at' => '2026-10-17 08:00:00']);
+    User::factory()->create(['created_at' => '2026-10-17 09:00:00']);
+    User::factory()->create(['created_at' => '2026-10-18 23:00:00']);
+    User::factory()->create(['created_at' => '2026-10-19 00:00:00']);
+    User::factory()->create(['created_at' => '2026-10-19 00:00:01']);
+
+    ($this->star)($other, Commit::factory()->for($author)->create(['created_at' => '2026-10-17 09:00:00']), '2026-10-17 10:00:00');
+
+    expect(($this->funnel)()['activation_by_day'])->toBe([
+        ['date' => '2026-10-17', 'activated' => 1, 'eligible' => 2, 'complete' => true],
+        ['date' => '2026-10-18', 'activated' => 0, 'eligible' => 1, 'complete' => true],
+        ['date' => '2026-10-19', 'activated' => 0, 'eligible' => 1, 'complete' => false],
+    ]);
 });
 
 it('does not activate readers who found fewer than three people in time', function (): void {
@@ -60,7 +76,6 @@ it('does not activate readers who found fewer than three people in time', functi
     ($this->star)($reader, Commit::factory()->for($author)->create(), '2026-10-10 09:00:00');
     ($this->star)($reader, Commit::factory()->for($tom)->create(), '2026-10-10 09:00:00');
     ($this->star)($reader, Commit::factory()->for($late)->create(), '2026-10-10 20:00:01');
-    Bookmark::factory()->create(['user_id' => $reader->id, 'commit_id' => Commit::factory()->for($reader)->create()->id, 'created_at' => '2026-10-10 09:00:00']);
 
     expect(($this->funnel)())
         ->activated->toBe(0)
@@ -107,88 +122,58 @@ it('waits twelve hours before counting a signup towards activation', function ()
         ->rates->activation->toBe(0.0);
 });
 
-it('measures retention from day 14 once signups got through it after tracking started', function (): void {
-    ($this->trackSince)('2026-10-01');
+it('measures retention from day 1 once signups got through it after tracking started', function (): void {
+    ($this->trackSince)('2026-10-15');
 
-    User::factory()->create(['created_at' => '2026-10-01 10:00:00', 'last_seen_at' => '2026-10-15']);
-    User::factory()->create(['created_at' => '2026-10-01 10:00:00', 'last_seen_at' => '2026-10-14']);
-    User::factory()->create(['created_at' => '2026-10-04 10:00:00', 'last_seen_at' => '2026-10-19']);
-    User::factory()->create(['created_at' => '2026-10-05 10:00:00', 'last_seen_at' => '2026-10-19']);
+    User::factory()->create(['created_at' => '2026-10-16 10:00:00', 'last_seen_at' => '2026-10-17']);
+    User::factory()->create(['created_at' => '2026-10-16 10:00:00', 'last_seen_at' => '2026-10-16']);
+    User::factory()->create(['created_at' => '2026-10-14 10:00:00', 'last_seen_at' => '2026-10-19']);
+    User::factory()->create(['created_at' => '2026-10-13 10:00:00', 'last_seen_at' => '2026-10-19']);
+    User::factory()->create(['created_at' => '2026-10-18 10:00:00', 'last_seen_at' => '2026-10-19']);
 
     expect(($this->funnel)())
-        ->retention_horizon->toBe(14)
-        ->retention_full_on->toBeNull()
         ->retained->toBe(2)
         ->retention_eligible->toBe(3)
         ->rates->retention->toBe(2 / 3);
 });
 
-it('falls back to day 7, then day 1, until signups reach day 14 after tracking started', function (string $trackedSince, string $signedUpAt, int $horizon, string $fullOn): void {
-    ($this->trackSince)($trackedSince);
-
-    User::factory()->create(['created_at' => $signedUpAt, 'last_seen_at' => '2026-10-19']);
-
-    expect(($this->funnel)('2026-10-10', '2026-10-19'))
-        ->retention_horizon->toBe($horizon)
-        ->retention_full_on->toBe($fullOn)
-        ->retained->toBe(1)
-        ->retention_eligible->toBe(1);
-})->with([
-    'day 7' => ['2026-10-12', '2026-10-10 10:00:00', 7, '2026-10-25'],
-    'day 1' => ['2026-10-18', '2026-10-17 10:00:00', 1, '2026-11-01'],
-]);
-
 it('has no retention before tracking started, or before signups got through their first day', function (): void {
     User::factory()->create(['created_at' => '2026-10-10 10:00:00', 'last_seen_at' => '2026-10-19']);
 
     expect(($this->funnel)())
-        ->retention_horizon->toBeNull()
-        ->retention_full_on->toBeNull()
+        ->retention_eligible->toBe(0)
         ->rates->retention->toBeNull();
 
     ($this->trackSince)('2026-10-19');
     User::query()->update(['created_at' => '2026-10-18 08:00:00']);
 
     expect(($this->funnel)())
-        ->retention_horizon->toBeNull()
-        ->retention_full_on->toBe('2026-11-02');
+        ->retention_eligible->toBe(0)
+        ->rates->retention->toBeNull();
 });
 
-it('counts visitors and conversion from Fathom events, and splits outside visits between members and the team', function (): void {
-    config(['app.admins' => ['nunomaduro', 'mnapoli'], 'services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
+it('counts visitors and conversion from Fathom events', function (): void {
+    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
 
-    Http::fake(function (Request $request) {
-        $filters = $request->data()['filters'] ?? null;
-
-        return Http::response([match (true) {
-            ($request->data()['entity_name'] ?? null) === 'guest-visit' => ['unique_conversions' => '400'],
-            ($request->data()['entity_name'] ?? null) === 'signup' => ['unique_conversions' => '3'],
-            str_contains((string) $filters, 'nunomaduro|mnapoli') => ['visits' => '30'],
-            default => ['visits' => '50'],
-        }]);
-    });
+    Http::fake(fn (Request $request) => Http::response([match ($request->data()['entity_name'] ?? null) {
+        'guest-visit' => ['unique_conversions' => '400'],
+        'signup' => ['unique_conversions' => '3'],
+    }]));
 
     User::factory()->count(4)->create(['created_at' => '2026-10-02 00:00:00']);
 
     expect(($this->funnel)())
         ->visitors->toBe(400)
         ->signups->toBe(4)
-        ->referral->toBe(['members' => 20, 'team' => 30])
-        ->rates->conversion->toBe(0.0075)
-        ->rates->referral->toBe(0.4);
-
-    Http::assertSent(fn (Request $request): bool => ($request->data()['aggregates'] ?? null) === 'visits'
-        && json_decode((string) $request->data()['filters'], true) === [['property' => 'entry_page', 'operator' => 'matching', 'value' => '^/@[^/]+(/commits/[^/]+)?/?$']]);
+        ->rates->conversion->toBe(0.0075);
 });
 
-it('has no visitors, conversion or referral without Fathom', function (): void {
+it('has no visitors or conversion without Fathom', function (): void {
     User::factory()->create(['created_at' => '2026-10-02 00:00:00']);
 
     expect(($this->funnel)())
         ->visitors->toBeNull()
-        ->referral->toBeNull()
-        ->rates->conversion->toBeNull()
-        ->rates->referral->toBeNull();
+        ->rates->conversion->toBeNull();
 });
 
 it('compares the last seven days with the seven before when the range is all time', function (): void {
@@ -209,21 +194,18 @@ it('compares the last seven days with the seven before when the range is all tim
     expect(($this->funnel)('2026-09-01', '2026-10-19', isAllTime: true)['changes'])->toBe([
         'conversion' => null,
         'activation' => 0.5,
-        'retention' => null,
-        'referral' => null,
+        'retention' => -0.5,
     ]);
 });
 
-it('compares a range with as many days before it, at the same retention horizon', function (): void {
+it('compares a range with as many days before it', function (): void {
     ($this->trackSince)('2026-09-01');
 
     User::factory()->create(['created_at' => '2026-09-20 10:00:00', 'last_seen_at' => '2026-10-19']);
     User::factory()->create(['created_at' => '2026-09-20 10:00:00']);
     User::factory()->create(['created_at' => '2026-09-27 10:00:00', 'last_seen_at' => '2026-10-19']);
 
-    expect(($this->funnel)('2026-09-27', '2026-10-03'))
-        ->retention_horizon->toBe(14)
-        ->changes->retention->toBe(0.5);
+    expect(($this->funnel)('2026-09-27', '2026-10-03')['changes']['retention'])->toBe(0.5);
 });
 
 it('has no changes until the period before started after the launch', function (): void {
@@ -232,11 +214,11 @@ it('has no changes until the period before started after the launch', function (
     User::factory()->create(['created_at' => '2026-10-15 10:00:00']);
 
     expect(($this->funnel)('2026-10-15', '2026-10-19', isAllTime: true)['changes'])
-        ->toBe(['conversion' => null, 'activation' => null, 'retention' => null, 'referral' => null]);
+        ->toBe(['conversion' => null, 'activation' => null, 'retention' => null]);
 });
 
 it('stops asking Fathom once it has no answer', function (): void {
-    config(['app.admins' => ['admin'], 'services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
+    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
     ($this->trackSince)('2026-09-01');
 
     Http::fake(['api.usefathom.com/*' => Http::response(status: 500)]);
@@ -245,19 +227,7 @@ it('stops asking Fathom once it has no answer', function (): void {
 
     expect(($this->funnel)('2026-09-01', '2026-10-19', isAllTime: true))
         ->visitors->toBeNull()
-        ->referral->toBeNull()
         ->rates->conversion->toBeNull();
 
     Http::assertSentCount(1);
-});
-
-it('has no referral without admins to tell the team apart', function (): void {
-    config(['app.admins' => [], 'services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
-
-    Http::fake(['api.usefathom.com/*' => Http::response([['unique_conversions' => '10', 'visits' => '10']])]);
-
-    expect(($this->funnel)())
-        ->visitors->toBe(10)
-        ->referral->toBeNull()
-        ->rates->referral->toBeNull();
 });
