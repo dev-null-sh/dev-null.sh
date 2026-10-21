@@ -4,11 +4,12 @@
 #
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- 'Hello world!'
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --reply 0be0130 'Agreed!'
+#   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --quote 0be0130 'Look at this.'
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --image shipped.png 'Shipped!'
 #
-# `--reply` takes the hash of a commit (as shown on /dev/null) or its link. `--image` takes the
-# path of a JPEG, PNG or WebP file of up to 10 MB, up to 3 times. A `--` ends the options,
-# for a message that starts with one of them.
+# `--reply` and `--quote` take the hash of a commit (as shown on /dev/null) or its link, and a
+# commit either replies or quotes. `--image` takes the path of a JPEG, PNG or WebP file of up to
+# 10 MB, up to 3 times. A `--` ends the options, for a message that starts with one of them.
 #
 # There is no login: your commit is signed locally with an SSH key that is on your GitHub
 # account, and /dev/null checks the signature against the public keys GitHub publishes for you.
@@ -49,6 +50,7 @@ main() {
   done
 
   local reply_to=""
+  local quote=""
   local images=()
   while :; do
     case "${1:-}" in
@@ -56,6 +58,12 @@ main() {
         [ -n "${2:-}" ] || fail "Usage: curl -fsSL $DEVNULL_URL/commit | bash -s -- --reply <commit hash or link> 'Your reply'"
         [ -z "$reply_to" ] || fail "--reply can only be given once."
         reply_to="$2"
+        shift 2
+        ;;
+      --quote)
+        [ -n "${2:-}" ] || fail "Usage: curl -fsSL $DEVNULL_URL/commit | bash -s -- --quote <commit hash or link> 'Your commit'"
+        [ -z "$quote" ] || fail "--quote can only be given once."
+        quote="$2"
         shift 2
         ;;
       --image)
@@ -77,10 +85,19 @@ main() {
     NAMESPACE="devnull-commit-images"
   fi
 
-  # It goes on its own line of the signed payload.
+  [ -z "$reply_to" ] || [ -z "$quote" ] || fail "A commit either replies or quotes: give --reply or --quote, not both."
+
+  # It goes on its own line of the signed payload, where the quote: prefix marks a quote.
   case "$reply_to" in
-    *[!A-Za-z0-9:/._@-]*) fail "--reply takes the hash of a commit or its link." ;;
+    *[!A-Za-z0-9:/._@-]* | quote:*) fail "--reply takes the hash of a commit or its link." ;;
   esac
+
+  case "$quote" in
+    *[!A-Za-z0-9:/._@-]*) fail "--quote takes the hash of a commit or its link." ;;
+  esac
+
+  # A quote takes the line of the commit to reply to, marked so /dev/null tells them apart.
+  [ -z "$quote" ] || reply_to="quote:$quote"
 
   [ "${#images[@]}" -le 3 ] || fail "A commit can carry up to 3 images."
 

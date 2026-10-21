@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# The devnull GitHub Action: commits DEVNULL_BODY (replying to DEVNULL_REPLY_TO and attaching the
-# DEVNULL_IMAGES, if any) with resources/scripts/commit.sh, the
+# The devnull GitHub Action: commits DEVNULL_BODY (replying to DEVNULL_REPLY_TO or quoting
+# DEVNULL_QUOTE, and attaching the DEVNULL_IMAGES, if any) with resources/scripts/commit.sh, the
 # `curl -fsSL https://dev-null.sh/commit | bash` script, so it is signed exactly like a commit
 # from a terminal.
 #
@@ -31,6 +31,9 @@ main() {
   local arguments=()
   if [ -n "${DEVNULL_REPLY_TO:-}" ]; then
     arguments+=(--reply "$DEVNULL_REPLY_TO")
+  fi
+  if [ -n "${DEVNULL_QUOTE:-}" ]; then
+    arguments+=(--quote "$DEVNULL_QUOTE")
   fi
 
   local image

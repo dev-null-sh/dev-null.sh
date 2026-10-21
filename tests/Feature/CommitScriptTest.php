@@ -139,6 +139,68 @@ it('only accepts commit hashes and links to reply to', function (): void {
         ->and(($this->calls)())->toBe('');
 });
 
+it('quotes a commit', function (): void {
+    $result = ($this->runScript)($this->script, ['--quote', '0be0130', 'Look at this.']);
+
+    expect($result->exitCode())->toBe(0)
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\nquote:0be0130\nLook at this\.$/');
+});
+
+it('quotes a commit with images', function (): void {
+    File::put("{$this->sandbox}/home/first.png", 'first image');
+
+    $result = ($this->runScript)($this->script, ['--quote', '0be0130', '--image', "{$this->sandbox}/home/first.png", 'Look at this.']);
+
+    [, , $replyTo, , $message] = explode("\n", File::get("{$this->sandbox}/signed"), 5);
+
+    expect($result->exitCode())->toBe(0)
+        ->and($replyTo)->toBe('quote:0be0130')
+        ->and($message)->toBe('Look at this.');
+});
+
+it('requires a commit to quote', function (): void {
+    $result = ($this->runScript)($this->script, ['--quote']);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toBe('devnull: Usage: curl -fsSL '.url('/')."/commit | bash -s -- --quote <commit hash or link> 'Your commit'\n")
+        ->and(($this->calls)())->toBe('');
+});
+
+it('quotes one commit only', function (): void {
+    $result = ($this->runScript)($this->script, ['--quote', '0be0130', '--quote', '1ce1241', 'Look at this.']);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toBe("devnull: --quote can only be given once.\n")
+        ->and(($this->calls)())->toBe('');
+});
+
+it('either replies or quotes', function (array $arguments): void {
+    $result = ($this->runScript)($this->script, $arguments);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toBe("devnull: A commit either replies or quotes: give --reply or --quote, not both.\n")
+        ->and(($this->calls)())->toBe('');
+})->with([
+    'reply first' => [['--reply', '0be0130', '--quote', '1ce1241', 'Look at this.']],
+    'quote first' => [['--quote', '1ce1241', '--reply', '0be0130', 'Look at this.']],
+]);
+
+it('does not let a reply pass for a quote', function (): void {
+    $result = ($this->runScript)($this->script, ['--reply', 'quote:0be0130', 'Agreed!']);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toBe("devnull: --reply takes the hash of a commit or its link.\n")
+        ->and(($this->calls)())->toBe('');
+});
+
+it('only accepts commit hashes and links to quote', function (): void {
+    $result = ($this->runScript)($this->script, ['--quote', "0be0130\nIt was not DNS.", 'Look at this.']);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toBe("devnull: --quote takes the hash of a commit or its link.\n")
+        ->and(($this->calls)())->toBe('');
+});
+
 it('signs through the ssh agent when it has the key', function (): void {
     File::put("{$this->sandbox}/agent-keys", $this->publicKey->toOpenSsh()." laptop\n");
     File::delete(["{$this->sandbox}/home/.ssh/id_ed25519", "{$this->sandbox}/home/.ssh/id_ed25519.pub"]);

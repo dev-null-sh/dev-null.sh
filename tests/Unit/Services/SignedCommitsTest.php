@@ -24,6 +24,7 @@ it('verifies a signed commit', function (): void {
 
     expect($commit['user']->is($this->user))->toBeTrue()
         ->and($commit['reply_to'])->toBeNull()
+        ->and($commit['quote'])->toBeNull()
         ->and($commit['body'])->toBe("It was DNS.\n\nIt is always DNS.");
 });
 
@@ -33,7 +34,36 @@ it('verifies a signed reply', function (): void {
     $commit = resolve(SignedCommits::class)->verify($payload, $signature);
 
     expect($commit['reply_to'])->toBe('0be0130')
+        ->and($commit['quote'])->toBeNull()
         ->and($commit['body'])->toBe('Agreed!');
+});
+
+it('verifies a signed quote', function (): void {
+    ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'Look at this.', replyTo: 'quote:0be0130');
+
+    $commit = resolve(SignedCommits::class)->verify($payload, $signature);
+
+    expect($commit['reply_to'])->toBeNull()
+        ->and($commit['quote'])->toBe('0be0130')
+        ->and($commit['body'])->toBe('Look at this.');
+});
+
+it('verifies a signed quote with images', function (): void {
+    $hashes = [hash('sha256', 'image')];
+
+    ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'Look at this.', replyTo: 'quote:https://dev-null.sh/@taylor/commits/0be0130', imageHashes: $hashes);
+
+    $commit = resolve(SignedCommits::class)->verify($payload, $signature, fn (): array => $hashes);
+
+    expect($commit['reply_to'])->toBeNull()
+        ->and($commit['quote'])->toBe('https://dev-null.sh/@taylor/commits/0be0130');
+});
+
+it('rejects a signed quote without a commit to quote', function (): void {
+    ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'Look at this.', replyTo: 'quote:');
+
+    expect(fn (): array => resolve(SignedCommits::class)->verify($payload, $signature))
+        ->toThrow(InvalidArgumentException::class, 'Malformed payload.');
 });
 
 it('verifies a signed commit with images', function (): void {

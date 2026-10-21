@@ -111,6 +111,43 @@ it('replies to a commit', function (): void {
         ->and($reply->body)->toBe('Agreed!');
 });
 
+it('quotes a commit', function (): void {
+    $quoted = Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
+
+    $response = postSignedCommit(signedCommit($this->keyPair, 'Look at this.', replyTo: 'quote:0be0130'));
+
+    $quote = $this->user->commits()->sole();
+
+    $response->assertCreated();
+
+    expect($quote->quoted_commit_id)->toBe($quoted->id)
+        ->and($quote->parent_id)->toBeNull()
+        ->and($quote->body)->toBe('Look at this.');
+});
+
+it('quotes a commit by its link', function (): void {
+    $quoted = Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
+
+    postSignedCommit(signedCommit($this->keyPair, 'Look at this.', replyTo: 'quote:'.route('commit.show', [$quoted->user, $quoted])))->assertCreated();
+
+    expect($this->user->commits()->sole()->quoted_commit_id)->toBe($quoted->id);
+});
+
+it('quotes a commit with images', function (): void {
+    Storage::fake();
+
+    $quoted = Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
+    $images = [UploadedFile::fake()->image('first.jpg', 10, 10)];
+
+    postSignedCommitWithImages(signedCommit($this->keyPair, 'Look at this.', replyTo: 'quote:0be0130', imageHashes: imageHashes($images)), $images)->assertCreated();
+
+    $quote = $this->user->commits()->sole();
+
+    expect($quote->quoted_commit_id)->toBe($quoted->id)
+        ->and($quote->parent_id)->toBeNull()
+        ->and($quote->images)->toHaveCount(1);
+});
+
 it('attaches a link preview for the first link', function (): void {
     Http::fake(['example.com/first' => Http::response(status: 404)]);
     Queue::fake([UnfurlLink::class]);
@@ -375,6 +412,42 @@ it('fails to reply to an ambiguous or malformed commit reference', function (str
     Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52c0be0130']);
 
     $response = postSignedCommit(signedCommit($this->keyPair, 'Agreed!', replyTo: $replyTo));
+
+    $response->assertUnprocessable()
+        ->assertContent($message."\n");
+
+    expect($this->user->commits()->count())->toBe(0);
+})->with([
+    'ambiguous' => ['0be0130', '0be0130 matches several commits: use the link of the commit instead.'],
+    'malformed' => ['not-a-hash', 'not-a-hash is not a commit hash or link.'],
+]);
+
+it('fails to quote an unknown commit', function (): void {
+    $response = postSignedCommit(signedCommit($this->keyPair, 'Look at this.', replyTo: 'quote:0be0130'));
+
+    $response->assertUnprocessable()
+        ->assertContent("There is no commit 0be0130 to quote.\n");
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('fails to quote across a block', function (): void {
+    $quoted = Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
+    $quoted->user->blocking()->attach($this->user);
+
+    $response = postSignedCommit(signedCommit($this->keyPair, 'Look at this.', replyTo: 'quote:0be0130'));
+
+    $response->assertUnprocessable()
+        ->assertContent("There is no commit 0be0130 to quote.\n");
+
+    expect($this->user->commits()->count())->toBe(0);
+});
+
+it('fails to quote an ambiguous or malformed commit reference', function (string $quote, string $message): void {
+    Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
+    Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52c0be0130']);
+
+    $response = postSignedCommit(signedCommit($this->keyPair, 'Look at this.', replyTo: 'quote:'.$quote));
 
     $response->assertUnprocessable()
         ->assertContent($message."\n");
