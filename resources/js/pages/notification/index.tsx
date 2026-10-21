@@ -1070,24 +1070,31 @@ export function NotificationContent({
                                             />
                                         </span>
                                     ) : (
-                                        <span
-                                            className="isolate flex -space-x-2"
-                                            aria-hidden
-                                        >
+                                        <span className="relative z-10 flex -space-x-2">
                                             {actors.map((stacked, position) => (
-                                                <UserAvatar
+                                                <Link
                                                     key={stacked.id}
-                                                    user={stacked}
-                                                    className="relative size-8 ring-2 ring-card"
+                                                    href={show(stacked)}
+                                                    title={`@${stacked.username}`}
+                                                    aria-label={`${stacked.name} (@${stacked.username})`}
+                                                    className="rounded-full outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring"
                                                     style={{
                                                         zIndex:
                                                             actors.length -
                                                             position,
                                                     }}
-                                                />
+                                                >
+                                                    <UserAvatar
+                                                        user={stacked}
+                                                        className="size-8 ring-2 ring-card transition-[box-shadow] hover:ring-ring"
+                                                    />
+                                                </Link>
                                             ))}
                                             {actorsCount > actors.length && (
-                                                <span className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card">
+                                                <span
+                                                    aria-hidden
+                                                    className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card"
+                                                >
                                                     +
                                                     {actorsCount -
                                                         actors.length}
