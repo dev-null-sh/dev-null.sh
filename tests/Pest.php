@@ -11,6 +11,7 @@ use App\Services\OpenAI;
 use App\Services\SignedCommits;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
@@ -253,6 +254,70 @@ function sendChatMessage(User $sender, User $recipient, string $body = 'hello'):
     ])->assertCreated();
 
     return Message::query()->latest('id')->firstOrFail();
+}
+
+/**
+ * A WAV recording of a steady tone, in the voice note format unless told otherwise, with any extra chunks a recorder
+ * might add (such as metadata) before the samples.
+ */
+function voiceNoteWav(int $milliseconds = 2000, int $sampleRate = 16000, int $channels = 1, int $amplitude = 8000, string $chunks = ''): string
+{
+    $frames = intdiv($sampleRate * $milliseconds, 1000);
+    $samples = str_repeat(pack('v', $amplitude & 0xFFFF).pack('v', -$amplitude & 0xFFFF), intdiv($frames * $channels, 2));
+    $format = pack('vvVVvv', 1, $channels, $sampleRate, $sampleRate * $channels * 2, $channels * 2, 16);
+
+    return 'RIFF'.pack('V', 4 + 24 + mb_strlen($chunks, '8bit') + 8 + mb_strlen($samples, '8bit')).'WAVE'
+        .'fmt '.pack('V', 16).$format
+        .$chunks
+        .'data'.pack('V', mb_strlen($samples, '8bit')).$samples;
+}
+
+/**
+ * A WebM recording of Opus packets the way browsers record them live: the segment and its cluster of unknown size,
+ * followed by tags the server must drop. Each packet is 20 ms of CELT, read from its first byte, with filler after it.
+ */
+function voiceNoteWebm(int $milliseconds = 2000, string $codec = 'A_OPUS', int $channels = 1, string $toc = "\xF8", int $flags = 0x80, int $tracks = 1, bool $blockGroups = false): string
+{
+    $blocks = collect(range(0, intdiv($milliseconds, 20) - 1))
+        ->map(function (int $packet) use ($toc, $flags, $blockGroups): string {
+            $block = "\x81".pack('n', $packet * 20).chr($flags).$toc.str_repeat("\x5A", 40);
+
+            return $blockGroups ? ebmlElement(0xA0, ebmlElement(0xA1, $block)) : ebmlElement(0xA3, $block);
+        })
+        ->implode('');
+
+    $entry = ebmlElement(0xAE, ebmlElement(0xD7, "\x01").ebmlElement(0x83, "\x02").ebmlElement(0x86, $codec).ebmlElement(0x63A2, 'OpusHead'.pack('CCvVvC', 1, $channels, 0, 48000, 0, 0)));
+
+    return ebmlElement(0x1A45DFA3, ebmlElement(0x4282, 'webm'))
+        .ebmlElement(0x18538067,
+            ebmlElement(0x1549A966, ebmlElement(0x4D80, 'Chrome'))
+            .ebmlElement(0x1654AE6B, str_repeat($entry, $tracks))
+            .ebmlElement(0x1F43B675, ebmlElement(0xE7, "\x00").$blocks, unknownSize: true)
+            .ebmlElement(0x1254C367, ebmlElement(0x7373, ebmlElement(0x67C8, ebmlElement(0x45A3, 'TITLE').ebmlElement(0x4487, 'secret title')))),
+            unknownSize: true,
+        );
+}
+
+function ebmlElement(int $id, string $data, bool $unknownSize = false): string
+{
+    return mb_ltrim(pack('N', $id), "\0", '8bit')
+        .($unknownSize ? "\x01".str_repeat("\xFF", 7) : "\x01".mb_substr(pack('J', mb_strlen($data, '8bit')), 1, null, '8bit'))
+        .$data;
+}
+
+function voiceNoteUpload(string $recording = ''): UploadedFile
+{
+    return UploadedFile::fake()->createWithContent('voice-note', $recording === '' ? voiceNoteWebm() : $recording);
+}
+
+/**
+ * The waveform a browser sends along with a voice note.
+ *
+ * @return list<int>
+ */
+function voiceNoteWaveform(): array
+{
+    return array_fill(0, 48, 50);
 }
 
 /**

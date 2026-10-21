@@ -55,28 +55,30 @@ it('groups stars per commit, newest stargazer first', function (): void {
         ->and($group->actors->pluck('id')->all())->toBe([$stargazers[4]->id, $stargazers[3]->id, $stargazers[2]->id]);
 });
 
-it('groups replies per replied commit, counting each replier once', function (): void {
+it('shows every reply to a commit as its own notification', function (): void {
     $commit = Commit::factory()->create();
     $bob = User::factory()->create();
     $carol = User::factory()->create();
 
-    replyAt($bob, $commit, 3);
-    replyAt($carol, $commit, 2);
+    $first = replyAt($bob, $commit, 3);
+    $second = replyAt($carol, $commit, 2);
     $latest = replyAt($bob, $commit, 1);
     Notification::query()->where('commit_id', $latest->id)->update(['read_at' => now()]);
 
     $groups = resolve(NotificationGroupsQuery::class)->paginate($commit->user);
 
-    $group = $groups->items()[0];
+    expect($groups->items())->toHaveCount(3)
+        ->and(array_map(fn (Notification $group): string => $group->commit_id, $groups->items()))->toBe([$latest->id, $second->id, $first->id]);
 
-    expect($groups->items())->toHaveCount(1)
-        ->and($group->type)->toBe(NotificationType::Replied)
-        ->and($group->commit_id)->toBe($latest->id)
-        ->and($group->subject_id)->toBe($commit->id)
-        ->and($group->event_count)->toBe(3)
-        ->and($group->unread_count)->toBe(2)
-        ->and($group->actors_count)->toBe(2)
-        ->and($group->actors->pluck('id')->all())->toBe([$bob->id, $carol->id]);
+    foreach ($groups->items() as $index => $group) {
+        expect($group->type)->toBe(NotificationType::Replied)
+            ->and($group->subject_id)->toBe($commit->id)
+            ->and($group->group_id)->toBe($group->id)
+            ->and($group->event_count)->toBe(1)
+            ->and($group->unread_count)->toBe($index === 0 ? 0 : 1)
+            ->and($group->actors_count)->toBe(1)
+            ->and($group->actors->sole()->id)->toBe($group->actor_id);
+    }
 });
 
 it('keeps stars and conversations apart while grouping followers', function (): void {
@@ -257,7 +259,7 @@ it('counts no unread groups without unread notifications', function (): void {
     expect(resolve(NotificationGroupsQuery::class)->unreadCount($user))->toBe(0);
 });
 
-it('groups replies under the top of their thread when a recorded thread root is missing or a reply', function (): void {
+it('keeps replies separate from mentions even when their thread root is missing or a reply', function (): void {
     $user = User::factory()->create();
     $root = Commit::factory()->for($user)->create();
     $reply = Commit::factory()->for($root, 'parent')->create();
@@ -271,8 +273,9 @@ it('groups replies under the top of their thread when a recorded thread root is 
 
     $groups = resolve(NotificationGroupsQuery::class)->paginate($user)->items();
 
-    expect($groups)->toHaveCount(1)
-        ->and($groups[0]->event_count)->toBe(3);
+    expect($groups)->toHaveCount(3)
+        ->and(array_map(fn (Notification $group): string => $group->commit_id, $groups))->toBe([$nested->id, $reply->id, $root->id])
+        ->and(array_map(fn (Notification $group): int => $group->event_count, $groups))->toBe([1, 1, 1]);
 });
 
 it('counts no unread groups without grouping anything when everything is read', function (): void {

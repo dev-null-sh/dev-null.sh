@@ -88,7 +88,7 @@ it('signs in as the seeded local developer', function (): void {
 
     expect($localDeveloper->notifications()->get()->pluck('type')->all())
         ->toContain(NotificationType::Followed, NotificationType::Starred, NotificationType::Replied, NotificationType::Mentioned)
-        ->and($localDeveloper->notifications()->unread()->count())->toBe(3);
+        ->and($localDeveloper->notifications()->unread()->count())->toBe(12);
 });
 
 it('loads the signed in page in full, as signing in with GitHub does', function (): void {
