@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { formatCount } from '../../resources/js/lib/numbers.ts';
+import { formatCount, formatNumber } from '../../resources/js/lib/numbers.ts';
 
 void test('counts below a thousand are shown in full', () => {
     assert.equal(formatCount(0), '0');
@@ -16,4 +16,12 @@ void test('counts from a thousand are shortened with a lowercase suffix', () => 
     assert.equal(formatCount(999_999), '1m');
     assert.equal(formatCount(1_000_000), '1m');
     assert.equal(formatCount(2_300_000), '2.3m');
+});
+
+void test('full numbers get thousands separators', () => {
+    assert.equal(formatNumber(0), '0');
+    assert.equal(formatNumber(999), '999');
+    assert.equal(formatNumber(1000), '1,000');
+    assert.equal(formatNumber(12_345), '12,345');
+    assert.equal(formatNumber(1_234_567), '1,234,567');
 });

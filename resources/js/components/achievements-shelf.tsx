@@ -29,6 +29,7 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { dropConfetti } from '@/lib/confetti';
+import { formatNumber } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import type { Achievements } from '@/types';
 
@@ -153,7 +154,7 @@ export function AchievementsShelf({
                         Lv. {achievements.level} · {achievements.rank}
                     </span>
                     <span aria-hidden>·</span>
-                    <span>{achievements.xp} XP</span>
+                    <span>{formatNumber(achievements.xp)} XP</span>
                 </button>
                 <button
                     type="button"
@@ -172,12 +173,12 @@ export function AchievementsShelf({
                 <div className="flex items-center justify-between font-mono text-[11px] text-muted-foreground">
                     <span>
                         {achievements.next_level_xp
-                            ? `${achievements.xp} / ${achievements.next_level_xp} XP`
-                            : `${achievements.xp} XP`}
+                            ? `${formatNumber(achievements.xp)} / ${formatNumber(achievements.next_level_xp)} XP`
+                            : `${formatNumber(achievements.xp)} XP`}
                     </span>
                     <span>
                         {nextRank
-                            ? `${nextRank.min_xp - achievements.xp} XP to ${nextRank.rank}`
+                            ? `${formatNumber(nextRank.min_xp - achievements.xp)} XP to ${nextRank.rank}`
                             : 'Maximum rank (UID 0)'}
                     </span>
                 </div>

@@ -24,6 +24,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { currentRound, useWhoToFollow } from '@/hooks/use-who-to-follow';
+import { formatNumber } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
 import { edit } from '@/routes/appearance';
@@ -32,13 +33,13 @@ import type { SuggestedUser } from '@/types';
 
 function reasonFor(user: SuggestedUser): string | null {
     if (user.followed_by_following_count > 0) {
-        return `Followed by ${user.followed_by_following_count} you follow`;
+        return `Followed by ${formatNumber(user.followed_by_following_count)} you follow`;
     }
 
     if (user.followers_count > 0) {
         return user.followers_count === 1
             ? '1 follower'
-            : `${user.followers_count} followers`;
+            : `${formatNumber(user.followers_count)} followers`;
     }
 
     return null;

@@ -38,6 +38,7 @@ import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
+import { formatNumber } from '@/lib/numbers';
 import {
     cn,
     formatDayLabel,
@@ -553,7 +554,7 @@ function NotificationGroupItem({
                                     { invisible: open },
                                 )}
                             >
-                                {notification.event_count} {noun}
+                                {formatNumber(notification.event_count)} {noun}
                             </span>
                             <span
                                 className={cn('col-start-1 row-start-1', {
