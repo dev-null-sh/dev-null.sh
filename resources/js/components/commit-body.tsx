@@ -188,7 +188,7 @@ export function CommitBodyExcerpt({
             <CommitBody
                 segments={previewSegments ?? segments}
                 mentions={null}
-                className="text-[15px]"
+                className="flow-root text-[15px]"
                 isStatic
             />
         </div>

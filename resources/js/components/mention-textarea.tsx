@@ -644,7 +644,7 @@ export function MentionTextarea({
             {isOpen &&
                 createPortal(
                     <div
-                        className="pointer-events-auto fixed z-50 flex flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
+                        className="pointer-events-auto fixed z-50 flex flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
                         style={position}
                         onMouseDown={(event) => event.preventDefault()}
                         data-mention-suggestions
@@ -663,7 +663,7 @@ export function MentionTextarea({
                                     role="option"
                                     aria-selected
                                     onClick={() => insert(issue.url, ' ')}
-                                    className="cursor-pointer rounded-lg bg-accent px-2.5 py-2"
+                                    className="cursor-pointer rounded-sm bg-accent px-2.5 py-2"
                                 >
                                     <span
                                         className="block truncate text-sm font-semibold"
@@ -698,7 +698,7 @@ export function MentionTextarea({
                                         }
                                         onClick={() => selectEmoji(emoji)}
                                         className={cn(
-                                            'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5',
+                                            'flex cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-1.5',
                                             {
                                                 'bg-accent':
                                                     index === activeIndex,
@@ -767,7 +767,7 @@ export function MentionTextarea({
                                         }
                                         onClick={() => select(user)}
                                         className={cn(
-                                            'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2',
+                                            'flex cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-2',
                                             {
                                                 'bg-accent':
                                                     index === activeIndex,

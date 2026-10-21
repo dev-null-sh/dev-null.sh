@@ -3,6 +3,7 @@ import createServer from '@inertiajs/react/server';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { ComponentType } from 'react';
 import ReactDOMServer from 'react-dom/server';
+import { TimeoutDialog } from '@/components/timeout-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
@@ -23,6 +24,7 @@ createServer((page) =>
                 <TooltipProvider delayDuration={150}>
                     <App {...props} />
                     <Toaster />
+                    <TimeoutDialog />
                 </TooltipProvider>
             );
         },

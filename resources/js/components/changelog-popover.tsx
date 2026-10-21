@@ -135,7 +135,7 @@ export function ChangelogPopover() {
                     sideOffset={10}
                     collisionPadding={16}
                     aria-label="Changelog"
-                    className="max-h-(--radix-popover-content-available-height) w-90 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl p-0 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)]"
+                    className="max-h-(--radix-popover-content-available-height) w-90 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg p-0 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)]"
                 >
                     {hasFailed ? (
                         <p className="px-4 py-6 text-center text-sm text-muted-foreground">
