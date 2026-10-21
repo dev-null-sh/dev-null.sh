@@ -11,13 +11,11 @@ use Uri\WhatWg\Url;
 final readonly class LinkPreviewAddress
 {
     /**
-     * Extend Symfony's private subnets with relay, multicast, site-local and translated ranges
-     * that PHP's global-range filter also permits.
-     *
      * @var list<string>
      */
     private const array BLOCKED_RANGES = [
         ...IpUtils::PRIVATE_SUBNETS,
+        '64:ff9b::/32', // NAT64; FILTER_FLAG_GLOBAL_RANGE permits RFC 6052.
         '192.88.99.0/24',
         '224.0.0.0/4',
         'fec0::/10',
@@ -30,10 +28,6 @@ final readonly class LinkPreviewAddress
         //
     }
 
-    /**
-     * Returns the address to connect to, or null when the URL must not be fetched: anything but plain http(s) on a
-     * default port without credentials, or a host that resolves to nothing or to any non-public address.
-     */
     public function get(Url $url): ?string
     {
         if (! in_array($url->getScheme(), ['http', 'https'], true)) {

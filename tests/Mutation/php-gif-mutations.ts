@@ -45,7 +45,7 @@ export const phpGifMutations: GifMutation[] = [
     {
         name: 'Symfony special-use subnets stay blocked',
         source: 'app/Services/LinkPreviewAddress.php',
-        test: 'tests/Unit/Actions/UpdateLinkPreviewTest.php',
+        test: 'tests/Unit/Services/LinkPreviewAddressTest.php',
         before: '...IpUtils::PRIVATE_SUBNETS,',
         after: '',
     },
@@ -62,6 +62,13 @@ export const phpGifMutations: GifMutation[] = [
         test: 'tests/Unit/Actions/UpdateLinkPreviewTest.php',
         before: 'array_all($addresses, $this->isPublic(...))',
         after: 'true',
+    },
+    {
+        name: 'NAT64 translations stay blocked',
+        source: 'app/Services/LinkPreviewAddress.php',
+        test: 'tests/Unit/Services/LinkPreviewAddressTest.php',
+        before: "'64:ff9b::/32',",
+        after: '',
     },
     {
         name: 'response body is capped',
