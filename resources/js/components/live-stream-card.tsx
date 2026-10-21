@@ -12,6 +12,7 @@ import {
     PopoverContent,
 } from '@/components/ui/popover';
 import { UserAvatar } from '@/components/user-avatar';
+import { hostname } from '@/lib/urls';
 import { cn } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { LiveStream, User } from '@/types';
@@ -20,7 +21,7 @@ const openDelay = 300;
 const closeDelay = 200;
 
 /**
- * The stream itself plays on YouTube: the card shows what is on and sends the viewer there in a new tab.
+ * The stream itself plays on the provider: the card shows what is on and sends the viewer there in a new tab.
  */
 export function LiveStreamCard({
     user,
@@ -50,7 +51,7 @@ export function LiveStreamCard({
                 {user.name} is live
             </p>
             <p className="font-mono text-[13px] text-muted-foreground">
-                youtube.com
+                {hostname(stream.url)}
             </p>
             <Button asChild className="mt-3 w-full">
                 <a
