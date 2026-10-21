@@ -19,6 +19,7 @@ final readonly class Embed implements Arrayable
         public ?string $aspectRatio,
         public ?int $height,
         public ?string $poster = null,
+        public ?string $streamUrl = null,
     ) {
         //
     }
@@ -41,12 +42,24 @@ final readonly class Embed implements Arrayable
         return new self($provider, $kind, self::withQuery($src, $query), null, $height);
     }
 
+    public static function asciinemaStream(string $token): self
+    {
+        return new self(
+            'asciinema',
+            EmbedKind::Code,
+            "https://asciinema.org/s/{$token}",
+            null,
+            420,
+            streamUrl: "wss://asciinema.org/ws/s/{$token}",
+        );
+    }
+
     /**
-     * @return array{provider: string, kind: string, src: string, aspect_ratio: string|null, height: int|null, poster: string|null}
+     * @return array{provider: string, kind: string, src: string, aspect_ratio: string|null, height: int|null, poster: string|null, renderer?: string, stream_url?: string}
      */
     public function toArray(): array
     {
-        return [
+        $embed = [
             'provider' => $this->provider,
             'kind' => $this->kind->value,
             'src' => $this->src,
@@ -54,6 +67,8 @@ final readonly class Embed implements Arrayable
             'height' => $this->height,
             'poster' => $this->poster,
         ];
+
+        return $this->streamUrl === null ? $embed : [...$embed, 'renderer' => 'asciinema-stream', 'stream_url' => $this->streamUrl];
     }
 
     /**

@@ -124,6 +124,24 @@ it('includes the embed of the link preview', function (): void {
         ]);
 });
 
+it('includes the live stream renderer of an asciinema link preview', function (): void {
+    $preview = LinkPreview::factory()->fetched()->create(['url' => 'https://asciinema.org/s/xFME13DLJdggX0Vt']);
+    $commit = Commit::factory()->create(['link_preview_id' => $preview->id]);
+
+    $this->getJson(route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.link_preview.embed', [
+            'provider' => 'asciinema',
+            'kind' => 'code',
+            'src' => 'https://asciinema.org/s/xFME13DLJdggX0Vt',
+            'aspect_ratio' => null,
+            'height' => 420,
+            'poster' => null,
+            'renderer' => 'asciinema-stream',
+            'stream_url' => 'wss://asciinema.org/ws/s/xFME13DLJdggX0Vt',
+        ]);
+});
+
 it('includes the images of the commit in order', function (): void {
     $commit = Commit::factory()->create();
     $second = CommitImage::factory()->for($commit)->create(['position' => 1, 'width' => 640, 'height' => 480]);

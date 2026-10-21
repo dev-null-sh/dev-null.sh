@@ -11,7 +11,10 @@ export type Embed = {
     aspect_ratio: string | null;
     height: number | null;
     poster?: string | null;
-};
+} & (
+    | { renderer?: 'iframe'; stream_url?: never }
+    | { renderer: 'asciinema-stream'; stream_url: string }
+);
 
 export type LinkPreview = {
     url: string;

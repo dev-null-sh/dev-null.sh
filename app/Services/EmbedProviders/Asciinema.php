@@ -13,11 +13,18 @@ final readonly class Asciinema implements EmbedProvider
 {
     public function embed(Url $url): ?Embed
     {
-        if ($url->getAsciiHost() !== 'asciinema.org'
-            || preg_match('#^/a/(\w+)(?:/iframe)?/?$#', $url->getPath(), $matches) !== 1) {
+        if ($url->getAsciiHost() !== 'asciinema.org') {
             return null;
         }
 
-        return Embed::fixed('asciinema', EmbedKind::Code, "https://asciinema.org/a/{$matches[1]}/iframe", 420, ['autoplay' => 1]);
+        if (preg_match('#^/a/(\w+)(?:/iframe)?/?$#', $url->getPath(), $matches) === 1) {
+            return Embed::fixed('asciinema', EmbedKind::Code, "https://asciinema.org/a/{$matches[1]}/iframe", 420, ['autoplay' => 1]);
+        }
+
+        if (preg_match('#^/s/([A-Za-z0-9]+)/?$#', $url->getPath(), $matches) === 1) {
+            return Embed::asciinemaStream($matches[1]);
+        }
+
+        return null;
     }
 }

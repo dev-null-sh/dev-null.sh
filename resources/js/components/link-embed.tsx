@@ -1,6 +1,7 @@
 import { AudioLines, Code2, Play } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { AsciinemaStream } from '@/components/asciinema-stream';
 import { cn } from '@/lib/utils';
 import type { Embed, LinkPreview } from '@/types';
 
@@ -184,13 +185,22 @@ export function LinkEmbed({
     const isVideo = embed.aspect_ratio !== null;
     const poster = preview.image_url ?? embed.poster ?? null;
 
-    const frame = (
-        <EmbedFrame
-            key={embed.src}
-            embed={embed}
-            title={preview.title ?? `${embed.provider} player`}
-        />
-    );
+    const frame =
+        embed.renderer === 'asciinema-stream' ? (
+            <AsciinemaStream
+                key={embed.stream_url}
+                src={embed.stream_url}
+                url={preview.url}
+                title={preview.title ?? 'asciinema live stream'}
+                height={embed.height ?? 420}
+            />
+        ) : (
+            <EmbedFrame
+                key={embed.src}
+                embed={embed}
+                title={preview.title ?? `${embed.provider} player`}
+            />
+        );
 
     return (
         <div

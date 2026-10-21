@@ -43,7 +43,7 @@ A link card for a video, song or pen becomes a player that loads when clicked. T
 | `soundcloud` | tracks and sets |
 | `apple_music` | albums, playlists and songs |
 | `codepen` | pens |
-| `asciinema` | recordings |
+| `asciinema` | recordings (`/a/{id}` iframe) and live streams (`/s/{token}` via the Asciinema stream renderer) |
 
 | Variable | Default | |
 |---|---|---|

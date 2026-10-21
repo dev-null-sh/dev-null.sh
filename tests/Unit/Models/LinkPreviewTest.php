@@ -35,6 +35,19 @@ it('has an embed when its link can be played in place', function (): void {
         ->and(LinkPreview::factory()->create(['url' => 'https://example.com'])->toArray()['embed'])->toBeNull();
 });
 
+it('exposes the live stream renderer for asciinema live streams', function (): void {
+    expect(LinkPreview::factory()->create(['url' => 'https://asciinema.org/s/xFME13DLJdggX0Vt'])->toArray()['embed'])->toBe([
+        'provider' => 'asciinema',
+        'kind' => 'code',
+        'src' => 'https://asciinema.org/s/xFME13DLJdggX0Vt',
+        'aspect_ratio' => null,
+        'height' => 420,
+        'poster' => null,
+        'renderer' => 'asciinema-stream',
+        'stream_url' => 'wss://asciinema.org/ws/s/xFME13DLJdggX0Vt',
+    ]);
+});
+
 it('hashes its url', function (): void {
     $linkPreview = LinkPreview::factory()->create(['url' => 'https://example.com']);
 
