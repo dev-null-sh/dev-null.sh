@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
 import { bodySegments } from '@/lib/code';
-import { formatCount } from '@/lib/numbers';
+import { formatCount, formatExactCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import type { Commit, Poll } from '@/types';
 
@@ -30,8 +30,8 @@ function timeLeft(closesAt: string, now: Date): string {
 
 const failedVoteMessage = 'Could not record your vote. Try again.';
 
-function votesLabel(count: number): string {
-    return `${formatCount(count)} ${count === 1 ? 'vote' : 'votes'}`;
+function votesLabel(count: number, format = formatExactCount): string {
+    return `${format(count)} ${count === 1 ? 'vote' : 'votes'}`;
 }
 
 function percentage(votes: number, total: number): number {
@@ -271,7 +271,7 @@ export function CommitPoll({
                         role="status"
                         data-test="poll-summary"
                     >
-                        {votesLabel(poll.total_votes)}
+                        {votesLabel(poll.total_votes, formatCount)}
                         <span aria-hidden> · </span>
                         {status}
                     </p>

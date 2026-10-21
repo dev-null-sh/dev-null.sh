@@ -15,3 +15,11 @@ export function formatCount(count: number): string {
         ? compactFormatter.format(count).toLowerCase()
         : separatedFormatter.format(count);
 }
+
+/**
+ * The exact count with thousands separators (10,250), for labels where a shortened count would lose detail, like
+ * screen reader labels next to a shortened count.
+ */
+export function formatExactCount(count: number): string {
+    return separatedFormatter.format(count);
+}
