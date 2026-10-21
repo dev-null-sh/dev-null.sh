@@ -115,8 +115,15 @@ export function laneTint(color: string, percent: number): string {
     return `color-mix(in oklab, ${color} ${percent}%, transparent)`;
 }
 
+/** Hold the start lane this far, then fade into the next over the remainder. */
+export const laneStrokeHold = 0.5;
+
 type LaneStrokeOptions = {
     axis?: 'vertical' | 'horizontal';
+    /** Reply paths are dashed; thread rails stay solid. */
+    dashed?: boolean;
+    /** How much of the path keeps the first lane before fading. */
+    hold?: number;
     /** The length of each dash and of each gap, in pixels. */
     dash?: number;
     /** Ends the dashes on a whole gap, so a dashed path that continues below picks up the same rhythm. */
@@ -124,25 +131,39 @@ type LaneStrokeOptions = {
 };
 
 /**
- * Dashed lane connectors.
+ * Lane connectors. Same colour stays one fill; different colours hold the start
+ * lane, then fade into the next over the final stretch toward the child.
  */
 export function laneStrokeStyle(
-    lane: string,
-    options: LaneStrokeOptions = {},
+    from: string,
+    to: string = from,
+    options: LaneStrokeOptions | 'vertical' | 'horizontal' = {},
 ): CSSProperties {
-    const isVertical = (options.axis ?? 'vertical') === 'vertical';
-    const length = options.dash ?? 2;
+    const resolved = typeof options === 'string' ? { axis: options } : options;
+    const axis = resolved.axis ?? 'vertical';
+    const dashed = resolved.dashed ?? true;
+    const isVertical = axis === 'vertical';
+    const hold = `${(resolved.hold ?? laneStrokeHold) * 100}%`;
+    const length = resolved.dash ?? 2;
     const dash =
-        options.anchor === 'end'
+        resolved.anchor === 'end'
             ? `repeating-linear-gradient(${isVertical ? 'to top' : 'to left'}, transparent 0 ${length}px, #000 ${length}px ${length * 2}px)`
             : `repeating-linear-gradient(${isVertical ? 'to bottom' : 'to right'}, #000 0 ${length}px, transparent ${length}px ${length * 2}px)`;
 
     return {
-        backgroundColor: lane,
-        WebkitMaskImage: dash,
-        maskImage: dash,
-        WebkitMaskRepeat: 'repeat',
-        maskRepeat: 'repeat',
+        backgroundImage:
+            from === to
+                ? undefined
+                : `linear-gradient(${isVertical ? 'to bottom' : 'to right'}, ${from} 0%, ${from} ${hold}, ${to} 100%)`,
+        backgroundColor: from === to ? from : undefined,
+        ...(dashed
+            ? {
+                  WebkitMaskImage: dash,
+                  maskImage: dash,
+                  WebkitMaskRepeat: 'repeat',
+                  maskRepeat: 'repeat',
+              }
+            : {}),
     };
 }
 

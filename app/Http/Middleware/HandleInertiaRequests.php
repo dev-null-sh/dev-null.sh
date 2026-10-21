@@ -95,6 +95,7 @@ final class HandleInertiaRequests extends Middleware
                 ? resolve(LiveFollowingQuery::class)->get($user)
                 : collect(),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
+            'fadesLanes' => $request->cookie('lane_fades') === 'true',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
             // Onboarding has no sidebar to show them in, and the people followed during it change who is suggested.
             ...$user instanceof User && $showsWhoToFollow && ! $request->routeIs('onboarding.show') ? [

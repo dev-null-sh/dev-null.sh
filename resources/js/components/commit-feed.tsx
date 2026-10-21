@@ -44,7 +44,7 @@ export function CommitFeed({
 }) {
     const now = useNow();
     const page = usePage();
-    const { dimsLanes } = page.props;
+    const { dimsLanes, fadesLanes } = page.props;
     const isModeration = page.component === 'moderation/show';
     const isStarred = page.component === 'starred/index';
     const profileUserId =
@@ -194,10 +194,13 @@ export function CommitFeed({
     const interludeIndex = Math.min(interludeAfter, listed.length) - 1;
 
     // Feed commits are unrelated to each other, so each one stands on its own with its author's avatar, even when the
-    // same author committed several in a row.
-    const card = (commit: Commit) => (
+    // same author committed several in a row. The first card under the composer is the exception: when lane fades are
+    // on it takes a previousLane so the staged dashed rail meets the avatar instead of stopping short.
+    const card = (commit: Commit, previousLane?: string) => (
         <CommitCard
             commit={commit}
+            previousLane={previousLane}
+            previousDashed={previousLane !== undefined}
             endsWithDot
             isDimmed={isDimmed(commit)}
             isHighlighted={
@@ -263,8 +266,11 @@ export function CommitFeed({
                             localDayKey(previous.created_at) !==
                                 localDayKey(commit.created_at));
                     const stagedLane =
-                        isBelowComposer && index === 0 && !pinnedCommit
-                            ? 'var(--rail)'
+                        fadesLanes &&
+                        isBelowComposer &&
+                        index === 0 &&
+                        !pinnedCommit
+                            ? laneColor(commit.user.lane)
                             : undefined;
 
                     return (
@@ -281,7 +287,7 @@ export function CommitFeed({
                                     stagedLane={stagedLane}
                                 />
                             )}
-                            {card(commit)}
+                            {card(commit, stagedLane)}
                             {index === interludeIndex &&
                                 interlude?.(
                                     laneColor(commit.user.lane),

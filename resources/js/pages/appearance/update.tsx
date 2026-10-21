@@ -2,6 +2,7 @@ import { Head } from '@inertiajs/react';
 import AppearanceTabs from '@/components/appearance-tabs';
 import Heading from '@/components/heading';
 import LaneDimmingTabs from '@/components/lane-dimming-tabs';
+import LaneFadeTabs from '@/components/lane-fade-tabs';
 import NavigationTabs from '@/components/navigation-tabs';
 import RepliesPerPageTabs from '@/components/replies-per-page-tabs';
 import WhoToFollowTabs from '@/components/who-to-follow-tabs';
@@ -35,6 +36,14 @@ export default function Update() {
                     description="Fade the other commits while your pointer rests on one, or on its author, so their lane stands out."
                 />
                 <LaneDimmingTabs />
+            </section>
+
+            <section className="border-t px-4 py-6 sm:px-6">
+                <Heading
+                    title="Lane fades"
+                    description="Blend the rail into the next author's colour as a thread approaches their commit. Off by default."
+                />
+                <LaneFadeTabs />
             </section>
 
             <section className="border-t px-4 py-6 sm:px-6">

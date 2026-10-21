@@ -1,3 +1,4 @@
+import { usePage } from '@inertiajs/react';
 import type { CSSProperties, ReactNode } from 'react';
 import { LiveAvatarMarker } from '@/components/live-stream-card';
 import { UserAvatar } from '@/components/user-avatar';
@@ -7,6 +8,10 @@ import type { User } from '@/types';
 type Props = {
     lane: string;
     previousLane?: string;
+    /** When set, the outbound rail fades into this lane toward the next commit. */
+    nextLane?: string;
+    /** Keep the inbound segment dashed, e.g. when continuing the composer staged rail. */
+    previousDashed?: boolean;
     variant?: 'commit' | 'staged' | 'root';
     isFilled?: boolean;
     isFresh?: boolean;
@@ -30,6 +35,8 @@ const dimmedNode = 'group-data-dimmed/rail-node:opacity-60';
 export function GraphRail({
     lane,
     previousLane,
+    nextLane,
+    previousDashed = false,
     variant = 'commit',
     isFilled = true,
     isFresh = false,
@@ -42,6 +49,10 @@ export function GraphRail({
     nodePosition = 'top',
     onHoverChange,
 }: Props) {
+    const { fadesLanes } = usePage().props;
+    const fadeTo = fadesLanes ? nextLane : undefined;
+    const inboundLane = fadesLanes ? lane : (previousLane ?? lane);
+
     return (
         <div
             aria-hidden
@@ -77,7 +88,13 @@ export function GraphRail({
                             'bottom-5 h-auto': nodePosition === 'bottom',
                         },
                     )}
-                    style={{ background: previousLane }}
+                    style={
+                        previousDashed
+                            ? laneStrokeStyle(inboundLane, inboundLane, {
+                                  dash: stagedDash,
+                              })
+                            : { background: inboundLane }
+                    }
                     data-test="rail-previous"
                 />
             )}
@@ -86,17 +103,18 @@ export function GraphRail({
                 (variant === 'staged' ? (
                     <span
                         className="absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2"
-                        style={laneStrokeStyle('var(--rail)', {
-                            dash: stagedDash,
-                            anchor: 'end',
-                        })}
+                        style={laneStrokeStyle(
+                            'var(--rail)',
+                            fadeTo ?? 'var(--rail)',
+                            { hold: 0.75, dash: stagedDash, anchor: 'end' },
+                        )}
                         data-test="rail-staged-tail"
                     />
                 ) : (
                     <span
                         className={cn(
                             // Start 1px early so this meets the previous segment without a seam.
-                            'absolute top-[calc(2rem-1px)] bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-(--lane)',
+                            'absolute top-[calc(2rem-1px)] bottom-0 left-1/2 w-0.5 -translate-x-1/2',
                             dimmable,
                             {
                                 'opacity-60': isDimmed,
@@ -106,6 +124,9 @@ export function GraphRail({
                                 'top-[22px]': nodePosition === 'author',
                             },
                         )}
+                        style={laneStrokeStyle(lane, fadeTo ?? lane, {
+                            dashed: false,
+                        })}
                         data-test="rail-tail"
                     />
                 ))}
@@ -279,7 +300,7 @@ export function RailSegment({
                     )}
                     style={
                         isDashed
-                            ? laneStrokeStyle(lane, { dash: stagedDash })
+                            ? laneStrokeStyle(lane, lane, { dash: stagedDash })
                             : { background: lane }
                     }
                 />
