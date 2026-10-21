@@ -71,7 +71,7 @@ import {
 } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
-import { formatCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
 import {
     characterCount,
     cn,
@@ -585,7 +585,12 @@ export function ThreadActions({
                     {thread.count > 0 && !thread.isPreview && (
                         <ActionTooltip
                             label={
-                                thread.isOpen ? 'Hide replies' : 'Show replies'
+                                thread.isOpen
+                                    ? 'Hide replies'
+                                    : exactCountTitle(thread.count) ===
+                                        undefined
+                                      ? 'Show replies'
+                                      : `Show ${exactCountTitle(thread.count)} replies`
                             }
                             shortcut={hasKeyboardShortcuts ? 'o' : undefined}
                         >
@@ -881,6 +886,7 @@ function MoreRepliesButton({
                         aria-disabled={thread.isLoading}
                         className="shrink-0 rounded-md px-2 py-0.5 tabular-nums transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground aria-disabled:pointer-events-none"
                         data-test="all-replies-button"
+                        title={exactCountTitle(thread.remaining)}
                     >
                         Show all {formatCount(thread.remaining)}
                     </button>

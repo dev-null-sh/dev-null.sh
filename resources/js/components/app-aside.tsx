@@ -15,7 +15,7 @@ import { WhoToFollow } from '@/components/who-to-follow';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { commitStateKey } from '@/lib/commit-state';
 import { useKeyLabels } from '@/lib/keyboard';
-import { formatCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { laneColor } from '@/lib/utils';
 import { login } from '@/routes';
 import { show } from '@/routes/user';
@@ -150,6 +150,7 @@ export function AppAside({
                                     <Link
                                         href={stat.href}
                                         className="group-hover:underline"
+                                        title={exactCountTitle(stat.count)}
                                     >
                                         {formatCount(stat.count)}
                                     </Link>

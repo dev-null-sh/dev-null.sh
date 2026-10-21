@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { formatCount, formatExactCount } from '../../resources/js/lib/numbers.ts';
+import {
+    exactCountTitle,
+    formatCount,
+    formatExactCount,
+} from '../../resources/js/lib/numbers.ts';
 
 void test('counts below a thousand are shown in full', () => {
     assert.equal(formatCount(0), '0');
@@ -26,4 +30,10 @@ void test('exact counts keep every digit with thousands separators', () => {
     assert.equal(formatExactCount(999), '999');
     assert.equal(formatExactCount(10_250), '10,250');
     assert.equal(formatExactCount(1_234_567), '1,234,567');
+});
+
+void test('the exact count shows on hover only when the count is shortened', () => {
+    assert.equal(exactCountTitle(9999), undefined);
+    assert.equal(exactCountTitle(10_000), '10,000');
+    assert.equal(exactCountTitle(12_345), '12,345');
 });

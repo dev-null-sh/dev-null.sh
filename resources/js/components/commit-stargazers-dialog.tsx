@@ -12,7 +12,7 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import { UserAvatar } from '@/components/user-avatar';
-import { formatCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, User } from '@/types';
 
@@ -75,8 +75,10 @@ export function CommitStargazersDialog({
                         Starred by
                     </DialogTitle>
                     <DialogDescription>
-                        {formatCount(count)} {count === 1 ? 'person' : 'people'}{' '}
-                        starred this commit.
+                        <span title={exactCountTitle(count)}>
+                            {formatCount(count)}
+                        </span>{' '}
+                        {count === 1 ? 'person' : 'people'} starred this commit.
                     </DialogDescription>
                 </DialogHeader>
 

@@ -38,7 +38,7 @@ import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
-import { formatCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import {
     cn,
     formatDayLabel,
@@ -552,6 +552,9 @@ function NotificationGroupItem({
                                 className={cn(
                                     'col-start-1 row-start-1 tabular-nums',
                                     { invisible: open },
+                                )}
+                                title={exactCountTitle(
+                                    notification.event_count,
                                 )}
                             >
                                 {formatCount(notification.event_count)} {noun}
@@ -1088,10 +1091,18 @@ export function NotificationContent({
                                                 />
                                             ))}
                                             {actorsCount > actors.length && (
-                                                <span className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card">
+                                                <span
+                                                    className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card"
+                                                    title={exactCountTitle(
+                                                        actorsCount -
+                                                            actors.length,
+                                                    )}
+                                                >
                                                     +
-                                                    {actorsCount -
-                                                        actors.length}
+                                                    {formatCount(
+                                                        actorsCount -
+                                                            actors.length,
+                                                    )}
                                                 </span>
                                             )}
                                         </span>
@@ -1116,8 +1127,15 @@ export function NotificationContent({
                                                     >
                                                         {actor.name}
                                                     </Link>{' '}
-                                                    {otherActors > 0 &&
-                                                        `and ${formatCount(otherActors)} ${otherActors === 1 ? 'other' : 'others'} `}
+                                                    {otherActors > 0 && (
+                                                        <span
+                                                            title={exactCountTitle(
+                                                                otherActors,
+                                                            )}
+                                                        >
+                                                            {`and ${formatCount(otherActors)} ${otherActors === 1 ? 'other' : 'others'} `}
+                                                        </span>
+                                                    )}
                                                 </>
                                             ) : (
                                                 <>

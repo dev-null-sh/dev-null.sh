@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { signIn } from '@/lib/auth';
-import { formatCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
 import { preview } from '@/routes/mention';
@@ -491,7 +491,10 @@ function UserPreviewContent({
                 ) : data ? (
                     <>
                         <span>
-                            <span className="font-mono font-medium">
+                            <span
+                                className="font-mono font-medium"
+                                title={exactCountTitle(data.user.commits_count)}
+                            >
                                 {formatCount(data.user.commits_count)}
                             </span>{' '}
                             <span className="text-muted-foreground">
@@ -504,7 +507,12 @@ function UserPreviewContent({
                             href={UserFollowingController.index(user)}
                             className="hover:underline"
                         >
-                            <span className="font-mono font-medium">
+                            <span
+                                className="font-mono font-medium"
+                                title={exactCountTitle(
+                                    data.user.following_count,
+                                )}
+                            >
                                 {formatCount(data.user.following_count)}
                             </span>{' '}
                             <span className="text-muted-foreground">
@@ -515,7 +523,12 @@ function UserPreviewContent({
                             href={UserFollowersController.index(user)}
                             className="hover:underline"
                         >
-                            <span className="font-mono font-medium">
+                            <span
+                                className="font-mono font-medium"
+                                title={exactCountTitle(
+                                    data.user.followers_count,
+                                )}
+                            >
                                 {formatCount(data.user.followers_count)}
                             </span>{' '}
                             <span className="text-muted-foreground">

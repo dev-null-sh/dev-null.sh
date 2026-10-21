@@ -1,5 +1,7 @@
 const separatedFormatter = new Intl.NumberFormat('en-US');
 
+const shortenFrom = 10_000;
+
 const compactFormatter = new Intl.NumberFormat('en-US', {
     notation: 'compact',
     maximumFractionDigits: 1,
@@ -11,7 +13,7 @@ const compactFormatter = new Intl.NumberFormat('en-US', {
  * cut, not rounded, so 999,999 never shows as 1m.
  */
 export function formatCount(count: number): string {
-    return count >= 10_000
+    return count >= shortenFrom
         ? compactFormatter.format(count).toLowerCase()
         : separatedFormatter.format(count);
 }
@@ -22,4 +24,11 @@ export function formatCount(count: number): string {
  */
 export function formatExactCount(count: number): string {
     return separatedFormatter.format(count);
+}
+
+/**
+ * The exact count to show on hover, only when formatCount shortened it.
+ */
+export function exactCountTitle(count: number): string | undefined {
+    return count >= shortenFrom ? formatExactCount(count) : undefined;
 }
