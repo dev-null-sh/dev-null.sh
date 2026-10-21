@@ -4,7 +4,8 @@ Every UI change keeps the layout still. Nothing may flash, jump, clip or reflow 
 
 ## Shapes and insets
 
-- Before changing visual styles, read the relevant sections of `DESIGN.md` and reuse existing tokens and shared UI primitives. Apply shape changes by semantic role, preserving intentional circles and functional geometry.
+- Before changing visual styles, read the relevant sections of `DESIGN.md` and reuse existing tokens and shared UI primitives.
+- Use the radius scale in `DESIGN.md` for controls, badges and overlays. Reserve `rounded-full` for intentional circles and functional geometry; do not use it as the default for UI chrome.
 - Check custom components and local overrides when changing a shared primitive, including hover, focus, selected and loading states.
 - Balance nested image and surface insets, accounting for borders. Derive inner clipping radii from the outer radius minus the inset; inspect the contents as well as the container.
 
