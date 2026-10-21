@@ -203,7 +203,7 @@ Sources: [body renderer](resources/js/components/commit-body.tsx), [code blocks]
 
 ### Draft previews and secret warnings
 
-Use the composer's eye button or **⌘/Ctrl+Shift+P** to preview a commit or reply before submitting it. Preview shows the rendered code, emoji, mentions, links, and images, and identifies the link selected for a card. Esc returns from preview to writing.
+Use the composer's eye button or **⌘/Ctrl+Shift+P** to preview a commit or reply. The selected link card also loads while writing; direct GIFs appear after verification. Selected URLs and metadata share the posted-link cache, even if the draft is never published. Uncached links load in the background. Esc returns to writing.
 
 The composer checks text for recognizable secrets, such as credentials, and asks for confirmation before posting a flagged draft. The warning can be minimized to a shield icon while you keep editing, for example after a false positive. Draft text containing detected secrets is not persisted in the local stash. Treat this as a warning, not a guarantee that all secrets will be detected: review text and images yourself before publishing. Public GitHub issue drafts require detected secrets to be removed rather than offering a publish-anyway option.
 

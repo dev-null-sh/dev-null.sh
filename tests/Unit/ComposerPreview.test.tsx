@@ -13,6 +13,7 @@ import {
     useComposerPreview,
     type ComposerPreview,
 } from '../../resources/js/components/composer-preview';
+import { DraftLinkPreview } from '../../resources/js/components/draft-link-preview';
 import { hasMention } from '../../resources/js/components/linkified-text';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import { bodySegments } from '../../resources/js/lib/code';
@@ -204,16 +205,8 @@ test('keeps the composer avatar unlinked inside the dialog', () => {
 });
 
 test('previews the chosen link card instead of the first link in the body', () => {
-    const preview = previewFor({
-        body: 'https://first.example.com https://second.example.com',
-        isSubmittable: true,
-    });
     const markup = renderPage(
-        <ComposerPreviewBody
-            preview={preview}
-            images={[]}
-            url="https://second.example.com"
-        />,
+        <DraftLinkPreview url="https://second.example.com" />,
     );
     const card = markup.match(/data-test="link-card-preview"[\s\S]*/)?.[0];
 
@@ -228,7 +221,10 @@ test('omits the preview card when the author chooses no card', () => {
         isSubmittable: true,
     });
     const markup = renderPage(
-        <ComposerPreviewBody preview={preview} images={[]} url={null} />,
+        <>
+            <ComposerPreviewBody preview={preview} images={[]} />
+            <DraftLinkPreview url={null} />
+        </>,
     );
 
     assert.ok(markup.includes('href="https://first.example.com"'));
@@ -250,6 +246,15 @@ test('retains the link card picker and scheduling beside preview', () => {
     assert.equal((markup.match(/data-test="preview-toggle"/g) ?? []).length, 1);
     assert.ok(schedule);
     assert.ok(!/\sdisabled(?:=|\s|>)/.test(schedule));
+});
+
+test('shows a pending GIF card while writing before Preview or Commit', () => {
+    const markup = renderComposer('https://example.com/cat.gif');
+
+    assert.ok(markup.includes('data-test="gif-embed"'));
+    assert.ok(markup.includes('Loading GIF'));
+    assert.ok(!markup.includes('data-test="gif-animation"'));
+    assert.ok(!markup.includes('data-test="composer-preview"'));
 });
 
 const secret = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
@@ -323,7 +328,6 @@ test('links the mentions the server found in the preview', () => {
                 mentions: { alice: '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b' },
             }}
             images={[]}
-            url={null}
         />,
     );
 
@@ -338,7 +342,7 @@ test('shows mentions as text until the server has found them', () => {
         isSubmittable: true,
     });
     const markup = renderPage(
-        <ComposerPreviewBody preview={preview} images={[]} url={null} />,
+        <ComposerPreviewBody preview={preview} images={[]} />,
     );
 
     assert.equal(preview.mentions, null);
@@ -358,8 +362,7 @@ test('previews attached image descriptions without a published photo link', () =
                 preview={previewFor({ isSubmittable: true })}
                 images={images}
                 descriptions={['  Build output in the terminal  ', '']}
-                url={null}
-            />,
+                />,
         );
 
         assert.ok(markup.includes('alt="Build output in the terminal"'));
@@ -388,7 +391,6 @@ for (const pasteisMode of [false, true]) {
                     <ComposerPreviewBody
                         preview={preview}
                         images={[]}
-                        url={null}
                     />
                 ),
                 pasteisMode,

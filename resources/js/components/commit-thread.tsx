@@ -32,6 +32,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { DraftLinkPreview } from '@/components/draft-link-preview';
 import { RailDot } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
@@ -1373,7 +1374,6 @@ function ReplyComposer({
                 {preview.isPreviewing && (
                     <ComposerPreviewBody
                         preview={preview}
-                        url={linkCard.link}
                         images={attachments.images}
                         descriptions={attachments.descriptions}
                         className="col-start-1 row-start-1 px-1"
@@ -1384,6 +1384,7 @@ function ReplyComposer({
                 message={errors.body ?? errors.link_preview_url}
                 className="px-1"
             />
+            <DraftLinkPreview url={linkCard.link} />
             {!preview.isPreviewing && (
                 <ImagePickerPreviews
                     images={attachments.images}

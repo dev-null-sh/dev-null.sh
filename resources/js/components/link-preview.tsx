@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { GifEmbed } from '@/components/gif-embed';
 import { LinkEmbed } from '@/components/link-embed';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -7,27 +7,132 @@ import { hostname } from '@/lib/urls';
 import type { LinkPreview as LinkPreviewData } from '@/types';
 
 const POLL_DELAYS = [1000, 2000, 3000, 5000, 8000, 13000];
+const MAX_RETRY_AFTER_MS = 60_000;
+const MILLISECONDS_PER_SECOND = 1000;
+const HTTP_TOO_MANY_REQUESTS = 429;
 
-/**
- * A link is unfurled in the background after its commit or message is posted, so a pending preview is fetched again
- * from the refresh URL until the page behind it has been read, instead of only showing up after a reload.
- */
+type PollState = {
+    refreshUrl: string;
+    url: string;
+    isPending: boolean;
+    fetched: LinkPreviewData | null;
+    hasGivenUp: boolean;
+};
+
+function retryAfterDelay(response: Response, fallback: number): number | null {
+    const retryAfter = response.headers.get('Retry-After');
+
+    if (retryAfter === null) {
+        return fallback;
+    }
+
+    const seconds = Number(retryAfter);
+
+    if (Number.isFinite(seconds)) {
+        return retryAfterMilliseconds(
+            seconds * MILLISECONDS_PER_SECOND,
+            fallback,
+        );
+    }
+
+    const date = Date.parse(retryAfter);
+
+    if (Number.isNaN(date)) {
+        return fallback;
+    }
+
+    return retryAfterMilliseconds(Math.max(date - Date.now(), 0), fallback);
+}
+
+function retryAfterMilliseconds(
+    delay: number,
+    fallback: number,
+): number | null {
+    if (delay > MAX_RETRY_AFTER_MS) {
+        return null;
+    }
+
+    return Math.max(fallback, delay);
+}
+
+function isCurrentPollCycle(
+    state: PollState,
+    refreshUrl: string,
+    url: string,
+    isPending: boolean,
+): boolean {
+    return (
+        state.refreshUrl === refreshUrl &&
+        state.url === url &&
+        state.isPending === isPending
+    );
+}
+
+function syncPollState(
+    state: PollState,
+    refreshUrl: string,
+    url: string,
+    isPending: boolean,
+): PollState {
+    if (isCurrentPollCycle(state, refreshUrl, url, isPending)) {
+        return state;
+    }
+
+    return {
+        refreshUrl,
+        url,
+        isPending,
+        fetched: null,
+        hasGivenUp: false,
+    };
+}
+
 function useFetchedLinkPreview(
     refreshUrl: string,
     preview: LinkPreviewData,
 ): { preview: LinkPreviewData; isWaiting: boolean } {
-    const [fetched, setFetched] = useState<LinkPreviewData | null>(null);
-    const [hasGivenUp, setHasGivenUp] = useState(false);
+    const { url, is_pending: isPending } = preview;
+    const [pollState, setPollState] = useState<PollState>({
+        refreshUrl,
+        url,
+        isPending,
+        fetched: null,
+        hasGivenUp: false,
+    });
+    const currentPollState = syncPollState(
+        pollState,
+        refreshUrl,
+        url,
+        isPending,
+    );
+
+    if (currentPollState !== pollState) {
+        setPollState(currentPollState);
+    }
 
     useEffect(() => {
-        if (!preview.is_pending) {
+        if (!isPending) {
             return;
         }
 
         const controller = new AbortController();
         let timeout = 0;
+        let isCurrent = true;
+
+        const hasBeenReplaced = () => !isCurrent || controller.signal.aborted;
+        const giveUp = () => {
+            setPollState((state) => {
+                if (!isCurrentPollCycle(state, refreshUrl, url, isPending)) {
+                    return state;
+                }
+
+                return { ...state, hasGivenUp: true };
+            });
+        };
 
         const poll = async (attempt: number) => {
+            let delay = POLL_DELAYS[attempt + 1];
+
             try {
                 const response = await fetch(refreshUrl, {
                     headers: { Accept: 'application/json' },
@@ -35,49 +140,95 @@ function useFetchedLinkPreview(
                     signal: controller.signal,
                 });
 
-                if (!response.ok) {
-                    setHasGivenUp(true);
-
+                if (hasBeenReplaced()) {
                     return;
                 }
 
-                const { link_preview } = (await response.json()) as {
-                    link_preview: LinkPreviewData | null;
-                };
+                if (!response.ok) {
+                    if (
+                        response.status !== HTTP_TOO_MANY_REQUESTS ||
+                        delay === undefined
+                    ) {
+                        giveUp();
 
-                if (link_preview && !link_preview.is_pending) {
-                    setFetched(link_preview);
+                        return;
+                    }
 
-                    return;
+                    const retryAfter = retryAfterDelay(response, delay);
+
+                    if (retryAfter === null) {
+                        giveUp();
+
+                        return;
+                    }
+
+                    delay = retryAfter;
+                } else {
+                    const { link_preview } = (await response.json()) as {
+                        link_preview: LinkPreviewData | null;
+                    };
+
+                    if (hasBeenReplaced()) {
+                        return;
+                    }
+
+                    if (link_preview && !link_preview.is_pending) {
+                        setPollState((state) => {
+                            if (
+                                !isCurrentPollCycle(
+                                    state,
+                                    refreshUrl,
+                                    url,
+                                    isPending,
+                                )
+                            ) {
+                                return state;
+                            }
+
+                            return { ...state, fetched: link_preview };
+                        });
+
+                        return;
+                    }
                 }
             } catch {
-                if (controller.signal.aborted) {
+                if (hasBeenReplaced()) {
                     return;
                 }
             }
 
-            if (attempt + 1 < POLL_DELAYS.length) {
+            if (hasBeenReplaced()) {
+                return;
+            }
+
+            if (delay !== undefined) {
                 timeout = window.setTimeout(
                     () => void poll(attempt + 1),
-                    POLL_DELAYS[attempt + 1],
+                    delay,
                 );
             } else {
-                setHasGivenUp(true);
+                giveUp();
             }
         };
 
         timeout = window.setTimeout(() => void poll(0), POLL_DELAYS[0]);
 
         return () => {
+            isCurrent = false;
             window.clearTimeout(timeout);
             controller.abort();
         };
-    }, [refreshUrl, preview.is_pending]);
+    }, [isPending, refreshUrl, url]);
 
     const current =
-        preview.is_pending && fetched?.url === preview.url ? fetched : preview;
+        isPending && currentPollState.fetched?.url === url
+            ? currentPollState.fetched
+            : preview;
 
-    return { preview: current, isWaiting: current.is_pending && !hasGivenUp };
+    return {
+        preview: current,
+        isWaiting: current.is_pending && !currentPollState.hasGivenUp,
+    };
 }
 
 function LinkPreviewSkeleton() {
@@ -109,10 +260,12 @@ export function LinkPreview({
     refreshUrl,
     preview: initialPreview,
     isStatic = false,
+    emptyState = null,
 }: {
     refreshUrl: string;
     preview: LinkPreviewData;
     isStatic?: boolean;
+    emptyState?: ReactNode;
 }) {
     const { preview, isWaiting } = useFetchedLinkPreview(
         refreshUrl,
@@ -142,7 +295,7 @@ export function LinkPreview({
     }
 
     if (!preview.title) {
-        return null;
+        return emptyState;
     }
 
     const content = (
