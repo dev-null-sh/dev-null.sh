@@ -131,8 +131,16 @@ function DockedChat({ user }: { user: User }) {
             <span className="flex min-w-0 items-center gap-2">
                 <span className="text-[15px] font-bold">Remotes</span>
                 {unread > 0 && (
-                    <span className="rounded-full bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums">
-                        {unread} ahead
+                    <span
+                        title={`${unread} unread messages`}
+                        className="rounded-sm bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums"
+                    >
+                        <span aria-hidden>
+                            {unread > 99 ? '99+' : unread} ahead
+                        </span>
+                        <span className="sr-only">
+                            {unread} unread messages
+                        </span>
                     </span>
                 )}
             </span>
@@ -143,7 +151,7 @@ function DockedChat({ user }: { user: User }) {
     return (
         <section
             aria-label="Docked remotes"
-            className="fixed right-6 bottom-0 z-30 flex h-(--chat-dock-height) w-[360px] flex-col overflow-hidden rounded-t-xl border border-b-0 bg-card shadow-[0_-12px_40px_-12px_rgb(0_0_0/0.3)] transition-[height] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+            className="fixed right-6 bottom-0 z-30 flex h-(--chat-dock-height) w-[360px] flex-col overflow-hidden rounded-t-lg border border-b-0 bg-card shadow-[0_-12px_40px_-12px_rgb(0_0_0/0.3)] transition-[height] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
             data-chat-dock={dock.isExpanded ? 'expanded' : 'collapsed'}
             data-test="chat-dock"
         >
@@ -217,8 +225,16 @@ function DockedChat({ user }: { user: User }) {
                                       )}
                             </span>
                             {unread > 0 && (
-                                <span className="rounded-full bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums">
-                                    {unread}
+                                <span
+                                    title={`${unread} unread messages`}
+                                    className="rounded-sm bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums"
+                                >
+                                    <span aria-hidden>
+                                        {unread > 99 ? '99+' : unread}
+                                    </span>
+                                    <span className="sr-only">
+                                        {unread} unread messages
+                                    </span>
                                 </span>
                             )}
                             {tools}

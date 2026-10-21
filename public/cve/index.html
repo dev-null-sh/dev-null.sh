@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+        <meta name="robots" content="noindex">
+        <meta name="theme-color" content="#f6f7f8" media="(prefers-color-scheme: light)">
+        <meta name="theme-color" content="#111112" media="(prefers-color-scheme: dark)">
+        <title>Maintenance - /dev/null</title>
+        <link rel="icon" href="/favicon.ico" sizes="any">
+        <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+        <script>
+            (function () {
+                try {
+                    var appearance = localStorage.getItem('appearance') || 'system';
+                    var dark = appearance === 'dark' || (appearance === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+
+                    if (dark) {
+                        document.documentElement.classList.add('dark');
+                    }
+                } catch (error) {}
+            })();
+        </script>
+        <style>
+            :root {
+                --background: #f6f7f8;
+                --foreground: #121417;
+                --muted-foreground: #5b616b;
+                --primary: #3b6fe0;
+                --primary-hover: #2e5ccb;
+                --primary-foreground: #ffffff;
+                --rail: #d3d7dd;
+                --accent: #d9480f;
+                color-scheme: light;
+            }
+
+            html.dark {
+                --background: #111112;
+                --foreground: #ececec;
+                --muted-foreground: #9a9ca3;
+                --primary: #6b93ec;
+                --primary-hover: #5a84e3;
+                --primary-foreground: #0b0b0c;
+                --rail: #2b2c30;
+                --accent: #ff8a4c;
+                color-scheme: dark;
+            }
+
+            * {
+                box-sizing: border-box;
+            }
+
+            html {
+                background: var(--background);
+            }
+
+            body {
+                margin: 0;
+                padding: 0 env(safe-area-inset-right) 0 env(safe-area-inset-left);
+                font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+                color: var(--foreground);
+                background: var(--background);
+                -webkit-font-smoothing: antialiased;
+            }
+
+            main {
+                display: flex;
+                align-items: center;
+                min-height: 100svh;
+                max-width: 48rem;
+                margin: 0 auto;
+                padding: 4rem 1rem;
+            }
+
+            ol {
+                width: 100%;
+                margin: 0;
+                padding: 0;
+                list-style: none;
+            }
+
+            li {
+                display: flex;
+            }
+
+            .rail {
+                position: relative;
+                flex-shrink: 0;
+                width: 2.5rem;
+            }
+
+            .rail-line {
+                position: absolute;
+                top: 0.875rem;
+                bottom: 1.5rem;
+                left: 50%;
+                width: 2px;
+                transform: translateX(-50%);
+                background: var(--rail);
+                mask-image: linear-gradient(to bottom, black 40%, transparent);
+                -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent);
+            }
+
+            .rail-head {
+                position: absolute;
+                top: 0.875rem;
+                left: 50%;
+                width: 0.875rem;
+                height: 0.875rem;
+                transform: translate(-50%, -50%);
+                border: 3px solid var(--background);
+                border-radius: 9999px;
+                background: var(--rail);
+                box-shadow: 0 0 0 2px var(--rail);
+            }
+
+            .rail-node {
+                position: absolute;
+                top: 0.625rem;
+                left: 50%;
+                width: 0.875rem;
+                height: 0.875rem;
+                transform: translate(-50%, -50%);
+                border: 2px solid var(--muted-foreground);
+                border-radius: 9999px;
+                background: var(--background);
+            }
+
+            .logo {
+                display: inline-flex;
+                align-items: center;
+                gap: 0.5rem;
+                padding-bottom: 3.5rem;
+                font-size: 1.25rem;
+                font-weight: 600;
+                letter-spacing: -0.025em;
+                color: inherit;
+                text-decoration: none;
+            }
+
+            .logo svg {
+                width: 1.1em;
+                height: 1.1em;
+            }
+
+            .logo .ink {
+                fill: var(--foreground);
+            }
+
+            .logo .accent {
+                fill: var(--accent);
+            }
+
+            .content {
+                min-width: 0;
+                flex: 1;
+            }
+
+            .command {
+                margin: 0;
+                font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                font-size: 13px;
+                overflow-wrap: anywhere;
+                color: var(--muted-foreground);
+            }
+
+            h1 {
+                margin: 1rem 0 0;
+                font-size: clamp(1.75rem, 4vw, 2.5rem);
+                font-weight: 600;
+                line-height: 1.2;
+                letter-spacing: -0.025em;
+                text-wrap: balance;
+            }
+
+            p.description {
+                max-width: 42ch;
+                margin: 0.75rem 0 0;
+                font-size: 1.125rem;
+                line-height: 1.6;
+                text-wrap: pretty;
+                color: var(--muted-foreground);
+            }
+
+            button {
+                display: inline-flex;
+                align-items: center;
+                height: 2.75rem;
+                margin-top: 2rem;
+                padding: 0 1.5rem;
+                border: 0;
+                border-radius: 0.5rem;
+                font: inherit;
+                font-size: 0.9375rem;
+                font-weight: 500;
+                color: var(--primary-foreground);
+                background: var(--primary);
+                cursor: pointer;
+            }
+
+            button:hover {
+                background: var(--primary-hover);
+            }
+
+            button:focus-visible {
+                outline: 2px solid var(--primary);
+                outline-offset: 2px;
+            }
+
+            .actions {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 0.75rem 1.25rem;
+                margin-top: 2rem;
+            }
+
+            .actions button {
+                margin-top: 0;
+            }
+
+            .countdown {
+                margin: 0;
+                font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                font-size: 13px;
+                font-variant-numeric: tabular-nums;
+                color: var(--muted-foreground);
+            }
+
+            .countdown span {
+                display: inline-block;
+                min-width: 2ch;
+                text-align: right;
+            }
+
+            @media (min-width: 640px) {
+                main {
+                    padding-left: 2rem;
+                    padding-right: 2rem;
+                }
+
+                .rail {
+                    width: 4rem;
+                }
+
+                .logo {
+                    padding-bottom: 4rem;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <main>
+            <ol>
+                <li>
+                    <div class="rail" aria-hidden="true">
+                        <span class="rail-line"></span>
+                        <span class="rail-head"></span>
+                    </div>
+                    <div class="content">
+                        <a class="logo" href="/" aria-label="/dev/null, go to the home page">
+                            <svg viewBox="1.6 1.5 45 45" aria-hidden="true">
+                                <path class="ink" d="M2 42h10L26 6H16Z"/>
+                                <path class="accent" fill-rule="evenodd" clip-rule="evenodd" d="M17.81 43.5h13.22L46.19 4.5H32.97ZM22.19 40.5l12.84-33h6.78l-12.84 33Z"/>
+                            </svg>
+                            <span>/dev/null</span>
+                        </a>
+                    </div>
+                </li>
+                <li>
+                    <div class="rail" aria-hidden="true">
+                        <span class="rail-node"></span>
+                    </div>
+                    <div class="content">
+                        <p class="command">patch: apply PHP security release for CVE-2026-109618, CVE-2026-109619</p>
+                        <h1>We are not down, we're making sure the only remote code running here is ours.</h1>
+                        <p class="description">Two critical PHP vulnerabilities went public, so we're patching before anyone gets creative. This page checks back on its own.</p>
+                        <div class="actions">
+                            <button type="button" onclick="location.reload()">Try again</button>
+                            <p class="countdown">Retrying in <span id="seconds">30</span>s</p>
+                        </div>
+                    </div>
+                </li>
+            </ol>
+        </main>
+        <script>
+            (function () {
+                var seconds = 30;
+                var output = document.getElementById('seconds');
+
+                setInterval(function () {
+                    seconds -= 1;
+
+                    if (seconds <= 0) {
+                        location.reload();
+
+                        return;
+                    }
+
+                    output.textContent = seconds;
+                }, 1000);
+            })();
+        </script>
+    </body>
+</html>

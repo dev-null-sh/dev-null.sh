@@ -15,17 +15,17 @@ use Illuminate\Support\Facades\RateLimiter;
 
 final readonly class IssueController
 {
-    private const int MaxIssuesPerHour = 5;
+    private const int MaxIssuesPerDay = 10;
 
     /**
-     * Only issues that were opened count towards the hourly limit, so a rejected draft or a GitHub outage costs nothing.
+     * Only issues that were opened count towards the daily limit, so a rejected draft or a GitHub outage costs nothing.
      */
     public function store(CreateIssueRequest $request, #[CurrentUser] User $user, CreateIssue $action): JsonResponse
     {
         $key = 'issues:'.$user->id;
 
-        if (RateLimiter::tooManyAttempts($key, self::MaxIssuesPerHour)) {
-            return response()->json(['message' => 'Issue limit reached. Try again in an hour.'], 429);
+        if (RateLimiter::tooManyAttempts($key, self::MaxIssuesPerDay)) {
+            return response()->json(['message' => 'Issue limit reached: 10 a day. Try again tomorrow.'], 429);
         }
 
         try {
@@ -45,7 +45,7 @@ final readonly class IssueController
             ], 502);
         }
 
-        RateLimiter::hit($key, 3600);
+        RateLimiter::hit($key, 86400);
 
         return response()->json($issue, 201);
     }

@@ -94,7 +94,7 @@ export const storyStreams: StoryStream[] = [
 export const storyAfterLane: Lane = 2;
 
 /**
- * What happened once the stream was over. Stars and replies were counted on October 18.
+ * What happened once the stream was over. Stars and replies were counted on October 20.
  */
 export const storyAfter: StoryEvent[] = [
     {
@@ -110,8 +110,8 @@ export const storyAfter: StoryEvent[] = [
             },
             id: '01a144ea-a3c5-724f-82e0-92f9b4b973c0',
             body: 'What’s up everyone! Laravel forever. 🔥',
-            stars: 392,
-            replies: 78,
+            stars: 427,
+            replies: 70,
         },
     },
     {
@@ -146,8 +146,8 @@ export const storyAfter: StoryEvent[] = [
             },
             id: '01a14c0f-65e2-706b-9a16-20650373748c',
             body: 'This is really well done',
-            stars: 97,
-            replies: 14,
+            stars: 142,
+            replies: 18,
         },
     },
     {
@@ -169,19 +169,53 @@ export const storyAfter: StoryEvent[] = [
     },
     {
         time: 'Oct 18',
-        title: 'Lauren Tan joins',
-        body: 'Software engineer at xAI, and on the React Compiler core team.',
+        title: 'Mitchell Hashimoto joins',
+        body: 'The co-founder of HashiCorp and creator of Ghostty.',
+        kind: 'person',
+        person: {
+            login: 'mitchellh',
+            name: 'Mitchell Hashimoto',
+            avatar: 'https://avatars.githubusercontent.com/u/1299?v=4',
+        },
+    },
+    {
+        time: 'Oct 19',
+        title: '5,000 developers',
+        body: 'Four days after the first commit.',
+        kind: 'milestone',
+    },
+    {
+        time: 'Oct 19',
+        title: 'ThePrimeagen joins',
+        body: 'The streamer checks the mic with his first commit.',
         kind: 'person',
         commit: {
             author: {
-                login: 'poteto',
-                name: 'lauren',
-                avatar: 'https://avatars.githubusercontent.com/u/1390709?v=4',
+                login: 'ThePrimeagen',
+                name: 'ThePrimeagen',
+                avatar: 'https://avatars.githubusercontent.com/u/4458174?v=4',
             },
-            id: '01a15144-0c2f-7093-bace-9d6026e5f244',
-            body: '👀 hi',
-            stars: 11,
-            replies: 5,
+            id: '01a15693-f3f3-706c-81bf-3271928ee2ab',
+            body: 'is this on?',
+            stars: 151,
+            replies: 42,
         },
+    },
+    {
+        time: 'Oct 20',
+        title: 'Rasmus Lerdorf joins',
+        body: 'The creator of PHP, on a social network built in PHP.',
+        kind: 'person',
+        person: {
+            login: 'rlerdorf',
+            name: 'Rasmus Lerdorf',
+            avatar: 'https://avatars.githubusercontent.com/u/54641?v=4',
+        },
+    },
+    {
+        time: 'Oct 20',
+        title: '10,000 developers',
+        body: 'Five days after the first commit.',
+        kind: 'milestone',
     },
 ];

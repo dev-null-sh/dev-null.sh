@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommitRestoration;
 use App\Actions\DeleteCommit;
-use App\Actions\DeleteCommitImages;
+use App\Actions\DeleteCommitContent;
 use App\Actions\UpdateCommitHotScores;
-use App\Jobs\EraseDeletedCommitImages;
+use App\Jobs\EraseDeletedCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -57,8 +57,8 @@ it('keeps the images of a deleted commit until the undo window closes', function
     Storage::disk()->assertExists($image->path);
 
     Queue::assertPushed(
-        EraseDeletedCommitImages::class,
-        fn (EraseDeletedCommitImages $job): bool => $job->commit->is($commit)
+        EraseDeletedCommit::class,
+        fn (EraseDeletedCommit $job): bool => $job->commit->is($commit)
             && $job->delay instanceof DateTimeInterface
             && now()->addSeconds(30)->equalTo($job->delay),
     );
@@ -130,7 +130,7 @@ it('keeps reports while applying the undo window to images', function (bool $und
     }
 
     $this->travel(1)->seconds();
-    resolve(DeleteCommitImages::class)->handle($deleted);
+    resolve(DeleteCommitContent::class)->handle($deleted);
 
     $this->assertModelExists($report);
 

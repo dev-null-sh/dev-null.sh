@@ -31,6 +31,6 @@ it('links each contributor who is on /dev/null to their profile, found by their 
     $this->get(route('about.show'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->where('contributors.0', ['login' => 'xHeaven', 'commits' => 199, 'username' => 'renamed-on-devnull'])
-            ->where('contributors.1', ['login' => 'nunomaduro', 'commits' => 176, 'username' => null]));
+            ->where('contributors.0', ['login' => 'xHeaven', 'commits' => 217, 'username' => 'renamed-on-devnull'])
+            ->where('contributors.1', ['login' => 'nunomaduro', 'commits' => 189, 'username' => null]));
 });

@@ -199,18 +199,22 @@ it('validates the command and the body', function (array $payload, string $field
     'blank lines only' => [['command' => '/bug', 'body' => "a\n\n\n\n"], 'body'],
 ]);
 
-it('requires authentication and limits opened issues to five an hour', function (): void {
+it('requires authentication and limits opened issues to ten a day', function (): void {
     fakeGitHubApp();
     $this->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])->assertUnauthorized();
 
     $user = User::factory()->create();
-    foreach (range(1, 5) as $attempt) {
+    foreach (range(1, 10) as $attempt) {
+        $this->travel(1)->minute();
         $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => "Broken {$attempt}."])->assertCreated();
     }
 
     $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken again.'])
         ->assertTooManyRequests()
-        ->assertJsonPath('message', 'Issue limit reached. Try again in an hour.');
+        ->assertJsonPath('message', 'Issue limit reached: 10 a day. Try again tomorrow.');
+
+    $this->travel(23)->hours();
+    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken again.'])->assertTooManyRequests();
 
     $this->travel(1)->hours();
     $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken later.'])->assertCreated();
