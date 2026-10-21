@@ -86,9 +86,9 @@ export function ProfileActionsMenu({ user }: { user: Pick<User, 'live'> }) {
                 <DialogContent>
                     <DialogTitle>Go live</DialogTitle>
                     <DialogDescription>
-                        Share your YouTube stream and your avatar gets a live
-                        marker that sends people to it, for as long as you
-                        choose.
+                        Share your YouTube or Twitch stream and your avatar gets
+                        a live marker that sends people to it, for as long as
+                        you choose.
                     </DialogDescription>
 
                     <Form
@@ -113,7 +113,7 @@ export function ProfileActionsMenu({ user }: { user: Pick<User, 'live'> }) {
                                         name="url"
                                         required
                                         autoFocus
-                                        placeholder="https://www.youtube.com/live/…"
+                                        placeholder="https://www.youtube.com/live/… or https://twitch.tv/…"
                                         className="flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
                                         data-test="live-url-input"
                                     />

@@ -51,14 +51,14 @@ it('stars a commit only once', function (): void {
     expect($this->user->starredCommits()->count())->toBeOne();
 });
 
-it('may star their own commit, as on the web', function (Closure $commit): void {
+it('may not star their own commit, as on the web', function (Closure $commit): void {
     $commit = $commit($this->user);
 
     $response = signedApiRequest($this->keyPair, 'POST', route('api-commit-star.store', $commit));
 
-    $response->assertOk()->assertJsonPath('data.starred', true);
+    $response->assertForbidden();
 
-    expect($this->user->hasStarred($commit))->toBeTrue();
+    expect($this->user->hasStarred($commit))->toBeFalse();
 })->with([
     'approved' => fn (User $user): Commit => Commit::factory()->for($user)->create(),
     'pending' => fn (User $user): Commit => Commit::factory()->for($user)->pending()->create(),
