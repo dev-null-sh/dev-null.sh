@@ -255,7 +255,7 @@ function NavIcon({
                 />
             )}
             {count > 0 && (
-                <span className="absolute -top-1.5 -right-2 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] leading-4 font-semibold text-primary-foreground tabular-nums">
+                <span className="absolute -top-1.5 -right-2 min-w-4 rounded-sm bg-primary px-1 text-center text-[10px] leading-4 font-semibold text-primary-foreground tabular-nums">
                     {count > 99 ? '99+' : count}
                     <span className="sr-only"> unread</span>
                 </span>
@@ -464,7 +464,7 @@ export function MobileHeader({ onSearch }: { onSearch: () => void }) {
                     type="button"
                     onClick={onSearch}
                     aria-label="Search"
-                    className="rounded-full p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                 >
                     <Search className="size-5" />
                 </button>
@@ -508,7 +508,7 @@ export function MobileCommitButton({
             aria-label="Write a commit"
             title="Write a commit"
             className={cn(
-                'absolute right-4 bottom-full mb-4 size-14 rounded-full shadow-lg transition-opacity duration-200 [view-transition-name:mobile-commit-button] md:hidden',
+                'absolute right-4 bottom-full mb-4 size-14 rounded-lg shadow-lg transition-opacity duration-200 [view-transition-name:mobile-commit-button] md:hidden',
                 { 'pointer-events-none opacity-0': isHidden },
             )}
             data-test="mobile-commit-button"
@@ -589,7 +589,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                         {item.isActive && (
                             <span
                                 aria-hidden
-                                className="absolute inset-0 -z-10 rounded-full bg-primary-soft [view-transition-name:mobile-nav-active-item]"
+                                className="absolute inset-0 -z-10 rounded-lg bg-primary-soft [view-transition-name:mobile-nav-active-item]"
                             />
                         )}
                         <span
@@ -618,7 +618,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                 >
                     <span
                         className={cn(
-                            'flex h-8 w-14 max-w-full items-center justify-center rounded-full',
+                            'flex h-8 w-14 max-w-full items-center justify-center rounded-lg',
                             {
                                 'bg-primary-soft': menuItems.some(
                                     (item) => item.isActive,

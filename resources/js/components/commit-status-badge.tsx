@@ -43,7 +43,7 @@ export function CommitStatusBadge({
         status === 'pending' ? (isChecking ? 'checking' : 'review') : status;
 
     const className = cn(
-        'inline-flex shrink-0 items-center gap-1 self-center rounded-full font-mono transition-colors',
+        'inline-flex shrink-0 items-center gap-1 self-center rounded-sm font-mono transition-colors',
         size === 'default' ? 'px-2 py-0.5 text-xs' : 'px-1.5 text-[11px]',
         {
             'bg-amber-500/10 text-amber-700 dark:text-amber-400':

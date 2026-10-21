@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Bodies, and the people they mention, are encrypted at rest with the app key, so database dumps and backups don't
@@ -35,12 +36,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Message|null $replyTo
  * @property-read LinkPreview|null $linkPreview
  * @property-read Collection<int, MessageImage> $images
+ * @property-read MessageVoice|null $voice
  * @property-read Collection<int, MessageReaction> $reactions
  * @property-read Conversation $conversation
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  */
-#[Visible(['id', 'user_id', 'client_id', 'body', 'reply_to_id', 'mentions', 'event', 'subject_id', 'created_at', 'user', 'subject', 'linkPreview', 'images', 'reactions'])]
+#[Visible(['id', 'user_id', 'client_id', 'body', 'reply_to_id', 'mentions', 'event', 'subject_id', 'created_at', 'user', 'subject', 'linkPreview', 'images', 'voice', 'reactions'])]
 final class Message extends Model
 {
     /** @use HasFactory<MessageFactory> */
@@ -49,9 +51,10 @@ final class Message extends Model
     public const int MAX_LENGTH = 2000;
 
     /**
-     * What a message is shown with in a thread: its link card, its images, its reactions, and the message it replies to.
+     * What a message is shown with in a thread: its link card, its images, its voice note, its reactions, and the
+     * message it replies to.
      */
-    public const array SHOWN_WITH = ['linkPreview', 'images', 'reactions', 'replyTo.images'];
+    public const array SHOWN_WITH = ['linkPreview', 'images', 'voice', 'reactions', 'replyTo.images', 'replyTo.voice'];
 
     /**
      * @return array<string, string>
@@ -126,6 +129,14 @@ final class Message extends Model
     }
 
     /**
+     * @return HasOne<MessageVoice, $this>
+     */
+    public function voice(): HasOne
+    {
+        return $this->hasOne(MessageVoice::class);
+    }
+
+    /**
      * In the order they were left, so a reaction's chip keeps its place.
      *
      * @return HasMany<MessageReaction, $this>
@@ -149,7 +160,7 @@ final class Message extends Model
 
     /**
      * The body also comes split into segments, for rendering, and the message it replies to only as much as its
-     * ghost shows: who wrote it, its body, and whether it carried images.
+     * ghost shows: who wrote it, its body, and whether it carried images or a voice note.
      *
      * @return array<mixed>
      */
@@ -163,6 +174,7 @@ final class Message extends Model
                 'user_id' => $this->replyTo->user_id,
                 'body' => $this->replyTo->body,
                 'images_count' => $this->replyTo->images->count(),
+                'has_voice' => $this->replyTo->voice instanceof MessageVoice,
             ] : null;
         }
 

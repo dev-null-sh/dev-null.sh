@@ -937,11 +937,11 @@ it('trims long commits in the link preview description', function (): void {
 });
 
 it('shortens long urls in the link preview description', function (): void {
-    $commit = Commit::factory()->create(['body' => 'A lot came! https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc+is%3Apr']);
+    $commit = Commit::factory()->create(['body' => 'A lot came! https://github.com/dev-null-sh/dev-null.sh/pulls?q=sort%3Aupdated-desc+is%3Apr']);
 
     $this->get(route('commit.show', [$commit->user, $commit]))
         ->assertOk()
-        ->assertSee('<meta property="og:description" content="A lot came! github.com/nunomaduro/dev-nul…">', false);
+        ->assertSee('<meta property="og:description" content="A lot came! github.com/dev-null-sh/dev-nu…">', false);
 });
 
 it('escapes the commit in the link preview', function (): void {

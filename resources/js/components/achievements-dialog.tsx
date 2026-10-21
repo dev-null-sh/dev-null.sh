@@ -1,4 +1,5 @@
 import {
+    Bomb,
     BotOff,
     Box,
     Cookie,
@@ -40,6 +41,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     key: Key,
     cookie: Cookie,
     'bot-off': BotOff,
+    bomb: Bomb,
 };
 
 export function AchievementsDialog({
@@ -74,7 +76,7 @@ export function AchievementsDialog({
                             Developer Achievements
                         </DialogTitle>
                         <span
-                            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-medium text-foreground"
+                            className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-xs font-medium text-foreground"
                             style={{
                                 borderColor: laneTint(lane, 25),
                                 backgroundColor: laneTint(lane, 8),
@@ -316,7 +318,8 @@ export function AchievementsDialog({
                 {/* Dry Unix XP Formula Footnote */}
                 <p className="border-t pt-2 text-center font-mono text-[11px] text-muted-foreground">
                     XP: 10/commit · 15/day streak · 5/star received · 5/reply ·
-                    2/star given · −100/luddite (minimum 0 XP)
+                    2/star given · −100/luddite · +100/shell shocked (minimum 0
+                    XP)
                 </p>
             </DialogContent>
         </Dialog>

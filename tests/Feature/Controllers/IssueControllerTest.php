@@ -42,11 +42,11 @@ it('files issues in the configured upstream with a token scoped to that reposito
 function fakeGitHubApp(array $issue = []): void
 {
     Http::fake([
-        'api.github.com/repos/nunomaduro/dev-null.sh/installation' => Http::response(['id' => 99]),
+        'api.github.com/repos/dev-null-sh/dev-null.sh/installation' => Http::response(['id' => 99]),
         'api.github.com/app/installations/99/access_tokens' => Http::response(['token' => 'installation-token'], 201),
-        'api.github.com/repos/nunomaduro/dev-null.sh/issues' => Http::response([
+        'api.github.com/repos/dev-null-sh/dev-null.sh/issues' => Http::response([
             'number' => 123,
-            'html_url' => 'https://github.com/nunomaduro/dev-null.sh/issues/123',
+            'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/123',
             ...$issue,
         ], 201),
     ]);
@@ -59,9 +59,9 @@ it('opens the issue as the app, crediting the reporter, with the label of the co
 
     $this->actingAs($user)->postJson(route('issue.store'), ['command' => $command, 'body' => $body])
         ->assertCreated()
-        ->assertExactJson(['number' => 123, 'url' => 'https://github.com/nunomaduro/dev-null.sh/issues/123']);
+        ->assertExactJson(['number' => 123, 'url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/123']);
 
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.github.com/repos/nunomaduro/dev-null.sh/issues'
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.github.com/repos/dev-null-sh/dev-null.sh/issues'
         && $request->hasHeader('Authorization', 'Bearer installation-token')
         && $request['title'] === 'Search loses its filters'
         && $request['body'] === $body."\n\n---\n\nReported by @taylor via [/dev/null](".route('user.show', $user).').'
@@ -172,9 +172,9 @@ it('does not send images to GitHub', function (): void {
 
 it('keeps the draft when GitHub rejects the issue or does not respond', function (Closure $response, string $message): void {
     Http::fake([
-        'api.github.com/repos/nunomaduro/dev-null.sh/installation' => Http::response(['id' => 99]),
+        'api.github.com/repos/dev-null-sh/dev-null.sh/installation' => Http::response(['id' => 99]),
         'api.github.com/app/installations/99/access_tokens' => Http::response(['token' => 'installation-token'], 201),
-        'api.github.com/repos/nunomaduro/dev-null.sh/issues' => $response,
+        'api.github.com/repos/dev-null-sh/dev-null.sh/issues' => $response,
     ]);
 
     $this->actingAs(User::factory()->create())->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])
@@ -222,12 +222,12 @@ it('requires authentication and limits opened issues to ten a day', function ():
 
 it('does not count rejected drafts or failed attempts towards the limit', function (): void {
     Http::fake([
-        'api.github.com/repos/nunomaduro/dev-null.sh/installation' => Http::response(['id' => 99]),
+        'api.github.com/repos/dev-null-sh/dev-null.sh/installation' => Http::response(['id' => 99]),
         'api.github.com/app/installations/99/access_tokens' => Http::response(['token' => 'installation-token'], 201),
-        'api.github.com/repos/nunomaduro/dev-null.sh/issues' => Http::sequence()
+        'api.github.com/repos/dev-null-sh/dev-null.sh/issues' => Http::sequence()
             ->push([], 500)->push([], 500)->push([], 500)
             ->push([], 500)->push([], 500)->push([], 500)
-            ->push(['number' => 1, 'html_url' => 'https://github.com/nunomaduro/dev-null.sh/issues/1'], 201),
+            ->push(['number' => 1, 'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/1'], 201),
     ]);
     $user = User::factory()->create();
 

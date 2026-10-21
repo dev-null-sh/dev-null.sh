@@ -53,6 +53,7 @@ use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\MessageImageController;
 use App\Http\Controllers\MessageLinkPreviewController;
 use App\Http\Controllers\MessageReactionController;
+use App\Http\Controllers\MessageVoiceController;
 use App\Http\Controllers\MobileAuthorizationController;
 use App\Http\Controllers\ModeratedUserController;
 use App\Http\Controllers\ModerationController;
@@ -77,6 +78,7 @@ use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StarredCommitController;
+use App\Http\Controllers\SuggestionDismissalController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\TrafficController;
 use App\Http\Controllers\UserActivityGraphController;
@@ -305,6 +307,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('remotes/@{partner:username}', [ConversationController::class, 'show'])->name('conversation.show');
     Route::get('remotes/orgs/{org}', [OrgController::class, 'show'])->whereUuid('org')->name('org.show');
     Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])->whereUuid('messageImage')->name('message-image.show');
+    Route::get('remotes/voices/{messageVoice}', [MessageVoiceController::class, 'show'])->whereUuid('messageVoice')->name('message-voice.show');
 
     Route::middleware('throttle:conversations')->group(function (): void {
         Route::get('remotes/inbox', [InboxController::class, 'index'])->name('inbox.index');
@@ -458,6 +461,10 @@ Route::middleware('auth')->group(function (): void {
         ->name('user-block.store');
     Route::delete('@{user:username}/block', [UserBlockController::class, 'destroy'])
         ->name('user-block.destroy');
+
+    // Suggestion Dismissal...
+    Route::post('@{user:username}/dismiss', [SuggestionDismissalController::class, 'store'])
+        ->name('suggestion-dismissal.store');
 
     // User Timeout, given by moderators...
     Route::post('@{user:username}/timeout', [UserTimeoutController::class, 'store'])
