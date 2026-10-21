@@ -7,6 +7,8 @@ import { hostname } from '@/lib/urls';
 import { cn } from '@/lib/utils';
 import type { Embed, LinkPreview } from '@/types';
 
+const GIF_LABEL = 'GIF';
+
 type GifEmbedProps = {
     preview: LinkPreview;
     embed?: Embed | null;
@@ -35,7 +37,7 @@ export function GifEmbed({
             onClick={isStatic ? undefined : (event) => event.stopPropagation()}
             className="mt-3 overflow-hidden rounded-lg border"
             data-test="gif-embed"
-            data-provider={embed?.provider ?? 'GIF'}
+            data-provider={embed?.provider ?? GIF_LABEL}
         >
             <div className="group/gif relative mx-auto aspect-square w-full max-w-80 overflow-hidden bg-muted">
                 <GifMedia preview={preview} embed={embed} playback={playback} />
@@ -126,18 +128,29 @@ function GifStatus({ preview, embed, playback }: GifMediaProps) {
             className="absolute inset-0 flex items-center justify-center px-4 text-center text-sm text-muted-foreground"
             role={playback.hasFailed ? 'status' : undefined}
         >
-            {playback.hasFailed && 'GIF could not load'}
-            {!playback.hasFailed && embed && 'GIF'}
-            {!playback.hasFailed &&
-                !embed &&
-                preview.is_pending &&
-                'Loading GIF…'}
-            {!playback.hasFailed &&
-                !embed &&
-                !preview.is_pending &&
-                'GIF preview unavailable'}
+            {gifStatusMessage(preview, embed, playback.hasFailed)}
         </span>
     );
+}
+
+function gifStatusMessage(
+    preview: LinkPreview,
+    embed: Embed | null,
+    hasFailed: boolean,
+) {
+    if (hasFailed) {
+        return 'GIF could not load';
+    }
+
+    if (embed) {
+        return GIF_LABEL;
+    }
+
+    if (preview.is_pending) {
+        return 'Loading GIF…';
+    }
+
+    return 'GIF preview unavailable';
 }
 
 function GifPlaybackButton({
@@ -213,7 +226,7 @@ function GifDetails({ preview, embed }: GifEmbedProps) {
                 {embed?.provider ?? hostname(preview.url)}
             </span>
             <span className="block truncate text-sm leading-snug font-medium">
-                {preview.title ?? 'GIF'}
+                {preview.title ?? GIF_LABEL}
             </span>
         </>
     );

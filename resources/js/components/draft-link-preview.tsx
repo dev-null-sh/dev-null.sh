@@ -5,6 +5,7 @@ import { LinkPreview } from '@/components/link-preview';
 import { useDraftLinkPreview } from '@/hooks/use-draft-link-preview';
 import { isGifUrl } from '@/lib/gifs';
 import { hostname } from '@/lib/urls';
+import type { LinkPreview as LinkPreviewData } from '@/types';
 
 function DraftLinkPreviewFallback({
     url,
@@ -45,31 +46,53 @@ export function DraftLinkPreview({ url }: { url: string | null }) {
 
     return (
         <div data-test="link-card-preview" aria-busy={isLoading}>
-            {preview ? (
-                <LinkPreview
-                    key={preview.url}
-                    preview={preview}
-                    refreshUrl={DraftLinkPreviewController.show.url({
-                        query: { url },
-                    })}
-                    emptyState={
-                        <DraftLinkPreviewFallback url={url} isLoading={false} />
-                    }
-                />
-            ) : isGifUrl(url) || hostname(url) === 'giphy.com' ? (
-                <GifEmbed
-                    preview={{
-                        url,
-                        title: null,
-                        description: null,
-                        image_url: null,
-                        site_name: null,
-                        is_pending: isLoading,
-                    }}
-                />
-            ) : (
-                <DraftLinkPreviewFallback url={url} isLoading={isLoading} />
-            )}
+            <DraftLinkPreviewContent
+                url={url}
+                preview={preview}
+                isLoading={isLoading}
+            />
         </div>
     );
+}
+
+function DraftLinkPreviewContent({
+    url,
+    preview,
+    isLoading,
+}: {
+    url: string;
+    preview: LinkPreviewData | null;
+    isLoading: boolean;
+}) {
+    if (preview) {
+        return (
+            <LinkPreview
+                key={preview.url}
+                preview={preview}
+                refreshUrl={DraftLinkPreviewController.show.url({
+                    query: { url },
+                })}
+                emptyState={
+                    <DraftLinkPreviewFallback url={url} isLoading={false} />
+                }
+            />
+        );
+    }
+
+    if (isGifUrl(url) || hostname(url) === 'giphy.com') {
+        return (
+            <GifEmbed
+                preview={{
+                    url,
+                    title: null,
+                    description: null,
+                    image_url: null,
+                    site_name: null,
+                    is_pending: isLoading,
+                }}
+            />
+        );
+    }
+
+    return <DraftLinkPreviewFallback url={url} isLoading={isLoading} />;
 }
