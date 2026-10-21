@@ -62,6 +62,7 @@ import {
     toggleReaction,
 } from '@/lib/chat';
 import type { ChatTarget, PendingMessage } from '@/lib/chat';
+import { formatNumber } from '@/lib/numbers';
 import { pullsOf, statusMessageOf } from '@/lib/pulls';
 import { doubleTapReaction } from '@/lib/reactions';
 import type { ReactionUsage } from '@/lib/reactions';
@@ -630,7 +631,7 @@ const ThreadItem = memo(function ThreadItem({
                     ref={headLine}
                     className="my-3 flex items-center gap-2 font-mono text-[11px] font-medium text-primary after:h-px after:flex-1 after:bg-primary/50"
                 >
-                    HEAD · {item.count} new
+                    HEAD · {formatNumber(item.count)} new
                 </div>
             </li>
         );
@@ -1195,7 +1196,7 @@ function Composer({
         if (total > maxLength) {
             event.preventDefault();
             showError(
-                `fatal: paste rejected, message would be ${total.toLocaleString()}/${maxLength.toLocaleString()} chars`,
+                `fatal: paste rejected, message would be ${formatNumber(total)}/${formatNumber(maxLength)} chars`,
             );
         }
     };
@@ -1251,7 +1252,7 @@ function Composer({
                         })}
                         data-test="message-counter"
                     >
-                        {length.toLocaleString()}/{maxLength.toLocaleString()}
+                        {formatNumber(length)}/{formatNumber(maxLength)}
                     </span>
                 )}
             </div>

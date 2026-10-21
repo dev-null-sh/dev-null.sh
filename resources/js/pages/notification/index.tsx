@@ -1117,7 +1117,7 @@ export function NotificationContent({
                                                         {actor.name}
                                                     </Link>{' '}
                                                     {otherActors > 0 &&
-                                                        `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `}
+                                                        `and ${formatNumber(otherActors)} ${otherActors === 1 ? 'other' : 'others'} `}
                                                 </>
                                             ) : (
                                                 <>

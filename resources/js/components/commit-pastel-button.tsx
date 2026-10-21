@@ -7,7 +7,7 @@ import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { commitStateKey } from '@/lib/commit-state';
-import { formatNumber } from '@/lib/numbers';
+import { formatCount, formatNumber } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -157,7 +157,9 @@ export function CommitPastelButton({
                 height={20}
                 className="size-5 shrink-0 object-contain"
             />
-            <span className="min-w-[1ch] text-left tabular-nums">{count}</span>
+            <span className="min-w-[1ch] text-left tabular-nums">
+                {formatCount(count)}
+            </span>
         </>
     );
     const classes = cn(
