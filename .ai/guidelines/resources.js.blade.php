@@ -19,7 +19,7 @@ Every UI change keeps the layout still. Nothing may flash, jump, clip or reflow 
 
 - Numbers, counts and countdowns use `tabular-nums` in fixed-width slots.
 - Bound compact count badges using the established display cap for that surface, while preserving the exact count for screen readers and on hover. Keep the badge from shrinking and let adjacent text truncate.
-- Size buttons to their content. When labels change ("Following", "Committing…"), reserve only the width the longest state needs; prefer a same-size spinner beside a stable label when that keeps a compact action still. Disabled, loading and enabled states are the same size.
+- For compact actions, size buttons to their content while preserving minimum touch targets. Keep deliberate full-width controls. When labels change ("Following", "Committing…"), reserve only the width the longest state needs; prefer a same-size spinner beside a stable label when that keeps a compact action still. Disabled, loading and enabled states are the same size.
 - Conditional UI (banners, "@x is reviewing", inline confirms, errors) reserves its space or overlays. An inline confirm fits in the slot of the control it replaces.
 - Removed list rows collapse with the existing commit-deletion animation, keeping scroll position and focus.
 - Right after an action, the control under the cursor must not flip to a destructive state, e.g. Follow → "Unfollow" before the pointer leaves.
