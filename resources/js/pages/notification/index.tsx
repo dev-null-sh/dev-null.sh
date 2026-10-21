@@ -9,7 +9,6 @@ import {
     MessageSquareReply,
     Quote,
     Star,
-    UserCheck,
     UserPlus,
     X,
 } from 'lucide-react';
@@ -25,23 +24,14 @@ import {
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
-import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
 import { replaceFailedImage } from '@/components/commit-images';
-import {
-    onFollowHttpException,
-    useIsFollowing,
-} from '@/components/follow-button';
+import { FollowIconButton } from '@/components/follow-button';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { NotificationFilters } from '@/components/notification-filters';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
@@ -111,8 +101,6 @@ const filterOptions: {
         empty: 'No moderation updates. Approved and rejected commits show up here.',
     },
 ];
-
-const rail = 'var(--rail)';
 
 const isNewSince = (
     notification: Notification | NotificationGroup,
@@ -355,7 +343,10 @@ export default function Index({
                     >
                         {notifications.data.map((notification, position) => {
                             const previous = notifications.data[position - 1];
+                            const next = notifications.data[position + 1];
                             const isNew = isNewSince(notification, readAt);
+                            const beforeLastVisit =
+                                isNew && next && !isNewSince(next, readAt);
                             const startsDay =
                                 !previous ||
                                 localDayKey(previous.created_at) !==
@@ -372,7 +363,6 @@ export default function Index({
                                                 notification.created_at,
                                                 now,
                                             )}
-                                            hasPrevious={previous !== undefined}
                                         />
                                     )}
                                     <NotificationGroupItem
@@ -387,7 +377,9 @@ export default function Index({
                                         type={filters.type}
                                         readAt={readAt}
                                         isNew={isNew}
-                                        hasPrevious={previous !== undefined}
+                                        withoutBottomBorder={Boolean(
+                                            beforeLastVisit,
+                                        )}
                                     />
                                 </Fragment>
                             );
@@ -396,8 +388,9 @@ export default function Index({
                     {notifications.next_cursor === null && (
                         <div className="flex">
                             <GraphRail
-                                lane={rail}
-                                previousLane={rail}
+                                lane={laneColor(
+                                    notifications.data.at(-1)!.actor.lane,
+                                )}
                                 variant="root"
                                 hasTail={false}
                             />
@@ -413,16 +406,10 @@ export default function Index({
     );
 }
 
-function DayMarker({
-    label,
-    hasPrevious,
-}: {
-    label: string;
-    hasPrevious: boolean;
-}) {
+function DayMarker({ label }: { label: string }) {
     return (
         <div className="flex">
-            <RailSegment lane={hasPrevious ? rail : undefined} />
+            <RailSegment />
             <div className="flex flex-1 items-center border-b py-2 pr-4">
                 <h2 className="font-mono text-xs text-muted-foreground">
                     {label}
@@ -437,14 +424,13 @@ function LastVisitMarker() {
         <div
             role="separator"
             aria-label="Notifications above are new since your last visit"
-            className="flex"
+            className="my-3 flex bg-muted/40"
         >
-            <RailSegment lane={rail} />
-            <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
-                <span className="font-mono text-xs text-muted-foreground">
+            <RailSegment />
+            <div className="flex flex-1 items-center py-4 pr-4">
+                <span className="font-mono text-xs font-semibold text-muted-foreground">
                     HEAD@{'{last visit}'}
                 </span>
-                <span className="flex-1 border-t border-dashed" />
             </div>
         </div>
     );
@@ -454,8 +440,8 @@ function NotificationSkeleton({ hasPrevious }: { hasPrevious: boolean }) {
     return (
         <div aria-hidden className="flex">
             <GraphRail
-                lane={rail}
-                previousLane={hasPrevious ? rail : undefined}
+                lane="var(--rail)"
+                previousLane={hasPrevious ? 'var(--rail)' : undefined}
                 node={
                     <span className="size-9 rounded-full border-4 border-card bg-muted motion-safe:animate-pulse" />
                 }
@@ -488,13 +474,13 @@ function NotificationGroupItem({
     type,
     readAt,
     isNew,
-    hasPrevious,
+    withoutBottomBorder,
 }: {
     notification: NotificationGroup;
     type: Filters['type'];
     readAt: string;
     isNew: boolean;
-    hasPrevious: boolean;
+    withoutBottomBorder: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [items, setItems] = useState<Notification[]>([]);
@@ -539,7 +525,7 @@ function NotificationGroupItem({
             <NotificationContent
                 notification={notification}
                 isNew={isNew}
-                hasPrevious={hasPrevious}
+                withoutBottomBorder={withoutBottomBorder}
                 summary
             >
                 {grouped && (
@@ -653,59 +639,6 @@ function NotificationGroupItem({
     );
 }
 
-/**
- * An icon rather than a full button, since an expanded group of followers repeats it on every row. A group's summary
- * row leaves it out, as it could only follow one of several people back.
- */
-function FollowBackButton({ actor }: { actor: Notification['actor'] }) {
-    const [isFollowing, setIsFollowing] = useIsFollowing(
-        actor,
-        actor.is_followed,
-    );
-    const Icon = isFollowing ? UserCheck : UserPlus;
-
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Link
-                    href={
-                        isFollowing
-                            ? UserFollowController.destroy(actor)
-                            : UserFollowController.store(actor)
-                    }
-                    as="button"
-                    only={['auth']}
-                    preserveState
-                    preserveScroll
-                    onHttpException={(response) =>
-                        onFollowHttpException(actor, response)
-                    }
-                    onSuccess={() => {
-                        setIsFollowing(!isFollowing);
-                        router.flushAll();
-                    }}
-                    aria-label={
-                        isFollowing
-                            ? `Unfollow @${actor.username}`
-                            : `Follow @${actor.username}`
-                    }
-                    className={cn(
-                        'shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                        { 'text-primary hover:text-primary': isFollowing },
-                    )}
-                >
-                    <Icon aria-hidden className="size-4" />
-                </Link>
-            </TooltipTrigger>
-            <TooltipContent>
-                {isFollowing
-                    ? `Following @${actor.username}`
-                    : `Follow @${actor.username} back`}
-            </TooltipContent>
-        </Tooltip>
-    );
-}
-
 function OwnCommitExcerpt({ segments }: { segments: BodySegment[] }) {
     return (
         <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
@@ -771,13 +704,13 @@ export function NotificationContent({
     notification,
     summary = false,
     isNew = false,
-    hasPrevious = false,
+    withoutBottomBorder = false,
     children,
 }: {
     notification: Notification | NotificationGroup;
     summary?: boolean;
     isNew?: boolean;
-    hasPrevious?: boolean;
+    withoutBottomBorder?: boolean;
     children?: ReactNode;
 }) {
     const now = useNow();
@@ -996,7 +929,11 @@ export function NotificationContent({
                     </div>
                 </Link>
                 {notification.type === 'followed' && (
-                    <FollowBackButton actor={actor} />
+                    <FollowIconButton
+                        user={actor}
+                        isFollowing={actor.is_followed}
+                        followsYou
+                    />
                 )}
             </div>
         );
@@ -1035,18 +972,13 @@ export function NotificationContent({
     return (
         <div className="flex">
             <GraphRail
-                lane={rail}
-                previousLane={hasPrevious ? rail : undefined}
+                lane={laneColor(actor.lane)}
+                endsWithDot
                 nodePosition={isActorsCommit ? 'author' : 'top'}
                 node={
                     isActorsCommit ? (
                         <span className="flex rounded-full bg-card">
-                            <span
-                                className={cn(
-                                    'flex rounded-full border-2 p-0.5 transition-colors',
-                                    isNew ? 'border-primary' : 'border-rail',
-                                )}
-                            >
+                            <span className="flex rounded-full border-2 border-(--lane) p-0.5 transition-colors">
                                 {grouped ? (
                                     <UserAvatar
                                         user={actor}
@@ -1063,18 +995,17 @@ export function NotificationContent({
                             </span>
                         </span>
                     ) : (
-                        <span
-                            className={cn(
-                                'flex size-9 items-center justify-center rounded-full border-2 bg-card transition-colors',
-                                isNew ? 'border-primary' : 'border-rail',
-                            )}
-                        >
+                        <span className="flex size-9 items-center justify-center rounded-full border-2 border-(--lane) bg-card transition-colors">
                             {icon}
                         </span>
                     )
                 }
             />
-            <div className="min-w-0 flex-1 border-b py-3 pr-4">
+            <div
+                className={cn('min-w-0 flex-1 py-3 pr-4', {
+                    'border-b': !withoutBottomBorder,
+                })}
+            >
                 <div className="flex items-start gap-3">
                     <div className="relative isolate min-w-0 flex-1">
                         {isActorsCommit ? (
@@ -1237,7 +1168,11 @@ export function NotificationContent({
                     </div>
                     {notification.type === 'followed' && actorsCount === 1 && (
                         <span className="flex h-10 items-center">
-                            <FollowBackButton actor={actor} />
+                            <FollowIconButton
+                                user={actor}
+                                isFollowing={actor.is_followed}
+                                followsYou
+                            />
                         </span>
                     )}
                 </div>

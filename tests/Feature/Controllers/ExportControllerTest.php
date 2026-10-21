@@ -120,6 +120,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'followers' => [],
         'muting' => [],
         'blocking' => [],
+        'dismissed_suggestions' => [],
         'messages' => [],
         'notifications' => [],
         'ssh_keys' => [],
@@ -445,24 +446,29 @@ it('exports all records across chunk boundaries without omissions or duplicates'
         ->and($cacheReads)->toHaveCount(2);
 });
 
-it('exports who the user mutes and blocks, but never who mutes or blocks them', function (): void {
+it('exports who the user mutes, blocks and dismissed, but never who mutes, blocks or dismissed them', function (): void {
     $user = User::factory()->create();
     $muted = User::factory()->create(['username' => 'muted-developer']);
     $blocked = User::factory()->create(['username' => 'blocked-developer']);
+    $dismissed = User::factory()->create(['username' => 'dismissed-developer']);
     $muter = User::factory()->create(['username' => 'secret-muter']);
     $blocker = User::factory()->create(['username' => 'secret-blocker']);
+    $dismisser = User::factory()->create(['username' => 'secret-dismisser']);
 
     $user->muting()->attach($muted);
     $user->blocking()->attach($blocked);
+    $user->dismissedSuggestions()->attach($dismissed);
     $muter->muting()->attach($user);
     $blocker->blocking()->attach($user);
+    $dismisser->dismissedSuggestions()->attach($user);
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['muting'])->toBe([['username' => 'muted-developer']])
         ->and($data['blocking'])->toBe([['username' => 'blocked-developer']])
-        ->and($response->streamedContent())->not->toContain('secret-muter', 'secret-blocker', $muted->id, $blocked->id);
+        ->and($data['dismissed_suggestions'])->toBe([['username' => 'dismissed-developer']])
+        ->and($response->streamedContent())->not->toContain('secret-muter', 'secret-blocker', 'secret-dismisser', $muted->id, $blocked->id, $dismissed->id);
 });
 
 it('also limits exports to five a minute per user independently of the hourly budget', function (): void {
