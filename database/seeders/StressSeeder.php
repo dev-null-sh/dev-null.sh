@@ -44,7 +44,7 @@ final class StressSeeder extends Seeder
 
     private const int STARS = 6_000_000;
 
-    private const int BOOKMARKS = 300_000;
+    private const int SAVED_STARS = 300_000;
 
     private const int POLLS = 8_000;
 
@@ -94,7 +94,7 @@ final class StressSeeder extends Seeder
         $this->step('stars', $this->seedStars(...));
         $this->step('link previews and images', $this->seedAttachments(...));
         $this->step('polls', $this->seedPolls(...));
-        $this->step('bookmarks', $this->seedBookmarks(...));
+        $this->step('saved stars', $this->seedSavedStars(...));
         $this->step('mutes, blocks, and reports', $this->seedSafety(...));
         $this->step('notifications', $this->seedNotifications(...));
         $this->step('hot scores', $this->seedHotScores(...));
@@ -124,7 +124,7 @@ final class StressSeeder extends Seeder
         $started = microtime(true);
         $callback();
 
-        $this->command->info(sprintf('  %-28s %6.1fs', $label, microtime(true) - $started));
+        $this->command?->info(sprintf('  %-28s %6.1fs', $label, microtime(true) - $started));
     }
 
     /**
@@ -551,19 +551,19 @@ final class StressSeeder extends Seeder
             SQL);
     }
 
-    private function seedBookmarks(): void
+    private function seedSavedStars(): void
     {
-        $bookmarks = $this->count(self::BOOKMARKS);
+        $savedStars = $this->count(self::SAVED_STARS);
         $developers = $this->count(self::DEVELOPERS);
         $threads = DB::table('stress_threads')->count();
         $local = $this->count(3_000);
 
         DB::statement(<<<SQL
-            insert into bookmarks (user_id, commit_id, created_at, updated_at)
+            insert into stars (user_id, commit_id, created_at, updated_at)
             select saver.id, saved.id, saved.created_at, saved.created_at
             from (
                 select 1 + floor({$threads} * power(random(), 3))::int as commit_n, floor({$developers} * random())::int as saver_n
-                from generate_series(1, {$bookmarks})
+                from generate_series(1, {$savedStars})
                 union all
                 select 1 + floor({$threads} * random())::int, 0 from generate_series(1, {$local})
             ) as picks

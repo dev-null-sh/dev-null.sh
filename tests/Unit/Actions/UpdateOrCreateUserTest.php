@@ -278,3 +278,36 @@ it('frees a username still held by a stale user who renamed on github', function
         ->and($stale->github_id)->toBe('1')
         ->and($stale->bio)->toBe('Renamed away');
 })->with(['octocat', 'OctoCat']);
+
+it('moves an existing bot to its reserved handle when the github owner signs in', function (string $githubId, string $username, string $fallback): void {
+    fakeGitHubSponsorsListing();
+    $bot = User::factory()->create(['github_id' => $githubId, 'username' => mb_strtolower($username)]);
+    $profile = $bot->only(['id', 'name', 'avatar_url', 'bio', 'onboarded_at', 'remotes_enabled']);
+    $post = $bot->commits()->create(['body' => 'An existing bot post.']);
+    $friend = User::factory()->create();
+    $bot->following()->attach($friend);
+    $friend->following()->attach($bot);
+
+    $action = resolve(UpdateOrCreateUser::class);
+    $githubUser = GitHubUser::fake(['id' => '583231', 'nickname' => $username]);
+    $owner = $action->handle($githubUser);
+    $returning = $action->handle($githubUser);
+
+    expect($owner->username)->toBe($username)
+        ->and($owner->github_id)->toBe('583231')
+        ->and($returning->is($owner))->toBeTrue()
+        ->and($owner->is($bot))->toBeFalse()
+        ->and($owner->commits()->count())->toBe(0)
+        ->and($owner->following()->count())->toBe(0)
+        ->and($owner->followers()->count())->toBe(0);
+    expect($bot->refresh()->username)->toBe($fallback)
+        ->and($bot->only(array_keys($profile)))->toEqual($profile)
+        ->and($bot->commits()->sole()->is($post))->toBeTrue()
+        ->and($bot->isFollowing($friend))->toBeTrue()
+        ->and($friend->isFollowing($bot))->toBeTrue();
+})->with([
+    'world' => ['0', 'world', 'devnull-world'],
+    'mixed-case world' => ['0', 'WoRlD', 'devnull-world'],
+    'tom' => ['tom', 'tom', 'devnull-tom'],
+    'mixed-case tom' => ['tom', 'ToM', 'devnull-tom'],
+]);

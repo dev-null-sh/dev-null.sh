@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import FailedJobController from '@/actions/App/Http/Controllers/FailedJobController';
 import FailedJobRetryController from '@/actions/App/Http/Controllers/FailedJobRetryController';
+import FailedJobsController from '@/actions/App/Http/Controllers/FailedJobsController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import { EmptyFeed } from '@/components/commit-feed';
 import { Field, Section } from '@/components/operations/section';
@@ -294,6 +295,90 @@ function FailedJobRow({
     );
 }
 
+function ForgetAllFailedJobs({ total }: { total: number }) {
+    const [state, setState] = useState<'idle' | 'confirming' | 'forgetting'>(
+        'idle',
+    );
+
+    const forget = () => {
+        setState('forgetting');
+
+        router.visit(FailedJobsController.destroy(), {
+            only: TAB_PROPS['operations/show'],
+            preserveState: true,
+            preserveScroll: true,
+            onFinish: () => setState('idle'),
+            onSuccess: () =>
+                toast(
+                    <span className="font-mono text-[13px]">
+                        rm {formatCount(total)} failed jobs → /dev/null
+                    </span>,
+                ),
+            onError: () =>
+                toast.error(
+                    <span className="font-mono text-[13px]">
+                        fatal: could not forget failed jobs
+                    </span>,
+                ),
+        });
+    };
+
+    if (state === 'confirming') {
+        return (
+            <div
+                role="group"
+                aria-label="Forget all failed jobs"
+                onKeyDown={(event) => {
+                    if (event.key === 'Escape') {
+                        setState('idle');
+                    }
+                }}
+                className="flex h-9 min-w-0 flex-1 items-center gap-1 rounded-md bg-destructive/8 pr-1 pl-3"
+            >
+                <p className="mr-auto min-w-0 truncate text-sm">
+                    Forget all {formatCount(total)} jobs?
+                    <span className="hidden sm:inline">
+                        {' '}
+                        None of them will run again.
+                    </span>
+                </p>
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7"
+                    autoFocus
+                    onClick={() => setState('idle')}
+                >
+                    Cancel
+                </Button>
+                <Button
+                    variant="destructive"
+                    size="sm"
+                    className="h-7"
+                    onClick={forget}
+                    data-test="confirm-forget-all-failed-jobs-button"
+                >
+                    Forget all
+                </Button>
+            </div>
+        );
+    }
+
+    return (
+        <Button
+            variant="ghost"
+            size="sm"
+            disabled={state === 'forgetting'}
+            onClick={() => setState('confirming')}
+            className="ml-auto text-muted-foreground hover:text-destructive"
+            data-test="forget-all-failed-jobs-button"
+        >
+            <Trash2 />
+            Forget all
+        </Button>
+    );
+}
+
 export default function Show({
     queues,
     failedJobs,
@@ -441,12 +526,15 @@ export default function Show({
                                 />
                             ))}
                         </ul>
-                        {failedJobs.total > failedJobs.recent.length && (
-                            <p className="mt-3 text-sm text-muted-foreground">
-                                Showing the {failedJobs.recent.length} most
-                                recent of {formatCount(failedJobs.total)}.
-                            </p>
-                        )}
+                        <div className="mt-3 flex min-h-9 items-center gap-3">
+                            {failedJobs.total > failedJobs.recent.length && (
+                                <p className="text-sm text-muted-foreground">
+                                    Showing the {failedJobs.recent.length} most
+                                    recent of {formatCount(failedJobs.total)}.
+                                </p>
+                            )}
+                            <ForgetAllFailedJobs total={failedJobs.total} />
+                        </div>
                     </>
                 )}
             </Section>

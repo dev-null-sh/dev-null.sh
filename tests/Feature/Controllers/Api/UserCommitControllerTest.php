@@ -124,7 +124,6 @@ it('lists for a signed request the commits of a profile as the web shows them to
         ->assertJsonPath('data.0.replies_count', 1)
         ->assertJsonPath('data.0.stars_count', 1)
         ->assertJsonPath('data.0.starred', true)
-        ->assertJsonPath('data.0.is_saved', false)
         ->assertJsonPath('data.0.status', 'approved')
         ->assertJsonPath('data.0.author.lane', $user->lane())
         ->assertJsonMissingPath('data.0.parent')
