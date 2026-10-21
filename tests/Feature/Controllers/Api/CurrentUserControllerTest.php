@@ -56,6 +56,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
                 'pasteis_remaining' => 7,
                 'pasteis_resets_at' => '2026-10-18T00:00:00Z',
                 'pasteis_received' => 12,
+                'translation_language' => null,
                 'preferred_lane' => null,
                 'automatic_lane' => $user->automaticLane(),
                 'sponsors_url' => null,
@@ -96,7 +97,8 @@ it('keeps those to the signed-in user, even on their own profile', function (): 
         ->assertJsonMissingPath('data.preferred_lane')
         ->assertJsonMissingPath('data.automatic_lane')
         ->assertJsonMissingPath('data.sponsors_url')
-        ->assertJsonMissingPath('data.github_synced_at');
+        ->assertJsonMissingPath('data.github_synced_at')
+        ->assertJsonMissingPath('data.translation_language');
 });
 
 it('counts unread notifications in groups, like the web', function (): void {

@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CommitPastelController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CommitReportController;
 use App\Http\Controllers\Api\CommitStarController;
+use App\Http\Controllers\Api\CommitTranslationController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
@@ -24,6 +25,7 @@ use App\Http\Controllers\Api\UserLaneController;
 use App\Http\Controllers\Api\UserMuteController;
 use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
+use App\Http\Controllers\Api\UserTranslationLanguageController;
 use App\Http\Controllers\Cli\CommitController;
 use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
@@ -80,6 +82,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // User Lane...
         Route::put('me/lane', [UserLaneController::class, 'update'])->name('api-user-lane.update');
 
+        // Translation language. Null follows Accept-Language...
+        Route::put('me/translation-language', [UserTranslationLanguageController::class, 'update'])->name('api-user-translation-language.update');
+
         // Log...
         Route::get('log/{log}', [LogController::class, 'show'])->name('api-log.show');
 
@@ -93,6 +98,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
             ->withTrashed()
             ->name('api-commit-reply.index');
+
+        // Commit Translation: a commit that doesn't exist or was deleted gets the same answer as one the user may not see...
+        Route::post('commits/{commit}/translation', [CommitTranslationController::class, 'store'])
+            ->middleware('throttle:translations')
+            ->missing(fn (): JsonResponse => ApiException::commitUnavailable()->render())
+            ->name('api-commit-translation.store');
 
         // Commit Report: a commit that doesn't exist or was deleted gets the same answer as one the user may not see...
         Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])

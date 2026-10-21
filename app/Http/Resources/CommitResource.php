@@ -25,6 +25,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * says it quoted something. In a list, reply_preview is the newest reply or quote the web shows under it. As on the
  * web, the counts, link_preview, images, starred, parent, poll, quoted_commit and reply_preview are only
  * there when they were loaded, so ancestors and the commits of notifications come without some of them.
+ * translation is the same object the web's card shows, and only once it was attached. A quoted commit is not
+ * given one. The public JSON leaves translation out.
  *
  * A deleted commit that still has replies stays in its thread as a tombstone: its id, parent_id, deleted_at and
  * replies_count, but never its author or body. Only signed requests are ever sent one.
@@ -84,6 +86,7 @@ final class CommitResource extends JsonResource
                 'data' => self::collection($replies),
                 'next_cursor' => data_get($this->getAttribute('reply_preview'), 'next_cursor'),
             ]),
+            'translation' => $this->whenHas('translation'),
         ];
     }
 }
