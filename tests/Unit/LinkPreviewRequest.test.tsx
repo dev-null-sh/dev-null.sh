@@ -1,5 +1,6 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
+import { setImmediate } from 'node:timers/promises';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, afterEach, test, vi } from 'vite-plus/test';
@@ -254,8 +255,7 @@ test('ignores a previous cycle response that completes after a new render', asyn
             title: 'Stale preview',
         },
     });
-    await Promise.resolve();
-    await Promise.resolve();
+    await setImmediate();
 
     const markup = renderPreview(nextPreview);
 
@@ -285,6 +285,69 @@ test('gives up when a rate limit outlasts the visible retry window', async () =>
     );
 
     assert.ok(markup.includes('data-test="draft-preview-unavailable"'));
+    cleanup();
+});
+
+test('does not retry a rejected poll response', async () => {
+    vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ ok: false, status: 403 }),
+    );
+
+    const cleanup = mount();
+    await runNextTimer();
+
+    assert.equal(timers.size, 0);
+    assert.ok(
+        renderPreview(
+            pendingPreview,
+            undefined,
+            <div>Unavailable</div>,
+        ).includes('Unavailable'),
+    );
+    cleanup();
+});
+
+test.each([
+    [
+        'a network failure',
+        async () => {
+            throw new Error('Offline');
+        },
+    ],
+    [
+        'invalid JSON',
+        async () => ({
+            ok: true,
+            json: async () => {
+                throw new SyntaxError('Invalid JSON');
+            },
+        }),
+    ],
+])('retries a pending preview after %s', async (_reason, request) => {
+    const fetch = vi
+        .fn()
+        .mockImplementationOnce(request)
+        .mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({
+                link_preview: {
+                    ...pendingPreview,
+                    is_pending: false,
+                    title: 'Recovered preview',
+                },
+            }),
+        });
+    vi.stubGlobal('fetch', fetch);
+
+    const cleanup = mount();
+    await runNextTimer();
+
+    assert.equal(timers.size, 1);
+    assert.ok(renderPreview().includes('data-test="link-preview-skeleton"'));
+    await runNextTimer();
+
+    assert.ok(renderPreview().includes('Recovered preview'));
     cleanup();
 });
 
@@ -364,6 +427,5 @@ async function runNextTimer(): Promise<void> {
     const [timer, value] = timers.entries().next().value as [number, Timer];
     timers.delete(timer);
     value.callback();
-    await Promise.resolve();
-    await Promise.resolve();
+    await setImmediate();
 }
