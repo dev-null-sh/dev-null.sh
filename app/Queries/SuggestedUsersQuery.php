@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Actions\CreateTomFriendship;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,6 +23,8 @@ final readonly class SuggestedUsersQuery
      * The day's candidates are split into pages of that mix, and each round shows the next page,
      * going back to the first one after the last.
      *
+     * Tom follows everyone, so following him says nothing about who the user might know.
+     *
      * @return Collection<int, User>
      */
     public function get(User $user, int $limit = 3, int $round = 0): Collection
@@ -32,7 +35,7 @@ final readonly class SuggestedUsersQuery
         $followingIds = $following->newPivotQuery()->select($following->getRelatedPivotKeyName());
         $followedByFollowing = $following->newPivotStatement()
             ->select($following->getRelatedPivotKeyName())
-            ->whereIn($following->getForeignPivotKeyName(), $followingIds);
+            ->whereIn($following->getForeignPivotKeyName(), $followingIds->clone()->whereNotIn($following->getRelatedPivotKeyName(), $this->tom()));
 
         $network = $this->candidates($user, $followingIds)
             ->joinSub(
@@ -132,7 +135,16 @@ final readonly class SuggestedUsersQuery
             ->from($following->getTable().' as followed_by_following')
             ->join($following->getTable().' as followed_by_user', "followed_by_user.{$followed}", '=', "followed_by_following.{$follower}")
             ->where("followed_by_user.{$follower}", $user->id)
+            ->whereNotIn("followed_by_user.{$followed}", $this->tom())
             ->whereColumn("followed_by_following.{$followed}", 'users.id');
+    }
+
+    /**
+     * @return Builder<User>
+     */
+    private function tom(): Builder
+    {
+        return User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->select('id');
     }
 
     /**

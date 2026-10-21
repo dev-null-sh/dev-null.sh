@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateTomFriendship;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
@@ -90,6 +91,36 @@ it('mixes one or two popular people with people the user might know', function (
     expect($suggestions)->toHaveCount(3)
         ->and($popularCount)->toBeIn([1, 2])
         ->and($suggestions->filter(fn (User $suggested): bool => $network->contains($suggested)))->toHaveCount(3 - $popularCount);
+});
+
+it('does not count tom as someone the user might know through', function (): void {
+    $user = User::factory()->create();
+    $stranger = User::factory()->has(Commit::factory())->create();
+
+    resolve(CreateTomFriendship::class)->handle($user);
+    resolve(CreateTomFriendship::class)->handle($stranger);
+
+    $suggestions = resolve(SuggestedUsersQuery::class)->get($user);
+
+    expect($suggestions->pluck('id')->all())->toBe([$stranger->id])
+        ->and($suggestions->first()->followed_by_following_count)->toBe(0);
+});
+
+it('mixes in popular people when everyone is friends with tom', function (): void {
+    $user = User::factory()->create();
+    $network = vouchedFor($user, 5);
+    $popular = popularUsers(5);
+
+    User::query()->each(fn (User $everyone) => resolve(CreateTomFriendship::class)->handle($everyone));
+
+    $suggestions = resolve(SuggestedUsersQuery::class)->get($user);
+    $suggestedNetwork = $suggestions->filter(fn (User $suggested): bool => $network->contains($suggested));
+    $popularCount = $suggestions->filter(fn (User $suggested): bool => $popular->contains($suggested))->count();
+
+    expect($suggestions)->toHaveCount(3)
+        ->and($popularCount)->toBeIn([1, 2])
+        ->and($suggestedNetwork)->toHaveCount(3 - $popularCount)
+        ->and($suggestedNetwork->pluck('followed_by_following_count')->unique()->all())->toBe([1]);
 });
 
 it('suggests only popular people when the user might know nobody', function (): void {
