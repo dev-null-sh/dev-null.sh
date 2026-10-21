@@ -72,9 +72,12 @@ final readonly class CommitTranslations
         }
 
         Cache::memo()->many($commits->map($this->key(...))->all());
+        $viewer = request()->user()?->id;
 
         foreach ($commits as $commit) {
-            $commit->setAttribute('translation', $this->display($commit, includePending: $includePending));
+            $translation = $this->display($commit, includePending: $includePending);
+
+            $commit->setAttribute('translation', $viewer !== null && $commit->user_id === $viewer ? null : $translation);
         }
     }
 
