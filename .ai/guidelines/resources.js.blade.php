@@ -4,9 +4,9 @@ Every UI change keeps the layout still. Nothing may flash, jump, clip or reflow 
 
 ## Shapes and insets
 
-- Before changing corners, read `DESIGN.md` → Shapes and reuse the existing radius tokens and shared UI primitives. Apply the same scale to custom controls, badges, overlays and sheets.
-- Preserve the semantic circles and functional geometry listed there when standardizing corners.
-- Balance logo insets inside badges, accounting for the border. Derive the inner clipping radius from the outer radius minus the inset; inspect the nested image as well as its container.
+- Before changing visual styles, read the relevant sections of `DESIGN.md` and reuse existing tokens and shared UI primitives. Apply shape changes by semantic role, preserving intentional circles and functional geometry.
+- Check custom components and local overrides when changing a shared primitive, including hover, focus, selected and loading states.
+- Balance nested image and surface insets, accounting for borders. Derive inner clipping radii from the outer radius minus the inset; inspect the contents as well as the container.
 
 ## Loading
 
@@ -18,24 +18,25 @@ Every UI change keeps the layout still. Nothing may flash, jump, clip or reflow 
 ## Changing content
 
 - Numbers, counts and countdowns use `tabular-nums` in fixed-width slots.
-- Compact unread and request badges display `99+` above 99, with the exact count in a screen-reader label and hover title. Keep the badge from shrinking and let adjacent text truncate.
+- Bound compact count badges using the established display cap for that surface, while preserving the exact count for screen readers and on hover. Keep the badge from shrinking and let adjacent text truncate.
 - Size buttons to their content. When labels change ("Following", "Committing…"), reserve only the width the longest state needs; prefer a same-size spinner beside a stable label when that keeps a compact action still. Disabled, loading and enabled states are the same size.
 - Conditional UI (banners, "@x is reviewing", inline confirms, errors) reserves its space or overlays. An inline confirm fits in the slot of the control it replaces.
 - Removed list rows collapse with the existing commit-deletion animation, keeping scroll position and focus.
 - Right after an action, the control under the cursor must not flip to a destructive state, e.g. Follow → "Unfollow" before the pointer leaves.
-- Sidebar transitions preserve the visible row's scroll position, including notification groups and their dividers. Repeated toggles keep the same anchor; intentional user scrolling releases it.
+- Layout transitions preserve the visible reading position. Repeated transitions keep a stable anchor; intentional user scrolling releases it.
+- Measured or height-animated containers include their children's spacing in the measured box. Contain collapsing margins where needed so text, code blocks and dividers stay aligned throughout reflow.
 
 ## Menus and dismissal
 
-- Keep a closing picker's contents and anchor stable until its exit animation finishes. Defer updates that would reorder its options or move its anchor until it has unmounted.
-- Multi-select filter menus stay open while options are toggled. Reflect active hidden filters on the overflow trigger, and reset the open menu when crossing into the desktop layout.
-- Fit filter rows to their container with centered, aligned columns. Keep primary filters visible on mobile and put additional filters in an accessible overflow menu.
-- Render settings explanations as visually separated, non-interactive help text associated with the relevant controls, outside selectable menu items.
+- Keep exiting overlays' contents and anchors stable through dismissal. Sequence updates that would reorder visible options or move the anchor after the exit completes, using the component's lifecycle.
+- Menus intended for several selections stay open while choices are toggled. When controls move into overflow, keep their active state discoverable on the trigger and close hidden overlays when the layout changes.
+- Render explanatory text separately from selectable menu items, visually distinguish it from actions, and associate it with the relevant controls for screen readers.
 
 ## Overflow
 
 - Dialogs and popovers are capped to the viewport (`dvh`) and scroll inside, with a sticky header and footer when actions would scroll away. No double scrollbars and no page scroll through the overlay. Scroll lock must not shift the page: keep `scrollbar-gutter: stable`.
 - Long usernames, URLs, reasons, queue names and messages use `min-w-0` with `truncate` or `line-clamp`, and the full text in `title`.
+- Fit control groups to the available content width, including when sidebars change it. Preserve deliberate alignment across wrapped rows; use an accessible overflow menu when the controls cannot fit comfortably.
 - Auto-growing textareas are `overflow-x-hidden`. Inputs use at least 16px text below `md` so iOS doesn't zoom.
 - On mobile, toasts sit above the bottom nav.
 
@@ -44,5 +45,5 @@ Every UI change keeps the layout still. Nothing may flash, jump, clip or reflow 
 - Check in a browser at 1440×900, 1366×650 and 390×844, in light and dark.
 - Measure layout shift (`PerformanceObserver` with `layout-shift`) for first load, navigation, a polling cycle and every action you added. The target is 0.
 - Compare side by side with `production` using the same demo data. Record before/after clips for any fix to motion or loading.
-- Exercise open, selection, dismissal and reopen states, plus repeated sidebar toggles while scrolled. Check responsive menus across their breakpoint and with keyboard and touch input.
-- Check compact badges at 0, 1, 99, 100 and a large count; verify the exact accessible count and truncation beside long names.
+- Exercise open, selection, dismissal and reopen states, repeated layout transitions while scrolled, and responsive changes in both directions with keyboard and touch input.
+- Check compact counts at zero, one, the display cap, just above it and a large value; verify the exact accessible count and layout beside long text.
