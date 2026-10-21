@@ -253,6 +253,21 @@ it('sends images, with or without a body', function (string $body): void {
         ->and($response->json('message.images.0.url'))->toBe(route('message-image.show', Message::query()->sole()->images->first()));
 })->with(['look at this', '']);
 
+it('does not take gifs, which only commits keep', function (): void {
+    Storage::fake();
+
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+
+    $this->actingAs($mark)->post(route('conversation-message.store', $nuno), [
+        'body' => '',
+        'client_id' => Str::uuid()->toString(),
+        'images' => [UploadedFile::fake()->image('animation.gif', 10, 10)],
+    ], ['Accept' => 'application/json'])->assertJsonValidationErrors('images.0');
+
+    expect(Storage::disk()->allFiles())->toBe([]);
+});
+
 it('stores the images of a retried message only once', function (): void {
     Storage::fake();
 

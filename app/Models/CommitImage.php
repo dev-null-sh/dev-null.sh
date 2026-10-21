@@ -78,4 +78,12 @@ final class CommitImage extends Model
     {
         return route('commit-image.show', $this);
     }
+
+    /**
+     * Images are stored as WebP, apart from GIFs, which are kept as they are to stay animated.
+     */
+    public function mimeType(): string
+    {
+        return str_ends_with($this->path, '.gif') ? 'image/gif' : 'image/webp';
+    }
 }

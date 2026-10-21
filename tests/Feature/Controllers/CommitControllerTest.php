@@ -1409,7 +1409,7 @@ it('may not attach more than three images to a commit', function (): void {
     expect($user->commits()->count())->toBe(0);
 });
 
-it('may only attach jpeg, png or webp images to a commit', function (UploadedFile $file): void {
+it('may only attach jpeg, png, gif or webp images to a commit', function (UploadedFile $file): void {
     Storage::fake();
 
     $user = User::factory()->create();
@@ -1427,7 +1427,6 @@ it('may only attach jpeg, png or webp images to a commit', function (UploadedFil
     'svg' => fn (): UploadedFile => UploadedFile::fake()->createWithContent('image.svg', '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'),
     'html disguised as png' => fn (): UploadedFile => UploadedFile::fake()->createWithContent('image.png', '<html><script>alert(1)</script></html>'),
     'bmp' => fn (): UploadedFile => UploadedFile::fake()->image('image.bmp', 10, 10),
-    'gif' => fn (): UploadedFile => UploadedFile::fake()->image('image.gif', 10, 10),
     'pdf' => fn (): UploadedFile => UploadedFile::fake()->create('document.pdf', 10, 'application/pdf'),
 ]);
 
