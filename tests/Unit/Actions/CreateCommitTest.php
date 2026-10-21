@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommit;
+use App\Actions\UpdateLinkPreview;
 use App\Dto\NewPoll;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
@@ -18,6 +19,8 @@ use App\Models\User;
 use App\Services\TheAlgorithm;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -343,6 +346,88 @@ it('only fetches link previews that were never fetched', function (): void {
 
     expect($commit->linkPreview)->not->toBeNull();
 
+    Queue::assertNothingPushed();
+});
+
+it('keeps a definitive empty draft preview cached when it is published', function (): void {
+    Queue::fake();
+    $url = 'https://93.184.216.34/retry';
+    $preview = LinkPreview::factory()->create(['url' => $url]);
+    Http::fakeSequence('https://93.184.216.34/*')
+        ->push('', 404);
+    new UnfurlLink($preview)->handle(resolve(UpdateLinkPreview::class));
+    expect($preview->refresh())
+        ->title->toBeNull()
+        ->fetched_at->not->toBeNull()
+        ->unfurl_failed_at->toBeNull();
+    Http::assertSentCount(1);
+
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Look at '.$url);
+
+    expect($commit->linkPreview)
+        ->id->toBe($preview->id)
+        ->fetched_at->not->toBeNull()
+        ->toArray()->is_pending->toBeFalse();
+    Queue::assertNothingPushed();
+    Http::assertSentCount(1);
+});
+
+it('retries a transient draft preview only once when it is published', function (): void {
+    Queue::fake();
+    $preview = LinkPreview::factory()->failed()->create(['url' => 'https://example.com/retry']);
+    $action = resolve(CreateCommit::class);
+
+    $action->handle(User::factory()->create(), 'Look at '.$preview->url);
+
+    expect($preview->refresh())
+        ->fetched_at->toBeNull()
+        ->publication_unfurl_retries->toBe(1);
+    Queue::assertPushed(UnfurlLink::class, 1);
+
+    $preview->markUnfurlAsTransientFailure(1);
+    $action->handle(User::factory()->create(), 'Look at '.$preview->url);
+
+    expect($preview->refresh())
+        ->fetched_at->not->toBeNull()
+        ->publication_unfurl_retries->toBe(1);
+    Queue::assertPushed(UnfurlLink::class, 1);
+});
+
+it('queues a new link preview after the commit transaction commits', function (): void {
+    Bus::shouldReceive('dispatch')->once()
+        ->withArgs(function (UnfurlLink $job): bool {
+            expect($job->afterCommit)->toBeTrue();
+
+            return true;
+        })
+        ->andReturnNull();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(), 'Look at https://example.com/new');
+});
+
+it('enqueues a draft preview that is already pending when it is published', function (): void {
+    Queue::fake();
+    LinkPreview::factory()->create(['url' => 'https://example.com/pending']);
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(), 'Look at https://example.com/pending');
+
+    Queue::assertPushed(UnfurlLink::class);
+});
+
+it('keeps completed GIF preview metadata when it is published', function (): void {
+    Queue::fake();
+    $preview = LinkPreview::factory()->create([
+        'url' => 'https://example.com/cat.gif',
+        'gif_url' => 'https://cdn.example.com/cat.gif',
+        'fetched_at' => now(),
+    ]);
+
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Look at https://example.com/cat.gif');
+
+    expect($commit->linkPreview)
+        ->id->toBe($preview->id)
+        ->gif_url->toBe('https://cdn.example.com/cat.gif')
+        ->fetched_at->not->toBeNull();
     Queue::assertNothingPushed();
 });
 

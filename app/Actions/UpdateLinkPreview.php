@@ -39,21 +39,13 @@ final readonly class UpdateLinkPreview
         //
     }
 
-    /**
-     * Fetches the page behind the link and stores its Open Graph metadata. A page that can't or mustn't be fetched is
-     * marked as fetched without metadata, so it is not tried again. Failures that may pass, such as connection errors,
-     * timeouts, rate limits and server errors, are thrown instead, so the caller can try again later.
-     */
     public function handle(LinkPreview $linkPreview): void
     {
         $metadata = $this->fetchMetadata($linkPreview->url);
 
-        $linkPreview->update([...$metadata->toArray(), 'fetched_at' => now()]);
+        $linkPreview->completeUnfurl($metadata->toArray());
     }
 
-    /**
-     * Follows up to three redirects by hand, so that every hop goes through the same checks as the original URL.
-     */
     private function fetchMetadata(string $url): LinkPreviewMetadata
     {
         $page = Url::parse($url);

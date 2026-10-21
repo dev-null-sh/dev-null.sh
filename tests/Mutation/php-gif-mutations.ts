@@ -8,6 +8,34 @@ export type GifMutation = {
 
 export const phpGifMutations: GifMutation[] = [
     {
+        name: 'concurrent workers must serialize an unfurl',
+        source: 'app/Jobs/UnfurlLink.php',
+        test: 'tests/Unit/Jobs/UnfurlLinkConcurrencyTest.php',
+        before: '->lock(self::METADATA_LOCK)',
+        after: '',
+    },
+    {
+        name: 'unfurl workers must allow foreign-key references',
+        source: 'app/Jobs/UnfurlLink.php',
+        test: 'tests/Unit/Jobs/UnfurlLinkConcurrencyTest.php',
+        before: '->lock(self::METADATA_LOCK)',
+        after: '->lockForUpdate()',
+    },
+    {
+        name: 'publication retries stay bounded',
+        source: 'app/Models/LinkPreview.php',
+        test: 'tests/Unit/Actions/CreateCommitTest.php',
+        before: "            ->where('publication_unfurl_retries', '<', self::MAX_PUBLICATION_UNFURL_RETRIES)\n",
+        after: '',
+    },
+    {
+        name: 'definitive unfurl outcomes remain cached',
+        source: 'app/Models/LinkPreview.php',
+        test: 'tests/Unit/Actions/CreateCommitTest.php',
+        before: "            ->whereNotNull('unfurl_failed_at')\n",
+        after: '',
+    },
+    {
         name: 'redirect limit cannot increase',
         source: 'app/Actions/UpdateLinkPreview.php',
         test: 'tests/Unit/Actions/UpdateLinkPreviewTest.php',

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateLinkPreview;
+use App\Contracts\Services\DnsResolver;
 use App\Jobs\UnfurlLink;
 use App\Models\LinkPreview;
 use Illuminate\Support\Facades\DB;
@@ -36,6 +38,26 @@ it('skips link previews that were fetched in the meantime', function (): void {
     Http::assertNothingSent();
 
     expect($linkPreview->refresh()->title)->toBe('Fetched before');
+});
+
+it('keeps a blocked address as a definitive empty preview', function (): void {
+    $this->app->instance(DnsResolver::class, new readonly class implements DnsResolver
+    {
+        /** @return list<string> */
+        public function resolve(string $host): array
+        {
+            return ['10.0.0.1'];
+        }
+    });
+    $linkPreview = LinkPreview::factory()->create(['url' => 'https://blocked.example.com/']);
+
+    new UnfurlLink($linkPreview)->handle(resolve(UpdateLinkPreview::class));
+
+    expect($linkPreview->refresh())
+        ->fetched_at->not->toBeNull()
+        ->unfurl_failed_at->toBeNull()
+        ->and($linkPreview->prepareUnfurlForPublication())->toBeFalse();
+    Http::assertNothingSent();
 });
 
 it('retries a page that may be reachable later', function (): void {
@@ -87,9 +109,49 @@ it('marks the link as fetched once the last attempt fails', function (): void {
     expect($linkPreview->refresh())
         ->title->toBeNull()
         ->fetched_at->not->toBeNull()
+        ->unfurl_failed_at->not->toBeNull()
         ->and(DB::table('jobs')->count())->toBe(0);
 
     Http::assertSentCount(3);
+});
+
+it('queues one job for a preview while its retries are pending', function (): void {
+    Queue::fake();
+    $linkPreview = LinkPreview::factory()->create();
+
+    dispatch(new UnfurlLink($linkPreview));
+    dispatch(new UnfurlLink($linkPreview));
+
+    Queue::assertPushed(UnfurlLink::class, 1);
+});
+
+it('does not let a stale failed callback overwrite a completed publication retry', function (): void {
+    Http::fake(['https://93.184.216.34/*' => Http::response('<title>Recovered</title>', 200, ['Content-Type' => 'text/html'])]);
+    $linkPreview = LinkPreview::factory()->create(['url' => 'https://93.184.216.34/']);
+    $staleJob = new UnfurlLink($linkPreview);
+
+    $linkPreview->markUnfurlAsTransientFailure(0);
+    $retry = LinkPreview::query()->findOrFail($linkPreview->id);
+    $retry->retryTransientFailureForPublication();
+
+    new UnfurlLink(LinkPreview::query()->findOrFail($linkPreview->id))->handle(resolve(UpdateLinkPreview::class));
+    $staleJob->failed();
+
+    expect($linkPreview->refresh())
+        ->title->toBe('Recovered')
+        ->fetched_at->not->toBeNull()
+        ->unfurl_failed_at->toBeNull()
+        ->publication_unfurl_retries->toBe(1);
+});
+
+it('keeps old queued job payloads compatible with the first unfurl cycle', function (): void {
+    $job = new UnfurlLink(LinkPreview::factory()->create());
+    $payload = $job->__serialize();
+    unset($payload['publicationUnfurlRetries']);
+    $legacyJob = new ReflectionClass(UnfurlLink::class)->newInstanceWithoutConstructor();
+    $legacyJob->__unserialize($payload);
+
+    expect($legacyJob->publicationUnfurlRetries)->toBe(0);
 });
 
 it('is dropped when its link preview is gone', function (): void {

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\RemoteStatus;
-use App\Jobs\UnfurlLink;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\LinkPreview;
@@ -26,13 +25,11 @@ final readonly class CreateMessage
         private CreateCommitImageFiles $createCommitImageFiles,
         private MentionedUsersQuery $mentionedUsers,
         private Urls $urls,
+        private CreateLinkPreviewJob $createLinkPreviewJob,
     ) {
         //
     }
 
-    /**
-     * Makes the message the conversation's latest, for every member's inbox.
-     */
     public static function advance(Conversation $conversation, Message $message, bool $unstash): void
     {
         Conversation::query()
@@ -46,10 +43,6 @@ final readonly class CreateMessage
     }
 
     /**
-     * Sending the same client id again, as a retry does, returns the message it already created, without storing its
-     * images twice. A new message brings the conversation back out of the stash for everyone in it. The link card is
-     * of the first link in the body when true, of the given link when a string, or none when false.
-     *
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
      */
@@ -94,8 +87,10 @@ final readonly class CreateMessage
                 ->where('read_through_id', '<', $message->id)
                 ->update(['read_through_id' => $message->id, 'read_at' => now()]);
 
-            if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
-                dispatch(new UnfurlLink($linkPreview))->afterCommit();
+            if ($linkPreview instanceof LinkPreview && $linkPreview->prepareUnfurlForPublication()) {
+                DB::afterCommit(function () use ($linkPreview): void {
+                    $this->createLinkPreviewJob->handle($linkPreview);
+                });
             }
 
             return $message;
