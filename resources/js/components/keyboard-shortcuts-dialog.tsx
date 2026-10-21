@@ -24,6 +24,7 @@ const shortcuts = (keys: KeyLabels): Shortcut[] => [
     { keys: [keys.mod, keys.shift, 'P'], label: 'Preview (in the composer)' },
     { keys: ['g', 'l'], label: 'Go to your log' },
     { keys: ['g', 'e'], label: 'Go to trending' },
+    { keys: ['g', 'n'], label: 'Go to notifications' },
     { keys: ['g', 'p'], label: 'Go to your profile' },
     { keys: ['g', 's'], label: 'Go to settings' },
     { keys: ['?'], label: 'Show this list' },

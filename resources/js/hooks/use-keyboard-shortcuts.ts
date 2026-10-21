@@ -1,6 +1,7 @@
 import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
+import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import { signIn } from '@/lib/auth';
 import { hasModKey } from '@/lib/keyboard';
 import { show } from '@/routes/user';
@@ -72,7 +73,7 @@ function openFocusedCommit(): boolean {
 }
 
 /**
- * Guests have no log, profile, or settings to go to, so those shortcuts take them to sign in.
+ * Guests have no log, notifications, profile, or settings to go to, so those shortcuts take them to sign in.
  */
 export function useKeyboardShortcuts(
     user: User | null,
@@ -87,10 +88,11 @@ export function useKeyboardShortcuts(
 
         const goTo: Record<string, () => void> =
             user === null || log === null
-                ? { l: signIn, e: signIn, p: signIn, s: signIn }
+                ? { l: signIn, e: signIn, n: signIn, p: signIn, s: signIn }
                 : {
                       l: () => router.visit(LogController.show(log)),
                       e: () => router.visit(LogController.show('trending')),
+                      n: () => router.visit(NotificationController.index()),
                       p: () => router.visit(show(user)),
                       s: () => router.visit(edit()),
                   };
