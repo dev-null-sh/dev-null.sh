@@ -53,6 +53,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Tom's repository insights and community statistics](#toms-repository-insights-and-community-statistics)
   - [Hello world replies](#hello-world-replies)
 - [Stack and hosting](#stack-and-hosting)
+  - [October 21, 2026: PHP security patches and precautionary downtime](#october-21-2026-php-security-patches-and-precautionary-downtime)
 - [Lore](#lore)
   - [Product trailer](#product-trailer)
   - [Built on a livestream](#built-on-a-livestream)
@@ -111,7 +112,7 @@ Sources: [go-live menu](resources/js/components/profile-actions-menu.tsx), [live
 
 ### Achievement badges and XP
 
-Profiles have **13 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
+Profiles have **14 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
 
 | Badge | When it unlocks |
 | --- | --- |
@@ -128,10 +129,11 @@ Profiles have **13 achievement badges**. Earned badges appear in a single row, w
 | **authorized_keys** | Have at least one public SSH key linked from GitHub. |
 | **sweet tooth** | Receive **100 pastéis across your account**, not on a single commit. Pastéis mode does not need to be enabled, and the total survives deletion of the awarded commits. |
 | **luddite** | Stop following Tom while he still follows you. This deducts **100 XP**; following him again removes the badge and penalty. Accounts Tom has never befriended do not qualify. |
+| **shell shocked** | “Survived the php2shell downtime of Oct '26. Earns 100 XP.” — accounts created before **October 21, 2026 at 14:00 UTC** receive this badge and **100 bonus XP**. Accounts created at or after that moment do not qualify. |
 
 Commit counts include replies and quotes. Commit-based badges and XP use non-deleted commits visible to the person viewing the profile, so an author may see progress from pending or rejected commits that other viewers cannot see. Streak badges use the **longest** streak, not the current streak: missing a day does not by itself remove them. Days follow the activity graph's app-timezone grouping, not the user's selected display timezone.
 
-Badges are calculated from current account data, not permanently recorded awards. Removing qualifying activity can reduce progress or lock a badge again; for example, unstarring a commit can remove **stargazer**. When a commit posted on the web unlocks a badge, a toast names it and confetti drops; clicking an unlocked badge drops confetti again. Unlocking a badge does not normally give bonus XP. XP comes from **10 per commit**, **15 per day in the longest streak**, **5 per star received**, **5 per reply to another developer**, and **2 per star given to another developer**. The **luddite** penalty applies once while the badge is unlocked, not once per unfollow, and total XP cannot fall below zero. A qualifying reply contributes both commit XP and reply XP; pastéis do not add XP.
+Badges are calculated from current account data, not permanently recorded awards. Removing qualifying activity can reduce progress or lock a badge again; for example, unstarring a commit can remove **stargazer**. **Shell shocked** depends only on when the account was created, so deleting activity does not remove it. When a commit posted on the web unlocks a badge, a toast names it and confetti drops; clicking an unlocked badge drops confetti again. Unlocking a badge does not normally give bonus XP; **shell shocked** contributes **100 XP** once. XP otherwise comes from **10 per commit**, **15 per day in the longest streak**, **5 per star received**, **5 per reply to another developer**, and **2 per star given to another developer**. The **luddite** penalty applies once while the badge is unlocked, not once per unfollow, and total XP cannot fall below zero. A qualifying reply contributes both commit XP and reply XP; pastéis do not add XP.
 
 Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and XP calculation](app/Queries/UserAchievementsQuery.php), [streak calculation](app/Queries/UserStreakQuery.php), [achievements dialog](resources/js/components/achievements-dialog.tsx).
 
@@ -139,7 +141,7 @@ Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and 
 
 Follow or unfollow from a developer's profile or a follow control elsewhere in the app. Following puts their commits in your Following log. Following or unfollowing from a log updates the controls, counts, and live-following sidebar without navigating away: Latest and Trending keep their loaded commits and ranking, while Following updates its commits and empty-state suggestions. You cannot follow yourself or follow across a block. GitHub follows are imported once: connections to developers already on /dev/null are added in both directions, with up to 1,000 GitHub connections checked each way. This is not continuous synchronization, so unfollowing someone on /dev/null sticks.
 
-**Who to follow** suggests developers in the side column or within the log on smaller screens, each with the first line of their bio and why they are suggested (how many people you follow follow them, or their follower count). Someone who already follows you gets **Follow back**. Show or hide these suggestions in Settings → Appearance. You can also follow back from the notifications list.
+**Who to follow** suggests developers in the side column or within the log on smaller screens, each with the first line of their bio and why they are suggested (how many people you follow follow them, or their follower count). Follow from the icon next to each suggestion; for someone who already follows you, it follows back. The X icon marks a suggestion **Not interested**: that developer is never suggested to you again, without muting them, and the next suggestion takes their place. Show or hide these suggestions in Settings → Appearance. You can also follow back from the notifications list.
 
 Sources: [follow import](app/Actions/CreateUserGitHubFollows.php), [appearance settings](resources/js/pages/appearance/update.tsx), [notifications page](resources/js/pages/notification/index.tsx).
 
@@ -543,6 +545,20 @@ The knowledge base is split into Markdown sections by heading and stored with ve
 An [internal semantic search query](README.md#internal-semantic-search) retrieves the nearest knowledge-base sections using Laravel AI SDK query embeddings through OpenAI and PostgreSQL cosine distance, following the same embedding approach as commit search. Tom's read-only tools expose bounded knowledge-base excerpts and public commit search results to the model. There is no standalone public knowledge-base search endpoint.
 
 Stack references: [PHP dependencies](composer.json), [frontend dependencies](package.json), [database configuration](config/database.php), [setup requirements](README.md#getting-started), [queue configuration](config/queue.php), [cache configuration](config/cache.php), [session configuration](config/session.php), [storage configuration](config/filesystems.php), and [existing AI integration](app/Services/OpenAI.php). Laravel Cloud hosting is confirmed by the project team.
+
+### October 21, 2026: PHP security patches and precautionary downtime
+
+On **October 21, 2026**, the PHP team published fixes for two critical security vulnerabilities: **CVE-2026-109618** and **CVE-2026-109619**. Both could let someone send specially crafted web requests and make a vulnerable server run the attacker's code **without signing in**. This is called remote code execution. The code would run with the web worker's permissions, not automatically with unrestricted control of the whole machine. These were bugs in PHP itself, not bugs specific to /dev/null.
+
+**CVE-2026-109618 — stopping halfway through a job.** Imagine PHP as a helper sorting a visitor's belongings into labelled boxes. If the helper runs out of room, it suddenly stops, leaving some boxes unfinished. The cleanup helper then mistakes those unfinished boxes for properly packed ones. In PHP, running out of memory could leave internal request data half-prepared, and cleanup could use it as though it were valid. An attacker could deliberately create that situation and manipulate the memory involved to make PHP run unwanted code. The patch makes PHP stop at a safe point when memory runs low, or immediately stop the worker if a higher emergency limit is reached, rather than clean up unfinished data unsafely.
+
+**CVE-2026-109619 — following an old note.** Imagine the helper keeps a note saying where a visitor's box is. The visitor leaves and the space is reused, but the helper forgets to throw the note away. When the next visitor arrives, the helper follows that old note and treats whatever is now there as the original box. PHP could similarly keep references to memory from a finished request and use them during a later request handled by the same worker. An attacker could manipulate the replacement contents to make PHP run unwanted code. The patch resets this leftover internal state so later requests cannot follow those stale references.
+
+The exact attack paths depended on the server setup and application. PHP warned that configuration workarounds were **not a complete fix**: installing the patched PHP releases was the safe solution. The [PHP security announcement](https://www.php.net/archive/2026.php) lists the fixed releases.
+
+On the **morning of October 21, 2026**, the **/dev/null team took the website offline as a precaution while awaiting the patch**. The website returned after **Laravel Cloud automatically applied the PHP security patches**, allowing it to come back safely with these vulnerabilities fixed. This records a precautionary shutdown, not a claim that /dev/null had been exploited.
+
+Sources: [PHP's October 21 security announcement](https://www.php.net/archive/2026.php), [CVE-2026-109618 advisory](https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w), and [CVE-2026-109619 advisory](https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp). The downtime and automatic-patching timeline is the project team's account.
 
 ## Lore
 

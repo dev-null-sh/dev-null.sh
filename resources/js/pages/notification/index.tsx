@@ -9,7 +9,6 @@ import {
     MessageSquareReply,
     Quote,
     Star,
-    UserCheck,
     UserPlus,
     X,
 } from 'lucide-react';
@@ -25,23 +24,14 @@ import {
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
-import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
 import { replaceFailedImage } from '@/components/commit-images';
-import {
-    onFollowHttpException,
-    useIsFollowing,
-} from '@/components/follow-button';
+import { FollowIconButton } from '@/components/follow-button';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { NotificationFilters } from '@/components/notification-filters';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
@@ -649,59 +639,6 @@ function NotificationGroupItem({
     );
 }
 
-/**
- * An icon rather than a full button, since an expanded group of followers repeats it on every row. A group's summary
- * row leaves it out, as it could only follow one of several people back.
- */
-function FollowBackButton({ actor }: { actor: Notification['actor'] }) {
-    const [isFollowing, setIsFollowing] = useIsFollowing(
-        actor,
-        actor.is_followed,
-    );
-    const Icon = isFollowing ? UserCheck : UserPlus;
-
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Link
-                    href={
-                        isFollowing
-                            ? UserFollowController.destroy(actor)
-                            : UserFollowController.store(actor)
-                    }
-                    as="button"
-                    only={['auth']}
-                    preserveState
-                    preserveScroll
-                    onHttpException={(response) =>
-                        onFollowHttpException(actor, response)
-                    }
-                    onSuccess={() => {
-                        setIsFollowing(!isFollowing);
-                        router.flushAll();
-                    }}
-                    aria-label={
-                        isFollowing
-                            ? `Unfollow @${actor.username}`
-                            : `Follow @${actor.username}`
-                    }
-                    className={cn(
-                        'shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                        { 'text-primary hover:text-primary': isFollowing },
-                    )}
-                >
-                    <Icon aria-hidden className="size-4" />
-                </Link>
-            </TooltipTrigger>
-            <TooltipContent>
-                {isFollowing
-                    ? `Following @${actor.username}`
-                    : `Follow @${actor.username} back`}
-            </TooltipContent>
-        </Tooltip>
-    );
-}
-
 function OwnCommitExcerpt({ segments }: { segments: BodySegment[] }) {
     return (
         <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
@@ -992,7 +929,11 @@ export function NotificationContent({
                     </div>
                 </Link>
                 {notification.type === 'followed' && (
-                    <FollowBackButton actor={actor} />
+                    <FollowIconButton
+                        user={actor}
+                        isFollowing={actor.is_followed}
+                        followsYou
+                    />
                 )}
             </div>
         );
@@ -1227,7 +1168,11 @@ export function NotificationContent({
                     </div>
                     {notification.type === 'followed' && actorsCount === 1 && (
                         <span className="flex h-10 items-center">
-                            <FollowBackButton actor={actor} />
+                            <FollowIconButton
+                                user={actor}
+                                isFollowing={actor.is_followed}
+                                followsYou
+                            />
                         </span>
                     )}
                 </div>
