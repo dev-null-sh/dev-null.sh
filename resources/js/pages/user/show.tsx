@@ -32,6 +32,11 @@ import { ProfileActionsMenu } from '@/components/profile-actions-menu';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import type { UserModeration } from '@/components/user-moderation-menu';
+import {
+    UserModerationMenu,
+    UserModerationStatus,
+} from '@/components/user-moderation-menu';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
@@ -57,6 +62,7 @@ export default function Show({
     followsYou,
     isMuting,
     canPush,
+    moderation,
     activity,
     streaks,
     achievements,
@@ -70,6 +76,7 @@ export default function Show({
     followsYou: boolean;
     isMuting: boolean;
     canPush: boolean;
+    moderation: UserModeration | null;
     activity: Activity;
     streaks: Streaks;
     achievements: Achievements;
@@ -126,7 +133,7 @@ export default function Show({
                                 href={user.live.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                aria-label={`Watch ${user.name} live on YouTube`}
+                                aria-label={`Watch ${user.name} live on ${user.live.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`}
                                 className="relative flex rounded-full"
                                 data-test="profile-live-avatar"
                             >
@@ -168,6 +175,12 @@ export default function Show({
                             </>
                         ) : (
                             <>
+                                {moderation && (
+                                    <UserModerationMenu
+                                        user={user}
+                                        moderation={moderation}
+                                    />
+                                )}
                                 {auth.user && (
                                     <UserSafetyMenu
                                         user={user}
@@ -231,7 +244,7 @@ export default function Show({
                     <button
                         type="button"
                         onClick={() => setIsAchievementsOpen(true)}
-                        className="inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] font-medium transition hover:brightness-110"
+                        className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[11px] font-medium transition hover:brightness-110"
                         style={{
                             borderColor: laneTint(lane, 25),
                             backgroundColor: laneTint(lane, 8),
@@ -244,6 +257,8 @@ export default function Show({
                         </span>
                     </button>
                 </div>
+
+                {moderation && <UserModerationStatus moderation={moderation} />}
 
                 {user.bio && (
                     <p className="mt-3 max-w-prose text-[15px] leading-relaxed wrap-break-word whitespace-pre-wrap">

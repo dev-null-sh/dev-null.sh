@@ -2,7 +2,7 @@ import { Link, router, usePage } from '@inertiajs/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { ArrowRight, History, Search, Sparkles } from 'lucide-react';
 import type { KeyboardEvent, ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import UserSearchController from '@/actions/App/Http/Controllers/UserSearchController';
@@ -10,7 +10,11 @@ import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
-import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
+import {
+    clearRecentSearches,
+    rememberSearch,
+    useRecentSearches,
+} from '@/hooks/use-recent-searches';
 import { searchCandidates } from '@/lib/chat';
 import {
     searchCommits,
@@ -70,6 +74,7 @@ export function SearchDialog({
     const recentSearches = useRecentSearches(userId);
     const keys = useKeyLabels();
     const [query, setQuery] = useState('');
+    const input = useRef<HTMLInputElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const isPicking = onPickDeveloper !== undefined;
 
@@ -208,7 +213,7 @@ export function SearchDialog({
             <DialogPortal>
                 <DialogOverlay />
                 <DialogPrimitive.Content
-                    className="fixed top-[12vh] left-1/2 z-50 w-full max-w-[calc(100%-2rem)] -translate-x-1/2 overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-[0_24px_48px_-16px_rgb(0_0_0/0.4)] duration-200 motion-safe:data-[state=closed]:animate-out motion-safe:data-[state=closed]:fade-out-0 motion-safe:data-[state=closed]:zoom-out-95 motion-safe:data-[state=open]:animate-in motion-safe:data-[state=open]:fade-in-0 motion-safe:data-[state=open]:zoom-in-95 sm:max-w-xl"
+                    className="fixed top-[12vh] left-1/2 z-50 w-full max-w-[calc(100%-2rem)] -translate-x-1/2 overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-[0_24px_48px_-16px_rgb(0_0_0/0.4)] duration-200 motion-safe:data-[state=closed]:animate-out motion-safe:data-[state=closed]:fade-out-0 motion-safe:data-[state=closed]:zoom-out-95 motion-safe:data-[state=open]:animate-in motion-safe:data-[state=open]:fade-in-0 motion-safe:data-[state=open]:zoom-in-95 sm:max-w-xl"
                     data-test="search"
                 >
                     <DialogPrimitive.Title className="sr-only">
@@ -223,6 +228,7 @@ export function SearchDialog({
                     <div className="flex items-center gap-3 border-b px-4">
                         <Search className="size-5 shrink-0 text-muted-foreground" />
                         <input
+                            ref={input}
                             autoFocus
                             maxLength={100}
                             value={query}
@@ -250,7 +256,7 @@ export function SearchDialog({
                                 isLoading ? 'opacity-100' : 'opacity-0',
                             )}
                         />
-                        <kbd className="hidden rounded border border-b-2 bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground sm:block">
+                        <kbd className="hidden rounded-sm border border-b-2 bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground sm:block">
                             esc
                         </kbd>
                     </div>
@@ -286,7 +292,31 @@ export function SearchDialog({
                                     key={option.id}
                                     option={option}
                                     term={term}
-                                    heading={headingBefore(options, index)}
+                                    heading={
+                                        option.kind === 'recent' &&
+                                        index === 0 ? (
+                                            <span className="flex items-center justify-between gap-3">
+                                                {headings.recent}
+                                                <button
+                                                    type="button"
+                                                    aria-label="Clear recent searches"
+                                                    className="rounded-sm px-1.5 py-1 font-sans text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary"
+                                                    onClick={() => {
+                                                        if (userId !== null)
+                                                            clearRecentSearches(
+                                                                userId,
+                                                            );
+                                                        setActiveIndex(0);
+                                                        input.current?.focus();
+                                                    }}
+                                                >
+                                                    Clear
+                                                </button>
+                                            </span>
+                                        ) : (
+                                            headingBefore(options, index)
+                                        )
+                                    }
                                     isActive={index === activeIndex}
                                     onHover={() => setActiveIndex(index)}
                                     onOpen={close}

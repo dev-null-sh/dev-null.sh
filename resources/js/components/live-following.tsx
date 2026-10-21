@@ -12,7 +12,7 @@ export function LiveFollowing() {
     return (
         <section
             aria-labelledby="aside-live-following"
-            className="-mt-4 rounded-xl border bg-card p-3"
+            className="-mt-4 rounded-lg border bg-card p-3"
             data-test="live-following"
         >
             <h2

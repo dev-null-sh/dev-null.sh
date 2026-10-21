@@ -188,6 +188,13 @@ export default function Show() {
                         the law, and defending legal claims. Deleted content may
                         remain in backups and logs for a period.
                     </p>
+                    <p>
+                        If a moderator put you in timeout or banned you, we keep
+                        a record of it after you delete your account: your
+                        GitHub account id, the reason, and when it happened. It
+                        stops a banned GitHub account from signing up again, and
+                        keeps a timeout from ending early by signing up again.
+                    </p>
                 </DocumentSection>
 
                 <DocumentSection id="rights" title="Your rights">
