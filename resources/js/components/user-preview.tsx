@@ -8,6 +8,7 @@ import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowin
 import { BioText } from '@/components/bio-text';
 import {
     FollowLabel,
+    followVisitOptions,
     onFollowHttpException,
     useFollowHover,
     useIsFollowing,
@@ -25,7 +26,7 @@ import { cn, laneColor } from '@/lib/utils';
 import { preview } from '@/routes/mention';
 import { show } from '@/routes/user';
 import { show as userPreview } from '@/routes/user-preview';
-import type { Profile, User } from '@/types';
+import type { Commit, CursorPaginated, Profile, User } from '@/types';
 
 type PreviewData = {
     isFollowing: boolean;
@@ -284,7 +285,7 @@ export function UserPreview({
                             scheduleClose();
                         }}
                         data-state={isOpen ? 'open' : 'closed'}
-                        className="fixed z-50 w-76 rounded-xl border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] ease-spring data-[state=closed]:scale-70 data-[state=closed]:opacity-0 data-[state=closed]:ease-in motion-safe:transition-[opacity,scale] motion-safe:duration-560 motion-safe:data-[state=closed]:duration-160 starting:scale-70 starting:opacity-0"
+                        className="fixed z-50 w-76 rounded-lg border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] ease-spring data-[state=closed]:scale-70 data-[state=closed]:opacity-0 data-[state=closed]:ease-in motion-safe:transition-[opacity,scale] motion-safe:duration-560 motion-safe:data-[state=closed]:duration-160 starting:scale-70 starting:opacity-0"
                         style={{
                             ...position,
                             transformOrigin: anchor
@@ -327,7 +328,10 @@ function UserPreviewContent({
     onChange: (data: PreviewData) => void;
     onMenuOpenChange: (isOpen: boolean) => void;
 }) {
-    const { auth } = usePage().props;
+    const {
+        component,
+        props: { auth, log, commits },
+    } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
 
@@ -364,8 +368,11 @@ function UserPreviewContent({
             {
                 preserveScroll: true,
                 preserveState: true,
+                async: true,
+                ...followVisitOptions(component, log, commits),
                 onSuccess: () => {
                     setIsFollowing(follows);
+                    router.flushAll();
                     onChange({
                         ...data,
                         isFollowing: follows,
@@ -456,12 +463,12 @@ function UserPreviewContent({
                 />
                 <span className="truncate">@{user.username}</span>
                 {data?.followsYou && (
-                    <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                    <span className="ml-1 shrink-0 rounded-sm bg-muted px-1.5 py-0.5 font-sans text-xs">
                         Follows you
                     </span>
                 )}
                 {data?.isMuting && (
-                    <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
+                    <span className="ml-1 shrink-0 rounded-sm bg-muted px-1.5 py-0.5 font-sans text-xs">
                         Muted
                     </span>
                 )}
@@ -518,7 +525,7 @@ function UserPreviewContent({
                         </Link>
                     </>
                 ) : (
-                    <span className="my-0.5 h-4 w-48 rounded bg-muted-foreground/15 motion-safe:animate-pulse" />
+                    <span className="my-0.5 h-4 w-48 rounded-sm bg-muted-foreground/15 motion-safe:animate-pulse" />
                 )}
             </div>
 

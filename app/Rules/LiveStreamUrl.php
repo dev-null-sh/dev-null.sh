@@ -13,7 +13,7 @@ final readonly class LiveStreamUrl implements ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         if (! is_string($value) || ! LivePlatform::for($value) instanceof LivePlatform) {
-            $fail('Use a link to your stream on YouTube.');
+            $fail('Use a link to your stream on YouTube or Twitch.');
         }
     }
 }

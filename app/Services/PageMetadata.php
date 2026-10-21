@@ -75,7 +75,7 @@ final readonly class PageMetadata
                         'name' => '/dev/null',
                         'url' => $url,
                         'logo' => url('/icon-512.png'),
-                        'sameAs' => ['https://github.com/nunomaduro/dev-null.sh'],
+                        'sameAs' => ['https://github.com/'.config()->string('services.github.repository')],
                     ],
                 ],
             ],

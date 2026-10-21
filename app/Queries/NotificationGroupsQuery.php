@@ -158,7 +158,7 @@ final readonly class NotificationGroupsQuery
                 SELECT visible.id AS notification_id, roots.id, roots.parent_id
                 FROM visible JOIN commits ON commits.id = visible.commit_id
                 JOIN commits AS roots ON roots.id = COALESCE(commits.root_id, commits.id)
-                WHERE visible.type IN ('replied', 'mentioned')
+                WHERE visible.type = 'mentioned'
             ),
             ancestry AS (
                 SELECT threads.notification_id, parent.id, parent.parent_id
@@ -169,9 +169,11 @@ final readonly class NotificationGroupsQuery
             ),
             topics AS (
                 SELECT visible.*,
-                    CASE WHEN visible.type = 'starred' THEN 'starred' ELSE 'activity' END AS topic_kind,
+                    CASE WHEN visible.type = 'starred' THEN 'starred'
+                        WHEN visible.type = 'replied' THEN 'replied' ELSE 'activity' END AS topic_kind,
                     CASE WHEN visible.type = 'followed' THEN visible.recipient_id
                         WHEN visible.type = 'starred' THEN visible.commit_id
+                        WHEN visible.type = 'replied' THEN visible.id
                         ELSE COALESCE(ancestry.id, threads.id, visible.id) END AS topic_id,
                     CASE WHEN visible.type = 'followed' THEN DATE(visible.created_at) END AS topic_day
                 FROM visible LEFT JOIN threads ON threads.notification_id = visible.id

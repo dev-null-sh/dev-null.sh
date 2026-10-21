@@ -9,7 +9,6 @@ use App\Enums\Log;
 use App\Enums\NotificationType;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\UnfurlLink;
-use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Notification;
@@ -22,7 +21,6 @@ it('restores only the deletion state within thirty seconds', function (CommitSta
     $parent = Commit::factory()->create();
     $commit = Commit::factory()->for($parent, 'parent')->create(['status' => $status]);
     $commit->stars()->attach($commit->user);
-    $bookmark = Bookmark::factory()->create(['user_id' => $commit->user_id, 'commit_id' => $commit->id]);
     $original = $commit->only(['body', 'status', 'parent_id', 'created_at']);
 
     $this->actingAs($commit->user)->delete(route('commit.destroy', $commit))->assertRedirect();
@@ -34,8 +32,7 @@ it('restores only the deletion state within thirty seconds', function (CommitSta
         ->assertInertiaFlash('restored.id', $commit->id)
         ->assertInertiaFlash('restored.stars_count', 1)
         ->assertInertiaFlash('restored.starred', true)
-        ->assertInertiaFlash('restored.is_saved', true)
-        ->assertInertiaFlash('restored.saved_order', $bookmark->id);
+        ->assertInertiaFlash('restored.starred_order', $commit->stars()->newPivotQuery()->where('user_id', $commit->user_id)->value('created_at'));
 
     expect($commit->refresh()->only(array_keys($original)))->toEqual($original);
     $this->assertNotSoftDeleted($commit);

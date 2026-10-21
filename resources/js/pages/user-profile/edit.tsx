@@ -132,7 +132,7 @@ export default function Edit({
             <section className="px-4 py-6 sm:px-6">
                 <Heading
                     title="Export your data"
-                    description="Download everything we store about you: your profile, commits and replies (including pending, rejected, and deleted ones), stars, saved commits, follows, mutes, blocks, the messages you sent, notifications, SSH key fingerprints, and active sessions."
+                    description="Download everything we store about you: your profile, commits and replies (including pending, rejected, and deleted ones), stars, follows, mutes, blocks, the messages you sent, notifications, SSH key fingerprints, and active sessions."
                 />
                 <p className="mb-5 text-sm text-muted-foreground">
                     Other people's replies are excluded. Your export is a JSON
