@@ -203,10 +203,10 @@ export default function Show({
                         <ArrowUp className="size-3.5" />
                         <span
                             aria-hidden
-                            className="mx-1 flex items-center -space-x-2"
+                            className="mx-1 flex items-center -space-x-1"
                         >
                             {newCommitAuthors.users
-                                .slice(0, 5)
+                                .slice(0, 4)
                                 .map((author) => (
                                     <UserAvatar
                                         key={author.id}
@@ -215,9 +215,9 @@ export default function Show({
                                         className="size-6 ring-2 ring-primary"
                                     />
                                 ))}
-                            {newCommitAuthors.total > 5 && (
-                                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted font-mono text-[11px] text-muted-foreground tabular-nums ring-2 ring-primary">
-                                    +{newCommitAuthors.total - 5}
+                            {newCommitAuthors.total > 4 && (
+                                <span className="relative grid h-6 min-w-8 shrink-0 place-items-center rounded-full bg-muted px-1.5 font-mono text-[11px] font-medium whitespace-nowrap text-foreground tabular-nums ring-2 ring-primary">
+                                    {newCommitAuthors.total - 4}+
                                 </span>
                             )}
                         </span>
