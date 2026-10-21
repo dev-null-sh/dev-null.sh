@@ -1,6 +1,6 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import { useRef, useState } from 'react';
-import { formatCount } from '@/lib/numbers';
+import { formatCount, formatNumber } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import type { Activity, ActivityBucket, ActivityScale } from '@/types';
 
@@ -184,7 +184,7 @@ export function ActivityGraph({
                     ) : (
                         <>
                             <span className="font-mono text-foreground">
-                                {formatCount(total)}
+                                {formatNumber(total)}
                             </span>{' '}
                             {total === 1 ? 'commit' : 'commits'}{' '}
                             {activityWindows[activity.scale]}

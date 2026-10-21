@@ -393,7 +393,7 @@ export default function Show({
                             className="size-5 shrink-0 object-contain"
                         />
                         <span className="font-mono font-medium text-foreground tabular-nums">
-                            {pasteisCount}
+                            {formatNumber(pasteisCount)}
                         </span>
                         {pluralize(pasteisCount, 'pastel', 'pastéis')} received
                     </p>
