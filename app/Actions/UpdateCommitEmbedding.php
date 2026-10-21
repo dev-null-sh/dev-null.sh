@@ -15,11 +15,13 @@ final readonly class UpdateCommitEmbedding
     }
 
     /**
-     * Commits are immutable, so the body is embedded once, when the commit is created or backfilled. Failures, such as
+     * Embed the current body without overwriting a newer edit with a stale result. Failures, such as
      * timeouts or rate limits, are thrown, so the caller can try again later.
      */
     public function handle(Commit $commit): void
     {
-        $commit->update(['embedding' => $this->openAI->embed($commit->body)]);
+        $embedding = $this->openAI->embed($commit->body);
+
+        Commit::query()->whereKey($commit->id)->where('body', $commit->body)->update(['embedding' => $embedding]);
     }
 }

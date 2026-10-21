@@ -481,3 +481,21 @@ it('approves reputable authors without calling the ai even when they have been r
         ->ai_decision->toBeNull();
     Http::assertNothingSent();
 });
+
+it('does not approve newer text using a stale moderation result', function (): void {
+    $commit = Commit::factory()->pending()->create(['body' => 'Original text']);
+    Http::fake([
+        'api.openai.com/v1/moderations' => function () use ($commit) {
+            Commit::query()->whereKey($commit->id)->update(['body' => 'Newer text']);
+
+            return Http::response(moderationResponse());
+        },
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->fresh()->body)->toBe('Newer text')
+        ->and($commit->fresh()->status)->toBe(CommitStatus::Pending)
+        ->and($commit->fresh()->ai_decision)->toBeNull();
+});
