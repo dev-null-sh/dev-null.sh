@@ -10,7 +10,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * The signed-in user: their public profile, plus what only they see on the web's profile settings. That is the lane
- * or custom color they chose (`null` for Automatic) and the one Automatic gives them, their GitHub Sponsors page, and when their profile
+ * or custom color they chose (`null` for Automatic) and the one Automatic gives them, their translation language
+ * (`null` follows the request's Accept-Language), their GitHub Sponsors page, and when their profile
  * was last mirrored from GitHub.
  *
  * @mixin User
@@ -28,6 +29,7 @@ final class CurrentUserResource extends JsonResource
             'pasteis_remaining' => $this->pasteisRemaining(),
             'pasteis_resets_at' => today()->addDay()->toIso8601ZuluString(),
             'pasteis_received' => $this->pasteis_received,
+            'translation_language' => $this->translation_language,
             'preferred_lane' => $this->preferredLane(),
             'automatic_lane' => $this->automaticLane(),
             'sponsors_url' => $this->has_sponsors_listing ? "https://github.com/sponsors/{$this->username}" : null,

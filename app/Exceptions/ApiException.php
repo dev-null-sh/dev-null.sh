@@ -72,6 +72,14 @@ final class ApiException extends HttpException
     }
 
     /**
+     * The translation service failed. The message is safe to show. Nothing from the provider is included.
+     */
+    public static function translationFailed(string $message): self
+    {
+        return new self(ApiErrorCode::TranslationFailed, $message);
+    }
+
+    /**
      * The user is banned, so the only thing left for them is deleting their account.
      */
     public static function banned(): self

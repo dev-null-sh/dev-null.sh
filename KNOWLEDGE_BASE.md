@@ -177,9 +177,9 @@ Livestream history: the team settled on calling posts **commits** and their list
 
 ### Translating commits
 
-Public commits and replies offer **Translate** when their detected language differs from the reader's translation language. Choose a translation language in **Settings → Profile**, searching by its English or native name (for example, Hungarian or magyar), independently of the device language, or leave **Browser language (automatic)** selected to follow the browser. This private preference is saved to the account, included in the data export, and erased with the account. Regional variants share a language, such as English for `en-US` and `en-GB`. Language detection runs in the background for posts being read; undetermined posts initially offer Translate rather than guessing. Code-only or indeterminate text is not offered once detected. Generating translations requires sign-in and is limited to ten requests per minute.
+Public commits and replies offer **Translate** when their detected language differs from the reader's translation language. Choose a translation language in **Settings → Profile**, searching by its English or native name (for example, Hungarian or magyar), independently of the device language, or leave **Browser language (automatic)** selected to follow the browser. This private preference is saved to the account, included in the data export, and erased with the account. Regional variants share a language, such as English for `en-US` and `en-GB`. Language detection runs in the background for posts being read; undetermined posts initially offer Translate rather than guessing. Code-only or indeterminate text is not offered once detected. Generating translations requires sign-in and is limited to ten requests per minute, shared by the web and the signed API.
 
-Pending commits are not offered for translation to other readers, including the author.
+A signed request sees the same `translation` on commits it loads as cards. `POST /api/v1/commits/{id}/translation` generates one language and answers with that commit. `PUT /api/v1/me/translation-language` saves the preference, and `GET /api/v1/me` returns it. Null follows the request's `Accept-Language`, then English. The public JSON API does not include `translation` or the preference. Pending commits are not offered for translation, including to their author, who instead sees `translation` as null on their own pending commit.
 
 DeepSeek through OpenCode translates only the post text. The result replaces its displayed text, with **Translated from [language]** and **Show original** to switch back; the original post is never changed. Cached translations are included on subsequent page loads, including for guests. Exact duplicate text shares translations across authors using a SHA-256 content key, with separate text for each target language. The cache expires seven days after its creation, without extending on reads or additional target languages. The database cache is physically pruned hourly; Redis expires entries itself. Deleting a post or account evicts its shared translations, which surviving duplicates can generate again. No private messages are translated.
 
@@ -187,7 +187,7 @@ If language detection fails, the original post can still be read. A failed trans
 
 Translations can be switched off site-wide. While off, Translate and cached translations are hidden and no new languages are detected. Cached translations are kept and reappear when translations are switched back on.
 
-Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController.php), [agent](app/Ai/Agents/CommitTranslator.php), [cache](app/Services/CommitTranslations.php), [controls](resources/js/components/commit-translation.tsx).
+Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController.php), [signed translation endpoint](app/Http/Controllers/Api/CommitTranslationController.php), [agent](app/Ai/Agents/CommitTranslator.php), [cache](app/Services/CommitTranslations.php), [controls](resources/js/components/commit-translation.tsx).
 
 ### Code, emoji, and mentions
 
@@ -439,10 +439,11 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - star or unstar, and save or unsave;
 - switch Pastéis mode and give pastéis;
 - report commits;
+- translate a published commit, and save a translation language;
 - sync from GitHub and save your lane color;
 - delete your account.
 
-Signed request bodies are JSON, so app commits are text only: no images, polls, or link-card choice. Pinning, Remotes, scheduling, search, and translations are web-only for now. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
+Signed request bodies are JSON, so app commits are text only: no images, polls, or link-card choice. Pinning, Remotes, scheduling, and search are web-only for now. Signed requests are limited to **120 requests per minute per user**. Generating a translation is also limited to **10 a minute**, shared with the web. Settings → Devices lists your approved devices with when each was last used, and revokes them.
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
 

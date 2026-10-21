@@ -135,6 +135,18 @@ final class AppServiceProvider extends ServiceProvider
             Limit::perDay(300)->by('day:'.$this->userId($request)),
         ]);
 
+        // Generating a translation calls the provider. The web and the app share one budget, and the app gets a code...
+        RateLimiter::for('translations', fn (Request $request): Limit => Limit::perMinute(10)->by($this->userId($request))
+            ->response(function (Request $request, array $headers): JsonResponse {
+                $message = 'Too Many Attempts.';
+
+                if ($request->is('api/*')) {
+                    return new ApiException(ApiErrorCode::RateLimited, $message, $headers)->render();
+                }
+
+                return response()->json(['message' => $message], 429, $headers);
+            }));
+
         // Every commit search pays for an embedding and a relevance verdict, so it gets a budget of its own...
         RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(15)
             ->by($request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip())
