@@ -87,8 +87,13 @@ final class DatabaseSeeder extends Seeder
         Notification::factory()->for($localDeveloper, 'recipient')->for($stargazer, 'actor')
             ->starred($commit)->create(['created_at' => now()->subHours(3)]);
 
-        Notification::factory()->for($localDeveloper, 'recipient')->for($replier, 'actor')
-            ->replied($commit)->create(['created_at' => now()->subHour()]);
+        $repliers = $users->except([$follower->id, $stargazer->id, $mentioner->id, $replier->id])->random(4)->values()->all();
+        array_unshift($repliers, $replier);
+
+        for ($index = 0; $index < 10; $index++) {
+            Notification::factory()->for($localDeveloper, 'recipient')->for($repliers[$index % count($repliers)], 'actor')
+                ->replied($commit)->create(['created_at' => now()->subMinutes(60 - $index * 5)]);
+        }
 
         Notification::factory()->for($localDeveloper, 'recipient')->for($mentioner, 'actor')
             ->mentioned()->create(['created_at' => now()->subMinutes(10)]);

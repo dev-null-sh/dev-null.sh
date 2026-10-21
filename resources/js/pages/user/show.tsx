@@ -137,7 +137,7 @@ export default function Show({
                                 href={user.live.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                aria-label={`Watch ${user.name} live on YouTube`}
+                                aria-label={`Watch ${user.name} live on ${user.live.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`}
                                 className="relative flex rounded-full"
                                 data-test="profile-live-avatar"
                             >
@@ -249,7 +249,7 @@ export default function Show({
                     <button
                         type="button"
                         onClick={() => setIsAchievementsOpen(true)}
-                        className="inline-flex cursor-pointer items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-[11px] font-medium transition hover:brightness-110"
+                        className="inline-flex cursor-pointer items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[11px] font-medium transition hover:brightness-110"
                         style={{
                             borderColor: laneTint(lane, 25),
                             backgroundColor: laneTint(lane, 8),

@@ -136,7 +136,7 @@ export function ReactionChips({
                             title={`${names} reacted with ${shortcodeOf(summary.emoji)}`}
                             onClick={() => onToggle?.(summary.emoji)}
                             className={cn(
-                                'inline-flex h-6 items-center gap-1 rounded-full border bg-card pr-2 pl-1.5 text-[13px] leading-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none enabled:hover:border-foreground/25',
+                                'inline-flex h-6 items-center gap-1 rounded-md border bg-card pr-2 pl-1.5 text-[13px] leading-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none enabled:hover:border-foreground/25',
                                 {
                                     'border-primary/45 bg-primary-soft enabled:hover:border-primary':
                                         summary.isMine,
@@ -189,7 +189,7 @@ export function ReactionTray({
     const tray = useRef<HTMLDivElement>(null);
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const isPicking = isOpen && isPickerOpen;
-    const isPicked = useRef(false);
+    const pickedEmoji = useRef<string | null>(null);
 
     const close = () => {
         onOpenChange(false);
@@ -264,7 +264,7 @@ export function ReactionTray({
                     role="toolbar"
                     aria-label="React"
                     className={cn(
-                        'mt-0.5 mb-3.5 flex w-max items-center gap-0.5 rounded-full border bg-popover p-[3px] shadow-[0_6px_16px_-8px_rgb(0_0_0/0.35)] transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none',
+                        'mt-0.5 mb-3.5 flex w-max items-center gap-0.5 rounded-lg border bg-popover p-[3px] shadow-[0_6px_16px_-8px_rgb(0_0_0/0.35)] transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none',
                         isOpen
                             ? 'translate-y-0 opacity-100'
                             : '-translate-y-2 opacity-0',
@@ -292,7 +292,7 @@ export function ReactionTray({
                                 title={shortcodeOf(emoji)}
                                 onClick={() => react(emoji)}
                                 className={cn(
-                                    'grid size-8 place-items-center rounded-full text-lg leading-none transition-[background-color,scale] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-90',
+                                    'grid size-8 place-items-center rounded-md text-lg leading-none transition-[background-color,scale] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-90',
                                     { 'bg-primary-soft': reacted.has(emoji) },
                                 )}
                                 data-test="quick-reaction"
@@ -308,7 +308,7 @@ export function ReactionTray({
                                 type="button"
                                 aria-label="More reactions"
                                 title="More reactions"
-                                className="grid size-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-[state=open]:bg-accent data-[state=open]:text-foreground"
+                                className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-[state=open]:bg-accent data-[state=open]:text-foreground"
                                 data-test="more-reactions"
                             >
                                 <SmilePlus aria-hidden className="size-4" />
@@ -317,11 +317,14 @@ export function ReactionTray({
                         <PopoverContent
                             align={isMine ? 'end' : 'start'}
                             collisionPadding={8}
-                            className="flex h-[min(25rem,var(--radix-popover-content-available-height))] w-76 flex-col overflow-hidden rounded-xl p-0 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)]"
+                            className="flex h-[min(25rem,var(--radix-popover-content-available-height))] w-76 flex-col overflow-hidden rounded-lg p-0 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)]"
                             onCloseAutoFocus={(event) => {
-                                if (isPicked.current) {
+                                const emoji = pickedEmoji.current;
+
+                                if (emoji !== null) {
                                     event.preventDefault();
-                                    isPicked.current = false;
+                                    pickedEmoji.current = null;
+                                    react(emoji);
                                 }
                             }}
                         >
@@ -329,9 +332,9 @@ export function ReactionTray({
                                 usage={usage}
                                 reacted={reacted}
                                 onPick={(emoji) => {
-                                    isPicked.current = true;
+                                    // Keep the fading picker's contents and anchor still until it unmounts.
+                                    pickedEmoji.current = emoji;
                                     setIsPickerOpen(false);
-                                    react(emoji);
                                 }}
                             />
                         </PopoverContent>
@@ -818,7 +821,7 @@ export function ReactionSheet({
                             role="toolbar"
                             aria-label="React"
                             data-sheet-part
-                            className="flex w-max items-center gap-1 rounded-full border bg-popover p-1 shadow-[0_10px_28px_-10px_rgb(0_0_0/0.45)]"
+                            className="flex w-max items-center gap-1 rounded-lg border bg-popover p-1 shadow-[0_10px_28px_-10px_rgb(0_0_0/0.45)]"
                         >
                             {quickReactions(usage).map((emoji) => (
                                 <button
@@ -828,7 +831,7 @@ export function ReactionSheet({
                                     aria-pressed={reacted.has(emoji)}
                                     onClick={() => react(emoji)}
                                     className={cn(
-                                        'grid size-11 place-items-center rounded-full text-2xl leading-none transition-transform active:scale-90',
+                                        'grid size-11 place-items-center rounded-md text-2xl leading-none transition-transform active:scale-90',
                                         {
                                             'bg-primary-soft':
                                                 reacted.has(emoji),
@@ -848,7 +851,7 @@ export function ReactionSheet({
                                 aria-expanded={isPicking}
                                 onClick={() => setIsPicking(true)}
                                 className={cn(
-                                    'grid size-11 place-items-center rounded-full text-muted-foreground',
+                                    'grid size-11 place-items-center rounded-md text-muted-foreground',
                                     { 'bg-accent text-foreground': isPicking },
                                 )}
                             >
@@ -938,7 +941,7 @@ function PickerSheet({
                     : undefined
             }
             className={cn(
-                '-mx-3 mt-auto flex h-[min(calc(var(--visual-viewport-height,100dvh)*0.6),28rem)] flex-col rounded-t-2xl border-t bg-popover pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-16px_rgb(0_0_0/0.45)] motion-safe:animate-in motion-safe:slide-in-from-bottom',
+                '-mx-3 mt-auto flex h-[min(calc(var(--visual-viewport-height,100dvh)*0.6),28rem)] flex-col rounded-t-lg border-t bg-popover pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-16px_rgb(0_0_0/0.45)] motion-safe:animate-in motion-safe:slide-in-from-bottom',
                 { 'transition-transform duration-200': !isDragging },
             )}
             data-test="emoji-sheet"

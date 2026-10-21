@@ -74,7 +74,7 @@ export function AchievementsDialog({
                             Developer Achievements
                         </DialogTitle>
                         <span
-                            className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-mono text-xs font-medium text-foreground"
+                            className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-xs font-medium text-foreground"
                             style={{
                                 borderColor: laneTint(lane, 25),
                                 backgroundColor: laneTint(lane, 8),

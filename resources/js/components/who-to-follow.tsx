@@ -1,8 +1,13 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
-import { Ellipsis, EyeOff, RefreshCw } from 'lucide-react';
+import { Ellipsis, EyeOff, RefreshCw, X } from 'lucide-react';
 import { useRef, useState } from 'react';
+import SuggestionDismissalController from '@/actions/App/Http/Controllers/SuggestionDismissalController';
 import { ContributorBadge } from '@/components/contributor-badge';
-import { FollowButton, useHasBlockWith } from '@/components/follow-button';
+import {
+    FollowButton,
+    FollowIconButton,
+    useHasBlockWith,
+} from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -11,9 +16,16 @@ import {
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
-import { useWhoToFollow } from '@/hooks/use-who-to-follow';
+import { useSharedState } from '@/hooks/use-shared-state';
+import { currentRound, useWhoToFollow } from '@/hooks/use-who-to-follow';
+import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
 import { edit } from '@/routes/appearance';
 import { show } from '@/routes/user';
@@ -58,19 +70,59 @@ function Reason({ reason }: { reason: string }) {
     );
 }
 
+const shownSuggestionsCount = 3;
+
+function DismissButton({
+    user,
+    onDismiss,
+}: {
+    user: SuggestedUser;
+    onDismiss: () => void;
+}) {
+    const label = `Not interested. @${user.username} won't be suggested again.`;
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <button
+                    type="button"
+                    onClick={onDismiss}
+                    aria-label={label}
+                    className="shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    data-test="suggested-dismiss-button"
+                >
+                    <X aria-hidden className="size-4" />
+                </button>
+            </TooltipTrigger>
+            <TooltipContent>
+                Not interested
+                <span className="block opacity-70">
+                    @{user.username} won't be suggested again.
+                </span>
+            </TooltipContent>
+        </Tooltip>
+    );
+}
+
 /**
  * The aside is too narrow to share a line with the button, so there the bio and reason go below on their own lines.
+ *
+ * With onDismiss, the row gets small follow and dismiss icons instead of the full follow button. onDismiss returns
+ * whether someone takes the row's place; otherwise the row folds away. A failed dismissal opens it back up. These rows
+ * keep room for both lines below the name, so someone without a bio taking a slot doesn't move the rows under it.
  */
 export function SuggestedUserRow({
     user,
     isStacked = false,
     className,
     buttonClassName,
+    onDismiss,
 }: {
     user: SuggestedUser;
     isStacked?: boolean;
     className?: string;
     buttonClassName?: string;
+    onDismiss?: (onFailed: () => void) => boolean;
 }) {
     const reason = reasonFor(user);
     const bio = user.bio?.trim() || null;
@@ -82,7 +134,9 @@ export function SuggestedUserRow({
     );
     const avatarRef = useRef<HTMLSpanElement>(null);
     const hasBlock = useHasBlockWith(user);
+    const [isDismissed, setIsDismissed] = useState(false);
     const [isGone, setIsGone] = useState(false);
+    const isLeaving = hasBlock || isDismissed;
 
     if (isGone) {
         return null;
@@ -90,21 +144,24 @@ export function SuggestedUserRow({
 
     return (
         <li
-            inert={hasBlock}
+            inert={isLeaving}
             className={cn(
                 'grid grid-cols-1 transition-[grid-template-rows,opacity,margin] duration-300 ease-out',
-                hasBlock
+                isLeaving
                     ? 'm-0 grid-rows-[0fr] border-0 opacity-0'
                     : 'grid-rows-[1fr]',
             )}
-            onTransitionEnd={(event) =>
-                hasBlock &&
-                event.target === event.currentTarget &&
-                event.propertyName === 'grid-template-rows' &&
-                setIsGone(true)
-            }
+            onTransitionEnd={(event) => {
+                if (
+                    isLeaving &&
+                    event.target === event.currentTarget &&
+                    event.propertyName === 'grid-template-rows'
+                ) {
+                    setIsGone(true);
+                }
+            }}
         >
-            <div className={cn('min-h-0', { 'overflow-hidden': hasBlock })}>
+            <div className={cn('min-h-0', { 'overflow-hidden': isLeaving })}>
                 <div className={cn('flex items-center gap-3', className)}>
                     <UserPreview
                         user={user}
@@ -140,25 +197,52 @@ export function SuggestedUserRow({
                                         @{user.username}
                                     </span>
                                 </span>
-                                {!isStacked && details}
+                                {!isStacked && (
+                                    <span
+                                        className={cn('block', {
+                                            'min-h-8': onDismiss,
+                                        })}
+                                    >
+                                        {details}
+                                    </span>
+                                )}
                             </span>
                         </Link>
                     </UserPreview>
-                    <FollowButton
-                        user={user}
-                        isFollowing={false}
-                        followsYou={user.follows_you}
-                        size="sm"
-                        className={cn(
-                            'min-w-24 shrink-0',
-                            buttonClassName,
-                            user.follows_you && 'min-w-26',
-                        )}
-                        only={['auth']}
-                        preserveState
-                        onSuccess={() => router.flushAll()}
-                        data-test="suggested-follow-button"
-                    />
+                    {onDismiss ? (
+                        <div className="flex shrink-0 items-center gap-0.5">
+                            <FollowIconButton
+                                user={user}
+                                isFollowing={false}
+                                followsYou={user.follows_you}
+                                marksFollowsYou
+                                data-test="suggested-follow-button"
+                            />
+                            <DismissButton
+                                user={user}
+                                onDismiss={() =>
+                                    onDismiss(() => setIsDismissed(false)) ||
+                                    setIsDismissed(true)
+                                }
+                            />
+                        </div>
+                    ) : (
+                        <FollowButton
+                            user={user}
+                            isFollowing={false}
+                            followsYou={user.follows_you}
+                            size="sm"
+                            className={cn(
+                                'min-w-24 shrink-0',
+                                buttonClassName,
+                                user.follows_you && 'min-w-26',
+                            )}
+                            only={['auth']}
+                            preserveState
+                            onSuccess={() => router.flushAll()}
+                            data-test="suggested-follow-button"
+                        />
+                    )}
                 </div>
                 {isStacked && (
                     <div className="mt-1.5 min-h-8 pl-12">{details}</div>
@@ -170,11 +254,9 @@ export function SuggestedUserRow({
 
 function SuggestedUsersSkeleton({
     rowClassName,
-    buttonClassName,
     isStacked = false,
 }: {
     rowClassName?: string;
-    buttonClassName?: string;
     isStacked?: boolean;
 }) {
     const details = (
@@ -195,9 +277,7 @@ function SuggestedUsersSkeleton({
                             <Skeleton className="my-0.5 h-3 w-20" />
                             {!isStacked && details}
                         </span>
-                        <Skeleton
-                            className={cn('h-8 w-24 shrink-0', buttonClassName)}
-                        />
+                        <Skeleton className="h-7 w-[58px] shrink-0" />
                     </div>
                     {isStacked && (
                         <div className="mt-1.5 min-h-8 pl-12">{details}</div>
@@ -283,6 +363,7 @@ function useHideWhoToFollow() {
     const { showsWhoToFollow, suggestedUsers } = usePage().props;
     const { rememberShowsWhoToFollow } = useWhoToFollow();
     const [isHidden, setIsHidden] = useState(false);
+    const { hasDismissed, isEmptied, dismiss } = useDismissSuggestion();
 
     const toggle = (hides: boolean) => {
         rememberShowsWhoToFollow(!hides);
@@ -290,12 +371,226 @@ function useHideWhoToFollow() {
     };
 
     return {
-        isVisible: showsWhoToFollow && suggestedUsers?.length !== 0,
+        isVisible:
+            showsWhoToFollow && (suggestedUsers?.length !== 0 || hasDismissed),
         isHidden,
+        isEmptied,
         hide: () => toggle(true),
         undo: () => toggle(false),
-        suggestedUsers,
+        suggestedUsers: suggestedUsers?.slice(0, shownSuggestionsCount),
+        dismiss,
     };
+}
+
+type TopUp = 'idle' | 'running' | 'queued';
+
+const dismissedIds = new Set<SuggestedUser['id']>();
+
+/**
+ * The server sends a few spare suggestions after the shown ones, so a dismissed person's slot is taken by the next
+ * spare right away while everyone else stays put. Once every dismissal is through, the spares are topped up from the
+ * server, which only adds people after the ones already here. A dismissal that fails puts the person back in their
+ * slot, unless a refresh has moved on to other people since.
+ *
+ * A top-up can be answered before someone else's dismissal is saved, so everyone dismissed since the page loaded is
+ * taken out again when it lands, and the next top-up follows. Visiting another page cancels a top-up, so it is sent
+ * again once that page is shown.
+ *
+ * The aside and the log share this state, so both say nobody is left once a top-up finds nobody else, until the next
+ * page load leaves the block out like any other time there's nobody to suggest.
+ */
+function useDismissSuggestion() {
+    const { suggestedUsers = [] } = usePage().props;
+    const [dismissingCount, setDismissingCount] = useSharedState<number>(
+        'who-to-follow-dismissing',
+        0,
+    );
+    const [topUp, setTopUp] = useSharedState<TopUp>(
+        'who-to-follow-top-up',
+        'idle',
+    );
+    const [hasDismissed, setHasDismissed] = useSharedState<boolean>(
+        'who-to-follow-dismissed',
+        false,
+    );
+
+    const remove = (user: Pick<SuggestedUser, 'id'>): void => {
+        router.replaceProp('suggestedUsers', (current: SuggestedUser[]) => {
+            const slot = current.findIndex(
+                (suggested) => suggested.id === user.id,
+            );
+
+            if (slot === -1) {
+                return current;
+            }
+
+            const remaining = [...current];
+            const spare =
+                slot < shownSuggestionsCount
+                    ? remaining.splice(shownSuggestionsCount, 1)
+                    : [];
+            remaining.splice(slot, 1, ...spare);
+
+            return remaining;
+        });
+    };
+
+    /**
+     * Whoever holds the slot now came from the spares, unless they were already shown, so they go back to the front.
+     */
+    const restore = (
+        user: SuggestedUser,
+        slot: number,
+        shownIds: SuggestedUser['id'][],
+    ): void => {
+        router.replaceProp('suggestedUsers', (current: SuggestedUser[]) => {
+            if (current.some((suggested) => suggested.id === user.id)) {
+                return current;
+            }
+
+            const restored = [...current];
+            const holder = restored.at(slot);
+
+            if (holder && !shownIds.includes(holder.id)) {
+                restored.splice(slot, 1, user);
+                restored.splice(shownSuggestionsCount, 0, holder);
+            } else {
+                restored.splice(slot, 0, user);
+            }
+
+            return restored;
+        });
+    };
+
+    const sendTopUp = (): void => {
+        let isApplied = false;
+
+        setTopUp('running');
+        router.reload({
+            only: ['suggestedUsers'],
+            async: true,
+            onBeforeUpdate: () => {
+                isApplied = true;
+            },
+            onSuccess: () => dismissedIds.forEach((id) => remove({ id })),
+            onFinish: () => {
+                if (!isApplied) {
+                    const stop = router.on('navigate', () => {
+                        stop();
+                        sendTopUp();
+                    });
+
+                    return;
+                }
+
+                // The shared setter runs its update at once, so what it saw can be read right after.
+                let wasQueued = false;
+                setTopUp((current) => {
+                    wasQueued = current === 'queued';
+
+                    return 'idle';
+                });
+
+                if (wasQueued) {
+                    sendTopUp();
+                }
+            },
+        });
+    };
+
+    const settle = (): void => {
+        let left = 0;
+        setDismissingCount((count) => (left = count - 1));
+
+        if (left > 0) {
+            return;
+        }
+
+        let isRunning = false;
+        setTopUp((current) => {
+            isRunning = current !== 'idle';
+
+            return isRunning ? 'queued' : current;
+        });
+
+        if (!isRunning) {
+            sendTopUp();
+        }
+    };
+
+    const dismiss = (user: SuggestedUser, onFailed: () => void): boolean => {
+        const shownIds = suggestedUsers
+            .slice(0, shownSuggestionsCount)
+            .map((suggested) => suggested.id);
+        const slot = shownIds.indexOf(user.id);
+        const round = currentRound();
+        const hasSpare = suggestedUsers.length > shownSuggestionsCount;
+        let isSaved = false;
+
+        dismissedIds.add(user.id);
+        setHasDismissed(true);
+        setDismissingCount((count) => count + 1);
+        router.visit(SuggestionDismissalController.store(user), {
+            only: ['auth'],
+            preserveState: true,
+            preserveScroll: true,
+            async: true,
+            onHttpException: (response) => !toastWhenThrottled(response),
+            onSuccess: () => {
+                isSaved = true;
+                router.flushAll();
+            },
+            onFinish: () => {
+                if (!isSaved) {
+                    dismissedIds.delete(user.id);
+                    onFailed();
+
+                    if (currentRound() === round) {
+                        restore(user, slot, shownIds);
+                    }
+                }
+
+                settle();
+            },
+        });
+
+        if (hasSpare) {
+            remove(user);
+        } else {
+            // Taken out after the row has folded away, even if the block it was dismissed from is no longer shown.
+            window.setTimeout(() => {
+                if (dismissedIds.has(user.id)) {
+                    remove(user);
+                }
+            }, 300);
+        }
+
+        return hasSpare;
+    };
+
+    return {
+        hasDismissed,
+        isEmptied:
+            hasDismissed &&
+            dismissingCount === 0 &&
+            topUp === 'idle' &&
+            suggestedUsers.length === 0,
+        dismiss,
+    };
+}
+
+function WhoToFollowEmptied() {
+    return (
+        <div data-test="who-to-follow-emptied">
+            <p className="font-mono text-[13px] text-muted-foreground">
+                fatal: no one left to suggest
+            </p>
+            <p className="mt-1 text-xs text-pretty text-muted-foreground">
+                You've followed or dismissed everyone we'd suggest. New people
+                show up here as they start committing.
+            </p>
+        </div>
+    );
 }
 
 function WhoToFollowHidden({ onUndo }: { onUndo: () => void }) {
@@ -330,8 +625,15 @@ function WhoToFollowHidden({ onUndo }: { onUndo: () => void }) {
 }
 
 export function WhoToFollow() {
-    const { isVisible, isHidden, hide, undo, suggestedUsers } =
-        useHideWhoToFollow();
+    const {
+        isVisible,
+        isHidden,
+        isEmptied,
+        hide,
+        undo,
+        suggestedUsers,
+        dismiss,
+    } = useHideWhoToFollow();
 
     if (!isVisible) {
         return null;
@@ -346,7 +648,7 @@ export function WhoToFollow() {
                 <h2 id="aside-who-to-follow" className="text-sm font-semibold">
                     Who to follow
                 </h2>
-                {!isHidden && (
+                {!isHidden && !isEmptied && (
                     <WhoToFollowActions
                         hasSuggestions={suggestedUsers !== undefined}
                         onHide={hide}
@@ -355,6 +657,8 @@ export function WhoToFollow() {
             </div>
             {isHidden ? (
                 <WhoToFollowHidden onUndo={undo} />
+            ) : isEmptied ? (
+                <WhoToFollowEmptied />
             ) : (
                 <ul className="space-y-4">
                     <Deferred
@@ -366,6 +670,9 @@ export function WhoToFollow() {
                                 key={user.id}
                                 user={user}
                                 isStacked
+                                onDismiss={(onFailed) =>
+                                    dismiss(user, onFailed)
+                                }
                             />
                         ))}
                     </Deferred>
@@ -379,8 +686,15 @@ export function WhoToFollow() {
  * The aside is hidden below the xl breakpoint, so smaller screens get the same suggestions inside the log.
  */
 export function WhoToFollowInLog() {
-    const { isVisible, isHidden, hide, undo, suggestedUsers } =
-        useHideWhoToFollow();
+    const {
+        isVisible,
+        isHidden,
+        isEmptied,
+        hide,
+        undo,
+        suggestedUsers,
+        dismiss,
+    } = useHideWhoToFollow();
 
     if (!isVisible) {
         return null;
@@ -402,7 +716,7 @@ export function WhoToFollowInLog() {
                     >
                         $ who --should-i-follow
                     </h2>
-                    {!isHidden && (
+                    {!isHidden && !isEmptied && (
                         <WhoToFollowActions
                             hasSuggestions={suggestedUsers !== undefined}
                             onHide={hide}
@@ -411,15 +725,14 @@ export function WhoToFollowInLog() {
                 </div>
                 {isHidden ? (
                     <WhoToFollowHidden onUndo={undo} />
+                ) : isEmptied ? (
+                    <WhoToFollowEmptied />
                 ) : (
                     <ul className="divide-y rounded-lg border">
                         <Deferred
                             data="suggestedUsers"
                             fallback={
-                                <SuggestedUsersSkeleton
-                                    rowClassName="p-3"
-                                    buttonClassName="w-[90px]"
-                                />
+                                <SuggestedUsersSkeleton rowClassName="p-3" />
                             }
                         >
                             {suggestedUsers?.map((user) => (
@@ -427,7 +740,9 @@ export function WhoToFollowInLog() {
                                     key={user.id}
                                     user={user}
                                     className="p-3"
-                                    buttonClassName="min-w-[90px] px-2"
+                                    onDismiss={(onFailed) =>
+                                        dismiss(user, onFailed)
+                                    }
                                 />
                             ))}
                         </Deferred>

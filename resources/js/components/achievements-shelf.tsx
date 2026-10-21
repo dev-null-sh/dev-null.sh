@@ -229,7 +229,7 @@ export function AchievementsShelf({
                                     data-earned-badge
                                     aria-hidden={index >= visibleCount}
                                     className={cn(
-                                        'inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 font-mono text-xs whitespace-nowrap text-foreground shadow-xs',
+                                        'inline-flex shrink-0 items-center gap-1.5 rounded-md border bg-card px-2.5 py-1 font-mono text-xs whitespace-nowrap text-foreground shadow-xs',
                                         index >= visibleCount &&
                                             'invisible absolute',
                                     )}
@@ -309,7 +309,7 @@ export function AchievementsShelf({
                                                 onInspect();
                                             }}
                                             className={cn(
-                                                'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs transition-colors select-none',
+                                                'inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-xs transition-colors select-none',
                                                 badge.unlocked
                                                     ? 'border-border bg-card text-foreground shadow-xs hover:border-(--lane)'
                                                     : 'border-dashed border-muted-foreground/30 bg-muted/20 text-muted-foreground hover:border-muted-foreground/60',

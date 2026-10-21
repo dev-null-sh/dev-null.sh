@@ -136,7 +136,7 @@ it('erases the replies of a deleted user that only have their own replies under 
 
 });
 
-it('erases the mutes and blocks of a deleted user in both directions', function (): void {
+it('erases the mutes, blocks and dismissed suggestions of a deleted user in both directions', function (): void {
     $user = User::factory()->create();
     $other = User::factory()->create();
 
@@ -144,12 +144,16 @@ it('erases the mutes and blocks of a deleted user in both directions', function 
     $other->muting()->attach($user);
     $user->blocking()->attach($other);
     $other->blocking()->attach($user);
+    $user->dismissedSuggestions()->attach($other);
+    $other->dismissedSuggestions()->attach($user);
 
     resolve(DeleteUser::class)->handle($user);
 
     expect($other->muting()->count())->toBe(0)
         ->and($other->blocking()->count())->toBe(0)
-        ->and($other->blockers()->count())->toBe(0);
+        ->and($other->blockers()->count())->toBe(0)
+        ->and($other->dismissedSuggestions()->count())->toBe(0)
+        ->and(DB::table('suggestion_dismissals')->count())->toBe(0);
 
 });
 
