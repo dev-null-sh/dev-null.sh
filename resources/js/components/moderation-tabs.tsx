@@ -1,3 +1,4 @@
+import ExploreReportController from '@/actions/App/Http/Controllers/ExploreReportController';
 import { index as people } from '@/actions/App/Http/Controllers/ModeratedUserController';
 import { show } from '@/actions/App/Http/Controllers/ModerationController';
 import { index } from '@/actions/App/Http/Controllers/ReportedCommitController';
@@ -6,12 +7,17 @@ import { PageTabs } from '@/components/page-tabs';
 export function ModerationTabs({
     active,
 }: {
-    active: 'pending' | 'reports' | 'people';
+    active: 'pending' | 'reports' | 'people' | 'explore';
 }) {
     return (
         <PageTabs
             label="Moderation queues"
             tabs={[
+                {
+                    title: 'Explore reports',
+                    href: ExploreReportController.index(),
+                    isActive: active === 'explore',
+                },
                 {
                     title: 'Pending review',
                     href: show(),

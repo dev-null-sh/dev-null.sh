@@ -21,6 +21,8 @@ final readonly class CreateCommitRestoration
 
             if ($commit->isRestorable()) {
                 $commit->restore();
+                resolve(DeleteExploreText::class)->handle([$commit->id]);
+                resolve(CreateExploreWork::class)->handle([$commit->id]);
                 $this->updateCommitHotScores->handle([$commit->threadRootId()]);
             }
 

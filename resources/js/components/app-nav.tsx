@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
     Activity,
+    Compass,
     Bell,
     Star,
     GitCommitVertical,
@@ -17,6 +18,7 @@ import {
 import type { ReactElement, ReactNode } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
+import ExploreController from '@/actions/App/Http/Controllers/ExploreController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
@@ -76,6 +78,12 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             title: 'Log',
             href: log === null ? home() : LogController.show(log),
             icon: GitCommitVertical,
+            prefetch: false,
+        },
+        {
+            title: 'Explore',
+            href: ExploreController.index(),
+            icon: Compass,
             prefetch: false,
         },
         {
@@ -139,11 +147,13 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                 ? isCurrentOrParentUrl('/settings')
                 : item.title === 'Log'
                   ? isCurrentOrParentUrl('/log')
-                  : item.title === 'Remotes'
-                    ? isCurrentOrParentUrl('/remotes')
-                    : item.title === 'Operations'
-                      ? isCurrentOrParentUrl('/operations')
-                      : isCurrentUrl(item.href)),
+                  : item.title === 'Explore'
+                    ? isCurrentOrParentUrl('/explore')
+                    : item.title === 'Remotes'
+                      ? isCurrentOrParentUrl('/remotes')
+                      : item.title === 'Operations'
+                        ? isCurrentOrParentUrl('/operations')
+                        : isCurrentUrl(item.href)),
     }));
 }
 

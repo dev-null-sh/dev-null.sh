@@ -15,6 +15,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Achievement badges and XP](#achievement-badges-and-xp)
   - [Following developers and suggestions](#following-developers-and-suggestions)
   - [Following, Latest, and Trending logs](#following-latest-and-trending-logs)
+  - [Explore subjects and stories](#explore-subjects-and-stories)
   - [Searching developers and commits](#searching-developers-and-commits)
   - [Writing commits](#writing-commits)
   - [Translating commits](#translating-commits)
@@ -152,6 +153,18 @@ Browser Back and Forward restore expanded replies and loaded thread continuation
 If a background check hits a temporary connection or gateway failure, the page keeps its last received content and tries again on the normal polling schedule.
 
 Sources: [log types](app/Enums/Log.php), [log queries](app/Queries/LogQueries), [log page](resources/js/pages/log/show.tsx), [background polling](resources/js/lib/background-poll.ts).
+
+### Explore subjects and stories
+
+Explore is available from the navigation to guests and signed-in developers. Its tabs are Explore, Trending, News, AI, Web Development, and Open Source. Search opens the existing developer and commit search. Discovery uses approved public commits on /dev/null; it is not an external news service.
+
+Subjects are broad interests, such as Laravel or Security. Stories describe specific discussions or events. Several stories can belong to Laravel, and a security story can also belong to Security. A subject includes its general commits and the commits in its stories, counting each commit once. Subjects and stories are discovered from community discussions rather than a fixed topic list.
+
+The Explore landing page shows today's stories, Trending, developer suggestions and recommended commits. Trending features the top broad topic in AI, Web Development and Open Source, in that order, using public engagement over the last 24 hours. Each entry shows the category followed by Trending, commit and developer counts, and a hashtag link to the topic. Counts include general commits and related stories, with duplicate commits counted once. Each category selects its leader independently, so a topic can appear in more than one category. Categories with no eligible topic are omitted. Subject and story pages offer Top and Latest commit feeds. Story pages put related discussions in a separate Related Stories tab so the commits appear directly below the navigation. AI-generated overviews have a collapsed Sources accordion. Open Sources to reveal the AI attribution, generation time and links to the supporting commits. Discovery freshness and current engagement are separate: stars and replies can change ranking as discussions develop. Today uses your saved timezone, or the application timezone for guests and developers who have not chosen one.
+
+Signed-in developers can disable personalized discovery in Explore settings. Personalization uses followed developers and starred discussions on the landing page; Trending and category rankings remain public rankings. Topic feedback hides the topic for you. Not interested only hides it; other feedback reasons also send a private report. Explore settings lets you restore hidden topics. Mutes and blocks apply to discovery, including text derived from excluded sources. Your Explore preferences, hidden topics and reports are included in your data export and removed with your account.
+
+Ask Tom questions such as `@tom What are the top 3 news stories for today` or `@tom What's trending in Laravel`. Tom uses Explore's public discussion data, links to the relevant Explore pages and identifies the date and timezone. If fewer stories are available, the answer contains fewer stories.
 
 ### Searching developers and commits
 

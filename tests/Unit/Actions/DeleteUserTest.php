@@ -3,12 +3,15 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitTranslation;
+use App\Actions\CreateExploreFeedback;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
+use App\Actions\UpdateExplorePreference;
 use App\Ai\Agents\CommitTranslator;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Device;
+use App\Models\ExploreTopic;
 use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageImage;
@@ -295,4 +298,27 @@ it('erases cached translations of the user and replies in their deleted threads'
         ->and(Cache::has($unrelatedKey))->toBeTrue()
         ->and($bodyReads)->toHaveCount(2);
     $this->assertModelMissing($user);
+});
+
+it('erases Explore member records and invalidates derived source text with the account [EXP-09]', function (): void {
+    $user = User::factory()->create();
+    $post = Commit::factory()->for($user)->create();
+    $topic = ExploreTopic::query()->create([
+        'kind' => 'story', 'key' => 'account-source', 'title' => 'Account source', 'categories' => ['news'],
+        'summary' => 'Text derived from this account.', 'summary_generated_at' => now(),
+    ]);
+    DB::table('explore_commit_topic')->insert(['topic_id' => $topic->id, 'commit_id' => $post->id]);
+    DB::table('explore_summary_sources')->insert(['topic_id' => $topic->id, 'commit_id' => $post->id]);
+    resolve(UpdateExplorePreference::class)->handle($user, false);
+    resolve(CreateExploreFeedback::class)->handle($user, $topic, 'spam');
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($topic->fresh()->summary)->toBeNull()->and($topic->fresh()->summary_generated_at)->toBeNull();
+    foreach (['explore_preferences', 'explore_hidden_topics', 'explore_reports'] as $table) {
+        $this->assertDatabaseMissing($table, ['user_id' => $user->id]);
+    }
+
+    $this->assertDatabaseMissing('explore_summary_sources', ['commit_id' => $post->id]);
+    $this->assertDatabaseMissing('explore_commit_topic', ['commit_id' => $post->id]);
 });

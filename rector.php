@@ -3,9 +3,12 @@
 declare(strict_types=1);
 
 use Rector\Caching\ValueObject\Storage\FileCacheStorage;
+use Rector\CodeQuality\Rector\Catch_\ThrowWithPreviousExceptionRector;
 use Rector\CodingStyle\Rector\ClassMethod\MakeInheritedMethodVisibilitySameAsParentRector;
 use Rector\Config\RectorConfig;
+use Rector\DeadCode\Rector\ClassMethod\RemoveUnusedPublicMethodParameterRector;
 use Rector\Php85\Rector\Property\AddOverrideAttributeToOverriddenPropertiesRector;
+use RectorLaravel\Rector\Class_\AddHasFactoryToModelsRector;
 use RectorLaravel\Rector\If_\ThrowIfRector;
 use RectorLaravel\Set\LaravelSetList;
 
@@ -40,6 +43,12 @@ return RectorConfig::configure()
         __DIR__.'/tests',
     ])
     ->withSkip([
+        // Controller arguments trigger Form Request authorization through container resolution.
+        RemoveUnusedPublicMethodParameterRector::class => [__DIR__.'/app/Http/Controllers/*'],
+        // Provider exception chains can contain request text and credentials.
+        ThrowWithPreviousExceptionRector::class => [__DIR__.'/app/Jobs/ProcessExplore.php', __DIR__.'/app/Jobs/SummarizeExplore.php'],
+        // These models are created through actions and have no factory.
+        AddHasFactoryToModelsRector::class => [__DIR__.'/app/Models/ExploreTopic.php', __DIR__.'/app/Models/ExplorePreference.php'],
         MakeInheritedMethodVisibilitySameAsParentRector::class,
         AddOverrideAttributeToOverriddenPropertiesRector::class,
         ThrowIfRector::class => [__DIR__.'/app/Actions/*'],
@@ -47,9 +56,9 @@ return RectorConfig::configure()
     ->withPreparedSets(
         deadCode: true,
         codeQuality: true,
+        codingStyle: true,
         typeDeclarations: true,
         privatization: true,
         earlyReturn: true,
-        codingStyle: true,
     )
     ->withPhpSets();

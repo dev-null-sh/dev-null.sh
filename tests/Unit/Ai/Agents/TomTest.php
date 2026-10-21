@@ -103,7 +103,7 @@ it('forces the selected tools before Tom answers and supports a bounded follow-u
     expect($requests->get(5)['tools'])->toHaveCount(5);
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/decisions'
         && $request['model'] === 'gpt-6-luna'
-        && collect($request['questions'])->pluck('name')->all() === ['SearchCommits', 'SearchKnowledgeBase', 'RepositoryInsights', 'SearchRepositoryHistory', 'CommunityStats']
+        && collect($request['questions'])->pluck('name')->all() === ['ExploreTopics', 'SearchCommits', 'SearchKnowledgeBase', 'RepositoryInsights', 'SearchRepositoryHistory', 'CommunityStats']
         && collect($request['questions'])->every(fn (array $question): bool => $question['type'] === 'predicate'));
     Http::assertSent(function (Request $request) use ($public): bool {
         if ($request->url() !== 'https://opencode.ai/zen/v1/chat/completions') {

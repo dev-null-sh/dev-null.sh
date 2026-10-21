@@ -38,6 +38,7 @@ final readonly class DeleteCommit
             Notification::query()->where('type', NotificationType::Replied)->whereIn('commit_id', $commit->replies()->select('id'))->delete();
             Notification::query()->where('type', NotificationType::Quoted)->whereIn('commit_id', $commit->quotes()->select('id'))->delete();
 
+            resolve(DeleteExploreText::class)->handle([$commit->id]);
             $commit->delete();
 
             Cache::forget(resolve(CommitTranslations::class)->key($commit));

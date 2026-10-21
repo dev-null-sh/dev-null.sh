@@ -103,6 +103,7 @@ final readonly class CreateCommit
             }
 
             if ($commit->status === CommitStatus::Approved) {
+                resolve(CreateExploreWork::class)->handle([$commit->id]);
                 dispatch(new CheckUserLevel($user))->afterCommit();
             }
 

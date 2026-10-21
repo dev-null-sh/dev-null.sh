@@ -23,7 +23,7 @@ Developers who left X or Bluesky, or are thinking about it, and want a feed with
 ## Operating Context
 
 - Surfaces: the web app (also installable as a PWA), the mobile app through a signed JSON API, the terminal script and GitHub Action, a public read-only API, Atom feeds, and an activity graph SVG for GitHub READMEs.
-- Guests can read the Latest and Trending logs, profiles, approved commits and their threads, and search. Everything that writes or is personal (Following log, notifications, Saved, Remotes, Settings) needs sign-in.
+- Guests can read the Latest and Trending logs, profiles, approved commits and their threads, search, and Explore. Everything that writes or is personal (Following log, notifications, Saved, Remotes, Settings) needs sign-in.
 - Site admins (`ADMINS`) moderate (`/moderation`) and run the site (`/operations`).
 - Exact behavior, limits, and edge cases for every feature live in [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md) and in the code; this file only records what must stay true.
 
@@ -33,13 +33,14 @@ What exists, one line each (details in the knowledge base):
 
 - **Commits:** text with code, images, link cards and embedded players, or a poll; replies, quotes, threads, scheduling, translation.
 - **Logs:** Following, Latest, and Trending.
+- **Explore:** subjects, stories, category discovery, and source-backed summaries from public commits.
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
 - **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
 - **Remotes:** private one-to-one and group messages (orgs).
 - **Notifications:** in-app only.
 - **Search:** developers by name, commits by meaning.
 - **Safety:** mute, block, reports, and moderation.
-- **Bots:** Tom answers questions about /dev/null from the knowledge base, the public repository, and aggregate community statistics; World answers "hello world". They use @tom and @world until those GitHub owners sign in, then keep working as @devnull-tom and @devnull-world.
+- **Bots:** Tom answers questions about /dev/null from the knowledge base, the public repository, aggregate community statistics, and public Explore discussions; World answers "hello world". They use @tom and @world until those GitHub owners sign in, then keep working as @devnull-tom and @devnull-world.
 - **Data:** JSON export and account deletion.
 
 Rules every feature must keep:

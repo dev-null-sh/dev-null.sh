@@ -53,6 +53,40 @@ A link card for a video, song or pen becomes a player that loads when clicked. T
 
 Twitch requires the embedding site's host, which is taken from `APP_URL`. To add a site, implement `App\Contracts\Services\EmbedProvider` and register it in `config/embeds.php`.
 
+### Explore demo data
+
+To browse a substantial fictional community locally, run:
+
+```bash
+php artisan migrate
+php artisan db:seed --class=ExploreSeeder
+```
+
+Open `/explore`. The seeder provides 7 subjects, 70 stories with 24 top-level commits each, 14 general subject commits, 280 replies (including nested conversations), and 40 fictional developers. Subjects cover Laravel, TypeScript, PostgreSQL, Rust, Python, Kubernetes and AI Engineering. Stories have source links, shared subjects, current timestamps and varied engagement; category pages and Top/Latest feeds are populated, including pagination.
+
+All announcements and developers are fictional demo fixtures. Summaries identify the content as demo data. No AI credentials or running worker are required. The seeder only runs in local/testing environments. Rerunning refreshes its own fixtures with stable IDs, preserves unrelated activity and topic feedback/suppression, and makes the discussions recent again. For local sign-in, use `explore-demo-maya` or another seeded handle.
+
+The maintenance catch-all still takes precedence on the normal site when enabled. Use an isolated review server with its own database and temporary route cache to inspect Explore without changing that route.
+
+### Explore processing
+
+Explore discovers subjects and stories from approved public commits. Apply the normal migrations before enabling workers. It uses the existing Laravel AI OpenCode provider and `deepseek-v4.1-flash`; set the existing provider credentials through your environment. `config/explore.php` contains the enabled flag and processing limits.
+
+Run the scheduler each minute and start one worker for the dedicated queue:
+
+```bash
+php artisan schedule:work
+php artisan queue:work --queue=explore --timeout=900 --tries=3
+```
+
+Use a queue connection with `retry_after` greater than the worker timeout (at least 960 seconds). Do not use the synchronous queue driver for this workload. Classification normally starts when 500 approved top-level commits are waiting, or the oldest has waited 15 minutes. Eligible work is admitted chronologically; engagement changes rankings without another classification run. Further full cohorts drain immediately. Summary work runs independently.
+
+Bootstrap at most seven days of eligible commits with `php artisan explore:process --backfill`. The command is idempotent and retains chronological age. `php artisan explore:process --force` dispatches a partial backlog immediately. These commands can incur AI provider charges. Never run a backfill automatically during deployment.
+
+Successful classification requests remain saved if a later request fails. Incomplete claims become eligible again after 15 minutes; inspect failed jobs and use the standard `queue:retry` command after correcting provider problems. The scheduler also rediscovers outstanding work. Classification and summary logs include counts, timings, token usage and exception classes, without commit bodies or provider error text. Removing a source invalidates derived text; restored eligible sources are summarized again. Suppressed topics stay suppressed during regeneration.
+
+The existing maintenance catch-all, when enabled, prevents public Explore routes from being displayed. Its operation is separate from Explore processing.
+
 ### Verify installation
 
 Run `composer test` to check linting, static analysis, type coverage, and tests. The code coverage check requires Xdebug or PCOV.

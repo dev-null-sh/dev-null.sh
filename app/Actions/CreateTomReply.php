@@ -42,7 +42,7 @@ final readonly class CreateTomReply
         }
 
         $history = new Tom($commit)->messages();
-        $tools = $this->toolDecision->decide($commit->body, $history);
+        $tools = $this->toolDecision->decide($commit->body, $history, $commit->user);
         $attempt = 0;
 
         do {

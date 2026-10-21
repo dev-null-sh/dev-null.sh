@@ -38,6 +38,12 @@ use App\Http\Controllers\ConversationMessageController;
 use App\Http\Controllers\ConversationReadController;
 use App\Http\Controllers\ConversationTypingController;
 use App\Http\Controllers\DeviceController;
+use App\Http\Controllers\ExploreController;
+use App\Http\Controllers\ExploreFeedbackController;
+use App\Http\Controllers\ExploreHiddenTopicController;
+use App\Http\Controllers\ExplorePreferenceController;
+use App\Http\Controllers\ExploreReportController;
+use App\Http\Controllers\ExploreTopicController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
@@ -221,6 +227,19 @@ Route::get('commits/{commit}/continuation', [CommitContinuationController::class
     ->name('commit-continuation.index');
 
 // Search...
+Route::get('explore', [ExploreController::class, 'index'])->name('explore.index');
+Route::get('explore/{kind}/{key}', [ExploreTopicController::class, 'show'])
+    ->whereIn('kind', ['subjects', 'stories'])->name('explore-topic.show');
+Route::middleware('auth')->group(function (): void {
+    Route::get('explore/settings', [ExplorePreferenceController::class, 'show'])->name('explore-preference.show');
+    Route::put('explore/settings', [ExplorePreferenceController::class, 'update'])->name('explore-preference.update');
+    Route::post('explore/topics/{topic}/feedback', [ExploreFeedbackController::class, 'store'])
+        ->middleware('throttle:commit-reports')->name('explore-feedback.store');
+    Route::delete('explore/hidden/{topic}', [ExploreHiddenTopicController::class, 'destroy'])->name('explore-hidden.destroy');
+    Route::get('moderation/explore', [ExploreReportController::class, 'index'])->name('explore-report.index');
+    Route::put('moderation/explore/{topic}', [ExploreReportController::class, 'update'])->name('explore-report.update');
+});
+
 Route::get('search', [SearchController::class, 'index'])
     ->name('search.index');
 

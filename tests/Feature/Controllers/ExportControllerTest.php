@@ -80,6 +80,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
 
     expect($data)->toBe([
         'schema_version' => 2,
+        'explore' => ['preferences' => ['personalized' => true], 'hidden_topic_ids' => [], 'reports' => []],
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,

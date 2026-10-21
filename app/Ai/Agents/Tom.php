@@ -54,6 +54,8 @@ final class Tom implements Agent, Conversational, HasMiddleware, HasProviderOpti
             'mention' => $this->commit->user?->mention() ?? '@',
             'nearlyFull' => $characters >= 9600 || $messages->count() >= 10,
             'hasTools' => collect($this->selectedTools)->isNotEmpty(),
+            'currentDate' => now()->setTimezone($this->commit->user->timezone ?? config()->string('app.timezone'))->toDateString(),
+            'requesterTimezone' => $this->commit->user->timezone ?? config()->string('app.timezone'),
         ])->render());
     }
 

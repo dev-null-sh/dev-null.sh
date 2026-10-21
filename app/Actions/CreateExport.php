@@ -9,6 +9,7 @@ use App\Models\CommitImage;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
+use App\Models\ExplorePreference;
 use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
@@ -30,12 +31,17 @@ final readonly class CreateExport
     /**
      * Everything stored about the user, deleted commits included, but never secrets like the remember token or session ids.
      *
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, dismissed_suggestions: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, created_at: string}>, notifications: Generator<int, array<string, int|string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>, sessions: Collection<int, stdClass>}
+     * @return array{explore: array<string, mixed>, schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, dismissed_suggestions: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, created_at: string}>, notifications: Generator<int, array<string, int|string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>, sessions: Collection<int, stdClass>}
      */
     public function handle(User $user): array
     {
         return [
             'schema_version' => 2,
+            'explore' => [
+                'preferences' => ExplorePreference::query()->find($user->id)->preferences ?? ['personalized' => true],
+                'hidden_topic_ids' => DB::table('explore_hidden_topics')->where('user_id', $user->id)->pluck('topic_id')->all(),
+                'reports' => DB::table('explore_reports')->where('user_id', $user->id)->get(['topic_id', 'reason', 'created_at', 'resolved_at'])->toArray(),
+            ],
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,

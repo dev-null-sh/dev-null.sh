@@ -26,6 +26,7 @@ final readonly class DeleteCommitContent
                 return [];
             }
 
+            resolve(DeleteExploreText::class)->handle([$commit->id]);
             $imagePaths = $commit->images()->pluck('path')->all();
 
             $commit->images()->delete();

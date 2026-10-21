@@ -58,6 +58,7 @@ final readonly class UpdateCommitStatuses
                 ->delete();
 
             if ($status === CommitStatus::Rejected) {
+                resolve(DeleteExploreText::class)->handle(array_values($commits->map(fn (Commit $commit): string => $commit->id)->all()));
                 Notification::query()->insert($commits->map(fn (Commit $commit): array => [
                     'id' => Str::uuid7()->toString(),
                     'recipient_id' => $commit->user_id,
@@ -74,6 +75,8 @@ final readonly class UpdateCommitStatuses
             $this->updateCommitHotScores->handle($commits->modelKeys());
 
             if ($status === CommitStatus::Approved) {
+                resolve(DeleteExploreText::class)->handle(array_values($commits->map(fn (Commit $commit): string => $commit->id)->all()));
+                resolve(CreateExploreWork::class)->handle(array_values($commits->map(fn (Commit $commit): string => $commit->id)->all()));
                 Poll::query()
                     ->whereIn('commit_id', $commits->modelKeys())
                     ->whereNull('opened_at')

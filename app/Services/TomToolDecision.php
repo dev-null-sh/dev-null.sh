@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Ai\Tools\CommunityStats;
+use App\Ai\Tools\ExploreTopics;
 use App\Ai\Tools\RepositoryInsights;
 use App\Ai\Tools\SearchCommits;
 use App\Ai\Tools\SearchKnowledgeBase;
 use App\Ai\Tools\SearchRepositoryHistory;
+use App\Models\User;
 use Illuminate\Support\Collection;
 use Laravel\Ai\Classification;
 use Laravel\Ai\Classification\Boolean;
@@ -34,6 +36,7 @@ final readonly class TomToolDecision
 
     /** @var array<class-string<Tool>, string> */
     private const array Criteria = [
+        ExploreTopics::class => 'Does the latest message ask about Explore subjects, trending stories, top news on /dev/null, what is trending in a developer subject such as Laravel, or details/follow-ups about those results? News and trending questions addressed to Tom refer to public platform discussions. Use this tool for rankings and summaries, not semantic post search. Exclude external web news, private activity and write requests.',
         SearchCommits::class => 'Does the latest message ask to find public social posts or discussions about a topic on /dev/null? Exclude Git history, exhaustive counts and general advice.',
         SearchKnowledgeBase::class => 'Does the latest message need an explanation of /dev/null features, terminology, usage, rules, origins, stack or lore? This includes public information about Tom himself, how he works and which AI models or providers power him. When a question addressed to Tom could refer to a site feature, including a misspelling or correction, check the knowledge base instead of assuming an outside topic or searching social posts. Exclude explicitly general-knowledge questions, GitHub stars, forks, repository metrics, member counts and who implemented a feature.',
         RepositoryInsights::class => 'Does the latest message specifically request /dev/null GitHub metadata: stars, forks, open issue or PR counts, code languages, top commit contributors, recent production merges or contribution opportunities? Exclude platform usage, the platform stack or AI models/providers powering Tom, other repositories, deployment status and who implemented a feature.',
@@ -45,7 +48,7 @@ final readonly class TomToolDecision
      * @param  iterable<int, Message>  $history
      * @return Collection<int, Tool>
      */
-    public function decide(string $message, iterable $history): Collection
+    public function decide(string $message, iterable $history, ?User $requester = null): Collection
     {
         $selected = Classification::of(collect([
             'history' => collect($history)->map(fn (Message $message): array => [
@@ -65,7 +68,7 @@ final readonly class TomToolDecision
 
         return collect(self::Criteria)->keys()
             ->filter(fn (string $tool): bool => $selected->contains(class_basename($tool)))
-            ->map(fn (string $tool): Tool => new $tool)
+            ->map(fn (string $tool): Tool => $tool === ExploreTopics::class ? new ExploreTopics($requester) : new $tool)
             ->values();
     }
 }
