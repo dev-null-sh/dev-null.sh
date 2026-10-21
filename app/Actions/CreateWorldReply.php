@@ -14,6 +14,8 @@ final readonly class CreateWorldReply
 {
     public const string GITHUB_ID = '0';
 
+    public const string FALLBACK_USERNAME = 'devnull-world';
+
     private const string USERNAME = 'world';
 
     public function __construct(
@@ -67,15 +69,14 @@ final readonly class CreateWorldReply
     }
 
     /**
-     * A real GitHub account named world keeps the name, even when it signs in after the bot took it and renames the bot
-     * away. The bot never signs in.
+     * A real GitHub account named world keeps the name; the bot continues under its reserved handle.
      */
     private function world(): ?User
     {
         $world = User::query()->firstWhere('github_id', self::GITHUB_ID);
 
         if ($world instanceof User) {
-            return $world->username === self::USERNAME ? $world : null;
+            return in_array($world->username, [self::USERNAME, self::FALLBACK_USERNAME], true) ? $world : null;
         }
 
         if (User::query()->where('username', self::USERNAME)->exists()) {

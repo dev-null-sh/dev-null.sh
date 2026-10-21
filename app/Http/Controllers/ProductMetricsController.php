@@ -17,7 +17,7 @@ use Inertia\Response;
 final readonly class ProductMetricsController
 {
     /**
-     * The funnel is deferred, as it waits on Fathom for the visitors and the referrals.
+     * The funnel is deferred, as it waits on Fathom for the visitors and the conversion.
      */
     public function show(
         ShowProductMetricsRequest $request,

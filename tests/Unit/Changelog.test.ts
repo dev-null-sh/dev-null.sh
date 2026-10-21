@@ -17,9 +17,9 @@ function pullRequest(
         type: 'feat',
         breaking: false,
         title: `Change ${number}`,
-        url: `https://github.com/nunomaduro/dev-null.sh/pull/${number}`,
+        url: `https://github.com/dev-null-sh/dev-null.sh/pull/${number}`,
         sha: 'c897f86700000000000000000000000000000000',
-        commit_url: 'https://github.com/nunomaduro/dev-null.sh/commit/c897f86700000000000000000000000000000000',
+        commit_url: 'https://github.com/dev-null-sh/dev-null.sh/commit/c897f86700000000000000000000000000000000',
         merged_at: mergedAt,
         author: {
             login,

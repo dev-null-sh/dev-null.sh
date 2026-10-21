@@ -17,16 +17,36 @@ export function CommitBody({
     className?: string;
     isStatic?: boolean;
 }) {
-    const { auth } = usePage().props;
-
     return (
         <div
             data-commit-body
             className={cn(
-                'leading-relaxed wrap-break-word whitespace-pre-wrap',
+                'overflow-clip leading-relaxed wrap-break-word whitespace-pre-wrap [overflow-clip-margin:4px]',
                 className,
             )}
         >
+            <BodySegments
+                segments={segments}
+                mentions={mentions}
+                isStatic={isStatic}
+            />
+        </div>
+    );
+}
+
+export function BodySegments({
+    segments,
+    mentions,
+    isStatic = false,
+}: {
+    segments: BodySegment[];
+    mentions: Commit['mentions'];
+    isStatic?: boolean;
+}) {
+    const { auth } = usePage().props;
+
+    return (
+        <>
             {segments.map((segment, index) => {
                 switch (segment.type) {
                     case 'text':
@@ -59,7 +79,7 @@ export function CommitBody({
                         );
                 }
             })}
-        </div>
+        </>
     );
 }
 
@@ -168,7 +188,7 @@ export function CommitBodyExcerpt({
             <CommitBody
                 segments={previewSegments ?? segments}
                 mentions={null}
-                className="text-[15px]"
+                className="flow-root text-[15px]"
                 isStatic
             />
         </div>
