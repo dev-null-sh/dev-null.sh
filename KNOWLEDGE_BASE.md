@@ -53,6 +53,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Tom's repository insights and community statistics](#toms-repository-insights-and-community-statistics)
   - [Hello world replies](#hello-world-replies)
 - [Stack and hosting](#stack-and-hosting)
+  - [October 21, 2026: PHP security patches and precautionary downtime](#october-21-2026-php-security-patches-and-precautionary-downtime)
 - [Lore](#lore)
   - [Product trailer](#product-trailer)
   - [Built on a livestream](#built-on-a-livestream)
@@ -543,6 +544,20 @@ The knowledge base is split into Markdown sections by heading and stored with ve
 An [internal semantic search query](README.md#internal-semantic-search) retrieves the nearest knowledge-base sections using Laravel AI SDK query embeddings through OpenAI and PostgreSQL cosine distance, following the same embedding approach as commit search. Tom's read-only tools expose bounded knowledge-base excerpts and public commit search results to the model. There is no standalone public knowledge-base search endpoint.
 
 Stack references: [PHP dependencies](composer.json), [frontend dependencies](package.json), [database configuration](config/database.php), [setup requirements](README.md#getting-started), [queue configuration](config/queue.php), [cache configuration](config/cache.php), [session configuration](config/session.php), [storage configuration](config/filesystems.php), and [existing AI integration](app/Services/OpenAI.php). Laravel Cloud hosting is confirmed by the project team.
+
+### October 21, 2026: PHP security patches and precautionary downtime
+
+On **October 21, 2026**, the PHP team published fixes for two critical security vulnerabilities: **CVE-2026-109618** and **CVE-2026-109619**. Both could let someone send specially crafted web requests and make a vulnerable server run the attacker's code **without signing in**. This is called remote code execution. The code would run with the web worker's permissions, not automatically with unrestricted control of the whole machine. These were bugs in PHP itself, not bugs specific to /dev/null.
+
+**CVE-2026-109618 — stopping halfway through a job.** Imagine PHP as a helper sorting a visitor's belongings into labelled boxes. If the helper runs out of room, it suddenly stops, leaving some boxes unfinished. The cleanup helper then mistakes those unfinished boxes for properly packed ones. In PHP, running out of memory could leave internal request data half-prepared, and cleanup could use it as though it were valid. An attacker could deliberately create that situation and manipulate the memory involved to make PHP run unwanted code. The patch makes PHP stop at a safe point when memory runs low, or immediately stop the worker if a higher emergency limit is reached, rather than clean up unfinished data unsafely.
+
+**CVE-2026-109619 — following an old note.** Imagine the helper keeps a note saying where a visitor's box is. The visitor leaves and the space is reused, but the helper forgets to throw the note away. When the next visitor arrives, the helper follows that old note and treats whatever is now there as the original box. PHP could similarly keep references to memory from a finished request and use them during a later request handled by the same worker. An attacker could manipulate the replacement contents to make PHP run unwanted code. The patch resets this leftover internal state so later requests cannot follow those stale references.
+
+The exact attack paths depended on the server setup and application. PHP warned that configuration workarounds were **not a complete fix**: installing the patched PHP releases was the safe solution. The [PHP security announcement](https://www.php.net/archive/2026.php) lists the fixed releases.
+
+On the **morning of October 21, 2026**, the **/dev/null team took the website offline as a precaution while awaiting the patch**. The website returned after **Laravel Cloud automatically applied the PHP security patches**, allowing it to come back safely with these vulnerabilities fixed. This records a precautionary shutdown, not a claim that /dev/null had been exploited.
+
+Sources: [PHP's October 21 security announcement](https://www.php.net/archive/2026.php), [CVE-2026-109618 advisory](https://github.com/php/php-src/security/advisories/GHSA-w8hw-w9fx-j79w), and [CVE-2026-109619 advisory](https://github.com/php/php-src/security/advisories/GHSA-6wmf-4rv5-p3rp). The downtime and automatic-patching timeline is the project team's account.
 
 ## Lore
 
