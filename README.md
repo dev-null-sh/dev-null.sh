@@ -68,8 +68,10 @@ Read-only, no authentication, JSON, versioned under `/api/v1`. Only approved com
 | `GET /api/v1/users/{username}/followers` | The people following the user, newest follow first, 30 per page |
 | `GET /api/v1/users/{username}/following` | The people the user follows, newest follow first, 30 per page |
 | `GET /api/v1/commits/{id}` | One commit with its author, public parent id, star and reply counts, link preview (with its `embed` player, if any), and images (`id`, `url`, `width`, `height`) |
+| `GET /api/v1/search/commits` | Commits nearest in meaning to `?q=`, at most 20 (or `?limit=`, up to 100). Queries shorter than three characters return none |
+| `GET /api/v1/search/users` | People matching `?q=` by name or GitHub username, at most 8 |
 
-Lists are cursor-paginated: follow `links.next` (or pass `meta.next_cursor` as `?cursor=`) until it is `null`.
+Lists are cursor-paginated: follow `links.next` (or pass `meta.next_cursor` as `?cursor=`) until it is `null`. Search returns a bounded list rather than a page.
 
 ```bash
 curl -s https://dev-null.sh/api/v1/users/nunomaduro/commits | jq '.data[] | {short_hash, body}'
@@ -79,7 +81,7 @@ Every profile also has an Atom feed of its latest 50 top-level commits at `/@{us
 
 ## Signed requests
 
-The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user. The log, replies, notifications, saved commits, committing, deleting, following, starring, saving, muting, blocking, reporting and pastéis only take signed requests. Signed requests are limited to 120 a minute per user.
+The mobile app signs its requests to `/api/v1` with an SSH key it keeps on the device, which the user approved on the web (see [Signing in](#signing-in)). A signed request to the endpoints above gets what the web shows that user, including search: mutes and blocks apply, and people results say `is_followed` and `follows_you`. The log, replies, notifications, saved commits, committing, deleting, following, starring, saving, muting, blocking, reporting and pastéis only take signed requests. Signed requests are limited to 120 a minute per user. Commit search is also limited to 15 searches a minute per user.
 
 Commits in a signed response carry what the web's cards show: `preview_segments`, the excerpt a list shows of a long commit (or `null`), the `poll` with the user's view of its votes and each option's `percentage`, the `quoted_commit` (a tombstone once deleted, or `null` when the user may not see it, while `quoted_commit_id` still says a commit was quoted), and in lists the `reply_preview` the web shows under each commit. Its `next_cursor` continues with `GET /api/v1/commits/{id}/replies?newest=1&cursor=…`, as on the web.
 
