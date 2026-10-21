@@ -237,6 +237,8 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     const entries = useRef(
         new Map<string, { element: HTMLElement; spec: GraphNodeSpec }>(),
     );
+    // Nodes that left since the last mutations, whose removal those mutations hold.
+    const departed = useRef(new Set<HTMLElement>());
     const dims = useRef(new Map<string, boolean>());
     const observer = useRef<ResizeObserver | null>(null);
     const frame = useRef(0);
@@ -306,6 +308,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                 if (entry) {
                     observer.current?.unobserve(entry.element);
                     entries.current.delete(nodeId);
+                    departed.current.add(entry.element);
                 }
 
                 measure();
@@ -361,11 +364,22 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             resize.observe(element);
         }
 
-        // Nodes also move without anything resizing, like cards trading places when the feed reorders.
+        // Nodes also move without anything resizing, like cards trading places when the feed reorders. Other changes
+        // inside a card, like an image done loading, move no node unless they resize the container, which the resize
+        // observer reports.
         const mutations = new MutationObserver((records) => {
+            const elements = [
+                ...[...entries.current.values()].map(({ element }) => element),
+                ...departed.current,
+            ];
+            departed.current.clear();
+
             if (
-                records.some(
-                    (record) => !canvasRef.current?.contains(record.target),
+                records.some((record) =>
+                    [...record.addedNodes, ...record.removedNodes].some(
+                        (node) =>
+                            elements.some((element) => node.contains(element)),
+                    ),
                 )
             ) {
                 measureNow();
