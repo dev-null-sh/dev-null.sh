@@ -25,6 +25,13 @@ final readonly class ExploreClassification
     public function validate(array $output): void
     {
         Validator::make($output, $this->rules())->validate();
+        // Scope distinct to each individual list: commits can share topics, and topics can share categories.
+        Validator::make($output, [
+            'topics.*' => Rule::forEach(fn (): array => [
+                'categories.*' => [Rule::in(array_keys(ExploreTopic::CATEGORIES)), 'distinct'],
+            ]),
+            'assignments.*' => Rule::forEach(fn (): array => ['topics.*' => ['string', 'distinct']]),
+        ])->validate();
     }
 
     /** @return array<string, mixed> */
@@ -38,7 +45,6 @@ final readonly class ExploreClassification
             'topics.*.key' => ['required', 'string', 'max:160', 'regex:/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/'],
             'topics.*.title' => ['required', 'string', 'max:240'],
             'topics.*.categories' => ['present', 'array', 'list', 'max:4'],
-            'topics.*.categories.*' => [Rule::in(array_keys(ExploreTopic::CATEGORIES)), 'distinct'],
             'topics.*.subjects' => ['present', 'array', 'list', 'max:10'],
             'topics.*.subjects.*' => ['string'],
             'topics.*.aliases' => ['present', 'array', 'list', 'max:10'],
@@ -47,7 +53,6 @@ final readonly class ExploreClassification
             'assignments.*' => ['array:ref,topics'],
             'assignments.*.ref' => ['required', 'string', 'distinct'],
             'assignments.*.topics' => ['present', 'array', 'list', 'max:10'],
-            'assignments.*.topics.*' => ['string', 'distinct'],
         ];
     }
 

@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\CodeTheme;
 use App\Services\DnsResolvers\SystemDnsResolver;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Foundation\DevCommands;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,6 +27,8 @@ final class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(DnsResolver::class, SystemDnsResolver::class);
         $this->app->bind(Highlighter::class, fn (): Highlighter => new Highlighter(new CodeTheme()));
+
+        DevCommands::artisan('queue:work --queue=default,explore --timeout=900 --tries=3', 'queue');
     }
 
     public function boot(): void

@@ -144,6 +144,7 @@ it('invalidates generated text immediately when a source is deleted [EXP-03 EXP-
 });
 
 it('waits for 500 commits or the 15 minute deadline and admits every eligible input once [EXP-04]', function (): void {
+    config(['explore.cohort_size' => 500, 'explore.wait_minutes' => 15]);
     Queue::fake([ProcessExplore::class, SummarizeExplore::class]);
     $author = User::factory()->create();
     $posts = Commit::factory()->count(500)->for($author)->create();
@@ -212,7 +213,34 @@ it('rejects malformed classifications before persistence [EXP-05 EXP-06]', funct
     'missing arrays' => [[]],
     'duplicate assignments' => [['topics' => [], 'assignments' => [['ref' => 'c0', 'topics' => []], ['ref' => 'c0', 'topics' => []]]]],
     'invalid category' => [['topics' => [['ref' => 'n1', 'kind' => 'subject', 'key' => 'laravel', 'title' => 'Laravel', 'categories' => ['invented'], 'subjects' => [], 'aliases' => []]], 'assignments' => []]],
+    'duplicate categories within a topic' => [['topics' => [['ref' => 'n1', 'kind' => 'subject', 'key' => 'laravel', 'title' => 'Laravel', 'categories' => ['web-development', 'web-development'], 'subjects' => [], 'aliases' => []]], 'assignments' => []]],
+    'duplicate topics within an assignment' => [['topics' => [], 'assignments' => [['ref' => 'c0', 'topics' => ['t0', 't0']]]]],
 ]);
+
+it('groups commits sharing subjects stories and categories in the same AI batch [EXP-02 EXP-05 EXP-06]', function (): void {
+    config(['ai.providers.opencode.key' => 'test', 'explore.request_size' => 5, 'explore.cohort_size' => 5]);
+    Queue::fake([SummarizeExplore::class, ProcessExplore::class]);
+    $posts = Commit::factory()->count(2)->create();
+    resolve(CreateExploreWork::class)->handle($posts->map(fn (Commit $post): string => $post->id)->all());
+    ExploreClassifier::fake([[
+        'topics' => [
+            ['ref' => 'n1', 'kind' => 'subject', 'key' => 'laravel', 'title' => 'Laravel', 'categories' => ['web-development'], 'subjects' => [], 'aliases' => ['#Laravel']],
+            ['ref' => 'n2', 'kind' => 'story', 'key' => 'queue-dashboard', 'title' => 'Laravel announces a queue dashboard', 'categories' => ['web-development'], 'subjects' => ['n1'], 'aliases' => []],
+        ],
+        'assignments' => [['ref' => 'c0', 'topics' => ['n1', 'n2']], ['ref' => 'c1', 'topics' => ['n1', 'n2']]],
+    ]])->preventStrayPrompts();
+
+    app()->call([new ProcessExplore(), 'handle']);
+
+    expect(ExploreTopic::query()->count())->toBe(2)
+        ->and(DB::table('explore_topic_subject')->count())->toBe(1)
+        ->and(DB::table('explore_commit_topic')->count())->toBe(4)
+        ->and(DB::table('explore_classification_work')->whereNotNull('completed_at')->count())->toBe(2)
+        ->and(resolve(ExploreContentQuery::class)->members(ExploreTopic::query()->where('kind', 'subject')->sole())->count())->toBe(2)
+        ->and(resolve(ExploreContentQuery::class)->members(ExploreTopic::query()->where('kind', 'story')->sole())->count())->toBe(2);
+    Queue::assertPushed(SummarizeExplore::class);
+    ExploreClassifier::assertPromptedTimes(1);
+});
 
 it('classifies compact batches once and reuses subjects across requests [EXP-02 EXP-03 EXP-04 EXP-06]', function (): void {
     config(['ai.providers.opencode.key' => 'test', 'explore.request_size' => 1]);
