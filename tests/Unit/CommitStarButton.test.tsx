@@ -59,6 +59,7 @@ for (const status of ['approved', 'pending', 'rejected'] as const) {
 
         assert.match(body, /data-test="own-star-count"/);
         assert.match(body, /aria-label="2 stars, show who starred"/);
+        assert.doesNotMatch(body, />Who</);
         assert.doesNotMatch(body, /aria-pressed/);
         assert.doesNotMatch(body, /disabled=""/);
     });
@@ -120,6 +121,7 @@ for (const status of ['approved', 'pending', 'rejected'] as const) {
 
         assert.match(body, /data-test="own-star-count"/);
         assert.match(body, /aria-label="2 stars, show who starred"/);
+        assert.doesNotMatch(body, />Who</);
         assert.doesNotMatch(body, /aria-pressed/);
     });
 }

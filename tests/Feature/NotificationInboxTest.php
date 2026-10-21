@@ -51,14 +51,14 @@ it('filters the menu count using the current users saved notification types', fu
 
     expect($reply->refresh()->read_at)->toBeNull();
 })->with([
-    'all types' => ['all', 3],
-    'one type with grouped replies' => ['replies', 1],
-    'multiple types' => ['replies,stars', 2],
+    'all types' => ['all', 4],
+    'replies' => ['replies', 2],
+    'multiple types' => ['replies,stars', 3],
     'only read matches in an unread group' => ['mentions', 0],
     'no matching type' => ['quotes', 0],
     'no selected types' => ['none', 0],
-    'invalid saved filter' => ['invalid', 3],
-    'partially invalid saved filter' => ['replies,invalid', 3],
+    'invalid saved filter' => ['invalid', 4],
+    'partially invalid saved filter' => ['replies,invalid', 4],
 ]);
 
 it('refreshes the entire loaded inbox window without losing older pages', function (): void {
@@ -123,10 +123,11 @@ it('polls fresh filtered groups and excludes activity that is no longer relevant
         'X-Inertia-Partial-Data' => 'notifications,auth.unreadNotificationsCount',
         'X-Inertia-Reset' => 'notifications',
     ])->get(route('notification.index', ['type' => 'replies', 'through' => $old->created_at->toJSON()]))
-        ->assertOk()->assertJsonCount(1, 'props.notifications.data')
+        ->assertOk()->assertJsonCount(2, 'props.notifications.data')
         ->assertJsonPath('props.notifications.data.0.id', $latest->id)
-        ->assertJsonPath('props.notifications.data.0.group_id', $old->id)
-        ->assertJsonPath('props.notifications.data.0.event_count', 2)
+        ->assertJsonPath('props.notifications.data.0.group_id', $latest->id)
+        ->assertJsonPath('props.notifications.data.0.event_count', 1)
+        ->assertJsonPath('props.notifications.data.1.id', $old->id)
         ->assertJsonPath('props.auth.unreadNotificationsCount', 0);
 
     expect($latest->refresh()->read_at)->not->toBeNull()
@@ -134,7 +135,7 @@ it('polls fresh filtered groups and excludes activity that is no longer relevant
         ->and($other->refresh()->read_at)->toBeNull();
 });
 
-it('groups nested replies and mentions and bumps an old conversation using its latest event', function (): void {
+it('keeps nested replies separate from mentions in the same conversation', function (): void {
     $user = User::factory()->create();
     $root = Commit::factory()->for($user)->create(['created_at' => now()->subMonth()]);
     $first = Commit::factory()->for($root, 'parent')->create();
@@ -148,16 +149,17 @@ it('groups nested replies and mentions and bumps an old conversation using its l
     ]);
 
     $this->actingAs($user)->get(route('notification.index'))->assertOk()->assertInertia(fn ($page) => $page
-        ->has('notifications.data', 2)
+        ->has('notifications.data', 3)
         ->where('notifications.data.0.id', $latest->id)
-        ->where('notifications.data.0.group_id', $old->id)
-        ->where('notifications.data.0.event_count', 2)
+        ->where('notifications.data.0.group_id', $latest->id)
+        ->where('notifications.data.0.event_count', 1)
         ->where('notifications.data.0.created_at', $latest->created_at->toJSON())
-        ->where('notifications.data.1.id', $other->id));
+        ->where('notifications.data.1.id', $other->id)
+        ->where('notifications.data.2.id', $old->id));
 
     $this->getJson(route('notification-group.show', $latest))->assertOk()
-        ->assertJsonCount(2, 'data')->assertJsonPath('data.0.id', $latest->id)
-        ->assertJsonPath('data.1.id', $old->id)->assertJsonMissingPath('data.0.commit.parent');
+        ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $latest->id)
+        ->assertJsonMissingPath('data.0.commit.parent');
 });
 
 it('orders tied timestamps by the latest notification id', function (): void {
@@ -236,7 +238,7 @@ it('never groups follows across days, even when they keep coming', function (): 
     }
 });
 
-it('extends an old conversation only when it is still the newest group', function (bool $interrupted): void {
+it('keeps a new mention separate from an older reply regardless of intervening activity', function (bool $interrupted): void {
     $user = User::factory()->create();
     $root = Commit::factory()->create();
     $parent = Commit::factory()->for($root, 'parent')->create();
@@ -253,15 +255,15 @@ it('extends an old conversation only when it is still the newest group', functio
     ]);
 
     $this->actingAs($user)->get(route('notification.index'))->assertInertia(fn ($page) => $page
-        ->has('notifications.data', $interrupted ? 3 : 1)->where('notifications.data.0.id', $latest->id)
-        ->where('notifications.data.0.event_count', $interrupted ? 1 : 2)
-        ->where('notifications.data.0.group_id', $interrupted ? $latest->id : $old->id));
+        ->has('notifications.data', $interrupted ? 3 : 2)->where('notifications.data.0.id', $latest->id)
+        ->where('notifications.data.0.event_count', 1)
+        ->where('notifications.data.0.group_id', $latest->id));
     $this->get(route('notification.index', ['type' => 'replies']))->assertInertia(fn ($page) => $page
         ->has('notifications.data', 1)->where('notifications.data.0.group_id', $old->id));
-    $this->getJson(route('notification-group.show', $latest))->assertOk()->assertJsonCount($interrupted ? 1 : 2, 'data');
+    $this->getJson(route('notification-group.show', $latest))->assertOk()->assertJsonCount(1, 'data');
 })->with(['uninterrupted' => false, 'interrupted' => true]);
 
-it('paginates complete groups rather than splitting a busy conversation', function (): void {
+it('paginates every reply in a busy conversation separately', function (): void {
     $user = User::factory()->create();
     $root = Commit::factory()->for($user)->create();
     for ($index = 0; $index < 24; $index++) {
@@ -273,16 +275,14 @@ it('paginates complete groups rather than splitting a busy conversation', functi
 
     $first = resolve(NotificationGroupsQuery::class)->paginate($user);
     expect($first->items())->toHaveCount(20)
-        ->and($first->items()[0]->event_count)->toBe(24);
+        ->and($first->items()[0]->event_count)->toBe(1);
     $firstIds = collect($first->items())->pluck('group_id')->all();
 
-    $members = $this->actingAs($user)->getJson(route('notification-group.show', $first->items()[0]))
-        ->assertOk()->assertJsonCount(20, 'data');
-    $this->getJson(route('notification-group.show', [$first->items()[0], 'cursor' => $members->json('next_cursor')]))
-        ->assertOk()->assertJsonCount(4, 'data');
+    $this->actingAs($user)->getJson(route('notification-group.show', $first->items()[0]))
+        ->assertOk()->assertJsonCount(1, 'data');
 
     $this->actingAs($user)->get(route('notification.index', ['cursor' => $first->nextCursor()->encode()]))
-        ->assertInertia(fn ($page) => $page->has('notifications.data', 2)
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 20)
             ->where('notifications.data', fn ($items): bool => collect($items)->pluck('group_id')->intersect($firstIds)->isEmpty()));
 });
 
@@ -336,8 +336,8 @@ it('filters event types while retaining all members of each group', function ():
     Notification::factory()->for($user, 'recipient')->create();
 
     $this->actingAs($user)->get(route('notification.index', ['type' => 'replies']))
-        ->assertInertia(fn ($page) => $page->has('notifications.data', 1)
-            ->where('notifications.data.0.event_count', 2)->where('filters.type', 'replies'));
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 2)
+            ->where('notifications.data.0.event_count', 1)->where('filters.type', 'replies'));
     $this->get(route('notification.index', ['type' => 'mentions']))
         ->assertInertia(fn ($page) => $page->has('notifications.data', 1));
     $this->get(route('notification.index', ['type' => 'follows']))
@@ -543,7 +543,7 @@ it('excludes silenced actors from groups, history and read acknowledgements', fu
     'actor blocked the recipient' => ['blocking', false],
 ]);
 
-it('groups surviving activity through an authorless ancestor without exposing its content', function (): void {
+it('keeps surviving replies separate through an authorless ancestor without exposing its content', function (): void {
     $user = User::factory()->create();
     $root = Commit::factory()->create();
     $parent = Commit::factory()->for($root, 'parent')->create(['body' => 'Deleted private ancestor']);
@@ -555,12 +555,13 @@ it('groups surviving activity through an authorless ancestor without exposing it
     expect($parent->withTrashed()->findOrFail($parent->id)->user_id)->toBeNull();
 
     $this->actingAs($user)->get(route('notification.index'))->assertOk()
-        ->assertInertia(fn ($page) => $page->has('notifications.data', 1)
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 2)
             ->where('notifications.data.0.id', $latest->id)
-            ->where('notifications.data.0.group_id', $first->id)
-            ->where('notifications.data.0.event_count', 2));
+            ->where('notifications.data.0.group_id', $latest->id)
+            ->where('notifications.data.0.event_count', 1)
+            ->where('notifications.data.1.id', $first->id));
     $this->getJson(route('notification-group.show', $latest))->assertOk()
-        ->assertJsonCount(2, 'data')->assertDontSee('Deleted private ancestor');
+        ->assertJsonCount(1, 'data')->assertDontSee('Deleted private ancestor');
 });
 
 it('combines category filters and applies them to expanded groups', function (): void {
@@ -573,10 +574,10 @@ it('combines category filters and applies them to expanded groups', function ():
     Notification::factory()->for($user, 'recipient')->create();
 
     $this->actingAs($user)->get(route('notification.index', ['type' => 'replies,mentions']))
-        ->assertInertia(fn ($page) => $page->has('notifications.data', 1)
-            ->where('notifications.data.0.event_count', 2)->where('filters.type', 'replies,mentions'));
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 2)
+            ->where('notifications.data.0.event_count', 1)->where('filters.type', 'replies,mentions'));
     $this->getJson(route('notification-group.show', [$notification, 'type' => 'replies,mentions']))
-        ->assertOk()->assertJsonCount(2, 'data');
+        ->assertOk()->assertJsonCount(1, 'data');
 });
 
 it('remembers selected categories for the current account including no categories', function (): void {
