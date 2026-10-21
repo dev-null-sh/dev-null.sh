@@ -1,3 +1,6 @@
+import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
+import { ArrowUp } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitComposer } from '@/components/commit-composer';
 import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
@@ -15,9 +18,6 @@ import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
 import type { Commit, CursorPaginated, Log, User } from '@/types';
-import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
-import { ArrowUp } from 'lucide-react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 export default function Show({
     log,
@@ -215,12 +215,12 @@ export default function Show({
                                         className="size-6 ring-2 ring-primary"
                                     />
                                 ))}
+                            {newCommitAuthors.total > 5 && (
+                                <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted font-mono text-[11px] text-muted-foreground tabular-nums ring-2 ring-primary">
+                                    +{newCommitAuthors.total - 5}
+                                </span>
+                            )}
                         </span>
-                        {newCommitAuthors.total > 5 && (
-                            <span className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-primary-foreground px-2 text-xs font-semibold whitespace-nowrap text-primary tabular-nums">
-                                +{newCommitAuthors.total - 5}
-                            </span>
-                        )}
                         committed
                     </button>
                 </div>
