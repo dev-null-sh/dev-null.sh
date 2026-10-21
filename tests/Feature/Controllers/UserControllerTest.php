@@ -8,8 +8,34 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
+
+it('loads github pull requests independently of the profile', function (): void {
+    $user = User::factory()->create(['github_id' => '123']);
+    Http::fake([
+        'api.github.com/user/123' => Http::response(['login' => 'octocat']),
+        'api.github.com/search/issues*' => Http::response(['total_count' => 42, 'incomplete_results' => false]),
+    ]);
+
+    $this->get(route('user.show', $user))->assertOk()
+        ->assertInertia(function ($page): void {
+            $page->component('user/show')->missing('githubPullRequests');
+            Http::assertNothingSent();
+
+            $page->loadDeferredProps(fn ($reload) => $reload->where('githubPullRequests.count', 42));
+        });
+});
+
+it('does not show github pull requests for bots or local accounts', function (string $githubId): void {
+    $user = User::factory()->create(['github_id' => $githubId]);
+
+    $this->get(route('user.show', $user))->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->loadDeferredProps(fn ($reload) => $reload->where('githubPullRequests', null)));
+    Http::assertNothingSent();
+})->with(['local', ...User::BOT_GITHUB_IDS]);
 
 it('renders a user profile', function (): void {
     $user = User::factory()->create(['username' => 'octocat', 'preferred_lane' => 4]);

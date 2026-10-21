@@ -29,6 +29,8 @@ import {
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { ProfileActionsMenu } from '@/components/profile-actions-menu';
+import { ProfilePullRequests } from '@/components/profile-pull-requests';
+import type { PullRequests } from '@/components/profile-pull-requests';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
@@ -57,6 +59,7 @@ function pluralize(count: number, singular: string, plural: string) {
 
 export default function Show({
     user,
+    githubPullRequests,
     pasteisReceived,
     isFollowing,
     followsYou,
@@ -71,6 +74,7 @@ export default function Show({
     pinnedCommit,
 }: {
     user: Profile;
+    githubPullRequests?: PullRequests | null;
     pasteisReceived: number | null;
     isFollowing: boolean;
     followsYou: boolean;
@@ -379,6 +383,7 @@ export default function Show({
                         </div>
                     ))}
                 </dl>
+                <ProfilePullRequests pullRequests={githubPullRequests} />
                 {auth.pasteis && pasteisReceived !== null && (
                     <p
                         className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground"

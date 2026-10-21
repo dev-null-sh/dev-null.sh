@@ -57,6 +57,8 @@ final readonly class DeleteUser
 
             $user->delete();
 
+            Cache::forget('github-pull-requests:'.$user->github_id);
+
             foreach ($translationKeys as $key) {
                 Cache::forget($key);
             }

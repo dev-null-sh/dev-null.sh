@@ -34,11 +34,16 @@ final readonly class CreateExport
      */
     public function handle(User $user): array
     {
+        /** @var array{count: int, url: string}|false|null $pullRequests */
+        $pullRequests = Cache::get('github-pull-requests:'.$user->github_id);
+
         return [
             'schema_version' => 2,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
+                'github_merged_pull_requests' => $pullRequests ? $pullRequests['count'] : null,
+                'github_pull_requests_url' => $pullRequests ? $pullRequests['url'] : null,
                 'username' => $user->username,
                 'name' => $user->name,
                 'email' => $user->email,

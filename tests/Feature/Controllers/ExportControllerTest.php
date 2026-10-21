@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitTranslation;
+use App\Actions\CreateExport;
 use App\Actions\DeleteUser;
 use App\Ai\Agents\CommitTranslator;
 use App\Enums\ModerationReason;
@@ -21,6 +22,16 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+
+it('includes the cached public github pull request count in the export', function (): void {
+    $user = User::factory()->create();
+    Cache::put('github-pull-requests:'.$user->github_id, ['count' => 42, 'url' => 'https://github.com/search'], 900);
+
+    $data = resolve(CreateExport::class)->handle($user);
+
+    expect($data['profile']['github_merged_pull_requests'])->toBe(42)
+        ->and($data['profile']['github_pull_requests_url'])->toBe('https://github.com/search');
+});
 
 it('requires authentication to download personal data', function (): void {
     $this->get(route('export'))->assertRedirectToRoute('home');
@@ -83,6 +94,8 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
+            'github_merged_pull_requests' => null,
+            'github_pull_requests_url' => null,
             'username' => $user->username,
             'name' => 'Zoë Example',
             'email' => 'zoe@example.test',

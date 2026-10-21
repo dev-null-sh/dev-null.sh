@@ -50,6 +50,8 @@ final class DatabaseSeeder extends Seeder
             ['username' => 'local-dev', 'name' => 'Local Developer'],
         );
 
+        $this->call(ProfilePullRequestsSeeder::class);
+
         Commit::factory()->for($localDeveloper)->count(3)->sequence(
             fn (): array => ['created_at' => fake()->dateTimeBetween('-3 days')],
         )->create();

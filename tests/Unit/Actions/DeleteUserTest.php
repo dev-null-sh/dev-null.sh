@@ -33,6 +33,16 @@ it('may delete a user', function (): void {
     $this->assertModelMissing($user);
 });
 
+it('erases the deleted users cached github pull request count', function (): void {
+    $user = User::factory()->create();
+    $key = 'github-pull-requests:'.$user->github_id;
+    Cache::put($key, ['count' => 42, 'url' => 'https://github.com/search'], 900);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(Cache::has($key))->toBeFalse();
+});
+
 it('erases the commits of a deleted user along with the replies under them', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create();
