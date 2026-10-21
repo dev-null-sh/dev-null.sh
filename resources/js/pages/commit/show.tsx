@@ -55,7 +55,7 @@ export default function Show({
         <>
             <Head title={`${commit.user.name}: “${excerpt}”`} />
 
-            <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4">
+            <div className="sticky top-below-header z-10 flex h-14 items-center gap-3 border-b bg-card px-4">
                 <button
                     type="button"
                     onClick={goBack}

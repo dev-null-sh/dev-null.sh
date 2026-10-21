@@ -504,6 +504,12 @@ html body[data-scroll-locked] {
     }
 }
 
+/* What sticks to the top of the page steps down under the mobile header while it is down. `--top-below-header` sticks
+   one that much further down, or up. */
+@utility top-below-header {
+    top: calc(var(--mobile-header-offset, 0px) + var(--top-below-header, 0px));
+}
+
 @media (max-width: 767px) {
     :root[data-fixed-page],
     :root[data-fixed-page] body {

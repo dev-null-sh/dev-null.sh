@@ -118,7 +118,7 @@ export default function OperationsLayout({ children }: PropsWithChildren) {
         <>
             {polls && <Poll key={component} only={only} />}
 
-            <div className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:operations-header]">
+            <div className="sticky top-below-header z-10 bg-card [view-transition-class:tab-header] [view-transition-name:operations-header]">
                 <div className="flex h-14 items-center gap-3 border-b px-4 sm:px-6">
                     <h1 className="font-semibold">Operations</h1>
                     <p className="ml-auto font-mono text-[13px] text-muted-foreground">

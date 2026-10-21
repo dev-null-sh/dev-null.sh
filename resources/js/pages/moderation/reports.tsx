@@ -63,7 +63,7 @@ export default function Reports({
     return (
         <>
             <Head title="Reported commits" />
-            <div className="sticky top-0 z-10 bg-card">
+            <div className="sticky top-below-header z-10 bg-card">
                 <div className="flex h-14 items-center border-b px-4">
                     <h1 className="font-semibold">Moderation</h1>
                     <p className="ml-auto text-sm text-muted-foreground">

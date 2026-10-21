@@ -55,7 +55,7 @@ export default function Index({ query }: { query: string }) {
         <>
             <Head title={query === '' ? 'Search' : `${query} · Search`} />
 
-            <header className="sticky top-0 z-10 border-b bg-card px-4 py-3 sm:px-6">
+            <header className="sticky top-below-header z-10 border-b bg-card px-4 py-3 sm:px-6">
                 <h1 className="sr-only">Search</h1>
                 <form role="search" onSubmit={submit} className="relative">
                     <Search
