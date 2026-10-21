@@ -174,30 +174,24 @@ it('does not count the authenticated user relations when reloading only commits'
         ->each->not->toContain('count(*)');
 });
 
-it('remembers the last visited log', function (Log $log): void {
-    $user = User::factory()->create(['log' => $log === Log::Following ? Log::Trending : Log::Following]);
+it('reading or prefetching a log does not change the remembered log', function (Log $log, bool $prefetch): void {
+    $remembered = $log === Log::Following ? Log::Trending : Log::Following;
+    $user = User::factory()->create(['log' => $remembered]);
 
     $response = $this->actingAs($user)
+        ->withHeaders($prefetch ? ['Purpose' => 'prefetch', 'X-Inertia' => 'true', 'X-Inertia-Version' => resolve(HandleInertiaRequests::class)->version(request())] : [])
         ->get(route('log.show', $log));
 
-    $response->assertOk()
-        ->assertInertia(fn ($page) => $page->where('auth.log', $log->value));
+    $response->assertOk();
 
-    expect($user->refresh()->log)->toBe($log);
-})->with(Log::cases());
+    if ($prefetch) {
+        $response->assertJsonPath('props.auth.log', $remembered->value);
+    } else {
+        $response->assertInertia(fn ($page) => $page->where('auth.log', $remembered->value));
+    }
 
-it('does not update the user when the log is unchanged', function (): void {
-    $user = User::factory()->create(['log' => Log::Trending]);
-    $updatedAt = $user->updated_at;
-
-    $this->travel(1)->minute();
-
-    $this->actingAs($user)
-        ->get(route('log.show', Log::Trending))
-        ->assertOk();
-
-    expect($user->refresh()->updated_at->equalTo($updatedAt))->toBeTrue();
-});
+    expect($user->refresh()->log)->toBe($remembered);
+})->with(Log::cases())->with([false, true]);
 
 it('returns not found for unknown logs', function (): void {
     $response = $this->actingAs(User::factory()->create())

@@ -1,10 +1,27 @@
-import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
+import {
+    Deferred,
+    Head,
+    Link,
+    router,
+    usePage,
+    usePoll,
+} from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+    type RefObject,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+} from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitComposer } from '@/components/commit-composer';
 import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
-import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import {
+    CommitFeed,
+    CommitSkeleton,
+    EmptyFeed,
+} from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
@@ -19,33 +36,40 @@ import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
-export default function Show({
-    log,
-    commits,
-    isRanked,
-    newCommitsCount = 0,
-    suggestions,
-}: {
+type Props = {
     log: Log;
+    logLoadFailed?: boolean;
     commits: CursorPaginated<Commit>;
     isRanked: boolean;
     newCommitsCount?: number;
     suggestions: Commit[];
-}) {
+};
+
+export default function Show(props: Props) {
     const {
         props: { auth },
     } = usePage();
     const user = auth.user;
     const commitDialogClosedCount = useCommitDialogClosedCount();
-    const viewerId = user?.id ?? 'guest';
-    const newestId = isRanked ? undefined : commits.data[0]?.id;
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
-    const feedRef = useRef<HTMLDivElement>(null);
-    const followAnchor = useRef<{ row: HTMLElement; top: number } | null>(null);
     const [composer, setComposer] = useState<HTMLDivElement | null>(null);
-    useLaneSwipe(feedRef, log);
     useComposerVisibility(composer, tabsHeight);
+
+    useEffect(
+        () =>
+            router.on('navigate', ({ detail }) => {
+                // A canceled instant visit can leave an unloaded page in history.
+                if (
+                    detail.type === 'history' &&
+                    detail.page.component === 'log/show' &&
+                    detail.page.props.commits === undefined
+                ) {
+                    router.reload();
+                }
+            }),
+        [],
+    );
 
     useEffect(() => {
         const tabs = tabsRef.current;
@@ -63,6 +87,120 @@ export default function Show({
 
         return () => observer.disconnect();
     }, []);
+
+    const failed = (target: Log): false | void => {
+        if (window.location.pathname === LogController.show.url(target)) {
+            router.flush(LogController.show(target));
+            router.replaceProp('logLoadFailed', true);
+
+            return false;
+        }
+    };
+
+    return (
+        <>
+            <Head title={titles[props.log]} />
+            <div
+                ref={tabsRef}
+                className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]"
+            >
+                <h1 className="sr-only">{titles[props.log]}</h1>
+                <PageTabs
+                    label="Logs"
+                    tabs={(['following', 'latest', 'trending'] as const).map(
+                        (target) => ({
+                            title: titles[target],
+                            href: LogController.show(target),
+                            isActive: props.log === target,
+                            prefetch: target !== 'following' || user !== null,
+                            component:
+                                target !== 'following' || user !== null
+                                    ? 'log/show'
+                                    : undefined,
+                            pageProps: (_current, shared) => ({
+                                ...shared,
+                                // Let Inertia preserve once props together with their registry.
+                                auth: { ...auth, log: undefined },
+                                suggestedUsers: undefined,
+                                log: target,
+                            }),
+                            onLoadError: () => failed(target),
+                        }),
+                    )}
+                />
+            </div>
+
+            {user !== null && (
+                <div ref={setComposer}>
+                    <CommitComposer key={commitDialogClosedCount} />
+                </div>
+            )}
+
+            <Deferred
+                data={['commits', 'isRanked', 'suggestions']}
+                fallback={
+                    <div
+                        role="status"
+                        className="[view-transition-class:tab-content] [view-transition-name:log-feed]"
+                    >
+                        {props.logLoadFailed ? (
+                            <div className="px-6 py-16 text-center sm:px-12">
+                                <EmptyFeed command="fatal: could not read from remote repository">
+                                    Could not load {titles[props.log]}.{' '}
+                                    <Link
+                                        href={LogController.show(props.log)}
+                                        className="font-medium text-primary underline"
+                                    >
+                                        Try again
+                                    </Link>
+                                </EmptyFeed>
+                            </div>
+                        ) : (
+                            <>
+                                <span className="sr-only">
+                                    Loading {titles[props.log]}…
+                                </span>
+                                <div
+                                    aria-hidden
+                                    className="animate-in delay-300 duration-0 fill-mode-both fade-in"
+                                >
+                                    {Array.from({ length: 8 }, (_, index) => (
+                                        <CommitSkeleton key={index} />
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                }
+            >
+                <LoadedLog
+                    {...props}
+                    tabsHeight={tabsHeight}
+                    tabsRef={tabsRef}
+                />
+            </Deferred>
+        </>
+    );
+}
+
+function LoadedLog({
+    log,
+    commits,
+    isRanked,
+    newCommitsCount = 0,
+    suggestions,
+    tabsHeight,
+    tabsRef,
+}: Props & { tabsHeight: number; tabsRef: RefObject<HTMLDivElement | null> }) {
+    const {
+        props: { auth },
+    } = usePage();
+    const user = auth.user;
+    const viewerId = user?.id ?? 'guest';
+    const newestId = isRanked ? undefined : commits.data[0]?.id;
+    const feedRef = useRef<HTMLDivElement>(null);
+    const followAnchor = useRef<{ row: HTMLElement; top: number } | null>(null);
+    useLaneSwipe(feedRef, log);
 
     useEffect(
         () =>
@@ -98,7 +236,7 @@ export default function Show({
                     ? { row, top: row.getBoundingClientRect().top }
                     : null;
             }),
-        [log, commits],
+        [log, commits, tabsRef],
     );
 
     useLayoutEffect(() => {
@@ -125,11 +263,6 @@ export default function Show({
         { autoStart: newestId !== undefined },
     );
 
-    // Showing a log remembers it, so pages prefetched before it still carry the previous log in their shared props.
-    useEffect(() => {
-        router.flushAll();
-    }, [log]);
-
     useEffect(
         () =>
             router.on('location', (event) => {
@@ -151,42 +284,6 @@ export default function Show({
 
     return (
         <>
-            <Head title={titles[log]} />
-
-            <div
-                ref={tabsRef}
-                className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]"
-            >
-                <h1 className="sr-only">{titles[log]}</h1>
-                <PageTabs
-                    label="Logs"
-                    prefetch={false}
-                    tabs={[
-                        {
-                            title: 'Following',
-                            href: LogController.show('following'),
-                            isActive: log === 'following',
-                        },
-                        {
-                            title: 'Latest',
-                            href: LogController.show('latest'),
-                            isActive: log === 'latest',
-                        },
-                        {
-                            title: 'Trending',
-                            href: LogController.show('trending'),
-                            isActive: log === 'trending',
-                        },
-                    ]}
-                />
-            </div>
-
-            {user !== null && (
-                <div ref={setComposer}>
-                    <CommitComposer key={commitDialogClosedCount} />
-                </div>
-            )}
-
             {newCommitsCount > 0 && (
                 <div
                     className="pointer-events-none sticky z-10 flex h-0 items-start justify-center"
