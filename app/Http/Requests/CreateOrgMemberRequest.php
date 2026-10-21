@@ -22,6 +22,7 @@ final class CreateOrgMemberRequest extends FormRequest
 
         return match (true) {
             ! $user->remotes_enabled || ! $this->org()->roleOf($user) instanceof OrgRole => Response::denyAsNotFound(),
+            $this->org()->isSponsors() => Response::deny('Sponsors join and leave with their sponsorship.'),
             ! $this->org()->isMaintainedBy($user) => Response::deny('Only maintainers can add people.'),
             default => Response::allow(),
         };

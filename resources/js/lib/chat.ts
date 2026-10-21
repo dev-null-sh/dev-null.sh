@@ -14,6 +14,7 @@ import OrgMemberController from '@/actions/App/Http/Controllers/OrgMemberControl
 import OrgMessageController from '@/actions/App/Http/Controllers/OrgMessageController';
 import OrgReadController from '@/actions/App/Http/Controllers/OrgReadController';
 import OrgTypingController from '@/actions/App/Http/Controllers/OrgTypingController';
+import OrgVisibilityController from '@/actions/App/Http/Controllers/OrgVisibilityController';
 import RemoteCandidateController from '@/actions/App/Http/Controllers/RemoteCandidateController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
@@ -30,6 +31,7 @@ import type {
     OrgMember,
     OrgRef,
     OrgRole,
+    OrgSponsors,
     OrgThread,
     PushAccess,
     Thread,
@@ -77,6 +79,7 @@ export type ThreadState = {
     members: OrgMember[];
     typing: string[];
     role: OrgRole | null;
+    sponsors: OrgSponsors | null;
     is_archived: boolean;
     access: PushAccess;
     pending: PendingMessage[];
@@ -475,6 +478,7 @@ function emptyThread(target: ChatTarget): ThreadState {
         members: [],
         typing: [],
         role: null,
+        sponsors: null,
         is_archived: false,
         access: 'open',
         pending: [],
@@ -493,6 +497,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
               members: thread.members,
               typing: thread.typing,
               role: thread.role,
+              sponsors: thread.sponsors,
               is_archived: thread.is_archived,
               access: thread.access,
           }
@@ -1379,6 +1384,29 @@ export async function setOrgMemberRole(
         { role },
     );
     await refreshOrg(org);
+}
+
+/**
+ * Shows or hides the user's membership of a sponsors org from the other sponsors. The thread is updated first, so a
+ * push straight after isn't held back again.
+ */
+export async function setOrgMembershipHidden(
+    org: OrgRef,
+    user: User,
+    isHidden: boolean,
+): Promise<void> {
+    await request(OrgVisibilityController.update.url({ org: org.id }), 'PUT', {
+        is_hidden: isHidden,
+    });
+
+    updateThread(targetKey({ kind: 'org', org }), (thread) => ({
+        members: thread.members.map((member) =>
+            member.user.id === user.id
+                ? { ...member, is_hidden: isHidden }
+                : member,
+        ),
+    }));
+    void refreshOrg(org);
 }
 
 /**

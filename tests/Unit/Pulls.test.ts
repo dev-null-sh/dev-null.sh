@@ -17,6 +17,8 @@ const member = (user: User, readThroughId: number): OrgMember => ({
     user,
     role: null,
     read_through_id: readThroughId,
+    is_hidden: false,
+    sponsorship: null,
 });
 
 await test('shows an org status under its latest message, whoever wrote it', () => {

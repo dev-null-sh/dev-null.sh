@@ -49,7 +49,12 @@ export default function Show() {
                                 company, location, website, the email address
                                 GitHub shares, whether you have a Sponsors
                                 listing, your public SSH key fingerprints, and
-                                who you follow and who follows you.
+                                who you follow and who follows you. When you
+                                sponsor someone who runs a sponsors org here, or
+                                run one yourself, also who sponsors whom,
+                                whether it is monthly or one-time, and when it
+                                lapsed. Only the sponsored person sees it, and
+                                it is deleted when they turn the org off.
                             </>,
                             <>
                                 <strong>

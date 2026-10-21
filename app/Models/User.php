@@ -70,6 +70,8 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, User> $blockers
  * @property-read Collection<int, Notification> $notifications
  * @property-read Collection<int, SshKey> $sshKeys
+ * @property-read Collection<int, Sponsorship> $sponsorshipsAsMaintainer
+ * @property-read Collection<int, Sponsorship> $sponsorshipsAsSponsor
  * @property-read Collection<int, PollVote> $pollVotes
  * @property-read Collection<int, Device> $devices
  * @property-read Collection<int, UserTimeout> $timeouts
@@ -238,6 +240,26 @@ final class User extends Authenticatable
     public function devices(): HasMany
     {
         return $this->hasMany(Device::class);
+    }
+
+    /**
+     * The people sponsoring the user, while the user runs a sponsors org.
+     *
+     * @return HasMany<Sponsorship, $this>
+     */
+    public function sponsorshipsAsMaintainer(): HasMany
+    {
+        return $this->hasMany(Sponsorship::class, 'sponsorable_id');
+    }
+
+    /**
+     * The maintainers the user sponsors, among those running a sponsors org.
+     *
+     * @return HasMany<Sponsorship, $this>
+     */
+    public function sponsorshipsAsSponsor(): HasMany
+    {
+        return $this->hasMany(Sponsorship::class, 'sponsor_id');
     }
 
     /**

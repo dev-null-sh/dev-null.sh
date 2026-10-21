@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\UpdateUserProfile;
+use App\Models\Conversation;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -29,6 +30,15 @@ final readonly class UserProfileController
             'githubSyncedAt' => $user->github_synced_at?->toIso8601String(),
             'activityGraphUrl' => route('user-activity-graph.show', $user),
             'profileUrl' => route('user.show', $user),
+            'sponsorsOrg' => function () use ($user): ?array {
+                $org = Conversation::sponsorsOrgOf($user);
+
+                return $org instanceof Conversation ? [
+                    'id' => $org->id,
+                    'from' => $org->sponsors_from,
+                    'sponsors' => $org->participants()->count() - 1,
+                ] : null;
+            },
         ]);
     }
 

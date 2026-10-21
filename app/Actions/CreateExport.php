@@ -12,6 +12,7 @@ use App\Models\Device;
 use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
+use App\Models\Sponsorship;
 use App\Models\User;
 use App\Models\UserTimeout;
 use App\Queries\CommitBuilder;
@@ -19,6 +20,7 @@ use App\Services\CommitTranslations;
 use Carbon\CarbonImmutable;
 use Generator;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -30,7 +32,7 @@ final readonly class CreateExport
     /**
      * Everything stored about the user, deleted commits included, but never secrets like the remember token or session ids.
      *
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, dismissed_suggestions: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, created_at: string}>, notifications: Generator<int, array<string, int|string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>, sessions: Collection<int, stdClass>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, dismissed_suggestions: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, created_at: string}>, sponsoring: Generator<int, array{username: string, is_one_time: bool, lapses_at: string|null, left_at: string|null}>, sponsors: Generator<int, array{username: string, is_one_time: bool, lapses_at: string|null, left_at: string|null}>, notifications: Generator<int, array<string, int|string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>, sessions: Collection<int, stdClass>}
      */
     public function handle(User $user): array
     {
@@ -78,6 +80,8 @@ final readonly class CreateExport
             'blocking' => $this->usernames($user->blocking()),
             'dismissed_suggestions' => $this->usernames($user->dismissedSuggestions()),
             'messages' => $this->messages($user),
+            'sponsoring' => $this->sponsorships($user->sponsorshipsAsSponsor()->with('sponsorable:id,username'), fn (Sponsorship $sponsorship): User => $sponsorship->sponsorable),
+            'sponsors' => $this->sponsorships($user->sponsorshipsAsMaintainer()->with('sponsor:id,username'), fn (Sponsorship $sponsorship): User => $sponsorship->sponsor),
             'notifications' => $this->notifications($user),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
             'devices' => $user->devices()->oldest('approved_at')->get()->map(fn (Device $device): array => [
@@ -215,6 +219,25 @@ final readonly class CreateExport
 
         foreach ($users as $user) {
             yield ['username' => $user->username];
+        }
+    }
+
+    /**
+     * The sponsorships read from GitHub for a sponsors org, by the other person's handle.
+     *
+     * @param  HasMany<Sponsorship, User>  $sponsorships
+     * @param  callable(Sponsorship): User  $other
+     * @return Generator<int, array{username: string, is_one_time: bool, lapses_at: string|null, left_at: string|null}>
+     */
+    private function sponsorships(HasMany $sponsorships, callable $other): Generator
+    {
+        foreach ($sponsorships->lazyById(500) as $sponsorship) {
+            yield [
+                'username' => $other($sponsorship)->username,
+                'is_one_time' => $sponsorship->is_one_time,
+                'lapses_at' => $sponsorship->lapses_at?->toIso8601String(),
+                'left_at' => $sponsorship->left_at?->toIso8601String(),
+            ];
         }
     }
 

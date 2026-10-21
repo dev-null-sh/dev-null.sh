@@ -32,7 +32,12 @@ import {
     useTouchReactions,
 } from '@/components/chat/message-reactions';
 import { MessageStatusGlyph } from '@/components/chat/message-status';
-import { EventLine, typingText } from '@/components/chat/org';
+import {
+    EventLine,
+    RevealMembershipDialog,
+    typingText,
+} from '@/components/chat/org';
+import type { RevealedBy } from '@/components/chat/org';
 import {
     ImageDropOverlay,
     ImagePickerButton,
@@ -192,6 +197,29 @@ export function ConversationThread({
     const draft = useMessageDraft(user, current);
     const replyingTo = thread?.replyingTo ?? null;
     const members = thread?.members;
+    const isHidden =
+        (thread?.sponsors ?? null) !== null &&
+        (members?.find((member) => member.user.id === user.id)?.is_hidden ??
+            false);
+    const [reveal, setReveal] = useState<{
+        by: RevealedBy;
+        run: () => void;
+        isOpen: boolean;
+    } | null>(null);
+
+    // Pushing and reacting show who did it, so a hidden sponsor is asked first.
+    const whenShown = useCallback(
+        (by: RevealedBy, run: () => void) => {
+            if (isHidden) {
+                setReveal({ by, run, isOpen: true });
+
+                return;
+            }
+
+            run();
+        },
+        [isHidden],
+    );
 
     const authorOf = useCallback(
         (userId: string): Author => {
@@ -241,16 +269,18 @@ export function ConversationThread({
 
     const react = useCallback(
         (messageId: number, emoji: string) => {
-            void toggleReaction(target, messageId, emoji, user.id).then(
-                (isSaved) => {
-                    if (!isSaved) {
-                        toast.error('Could not react. Try again.');
-                    }
-                },
-            );
+            whenShown('react', () => {
+                void toggleReaction(target, messageId, emoji, user.id).then(
+                    (isSaved) => {
+                        if (!isSaved) {
+                            toast.error('Could not react. Try again.');
+                        }
+                    },
+                );
+            });
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        [targetKey(target), user.id],
+        [targetKey(target), user.id, whenShown],
     );
 
     useEffect(() => {
@@ -456,6 +486,8 @@ export function ConversationThread({
                     }}
                     isCompact={isCompact}
                     autoFocus={autoFocus}
+                    isHidden={isHidden}
+                    whenShown={(run) => whenShown('push', run)}
                     typing={
                         target.kind === 'org'
                             ? (thread?.typing ?? []).length > 0
@@ -475,6 +507,20 @@ export function ConversationThread({
                         onDropped={onDropped}
                     />
                 )
+            )}
+
+            {current.kind === 'org' && reveal !== null && (
+                <RevealMembershipDialog
+                    org={current.org}
+                    user={user}
+                    by={reveal.by}
+                    open={reveal.isOpen}
+                    onCancel={() => setReveal({ ...reveal, isOpen: false })}
+                    onRevealed={() => {
+                        setReveal({ ...reveal, isOpen: false });
+                        reveal.run();
+                    }}
+                />
             )}
         </section>
     );
@@ -1087,6 +1133,8 @@ function Composer({
     replyAuthor,
     isCompact,
     autoFocus,
+    isHidden,
+    whenShown,
     typing,
     onSend,
 }: {
@@ -1096,6 +1144,14 @@ function Composer({
     replyAuthor: Author | null;
     isCompact: boolean;
     autoFocus: boolean;
+    /**
+     * Whether the user hides their membership of the sponsors org, so typing isn't shown to the others.
+     */
+    isHidden: boolean;
+    /**
+     * Runs the push, once a hidden sponsor has agreed to show their membership.
+     */
+    whenShown: (run: () => void) => void;
     typing: string | null;
     /**
      * Called as the user pushes, so the thread follows their own message down.
@@ -1140,19 +1196,21 @@ function Composer({
             return;
         }
 
-        onSend();
-        sendMessage(target, {
-            body: trimmed,
-            replyTo: replyingTo,
-            images: attachments.images,
-            descriptions: attachments.descriptions,
-            linkPreviewUrl: linkCard.isChosen ? linkCard.link : undefined,
+        whenShown(() => {
+            onSend();
+            sendMessage(target, {
+                body: trimmed,
+                replyTo: replyingTo,
+                images: attachments.images,
+                descriptions: attachments.descriptions,
+                linkPreviewUrl: linkCard.isChosen ? linkCard.link : undefined,
+            });
+            stash.drop();
+            linkCard.reset();
+            setReplyingTo(target, null);
+            showError(null);
+            input.current?.focus();
         });
-        stash.drop();
-        linkCard.reset();
-        setReplyingTo(target, null);
-        showError(null);
-        input.current?.focus();
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -1335,7 +1393,7 @@ function Composer({
                                 showError(null);
                             }
 
-                            if (value.trim() !== '') {
+                            if (value.trim() !== '' && !isHidden) {
                                 pingTyping(target);
                             }
                         }}

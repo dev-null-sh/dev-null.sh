@@ -5,29 +5,41 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Dto\GitHubProfile;
+use App\Dto\GitHubSponsors;
+use App\Models\Conversation;
 use App\Models\User;
-use Illuminate\Http\Client\ConnectionException;
+use App\Queries\GitHubSponsorsQuery;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Two\User as GitHubUser;
 
 final readonly class UpdateOrCreateUser
 {
-    public function __construct(private UpdateStaleUsernames $updateStaleUsernames)
-    {
+    public function __construct(
+        private UpdateStaleUsernames $updateStaleUsernames,
+        private GitHubSponsorsQuery $gitHubSponsors,
+        private UpdateSponsorships $updateSponsorships,
+    ) {
         //
     }
 
+    /**
+     * Signing in is the only time the app holds the user's GitHub token, so it is when their sponsorships are read,
+     * their own sponsors too while they run a sponsors org.
+     */
     public function handle(GitHubUser $githubUser): User
     {
         $githubId = (string) $githubUser->getId();
         $profile = GitHubProfile::fromSocialite($githubUser);
         $email = mb_trim((string) $githubUser->getEmail());
 
-        $hasSponsorsListing = $this->hasSponsorsListing($githubUser->token, $profile->username);
+        $existing = User::query()->where('github_id', $githubId)->first();
+        $sponsors = $this->gitHubSponsors->get(
+            $githubUser->token,
+            $profile->username,
+            withSponsors: $existing instanceof User && Conversation::sponsorsOrgOf($existing) instanceof Conversation,
+        );
 
-        return DB::transaction(function () use ($githubId, $profile, $email, $hasSponsorsListing): User {
+        $user = DB::transaction(function () use ($githubId, $profile, $email, $sponsors): User {
             $this->updateStaleUsernames->handle($profile->username, $githubId);
 
             return User::query()->updateOrCreate([
@@ -36,44 +48,14 @@ final readonly class UpdateOrCreateUser
                 ...$profile->attributes(),
                 'email' => $email === '' ? null : $email,
                 'github_synced_at' => now(),
-                ...($hasSponsorsListing === null ? [] : ['has_sponsors_listing' => $hasSponsorsListing]),
+                ...($sponsors instanceof GitHubSponsors ? ['has_sponsors_listing' => $sponsors->hasSponsorsListing] : []),
             ]);
         });
-    }
 
-    /**
-     * The REST API doesn't say, so this asks GraphQL with the user's own token. Everything inside the
-     * listing, even whether it's public, needs a read:user or read:org token, and sign-in only asks for
-     * user:email. Null when GitHub can't answer, which keeps the last known value.
-     */
-    private function hasSponsorsListing(string $token, string $username): ?bool
-    {
-        try {
-            $response = Http::withToken($token)
-                ->connectTimeout(2)
-                ->timeout(3)
-                ->post('https://api.github.com/graphql', [
-                    'query' => 'query { viewer { hasSponsorsListing } }',
-                ]);
-        } catch (ConnectionException $connectionException) {
-            Log::warning('Could not check the GitHub Sponsors listing.', [
-                'username' => $username,
-                'error' => $connectionException->getMessage(),
-            ]);
-
-            return null;
+        if ($sponsors instanceof GitHubSponsors) {
+            $this->updateSponsorships->handle($user, $sponsors);
         }
 
-        if ($response->failed() || $response->json('errors') !== null) {
-            Log::warning('Could not check the GitHub Sponsors listing.', [
-                'username' => $username,
-                'status' => $response->status(),
-                'errors' => $response->json('errors') ?? $response->json('message'),
-            ]);
-
-            return null;
-        }
-
-        return $response->json('data.viewer.hasSponsorsListing') === true;
+        return $user;
     }
 }

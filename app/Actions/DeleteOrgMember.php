@@ -8,6 +8,7 @@ use App\Enums\OrgEvent;
 use App\Enums\OrgRole;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
+use App\Models\Sponsorship;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -20,12 +21,14 @@ final readonly class DeleteOrgMember
 
     /**
      * Removes a member, or lets them leave. They lose access to the org. When the last maintainer goes, the
-     * longest-standing member takes over, and an org nobody is left in is deleted.
+     * longest-standing member takes over, and an org nobody is left in is deleted. A sponsor stays out of a sponsors
+     * org until they sponsor again, and someone hiding their membership goes without a word in the history.
      */
     public function handle(User $actor, Conversation $org, User $member): void
     {
         DB::transaction(function () use ($actor, $org, $member): void {
-            ConversationParticipant::query()->where('conversation_id', $org->id)->where('user_id', $member->id)->delete();
+            $participant = ConversationParticipant::query()->where('conversation_id', $org->id)->where('user_id', $member->id)->firstOrFail();
+            $participant->delete();
 
             $remaining = $org->participants()->with('user')->oldest('id')->get();
 
@@ -35,9 +38,18 @@ final readonly class DeleteOrgMember
                 return;
             }
 
-            $actor->is($member)
-                ? $this->createConversationEvent->handle($member, $org, OrgEvent::Left)
-                : $this->createConversationEvent->handle($actor, $org, OrgEvent::Removed, $member);
+            if ($org->isSponsors()) {
+                Sponsorship::query()
+                    ->where('sponsorable_id', $remaining->firstOrFail(fn (ConversationParticipant $other): bool => $other->role === OrgRole::Maintainer)->user_id)
+                    ->where('sponsor_id', $member->id)
+                    ->update(['left_at' => now()]);
+            }
+
+            if (! $participant->is_hidden) {
+                $actor->is($member)
+                    ? $this->createConversationEvent->handle($member, $org, OrgEvent::Left)
+                    : $this->createConversationEvent->handle($actor, $org, OrgEvent::Removed, $member);
+            }
 
             if ($remaining->doesntContain(fn (ConversationParticipant $participant): bool => $participant->role === OrgRole::Maintainer)) {
                 $heir = $remaining->firstOrFail();

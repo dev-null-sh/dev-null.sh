@@ -6,6 +6,7 @@ namespace App\Queries;
 
 use App\Models\Commit;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
@@ -54,7 +55,10 @@ final readonly class MentionSuggestionsQuery
             ->whereKeyNot($user->id)
             ->whereNotIn('id', $user->mutedIds())
             ->whereNotIn('id', $user->idsAcrossBlocks())
-            ->when($org, fn (Builder $query, Conversation $org): Builder => $query->whereIn('id', $org->participants()->select('user_id')))
+            ->when($org, fn (Builder $query, Conversation $org): Builder => $query->whereIn('id', ConversationParticipant::query()
+                ->select('user_id')
+                ->where('conversation_id', $org->id)
+                ->unless($org->showsHiddenMembersTo($user), fn (Builder $query): Builder => $query->where('is_hidden', false))))
             ->when($term === '' && $target instanceof Commit, fn (Builder $query): Builder => $query
                 ->where(fn (Builder $query): Builder => $query
                     ->whereIn('id', [$target?->user_id, $root?->user_id])

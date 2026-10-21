@@ -22,7 +22,8 @@ final readonly class ConversationsQuery
 
     /**
      * One page of a tab, newest first, continuing before a conversation when scrolling down. The term matches the
-     * partner's name or handle, already lowercased and without a leading @.
+     * partner's name or handle, already lowercased and without a leading @, and an org's members who show their
+     * membership.
      *
      * @return array{conversations: Collection<int, array{id: string, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}>, has_more: bool}
      */
@@ -56,6 +57,7 @@ final readonly class ConversationsQuery
                     ->where('conversations.kind', ConversationKind::Org)
                     ->whereIn('conversations.id', ConversationParticipant::query()
                         ->select('conversation_id')
+                        ->where('is_hidden', false)
                         ->whereIn('user_id', $this->matching($escaped))))))
             ->when($cursor, fn (Builder $query, ConversationParticipant $cursor): Builder => $query->whereRaw(
                 '(mine.last_message_at, conversations.id) < (?, ?)',
@@ -139,6 +141,9 @@ final readonly class ConversationsQuery
     {
         $partner = $conversation->partner;
         $sharesReads = $partner instanceof User && $user->pull_receipts && $partner->pull_receipts && $conversation->partner_status === RemoteStatus::Open;
+        $showsHidden = $conversation->isSponsors() && $conversation->participants->contains(
+            fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id && $participant->role === OrgRole::Maintainer,
+        );
 
         return [
             'id' => $conversation->id,
@@ -146,6 +151,7 @@ final readonly class ConversationsQuery
             'name' => $conversation->name,
             'partner' => $partner,
             'members' => $conversation->isOrg() ? $conversation->participants
+                ->filter(fn (ConversationParticipant $participant): bool => $participant->isVisibleTo($user, $showsHidden))
                 ->sortBy('id')
                 ->map(fn (ConversationParticipant $participant): array => ['user' => $participant->user, 'role' => $participant->role])
                 ->values()

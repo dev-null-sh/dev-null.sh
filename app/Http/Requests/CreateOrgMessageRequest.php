@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Enums\OrgRole;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
@@ -19,6 +19,9 @@ use Illuminate\Validation\Rules\In;
 
 final class CreateOrgMessageRequest extends FormRequest
 {
+    /**
+     * Pushing shows who pushed, so someone hiding their membership shows it first.
+     */
     public function authorize(): Response
     {
         $user = $this->user();
@@ -27,7 +30,13 @@ final class CreateOrgMessageRequest extends FormRequest
         $org = $this->route('org');
         assert($org instanceof Conversation);
 
-        return $user->remotes_enabled && $org->roleOf($user) instanceof OrgRole ? Response::allow() : Response::denyAsNotFound();
+        $membership = $org->membershipOf($user);
+
+        return match (true) {
+            ! $user->remotes_enabled || ! $membership instanceof ConversationParticipant => Response::denyAsNotFound(),
+            $membership->is_hidden => Response::deny('Show your membership to push.'),
+            default => Response::allow(),
+        };
     }
 
     /**
