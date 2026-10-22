@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 it('lists the public top-level commits of a user, newest first', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
@@ -200,6 +202,7 @@ it('keeps the replies filter in the link to the next page of a signed request', 
 });
 
 it('loads a page of commits for a signed request without a query per commit', function (string $replies): void {
+    Queue::fake([DetectCommitLanguage::class]);
     $keyPair = apiKeyPairFor(User::factory()->create());
     $user = User::factory()->create(['username' => 'octocat']);
 

@@ -70,8 +70,8 @@ final readonly class OpenAI
 
     public function request(): PendingRequest
     {
-        return Http::baseUrl('https://api.openai.com/v1')
-            ->withToken(config()->string('services.openai.key'))
+        return Http::baseUrl(config()->string('ai.providers.openai.url'))
+            ->withToken(config()->string('ai.providers.openai.key'))
             ->acceptJson()
             ->connectTimeout(3)
             ->timeout(15);

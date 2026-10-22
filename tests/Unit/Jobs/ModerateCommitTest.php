@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function (): void {
-    config(['services.openai.key' => 'sk-test']);
+    config(['ai.providers.openai.key' => 'sk-test']);
 });
 
 /**
@@ -417,6 +417,7 @@ it('throws when the ai is unavailable, so the job is retried', function (): void
 });
 
 it('keeps unavailable moderation pending and recovers on a later queued attempt', function (bool $recovers): void {
+    config(['queue.default' => 'sync']);
     Exceptions::fake();
     Http::fake([
         'api.openai.com/v1/moderations' => Http::sequence()
