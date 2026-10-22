@@ -866,7 +866,6 @@ it('shows the author the images of their pending commit through urls that need n
 });
 
 it('sends a commit from a signed request to the ai moderation the web uses', function (): void {
-    config(['services.openai.key' => 'sk-test']);
     Queue::fake();
 
     $user = User::factory()->create();

@@ -297,16 +297,13 @@ export function Repliable({
         };
     }, [isMine, isReplyable]);
 
-    if (onReply === null) {
-        return children;
-    }
-
     return (
         <div
             ref={row}
             className={cn('group/message flex w-full touch-pan-y', {
                 'justify-end': isMine,
-                'transition-transform duration-200': offset === 0,
+                'transition-transform duration-200 motion-reduce:transition-none':
+                    offset === 0,
             })}
             style={
                 offset > 0

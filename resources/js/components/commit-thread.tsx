@@ -50,7 +50,6 @@ import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
-import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
@@ -70,7 +69,6 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
-import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -1352,7 +1350,6 @@ function ReplyComposer({
         image_descriptions: [],
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const secrets = useSecretWarning(body);
     const commitRules = useCommitRules();
     const isReplyable =
         (images.length > 0 || characterCount(body.trim()) >= minBodyLength) &&
@@ -1402,8 +1399,7 @@ function ReplyComposer({
         if (
             request.processing ||
             attachments.isReading() ||
-            !commitRules.beforeSubmit() ||
-            !secrets.beforeSubmit()
+            !commitRules.beforeSubmit()
         ) {
             return;
         }
@@ -1504,16 +1500,6 @@ function ReplyComposer({
                 />
             )}
             <CommitRulesDialog rules={commitRules} textarea={textareaRef} />
-            <SecretWarning
-                body={body}
-                findings={secrets.findings}
-                textarea={textareaRef}
-                onChange={updateBody}
-                confirming={secrets.confirming}
-                onConfirmingChange={secrets.setConfirming}
-                onApprove={secrets.approve}
-                onEdit={preview.close}
-            />
             <InputError
                 message={attachments.error ?? imageErrorFrom(errors)}
                 className="mt-1 px-1"

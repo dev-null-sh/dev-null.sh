@@ -10,6 +10,9 @@ use Carbon\CarbonInterface;
 use Carbon\CarbonPeriod;
 use Illuminate\Database\Query\Builder;
 
+/**
+ * @phpstan-type ActivityBucket array{date: string, count: int}
+ */
 final readonly class ActivityBucketsQuery
 {
     /**
@@ -17,7 +20,7 @@ final readonly class ActivityBucketsQuery
      * created since the start of the window. Hourly buckets are keyed by their UTC start instant so the client can
      * label them in local time, while daily buckets are UTC dates.
      *
-     * @return list<array{date: string, count: int}>
+     * @return list<ActivityBucket>
      */
     public function get(Builder $rows, ActivityScale $scale, CarbonImmutable $from, CarbonImmutable $now): array
     {

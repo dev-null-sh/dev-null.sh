@@ -23,6 +23,8 @@ export type GraphEdge = {
     d: string;
     start: Point;
     end: Point;
+    /** How far the line runs straight down from its start before it turns, if it does. */
+    drop: number;
     /** The lane of the node the line leaves, which it keeps to the end. */
     lane: string;
     dashed: boolean;
@@ -94,6 +96,25 @@ export function isOnScreen(
     const bottom = canvasTop + Math.max(edge.start.y, edge.end.y);
 
     return bottom >= 0 && top <= viewportHeight;
+}
+
+/**
+ * How much of a new line, from its start, is already painted by a line that just left the same node from the same
+ * place, like the line to a "more replies" dot once the replies it stood for take its place: that stretch stays, and
+ * only the rest draws itself in.
+ */
+export function drawnStretch(edge: GraphEdge, gone: GraphEdge[]): number {
+    return Math.max(
+        0,
+        ...gone
+            .filter(
+                (previous) =>
+                    previous.from === edge.from &&
+                    previous.start.x === edge.start.x &&
+                    previous.start.y === edge.start.y,
+            )
+            .map((previous) => Math.min(previous.drop, edge.drop)),
+    );
 }
 
 /**
@@ -170,6 +191,7 @@ function trunk(from: GraphNode, to: GraphNode): GraphEdge {
                 : `M ${from.x} ${from.y} L ${to.x} ${to.y}`,
         start: { x: from.x, y: from.y },
         end: { x: to.x, y: to.y },
+        drop: from.x === to.x ? Math.max(0, to.y - from.y) : 0,
         lane: from.lane,
         dashed: to.dashed ?? from.dashed ?? false,
         dimmed: isDimmed(from, to),
@@ -200,6 +222,7 @@ function branch(from: GraphNode, to: GraphNode, continues: boolean): GraphEdge {
         d: `${head} Q ${from.x} ${to.y} ${from.x + radius} ${to.y} H ${to.x}`,
         start,
         end: { x: to.x, y: to.y },
+        drop: Math.max(0, corner - start.y),
         lane: from.lane,
         dashed: true,
         dimmed: isDimmed(from, to),
