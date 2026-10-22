@@ -110,6 +110,7 @@
         </x-inertia::head>
     </head>
     <body class="font-sans antialiased">
+        <div class="pwa-status-bar" aria-hidden="true"></div>
         <x-inertia::app />
     </body>
 </html>

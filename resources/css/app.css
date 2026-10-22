@@ -396,6 +396,20 @@
     }
 }
 
+/* WebKit samples fixed surfaces taller than 10px instead of blurring the PWA header.
+   Clipping this empty surface to text supplies that color without painting over the page. */
+@media (display-mode: standalone) {
+    .pwa-status-bar {
+        position: fixed;
+        inset: 0 0 auto;
+        z-index: 1;
+        height: 11px;
+        background-color: var(--background);
+        background-clip: text;
+        pointer-events: none;
+    }
+}
+
 /* The stable scrollbar gutter already keeps the page in place when a dialog locks scrolling. */
 html body[data-scroll-locked] {
     margin-right: 0 !important;
