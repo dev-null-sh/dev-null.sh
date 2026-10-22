@@ -431,8 +431,8 @@ function DailyBars({
 }
 
 /**
- * Signups and the conversion rate as two charts of the same days, one under the other, rather than one chart with two
- * scales: each keeps its own zero, so neither trend is drawn against the other's.
+ * Signups or the conversion rate of each day, one at a time, rather than both on one chart with two scales: each keeps
+ * its own zero, so neither trend is drawn against the other's. The tooltip tells both.
  */
 function AcquisitionByDay({
     range,
@@ -443,6 +443,7 @@ function AcquisitionByDay({
     days: AcquisitionDay[];
     conversion: number | null;
 }) {
+    const [measure, setMeasure] = useState<'signups' | 'conversion'>('signups');
     const complete = days.filter((day) => day.complete);
     const converting = days.filter(
         (
@@ -452,11 +453,22 @@ function AcquisitionByDay({
     );
 
     return (
-        <div className="space-y-4">
-            <div>
-                <p className="font-mono text-xs text-muted-foreground">
+        <>
+            <div role="group" aria-label="Measure" className="flex gap-1">
+                <PresetButton
+                    isActive={measure === 'signups'}
+                    onClick={() => setMeasure('signups')}
+                >
                     sign-ups
-                </p>
+                </PresetButton>
+                <PresetButton
+                    isActive={measure === 'conversion'}
+                    onClick={() => setMeasure('conversion')}
+                >
+                    conversion rate
+                </PresetButton>
+            </div>
+            {measure === 'signups' ? (
                 <DailyBars
                     range={range}
                     average={
@@ -485,11 +497,7 @@ function AcquisitionByDay({
                     format={formatCount}
                     empty="no sign-ups in these dates"
                 />
-            </div>
-            <div>
-                <p className="font-mono text-xs text-muted-foreground">
-                    conversion rate
-                </p>
+            ) : (
                 <DailyBars
                     range={range}
                     average={conversion}
@@ -508,8 +516,8 @@ function AcquisitionByDay({
                     format={percent}
                     empty="nothing yet: Fathom isn't set up, didn't answer, or had no visitors in these dates"
                 />
-            </div>
-        </div>
+            )}
+        </>
     );
 }
 
@@ -627,7 +635,7 @@ export default function Show({
             <Section title="Acquisition by day" meta="by day, utc">
                 <Deferred
                     data="funnel"
-                    fallback={<Skeleton className="h-96 w-full rounded-lg" />}
+                    fallback={<Skeleton className="h-56 w-full rounded-lg" />}
                 >
                     {funnel && (
                         <AcquisitionByDay
