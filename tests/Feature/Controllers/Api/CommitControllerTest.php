@@ -696,7 +696,7 @@ it('opens the poll of an admin right away', function (): void {
         ->assertJsonPath('data.poll.is_closed', false);
 });
 
-it('quotes a commit with a poll from a signed request', function (): void {
+it('rejects a poll on a quote from a signed request', function (): void {
     $user = User::factory()->create();
     $keyPair = apiKeyPairFor($user);
     $quoted = Commit::factory()->create();
@@ -706,9 +706,11 @@ it('quotes a commit with a poll from a signed request', function (): void {
         'quoted_commit_id' => $quoted->id,
         'poll' => ['options' => ['DNS', 'Not DNS'], 'duration' => PollDuration::OneDay->value],
     ])
-        ->assertCreated()
-        ->assertJsonPath('data.quoted_commit_id', $quoted->id)
-        ->assertJsonPath('data.poll.options.*.label', ['DNS', 'Not DNS']);
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['poll' => 'The poll field prohibits quoted commit id from being present.']);
+
+    expect($user->commits()->exists())->toBeFalse()
+        ->and(Poll::query()->exists())->toBeFalse();
 });
 
 it('validates the poll of a commit from a signed request as the web does', function (Closure $data, string $field, string $message): void {

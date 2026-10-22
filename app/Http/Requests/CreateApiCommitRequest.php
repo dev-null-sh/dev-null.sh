@@ -48,7 +48,7 @@ final class CreateApiCommitRequest extends FormRequest
             'body' => CreateCommitRequest::bodyRules($this->hasFile('images')),
             'parent_id' => ['bail', 'nullable', 'uuid', new VisibleCommit($user)],
             'quoted_commit_id' => ['bail', 'nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
-            'poll' => $attachmentRules['poll'],
+            'poll' => [...$attachmentRules['poll'], 'prohibits:quoted_commit_id'],
             'poll.options' => $attachmentRules['poll.options'],
             'poll.options.*' => $attachmentRules['poll.options.*'],
             'poll.duration' => $attachmentRules['poll.duration'],

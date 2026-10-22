@@ -439,7 +439,7 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - commit, reply, and quote, with images, and delete your commits;
 - follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
 - star or unstar, and save or unsave;
-- create polls on commits and quotes, and vote on polls;
+- create polls on commits that are neither replies nor quotes, and vote on polls;
 - change Remotes settings, read conversations and mark them pulled, react to messages, find people, and start orgs;
 - stash or reopen conversations and orgs, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
