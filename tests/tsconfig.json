@@ -21,6 +21,8 @@
         "Unit/LinkEmbedHeight.test.tsx",
         "Unit/VoiceVolume.test.tsx",
         "Unit/OrgMentionSuggestions.test.tsx",
+        "Unit/PageTabs.test.tsx",
+        "Unit/SelectedTab.test.tsx",
         "../resources/js/types/*.d.ts",
         "draft-images.config.ts"
     ]

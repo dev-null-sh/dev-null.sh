@@ -9,12 +9,18 @@ export function PageTabs({
     prefetch = true,
     only,
     reset,
+    onSelect,
 }: {
     label: string;
     preserveScroll?: boolean;
     prefetch?: boolean;
     only?: InertiaLinkProps['only'];
     reset?: string[];
+    /**
+     * Shows the tab as selected the moment its visit starts, before its data arrives. A page that does this animates
+     * the selection itself, so the visit skips the page transition.
+     */
+    onSelect?: (index: number) => void;
     tabs: {
         title: string;
         href: NonNullable<InertiaLinkProps['href']>;
@@ -25,12 +31,13 @@ export function PageTabs({
 
     return (
         <nav aria-label={label} className="flex border-b">
-            {tabs.map((tab) => (
+            {tabs.map((tab, index) => (
                 <Link
                     key={tab.title}
                     href={tab.href}
                     prefetch={prefetch}
-                    viewTransition
+                    viewTransition={onSelect === undefined}
+                    onBefore={() => onSelect?.(index)}
                     preserveScroll={preserveScroll}
                     only={only}
                     // Link exposes custom headers for both visits and prefetches, but no reset option.
