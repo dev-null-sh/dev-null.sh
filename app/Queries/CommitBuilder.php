@@ -226,6 +226,7 @@ final class CommitBuilder extends Builder
             ->withCount('tips')
             ->withSum('tips as tips_total_bytes', 'amount');
     }
+
     public function pending(): self
     {
         return $this->where('status', CommitStatus::Pending);
