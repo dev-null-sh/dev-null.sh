@@ -341,8 +341,8 @@ for (const [link, href] of [
         'HTTPS://GitHub.com/laravel/framework',
     ],
     [
-        'http://github.com/nunomaduro/dev-null.sh',
-        'http://github.com/nunomaduro/dev-null.sh',
+        'http://github.com/dev-null-sh/dev-null.sh',
+        'http://github.com/dev-null-sh/dev-null.sh',
     ],
 ]) {
     test(`shows GitHub repository links however they are written: ${link}`, () => {

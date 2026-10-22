@@ -53,6 +53,7 @@ use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\MessageImageController;
 use App\Http\Controllers\MessageLinkPreviewController;
 use App\Http\Controllers\MessageReactionController;
+use App\Http\Controllers\MessageVoiceController;
 use App\Http\Controllers\MobileAuthorizationController;
 use App\Http\Controllers\ModeratedUserController;
 use App\Http\Controllers\ModerationController;
@@ -108,11 +109,6 @@ use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
-
-// Maintenance: every request is answered with the CVE maintenance page...
-Route::any('{any?}', fn () => response()->file(public_path('cve/index.html')))
-    ->where('any', '.*')
-    ->withoutMiddleware('web');
 
 // Commit from the terminal: curl -fsSL https://dev-null.sh/commit | bash -s -- 'Hello world!'
 Route::get('commit', [ScriptController::class, 'show'])->name('cli-script.show');
@@ -311,6 +307,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('remotes/@{partner:username}', [ConversationController::class, 'show'])->name('conversation.show');
     Route::get('remotes/orgs/{org}', [OrgController::class, 'show'])->whereUuid('org')->name('org.show');
     Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])->whereUuid('messageImage')->name('message-image.show');
+    Route::get('remotes/voices/{messageVoice}', [MessageVoiceController::class, 'show'])->whereUuid('messageVoice')->name('message-voice.show');
 
     Route::middleware('throttle:conversations')->group(function (): void {
         Route::get('remotes/inbox', [InboxController::class, 'index'])->name('inbox.index');

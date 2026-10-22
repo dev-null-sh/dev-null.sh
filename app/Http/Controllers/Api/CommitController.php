@@ -45,7 +45,7 @@ final readonly class CommitController
      */
     public function store(CreateApiCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, CommitPageQuery $page): JsonResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit());
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit(), $request->images(), $request->imageDescriptions());
 
         return CommitResource::make($page->get($commit, $user))
             ->response()

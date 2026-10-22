@@ -17,7 +17,7 @@ const workflow = [
     '  commit:',
     '    runs-on: ubuntu-latest',
     '    steps:',
-    '      - uses: nunomaduro/dev-null.sh/.github/actions/commit@production',
+    '      - uses: dev-null-sh/dev-null.sh/.github/actions/commit@production',
     '        with:',
     '          body: |',
     '            Released ${{ github.event.release.name }}.',
