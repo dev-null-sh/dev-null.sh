@@ -407,4 +407,3 @@ it('awards shell shocked and 100 xp only to accounts created before the UTC cuto
     'exactly at cutoff' => ['2026-10-21 14:00:00', false, 0, 1],
     'just after cutoff' => ['2026-10-21 14:00:01', false, 0, 1],
 ]);
->>>>>>> production
