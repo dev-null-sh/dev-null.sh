@@ -35,6 +35,7 @@ use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\ConversationDropController;
 use App\Http\Controllers\ConversationMergeController;
 use App\Http\Controllers\ConversationMessageController;
+use App\Http\Controllers\ConversationMuteController;
 use App\Http\Controllers\ConversationReadController;
 use App\Http\Controllers\ConversationTypingController;
 use App\Http\Controllers\DeviceController;
@@ -65,6 +66,7 @@ use App\Http\Controllers\OrgArchiveController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
 use App\Http\Controllers\OrgMessageController;
+use App\Http\Controllers\OrgMuteController;
 use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
 use App\Http\Controllers\PrivacyController;
@@ -331,6 +333,7 @@ Route::middleware('auth')->group(function (): void {
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
         Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
         Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');
+        Route::put('remotes/orgs/{org}/mute', [OrgMuteController::class, 'update'])->whereUuid('org')->name('org-mute.update');
         Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])->whereUuid('org')->middleware([PreventPostingInTimeout::class, 'throttle:messages'])->name('org-member.store');
         Route::put('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'update'])->whereUuid('org')->withoutScopedBindings()->name('org-member.update');
         Route::delete('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'destroy'])->whereUuid('org')->withoutScopedBindings()->name('org-member.destroy');
@@ -338,6 +341,8 @@ Route::middleware('auth')->group(function (): void {
             ->name('conversation-archive.store');
         Route::delete('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'destroy'])
             ->name('conversation-archive.destroy');
+        Route::put('remotes/@{partner:username}/mute', [ConversationMuteController::class, 'update'])
+            ->name('conversation-mute.update');
         Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
             ->whereNumber('message')
             ->name('message-link-preview.show');

@@ -26,6 +26,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  *     members: OrgThread['members'],
  *     typing: OrgThread['typing'],
  *     is_archived: OrgThread['is_archived'],
+ *     muted_until_at: OrgThread['muted_until_at'],
  *     role: OrgThread['role'],
  *     access: OrgThread['access']
  * }

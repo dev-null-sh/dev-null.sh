@@ -28,7 +28,8 @@ use Illuminate\Support\Collection;
  *     ahead: int,
  *     partner_read_through_id: int,
  *     partner_read_at: string|null,
- *     is_archived: bool
+ *     is_archived: bool,
+ *     muted_until_at: string|null
  * }
  */
 final readonly class ConversationsQuery
@@ -84,6 +85,7 @@ final readonly class ConversationsQuery
                 'theirs.read_at as partner_read_at',
                 'mine.last_message_at as last_message_at',
                 'mine.archived_at as archived_at',
+                'mine.muted_until_at as muted_until_at',
             ])
             ->selectSub(
                 Message::query()
@@ -171,6 +173,7 @@ final readonly class ConversationsQuery
             'partner_read_through_id' => $sharesReads ? $conversation->partner_read_through_id : 0,
             'partner_read_at' => $sharesReads ? $conversation->partner_read_at?->toJSON() : null,
             'is_archived' => $conversation->archived_at !== null,
+            'muted_until_at' => $conversation->muted_until_at?->isFuture() ? $conversation->muted_until_at->toJSON() : null,
         ];
     }
 
