@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Exceptions\ApiException;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
+use App\Http\Controllers\Api\CommitPinController;
 use App\Http\Controllers\Api\CommitPollVoteController;
 use App\Http\Controllers\Api\CommitPreviewController;
 use App\Http\Controllers\Api\CommitReplyController;
@@ -154,6 +155,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('commits/{commit}/star', [CommitStarController::class, 'destroy'])
             ->middleware('throttle:stars')
             ->name('api-commit-star.destroy');
+
+        // Commit Pin...
+        Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])
+            ->middleware('throttle:pins')
+            ->name('api-commit-pin.update');
+        Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])
+            ->middleware('throttle:pins')
+            ->name('api-commit-pin.destroy');
 
         // User Follow...
         Route::post('users/{user:username}/follow', [UserFollowController::class, 'store'])
