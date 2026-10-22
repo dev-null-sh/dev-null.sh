@@ -112,7 +112,7 @@ export function AppAside({
                             </span>
                         </span>
                     </Link>
-                    <dl className="mt-4 flex gap-4 text-sm">
+                    <dl className="mt-4 grid grid-cols-3 gap-4 text-sm">
                         {[
                             {
                                 count: commitsCount,
@@ -136,7 +136,7 @@ export function AppAside({
                         ].map((stat) => (
                             <div
                                 key={stat.label}
-                                className="group flex flex-row-reverse gap-1.5"
+                                className="group flex min-w-0 flex-col-reverse"
                             >
                                 <dt className="text-muted-foreground">
                                     <Link
@@ -146,7 +146,7 @@ export function AppAside({
                                         {stat.label}
                                     </Link>
                                 </dt>
-                                <dd className="font-mono font-medium">
+                                <dd className="font-mono font-medium tabular-nums">
                                     <Link
                                         href={stat.href}
                                         className="group-hover:underline"
