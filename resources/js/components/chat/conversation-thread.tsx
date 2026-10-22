@@ -41,7 +41,6 @@ import {
 } from '@/components/commit-image-picker';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
-import { SecretWarning } from '@/components/secret-warning';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
@@ -49,7 +48,6 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useChat, useThread } from '@/hooks/use-chat';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
-import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
 import { useVoiceNote } from '@/hooks/use-voice-note';
 import {
@@ -1197,7 +1195,7 @@ function timeOf(date: string): string {
 
 /**
  * The draft being written to a conversation: its body and images, kept per conversation across pages and the dock,
- * the link chosen for its card, and any secrets found in it.
+ * and the link chosen for its card.
  */
 function useMessageDraft(user: User, target: ChatTarget) {
     const stash = useStash(user.id, `remote:${targetKey(target)}`);
@@ -1208,10 +1206,9 @@ function useMessageDraft(user: User, target: ChatTarget) {
         stash.key,
     );
     const linkCard = useLinkCard(stash.body);
-    const secrets = useSecretWarning(stash.body);
     const input = useRef<HTMLTextAreaElement>(null);
 
-    return { stash, attachments, linkCard, secrets, input };
+    return { stash, attachments, linkCard, input };
 }
 
 type MessageDraftState = ReturnType<typeof useMessageDraft>;
@@ -1344,7 +1341,7 @@ function Composer({
             ? `Message @${target.partner.username}`
             : `Message ${target.org.name ?? 'the org'}`;
     const lane = target.kind === 'direct' ? target.partner.lane : 0;
-    const { stash, attachments, linkCard, secrets, input } = draft;
+    const { stash, attachments, linkCard, input } = draft;
     const body = stash.body;
     const [error, setError] = useState<string | null>(null);
     const [wasReplySent, setWasReplySent] = useState(false);
@@ -1404,11 +1401,7 @@ function Composer({
             return;
         }
 
-        if (
-            attachments.isReading() ||
-            (trimmed === '' && !hasImages) ||
-            !secrets.beforeSubmit()
-        ) {
+        if (attachments.isReading() || (trimmed === '' && !hasImages)) {
             return;
         }
 
@@ -1541,15 +1534,6 @@ function Composer({
                     isCompact ? 'p-2.5' : 'px-4 py-3',
                 )}
             >
-                <SecretWarning
-                    body={body}
-                    findings={secrets.findings}
-                    textarea={input}
-                    onChange={stash.updateBody}
-                    confirming={secrets.confirming}
-                    onConfirmingChange={secrets.setConfirming}
-                    onApprove={secrets.approve}
-                />
                 <ReplyPreview
                     reply={replyingTo}
                     author={replyAuthor}
