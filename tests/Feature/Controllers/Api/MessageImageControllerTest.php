@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 use App\Models\Message;
 use App\Models\User;
+use App\Services\EncryptedFiles;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 beforeEach(function (): void {
     Storage::fake();
@@ -42,11 +44,20 @@ it('serves an image from the URL a thread hands out, without signing the request
 
     expect(signedImageUrl())->toBe($url);
 
-    $this->get($url)
+    $response = $this->get($url)
         ->assertOk()
         ->assertHeader('Content-Type', 'image/webp')
-        ->assertHeader('Cache-Control', 'max-age=3600, private')
-        ->assertStreamedContent(Storage::disk()->get($this->image->path));
+        ->assertHeader('Cache-Control', 'max-age=3600, private');
+
+    $contents = $response->baseResponse instanceof StreamedResponse ? $response->streamedContent() : (string) $response->getContent();
+
+    expect($contents)->toBe(resolve(EncryptedFiles::class)->decrypt((string) Storage::disk()->get($this->image->path)));
+
+    expect(getimagesizefromstring($contents))->toMatchArray([
+        0 => 40,
+        1 => 20,
+        'mime' => 'image/webp',
+    ]);
 });
 
 it('stops serving it once the URL expires or is changed', function (): void {
