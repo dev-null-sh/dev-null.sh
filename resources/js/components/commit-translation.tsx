@@ -3,6 +3,7 @@ import { Languages } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitTranslationController from '@/actions/App/Http/Controllers/CommitTranslationController';
+import { Spinner } from '@/components/ui/spinner';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { signIn } from '@/lib/auth';
 import type { Commit, CommitTranslation } from '@/types';
@@ -122,14 +123,26 @@ export function useCommitTranslation(commit: Commit) {
                 aria-label={
                     request.processing
                         ? 'Translating commit'
-                        : 'Translate commit'
+                        : translated
+                          ? 'Commit translated'
+                          : 'Translate commit'
                 }
                 aria-busy={request.processing}
-                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 sm:min-w-24"
+                className="flex items-center gap-1.5 rounded-md px-2 py-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 sm:min-w-32"
                 data-test="translate-commit"
             >
-                <Languages className="size-4" aria-hidden />
-                <span className="sr-only sm:not-sr-only">Translate</span>
+                {request.processing ? (
+                    <Spinner aria-hidden />
+                ) : (
+                    <Languages className="size-4" aria-hidden />
+                )}
+                <span className="sr-only sm:not-sr-only">
+                    {request.processing
+                        ? 'Translating…'
+                        : translated
+                          ? 'Translated'
+                          : 'Translate'}
+                </span>
             </button>
         ) : null,
     };
