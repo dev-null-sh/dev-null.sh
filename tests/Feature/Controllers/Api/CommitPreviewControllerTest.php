@@ -2,8 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\User;
+use App\Rules\CommitBodyLength;
+use App\Services\Urls;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function (): void {
     $this->user = User::factory()->create();
@@ -27,6 +31,22 @@ it('previews a draft the way the commit it becomes is shown', function (string $
     'runs of blank lines' => "Shipped it.\n\n\n\nFinally.",
     'too long to show whole in a list' => implode("\n", array_fill(0, 12, 'One more line of the changelog.')),
 ]);
+
+it('previews publishable text longer than 4000 raw characters when it contains links', function (): void {
+    Queue::fake([UnfurlLink::class]);
+    $body = implode(' ', array_fill(0, 3, mb_str_pad('https://example.com/', 1400, 'a')));
+
+    signedApiRequest($this->keyPair, 'POST', route('api-commit-preview.store'), ['body' => $body])
+        ->assertOk()
+        ->assertJsonPath('data.body', $body);
+
+    expect(Commit::query()->exists())->toBeFalse();
+    Queue::assertNothingPushed();
+
+    signedApiRequest($this->keyPair, 'POST', route('api-commit.store'), ['body' => $body])
+        ->assertCreated()
+        ->assertJsonPath('data.body', $body);
+});
 
 it('folds a long draft as a list would, and leaves a short one whole', function (): void {
     signedApiRequest($this->keyPair, 'POST', route('api-commit-preview.store'), ['body' => str_repeat('word ', 200)])
@@ -58,6 +78,8 @@ it('requires a body the composer could commit', function (array $data, string $m
     'missing' => [[], 'The body field is required.'],
     'blank' => [['body' => "  \n  "], 'The body field is required.'],
     'too long' => [['body' => str_repeat('a', Commit::MAX_BODY_LENGTH + 1)], 'The body field must not be greater than '.Commit::MAX_BODY_LENGTH.' characters.'],
+    'oversized link' => [['body' => mb_str_pad('https://example.com/', Urls::MAX_LENGTH + 1, 'a')], 'Each link must not be greater than '.Urls::MAX_LENGTH.' characters.'],
+    'raw body too long' => [['body' => implode(' ', array_fill(0, 20, mb_str_pad('https://example.com/', Urls::MAX_LENGTH, 'a')))], 'The body field must not be greater than '.CommitBodyLength::MAX_RAW_LENGTH.' characters.'],
 ]);
 
 it('requires a signed request', function (): void {

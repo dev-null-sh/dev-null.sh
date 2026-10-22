@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Models\Commit;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class CreateApiCommitPreviewRequest extends FormRequest
@@ -23,12 +23,12 @@ final class CreateApiCommitPreviewRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array<string, array<int, string|ValidationRule>>
      */
     public function rules(): array
     {
         return [
-            'body' => ['required', 'string', 'max:'.Commit::MAX_BODY_LENGTH],
+            'body' => CreateCommitRequest::bodyRules(),
         ];
     }
 }

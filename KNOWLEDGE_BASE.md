@@ -437,6 +437,7 @@ A signed request sees what the web shows you, such as your own pending commits. 
 
 - read your account, logs, replies, notifications, and saved commits;
 - commit, reply, and quote, with images, and delete your commits;
+- preview commit drafts without publishing them;
 - follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
 - star or unstar, and save or unsave;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
