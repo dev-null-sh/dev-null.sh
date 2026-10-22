@@ -179,6 +179,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
                 ->whereNumber('message')
                 ->name('api-message-link-preview.show');
+        });
 
         // Remote Reactions...
         Route::middleware('throttle:conversations')->group(function (): void {
