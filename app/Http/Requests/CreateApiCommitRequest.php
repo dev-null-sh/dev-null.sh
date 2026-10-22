@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Dto\NewPoll;
+use App\Enums\PollDuration;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\VisibleCommit;
@@ -16,7 +18,7 @@ use Illuminate\Validation\Rules\File;
 
 /**
  * A commit from the mobile app, sent as JSON, or with images as multipart (see SignedRequests). It may reply to a commit
- * or quote one, as on the web, but not both. The images are checked as the web checks them. It has no poll yet.
+ * or quote one, as on the web, but not both. The images are checked as the web checks them.
  */
 final class CreateApiCommitRequest extends FormRequest
 {
@@ -46,6 +48,10 @@ final class CreateApiCommitRequest extends FormRequest
             'body' => CreateCommitRequest::bodyRules($this->hasFile('images')),
             'parent_id' => ['bail', 'nullable', 'uuid', new VisibleCommit($user)],
             'quoted_commit_id' => ['bail', 'nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
+            'poll' => [...$attachmentRules['poll'], 'prohibits:quoted_commit_id'],
+            'poll.options' => $attachmentRules['poll.options'],
+            'poll.options.*' => $attachmentRules['poll.options.*'],
+            'poll.duration' => $attachmentRules['poll.duration'],
             'images' => $attachmentRules['images'],
             'images.*' => $attachmentRules['images.*'],
             'image_descriptions' => $attachmentRules['image_descriptions'],
@@ -84,6 +90,18 @@ final class CreateApiCommitRequest extends FormRequest
         return $this->filled('quoted_commit_id')
             ? Commit::query()->visibleTo($user)->find($this->string('quoted_commit_id')->value())
             : null;
+    }
+
+    public function poll(): ?NewPoll
+    {
+        if (! $this->filled('poll')) {
+            return null;
+        }
+
+        /** @var list<string> $options */
+        $options = $this->array('poll.options');
+
+        return new NewPoll($options, PollDuration::from($this->integer('poll.duration')));
     }
 
     /**
