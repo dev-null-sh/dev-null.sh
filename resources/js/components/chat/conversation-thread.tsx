@@ -583,7 +583,7 @@ function itemsOf(
 
         items.push({
             kind: 'group',
-            key: `group-${bubble.kind === 'message' ? id : bubble.pending.client_id}`,
+            key: `group-${bubble.kind === 'message' ? bubble.message.client_id : bubble.pending.client_id}`,
             isMine,
             authorId: author,
             author:
@@ -825,13 +825,13 @@ function BubbleWithMeta({
     );
 
     const bubbleClass = cn(
-        'relative w-fit max-w-full min-w-0 rounded-lg px-3.5 py-2 wrap-anywhere ring-primary ring-offset-2 ring-offset-background transition-[background-color,color,outline-color,box-shadow] duration-200 data-flash:ring-2',
+        'relative w-fit max-w-full min-w-0 rounded-lg px-3.5 py-2 wrap-anywhere ring-primary ring-offset-2 ring-offset-background transition-[background-color,color,outline-color,box-shadow] duration-200 before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:border-[1.5px] before:border-dashed before:border-primary before:opacity-0 before:transition-opacity before:duration-200 data-flash:ring-2 motion-reduce:transition-none motion-reduce:before:transition-none',
         isCompact && 'px-3 py-1.5',
         isMine
             ? 'bg-primary text-primary-foreground'
             : 'bg-muted text-foreground',
         {
-            'bg-transparent text-foreground outline-[1.5px] outline-offset-[-1.5px] outline-primary outline-dashed':
+            'bg-transparent text-foreground before:opacity-100':
                 status === 'staged',
             'bg-transparent text-foreground outline-[1.5px] outline-offset-[-1.5px] outline-destructive outline-solid':
                 status === 'rejected',
@@ -922,17 +922,19 @@ function BubbleWithMeta({
                         <MessageLinkCard message={bubble.message} />
                     )}
                     {reactToThis !== null && (
-                        <ReactionTray
-                            id={trayId}
-                            isOpen={isTrayOpen}
-                            onOpenChange={setIsTrayOpen}
-                            trigger={reactButton}
-                            usage={usage}
-                            reacted={reacted}
-                            hasReactions={(reactions?.length ?? 0) > 0}
-                            isMine={isMine}
-                            onReact={reactToThis}
-                        />
+                        <div className="-mt-1 w-full">
+                            <ReactionTray
+                                id={trayId}
+                                isOpen={isTrayOpen}
+                                onOpenChange={setIsTrayOpen}
+                                trigger={reactButton}
+                                usage={usage}
+                                reacted={reacted}
+                                hasReactions={(reactions?.length ?? 0) > 0}
+                                isMine={isMine}
+                                onReact={reactToThis}
+                            />
+                        </div>
                     )}
                     <ReactionChips
                         reactions={reactions}
@@ -1124,6 +1126,70 @@ function useMessageDraft(user: User, target: ChatTarget) {
 }
 
 type MessageDraftState = ReturnType<typeof useMessageDraft>;
+
+/**
+ * Keeps the quoted content in place while the reply bar closes, including when sending the reply.
+ */
+function ReplyPreview({
+    reply,
+    author,
+    onCancel,
+}: {
+    reply: MessageReply | null;
+    author: Author | null;
+    onCancel: () => void;
+}) {
+    const [shown, setShown] = useState<{
+        reply: MessageReply;
+        author: Author;
+    } | null>(null);
+    const isOpen = reply !== null && author !== null;
+
+    if (
+        isOpen &&
+        (shown?.reply !== reply ||
+            shown.author.name !== author.name ||
+            shown.author.lane !== author.lane)
+    ) {
+        setShown({ reply, author });
+    }
+
+    return (
+        <div
+            aria-hidden={!isOpen}
+            inert={!isOpen}
+            className={cn(
+                'grid transition-[grid-template-rows,opacity,margin-bottom] duration-200 ease-out motion-reduce:transition-none',
+                isOpen
+                    ? 'grid-rows-[1fr] opacity-100'
+                    : '-mb-2 grid-rows-[0fr] opacity-0',
+            )}
+        >
+            <div className="min-h-0 overflow-hidden">
+                {shown !== null && (
+                    <div className="flex min-w-0 items-center gap-1.5">
+                        <ReplyGhost
+                            reply={shown.reply}
+                            author={shown.author}
+                            side="theirs"
+                            isDraft
+                        />
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            aria-label="Cancel reply"
+                            title="Cancel reply (Esc)"
+                            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                            data-test="cancel-reply"
+                        >
+                            <X aria-hidden className="size-4" />
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
 
 /**
  * Counts characters once the message nears the limit, and refuses a paste that would cross it rather than
@@ -1359,29 +1425,14 @@ function Composer({
                     onConfirmingChange={secrets.setConfirming}
                     onApprove={secrets.approve}
                 />
-                {replyingTo !== null && replyAuthor !== null && (
-                    <div className="flex min-w-0 items-center gap-1.5">
-                        <ReplyGhost
-                            reply={replyingTo}
-                            author={replyAuthor}
-                            side="theirs"
-                            isDraft
-                        />
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setReplyingTo(target, null);
-                                input.current?.focus();
-                            }}
-                            aria-label="Cancel reply"
-                            title="Cancel reply (Esc)"
-                            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-                            data-test="cancel-reply"
-                        >
-                            <X aria-hidden className="size-4" />
-                        </button>
-                    </div>
-                )}
+                <ReplyPreview
+                    reply={replyingTo}
+                    author={replyAuthor}
+                    onCancel={() => {
+                        setReplyingTo(target, null);
+                        input.current?.focus();
+                    }}
+                />
                 {hasImages && (
                     <div className="[&>div]:mt-0">
                         <ImagePickerPreviews
