@@ -46,6 +46,63 @@ it('counts distinct public authors including replies but not private or moderate
     expect($result['definition'])->toContain('Not online users');
 });
 
+it('counts inclusive signup dates and caches different start and end dates separately', function (): void {
+    $this->travelTo(now('UTC')->setDate(2026, 10, 22)->startOfDay());
+    User::factory()->count(7)->sequence(
+        ['created_at' => '2026-10-18 23:59:59'],
+        ['created_at' => '2026-10-19 00:00:00'],
+        ['created_at' => '2026-10-20 00:00:00'],
+        ['created_at' => '2026-10-20 23:59:59'],
+        ['created_at' => '2026-10-21 00:00:00'],
+        ['created_at' => '2026-10-21 12:00:00'],
+        ['created_at' => '2026-10-21 23:59:59'],
+    )->create();
+    User::factory()->notOnboarded()->create(['created_at' => '2026-10-20 12:00:00']);
+    User::factory()->create(['github_id' => CreateTomFriendship::GITHUB_ID, 'created_at' => '2026-10-20 12:00:00']);
+    User::factory()->create(['created_at' => '2026-10-20 12:00:00'])->delete();
+
+    foreach ([['2026-10-20', '2026-10-20', 2], ['2026-10-19', '2026-10-20', 3], ['2026-10-19', '2026-10-21', 6]] as [$start, $end, $count]) {
+        $result = json_decode(new CommunityStats()->handle(new Request(['metric' => 'new_members', 'start_date' => $start, 'end_date' => $end])), true);
+
+        expect($result)->toMatchArray(['count' => $count, 'population' => 7, 'start_date' => $start, 'end_date' => $end, 'timezone' => 'UTC']);
+        expect($result['definition'])->toContain('Current onboarded members', 'inclusive UTC calendar dates');
+    }
+
+    $rolling = json_decode(new CommunityStats()->handle(new Request(['metric' => 'new_members', 'days' => 7])), true);
+    expect($rolling)->toMatchArray(['count' => 7, 'start_date' => null, 'end_date' => null]);
+});
+
+it('uses posting dates rather than signup dates for distinct authors in a calendar range', function (): void {
+    $this->travelTo(now('UTC')->setDate(2026, 10, 22)->startOfDay());
+    $author = User::factory()->create();
+    $root = Commit::factory()->for($author)->create(['created_at' => '2026-10-19 00:00:00']);
+    Commit::factory()->for($author)->create(['created_at' => '2026-10-20 23:59:59']);
+    Commit::factory()->for($root, 'parent')->create(['created_at' => '2026-10-20 23:59:59']);
+    Commit::factory()->create(['created_at' => '2026-10-18 23:59:59']);
+    Commit::factory()->create(['created_at' => '2026-10-21 00:00:00']);
+    Commit::factory()->pending()->create(['created_at' => '2026-10-20 12:00:00']);
+
+    $result = json_decode(new CommunityStats()->handle(new Request(['metric' => 'public_authors', 'start_date' => '2026-10-19', 'end_date' => '2026-10-20'])), true);
+
+    expect($result)->toMatchArray(['count' => 2, 'since' => '2026-10-19T00:00:00+00:00', 'start_date' => '2026-10-19', 'end_date' => '2026-10-20', 'timezone' => 'UTC']);
+    expect($result['definition'])->toContain('Not online users');
+});
+
+it('counts today only through the observation time', function (string $metric): void {
+    $this->travelTo(now('UTC')->setDate(2026, 10, 21)->setTime(12, 0));
+    $factory = $metric === 'new_members' ? User::factory() : Commit::factory();
+    $factory->count(4)->sequence(
+        ['created_at' => '2026-10-20 23:59:59'],
+        ['created_at' => '2026-10-21 00:00:00'],
+        ['created_at' => '2026-10-21 12:00:00'],
+        ['created_at' => '2026-10-21 12:00:01'],
+    )->create();
+
+    $result = json_decode(new CommunityStats()->handle(new Request(['metric' => $metric, 'start_date' => '2026-10-21', 'end_date' => '2026-10-21'])), true);
+
+    expect($result)->toMatchArray(['count' => 2, 'since' => '2026-10-21T00:00:00+00:00', 'as_of' => '2026-10-21T12:00:00+00:00']);
+})->with(['new_members', 'public_authors']);
+
 it('counts profile matches without guessing demographics or returning people', function (string $metric, string $term, array $matching, array $other): void {
     $column = $metric === 'location' ? 'location' : 'bio';
     foreach ([...$matching, ...$other] as $text) {
@@ -60,7 +117,7 @@ it('counts profile matches without guessing demographics or returning people', f
 
     expect($result['count'])->toBe(count($matching));
     expect($result['coverage'])->toContain('not a community-wide demographic count');
-    expect(array_keys($result))->toBe(['metric', 'term', 'count', 'population', 'definition', 'coverage', 'matched_terms', 'since', 'as_of', 'source', 'cache_seconds']);
+    expect(array_keys($result))->toBe(['metric', 'term', 'count', 'population', 'definition', 'coverage', 'matched_terms', 'since', 'start_date', 'end_date', 'timezone', 'as_of', 'source', 'cache_seconds']);
 })->with([
     'country name, not nationality or a city guess' => ['location', ' Portugal ', ['Lisbon, PORTUGAL', 'Portugal'], ['Lisbon', 'Portuguese abroad', 'Portugalville']],
     'UK aliases' => ['location', 'United Kingdom', ['London, UK', 'U.K.', 'United Kingdom'], ['Ukraine', 'London']],
@@ -117,3 +174,23 @@ it('bounds community queries per reply', function (): void {
 
     expect($tool->handle($request))->toContain('budget exhausted');
 });
+
+it('refuses invalid or conflicting calendar ranges instead of returning rolling counts', function (array $arguments, string $error): void {
+    $this->travelTo(now('UTC')->setDate(2026, 10, 21)->startOfDay());
+
+    expect(new CommunityStats()->handle(new Request(['metric' => 'new_members', ...$arguments])))->toContain($error);
+})->with([
+    'missing end' => [['start_date' => '2026-10-20'], 'Provide both'],
+    'missing start' => [['end_date' => '2026-10-20'], 'Provide both'],
+    'empty dates' => [['start_date' => '', 'end_date' => ''], 'Provide both'],
+    'null dates' => [['start_date' => null, 'end_date' => null], 'Provide both'],
+    'invalid calendar day' => [['start_date' => '2026-02-30', 'end_date' => '2026-03-01'], 'Provide both'],
+    'unsupported year zero' => [['start_date' => '0000-01-01', 'end_date' => '2026-10-20'], 'Provide both'],
+    'timestamp not a date' => [['start_date' => '2026-10-20T12:00:00Z', 'end_date' => '2026-10-20'], 'Provide both'],
+    'reversed dates' => [['start_date' => '2026-10-20', 'end_date' => '2026-10-19'], 'Provide both'],
+    'future date' => [['start_date' => '2026-10-20', 'end_date' => '2026-10-22'], 'Provide both'],
+    'rolling and calendar' => [['days' => 7, 'start_date' => '2026-10-20', 'end_date' => '2026-10-20'], 'Omit days'],
+    'historical population' => [['metric' => 'members', 'start_date' => '2026-10-20', 'end_date' => '2026-10-20'], 'Date ranges are only'],
+    'demographic range' => [['metric' => 'location', 'term' => 'Portugal', 'start_date' => '2026-10-20', 'end_date' => '2026-10-20'], 'Date ranges are only'],
+    'combined signup filter' => [['term' => 'Portugal', 'start_date' => '2026-10-20', 'end_date' => '2026-10-20'], 'Combined filters'],
+]);
