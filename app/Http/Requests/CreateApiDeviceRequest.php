@@ -131,7 +131,7 @@ final class CreateApiDeviceRequest extends FormRequest
         if ($authorization->status === DeviceAuthorizationStatus::Pending) {
             throw Cache::add("{$authorization->key}:polled", true, DeviceAuthorization::INTERVAL_SECONDS - 1)
                 ? ApiException::authorizationPending()
-                : ApiException::slowDown();
+                : ApiException::slowDown(DeviceAuthorization::INTERVAL_SECONDS + DeviceAuthorization::SLOW_DOWN_SECONDS);
         }
 
         throw_if($authorization->status === DeviceAuthorizationStatus::Denied, ApiException::accessDenied());

@@ -20,6 +20,9 @@ final readonly class DeviceAuthorization
 
     public const int INTERVAL_SECONDS = 5;
 
+    /** What RFC 8628 adds to the interval of a terminal told to slow down. */
+    public const int SLOW_DOWN_SECONDS = 5;
+
     public function __construct(
         public string $key,
         public string $fingerprint,

@@ -87,9 +87,16 @@ final class ApiException extends HttpException
         return new self(ApiErrorCode::AuthorizationPending, __('Waiting for the device to be approved on the web.'));
     }
 
-    public static function slowDown(): self
+    /**
+     * Says the interval to wait between tries from now on, so a terminal doesn't have to guess it.
+     */
+    public static function slowDown(int $interval): self
     {
-        return new self(ApiErrorCode::SlowDown, __('Asking too often. Wait a few seconds more between tries.'));
+        return new self(
+            ApiErrorCode::SlowDown,
+            __('Asking too often. Wait :seconds seconds between tries from now on.', ['seconds' => $interval]),
+            data: ['interval' => $interval],
+        );
     }
 
     public static function accessDenied(): self

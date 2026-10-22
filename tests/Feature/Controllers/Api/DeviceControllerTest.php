@@ -207,15 +207,16 @@ describe('polling a sign-in started from a terminal', function (): void {
         expect(Device::query()->exists())->toBeFalse();
     });
 
-    it('tells a terminal asking again sooner than the interval to slow down', function (): void {
+    it('tells a terminal asking again sooner than the interval to slow down, and the interval to use from then on', function (): void {
         signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['device_code' => $this->deviceCode])
             ->assertJsonPath('code', 'authorization_pending');
 
         signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['device_code' => $this->deviceCode])
             ->assertBadRequest()
             ->assertExactJson([
-                'message' => 'Asking too often. Wait a few seconds more between tries.',
+                'message' => 'Asking too often. Wait 10 seconds between tries from now on.',
                 'code' => 'slow_down',
+                'interval' => 10,
             ]);
 
         $this->travel(3)->seconds();
