@@ -412,7 +412,7 @@ export function AppNav({
             </nav>
 
             {auth.user === null ? (
-                <SignInButton className="mt-auto size-[52px] shrink-0 rounded-lg nav-wide:w-auto" />
+                <SignInButton className="mt-auto size-[52px] shrink-0 gap-0 rounded-lg nav-wide:w-auto nav-wide:gap-2" />
             ) : (
                 <DropdownMenu>
                     <DropdownMenuTrigger
