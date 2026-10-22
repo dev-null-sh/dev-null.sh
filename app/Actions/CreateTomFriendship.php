@@ -34,6 +34,7 @@ final readonly class CreateTomFriendship
         DB::transaction(function () use ($user, $tom): void {
             $user->following()->syncWithoutDetaching([$tom->id]);
             $tom->following()->syncWithoutDetaching([$user->id]);
+            $user->update(['befriended_by_tom_at' => now()]);
         });
     }
 

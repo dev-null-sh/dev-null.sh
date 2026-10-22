@@ -66,6 +66,7 @@ final readonly class CreateExport
                 'live_ends_at' => $user->live_ends_at?->toIso8601String(),
                 'last_seen_at' => $user->last_seen_at?->toDateString(),
                 'commit_rules_accepted_at' => $user->commit_rules_accepted_at?->toIso8601String(),
+                'befriended_by_tom_at' => $user->befriended_by_tom_at?->toIso8601String(),
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
