@@ -12,6 +12,8 @@ use App\Models\CommitImage;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
+use App\Models\Event;
+use App\Models\EventAttendee;
 use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageImage;
@@ -343,4 +345,19 @@ it('erases the orgs a deleted user was the last one in, with the images and voic
     expect(Conversation::query()->pluck('id')->all())->toBe([$kept])
         ->and(Storage::disk()->allFiles())->toBe([$other->path])
         ->and(ConversationParticipant::query()->whereNotNull('muted_until_at')->pluck('user_id')->all())->toBe([$former->id]);
+});
+
+it('erases hosted events and the users responses while keeping other events and attendees', function (): void {
+    $user = User::factory()->create();
+    $hosted = Event::factory()->for(Commit::factory()->for($user))->create();
+    EventAttendee::factory()->for($hosted)->create();
+    $other = Event::factory()->create();
+    EventAttendee::factory()->for($other)->for($user)->create();
+    $kept = EventAttendee::factory()->for($other)->create();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $this->assertModelMissing($hosted);
+    expect(Event::query()->sole()->is($other))->toBeTrue()
+        ->and(EventAttendee::query()->sole()->is($kept))->toBeTrue();
 });

@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\EventAgendaItem;
 use App\Services\OpenAI;
 use Illuminate\Support\Facades\Storage;
 
@@ -25,7 +26,7 @@ final readonly class UpdateCommitAiDecision
     }
 
     /**
-     * Asks the AI whether the commit, images included, should be approved. The decision is mostly a hint for
+     * Asks the AI whether the commit, images and any event it announces included, should be approved. The decision is mostly a hint for
      * moderators: a clean commit is approved, and it is rejected, without a reason, when the AI is all but certain.
      * Failures, such as timeouts or rate limits, are thrown, so the caller can try again later.
      */
@@ -35,11 +36,19 @@ final readonly class UpdateCommitAiDecision
             fn (CommitImage $image): string => 'data:image/webp;base64,'.base64_encode((string) Storage::get($image->path)),
         )->all());
 
-        $scores = $this->openAI->moderate($commit->body, $images);
+        $text = implode("\n", array_filter([
+            $commit->body,
+            $commit->event?->title,
+            $commit->event?->location,
+            $commit->event?->url,
+            ...($commit->event?->agendaItems->map(fn (EventAgendaItem $item): string => $item->label)->all() ?? []),
+        ]));
+
+        $scores = $this->openAI->moderate($text, $images);
 
         $categories = array_keys($scores);
 
-        if ($commit->body !== '' && $this->openAI->isHarmful($commit->body)) {
+        if ($text !== '' && $this->openAI->isHarmful($text)) {
             $categories[] = 'harmful-text';
         }
 

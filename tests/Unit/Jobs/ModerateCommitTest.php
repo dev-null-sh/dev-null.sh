@@ -9,6 +9,8 @@ use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\Event;
+use App\Models\EventAgendaItem;
 use App\Models\Notification;
 use App\Models\User;
 use GuzzleHttp\Promise\PromiseInterface;
@@ -482,4 +484,20 @@ it('approves reputable authors without calling the ai even when they have been r
         ->status->toBe(CommitStatus::Approved)
         ->ai_decision->toBeNull();
     Http::assertNothingSent();
+});
+
+it('moderates the event a commit announces along with its body', function (): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $commit = Commit::factory()->pending()->create(['body' => 'Come along']);
+    $event = Event::factory()->for($commit)->create(['title' => 'PHP night', 'location' => 'Lisbon', 'url' => 'https://example.com']);
+    EventAgendaItem::factory()->for($event)->create(['label' => 'Lightning talks', 'starts_at' => $event->starts_at]);
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/moderations')
+        && $request['input'] === [['type' => 'text', 'text' => "Come along\nPHP night\nLisbon\nhttps://example.com\nLightning talks"]]);
 });

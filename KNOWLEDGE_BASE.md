@@ -27,6 +27,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Quoting commits](#quoting-commits)
   - [Polls and voting](#polls-and-voting)
   - [Scheduled commits](#scheduled-commits)
+  - [Events](#events)
   - [Deleting commits and undo](#deleting-commits-and-undo)
   - [Stars](#stars)
   - [Starred commits](#starred-commits)
@@ -279,6 +280,16 @@ Use the composer's scheduling control to submit a top-level commit later. Pick a
 The scheduler checks due posts every minute. Scheduling submits the post for the normal publishing and moderation flow; it is not a promise that an approved public post will appear at the exact second selected. To change a queued post, cancel it and schedule a replacement.
 
 Sources: [schedule validation](app/Http/Requests/CreateScheduledCommitRequest.php), [outstanding limit](app/Rules/ScheduledCommitLimit.php), [scheduled-commit controller](app/Http/Controllers/ScheduledCommitController.php), [scheduler](routes/console.php).
+
+### Events
+
+Host a meetup, a stream, a workshop or a hackathon from **Events** in the navigation (in the **Menu** on mobile) with **New event**. An event has a title of up to **100 characters**, a description, a start and an end at most **7 days** apart and less than a year ahead, and a place, a link, or both: it is labelled **In person**, **Online**, or **Hybrid** accordingly. An optional agenda holds up to **12 timed talks**, each during the event.
+
+The description is posted as an ordinary commit announcing the event, so the event goes through the same moderation as any commit, title, place, link and agenda included, and shows up in logs as a small card on that commit. Until it is approved, only its host sees it. Replies to the announcement are the event's discussion, and deleting the announcement deletes the event. Event details cannot be edited, like commits: the host can only **cancel** an event before it ends, which keeps its page and discussion and marks it **Cancelled**.
+
+Event pages are laid out like a GitHub issue: a state badge (**Upcoming**, **Happening now**, **Ended**, or **Cancelled**), the details, the people going, and the agenda as a milestone whose progress bar ticks off each talk once the next one starts. Signed-in readers answer with a button shaped like GitHub's Watch button: **Going** puts their avatar among the people going, **Interested** is only visible to them, and **Not going** removes their answer. Responses close once an event ends or is cancelled, and the host is always going. People across a block are left out of the avatars. The **Events** page lists upcoming events soonest first and past or cancelled ones latest first, without muted hosts; each profile has an **Events** tab with the events that person hosts. Hosted events and your own responses are in your data export and are deleted with your account.
+
+Sources: [event controller](app/Http/Controllers/EventController.php), [event validation](app/Http/Requests/CreateEventRequest.php), [response rules](app/Rules/OpenEvent.php), [event page](resources/js/pages/event/show.tsx).
 
 ### Deleting commits and undo
 

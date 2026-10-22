@@ -51,6 +51,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string|null $continuation_id
  * @property-read LinkPreview|null $linkPreview
  * @property-read Poll|null $poll
+ * @property-read Event|null $event
  * @property-read Commit|null $quotedCommit
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
@@ -236,6 +237,14 @@ final class Commit extends Model
     public function poll(): HasOne
     {
         return $this->hasOne(Poll::class);
+    }
+
+    /**
+     * @return HasOne<Event, $this>
+     */
+    public function event(): HasOne
+    {
+        return $this->hasOne(Event::class);
     }
 
     /**

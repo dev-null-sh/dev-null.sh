@@ -35,6 +35,7 @@ What exists, one line each (details in the knowledge base):
 - **Logs:** Following, Latest, and Trending.
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
 - **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
+- **Events:** meetups and streams announced by a commit, with an issue-like page, an agenda, and Going or Interested responses.
 - **Remotes:** private one-to-one and group messages (orgs).
 - **Notifications:** in-app activity, plus independently controlled browser and sound alerts for Remotes while the site is open, enabled by default; only browser banners require notification permission.
 - **Search:** developers by name, commits by meaning.

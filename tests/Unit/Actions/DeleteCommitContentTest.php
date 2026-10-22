@@ -7,6 +7,7 @@ use App\Actions\DeleteCommit;
 use App\Actions\DeleteCommitContent;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Event;
 use App\Models\LinkPreview;
 use App\Models\Poll;
 use Illuminate\Support\Facades\Queue;
@@ -75,6 +76,7 @@ it('keeps the images of a commit deleted again within its new undo window', func
 it('erases the content once the undo window has closed', function (): void {
     $commit = Commit::factory()->create(['body' => 'Hello @taylor', 'mentions' => ['taylor'], 'link_preview_id' => LinkPreview::factory()]);
     $poll = Poll::factory()->withOptions('Yes', 'No')->create(['commit_id' => $commit->id]);
+    $event = Event::factory()->for($commit)->create();
     resolve(DeleteCommit::class)->handle($commit);
     $this->travel(30)->seconds();
 
@@ -87,6 +89,7 @@ it('erases the content once the undo window has closed', function (): void {
         ->link_preview_id->toBeNull()
         ->user_id->not->toBeNull();
     $this->assertModelMissing($poll);
+    $this->assertModelMissing($event);
 });
 
 it('erases the previews of links to the commit, which hold its body', function (): void {
