@@ -9,6 +9,7 @@ use App\Models\Message;
 use App\Models\User;
 use App\Services\OpenAI;
 use App\Services\SignedCommits;
+use App\Services\SignedRequests;
 use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -385,6 +386,28 @@ function signedApiRequest(SshKeyPair $keyPair, string $method, string $uri, ?arr
     $body = $data === null ? '' : json_encode($data, JSON_THROW_ON_ERROR);
 
     return test()->call($method, $uri, server: signApiRequest($keyPair, $method, $uri, $body, $timestamp, $nonce, $namespace), content: $body);
+}
+
+/**
+ * Sends an API request with images the way the mobile app does: multipart, with the data as the JSON payload beside the
+ * images, signed with the hashes of $signedImages, which are the images sent unless a test says otherwise.
+ *
+ * @param  array<string, mixed>  $data
+ * @param  list<UploadedFile>  $images
+ * @param  list<UploadedFile>|null  $signedImages
+ */
+function signedApiRequestWithImages(SshKeyPair $keyPair, string $method, string $uri, array $data, array $images, ?array $signedImages = null, string $namespace = SignedRequests::ImagesNamespace): TestResponse
+{
+    $payload = json_encode($data, JSON_THROW_ON_ERROR);
+    $hashes = implode(',', array_map(fn (UploadedFile $image): string => (string) hash_file('sha256', $image->getPathname()), $signedImages ?? $images));
+
+    return test()->call($method, $uri, files: [
+        'payload' => UploadedFile::fake()->createWithContent('payload', $payload),
+        'images' => $images,
+    ], server: [
+        ...signApiRequest($keyPair, $method, $uri, $hashes."\n".$payload, namespace: $namespace),
+        'CONTENT_TYPE' => 'multipart/form-data; boundary=devnull',
+    ]);
 }
 
 /**

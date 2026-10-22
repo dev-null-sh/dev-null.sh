@@ -8,15 +8,12 @@ use App\Enums\OrgEvent;
 use App\Enums\OrgRole;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
-use App\Models\MessageImage;
-use App\Models\MessageVoice;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteOrgMember
 {
-    public function __construct(private CreateConversationEvent $createConversationEvent)
+    public function __construct(private CreateConversationEvent $createConversationEvent, private DeleteOrgs $deleteOrgs)
     {
         //
     }
@@ -33,15 +30,7 @@ final readonly class DeleteOrgMember
             $remaining = $org->participants()->with('user')->oldest('id')->get();
 
             if ($remaining->isEmpty()) {
-                $messageIds = $org->messages()->select('id');
-                $paths = [
-                    ...MessageImage::query()->whereIn('message_id', $messageIds)->pluck('path'),
-                    ...MessageVoice::query()->whereIn('message_id', $messageIds)->pluck('path'),
-                ];
-
-                $org->delete();
-
-                DB::afterCommit(fn (): bool => Storage::disk()->delete($paths));
+                $this->deleteOrgs->handle(Conversation::query()->whereKey($org->id));
 
                 return;
             }
