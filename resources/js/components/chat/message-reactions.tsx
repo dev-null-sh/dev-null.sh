@@ -191,6 +191,7 @@ export function ReactionTray({
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const isPicking = isOpen && isPickerOpen;
     const pickedEmoji = useRef<string | null>(null);
+    const pendingReaction = useRef<string | null>(null);
 
     const close = () => {
         onOpenChange(false);
@@ -198,9 +199,25 @@ export function ReactionTray({
     };
 
     const react = (emoji: string) => {
-        onReact(emoji);
+        pendingReaction.current = emoji;
         close();
     };
+
+    useEffect(() => {
+        if (isOpen || pendingReaction.current === null) {
+            return;
+        }
+
+        const emoji = pendingReaction.current;
+        pendingReaction.current = null;
+
+        // Adding the chip or changing the presets would move the tray while it folds away.
+        void Promise.allSettled(
+            tray.current
+                ?.getAnimations()
+                .map((animation) => animation.finished) ?? [],
+        ).then(() => onReact(emoji));
+    }, [isOpen, onReact]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -257,9 +274,12 @@ export function ReactionTray({
         >
             {/* The fold clips, so it reaches past the row by the shadow's spread, and the open tray gives that back below. */}
             <div
-                className={cn('-mx-2 flex min-h-0 overflow-hidden px-2', {
-                    'justify-end': isMine,
-                })}
+                className={cn(
+                    '-mx-2 flex min-h-0 items-start overflow-hidden px-2',
+                    {
+                        'justify-end': isMine,
+                    },
+                )}
             >
                 <div
                     role="toolbar"
