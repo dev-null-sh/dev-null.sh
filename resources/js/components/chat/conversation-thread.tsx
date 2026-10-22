@@ -358,7 +358,7 @@ export function ConversationThread({
         });
 
         const onWheel = (event: WheelEvent) => {
-            if (event.defaultPrevented || event.deltaY === 0) {
+            if (event.ctrlKey || event.defaultPrevented || event.deltaY === 0) {
                 return;
             }
 
