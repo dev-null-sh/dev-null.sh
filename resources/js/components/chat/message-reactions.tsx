@@ -1,3 +1,4 @@
+import { Transition } from '@headlessui/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Copy, Search, SmilePlus } from 'lucide-react';
 import type { KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react';
@@ -110,56 +111,87 @@ export function ReactionChips({
     nameOf: (userId: string) => string;
     onToggle: ((emoji: string) => void) | null;
 }) {
-    const summaries = summarizeReactions(reactions, userId);
+    const hasReactions = (reactions?.length ?? 0) > 0;
+    const [displayedReactions, setDisplayedReactions] = useState(reactions);
 
-    if (summaries.length === 0) {
-        return null;
+    // Keep the last chips in the fold until their row and its gap have collapsed.
+    if (hasReactions && reactions !== displayedReactions) {
+        setDisplayedReactions(reactions);
     }
 
-    return (
-        <ul
-            aria-label="Reactions"
-            className={cn('flex max-w-full flex-wrap gap-1', {
-                'justify-end': isMine,
-            })}
-            data-test="message-reactions"
-        >
-            {summaries.map((summary) => {
-                const names = summary.userIds.map(nameOf).join(', ');
+    const summaries = summarizeReactions(
+        hasReactions ? reactions : displayedReactions,
+        userId,
+    );
 
-                return (
-                    <li key={summary.emoji}>
-                        <button
-                            type="button"
-                            disabled={onToggle === null}
-                            aria-pressed={summary.isMine}
-                            aria-label={`${shortcodeOf(summary.emoji)} ${formatExactCount(summary.count)}, from ${names}`}
-                            title={`${names} reacted with ${shortcodeOf(summary.emoji)}`}
-                            onClick={() => onToggle?.(summary.emoji)}
-                            className={cn(
-                                'inline-flex h-6 items-center gap-1 rounded-md border bg-card pr-2 pl-1.5 text-[13px] leading-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none enabled:hover:border-foreground/25',
-                                {
-                                    'border-primary/45 bg-primary-soft enabled:hover:border-primary':
-                                        summary.isMine,
-                                },
-                            )}
-                            data-test="reaction-chip"
-                        >
-                            <span aria-hidden>{summary.emoji}</span>
-                            <span
-                                aria-hidden
-                                className={cn(
-                                    'min-w-[1ch] font-mono text-[11px] font-medium text-muted-foreground tabular-nums',
-                                    { 'text-primary': summary.isMine },
-                                )}
-                            >
-                                {formatCount(summary.count)}
-                            </span>
-                        </button>
-                    </li>
-                );
-            })}
-        </ul>
+    return (
+        <Transition show={hasReactions}>
+            <div
+                inert={!hasReactions}
+                aria-hidden={!hasReactions}
+                className="grid max-w-full grid-rows-[1fr] data-leave:data-closed:-mt-1 data-leave:data-closed:grid-rows-[0fr] data-leave:data-closed:opacity-0 motion-safe:data-leave:transition-[grid-template-rows,margin-top,opacity] motion-safe:data-leave:duration-300 motion-safe:data-leave:ease-out"
+            >
+                <div
+                    className={cn(
+                        'min-h-0',
+                        !hasReactions && 'overflow-hidden',
+                    )}
+                >
+                    <ul
+                        aria-label="Reactions"
+                        className={cn('flex max-w-full flex-wrap gap-1', {
+                            'justify-end': isMine,
+                        })}
+                        data-test="message-reactions"
+                    >
+                        {summaries.map((summary) => {
+                            const names = summary.userIds
+                                .map(nameOf)
+                                .join(', ');
+
+                            return (
+                                <li key={summary.emoji}>
+                                    <button
+                                        type="button"
+                                        disabled={
+                                            onToggle === null || !hasReactions
+                                        }
+                                        aria-pressed={summary.isMine}
+                                        aria-label={`${shortcodeOf(summary.emoji)} ${formatExactCount(summary.count)}, from ${names}`}
+                                        title={`${names} reacted with ${shortcodeOf(summary.emoji)}`}
+                                        onClick={() =>
+                                            onToggle?.(summary.emoji)
+                                        }
+                                        className={cn(
+                                            'inline-flex h-6 items-center gap-1 rounded-md border bg-card pr-2 pl-1.5 text-[13px] leading-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none enabled:hover:border-foreground/25',
+                                            {
+                                                'border-primary/45 bg-primary-soft enabled:hover:border-primary':
+                                                    summary.isMine,
+                                            },
+                                        )}
+                                        data-test="reaction-chip"
+                                    >
+                                        <span aria-hidden>{summary.emoji}</span>
+                                        <span
+                                            aria-hidden
+                                            className={cn(
+                                                'min-w-[1ch] font-mono text-[11px] font-medium text-muted-foreground tabular-nums',
+                                                {
+                                                    'text-primary':
+                                                        summary.isMine,
+                                                },
+                                            )}
+                                        >
+                                            {formatCount(summary.count)}
+                                        </span>
+                                    </button>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </div>
+            </div>
+        </Transition>
     );
 }
 

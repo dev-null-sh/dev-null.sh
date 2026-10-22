@@ -32,7 +32,7 @@ vi.doMock('react', () => ({
     },
 }));
 
-const { ReactionTray, EmojiPicker } =
+const { ReactionTray, ReactionChips, EmojiPicker } =
     await import('../../resources/js/components/chat/message-reactions');
 
 type Element = ReactElement<Record<string, unknown>>;
@@ -211,4 +211,82 @@ test('an interrupted fold still applies its selected reaction once', async () =>
     tray.render();
 
     assert.deepEqual(tray.onReact.mock.calls, [['😂']]);
+});
+
+function renderChips(reactions: { user_id: string; emoji: string }[]) {
+    const props = {
+        reactions,
+        userId: 'me',
+        isMine: false,
+        nameOf: (id: string) => (id === 'me' ? 'You' : 'Alex'),
+        onToggle: vi.fn(),
+    };
+    cursor = 0;
+    ReactionChips(props);
+    cursor = 0;
+    return elements(ReactionChips(props));
+}
+
+test('retains the final reaction for an inert exit instead of removing its row immediately', () => {
+    state = [];
+    renderChips([{ user_id: 'me', emoji: '😂' }]);
+
+    const leaving = renderChips([]);
+
+    assert.ok(
+        leaving.some(
+            (element) => element.props['data-test'] === 'message-reactions',
+        ),
+    );
+    assert.ok(leaving.some((element) => element.props.inert === true));
+    assert.ok(leaving.some((element) => element.props['aria-hidden'] === true));
+    assert.equal(
+        leaving.find(
+            (element) => element.props['data-test'] === 'reaction-chip',
+        )!.props.disabled,
+        true,
+    );
+});
+
+test('restores the current reactions when an exit is interrupted by a rollback or new selection', () => {
+    state = [];
+    renderChips([{ user_id: 'me', emoji: '😂' }]);
+    renderChips([]);
+
+    const restored = renderChips([{ user_id: 'me', emoji: '❤️' }]);
+    const chip = restored.find(
+        (element) => element.props['data-test'] === 'reaction-chip',
+    )!;
+
+    assert.equal(
+        restored.some((element) => element.props.inert === true),
+        false,
+    );
+    assert.equal(chip.props.disabled, false);
+    assert.equal(chip.props['aria-pressed'], true);
+    assert.ok((chip.props['aria-label'] as string).includes('from You'));
+    assert.equal(
+        restored.find(
+            (element) =>
+                element.type === 'span' && element.props.children === '❤️',
+        )?.props.children,
+        '❤️',
+    );
+});
+
+test('updates a remaining reaction instead of retaining a chip that was removed', () => {
+    state = [];
+    renderChips([
+        { user_id: 'me', emoji: '😂' },
+        { user_id: 'other', emoji: '❤️' },
+    ]);
+
+    const remaining = renderChips([{ user_id: 'other', emoji: '❤️' }]);
+    const chips = remaining.filter(
+        (element) => element.props['data-test'] === 'reaction-chip',
+    );
+
+    assert.equal(chips.length, 1);
+    assert.equal(chips[0].props['aria-pressed'], false);
+    assert.ok((chips[0].props['aria-label'] as string).includes('from Alex'));
 });

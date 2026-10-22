@@ -159,6 +159,7 @@ export function ConversationThread({
     const isPinned = useRef(true);
     const hasScrolledIn = useRef(false);
     const anchor = useRef<ScrollAnchor | null>(null);
+    const restoredScrollTop = useRef<number | null>(null);
     const seenLatest = useRef(0);
     const [unseen, setUnseen] = useState(0);
 
@@ -286,6 +287,7 @@ export function ConversationThread({
         } else {
             if (anchor.current !== null) {
                 restoreScrollAnchor(element, anchor.current);
+                restoredScrollTop.current = element.scrollTop;
             }
 
             setUnseen(
@@ -316,6 +318,7 @@ export function ConversationThread({
         const observer = new ResizeObserver(() => {
             if (!isPinned.current && anchor.current !== null) {
                 restoreScrollAnchor(element, anchor.current);
+                restoredScrollTop.current = element.scrollTop;
             }
         });
 
@@ -332,6 +335,17 @@ export function ConversationThread({
             return;
         }
 
+        // Keep the reading anchor during a fold, but resume following messages when a correction reaches the bottom.
+        if (
+            element.scrollTop === restoredScrollTop.current &&
+            !isAtLatest(element)
+        ) {
+            restoredScrollTop.current = null;
+
+            return;
+        }
+
+        restoredScrollTop.current = null;
         isPinned.current = isAtLatest(element);
         anchor.current = scrollAnchorOf(element);
 
