@@ -1,9 +1,11 @@
 import { Pause, Play, RotateCw, Square, Trash2 } from 'lucide-react';
 import type { KeyboardEvent, PointerEvent, SyntheticEvent } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { VoiceVolume } from '@/components/chat/voice-volume';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import type { UseVoiceNoteReturn } from '@/hooks/use-voice-note';
+import { useVoiceVolume, voiceVolume } from '@/hooks/use-voice-volume';
 import { cn } from '@/lib/utils';
 import {
     formatVoiceTime,
@@ -27,6 +29,7 @@ const keepToItself = (event: SyntheticEvent) => event.stopPropagation();
  */
 export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
     const duration = voice.duration_ms;
+    const volume = useVoiceVolume();
     const [state, setState] = useState<
         'idle' | 'loading' | 'playing' | 'paused' | 'failed'
     >('idle');
@@ -70,6 +73,12 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
     );
 
     useEffect(() => {
+        if (audio.current !== null && volume !== null) {
+            audio.current.volume = volume;
+        }
+    }, [volume]);
+
+    useEffect(() => {
         if (state !== 'playing') {
             return;
         }
@@ -99,6 +108,7 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
     const element = (): HTMLAudioElement => {
         if (audio.current === null) {
             const created = new Audio();
+            created.volume = voiceVolume();
 
             created.onpause = () =>
                 setState((state) => (state === 'playing' ? 'paused' : state));
@@ -274,6 +284,7 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
             >
                 {formatVoiceTime(duration)}
             </span>
+            <VoiceVolume />
         </div>
     );
 }

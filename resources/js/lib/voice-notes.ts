@@ -122,6 +122,17 @@ export function formatVoiceTime(ms: number): string {
     return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
+/**
+ * The saved playback volume as a whole percent, at full volume until a sensible one is saved.
+ */
+export function voiceVolumeOf(saved: string): number {
+    const volume = Number(saved);
+
+    return saved === '' || !Number.isFinite(volume)
+        ? 1
+        : Math.round(Math.min(1, Math.max(0, volume)) * 100) / 100;
+}
+
 export function canRecordVoice(): boolean {
     return (
         typeof MediaRecorder !== 'undefined' &&
