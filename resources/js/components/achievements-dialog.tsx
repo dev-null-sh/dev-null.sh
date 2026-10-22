@@ -18,8 +18,8 @@ import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import {
     Dialog,
-    DialogContent,
     DialogDescription,
+    DialogFloatingContent,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
@@ -67,8 +67,8 @@ export function AchievementsDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent
-                className="max-h-[85vh] overflow-y-auto sm:max-w-xl"
+            <DialogFloatingContent
+                className="max-h-[min(85vh,calc(var(--visual-viewport-height,100svh)-6rem))] sm:max-w-xl"
                 style={{ '--lane': lane } as CSSProperties}
             >
                 <DialogHeader className="text-left">
@@ -339,7 +339,7 @@ export function AchievementsDialog({
                     2/star given · −100/luddite · +100/shell shocked (minimum 0
                     XP)
                 </p>
-            </DialogContent>
+            </DialogFloatingContent>
         </Dialog>
     );
 }
