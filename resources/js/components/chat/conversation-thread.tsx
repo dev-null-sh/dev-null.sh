@@ -216,7 +216,6 @@ export function ConversationThread({
         }
 
         isPinned.current = isPinned.current || (!isOpen && isAtLatest(element));
-        anchor.current = scrollAnchorOf(element);
     }, []);
 
     const authorOf = useCallback(
@@ -259,7 +258,10 @@ export function ConversationThread({
     const replyTo = useCallback(
         (reply: MessageReply) => {
             if (scroller.current !== null) {
-                anchor.current = scrollAnchorOf(scroller.current);
+                // Reuse the reading anchor across folds so rounded scroll positions cannot accumulate drift.
+                if (isPinned.current || anchor.current === null) {
+                    anchor.current = scrollAnchorOf(scroller.current);
+                }
                 isPinned.current = false;
             }
 
