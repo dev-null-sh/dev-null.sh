@@ -10,6 +10,8 @@
         "Unit/DraftStash.test.tsx",
         "Unit/ComposerDraft.test.tsx",
         "Unit/SearchDialogComposition.test.tsx",
+        "Unit/ReactionTray.test.tsx",
+        "Unit/NotificationFilters.test.tsx",
         "Unit/DraftImageReads.test.tsx",
         "Unit/ImageAttachments.test.tsx",
         "Unit/StagedRail.test.tsx",
@@ -17,6 +19,11 @@
         "Unit/FollowRequests.test.tsx",
         "Unit/FollowState.test.tsx",
         "Unit/LinkEmbedHeight.test.tsx",
+        "Unit/VoiceVolume.test.tsx",
+        "Unit/VoiceVolumeHover.test.tsx",
+        "Unit/VoiceSpeed.test.tsx",
+        "Unit/VoiceNoteSpeed.test.tsx",
+        "Unit/OrgMentionSuggestions.test.tsx",
         "../resources/js/types/*.d.ts",
         "draft-images.config.ts"
     ]

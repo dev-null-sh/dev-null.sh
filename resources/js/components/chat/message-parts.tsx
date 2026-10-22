@@ -1,4 +1,4 @@
-import { Image, Reply, SmilePlus } from 'lucide-react';
+import { Image, Mic, Reply, SmilePlus } from 'lucide-react';
 import type { ReactNode, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { show as showMessageImage } from '@/actions/App/Http/Controllers/MessageImageController';
@@ -30,7 +30,7 @@ export type Author = { name: string; lane: Lane; isMe: boolean };
  * Links, mentions and code keep the primary bubble's colours, so they stay readable on it.
  */
 const onPrimary =
-    '[&_a]:text-primary-foreground [&_a]:underline [&_a]:decoration-primary-foreground/50 [&_a]:underline-offset-2 [&_.text-muted-foreground]:text-primary-foreground/70 [&_.fill-foreground]:fill-primary-foreground [&_code]:bg-primary-foreground/15';
+    '[&_a]:text-primary-foreground [&_a]:underline [&_a]:decoration-primary-foreground/50 [&_a]:underline-offset-2 [&_.text-muted-foreground]:text-primary-foreground/70 [&_.fill-foreground]:fill-primary-foreground [&_blockquote]:border-neutral-200 [&_code]:bg-primary-foreground/15';
 
 export function MessageText({
     message,
@@ -117,6 +117,15 @@ function snippetOf(reply: MessageReply): ReactNode {
         return body;
     }
 
+    if (reply.has_voice) {
+        return (
+            <span className="inline-flex items-center gap-1">
+                <Mic aria-hidden className="size-3.5" />
+                Voice note
+            </span>
+        );
+    }
+
     return (
         <span className="inline-flex items-center gap-1">
             <Image aria-hidden className="size-3.5" />
@@ -147,7 +156,7 @@ export function ReplyGhost({
             type="button"
             onClick={() => onJump?.(reply.id)}
             disabled={onJump === undefined}
-            aria-label={`In reply to ${author.name}: ${reply.body || 'an image'}`}
+            aria-label={`In reply to ${author.name}: ${reply.body || (reply.has_voice ? 'a voice note' : 'an image')}`}
             className={cn(
                 'flex max-w-full min-w-0 flex-col items-start rounded-lg px-3 text-left text-[13px] leading-snug transition-colors enabled:cursor-pointer',
                 author.isMe
@@ -288,16 +297,13 @@ export function Repliable({
         };
     }, [isMine, isReplyable]);
 
-    if (onReply === null) {
-        return children;
-    }
-
     return (
         <div
             ref={row}
             className={cn('group/message flex w-full touch-pan-y', {
                 'justify-end': isMine,
-                'transition-transform duration-200': offset === 0,
+                'transition-transform duration-200 motion-reduce:transition-none':
+                    offset === 0,
             })}
             style={
                 offset > 0
@@ -336,7 +342,7 @@ export function BubbleActions({
     }
 
     const button =
-        'grid size-7 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
+        'grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none';
 
     return (
         <div

@@ -33,14 +33,12 @@ export function useIssueCommand({
     body,
     updateBody,
     enabled,
-    hasSecrets,
     initialKind = null,
     onCreated,
 }: {
     body: string;
     updateBody: (body: string) => void;
     enabled: boolean;
-    hasSecrets: boolean;
     initialKind?: IssueKind | null;
     onCreated: () => void;
 }) {
@@ -84,13 +82,6 @@ export function useIssueCommand({
 
     const submit = async () => {
         if (command === null || request.processing) {
-            return;
-        }
-
-        if (hasSecrets) {
-            toast.error(
-                'Remove detected secrets before opening a public GitHub issue.',
-            );
             return;
         }
 

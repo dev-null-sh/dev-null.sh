@@ -5,7 +5,10 @@ declare(strict_types=1);
 use App\Enums\OrgEvent;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\MessageImage;
+use App\Models\MessageVoice;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 
 it('adds people with or without the history', function (bool $sharesHistory, int $visible): void {
     $mark = User::factory()->create();
@@ -97,4 +100,26 @@ it('hides membership changes from people outside the org', function (): void {
     $this->actingAs($stranger)->deleteJson(route('org-member.destroy', [$org, $nuno]))->assertNotFound();
     $this->putJson(route('org-member.update', [$org, $nuno]), ['role' => 'maintainer'])->assertNotFound();
     $this->postJson(route('org-member.store', $org), ['members' => [$stranger->username], 'share_history' => true])->assertNotFound();
+});
+
+it('erases the images and voice notes of an org everyone has left', function (): void {
+    Storage::fake();
+
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    $image = MessageImage::factory()->for(pushToOrg($mark, $org))->create();
+    $voice = MessageVoice::factory()->for(pushToOrg($nuno, $org))->create();
+    Storage::disk()->put($image->path, 'image');
+    Storage::disk()->put($voice->path, 'voice');
+    $elsewhere = MessageVoice::factory()->create();
+    Storage::disk()->put($elsewhere->path, 'voice');
+
+    $this->actingAs($nuno)->deleteJson(route('org-member.destroy', [$org, $nuno]))->assertNoContent();
+
+    expect(Storage::disk()->allFiles())->toHaveCount(3);
+
+    $this->actingAs($mark)->deleteJson(route('org-member.destroy', [$org, $mark]))->assertNoContent();
+
+    expect(Storage::disk()->allFiles())->toBe([$elsewhere->path]);
 });

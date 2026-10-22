@@ -20,6 +20,7 @@ import type {
     ChangelogPullRequest,
 } from '@/lib/changelog';
 import { changelogDayHeading, changelogDays } from '@/lib/changelog';
+import { formatCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 
 const shownPerDay = 5;
@@ -293,7 +294,7 @@ export function ChangelogContent({
             <div className="flex items-center justify-between gap-4 border-t px-5 py-2.5 text-xs text-muted-foreground">
                 <span className="tabular-nums">
                     {changelog !== null &&
-                        `${pullRequests.length} merges · ${contributors} contributors`}
+                        `${formatCount(pullRequests.length)} merges · ${formatCount(contributors)} contributors`}
                 </span>
                 {changelog !== null && (
                     <a

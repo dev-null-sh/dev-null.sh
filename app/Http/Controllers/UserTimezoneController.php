@@ -15,7 +15,7 @@ final readonly class UserTimezoneController
 {
     public function update(UpdateUserTimezoneRequest $request, #[CurrentUser] User $user, UpdateUserTimezone $action): RedirectResponse
     {
-        $action->handle($user, $request->timezone());
+        $action->handle($user, $request->timezone(), $request->showLocalTime());
 
         Inertia::flash('toast', [
             'type' => 'success',
