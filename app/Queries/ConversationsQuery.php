@@ -80,7 +80,7 @@ final readonly class ConversationsQuery
                     ->whereNull('messages.event'),
                 'ahead',
             )
-            ->with(['lastMessage.user', 'lastMessage.subject', 'partner'])
+            ->with(['lastMessage.user', 'lastMessage.subject', 'lastMessage.voice', 'partner'])
             ->orderByDesc('mine.last_message_at')
             ->orderByDesc('conversations.id')
             ->limit(self::PAGE + 1)

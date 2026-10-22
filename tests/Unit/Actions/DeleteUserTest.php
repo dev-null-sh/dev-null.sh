@@ -12,8 +12,10 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Conversation;
 use App\Models\Device;
+use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageImage;
+use App\Models\MessageVoice;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
@@ -76,6 +78,55 @@ it('leaves a tombstone for a reply of a deleted user that other people replied t
         ->and(Commit::withTrashed()->whereKey($nestedReply->id)->exists())->toBeFalse();
 });
 
+it('erases what a deleted user wrote from the tombstones they leave', function (): void {
+    $user = User::factory()->create();
+    $mentioned = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $reply = Commit::factory()->for($user)->for($commit, 'parent')->for(LinkPreview::factory())->create([
+        'body' => "@{$mentioned->username} have a look at https://example.com",
+        'mentions' => [$mentioned->username => $mentioned->id],
+        'embedding' => embeddingVector(0),
+    ]);
+    $deletedReply = Commit::factory()->for($user)->for($commit, 'parent')->create();
+    Commit::factory()->for($reply, 'parent')->create();
+    Commit::factory()->for($deletedReply, 'parent')->create();
+    $deletedReply->delete();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $tombstones = Commit::withTrashed()->whereKey([$reply->id, $deletedReply->id]);
+
+    expect($tombstones->count())->toBe(2)
+        ->and($tombstones->pluck('body')->all())->toBe(['', ''])
+        ->and($tombstones->pluck('mentions')->all())->toBe([null, null])
+        ->and($tombstones->pluck('embedding')->all())->toBe([null, null])
+        ->and($tombstones->pluck('link_preview_id')->all())->toBe([null, null]);
+});
+
+it('erases what deleted accounts wrote from the tombstones they already left', function (): void {
+    $mentioned = User::factory()->create();
+    $orphan = Commit::factory()->for(LinkPreview::factory())->create([
+        'user_id' => null,
+        'mentions' => [$mentioned->username => $mentioned->id],
+        'embedding' => embeddingVector(0),
+        'deleted_at' => now(),
+    ]);
+    $deleted = Commit::factory()->create(['deleted_at' => now()]);
+    $live = Commit::factory()->create();
+
+    $migration = require database_path('migrations/2026_10_20_092957_erase_the_body_of_orphaned_commits.php');
+    $migration->up();
+
+    $tombstone = Commit::withTrashed()->whereKey($orphan->id);
+
+    expect($tombstone->value('body'))->toBe('')
+        ->and($tombstone->value('mentions'))->toBeNull()
+        ->and($tombstone->value('embedding'))->toBeNull()
+        ->and($tombstone->value('link_preview_id'))->toBeNull()
+        ->and(Commit::withTrashed()->whereKey($deleted->id)->value('body'))->toBe($deleted->body)
+        ->and(Commit::withTrashed()->whereKey($live->id)->value('body'))->toBe($live->body);
+});
+
 it('erases the replies of a deleted user that only have their own replies under them', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->create();
@@ -89,7 +140,7 @@ it('erases the replies of a deleted user that only have their own replies under 
 
 });
 
-it('erases the mutes and blocks of a deleted user in both directions', function (): void {
+it('erases the mutes, blocks and dismissed suggestions of a deleted user in both directions', function (): void {
     $user = User::factory()->create();
     $other = User::factory()->create();
 
@@ -97,12 +148,16 @@ it('erases the mutes and blocks of a deleted user in both directions', function 
     $other->muting()->attach($user);
     $user->blocking()->attach($other);
     $other->blocking()->attach($user);
+    $user->dismissedSuggestions()->attach($other);
+    $other->dismissedSuggestions()->attach($user);
 
     resolve(DeleteUser::class)->handle($user);
 
     expect($other->muting()->count())->toBe(0)
         ->and($other->blocking()->count())->toBe(0)
-        ->and($other->blockers()->count())->toBe(0);
+        ->and($other->blockers()->count())->toBe(0)
+        ->and($other->dismissedSuggestions()->count())->toBe(0)
+        ->and(DB::table('suggestion_dismissals')->count())->toBe(0);
 
 });
 
@@ -254,4 +309,41 @@ it('erases the broadcast invitations of a deleted user', function (): void {
     resolve(DeleteUser::class)->handle($invitation->user);
 
     expect(BroadcastInvitation::query()->get()->modelKeys())->toBe([$other->id]);
+});
+
+it('erases the voice notes a deleted user sent in remotes, keeping the ones sent to them', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $sent = MessageVoice::factory()->for(Message::factory()->for($user))->create();
+    $received = MessageVoice::factory()->create();
+    Storage::disk()->put($sent->path, 'voice');
+    Storage::disk()->put($received->path, 'voice');
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(Storage::disk()->allFiles('message-voices'))->toBe([$received->path])
+        ->and(MessageVoice::query()->pluck('id')->all())->toBe([$received->id]);
+});
+
+it('erases the orgs a deleted user was the last one in, with the images and voice notes sent in them', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    [$former] = followersOf($user, 1);
+    $emptied = createOrg($user, [$former]);
+    $kept = createOrg($user, [$former]);
+    $image = MessageImage::factory()->for(pushToOrg($former, $emptied))->create();
+    $voice = MessageVoice::factory()->for(pushToOrg($former, $emptied))->create();
+    $other = MessageVoice::factory()->for(pushToOrg($former, $kept))->create();
+    foreach ([$image, $voice, $other] as $file) {
+        Storage::disk()->put($file->path, 'file');
+    }
+
+    $this->actingAs($former)->deleteJson(route('org-member.destroy', [$emptied, $former]))->assertNoContent();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(Conversation::query()->pluck('id')->all())->toBe([$kept])
+        ->and(Storage::disk()->allFiles())->toBe([$other->path]);
 });

@@ -13,7 +13,7 @@ import type { Commit } from '@/types';
 const explanations = {
     checking:
         'Running a quick automated check. This usually takes a few seconds, and only you can see this commit until then.',
-    review: 'A moderator reviews this commit before anyone else can see it. Commits from established accounts with a following and no recent reports go live right away.',
+    review: 'A moderator reviews this commit before anyone else can see it. Commits from established accounts with a following go live right away.',
     rejected: 'This commit was rejected. Only you can see it.',
     approved: 'Your commit is now live for everyone.',
 } as const;
@@ -43,7 +43,7 @@ export function CommitStatusBadge({
         status === 'pending' ? (isChecking ? 'checking' : 'review') : status;
 
     const className = cn(
-        'inline-flex shrink-0 items-center gap-1 self-center rounded-full font-mono transition-colors',
+        'inline-flex shrink-0 items-center gap-1 self-center rounded-sm font-mono transition-colors',
         size === 'default' ? 'px-2 py-0.5 text-xs' : 'px-1.5 text-[11px]',
         {
             'bg-amber-500/10 text-amber-700 dark:text-amber-400':

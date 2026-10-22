@@ -24,6 +24,7 @@ export type User = {
     has_github_account: boolean;
     lane: Lane;
     timezone: string | null;
+    show_local_time: boolean;
     /**
      * Only set while the user is streaming.
      */
@@ -44,6 +45,7 @@ export type Profile = User & {
 export type Auth = {
     user: Profile | null;
     isAdmin: boolean;
+    mustReadCommitRules: boolean;
     log: Log | null;
     unreadNotificationsCount: number;
     unreadMessagesCount: number;

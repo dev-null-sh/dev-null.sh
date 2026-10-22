@@ -1,6 +1,6 @@
 import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitComposer } from '@/components/commit-composer';
 import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
@@ -42,6 +42,7 @@ export default function Show({
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
     const feedRef = useRef<HTMLDivElement>(null);
+    const followAnchor = useRef<{ row: HTMLElement; top: number } | null>(null);
     const [composer, setComposer] = useState<HTMLDivElement | null>(null);
     useLaneSwipe(feedRef, log);
     useComposerVisibility(composer, tabsHeight);
@@ -62,6 +63,55 @@ export default function Show({
 
         return () => observer.disconnect();
     }, []);
+
+    useEffect(
+        () =>
+            router.on('beforeUpdate', ({ detail: { page } }) => {
+                if (
+                    log !== 'following' ||
+                    page.component !== 'log/show' ||
+                    !page.scrollProps?.commits?.reset
+                ) {
+                    return;
+                }
+
+                const incoming = page.props.commits as CursorPaginated<Commit>;
+                followAnchor.current = null;
+
+                if (incoming === commits) {
+                    return;
+                }
+
+                const ids = new Set(incoming.data.map((commit) => commit.id));
+                const headerBottom =
+                    tabsRef.current?.getBoundingClientRect().bottom ?? 0;
+                const rows =
+                    feedRef.current?.querySelectorAll<HTMLElement>(
+                        '[data-commit]',
+                    ) ?? [];
+                const row = Array.from(rows).find(
+                    (row) =>
+                        ids.has(row.dataset.commit ?? '') &&
+                        row.getBoundingClientRect().bottom > headerBottom,
+                );
+                followAnchor.current = row
+                    ? { row, top: row.getBoundingClientRect().top }
+                    : null;
+            }),
+        [log, commits],
+    );
+
+    useLayoutEffect(() => {
+        const anchor = followAnchor.current;
+        followAnchor.current = null;
+
+        if (anchor?.row.isConnected) {
+            window.scrollBy(
+                0,
+                anchor.row.getBoundingClientRect().top - anchor.top,
+            );
+        }
+    }, [commits]);
 
     const firstSeenId = useLastVisit(viewerId, log, commits.data);
 
@@ -145,7 +195,7 @@ export default function Show({
                     <button
                         type="button"
                         onClick={reloadNewestFirst}
-                        className="pointer-events-auto mt-3 flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+                        className="pointer-events-auto mt-3 flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
                     >
                         <ArrowUp className="size-4" />
                         {newCommitsCount}{' '}

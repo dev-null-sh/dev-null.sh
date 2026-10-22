@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\NotificationType;
-use App\Models\Bookmark;
 use App\Models\BroadcastInvitation;
 use App\Models\CommitImage;
 use App\Models\Conversation;
@@ -15,6 +14,7 @@ use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\User;
+use App\Models\UserTimeout;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
 use Carbon\CarbonImmutable;
@@ -31,7 +31,7 @@ final readonly class CreateExport
     /**
      * Everything stored about the user, deleted commits included, but never secrets like the remember token or session ids.
      *
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, bookmarks: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, created_at: string}>, broadcast_invitations: Generator<int, array{name: string, created_at: string}>, notifications: Generator<int, array<string, int|string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, sessions: Collection<int, stdClass>}
+     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, dismissed_suggestions: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, voice: string|null, created_at: string}>, broadcast_invitations: Generator<int, array{name: string, created_at: string}>, notifications: Generator<int, array<string, int|string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>, sessions: Collection<int, stdClass>}
      */
     public function handle(User $user): array
     {
@@ -51,6 +51,7 @@ final readonly class CreateExport
                 'has_sponsors_listing' => $user->has_sponsors_listing,
                 'preferred_lane' => $user->preferred_lane,
                 'timezone' => $user->timezone,
+                'show_local_time' => $user->show_local_time,
                 'translation_language' => $user->translation_language,
                 'lane_color' => $user->lane_color,
                 'pasteis_mode' => $user->pasteis_mode,
@@ -65,6 +66,7 @@ final readonly class CreateExport
                 'live_url' => $user->live_url,
                 'live_ends_at' => $user->live_ends_at?->toIso8601String(),
                 'last_seen_at' => $user->last_seen_at?->toDateString(),
+                'commit_rules_accepted_at' => $user->commit_rules_accepted_at?->toIso8601String(),
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
@@ -72,11 +74,11 @@ final readonly class CreateExport
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
             'stars' => $this->stars($user),
-            'bookmarks' => $this->bookmarks($user),
             'following' => $this->usernames($user->following()),
             'followers' => $this->usernames($user->followers()),
             'muting' => $this->usernames($user->muting()),
             'blocking' => $this->usernames($user->blocking()),
+            'dismissed_suggestions' => $this->usernames($user->dismissedSuggestions()),
             'messages' => $this->messages($user),
             'broadcast_invitations' => $this->broadcastInvitations($user),
             'notifications' => $this->notifications($user),
@@ -86,6 +88,11 @@ final readonly class CreateExport
                 'fingerprint' => $device->fingerprint,
                 'approved_at' => $device->approved_at->toIso8601String(),
                 'last_used_at' => $device->last_used_at?->toIso8601String(),
+            ])->all(),
+            'timeouts' => $user->timeouts()->oldest()->get()->map(fn (UserTimeout $timeout): array => [
+                'reason' => $timeout->reason->value,
+                'ends_at' => $timeout->ends_at->toIso8601String(),
+                'created_at' => $timeout->created_at->toIso8601String(),
             ])->all(),
             'sessions' => $this->sessions($user),
         ];
@@ -176,19 +183,9 @@ final readonly class CreateExport
     }
 
     /**
-     * @return Generator<int, string>
-     */
-    private function bookmarks(User $user): Generator
-    {
-        foreach (Bookmark::query()->where('user_id', $user->id)->lazyById(500) as $bookmark) {
-            yield $bookmark->commit_id;
-        }
-    }
-
-    /**
      * The messages the user sent. What others sent them is theirs to export.
      *
-     * @return Generator<int, array{to: string|null, body: string, created_at: string}>
+     * @return Generator<int, array{to: string|null, body: string, voice: string|null, created_at: string}>
      */
     private function messages(User $user): Generator
     {
@@ -202,10 +199,11 @@ final readonly class CreateExport
                 default => $conversation->participants->firstWhere('user_id', '!=', $user->id)?->user->username,
             }]);
 
-        foreach (Message::query()->where('user_id', $user->id)->whereNull('event')->lazyById(500) as $message) {
+        foreach (Message::query()->where('user_id', $user->id)->whereNull('event')->with('voice')->lazyById(500) as $message) {
             yield [
                 'to' => $recipients->get($message->conversation_id),
                 'body' => $message->body,
+                'voice' => $message->voice?->url(),
                 'created_at' => $message->created_at->toIso8601String(),
             ];
         }

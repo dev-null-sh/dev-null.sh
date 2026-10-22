@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Enums\PollDuration;
 use App\Http\Requests\CreateApiCommitRequest;
 use App\Jobs\ModerateCommit;
-use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
@@ -13,7 +13,10 @@ use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 
 it('shows an approved commit to anyone', function (): void {
     $user = User::factory()->create([
@@ -212,7 +215,6 @@ it('shows a signed request the commit as its page shows it to its user', functio
     Commit::factory()->for($commit, 'parent')->create();
     Commit::factory()->for($commit, 'parent')->pending()->create();
     $commit->stars()->attach($user);
-    Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $commit->id]);
 
     $response = signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit));
 
@@ -257,7 +259,6 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'status' => 'approved',
                 'is_pinned' => false,
                 'starred' => true,
-                'is_saved' => true,
                 'pasteis_count' => 4,
                 'deleted_at' => null,
                 'quoted_commit_id' => null,
@@ -281,7 +282,6 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'status' => 'approved',
                 'is_pinned' => false,
                 'starred' => false,
-                'is_saved' => false,
                 'pasteis_count' => 0,
                 'deleted_at' => null,
                 'quoted_commit_id' => null,
@@ -512,7 +512,6 @@ it('creates a commit from a signed request, pending review', function (): void {
         ->assertJsonPath('data.replies_count', 0)
         ->assertJsonPath('data.stars_count', 0)
         ->assertJsonPath('data.starred', false)
-        ->assertJsonPath('data.is_saved', false)
         ->assertJsonPath('data.images', [])
         ->assertJsonPath('data.quoted_commit_id', null)
         ->assertJsonPath('data.quoted_commit', null)
@@ -659,6 +658,212 @@ it('may not quote a commit across a block, as on the web', function (bool $quote
 
     expect($quoted->quotes()->count())->toBe(0);
 })->with(['blocking' => true, 'blocked' => false]);
+
+it('commits a poll from a signed request, which waits for the commit to be approved', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    $response = signedApiRequest($keyPair, 'POST', route('api-commit.store'), [
+        'body' => 'Tabs or spaces?',
+        'poll' => ['options' => ['Tabs', ' Spaces ', 'Both :tada:'], 'duration' => PollDuration::SevenDays->value],
+    ]);
+
+    $poll = $user->commits()->sole()->poll;
+
+    $response->assertCreated()
+        ->assertJsonPath('data.status', 'pending')
+        ->assertJsonPath('data.poll.id', $poll->id)
+        ->assertJsonPath('data.poll.closes_at', null)
+        ->assertJsonPath('data.poll.options.*.label', ['Tabs', 'Spaces', 'Both 🎉']);
+
+    expect($poll->duration)->toBe(PollDuration::SevenDays)
+        ->and($poll->opened_at)->toBeNull();
+});
+
+it('opens the poll of an admin right away', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    config(['app.admins' => [$user->username]]);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), [
+        'body' => 'Tabs or spaces?',
+        'poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => PollDuration::OneHour->value],
+    ])
+        ->assertCreated()
+        ->assertJsonPath('data.status', 'approved')
+        ->assertJsonPath('data.poll.closes_at', now()->startOfSecond()->addHour()->toJSON())
+        ->assertJsonPath('data.poll.is_closed', false);
+});
+
+it('rejects a poll on a quote from a signed request', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $quoted = Commit::factory()->create();
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), [
+        'body' => 'Which is it?',
+        'quoted_commit_id' => $quoted->id,
+        'poll' => ['options' => ['DNS', 'Not DNS'], 'duration' => PollDuration::OneDay->value],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['poll' => 'The poll field prohibits quoted commit id from being present.']);
+
+    expect($user->commits()->exists())->toBeFalse()
+        ->and(Poll::query()->exists())->toBeFalse();
+});
+
+it('validates the poll of a commit from a signed request as the web does', function (Closure $data, string $field, string $message): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'Tabs or spaces?', ...$data()])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([$field => $message]);
+
+    expect($user->commits()->exists())->toBeFalse()
+        ->and(Poll::query()->exists())->toBeFalse();
+})->with([
+    'one option' => [fn (): array => ['poll' => ['options' => ['Tabs'], 'duration' => 1440]], 'poll.options', 'The poll.options field must have at least 2 items.'],
+    'five options' => [fn (): array => ['poll' => ['options' => ['A', 'B', 'C', 'D', 'E'], 'duration' => 1440]], 'poll.options', 'The poll.options field must not have more than 4 items.'],
+    'empty option' => [fn (): array => ['poll' => ['options' => ['Tabs', '  '], 'duration' => 1440]], 'poll.options.1', 'The poll.options.1 field is required.'],
+    'long option' => [fn (): array => ['poll' => ['options' => ['Tabs', str_repeat('a', 51)], 'duration' => 1440]], 'poll.options.1', 'The poll.options.1 field must not be greater than 50 characters.'],
+    'duplicate options' => [fn (): array => ['poll' => ['options' => ['Tabs', 'tabs'], 'duration' => 1440]], 'poll.options.1', 'The poll.options.1 field has a duplicate value.'],
+    'unknown duration' => [fn (): array => ['poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => 30]], 'poll.duration', 'The selected poll.duration is invalid.'],
+    'no duration' => [fn (): array => ['poll' => ['options' => ['Tabs', 'Spaces']]], 'poll.duration', 'The poll.duration field is required when poll is present.'],
+    'no options' => [fn (): array => ['poll' => ['duration' => 1440]], 'poll.options', 'The poll.options field is required when poll is present.'],
+    'a reply' => [fn (): array => ['parent_id' => Commit::factory()->create()->id, 'poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => 1440]], 'poll', 'The poll field prohibits parent id / images from being present.'],
+]);
+
+it('commits images from a signed request, in order, with their descriptions', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    $response = signedApiRequestWithImages($keyPair, 'POST', route('api-commit.store'), [
+        'body' => 'Offsite photo dump',
+        'image_descriptions' => ['The cabin at sunrise, fog over the lake.', null],
+    ], [
+        UploadedFile::fake()->image('cabin.jpg', 40, 30),
+        UploadedFile::fake()->image('hike.png', 10, 20),
+        UploadedFile::fake()->image('lake.webp', 10, 10),
+    ]);
+
+    $commit = $user->commits()->sole();
+    $images = $commit->images()->orderBy('position')->get();
+
+    $response->assertCreated()
+        ->assertJsonPath('data.body', 'Offsite photo dump')
+        ->assertJsonPath('data.status', 'pending')
+        ->assertJsonPath('data.images', $images->map(fn (CommitImage $image): array => [...$image->toArray(), 'url' => $image->temporaryUrl()])->all());
+
+    expect($images->map(fn (CommitImage $image): array => [$image->width, $image->height, $image->description])->all())->toBe([
+        [40, 30, 'The cabin at sunrise, fog over the lake.'],
+        [10, 20, null],
+        [10, 10, null],
+    ])->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(3);
+});
+
+it('may commit images from a signed request with a short body, or none, as on the web', function (array $body, string $expected): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequestWithImages($keyPair, 'POST', route('api-commit.store'), $body, [UploadedFile::fake()->image('screenshot.png', 40, 30)])
+        ->assertCreated();
+
+    expect($user->commits()->sole())
+        ->body->toBe($expected)
+        ->images->toHaveCount(1);
+})->with([
+    'missing' => [[], ''],
+    'blank' => [['body' => '   '], ''],
+    'short' => [['body' => 'ok'], 'ok'],
+]);
+
+it('reads the fields of a commit with images from its payload, cleaned like a json body', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequestWithImages($keyPair, 'POST', route('api-commit.store'), [
+        'body' => '  It was DNS :tada:  ',
+        'image_descriptions' => ['   ', ''],
+    ], [
+        UploadedFile::fake()->image('first.jpg', 10, 10),
+        UploadedFile::fake()->image('second.jpg', 10, 10),
+    ])->assertCreated();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->body)->toBe('It was DNS 🎉')
+        ->and($commit->images->pluck('description')->all())->toBe([null, null]);
+});
+
+it('replies and quotes with images from a signed request', function (string $field): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $other = Commit::factory()->create();
+
+    signedApiRequestWithImages($keyPair, 'POST', route('api-commit.store'), [$field => $other->id], [UploadedFile::fake()->image('trace.png', 10, 10)])
+        ->assertCreated()
+        ->assertJsonPath("data.{$field}", $other->id)
+        ->assertJsonCount(1, 'data.images');
+})->with(['parent_id', 'quoted_commit_id']);
+
+it('validates the images of a commit from a signed request as the web does', function (Closure $images, array $data, string $field, string $message): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequestWithImages($keyPair, 'POST', route('api-commit.store'), ['body' => 'Look at this', ...$data], $images())
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([$field => $message]);
+
+    expect($user->commits()->exists())->toBeFalse()
+        ->and(Storage::disk()->allFiles())->toBe([]);
+})->with([
+    'more than three' => [fn (): array => array_map(fn (int $index): UploadedFile => UploadedFile::fake()->image("{$index}.png", 10, 10), range(1, 4)), [], 'images', 'The images field must not have more than 3 items.'],
+    'not an image' => [fn (): array => [UploadedFile::fake()->create('notes.txt', 1, 'text/plain')], [], 'images.0', 'The images.0 field must be an image.'],
+    'a gif' => [fn (): array => [UploadedFile::fake()->image('party.gif', 10, 10)], [], 'images.0', 'The images.0 field must be a file of type: image/jpeg, image/png, image/webp.'],
+    'larger than 10 MB' => [fn (): array => [UploadedFile::fake()->image('huge.png', 10, 10)->size(10_001)], [], 'images.0', 'The images.0 field must not be greater than 10000 kilobytes.'],
+    'too many pixels' => [fn (): array => [UploadedFile::fake()->image('wide.png', 6001, 1)], [], 'images.0', 'The images.0 field has invalid image dimensions.'],
+    'too long a description' => [fn (): array => [UploadedFile::fake()->image('photo.jpg', 10, 10)], ['image_descriptions' => [str_repeat('a', 1001)]], 'image_descriptions.0', 'The image description field must not be greater than 1000 characters.'],
+]);
+
+it('shows the author the images of their pending commit through urls that need no session', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequestWithImages($keyPair, 'POST', route('api-commit.store'), ['body' => 'Look at this'], [UploadedFile::fake()->image('screenshot.png', 10, 10)])
+        ->assertCreated();
+
+    $commit = $user->commits()->sole();
+    $image = $commit->images->sole();
+
+    $url = signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.images.0.url', $image->temporaryUrl())
+        ->json('data.images.0.url');
+
+    Auth::forgetGuards();
+
+    $this->get($url)->assertOk()->assertHeader('Content-Type', 'image/webp');
+
+    $commit->update(['status' => CommitStatus::Approved]);
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.images.0.url', route('commit-image.show', $image));
+});
 
 it('sends a commit from a signed request to the ai moderation the web uses', function (): void {
     config(['services.openai.key' => 'sk-test']);

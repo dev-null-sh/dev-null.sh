@@ -14,14 +14,6 @@ dataset('rate limits', [
         60,
         60,
     ],
-    'bookmarks' => [
-        fn (): array => [
-            ['PUT', route('bookmark.store', $commit = Commit::factory()->create())],
-            ['DELETE', route('bookmark.destroy', $commit)],
-        ],
-        60,
-        60,
-    ],
     'pins' => [
         fn (): array => [
             ['PUT', route('commit-pin.update', $commit = Commit::factory()->create())],
@@ -46,6 +38,13 @@ dataset('rate limits', [
             ['GET', route('mention.preview', User::factory()->create())],
         ],
         120,
+        60,
+    ],
+    'issue suggestions' => [
+        fn (): array => [
+            ['GET', route('issue-suggestion.index', ['q' => '722'])],
+        ],
+        30,
         60,
     ],
     'exports' => [
@@ -161,7 +160,6 @@ it('shares the JSON star budget across commits and replies without consuming oth
 
     expect($user->starredCommits()->count())->toBe(0);
 
-    $this->putJson(route('bookmark.store', $commit))->assertOk();
     $this->put(route('commit-pin.update', $ownCommit))->assertRedirect();
     $this->post(route('user-follow.store', $commit->user))->assertRedirect();
     $this->getJson(route('user-search.index', ['q' => $commit->user->username]))->assertOk();

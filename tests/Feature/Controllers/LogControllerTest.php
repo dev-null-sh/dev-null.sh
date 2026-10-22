@@ -10,7 +10,9 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 it('renders own commits and commits of followed users newest first', function (): void {
     $user = User::factory()->create();
@@ -562,7 +564,9 @@ it('defers suggested users to follow', function (): void {
                 ->where('suggestedUsers.0.bio', $suggested->bio)
                 ->missing('suggestedUsers.0.email')));
 
-    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers');
+    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers')
+        ->and($response->viewData('page')['mergeProps'] ?? [])->toContain('suggestedUsers')
+        ->and($response->viewData('page')['matchPropsOn'] ?? [])->toContain('suggestedUsers.id');
 });
 
 it('keeps the suggested users the client already loaded when navigating', function (): void {
@@ -696,3 +700,44 @@ it('preloads as many of the newest replies as the viewer shows at a time', funct
     'when picked' => ['10', 10],
     'all of them' => ['25', 12],
 ]);
+
+it('retains the loaded Following range when a follow request supplies its boundary', function (): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->for($viewer)->count(30)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+
+    $this->actingAs($viewer)->get(route('log.show', Log::Following), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'commits',
+        'X-Inertia-Reset' => 'commits',
+        'X-Log-Through' => $loaded[24]->id,
+    ])->assertOk()
+        ->assertJsonCount(25, 'props.commits.data')
+        ->assertJsonPath('props.commits.data.24.id', $loaded[24]->id)
+        ->assertJsonPath('scrollProps.commits.reset', true);
+});
+
+it('ignores a missing or inaccessible range boundary', function (string $boundary): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->for($viewer)->count(25)->create();
+    $hidden = Commit::factory()->pending()->create();
+    $id = $boundary === 'missing' ? (string) Str::uuid() : $hidden->id;
+
+    $this->actingAs($viewer)->get(route('log.show', Log::Following), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'commits',
+        'X-Log-Through' => $id,
+    ])->assertOk()->assertJsonCount(20, 'props.commits.data');
+})->with(['missing', 'inaccessible']);
+
+it('rejects an invalid range boundary', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->withHeader('X-Log-Through', 'invalid')
+        ->getJson(route('log.show', Log::Following))
+        ->assertUnprocessable()->assertJsonValidationErrors('through');
+});

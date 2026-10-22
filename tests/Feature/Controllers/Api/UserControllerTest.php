@@ -126,8 +126,9 @@ it('shows a signed request the profile as the web shows it to its user', functio
             'achievements' => resolve(UserAchievementsQuery::class)->get($user, $viewer),
             'pinned_commit' => null,
         ])
-        ->assertJsonPath('achievements.rank', 'user')
-        ->assertJsonPath('achievements.level', 1)
+        ->assertJsonPath('achievements.rank', 'daemon')
+        ->assertJsonPath('achievements.level', 2)
+        ->assertJsonPath('achievements.xp', 145)
         ->assertJsonPath('activity.scale', 'week')
         ->assertJsonCount(7, 'activity.buckets')
         ->assertJsonPath('activity.buckets.3', ['date' => '2026-10-12', 'count' => 1])

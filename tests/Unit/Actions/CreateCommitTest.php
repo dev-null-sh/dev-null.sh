@@ -472,7 +472,7 @@ it('keeps a poll on a quote while only approved quotes lift its thread', functio
         );
 })->with([false, true]);
 
-it('gives recent reports precedence over reputation while keeping the ai exemption', function (bool $reputable, bool $dismissed): void {
+it('ignores reports when deciding whether a commit goes live', function (bool $reputable): void {
     config(['services.openai.key' => 'sk-test']);
     Queue::fake();
     $user = User::factory()->create(['created_at' => now()->subHours(2)]);
@@ -481,17 +481,16 @@ it('gives recent reports precedence over reputation while keeping the ai exempti
         followersOf($user, 10);
     }
 
-    CommitReport::factory()->for($reported)->create(['dismissed_at' => $dismissed ? now() : null]);
+    CommitReport::factory()->for($reported)->create();
 
     $commit = resolve(CreateCommit::class)->handle($user, 'Another commit', poll: new NewPoll(['Yes', 'No'], PollDuration::OneHour));
-    $approved = $reputable && $dismissed;
 
-    expect($commit->status)->toBe($approved ? CommitStatus::Approved : CommitStatus::Pending)
-        ->and($commit->poll->opened_at !== null)->toBe($approved);
+    expect($commit->status)->toBe($reputable ? CommitStatus::Approved : CommitStatus::Pending)
+        ->and($commit->poll->opened_at !== null)->toBe($reputable);
 
     if ($reputable) {
         Queue::assertNotPushed(ModerateCommit::class);
     } else {
         Queue::assertPushed(ModerateCommit::class);
     }
-})->with([true, false])->with([true, false]);
+})->with([true, false]);
