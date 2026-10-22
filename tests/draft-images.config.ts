@@ -40,6 +40,7 @@ export default defineConfig({
             'tests/Unit/CommitRules.test.tsx',
             'tests/Unit/TimeoutRefusals.test.tsx',
             'tests/Unit/VoiceVolume.test.tsx',
+            'tests/Unit/OrgMentionSuggestions.test.tsx',
         ],
     },
 });

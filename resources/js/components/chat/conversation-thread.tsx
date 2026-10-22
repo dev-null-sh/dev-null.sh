@@ -448,6 +448,7 @@ export function ConversationThread({
                 <Composer
                     target={current}
                     draft={draft}
+                    members={isOrg ? thread?.members : undefined}
                     replyingTo={replyingTo}
                     replyAuthor={
                         replyingTo === null
@@ -1116,6 +1117,7 @@ type MessageDraftState = ReturnType<typeof useMessageDraft>;
  */
 function Composer({
     target,
+    members,
     draft,
     replyingTo,
     replyAuthor,
@@ -1125,6 +1127,7 @@ function Composer({
     onSend,
 }: {
     target: ChatTarget;
+    members: OrgMember[] | undefined;
     draft: MessageDraftState;
     replyingTo: MessageReply | null;
     replyAuthor: Author | null;
@@ -1417,6 +1420,7 @@ function Composer({
                             <MentionTextarea
                                 id={id}
                                 ref={input}
+                                members={members}
                                 org={
                                     target.kind === 'org'
                                         ? target.org.id
