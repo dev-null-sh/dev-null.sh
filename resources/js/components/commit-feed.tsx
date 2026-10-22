@@ -3,6 +3,7 @@ import { Pin } from 'lucide-react';
 import type { PointerEvent, ReactNode } from 'react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
+import { GraphCanvas } from '@/components/graph-canvas';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { useNow } from '@/hooks/use-now';
 import {
@@ -217,7 +218,7 @@ export function CommitFeed({
     );
 
     return (
-        <>
+        <GraphCanvas>
             {pinnedCommit && (
                 <section aria-label="Pinned commit">
                     <div className="flex">
@@ -304,7 +305,7 @@ export function CommitFeed({
                     </p>
                 </div>
             )}
-        </>
+        </GraphCanvas>
     );
 }
 

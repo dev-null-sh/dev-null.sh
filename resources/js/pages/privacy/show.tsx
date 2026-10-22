@@ -71,6 +71,17 @@ export default function Show() {
                                 signals.
                             </>,
                             <>
+                                <strong>Private messages:</strong> messages,
+                                images, and voice notes you send in Remotes,
+                                which only the people in the conversation can
+                                see. They are encrypted at rest, are not used by
+                                AI features, and are erased with your account.
+                                Voice notes are recorded with your microphone
+                                only after you start recording; recording stops
+                                and the microphone is released when you stop or
+                                discard.
+                            </>,
+                            <>
                                 <strong>From others:</strong> what other users
                                 post, say, or report about you, such as replies,
                                 quotes, and mentions.
@@ -106,9 +117,9 @@ export default function Show() {
                         archive, or reuse public content, and we can't control
                         or remove those copies. Deleted content may still appear
                         in replies, quotes, search engines, and copies others
-                        made. Don't post anything you don't want public. You are
-                        responsible for any personal data of others that you
-                        post.
+                        made. Private messages are not public. Don't post
+                        anything you don't want public. You are responsible for
+                        any personal data of others that you post.
                     </p>
                 </DocumentSection>
 

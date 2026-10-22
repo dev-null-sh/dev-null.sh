@@ -27,22 +27,25 @@ final readonly class ConversationController
     }
 
     /**
-     * The thread is read before it is marked read, so the page can show where the user left off.
+     * The thread is read before it is marked read, so the page can show where the user left off. Only rendering the
+     * thread marks it read, so the badge poll's partial reload leaves the read receipt where the user left it.
      */
     public function show(ShowConversationRequest $request, #[CurrentUser] User $user, User $partner, ConversationsQuery $conversations, ConversationThreadQuery $threads, UpdateConversationReadThrough $action): Response
     {
-        $thread = $threads->get($user, $partner);
-
-        $conversation = Conversation::between($user, $partner);
-
-        if ($conversation instanceof Conversation) {
-            $action->handle($user, $conversation, $thread['messages']->last()->id ?? 0);
-        }
-
         return Inertia::render('conversation/index', [
+            'thread' => function () use ($user, $partner, $threads, $action): array {
+                $thread = $threads->get($user, $partner);
+
+                $conversation = Conversation::between($user, $partner);
+
+                if ($conversation instanceof Conversation) {
+                    $action->handle($user, $conversation, $thread['messages']->last()->id ?? 0);
+                }
+
+                return $thread;
+            },
             'inbox' => fn (): array => $conversations->get($user),
             'partner' => $partner,
-            'thread' => $thread,
         ]);
     }
 }
