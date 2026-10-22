@@ -4,6 +4,7 @@ import {
     entranceDelay,
     graphEdges,
     isOnScreen,
+    leavingOf,
     nodeIdentity,
     sameNodes,
     scopedNodeId,
@@ -215,5 +216,38 @@ void test('leaves out links to nodes that are not measured', () => {
             node({ id: 'c', parent: 'missing' }),
         ]),
         [],
+    );
+});
+
+void test('fades a line with the row it leaves with, and clips it to the row when both its nodes are in it', () => {
+    const [inside, into, apart] = graphEdges([
+        node({ id: 'a', y: 40 }),
+        node({ id: 'b', y: 200, after: 'a' }),
+        node({ id: 'c', y: 400, after: 'b' }),
+        node({ id: 'd', y: 600, after: 'c' }),
+    ]);
+    const rows = [
+        { ids: new Set(['a', 'b']), opacity: 0.4 },
+        { ids: new Set(['d']), opacity: 0.7 },
+    ];
+
+    assert.deepEqual(leavingOf(inside, rows), { opacity: 0.4, clip: 0 });
+    assert.deepEqual(leavingOf(into, rows), { opacity: 0.4 });
+    assert.deepEqual(leavingOf(apart, rows), { opacity: 0.7 });
+    assert.equal(leavingOf(inside, []), null);
+});
+
+void test('fades a line between two leaving rows like the fainter one, clipped to neither', () => {
+    const [edge] = graphEdges([
+        node({ id: 'a', y: 40 }),
+        node({ id: 'b', y: 200, after: 'a' }),
+    ]);
+
+    assert.deepEqual(
+        leavingOf(edge, [
+            { ids: new Set(['a']), opacity: 0.4 },
+            { ids: new Set(['b']), opacity: 0.2 },
+        ]),
+        { opacity: 0.2 },
     );
 });

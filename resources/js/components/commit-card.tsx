@@ -260,7 +260,10 @@ export function CommitCard({
             }
             onPointerLeave={onHover && ((event) => onHover(false, event))}
         >
-            <div className="grid min-h-0 grid-cols-[4rem_minmax(0,1fr)] overflow-hidden sm:grid-cols-[4.5rem_minmax(0,1fr)]">
+            <div
+                className="grid min-h-0 grid-cols-[4rem_minmax(0,1fr)] overflow-hidden sm:grid-cols-[4.5rem_minmax(0,1fr)]"
+                data-graph-leaving={deletion === 'deleting' || undefined}
+            >
                 <GraphRail
                     lane={laneColor(commit.user.lane)}
                     previousLane={previousLane}

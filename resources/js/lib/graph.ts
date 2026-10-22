@@ -128,6 +128,33 @@ export function scopedNodeId(scope: string | null, id: string): string {
     return scope === null ? id : `${scope}/${id}`;
 }
 
+/** A row on its way out, like a deleted card collapsing: the nodes it holds and how faded it is. */
+export type LeavingRow = { ids: Set<string>; opacity: number };
+
+/**
+ * How a line shows while a row it touches leaves: as faded as the faintest of them, and clipped to the row (by its
+ * index) when the line lies within it, as the rail inside the row was.
+ */
+export function leavingOf(
+    edge: GraphEdge,
+    rows: LeavingRow[],
+): { opacity: number; clip?: number } | null {
+    const touched = rows.filter(
+        (row) => row.ids.has(edge.from) || row.ids.has(edge.to),
+    );
+
+    if (touched.length === 0) {
+        return null;
+    }
+
+    const opacity = Math.min(...touched.map((row) => row.opacity));
+    const clip = rows.findIndex(
+        (row) => row.ids.has(edge.from) && row.ids.has(edge.to),
+    );
+
+    return clip === -1 ? { opacity } : { opacity, clip };
+}
+
 export function sameNodes(a: GraphNode[], b: GraphNode[]): boolean {
     return JSON.stringify(a) === JSON.stringify(b);
 }

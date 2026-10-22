@@ -14,11 +14,12 @@ import {
     entranceDelay,
     graphEdges,
     isOnScreen,
+    leavingOf,
     nodeIdentity,
     sameNodes,
     scopedNodeId,
 } from '@/lib/graph';
-import type { GraphEdge, GraphNode } from '@/lib/graph';
+import type { GraphEdge, GraphNode, LeavingRow } from '@/lib/graph';
 import { cn } from '@/lib/utils';
 
 export type GraphNodeSpec = Pick<
@@ -189,6 +190,41 @@ export function GraphAnchor({
 
 type Size = { width: number; height: number };
 
+/** A leaving row, with the part of it still showing, as the canvas measures it. */
+type Leaving = LeavingRow & Size & { x: number; y: number };
+
+const noLeaving: Leaving[] = [];
+
+/**
+ * A row marked `data-graph-leaving`, like a deleted card fading and collapsing: the part of it its clipping still
+ * shows, and how faded it is up to the canvas.
+ */
+function leavingRow(
+    element: Element,
+    box: DOMRect,
+    container: Element,
+): Leaving {
+    const rect = element.getBoundingClientRect();
+    let opacity = 1;
+
+    for (
+        let current: Element | null = element;
+        current !== null && current !== container;
+        current = current.parentElement
+    ) {
+        opacity *= Number(getComputedStyle(current).opacity);
+    }
+
+    return {
+        x: rect.left - box.left,
+        y: rect.top - box.top,
+        width: rect.width,
+        height: rect.height,
+        opacity,
+        ids: new Set(),
+    };
+}
+
 function snap(value: number): number {
     const ratio = window.devicePixelRatio || 1;
 
@@ -244,6 +280,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     const frame = useRef(0);
     const [nodes, setNodes] = useState<GraphNode[]>([]);
     const [size, setSize] = useState<Size>({ width: 0, height: 0 });
+    const [leaving, setLeaving] = useState(noLeaving);
     const [isDrawing, setIsDrawing] = useState(false);
 
     const read = useCallback(() => {
@@ -254,10 +291,19 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
         }
 
         const box = container.getBoundingClientRect();
+        const rows = [
+            ...container.querySelectorAll('[data-graph-leaving]'),
+        ].map((element) => ({
+            element,
+            row: leavingRow(element, box, container),
+        }));
         const measured = [...entries.current.values()]
             .filter(({ element }) => element.isConnected)
             .map(({ element, spec }) => {
                 const rect = element.getBoundingClientRect();
+                rows.find((row) => row.element.contains(element))?.row.ids.add(
+                    spec.id,
+                );
 
                 return {
                     id: spec.id,
@@ -279,6 +325,11 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                 : { width: box.width, height: box.height },
         );
         setIsDrawing(true);
+        setLeaving((current) =>
+            rows.length === 0 && current.length === 0
+                ? current
+                : rows.map(({ row }) => row),
+        );
         setNodes((current) =>
             sameNodes(current, measured) ? current : measured,
         );
@@ -436,6 +487,8 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
         [],
     );
     const { entering, onDrawn } = useEnteringEdges(edges, delayOf, canvasTop);
+    const clipOf = (row: number) =>
+        row === -1 ? undefined : `url(#${id}-leaving-${row})`;
 
     return (
         <GraphContext.Provider value={registry}>
@@ -472,9 +525,27 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                         cy={node.y}
                                         r={node.radius}
                                         fill="black"
+                                        clipPath={clipOf(
+                                            leaving.findIndex((row) =>
+                                                row.ids.has(node.id),
+                                            ),
+                                        )}
                                     />
                                 ))}
                             </mask>
+                            {leaving.map((row, index) => (
+                                <clipPath
+                                    key={index}
+                                    id={`${id}-leaving-${index}`}
+                                >
+                                    <rect
+                                        x={row.x}
+                                        y={row.y}
+                                        width={row.width}
+                                        height={row.height}
+                                    />
+                                </clipPath>
+                            ))}
                             {edges.map((edge, index) => (
                                 <EdgeDefs
                                     key={edge.id}
@@ -486,34 +557,46 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                             ))}
                         </defs>
                         <g mask={`url(#${id}-nodes)`}>
-                            {edges.map((edge, index) => (
-                                <path
-                                    key={edge.id}
-                                    d={edge.d}
-                                    style={{
-                                        stroke:
-                                            edge.fromLane === edge.toLane
-                                                ? edge.fromLane
-                                                : `url(#${id}-${index}-fade)`,
-                                    }}
-                                    opacity={edge.dimmed ? 0.6 : 1}
-                                    className="transition-opacity duration-200"
-                                    strokeWidth={strokeWidth}
-                                    strokeDasharray={
-                                        edge.dashed ? dash : undefined
-                                    }
-                                    mask={
-                                        entering.has(edge.id)
-                                            ? `url(#${id}-${index}-draw)`
-                                            : undefined
-                                    }
-                                    data-test={
-                                        edge.dashed
-                                            ? 'graph-edge-dashed'
-                                            : 'graph-edge'
-                                    }
-                                />
-                            ))}
+                            {edges.map((edge, index) => {
+                                const left = leavingOf(edge, leaving);
+
+                                return (
+                                    <path
+                                        key={edge.id}
+                                        d={edge.d}
+                                        style={{
+                                            stroke:
+                                                edge.fromLane === edge.toLane
+                                                    ? edge.fromLane
+                                                    : `url(#${id}-${index}-fade)`,
+                                            // Measured as the row collapses, which fades along: the line follows as is.
+                                            transition: left
+                                                ? 'none'
+                                                : undefined,
+                                        }}
+                                        opacity={
+                                            (edge.dimmed ? 0.6 : 1) *
+                                            (left?.opacity ?? 1)
+                                        }
+                                        clipPath={clipOf(left?.clip ?? -1)}
+                                        className="transition-opacity duration-200"
+                                        strokeWidth={strokeWidth}
+                                        strokeDasharray={
+                                            edge.dashed ? dash : undefined
+                                        }
+                                        mask={
+                                            entering.has(edge.id)
+                                                ? `url(#${id}-${index}-draw)`
+                                                : undefined
+                                        }
+                                        data-test={
+                                            edge.dashed
+                                                ? 'graph-edge-dashed'
+                                                : 'graph-edge'
+                                        }
+                                    />
+                                );
+                            })}
                         </g>
                     </svg>
                 </div>
