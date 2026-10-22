@@ -41,6 +41,12 @@ final class NotificationBuilder extends Builder
                     ->whereColumn('commits.user_id', 'notifications.recipient_id')
                     ->whereColumn('commits.status', 'notifications.type')
                     ->offset(0)))
+            ->orWhere(fn (Builder $query): Builder => $query
+                ->where('type', NotificationType::EventCancelled)
+                ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
+                    ->where('status', CommitStatus::Approved)
+                    ->has('event')
+                    ->offset(0)))
             ->orWhere('type', NotificationType::LeveledUp))
             ->withoutSilencedActors();
     }

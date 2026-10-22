@@ -6,6 +6,7 @@ use App\Contracts\Services\GitHubProvider;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
+use App\Models\Event;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\User;
@@ -764,7 +765,7 @@ it('does not ask github for the readme on the other tabs', function (string $tab
 
     $this->get(route('user.show', ['user' => $user, 'tab' => $tab]))->assertOk()->assertInertia(fn ($page) => $page
         ->where('readme', null));
-})->with(['commits', 'replies']);
+})->with(['commits', 'replies', 'events']);
 
 it('names the followers the viewer knows, the most followed first', function (): void {
     $viewer = User::factory()->create();
@@ -836,3 +837,20 @@ it('moves the people lists of a profile for good to the handle in its own case',
         ->assertMovedPermanently()
         ->assertRedirect("/@OctoCat/{$list}");
 })->with(['following', 'followers', 'mutuals']);
+
+it('lists the events a user hosts on the events tab, latest first', function (): void {
+    $user = User::factory()->create();
+    $earlier = Event::factory()->for(Commit::factory()->for($user))->ended()->create();
+    $later = Event::factory()->for(Commit::factory()->for($user))->create();
+    Event::factory()->for(Commit::factory()->for($user)->pending())->create();
+    Event::factory()->create();
+
+    $this->get(route('user.show', ['user' => $user, 'tab' => 'events']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('tab', 'events')
+            ->where('pinnedCommit', null)
+            ->has('commits.data', 2)
+            ->where('commits.data.0.id', $later->id)
+            ->where('commits.data.1.id', $earlier->id));
+});

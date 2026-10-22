@@ -50,6 +50,9 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\EmailController;
 use App\Http\Controllers\EmailDraftController;
 use App\Http\Controllers\EmailPreviewController;
+use App\Http\Controllers\EventAttendanceController;
+use App\Http\Controllers\EventCancellationController;
+use App\Http\Controllers\EventController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
@@ -245,6 +248,8 @@ Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->gr
         ->scopeBindings()
         ->whereNumber('photo')
         ->name('commit-photo.show');
+    Route::get('events', [EventController::class, 'index'])->name('event.index');
+    Route::get('events/{event}', [EventController::class, 'show'])->whereUuid('event')->name('event.show');
 });
 
 // Sitemaps, the same for everyone, so they skip the web group's session and cookies, which would keep a cache from sharing them...
@@ -433,6 +438,23 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-reply.destroy');
     Route::post('commits/{commit}/poll/votes', [CommitPollVoteController::class, 'store'])
         ->name('commit-poll-vote.store');
+
+    // Events...
+    Route::get('events/create', [EventController::class, 'create'])->name('event.create');
+    Route::post('events', [EventController::class, 'store'])
+        ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
+        ->name('event.store');
+    Route::put('events/{event}/attendance', [EventAttendanceController::class, 'update'])
+        ->whereUuid('event')
+        ->middleware('throttle:60,1')
+        ->name('event-attendance.update');
+    Route::delete('events/{event}/attendance', [EventAttendanceController::class, 'destroy'])
+        ->whereUuid('event')
+        ->middleware('throttle:60,1')
+        ->name('event-attendance.destroy');
+    Route::post('events/{event}/cancellation', [EventCancellationController::class, 'store'])
+        ->whereUuid('event')
+        ->name('event-cancellation.store');
 
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');

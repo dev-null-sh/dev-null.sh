@@ -10,6 +10,8 @@ use App\Models\CommitReport;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
+use App\Models\Event;
+use App\Models\EventAgendaItem;
 use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
@@ -31,6 +33,8 @@ use Traversable;
 /**
  * @phpstan-type ExportPoll array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}
  * @phpstan-type ExportPollVote array{commit_id: string, option: string, created_at: string}
+ * @phpstan-type ExportEvent array{commit_id: string, title: string, starts_at: string, ends_at: string, location: string|null, url: string|null, agenda: list<array{label: string, starts_at: string}>, cancelled_at: string|null, created_at: string}
+ * @phpstan-type ExportEventResponse array{commit_id: string, response: string, created_at: string, updated_at: string}
  * @phpstan-type ExportMessage array{to: string|null, body: string, voice: string|null, created_at: string}
  * @phpstan-type ExportUser array{handle: string}
  * @phpstan-type UserExport array{
@@ -41,6 +45,8 @@ use Traversable;
  *     commits: Generator<int, array<string, mixed>>,
  *     polls: Generator<int, ExportPoll>,
  *     poll_votes: Generator<int, ExportPollVote>,
+ *     events: Generator<int, ExportEvent>,
+ *     event_responses: Generator<int, ExportEventResponse>,
  *     stars: Generator<int, string>,
  *     following: Generator<int, ExportUser>,
  *     followers: Generator<int, ExportUser>,
@@ -111,6 +117,8 @@ final readonly class CreateExport
             'commits' => $this->commits($user),
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
+            'events' => $this->events($user),
+            'event_responses' => $this->eventResponses($user),
             'stars' => $this->stars($user),
             'following' => $this->handles($user->following()),
             'followers' => $this->handles($user->followers()),
@@ -259,6 +267,51 @@ final readonly class CreateExport
 
         foreach ($days as $day) {
             yield $day->seen_at;
+        }
+    }
+
+    /**
+     * @return Generator<int, ExportEvent>
+     */
+    private function events(User $user): Generator
+    {
+        $events = Event::query()
+            ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id))
+            ->with('agendaItems')
+            ->lazyById(500);
+
+        foreach ($events as $event) {
+            yield [
+                'commit_id' => $event->commit_id,
+                'title' => $event->title,
+                'starts_at' => $event->starts_at->toIso8601String(),
+                'ends_at' => $event->ends_at->toIso8601String(),
+                'location' => $event->location,
+                'url' => $event->url,
+                'agenda' => array_values($event->agendaItems->map(fn (EventAgendaItem $item): array => [
+                    'label' => $item->label,
+                    'starts_at' => $item->starts_at->toIso8601String(),
+                ])->all()),
+                'cancelled_at' => $event->cancelled_at?->toIso8601String(),
+                'created_at' => $event->created_at->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
+     * Only the user's own responses: never who else is going.
+     *
+     * @return Generator<int, ExportEventResponse>
+     */
+    private function eventResponses(User $user): Generator
+    {
+        foreach ($user->eventAttendances()->with('event')->lazyById(500) as $attendance) {
+            yield [
+                'commit_id' => $attendance->event->commit_id,
+                'response' => $attendance->response->value,
+                'created_at' => $attendance->created_at->toIso8601String(),
+                'updated_at' => $attendance->updated_at->toIso8601String(),
+            ];
         }
     }
 

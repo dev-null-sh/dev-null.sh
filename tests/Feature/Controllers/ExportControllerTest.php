@@ -14,6 +14,9 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Device;
+use App\Models\Event;
+use App\Models\EventAgendaItem;
+use App\Models\EventAttendee;
 use App\Models\Message;
 use App\Models\MessageVoice;
 use App\Models\Notification;
@@ -130,6 +133,8 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'commits' => [],
         'polls' => [],
         'poll_votes' => [],
+        'events' => [],
+        'event_responses' => [],
         'stars' => [],
         'following' => [],
         'followers' => [],
@@ -655,4 +660,36 @@ it('exports subscription metadata without delivery endpoints', function (): void
     $subscription = $user->pushSubscriptions()->create(['endpoint_hash' => 'browser', 'endpoint' => 'https://fcm.googleapis.com/wp/private']);
     $export = resolve(CreateExport::class)->handle($user);
     expect($export['push_subscriptions'])->toBe([['id' => $subscription->id]]);
+});
+
+it('exports hosted events and the users own responses without other attendees', function (): void {
+    $user = User::factory()->create();
+    $event = Event::factory()->for(Commit::factory()->for($user))->create(['title' => 'PHP night']);
+    $item = EventAgendaItem::factory()->for($event)->create(['label' => 'Talks', 'starts_at' => $event->starts_at]);
+    Event::factory()->for(Commit::factory()->for($user)->state(['deleted_at' => now()]))->create(['title' => 'Never exported']);
+    $other = Event::factory()->create();
+    $response = EventAttendee::factory()->for($other)->for($user)->interested()->create();
+    $attendee = EventAttendee::factory()->for($event)->create();
+
+    $export = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($export->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['events'])->toBe([[
+        'commit_id' => $event->commit_id,
+        'title' => 'PHP night',
+        'starts_at' => $event->starts_at->toIso8601String(),
+        'ends_at' => $event->ends_at->toIso8601String(),
+        'location' => $event->location,
+        'url' => null,
+        'agenda' => [['label' => 'Talks', 'starts_at' => $item->starts_at->toIso8601String()]],
+        'cancelled_at' => null,
+        'created_at' => $event->created_at->toIso8601String(),
+    ]])
+        ->and($data['event_responses'])->toBe([[
+            'commit_id' => $other->commit_id,
+            'response' => 'interested',
+            'created_at' => $response->created_at->toIso8601String(),
+            'updated_at' => $response->updated_at->toIso8601String(),
+        ]])
+        ->and($export->streamedContent())->not->toContain($attendee->user_id, 'Never exported');
 });

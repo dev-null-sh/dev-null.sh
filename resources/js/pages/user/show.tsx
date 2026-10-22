@@ -20,6 +20,7 @@ import { ActivityStreaks } from '@/components/activity-streaks';
 import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { EditProfileMenu } from '@/components/edit-profile-menu';
+import { EventList } from '@/components/event-list';
 import { FollowButton } from '@/components/follow-button';
 import { FollowersYouKnow } from '@/components/followers-you-know';
 import type { FollowersYouKnowPreview } from '@/components/followers-you-know';
@@ -53,6 +54,7 @@ import type {
     Activity,
     Commit,
     CursorPaginated,
+    EventWithHost,
     Profile,
     Streaks,
 } from '@/types';
@@ -91,8 +93,8 @@ export default function Show({
     activity: Activity;
     streaks: Streaks;
     achievements: Achievements;
-    commits: CursorPaginated<Commit>;
-    tab: 'commits' | 'replies' | 'readme';
+    commits: CursorPaginated<Commit> | CursorPaginated<EventWithHost>;
+    tab: 'commits' | 'replies' | 'readme' | 'events';
     pinnedCommit: Commit | null;
     readme: string | false | null;
 }) {
@@ -464,6 +466,11 @@ export default function Show({
                             href: show(user, { query: { tab: 'readme' } }),
                             isActive: tab === 'readme',
                         },
+                        {
+                            title: 'Events',
+                            href: show(user, { query: { tab: 'events' } }),
+                            isActive: tab === 'events',
+                        },
                     ]}
                 />
 
@@ -473,10 +480,23 @@ export default function Show({
                         username={user.handle}
                         isCurrentUser={isCurrentUser}
                     />
+                ) : tab === 'events' ? (
+                    <EventList
+                        key={`${user.id}:${tab}`}
+                        events={commits as CursorPaginated<EventWithHost>}
+                        data="commits"
+                        empty={
+                            <EmptyFeed command="fatal: no events yet">
+                                {isCurrentUser
+                                    ? 'Events you host show up here. Plan one from Events.'
+                                    : `@${user.handle} hasn't hosted an event yet.`}
+                            </EmptyFeed>
+                        }
+                    />
                 ) : (
                     <CommitFeed
                         key={`${user.id}:${tab}`}
-                        commits={commits}
+                        commits={commits as CursorPaginated<Commit>}
                         pinnedCommit={tab === 'commits' ? pinnedCommit : null}
                         threadActions={
                             isCurrentUser && tab === 'commits'

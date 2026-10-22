@@ -14,7 +14,7 @@ final readonly class DeleteCommitContent
     /**
      * Only a commit whose undo window has closed loses its content, so one restored in time, or deleted again since, keeps it.
      * The row stays as a tombstone with its author, for its replies, quotes and reports, but its body, mentions, embedding,
-     * link preview, poll and images are erased for good. So are the previews of links to it, which hold its body as their
+     * link preview, poll, event and images are erased for good. So are the previews of links to it, which hold its body as their
      * title and description, and fall off whatever linked to it.
      */
     public function handle(Commit $commit): void
@@ -30,6 +30,7 @@ final readonly class DeleteCommitContent
 
             $commit->images()->delete();
             $commit->poll()->delete();
+            $commit->event()->delete();
 
             LinkPreview::query()->where('url', 'like', "%/commits/{$commit->id}%")->delete();
 

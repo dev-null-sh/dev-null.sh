@@ -383,6 +383,35 @@ test('keeps an expanded star as one link to the profile', async () => {
     assert.match(body, /<a [^>]*href="\/@mnapoli"/);
 });
 
+test('names the cancelled event, linking to its page', async () => {
+    const cancelled = {
+        ...notification,
+        id: 'cancelled',
+        group_id: 'cancelled',
+        type: 'event_cancelled',
+        subject_id: null,
+        commit: {
+            ...notification.commit,
+            event: {
+                id: 'event',
+                commit_id: 'reply',
+                title: 'PHP night',
+                starts_at: '2026-11-04T18:00:00Z',
+                ends_at: '2026-11-04T21:00:00Z',
+                location: 'Lisbon',
+                url: null,
+                cancelled_at: '2026-10-20T10:00:00Z',
+                state: 'cancelled',
+            },
+        },
+    } as NotificationGroup;
+    const body = await render([cancelled]);
+
+    assert.match(body, /cancelled an event you were going to<\/a>/);
+    assert.match(body, /data-test="cancelled-event"[^>]*>.*PHP night/s);
+    assert.match(body, /<a[^>]*href="\/events\/event"/);
+});
+
 test('says which level and rank a level-up reached, linking to the profile', async () => {
     const leveledUp = {
         ...notification,

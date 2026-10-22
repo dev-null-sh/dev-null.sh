@@ -8,6 +8,7 @@ use App\Actions\DeleteCommit;
 use App\Actions\DeleteCommitContent;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Event;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\Poll;
@@ -78,6 +79,7 @@ it('erases the content once the undo window has closed', function (): void {
     $commit = Commit::factory()->create(['body' => 'Hello @taylor and @laravel', 'mentions' => ['taylor'], 'link_preview_id' => LinkPreview::factory()]);
     resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => Organization::factory()->create()->id]);
     $poll = Poll::factory()->withOptions('Yes', 'No')->create(['commit_id' => $commit->id]);
+    $event = Event::factory()->for($commit)->create();
     resolve(DeleteCommit::class)->handle($commit);
     $this->travel(30)->seconds();
 
@@ -92,6 +94,7 @@ it('erases the content once the undo window has closed', function (): void {
         ->user_id->not->toBeNull();
     $this->assertModelMissing($poll);
     $this->assertDatabaseMissing('commit_topics', ['commit_id' => $commit->id]);
+    $this->assertModelMissing($event);
 });
 
 it('erases the previews of links to the commit, which hold its body', function (): void {
