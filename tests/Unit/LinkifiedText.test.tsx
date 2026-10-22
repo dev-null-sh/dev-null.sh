@@ -5,11 +5,13 @@ import type { ComponentProps, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vite-plus/test';
 import { BodyCounter } from '../../resources/js/components/body-counter';
+import { MessageText } from '../../resources/js/components/chat/message-parts';
 import { CommitBody } from '../../resources/js/components/commit-body';
 import {
     LinkifiedText,
     typedLinks,
 } from '../../resources/js/components/linkified-text';
+import { bodySegments } from '../../resources/js/lib/code';
 import { bodyCharacterCount } from '../../resources/js/lib/commit';
 
 test('counts each prose URL once per occurrence, without discounting code or oversized links', () => {
@@ -147,6 +149,74 @@ test('keeps captured mention identities in regular bodies alongside highlighted 
 });
 
 const url = 'https://www.example.com/a-long-path-to-the-release-notes';
+
+for (const surface of ['commit', 'remote', 'optimistic remote', 'excerpt']) {
+    test(`formats consecutive quote lines with inline content in a ${surface}`, () => {
+        const body =
+            '> First `code`\r\n> @original https://example.com :smile:\r\nNormal > text\n>Last';
+        const mentions = { original: '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b' };
+        const segments = bodySegments(body);
+        const html = renderPage(
+            surface.includes('remote') ? (
+                <MessageText
+                    message={{
+                        body,
+                        mentions,
+                        body_segments:
+                            surface === 'remote' ? segments : undefined,
+                    }}
+                    isMine={surface === 'optimistic remote'}
+                />
+            ) : (
+                <CommitBody
+                    segments={segments}
+                    mentions={mentions}
+                    isStatic={surface === 'excerpt'}
+                />
+            ),
+        );
+
+        const quotes = [
+            ...html.matchAll(/<blockquote[^>]*>(.*?)<\/blockquote>/gs),
+        ];
+        assert.equal(quotes.length, 2);
+        assert.equal(
+            quotes[0][1].replace(/<[^>]+>/g, ''),
+            'First code\r\n@original https://example.com 😄',
+        );
+        assert.match(quotes[0][1], /<code[^>]*>code<\/code>/);
+        assert.equal(quotes[1][1], 'Last');
+        assert.match(html, /<\/blockquote>Normal &gt; text<blockquote/);
+        if (surface === 'excerpt') {
+            assert.ok(!html.includes('<a'));
+        } else {
+            assert.ok(
+                quotes[0][1].includes(`href="/mentions/${mentions.original}"`),
+            );
+            assert.ok(quotes[0][1].includes('href="https://example.com"'));
+        }
+    });
+}
+
+test('only treats prose at a line start as a quote and escapes quoted HTML', () => {
+    const html = renderPage(
+        <CommitBody
+            segments={bodySegments(
+                '`code`> literal\n```text\n> fenced\n```\n> <script>alert(1)</script>\n>\n> `> inline`\n\nAfter',
+            )}
+            mentions={null}
+        />,
+    );
+
+    assert.equal(html.match(/<blockquote/g)?.length, 1);
+    assert.match(html, /<\/code>&gt; literal/);
+    assert.match(html, /<pre[^>]*>&gt; fenced<\/pre>/);
+    assert.match(
+        html,
+        /&lt;script&gt;alert\(1\)&lt;\/script&gt;\n\n<code[^>]*>&gt; inline<\/code><\/blockquote>\nAfter/,
+    );
+    assert.ok(!html.includes('<script>'));
+});
 
 test('finds the full preview URL outside inline and fenced code', () => {
     const body = [
@@ -341,8 +411,8 @@ for (const [link, href] of [
         'HTTPS://GitHub.com/laravel/framework',
     ],
     [
-        'http://github.com/nunomaduro/dev-null.sh',
-        'http://github.com/nunomaduro/dev-null.sh',
+        'http://github.com/dev-null-sh/dev-null.sh',
+        'http://github.com/dev-null-sh/dev-null.sh',
     ],
 ]) {
     test(`shows GitHub repository links however they are written: ${link}`, () => {

@@ -13,6 +13,7 @@ use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\MessageReaction;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -57,11 +58,18 @@ final readonly class ConversationThreadQuery
     /**
      * An org the user is in, from where their history starts. Each member's reads show only when both share pulls.
      *
-     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int}>, typing: array<int, string>, is_archived: bool, role: OrgRole|null, access: PushAccess}
+     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int, suggests_mentions: bool, is_followed: bool}>, typing: array<int, string>, is_archived: bool, role: OrgRole|null, access: PushAccess}
      */
     public function org(User $user, Conversation $org, ?int $after = null, ?int $before = null, ?int $reactionsAfter = null): array
     {
-        $participants = $org->participants()->with('user')->oldest('id')->get();
+        $participants = $org->participants()->with('user')->withExists([
+            'user as suggests_mentions' => fn (Builder $query): Builder => $query
+                ->whereKeyNot($user->id)
+                ->whereNotIn('id', $user->mutedIds())
+                ->whereNotIn('id', $user->idsAcrossBlocks()),
+            'user as is_followed' => fn (Builder $query): Builder => $query
+                ->whereIn('id', $user->following()->select('users.id')),
+        ])->oldest('id')->get();
         $mine = $participants->firstOrFail(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id);
         [$messages, $hasOlder] = $this->page($org, $mine->visible_from_id, $after, $before, withPeople: true);
 
@@ -82,6 +90,8 @@ final readonly class ConversationThreadQuery
                 'user' => $participant->user,
                 'role' => $participant->role,
                 'read_through_id' => $user->pull_receipts && $participant->user->pull_receipts ? $participant->read_through_id : 0,
+                'suggests_mentions' => (bool) $participant->getAttribute('suggests_mentions'),
+                'is_followed' => (bool) $participant->getAttribute('is_followed'),
             ])->values()->toBase(),
             'typing' => $typingUsers
                 ->filter(fn (string $username, string $key): bool => (bool) ($typingStatuses[$key] ?? false))

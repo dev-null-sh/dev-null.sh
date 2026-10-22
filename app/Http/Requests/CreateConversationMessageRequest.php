@@ -10,7 +10,9 @@ use App\Models\Message;
 use App\Models\User;
 use App\Queries\PushAccessQuery;
 use App\Rules\RepliableMessage;
+use App\Rules\VoiceNote;
 use App\Services\Urls;
+use App\Services\VoiceNotes;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -25,7 +27,8 @@ final class CreateConversationMessageRequest extends FormRequest
 {
     /**
      * What any message may carry: a body, which images make optional, a reply to a message the sender can see in the
-     * conversation, a link card for one of its links, and images, checked as a commit's are.
+     * conversation, a link card for one of its links, and images, checked as a commit's are. A voice note goes alone,
+     * or with a reply.
      *
      * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum|In>>
      */
@@ -35,7 +38,7 @@ final class CreateConversationMessageRequest extends FormRequest
         $attachments = CreateCommitRequest::attachmentRules();
 
         return [
-            'body' => [$request->hasFile('images') ? 'nullable' : 'required', 'string', 'max:'.Message::MAX_LENGTH],
+            'body' => [$request->hasFile('images') || $request->hasFile('voice') ? 'nullable' : 'required', 'string', 'max:'.Message::MAX_LENGTH],
             'client_id' => ['required', 'uuid'],
             'reply_to_id' => ['nullable', 'integer', new RepliableMessage($conversation, $visibleFrom)],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
@@ -43,6 +46,9 @@ final class CreateConversationMessageRequest extends FormRequest
             'images.*' => $attachments['images.*'],
             'image_descriptions' => $attachments['image_descriptions'],
             'image_descriptions.*' => $attachments['image_descriptions.*'],
+            'voice' => ['nullable', 'file', 'max:'.VoiceNotes::MAX_UPLOAD_KILOBYTES, 'prohibits:body,images', new VoiceNote],
+            'voice_waveform' => ['required_with:voice', 'list', 'size:'.VoiceNotes::BARS],
+            'voice_waveform.*' => ['required', 'integer', 'between:0,100'],
         ];
     }
 
@@ -130,5 +136,22 @@ final class CreateConversationMessageRequest extends FormRequest
         $descriptions = $this->array('image_descriptions');
 
         return $descriptions;
+    }
+
+    public function voice(): ?UploadedFile
+    {
+        $voice = $this->file('voice');
+
+        return $voice instanceof UploadedFile ? $voice : null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function voiceWaveform(): array
+    {
+        return $this->filled('voice_waveform')
+            ? array_map(fn (int $bar): int => $this->integer('voice_waveform.'.$bar), range(0, VoiceNotes::BARS - 1))
+            : [];
     }
 }

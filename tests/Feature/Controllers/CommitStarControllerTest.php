@@ -67,15 +67,15 @@ it('starring is idempotent', function (): void {
     expect($user->starredCommits()->count())->toBeOne();
 });
 
-it('may star their own commit', function (CommitStatus $status): void {
+it('may not star their own commit', function (CommitStatus $status): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create(['status' => $status]);
 
     $this->actingAs($user)
         ->postJson(route('commit-star.store', $commit))
-        ->assertOk()->assertExactJson(['starred' => true, 'stars_count' => 1]);
+        ->assertForbidden();
 
-    expect($user->hasStarred($commit))->toBeTrue();
+    expect($user->hasStarred($commit))->toBeFalse();
 })->with(CommitStatus::cases());
 
 it('may not star a commit across a block in either direction', function (bool $userBlocks): void {

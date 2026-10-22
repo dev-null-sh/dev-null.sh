@@ -1,4 +1,4 @@
-import { ArrowDown, X } from 'lucide-react';
+import { ArrowDown, Mic, X } from 'lucide-react';
 import type {
     ClipboardEvent,
     FormEvent,
@@ -33,6 +33,7 @@ import {
 } from '@/components/chat/message-reactions';
 import { MessageStatusGlyph } from '@/components/chat/message-status';
 import { EventLine, typingText } from '@/components/chat/org';
+import { VoiceNote, VoiceNoteComposer } from '@/components/chat/voice-note';
 import {
     ImageDropOverlay,
     ImagePickerButton,
@@ -50,6 +51,7 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
+import { useVoiceNote } from '@/hooks/use-voice-note';
 import {
     settleRequest,
     loadOlderMessages,
@@ -62,6 +64,7 @@ import {
     toggleReaction,
 } from '@/lib/chat';
 import type { ChatTarget, PendingMessage } from '@/lib/chat';
+import { formatCount } from '@/lib/numbers';
 import { pullsOf, statusMessageOf } from '@/lib/pulls';
 import { doubleTapReaction } from '@/lib/reactions';
 import type { ReactionUsage } from '@/lib/reactions';
@@ -156,6 +159,8 @@ export function ConversationThread({
     const isPinned = useRef(true);
     const hasScrolledIn = useRef(false);
     const anchor = useRef<ScrollAnchor | null>(null);
+    const restoredScrollTop = useRef<number | null>(null);
+    const isReplyResizing = useRef(false);
     const seenLatest = useRef(0);
     const [unseen, setUnseen] = useState(0);
 
@@ -192,6 +197,27 @@ export function ConversationThread({
     const draft = useMessageDraft(user, current);
     const replyingTo = thread?.replyingTo ?? null;
     const members = thread?.members;
+
+    useLayoutEffect(() => {
+        isReplyResizing.current = true;
+    }, [replyingTo]);
+
+    const settleReplyPreview = useCallback((isOpen: boolean) => {
+        const element = scroller.current;
+        isReplyResizing.current = false;
+
+        if (element === null) {
+            return;
+        }
+
+        if (!isPinned.current && anchor.current !== null) {
+            restoreScrollAnchor(element, anchor.current);
+            restoredScrollTop.current = element.scrollTop;
+        }
+
+        isPinned.current = isPinned.current || (!isOpen && isAtLatest(element));
+        anchor.current ??= scrollAnchorOf(element);
+    }, []);
 
     const authorOf = useCallback(
         (userId: string): Author => {
@@ -232,8 +258,16 @@ export function ConversationThread({
 
     const replyTo = useCallback(
         (reply: MessageReply) => {
+            if (scroller.current !== null) {
+                // Reuse the reading anchor across folds so rounded scroll positions cannot accumulate drift.
+                if (isPinned.current || anchor.current === null) {
+                    anchor.current = scrollAnchorOf(scroller.current);
+                }
+                isPinned.current = false;
+            }
+
             setReplyingTo(target, reply);
-            draft.input.current?.focus();
+            draft.input.current?.focus({ preventScroll: true });
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [targetKey(target)],
@@ -283,6 +317,7 @@ export function ConversationThread({
         } else {
             if (anchor.current !== null) {
                 restoreScrollAnchor(element, anchor.current);
+                restoredScrollTop.current = element.scrollTop;
             }
 
             setUnseen(
@@ -299,6 +334,11 @@ export function ConversationThread({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [contentKey, thread?.isLoaded]);
 
+    const releaseScrollAnchor = useCallback(() => {
+        // Let deliberate input own the viewport until the fold settles, including delayed automatic scroll events.
+        anchor.current = null;
+    }, []);
+
     // A row below the visible ones can still change height, as reactions or a link card arrive, and the scroller itself
     // shrinks as the composer grows or the keyboard opens. Anchored at its bottom, either would move what is being read,
     // so the top visible row is kept where it was.
@@ -313,14 +353,45 @@ export function ConversationThread({
         const observer = new ResizeObserver(() => {
             if (!isPinned.current && anchor.current !== null) {
                 restoreScrollAnchor(element, anchor.current);
+                restoredScrollTop.current = element.scrollTop;
             }
         });
 
+        const onWheel = (event: WheelEvent) => {
+            if (event.ctrlKey || event.defaultPrevented || event.deltaY === 0) {
+                return;
+            }
+
+            releaseScrollAnchor();
+
+            if (isReplyResizing.current) {
+                // WebKit can drop native wheel scrolling after a frame's scrollTop correction.
+                event.preventDefault();
+                const unit =
+                    event.deltaMode === WheelEvent.DOM_DELTA_LINE
+                        ? parseFloat(getComputedStyle(element).lineHeight)
+                        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+                          ? element.clientHeight
+                          : 1;
+                element.scrollTop += event.deltaY * unit;
+            }
+        };
+
         observer.observe(content);
         observer.observe(element);
+        element.addEventListener('wheel', onWheel, {
+            passive: false,
+        });
+        element.addEventListener('touchmove', releaseScrollAnchor, {
+            passive: false,
+        });
 
-        return () => observer.disconnect();
-    }, [thread?.isLoaded]);
+        return () => {
+            observer.disconnect();
+            element.removeEventListener('wheel', onWheel);
+            element.removeEventListener('touchmove', releaseScrollAnchor);
+        };
+    }, [releaseScrollAnchor, thread?.isLoaded]);
 
     const onScroll = () => {
         const element = scroller.current;
@@ -329,8 +400,21 @@ export function ConversationThread({
             return;
         }
 
+        // A correction during the reply fold is not an intentional scroll, even while it is close to the bottom.
+        if (
+            element.scrollTop === restoredScrollTop.current &&
+            (isReplyResizing.current || !isAtLatest(element))
+        ) {
+            restoredScrollTop.current = null;
+
+            return;
+        }
+
+        restoredScrollTop.current = null;
         isPinned.current = isAtLatest(element);
-        anchor.current = scrollAnchorOf(element);
+        if (!isReplyResizing.current || anchor.current !== null) {
+            anchor.current = scrollAnchorOf(element);
+        }
 
         if (isPinned.current) {
             seenLatest.current = latestId;
@@ -373,6 +457,27 @@ export function ConversationThread({
             <div
                 ref={scroller}
                 onScroll={onScroll}
+                onKeyDown={(event) => {
+                    if (
+                        !event.defaultPrevented &&
+                        [
+                            'ArrowUp',
+                            'ArrowDown',
+                            'PageUp',
+                            'PageDown',
+                            'Home',
+                            'End',
+                            ' ',
+                        ].includes(event.key)
+                    ) {
+                        releaseScrollAnchor();
+                    }
+                }}
+                onPointerDown={(event) => {
+                    if (event.target === event.currentTarget) {
+                        releaseScrollAnchor();
+                    }
+                }}
                 className="flex min-h-0 flex-1 scrollbar-thin flex-col-reverse overflow-y-auto overscroll-contain [overflow-anchor:none]"
                 data-test="conversation-messages"
             >
@@ -430,7 +535,7 @@ export function ConversationThread({
                 <button
                     type="button"
                     onClick={jumpToLatest}
-                    className="absolute bottom-[calc(var(--composer-height,4rem)+2.5rem)] left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-primary px-3 py-1 font-mono text-xs font-medium text-primary-foreground tabular-nums shadow-lg"
+                    className="absolute bottom-[calc(var(--composer-height,4rem)+2.5rem)] left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-mono text-xs font-medium text-primary-foreground tabular-nums shadow-lg"
                 >
                     <ArrowDown aria-hidden className="size-3.5" />
                     {unseen} new
@@ -445,6 +550,7 @@ export function ConversationThread({
                 <Composer
                     target={current}
                     draft={draft}
+                    members={isOrg ? thread?.members : undefined}
                     replyingTo={replyingTo}
                     replyAuthor={
                         replyingTo === null
@@ -454,6 +560,7 @@ export function ConversationThread({
                     onSend={() => {
                         isPinned.current = true;
                     }}
+                    onReplySettled={settleReplyPreview}
                     isCompact={isCompact}
                     autoFocus={autoFocus}
                     typing={
@@ -565,7 +672,7 @@ function itemsOf(
 
         items.push({
             kind: 'group',
-            key: `group-${bubble.kind === 'message' ? id : bubble.pending.client_id}`,
+            key: `group-${bubble.kind === 'message' ? bubble.message.client_id : bubble.pending.client_id}`,
             isMine,
             authorId: author,
             author:
@@ -612,7 +719,7 @@ const ThreadItem = memo(function ThreadItem({
     if (item.kind === 'day') {
         return (
             <li className="my-3 flex justify-center first:mt-0">
-                <span className="inline-flex items-center gap-1.5 rounded bg-muted py-0.5 pr-2 pl-1.5 font-mono text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 rounded-sm bg-muted py-0.5 pr-2 pl-1.5 font-mono text-[11px] text-muted-foreground">
                     <span
                         aria-hidden
                         className="size-1.5 rounded-full bg-current opacity-60"
@@ -630,7 +737,7 @@ const ThreadItem = memo(function ThreadItem({
                     ref={headLine}
                     className="my-3 flex items-center gap-2 font-mono text-[11px] font-medium text-primary after:h-px after:flex-1 after:bg-primary/50"
                 >
-                    HEAD · {item.count} new
+                    HEAD · {formatCount(item.count)} new
                 </div>
             </li>
         );
@@ -741,6 +848,10 @@ function BubbleWithMeta({
         bubble.kind === 'message'
             ? (bubble.message.images ?? [])
             : bubble.pending.images;
+    const voice =
+        bubble.kind === 'message'
+            ? (bubble.message.voice ?? null)
+            : bubble.pending.voice;
     const { pulledBy, total } =
         bubble.kind === 'message' && target.kind === 'org'
             ? pullsOf(pulls.members, bubble.message)
@@ -770,6 +881,7 @@ function BubbleWithMeta({
                       user_id: bubble.message.user_id,
                       body: bubble.message.body,
                       images_count: images.length,
+                      has_voice: voice !== null,
                   })
             : null;
 
@@ -799,6 +911,30 @@ function BubbleWithMeta({
                   onLongPress: () => setIsReacting(true),
                   onDoubleTap: () => reactToThis(doubleTapReaction),
               },
+    );
+
+    const bubbleClass = cn(
+        'relative w-fit max-w-full min-w-0 rounded-lg px-3.5 py-2 wrap-anywhere ring-primary ring-offset-2 ring-offset-background transition-[background-color,color,outline-color,box-shadow] duration-200 before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:border-[1.5px] before:border-dashed before:border-primary before:opacity-0 before:transition-opacity before:duration-200 data-flash:ring-2 motion-reduce:transition-none motion-reduce:before:transition-none',
+        isCompact && 'px-3 py-1.5',
+        isMine
+            ? 'bg-primary text-primary-foreground'
+            : 'bg-muted text-foreground',
+        {
+            'bg-transparent text-foreground before:opacity-100':
+                status === 'staged',
+            'bg-transparent text-foreground outline-[1.5px] outline-offset-[-1.5px] outline-destructive outline-solid':
+                status === 'rejected',
+        },
+    );
+    const bubbleActions = (
+        <BubbleActions
+            isMine={isMine}
+            onReply={replyToThis}
+            onReact={toggleTray}
+            isReacting={isTrayOpen}
+            reactRef={reactButton}
+            trayId={trayId}
+        />
     );
 
     return (
@@ -834,16 +970,25 @@ function BubbleWithMeta({
                     {images.length > 0 && (
                         <div className="relative max-w-full">
                             <MessageImages images={images} />
-                            {message.body === '' && (
-                                <BubbleActions
-                                    isMine={isMine}
-                                    onReply={replyToThis}
-                                    onReact={toggleTray}
-                                    isReacting={isTrayOpen}
-                                    reactRef={reactButton}
-                                    trayId={trayId}
-                                />
+                            {message.body === '' &&
+                                voice === null &&
+                                bubbleActions}
+                        </div>
+                    )}
+                    {voice !== null && (
+                        <div
+                            data-message-id={
+                                bubble.kind === 'message'
+                                    ? bubble.message.id
+                                    : undefined
+                            }
+                            className={cn(
+                                bubbleClass,
+                                isCompact ? 'p-1.5' : 'p-2',
                             )}
+                        >
+                            <VoiceNote voice={voice} />
+                            {bubbleActions}
                         </div>
                     )}
                     {message.body !== '' && (
@@ -853,48 +998,32 @@ function BubbleWithMeta({
                                     ? bubble.message.id
                                     : undefined
                             }
-                            className={cn(
-                                'relative w-fit max-w-full min-w-0 rounded-lg px-3.5 py-2 wrap-anywhere ring-primary ring-offset-2 ring-offset-background transition-[background-color,color,outline-color,box-shadow] duration-200 data-flash:ring-2',
-                                isCompact && 'px-3 py-1.5',
-                                isMine
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-muted text-foreground',
-                                {
-                                    'bg-transparent text-foreground outline-[1.5px] outline-offset-[-1.5px] outline-primary outline-dashed':
-                                        status === 'staged',
-                                    'bg-transparent text-foreground outline-[1.5px] outline-offset-[-1.5px] outline-destructive outline-solid':
-                                        status === 'rejected',
-                                },
-                            )}
+                            className={bubbleClass}
                         >
                             <MessageText
                                 message={message}
                                 isMine={isOnPrimary}
                             />
-                            <BubbleActions
-                                isMine={isMine}
-                                onReply={replyToThis}
-                                onReact={toggleTray}
-                                isReacting={isTrayOpen}
-                                reactRef={reactButton}
-                                trayId={trayId}
-                            />
+                            {bubbleActions}
                         </div>
                     )}
                     {bubble.kind === 'message' && (
                         <MessageLinkCard message={bubble.message} />
                     )}
                     {reactToThis !== null && (
-                        <ReactionTray
-                            id={trayId}
-                            isOpen={isTrayOpen}
-                            onOpenChange={setIsTrayOpen}
-                            trigger={reactButton}
-                            usage={usage}
-                            reacted={reacted}
-                            isMine={isMine}
-                            onReact={reactToThis}
-                        />
+                        <div className="-mt-1 w-full">
+                            <ReactionTray
+                                id={trayId}
+                                isOpen={isTrayOpen}
+                                onOpenChange={setIsTrayOpen}
+                                trigger={reactButton}
+                                usage={usage}
+                                reacted={reacted}
+                                hasReactions={(reactions?.length ?? 0) > 0}
+                                isMine={isMine}
+                                onReact={reactToThis}
+                            />
+                        </div>
                     )}
                     <ReactionChips
                         reactions={reactions}
@@ -915,7 +1044,18 @@ function BubbleWithMeta({
                     isMine={isMine}
                     body={message.body}
                     preview={
-                        message.body === '' ? null : (
+                        voice !== null ? (
+                            <div
+                                className={cn(
+                                    'w-fit max-w-full rounded-lg p-2 shadow-[0_12px_30px_-12px_rgb(0_0_0/0.45)]',
+                                    isMine
+                                        ? 'bg-primary text-primary-foreground'
+                                        : 'bg-muted text-foreground',
+                                )}
+                            >
+                                <VoiceNote voice={voice} />
+                            </div>
+                        ) : message.body === '' ? null : (
                             <div
                                 className={cn(
                                     'w-fit max-w-full rounded-lg px-3.5 py-2 text-[15px] wrap-anywhere shadow-[0_12px_30px_-12px_rgb(0_0_0/0.45)]',
@@ -1077,11 +1217,104 @@ function useMessageDraft(user: User, target: ChatTarget) {
 type MessageDraftState = ReturnType<typeof useMessageDraft>;
 
 /**
+ * Keeps the quoted content in place while the reply bar closes, including when sending the reply.
+ */
+function ReplyPreview({
+    reply,
+    author,
+    onCancel,
+    onSettled,
+    wasSent,
+}: {
+    reply: MessageReply | null;
+    author: Author | null;
+    onCancel: () => void;
+    onSettled: (isOpen: boolean) => void;
+    wasSent: boolean;
+}) {
+    const preview = useRef<HTMLDivElement>(null);
+    const [shown, setShown] = useState<{
+        reply: MessageReply;
+        author: Author;
+    } | null>(null);
+    const isOpen = reply !== null && author !== null;
+
+    useEffect(() => {
+        let isCurrent = true;
+
+        void Promise.allSettled(
+            preview.current
+                ?.getAnimations()
+                .map((animation) => animation.finished) ?? [],
+        ).then(() => {
+            if (isCurrent) {
+                onSettled(isOpen);
+            }
+        });
+
+        return () => {
+            isCurrent = false;
+        };
+    }, [isOpen, onSettled, reply]);
+
+    if (
+        isOpen &&
+        (shown?.reply !== reply ||
+            shown.author.name !== author.name ||
+            shown.author.lane !== author.lane)
+    ) {
+        setShown({ reply, author });
+    }
+
+    return (
+        <div
+            ref={preview}
+            aria-hidden={!isOpen}
+            inert={!isOpen}
+            className={cn(
+                'grid',
+                wasSent
+                    ? 'transition-none'
+                    : 'transition-[grid-template-rows,opacity,margin-bottom] duration-300 ease-in-out motion-reduce:transition-none',
+                isOpen
+                    ? 'grid-rows-[1fr] opacity-100'
+                    : '-mb-2 grid-rows-[0fr] opacity-0',
+            )}
+        >
+            <div className="min-h-0 overflow-hidden">
+                {shown !== null && (
+                    <div className="flex min-w-0 items-center gap-1.5">
+                        <ReplyGhost
+                            reply={shown.reply}
+                            author={shown.author}
+                            side="theirs"
+                            isDraft
+                        />
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            aria-label="Cancel reply"
+                            title="Cancel reply (Esc)"
+                            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                            data-test="cancel-reply"
+                        >
+                            <X aria-hidden className="size-4" />
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+/**
  * Counts characters once the message nears the limit, and refuses a paste that would cross it rather than
- * quietly cutting it short. Pasted or picked images go along with the message, and Escape lets go of a reply.
+ * quietly cutting it short. Pasted or picked images go along with the message, and Escape lets go of a reply. A voice
+ * note goes on its own: while one is recorded it takes the field's place, Push sends it, and Escape discards it.
  */
 function Composer({
     target,
+    members,
     draft,
     replyingTo,
     replyAuthor,
@@ -1089,8 +1322,10 @@ function Composer({
     autoFocus,
     typing,
     onSend,
+    onReplySettled,
 }: {
     target: ChatTarget;
+    members: OrgMember[] | undefined;
     draft: MessageDraftState;
     replyingTo: MessageReply | null;
     replyAuthor: Author | null;
@@ -1101,6 +1336,7 @@ function Composer({
      * Called as the user pushes, so the thread follows their own message down.
      */
     onSend: () => void;
+    onReplySettled: (isOpen: boolean) => void;
 }) {
     const id = `message-${targetKey(target).replace(':', '-')}`;
     const placeholder =
@@ -1111,12 +1347,17 @@ function Composer({
     const { stash, attachments, linkCard, secrets, input } = draft;
     const body = stash.body;
     const [error, setError] = useState<string | null>(null);
+    const [wasReplySent, setWasReplySent] = useState(false);
     const errorTimer = useRef<number | undefined>(undefined);
     const trimmed = body.trim();
     const length = characterCount(body);
     const isCounting = length >= countFrom;
     const hasImages = attachments.images.length > 0;
     const shownError = error ?? attachments.error;
+
+    if (wasReplySent && replyingTo !== null) {
+        setWasReplySent(false);
+    }
 
     useEffect(() => () => window.clearTimeout(errorTimer.current), []);
 
@@ -1129,8 +1370,39 @@ function Composer({
         }
     };
 
+    const voiceNote = useVoiceNote(showError);
+    const isVoicing = voiceNote.state.status !== 'idle';
+
+    const pushVoiceNote = async () => {
+        const voice = await voiceNote.stop();
+
+        if (voice === null) {
+            return;
+        }
+
+        onSend();
+        setWasReplySent(replyingTo !== null);
+        setReplyingTo(target, null);
+        sendMessage(target, {
+            body: '',
+            replyTo: replyingTo,
+            images: [],
+            descriptions: [],
+            linkPreviewUrl: undefined,
+            voice,
+        });
+        voiceNote.discard();
+        showError(null);
+    };
+
     const submit = (event?: FormEvent) => {
         event?.preventDefault();
+
+        if (isVoicing) {
+            void pushVoiceNote();
+
+            return;
+        }
 
         if (
             attachments.isReading() ||
@@ -1141,6 +1413,8 @@ function Composer({
         }
 
         onSend();
+        setWasReplySent(replyingTo !== null);
+        setReplyingTo(target, null);
         sendMessage(target, {
             body: trimmed,
             replyTo: replyingTo,
@@ -1150,7 +1424,6 @@ function Composer({
         });
         stash.drop();
         linkCard.reset();
-        setReplyingTo(target, null);
         showError(null);
         input.current?.focus();
     };
@@ -1195,7 +1468,7 @@ function Composer({
         if (total > maxLength) {
             event.preventDefault();
             showError(
-                `fatal: paste rejected, message would be ${total.toLocaleString()}/${maxLength.toLocaleString()} chars`,
+                `fatal: paste rejected, message would be ${formatCount(total)}/${formatCount(maxLength)} chars`,
             );
         }
     };
@@ -1251,12 +1524,18 @@ function Composer({
                         })}
                         data-test="message-counter"
                     >
-                        {length.toLocaleString()}/{maxLength.toLocaleString()}
+                        {formatCount(length)}/{formatCount(maxLength)}
                     </span>
                 )}
             </div>
             <form
                 onSubmit={submit}
+                onKeyDown={(event) => {
+                    if (event.key === 'Escape' && isVoicing) {
+                        event.preventDefault();
+                        voiceNote.discard();
+                    }
+                }}
                 className={cn(
                     'flex shrink-0 flex-col gap-2 border-t',
                     isCompact ? 'p-2.5' : 'px-4 py-3',
@@ -1271,29 +1550,16 @@ function Composer({
                     onConfirmingChange={secrets.setConfirming}
                     onApprove={secrets.approve}
                 />
-                {replyingTo !== null && replyAuthor !== null && (
-                    <div className="flex min-w-0 items-center gap-1.5">
-                        <ReplyGhost
-                            reply={replyingTo}
-                            author={replyAuthor}
-                            side="theirs"
-                            isDraft
-                        />
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setReplyingTo(target, null);
-                                input.current?.focus();
-                            }}
-                            aria-label="Cancel reply"
-                            title="Cancel reply (Esc)"
-                            className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
-                            data-test="cancel-reply"
-                        >
-                            <X aria-hidden className="size-4" />
-                        </button>
-                    </div>
-                )}
+                <ReplyPreview
+                    reply={replyingTo}
+                    author={replyAuthor}
+                    onSettled={onReplySettled}
+                    wasSent={wasReplySent}
+                    onCancel={() => {
+                        setReplyingTo(target, null);
+                        input.current?.focus();
+                    }}
+                />
                 {hasImages && (
                     <div className="[&>div]:mt-0">
                         <ImagePickerPreviews
@@ -1305,56 +1571,110 @@ function Composer({
                     </div>
                 )}
                 <div className="flex items-end gap-2">
-                    <label htmlFor={id} className="sr-only">
-                        {placeholder}
-                    </label>
-                    <ImagePickerButton
-                        count={attachments.images.length}
-                        reading={attachments.reading}
-                        onPick={attachments.pick}
-                        className={cn(
-                            '-mx-1 shrink-0',
-                            isCompact ? 'size-9' : 'size-10',
-                        )}
-                    />
-                    <MentionTextarea
-                        id={id}
-                        ref={input}
-                        org={target.kind === 'org' ? target.org.id : undefined}
-                        rows={1}
-                        autoFocus={autoFocus}
-                        value={body}
-                        maxLength={maxLength}
-                        onValueChange={(value) => {
-                            stash.updateBody(value);
+                    {isVoicing ? (
+                        <VoiceNoteComposer
+                            voiceNote={voiceNote}
+                            isCompact={isCompact}
+                        />
+                    ) : (
+                        <>
+                            <label htmlFor={id} className="sr-only">
+                                {placeholder}
+                            </label>
+                            <ImagePickerButton
+                                count={attachments.images.length}
+                                reading={attachments.reading}
+                                onPick={attachments.pick}
+                                className={cn(
+                                    '-mx-1 shrink-0',
+                                    isCompact ? 'size-9' : 'size-10',
+                                )}
+                            />
+                            <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                disabled={trimmed !== '' || hasImages}
+                                onClick={() => void voiceNote.start()}
+                                aria-label="Record a voice note"
+                                title={
+                                    trimmed !== '' || hasImages
+                                        ? 'Voice notes go on their own'
+                                        : 'Record a voice note, up to a minute'
+                                }
+                                className={cn(
+                                    '-mx-1 shrink-0 text-muted-foreground',
+                                    isCompact ? 'size-9' : 'size-10',
+                                )}
+                                data-test="record-voice-note"
+                            >
+                                <Mic className="size-5" />
+                            </Button>
+                            <div className="relative min-w-0 flex-1">
+                                <MentionTextarea
+                                    id={id}
+                                    ref={input}
+                                    members={members}
+                                    org={
+                                        target.kind === 'org'
+                                            ? target.org.id
+                                            : undefined
+                                    }
+                                    rows={1}
+                                    autoFocus={autoFocus}
+                                    value={body}
+                                    maxLength={maxLength}
+                                    onValueChange={(value) => {
+                                        stash.updateBody(value);
 
-                            if (
-                                error !== null &&
-                                characterCount(value) < maxLength
-                            ) {
-                                showError(null);
-                            }
+                                        if (
+                                            error !== null &&
+                                            characterCount(value) < maxLength
+                                        ) {
+                                            showError(null);
+                                        }
 
-                            if (value.trim() !== '') {
-                                pingTyping(target);
-                            }
-                        }}
-                        onFocus={moveCaretToEnd}
-                        onPaste={onPaste}
-                        onKeyDown={onKeyDown}
-                        placeholder={placeholder}
-                        aria-invalid={shownError !== null || undefined}
-                        className={cn(
-                            'field-sizing-content max-h-[min(10rem,calc(var(--visual-viewport-height,100dvh)/4))] min-h-10 min-w-0 flex-1 resize-none overflow-x-hidden rounded-lg border border-input bg-card px-4 py-2 text-base leading-snug outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
-                            { 'min-h-9 py-1.5 md:text-sm': isCompact },
-                        )}
-                        data-test="message-input"
-                    />
+                                        if (value.trim() !== '') {
+                                            pingTyping(target);
+                                        }
+                                    }}
+                                    onFocus={moveCaretToEnd}
+                                    onPaste={onPaste}
+                                    onKeyDown={onKeyDown}
+                                    aria-invalid={
+                                        shownError !== null || undefined
+                                    }
+                                    className={cn(
+                                        'block field-sizing-content max-h-[min(10rem,calc(var(--visual-viewport-height,100dvh)/4))] min-h-10 w-full resize-none overflow-x-hidden rounded-lg border border-input bg-card px-4 py-2 text-base leading-snug outline-none focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
+                                        {
+                                            'min-h-9 py-1.5 md:text-sm':
+                                                isCompact,
+                                        },
+                                    )}
+                                    data-test="message-input"
+                                />
+                                {body === '' && (
+                                    <span
+                                        aria-hidden
+                                        className={cn(
+                                            'pointer-events-none absolute inset-x-px top-px truncate px-4 py-2 text-base leading-snug text-muted-foreground md:text-[15px]',
+                                            { 'py-1.5 md:text-sm': isCompact },
+                                        )}
+                                    >
+                                        {placeholder}
+                                    </span>
+                                )}
+                            </div>
+                        </>
+                    )}
                     <Button
                         type="submit"
                         disabled={
-                            attachments.reading ||
-                            (trimmed === '' && !hasImages)
+                            isVoicing
+                                ? voiceNote.state.status === 'starting' ||
+                                  voiceNote.state.status === 'encoding'
+                                : attachments.reading ||
+                                  (trimmed === '' && !hasImages)
                         }
                         // Pushing keeps the keyboard open, so the next message can follow right away.
                         onPointerDown={(event) => event.preventDefault()}

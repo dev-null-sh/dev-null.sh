@@ -12,16 +12,17 @@ use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
 use App\Queries\NotificationGroupsQuery;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 
 function starAt(User $user, Commit $commit, int $minutesAgo): void
 {
-    test()->travelTo(now()->subMinutes($minutesAgo), fn () => resolve(CreateCommitStar::class)->handle($user, $commit));
+    Date::withTestNow(now()->subMinutes($minutesAgo), fn () => resolve(CreateCommitStar::class)->handle($user, $commit));
 }
 
 function replyAt(User $user, Commit $commit, int $minutesAgo): Commit
 {
-    return test()->travelTo(now()->subMinutes($minutesAgo), function () use ($user, $commit): Commit {
+    return Date::withTestNow(now()->subMinutes($minutesAgo), function () use ($user, $commit): Commit {
         $reply = Commit::factory()->for($user)->for($commit, 'parent')->create();
 
         resolve(CreateReplyNotifications::class)->handle($reply);
@@ -32,7 +33,7 @@ function replyAt(User $user, Commit $commit, int $minutesAgo): Commit
 
 function followAt(User $follower, User $user, int $minutesAgo): void
 {
-    test()->travelTo(now()->subMinutes($minutesAgo), fn () => resolve(CreateUserFollow::class)->handle($follower, $user));
+    Date::withTestNow(now()->subMinutes($minutesAgo), fn () => resolve(CreateUserFollow::class)->handle($follower, $user));
 }
 
 it('groups stars per commit, newest stargazer first', function (): void {
@@ -55,31 +56,34 @@ it('groups stars per commit, newest stargazer first', function (): void {
         ->and($group->actors->pluck('id')->all())->toBe([$stargazers[4]->id, $stargazers[3]->id, $stargazers[2]->id]);
 });
 
-it('groups replies per replied commit, counting each replier once', function (): void {
+it('shows every reply to a commit as its own notification', function (): void {
     $commit = Commit::factory()->create();
     $bob = User::factory()->create();
     $carol = User::factory()->create();
 
-    replyAt($bob, $commit, 3);
-    replyAt($carol, $commit, 2);
+    $first = replyAt($bob, $commit, 3);
+    $second = replyAt($carol, $commit, 2);
     $latest = replyAt($bob, $commit, 1);
     Notification::query()->where('commit_id', $latest->id)->update(['read_at' => now()]);
 
     $groups = resolve(NotificationGroupsQuery::class)->paginate($commit->user);
 
-    $group = $groups->items()[0];
+    expect($groups->items())->toHaveCount(3)
+        ->and(array_map(fn (Notification $group): string => $group->commit_id, $groups->items()))->toBe([$latest->id, $second->id, $first->id]);
 
-    expect($groups->items())->toHaveCount(1)
-        ->and($group->type)->toBe(NotificationType::Replied)
-        ->and($group->commit_id)->toBe($latest->id)
-        ->and($group->subject_id)->toBe($commit->id)
-        ->and($group->event_count)->toBe(3)
-        ->and($group->unread_count)->toBe(2)
-        ->and($group->actors_count)->toBe(2)
-        ->and($group->actors->pluck('id')->all())->toBe([$bob->id, $carol->id]);
+    foreach ($groups->items() as $index => $group) {
+        expect($group->type)->toBe(NotificationType::Replied)
+            ->and($group->subject_id)->toBe($commit->id)
+            ->and($group->group_id)->toBe($group->id)
+            ->and($group->event_count)->toBe(1)
+            ->and($group->unread_count)->toBe($index === 0 ? 0 : 1)
+            ->and($group->actors_count)->toBe(1)
+            ->and($group->actors->sole()->id)->toBe($group->actor_id);
+    }
 });
 
 it('keeps stars and conversations apart while grouping followers', function (): void {
+    $this->travelTo(today()->setTime(12, 0));
     $user = User::factory()->create();
     [$first, $second] = Commit::factory()->for($user)->count(2)->create()->all();
     $other = User::factory()->create();
@@ -87,8 +91,8 @@ it('keeps stars and conversations apart while grouping followers', function (): 
     starAt($other, $first, 7);
     starAt($other, $second, 6);
     replyAt($other, $first, 5);
-    $this->travelTo(now()->subMinutes(4), fn () => Notification::factory()->for($user, 'recipient')->for($other, 'actor')->mentioned()->create());
-    $this->travelTo(now()->subMinutes(3), fn () => Notification::factory()->for($user, 'recipient')->for($other, 'actor')->mentioned()->create());
+    Date::withTestNow(now()->subMinutes(4), fn () => Notification::factory()->for($user, 'recipient')->for($other, 'actor')->mentioned()->create());
+    Date::withTestNow(now()->subMinutes(3), fn () => Notification::factory()->for($user, 'recipient')->for($other, 'actor')->mentioned()->create());
     followAt($other, $user, 2);
     followAt(User::factory()->create(), $user, 1);
 
@@ -257,7 +261,7 @@ it('counts no unread groups without unread notifications', function (): void {
     expect(resolve(NotificationGroupsQuery::class)->unreadCount($user))->toBe(0);
 });
 
-it('groups replies under the top of their thread when a recorded thread root is missing or a reply', function (): void {
+it('keeps replies separate from mentions even when their thread root is missing or a reply', function (): void {
     $user = User::factory()->create();
     $root = Commit::factory()->for($user)->create();
     $reply = Commit::factory()->for($root, 'parent')->create();
@@ -271,8 +275,9 @@ it('groups replies under the top of their thread when a recorded thread root is 
 
     $groups = resolve(NotificationGroupsQuery::class)->paginate($user)->items();
 
-    expect($groups)->toHaveCount(1)
-        ->and($groups[0]->event_count)->toBe(3);
+    expect($groups)->toHaveCount(3)
+        ->and(array_map(fn (Notification $group): string => $group->commit_id, $groups))->toBe([$nested->id, $reply->id, $root->id])
+        ->and(array_map(fn (Notification $group): int => $group->event_count, $groups))->toBe([1, 1, 1]);
 });
 
 it('counts no unread groups without grouping anything when everything is read', function (): void {

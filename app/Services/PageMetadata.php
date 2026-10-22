@@ -41,7 +41,7 @@ final readonly class PageMetadata
     public function home(): array
     {
         $url = route('home');
-        $description = 'A social network for developers. Sign in with GitHub, follow people who write code, and commit plain text to a shared log.';
+        $description = 'A social network for developers. Sign in with GitHub. Commit messages to the log. Talk with other devs.';
 
         return [
             'type' => 'website',

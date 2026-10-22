@@ -9,7 +9,6 @@ import {
     MessageSquareReply,
     Quote,
     Star,
-    UserCheck,
     UserPlus,
     X,
 } from 'lucide-react';
@@ -25,28 +24,22 @@ import {
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
-import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
 import { replaceFailedImage } from '@/components/commit-images';
-import {
-    onFollowHttpException,
-    useIsFollowing,
-} from '@/components/follow-button';
+import { FollowIconButton } from '@/components/follow-button';
+import { GraphCanvas } from '@/components/graph-canvas';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
+import { NotificationFilters } from '@/components/notification-filters';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import {
     cn,
     formatDayLabel,
@@ -110,8 +103,6 @@ const filterOptions: {
         empty: 'No moderation updates. Approved and rejected commits show up here.',
     },
 ];
-
-const rail = 'var(--rail)';
 
 const isNewSince = (
     notification: Notification | NotificationGroup,
@@ -273,43 +264,13 @@ export default function Index({
                 <div className="flex h-14 items-center px-4 sm:px-6">
                     <h1 className="font-semibold">Notifications</h1>
                 </div>
-                <div
-                    role="group"
-                    aria-label="Filter notifications"
-                    className="flex flex-wrap gap-2 px-4 pb-3 sm:px-6"
-                >
-                    {filterOptions
-                        .filter((option) => option.type !== 'all')
-                        .map((option) => {
-                            const isActive = enabled.includes(option.type);
-
-                            return (
-                                <button
-                                    key={option.type}
-                                    type="button"
-                                    aria-pressed={isActive}
-                                    onClick={() =>
-                                        changeFilters(
-                                            isActive
-                                                ? enabled.filter(
-                                                      (type) =>
-                                                          type !== option.type,
-                                                  )
-                                                : [...enabled, option.type],
-                                        )
-                                    }
-                                    className={cn(
-                                        'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-                                        isActive
-                                            ? 'border-primary/30 bg-primary-soft text-primary hover:bg-primary/15'
-                                            : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
-                                    )}
-                                >
-                                    {option.label}
-                                </button>
-                            );
-                        })}
-                </div>
+                <NotificationFilters
+                    options={filterOptions.filter(
+                        (option) => option.type !== 'all',
+                    )}
+                    enabled={enabled}
+                    onChange={changeFilters}
+                />
                 {arrivals > 0 && (
                     <div className="pointer-events-none absolute inset-x-0 top-full flex justify-center pt-3">
                         <button
@@ -318,7 +279,7 @@ export default function Index({
                                 setArrivals(0);
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
-                            className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+                            className="pointer-events-auto flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
                         >
                             <ArrowUp aria-hidden className="size-4" />
                             <span className="tabular-nums">
@@ -366,7 +327,7 @@ export default function Index({
                     </EmptyFeed>
                 </div>
             ) : (
-                <>
+                <GraphCanvas>
                     <InfiniteScroll
                         data="notifications"
                         onlyNext
@@ -384,7 +345,10 @@ export default function Index({
                     >
                         {notifications.data.map((notification, position) => {
                             const previous = notifications.data[position - 1];
+                            const next = notifications.data[position + 1];
                             const isNew = isNewSince(notification, readAt);
+                            const beforeLastVisit =
+                                isNew && next && !isNewSince(next, readAt);
                             const startsDay =
                                 !previous ||
                                 localDayKey(previous.created_at) !==
@@ -401,7 +365,6 @@ export default function Index({
                                                 notification.created_at,
                                                 now,
                                             )}
-                                            hasPrevious={previous !== undefined}
                                         />
                                     )}
                                     <NotificationGroupItem
@@ -416,7 +379,9 @@ export default function Index({
                                         type={filters.type}
                                         readAt={readAt}
                                         isNew={isNew}
-                                        hasPrevious={previous !== undefined}
+                                        withoutBottomBorder={Boolean(
+                                            beforeLastVisit,
+                                        )}
                                     />
                                 </Fragment>
                             );
@@ -425,8 +390,9 @@ export default function Index({
                     {notifications.next_cursor === null && (
                         <div className="flex">
                             <GraphRail
-                                lane={rail}
-                                previousLane={rail}
+                                lane={laneColor(
+                                    notifications.data.at(-1)!.actor.lane,
+                                )}
                                 variant="root"
                                 hasTail={false}
                             />
@@ -436,22 +402,16 @@ export default function Index({
                             </p>
                         </div>
                     )}
-                </>
+                </GraphCanvas>
             )}
         </>
     );
 }
 
-function DayMarker({
-    label,
-    hasPrevious,
-}: {
-    label: string;
-    hasPrevious: boolean;
-}) {
+function DayMarker({ label }: { label: string }) {
     return (
         <div className="flex">
-            <RailSegment lane={hasPrevious ? rail : undefined} />
+            <RailSegment />
             <div className="flex flex-1 items-center border-b py-2 pr-4">
                 <h2 className="font-mono text-xs text-muted-foreground">
                     {label}
@@ -466,14 +426,13 @@ function LastVisitMarker() {
         <div
             role="separator"
             aria-label="Notifications above are new since your last visit"
-            className="flex"
+            className="my-3 flex bg-muted/40"
         >
-            <RailSegment lane={rail} />
-            <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
-                <span className="font-mono text-xs text-muted-foreground">
+            <RailSegment />
+            <div className="flex flex-1 items-center py-4 pr-4">
+                <span className="font-mono text-xs font-semibold text-muted-foreground">
                     HEAD@{'{last visit}'}
                 </span>
-                <span className="flex-1 border-t border-dashed" />
             </div>
         </div>
     );
@@ -483,8 +442,8 @@ function NotificationSkeleton({ hasPrevious }: { hasPrevious: boolean }) {
     return (
         <div aria-hidden className="flex">
             <GraphRail
-                lane={rail}
-                previousLane={hasPrevious ? rail : undefined}
+                lane="var(--rail)"
+                previousLane={hasPrevious ? 'var(--rail)' : undefined}
                 node={
                     <span className="size-9 rounded-full border-4 border-card bg-muted motion-safe:animate-pulse" />
                 }
@@ -517,13 +476,13 @@ function NotificationGroupItem({
     type,
     readAt,
     isNew,
-    hasPrevious,
+    withoutBottomBorder,
 }: {
     notification: NotificationGroup;
     type: Filters['type'];
     readAt: string;
     isNew: boolean;
-    hasPrevious: boolean;
+    withoutBottomBorder: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [items, setItems] = useState<Notification[]>([]);
@@ -568,7 +527,11 @@ function NotificationGroupItem({
             <NotificationContent
                 notification={notification}
                 isNew={isNew}
-                hasPrevious={hasPrevious}
+                withoutBottomBorder={withoutBottomBorder}
+                graph={{
+                    id: notification.group_id,
+                    endId: `${notification.group_id}:end`,
+                }}
                 summary
             >
                 {grouped && (
@@ -595,8 +558,11 @@ function NotificationGroupItem({
                                     'col-start-1 row-start-1 tabular-nums',
                                     { invisible: open },
                                 )}
+                                title={exactCountTitle(
+                                    notification.event_count,
+                                )}
                             >
-                                {notification.event_count} {noun}
+                                {formatCount(notification.event_count)} {noun}
                             </span>
                             <span
                                 className={cn('col-start-1 row-start-1', {
@@ -682,59 +648,6 @@ function NotificationGroupItem({
     );
 }
 
-/**
- * An icon rather than a full button, since an expanded group of followers repeats it on every row. A group's summary
- * row leaves it out, as it could only follow one of several people back.
- */
-function FollowBackButton({ actor }: { actor: Notification['actor'] }) {
-    const [isFollowing, setIsFollowing] = useIsFollowing(
-        actor,
-        actor.is_followed,
-    );
-    const Icon = isFollowing ? UserCheck : UserPlus;
-
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Link
-                    href={
-                        isFollowing
-                            ? UserFollowController.destroy(actor)
-                            : UserFollowController.store(actor)
-                    }
-                    as="button"
-                    only={['auth']}
-                    preserveState
-                    preserveScroll
-                    onHttpException={(response) =>
-                        onFollowHttpException(actor, response)
-                    }
-                    onSuccess={() => {
-                        setIsFollowing(!isFollowing);
-                        router.flushAll();
-                    }}
-                    aria-label={
-                        isFollowing
-                            ? `Unfollow @${actor.username}`
-                            : `Follow @${actor.username}`
-                    }
-                    className={cn(
-                        'shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                        { 'text-primary hover:text-primary': isFollowing },
-                    )}
-                >
-                    <Icon aria-hidden className="size-4" />
-                </Link>
-            </TooltipTrigger>
-            <TooltipContent>
-                {isFollowing
-                    ? `Following @${actor.username}`
-                    : `Follow @${actor.username} back`}
-            </TooltipContent>
-        </Tooltip>
-    );
-}
-
 function OwnCommitExcerpt({ segments }: { segments: BodySegment[] }) {
     return (
         <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
@@ -800,13 +713,16 @@ export function NotificationContent({
     notification,
     summary = false,
     isNew = false,
-    hasPrevious = false,
+    withoutBottomBorder = false,
+    graph,
     children,
 }: {
     notification: Notification | NotificationGroup;
     summary?: boolean;
     isNew?: boolean;
-    hasPrevious?: boolean;
+    withoutBottomBorder?: boolean;
+    /** The notification's node and end dot in a graph canvas. */
+    graph?: { id: string; endId: string };
     children?: ReactNode;
 }) {
     const now = useNow();
@@ -1025,7 +941,11 @@ export function NotificationContent({
                     </div>
                 </Link>
                 {notification.type === 'followed' && (
-                    <FollowBackButton actor={actor} />
+                    <FollowIconButton
+                        user={actor}
+                        isFollowing={actor.is_followed}
+                        followsYou
+                    />
                 )}
             </div>
         );
@@ -1064,18 +984,14 @@ export function NotificationContent({
     return (
         <div className="flex">
             <GraphRail
-                lane={rail}
-                previousLane={hasPrevious ? rail : undefined}
+                lane={laneColor(actor.lane)}
+                endsWithDot
+                graph={graph}
                 nodePosition={isActorsCommit ? 'author' : 'top'}
                 node={
                     isActorsCommit ? (
                         <span className="flex rounded-full bg-card">
-                            <span
-                                className={cn(
-                                    'flex rounded-full border-2 p-0.5 transition-colors',
-                                    isNew ? 'border-primary' : 'border-rail',
-                                )}
-                            >
+                            <span className="flex rounded-full border-2 border-(--lane) p-0.5 transition-colors">
                                 {grouped ? (
                                     <UserAvatar
                                         user={actor}
@@ -1092,18 +1008,17 @@ export function NotificationContent({
                             </span>
                         </span>
                     ) : (
-                        <span
-                            className={cn(
-                                'flex size-9 items-center justify-center rounded-full border-2 bg-card transition-colors',
-                                isNew ? 'border-primary' : 'border-rail',
-                            )}
-                        >
+                        <span className="flex size-9 items-center justify-center rounded-full border-2 border-(--lane) bg-card transition-colors">
                             {icon}
                         </span>
                     )
                 }
             />
-            <div className="min-w-0 flex-1 border-b py-3 pr-4">
+            <div
+                className={cn('min-w-0 flex-1 py-3 pr-4', {
+                    'border-b': !withoutBottomBorder,
+                })}
+            >
                 <div className="flex items-start gap-3">
                     <div className="relative isolate min-w-0 flex-1">
                         {isActorsCommit ? (
@@ -1134,7 +1049,7 @@ export function NotificationContent({
                                 <div className="flex h-10 items-center gap-2">
                                     {level ? (
                                         <span
-                                            className="rounded-full border px-2 py-0.5 font-mono text-xs font-medium"
+                                            className="rounded-md border px-2 py-0.5 font-mono text-xs font-medium"
                                             style={{
                                                 borderColor: `${laneColor(actor.lane)}40`,
                                                 backgroundColor: `${laneColor(actor.lane)}15`,
@@ -1147,7 +1062,7 @@ export function NotificationContent({
                                     ) : moderation ? (
                                         <span
                                             className={cn(
-                                                'rounded-full px-2 py-0.5 font-mono text-xs',
+                                                'rounded-sm px-2 py-0.5 font-mono text-xs',
                                                 notification.type === 'rejected'
                                                     ? 'bg-destructive/10 text-destructive'
                                                     : 'bg-muted text-muted-foreground',
@@ -1185,10 +1100,18 @@ export function NotificationContent({
                                                 />
                                             ))}
                                             {actorsCount > actors.length && (
-                                                <span className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card">
+                                                <span
+                                                    className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card"
+                                                    title={exactCountTitle(
+                                                        actorsCount -
+                                                            actors.length,
+                                                    )}
+                                                >
                                                     +
-                                                    {actorsCount -
-                                                        actors.length}
+                                                    {formatCount(
+                                                        actorsCount -
+                                                            actors.length,
+                                                    )}
                                                 </span>
                                             )}
                                         </span>
@@ -1213,8 +1136,15 @@ export function NotificationContent({
                                                     >
                                                         {actor.name}
                                                     </Link>{' '}
-                                                    {otherActors > 0 &&
-                                                        `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `}
+                                                    {otherActors > 0 && (
+                                                        <span
+                                                            title={exactCountTitle(
+                                                                otherActors,
+                                                            )}
+                                                        >
+                                                            {`and ${formatCount(otherActors)} ${otherActors === 1 ? 'other' : 'others'} `}
+                                                        </span>
+                                                    )}
                                                 </>
                                             ) : (
                                                 <>
@@ -1266,7 +1196,11 @@ export function NotificationContent({
                     </div>
                     {notification.type === 'followed' && actorsCount === 1 && (
                         <span className="flex h-10 items-center">
-                            <FollowBackButton actor={actor} />
+                            <FollowIconButton
+                                user={actor}
+                                isFollowing={actor.is_followed}
+                                followsYou
+                            />
                         </span>
                     )}
                 </div>

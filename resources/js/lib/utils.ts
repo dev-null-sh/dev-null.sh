@@ -230,6 +230,24 @@ export function formatZonedTime(date: string, timeZone: string): string {
     });
 }
 
+/**
+ * The offset a timezone has at a moment, like `UTC +02:00`, or `UTC` when it has none.
+ */
+export function formatUtcOffset(date: Date, timeZone: string): string {
+    const offset = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        timeZoneName: 'longOffset',
+    })
+        .formatToParts(date)
+        .find((part) => part.type === 'timeZoneName')?.value;
+
+    if (offset === undefined || offset === 'GMT' || offset === 'GMT+00:00') {
+        return 'UTC';
+    }
+
+    return offset.replace('GMT', 'UTC ');
+}
+
 export function formatZonedDate(date: string, timeZone: string): string {
     const value = new Date(date);
 

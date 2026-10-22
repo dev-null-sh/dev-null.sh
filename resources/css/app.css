@@ -228,6 +228,7 @@
 
     --animate-node-in: node-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-rail-draw: rail-draw 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    --animate-graph-draw: graph-draw 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-star-pop: star-pop 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275)
         both;
 
@@ -249,6 +250,15 @@
         }
         to {
             transform: scaleY(1);
+        }
+    }
+
+    @keyframes graph-draw {
+        from {
+            stroke-dashoffset: var(--graph-draw-from, 1);
+        }
+        to {
+            stroke-dashoffset: 0;
         }
     }
 
