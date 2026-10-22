@@ -23,8 +23,8 @@ export type GraphEdge = {
     d: string;
     start: Point;
     end: Point;
-    fromLane: string;
-    toLane: string;
+    /** The lane of the node the line leaves, which it keeps to the end. */
+    lane: string;
     dashed: boolean;
     dimmed: boolean;
 };
@@ -32,7 +32,7 @@ export type GraphEdge = {
 const cornerRadius = 12;
 
 /**
- * Every line between the nodes, each one a single path so its dashes and its fade run on without a seam. Lines go
+ * Every line between the nodes, each one a single path so its dashes run on without a seam. Lines go
  * from centre to centre: the canvas cuts the nodes out, so a line always meets a ring exactly and never crosses one.
  */
 export function graphEdges(nodes: GraphNode[]): GraphEdge[] {
@@ -170,8 +170,7 @@ function trunk(from: GraphNode, to: GraphNode): GraphEdge {
                 : `M ${from.x} ${from.y} L ${to.x} ${to.y}`,
         start: { x: from.x, y: from.y },
         end: { x: to.x, y: to.y },
-        fromLane: from.lane,
-        toLane: to.lane,
+        lane: from.lane,
         dashed: to.dashed ?? from.dashed ?? false,
         dimmed: isDimmed(from, to),
     };
@@ -201,8 +200,7 @@ function branch(from: GraphNode, to: GraphNode, continues: boolean): GraphEdge {
         d: `${head} Q ${from.x} ${to.y} ${from.x + radius} ${to.y} H ${to.x}`,
         start,
         end: { x: to.x, y: to.y },
-        fromLane: from.lane,
-        toLane: to.lane,
+        lane: from.lane,
         dashed: true,
         dimmed: isDimmed(from, to),
     };

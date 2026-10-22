@@ -49,9 +49,6 @@ const strokeWidth = 2;
 
 const dash = '4 4';
 
-/** How much of a line keeps the first lane before fading into the next. */
-const fadeHold = 0.5;
-
 /**
  * Whether the lines around a node are drawn by a graph canvas, in which case the node's own rail pieces stay out.
  */
@@ -565,10 +562,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                         key={edge.id}
                                         d={edge.d}
                                         style={{
-                                            stroke:
-                                                edge.fromLane === edge.toLane
-                                                    ? edge.fromLane
-                                                    : `url(#${id}-${index}-fade)`,
+                                            stroke: edge.lane,
                                             // Measured as the row collapses, which fades along: the line follows as is.
                                             transition: left
                                                 ? 'none'
@@ -617,40 +611,23 @@ function EdgeDefs({
     drawDelay?: number;
     onDrawn: (edgeId: string) => void;
 }) {
+    if (drawDelay === undefined) {
+        return null;
+    }
+
     return (
-        <>
-            {edge.fromLane !== edge.toLane && (
-                <linearGradient
-                    id={`${id}-fade`}
-                    gradientUnits="userSpaceOnUse"
-                    x1={edge.start.x}
-                    y1={edge.start.y}
-                    x2={edge.end.x}
-                    y2={edge.end.y}
-                >
-                    <stop offset="0%" style={{ stopColor: edge.fromLane }} />
-                    <stop
-                        offset={`${fadeHold * 100}%`}
-                        style={{ stopColor: edge.fromLane }}
-                    />
-                    <stop offset="100%" style={{ stopColor: edge.toLane }} />
-                </linearGradient>
-            )}
-            {drawDelay !== undefined && (
-                <mask id={`${id}-draw`} maskUnits="userSpaceOnUse">
-                    <path
-                        d={edge.d}
-                        stroke="white"
-                        strokeWidth={strokeWidth * 4}
-                        pathLength={1}
-                        strokeDasharray="1 1"
-                        style={{ animationDelay: `${drawDelay}ms` }}
-                        className="motion-safe:animate-graph-draw"
-                        onAnimationEnd={() => onDrawn(edge.id)}
-                    />
-                </mask>
-            )}
-        </>
+        <mask id={`${id}-draw`} maskUnits="userSpaceOnUse">
+            <path
+                d={edge.d}
+                stroke="white"
+                strokeWidth={strokeWidth * 4}
+                pathLength={1}
+                strokeDasharray="1 1"
+                style={{ animationDelay: `${drawDelay}ms` }}
+                className="motion-safe:animate-graph-draw"
+                onAnimationEnd={() => onDrawn(edge.id)}
+            />
+        </mask>
     );
 }
 

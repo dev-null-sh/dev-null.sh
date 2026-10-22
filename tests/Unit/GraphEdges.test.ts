@@ -29,10 +29,38 @@ void test('joins a node to the one before it on the same trunk with a straight s
 
     assert.equal(edge.d, 'M 32 40 V 200');
     assert.equal(edge.dashed, false);
-    assert.equal(edge.fromLane, 'var(--lane-1)');
-    assert.equal(edge.toLane, 'var(--lane-2)');
+    assert.equal(edge.lane, 'var(--lane-1)');
     assert.deepEqual(edge.start, { x: 32, y: 40 });
     assert.deepEqual(edge.end, { x: 32, y: 200 });
+});
+
+void test('draws a line in the lane of the node it leaves, end to end, as the rail did', () => {
+    const edges = graphEdges([
+        node({ id: 'root', y: 40, lane: 'var(--lane-1)' }),
+        node({
+            id: 'reply',
+            x: 100,
+            y: 160,
+            parent: 'root',
+            lane: 'var(--lane-2)',
+        }),
+        node({
+            id: 'sibling',
+            x: 100,
+            y: 300,
+            after: 'reply',
+            lane: 'var(--lane-3)',
+        }),
+    ]);
+
+    assert.deepEqual(
+        edges.map((edge) => [edge.id, edge.lane]),
+        [
+            ['root->reply', 'var(--lane-1)'],
+            ['reply->sibling', 'var(--lane-2)'],
+        ],
+    );
+    assert.ok(edges.every((edge) => !('toLane' in edge)));
 });
 
 void test('dashes a trunk that a dashed node asks for', () => {
