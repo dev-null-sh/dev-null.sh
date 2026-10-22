@@ -1,5 +1,6 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
+    ArrowLeft,
     ArrowUpRight,
     Building2,
     CalendarDays,
@@ -39,6 +40,7 @@ import {
     UserModerationStatus,
 } from '@/components/user-moderation-menu';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
+import { useGoBack } from '@/hooks/use-go-back';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
@@ -88,6 +90,7 @@ export default function Show({
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user?.id === user.id;
+    const goBack = useGoBack();
     const lane = laneColor(user.lane);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,
@@ -116,6 +119,15 @@ export default function Show({
             <Head title={`${user.name} (@${user.username})`} />
 
             <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4 sm:px-6">
+                <button
+                    type="button"
+                    onClick={goBack}
+                    aria-label="Back"
+                    className="text-muted-foreground hover:text-foreground"
+                    data-test="profile-back"
+                >
+                    <ArrowLeft className="size-4" />
+                </button>
                 <p className="min-w-0 truncate font-semibold">{user.name}</p>
                 <p
                     className="shrink-0 font-mono text-[13px] text-muted-foreground"
