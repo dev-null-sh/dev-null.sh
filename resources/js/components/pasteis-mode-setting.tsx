@@ -32,12 +32,12 @@ export function PasteisModeSetting() {
     };
 
     return (
-        <section className="px-4 py-6 sm:px-6">
+        <section className="scroll-mt-28 px-4 py-6 sm:px-6">
             <div className="flex items-start justify-between gap-6">
                 <div className="min-w-0 space-y-2">
                     <h2
                         id="pasteis-mode-label"
-                        className="text-base font-semibold"
+                        className="scroll-mt-28 text-base font-semibold"
                     >
                         Pastéis mode
                     </h2>

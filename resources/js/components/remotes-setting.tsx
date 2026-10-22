@@ -33,10 +33,13 @@ export function RemotesSetting() {
     };
 
     return (
-        <section className="px-4 py-6 sm:px-6">
+        <section className="scroll-mt-28 px-4 py-6 sm:px-6">
             <div className="flex items-start justify-between gap-6">
                 <div className="min-w-0 space-y-2">
-                    <h2 id="remotes-label" className="text-base font-semibold">
+                    <h2
+                        id="remotes-label"
+                        className="scroll-mt-28 text-base font-semibold"
+                    >
                         Remotes
                     </h2>
                     <p

@@ -145,7 +145,7 @@ export default function OperationsLayout({ children }: PropsWithChildren) {
                 <PageTabs label="Operations" prefetch={false} tabs={tabs} />
             </div>
 
-            <div className="[view-transition-class:tab-content] [view-transition-name:operations-content]">
+            <div className="[view-transition-class:tab-content] [view-transition-name:operations-content] [&_[id]]:scroll-mt-28 [&_section]:scroll-mt-28">
                 {children}
             </div>
         </>

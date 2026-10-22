@@ -21,7 +21,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                 />
             </div>
 
-            <div className="divide-y [view-transition-class:tab-content] [view-transition-name:settings-content]">
+            <div className="divide-y [view-transition-class:tab-content] [view-transition-name:settings-content] [&_[id]]:scroll-mt-28 [&_section]:scroll-mt-28">
                 {children}
             </div>
         </>
