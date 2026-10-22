@@ -255,7 +255,7 @@
 
     @keyframes graph-draw {
         from {
-            stroke-dashoffset: 1;
+            stroke-dashoffset: var(--graph-draw-from, 1);
         }
         to {
             stroke-dashoffset: 0;
@@ -393,6 +393,20 @@
     button:not(:disabled),
     [role='button']:not(:disabled) {
         cursor: pointer;
+    }
+}
+
+/* WebKit samples fixed surfaces taller than 10px instead of blurring the PWA header.
+   Clipping this empty surface to text supplies that color without painting over the page. */
+@media (display-mode: standalone) {
+    .pwa-status-bar {
+        position: fixed;
+        inset: 0 0 auto;
+        z-index: 1;
+        height: 11px;
+        background-color: var(--background);
+        background-clip: text;
+        pointer-events: none;
     }
 }
 

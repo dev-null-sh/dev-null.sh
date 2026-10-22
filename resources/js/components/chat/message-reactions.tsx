@@ -129,7 +129,7 @@ export function ReactionChips({
             <div
                 inert={!hasReactions}
                 aria-hidden={!hasReactions}
-                className="grid max-w-full grid-rows-[1fr] data-leave:data-closed:-mt-1 data-leave:data-closed:grid-rows-[0fr] data-leave:data-closed:opacity-0 motion-safe:data-leave:transition-[grid-template-rows,margin-top,opacity] motion-safe:data-leave:duration-300 motion-safe:data-leave:ease-out"
+                className="-mt-0.5 grid max-w-full grid-rows-[1fr] data-leave:data-closed:-mt-1 data-leave:data-closed:grid-rows-[0fr] data-leave:data-closed:opacity-0 motion-safe:data-leave:transition-[grid-template-rows,margin-top,opacity] motion-safe:data-leave:duration-300 motion-safe:data-leave:ease-out"
             >
                 <div
                     className={cn(
@@ -139,9 +139,12 @@ export function ReactionChips({
                 >
                     <ul
                         aria-label="Reactions"
-                        className={cn('flex max-w-full flex-wrap gap-1', {
-                            'justify-end': isMine,
-                        })}
+                        className={cn(
+                            'flex max-w-full flex-wrap gap-1 pb-0.5',
+                            {
+                                'justify-end': isMine,
+                            },
+                        )}
                         data-test="message-reactions"
                     >
                         {summaries.map((summary) => {
@@ -309,7 +312,7 @@ export function ReactionTray({
             className={cn(
                 'grid w-full duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none pointer-coarse:hidden',
                 isOpen ? '-mb-2 grid-rows-[1fr]' : 'grid-rows-[0fr]',
-                // The first chip replaces this 24px row and its 4px gap in the same render.
+                // The first chip replaces this 26px row (including bottom spacing) and its 2px gap.
                 reservesFirstReaction
                     ? 'pb-7 transition-[grid-template-rows,margin-bottom,padding-bottom]'
                     : 'transition-[grid-template-rows,margin-bottom]',
@@ -692,6 +695,18 @@ export function useTouchReactions(
             }
 
             didLongPress.current = false;
+
+            // Portaled viewers still bubble through React, and a second finger starts a pinch, not a hold.
+            if (
+                !event.currentTarget.contains(event.target as Node) ||
+                !event.isPrimary
+            ) {
+                cancel();
+                lastTap.current = null;
+
+                return;
+            }
+
             start.current = { x: event.clientX, y: event.clientY };
             timer.current = window.setTimeout(() => {
                 didLongPress.current = true;
