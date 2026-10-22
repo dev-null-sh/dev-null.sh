@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Casts\EncryptedInteger;
 use Carbon\CarbonInterface;
 use Database\Factories\MessageVoiceFactory;
 use Illuminate\Database\Eloquent\Attributes\Visible;
@@ -13,7 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * The file at the path is encrypted with the app key, and so is the waveform drawn from it.
+ * The file at the path is encrypted, and so are how long it plays and the waveform drawn from it.
  *
  * @property-read string $id
  * @property-read int $message_id
@@ -45,7 +46,7 @@ final class MessageVoice extends Model
             'id' => 'string',
             'message_id' => 'integer',
             'path' => 'string',
-            'duration_ms' => 'integer',
+            'duration_ms' => EncryptedInteger::class,
             'waveform' => 'encrypted:array',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
