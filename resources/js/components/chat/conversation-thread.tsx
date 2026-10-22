@@ -1163,11 +1163,13 @@ function ReplyPreview({
     author,
     onCancel,
     onSettled,
+    wasSent,
 }: {
     reply: MessageReply | null;
     author: Author | null;
     onCancel: () => void;
     onSettled: (isOpen: boolean) => void;
+    wasSent: boolean;
 }) {
     const preview = useRef<HTMLDivElement>(null);
     const [shown, setShown] = useState<{
@@ -1209,7 +1211,10 @@ function ReplyPreview({
             aria-hidden={!isOpen}
             inert={!isOpen}
             className={cn(
-                'grid transition-[grid-template-rows,opacity,margin-bottom] duration-300 ease-in-out motion-reduce:transition-none',
+                'grid',
+                wasSent
+                    ? 'transition-none'
+                    : 'transition-[grid-template-rows,opacity,margin-bottom] duration-300 ease-in-out motion-reduce:transition-none',
                 isOpen
                     ? 'grid-rows-[1fr] opacity-100'
                     : '-mb-2 grid-rows-[0fr] opacity-0',
@@ -1281,12 +1286,17 @@ function Composer({
     const { stash, attachments, linkCard, secrets, input } = draft;
     const body = stash.body;
     const [error, setError] = useState<string | null>(null);
+    const [wasReplySent, setWasReplySent] = useState(false);
     const errorTimer = useRef<number | undefined>(undefined);
     const trimmed = body.trim();
     const length = characterCount(body);
     const isCounting = length >= countFrom;
     const hasImages = attachments.images.length > 0;
     const shownError = error ?? attachments.error;
+
+    if (wasReplySent && replyingTo !== null) {
+        setWasReplySent(false);
+    }
 
     useEffect(() => () => window.clearTimeout(errorTimer.current), []);
 
@@ -1310,6 +1320,8 @@ function Composer({
         }
 
         onSend();
+        setWasReplySent(replyingTo !== null);
+        setReplyingTo(target, null);
         sendMessage(target, {
             body: '',
             replyTo: replyingTo,
@@ -1319,7 +1331,6 @@ function Composer({
             voice,
         });
         voiceNote.discard();
-        setReplyingTo(target, null);
         showError(null);
     };
 
@@ -1341,6 +1352,8 @@ function Composer({
         }
 
         onSend();
+        setWasReplySent(replyingTo !== null);
+        setReplyingTo(target, null);
         sendMessage(target, {
             body: trimmed,
             replyTo: replyingTo,
@@ -1350,7 +1363,6 @@ function Composer({
         });
         stash.drop();
         linkCard.reset();
-        setReplyingTo(target, null);
         showError(null);
         input.current?.focus();
     };
@@ -1481,6 +1493,7 @@ function Composer({
                     reply={replyingTo}
                     author={replyAuthor}
                     onSettled={onReplySettled}
+                    wasSent={wasReplySent}
                     onCancel={() => {
                         setReplyingTo(target, null);
                         input.current?.focus();
