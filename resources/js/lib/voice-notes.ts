@@ -98,6 +98,21 @@ export function barsOf(levels: number[], bars = voiceBars): number[] {
     });
 }
 
+let silence: string | null = null;
+
+/**
+ * A tenth of a second of silence, for unlocking an audio element on iOS while the real audio downloads.
+ */
+export function silenceUrl(): string {
+    silence ??= URL.createObjectURL(
+        new Blob([encodeWav(new Float32Array(voiceSampleRate / 10))], {
+            type: 'audio/wav',
+        }),
+    );
+
+    return silence;
+}
+
 /**
  * "0:07", "1:00".
  */

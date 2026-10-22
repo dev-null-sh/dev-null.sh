@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\User;
+use App\Services\EncryptedFiles;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -13,11 +14,16 @@ beforeEach(function (): void {
     config(['remotes.requests' => true, 'remotes.everyone' => true]);
 });
 
+function messageImageBytes(): string
+{
+    return (string) UploadedFile::fake()->image('image.webp', 10, 10)->getContent();
+}
+
 function storedMessageImage(Message $message): MessageImage
 {
-    $path = 'message-images/'.fake()->uuid().'.webp';
+    $path = 'message-images/'.fake()->uuid();
 
-    Storage::disk()->put($path, (string) UploadedFile::fake()->image('image.webp', 10, 10)->getContent());
+    Storage::disk()->put($path, resolve(EncryptedFiles::class)->encrypt(messageImageBytes()));
 
     return MessageImage::factory()->for($message)->create(['path' => $path]);
 }
@@ -45,7 +51,7 @@ it('downloads the image with a webp filename', function (): void {
     $this->actingAs($nuno)->get(route('message-image.show', ['messageImage' => $image, 'download' => 1]))
         ->assertOk()
         ->assertDownload($image->id.'.webp')
-        ->assertStreamedContent(Storage::disk()->get($image->path));
+        ->assertContent(messageImageBytes());
 
     $this->actingAs(User::factory()->create())
         ->get(route('message-image.show', ['messageImage' => $image, 'download' => 1]))
