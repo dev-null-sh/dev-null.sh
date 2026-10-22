@@ -74,6 +74,7 @@ function setup(animations: { finished: Promise<unknown> }[] = []) {
                 trigger,
                 usage: [],
                 reacted: new Set(),
+                hasReactions: false,
                 isMine: false,
                 onReact,
             }),
