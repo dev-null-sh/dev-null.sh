@@ -8,6 +8,7 @@ use App\Contracts\Services\DnsResolver;
 use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
 use App\Models\User;
+use App\Omarchy\ResolveOmarchyTheme;
 use App\Services\CodeTheme;
 use App\Services\DnsResolvers\SystemDnsResolver;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -26,6 +27,9 @@ final class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(DnsResolver::class, SystemDnsResolver::class);
         $this->app->bind(Highlighter::class, fn (): Highlighter => new Highlighter(new CodeTheme()));
+
+        // The appearance and the shared Inertia props both read it, and both read the theme files...
+        $this->app->scoped(ResolveOmarchyTheme::class);
     }
 
     public function boot(): void

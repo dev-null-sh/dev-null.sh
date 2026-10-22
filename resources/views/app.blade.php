@@ -1,10 +1,18 @@
+@php
+    $appearance = $appearance ?? 'system';
+    $omarchy = $omarchy ?? null;
+    $isDark = $appearance === 'dark'
+        || ($appearance === 'omarchy' && ($omarchy?->mode ?? 'dark') === 'dark');
+@endphp
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" @class(['dark' => ($appearance ?? 'system') == 'dark'])>
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" @class(['dark' => $isDark]) data-omarchy-mode="{{ $omarchy?->mode }}">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
         <meta name="description" content="{{ $preview['description'] ?? 'A social network for developers. Sign in with GitHub, commit plain text to a shared log.' }}">
-        @if (($appearance ?? 'system') === 'system')
+        @if ($appearance === 'omarchy' && $omarchy)
+            <meta name="theme-color" content="{{ $omarchy->tokens['--background'] }}">
+        @elseif ($appearance === 'system')
             <meta name="theme-color" content="#f6f7f8" media="(prefers-color-scheme: light)">
             <meta name="theme-color" content="#111112" media="(prefers-color-scheme: dark)">
         @else
@@ -58,7 +66,8 @@
         {{-- Inline script to detect system dark mode preference and apply it immediately --}}
         <script>
             (function() {
-                const appearance = '{{ $appearance ?? "system" }}';
+                const appearance = '{{ $appearance }}';
+                const omarchyMode = document.documentElement.dataset.omarchyMode;
 
                 if (appearance === 'system') {
                     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -66,6 +75,8 @@
                     if (prefersDark) {
                         document.documentElement.classList.add('dark');
                     }
+                } else if (appearance === 'omarchy') {
+                    document.documentElement.classList.toggle('dark', omarchyMode === 'dark');
                 }
             })();
         </script>
@@ -105,6 +116,25 @@
 
         @viteReactRefresh
         @vite(['resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
+
+        {{-- Omarchy theme tokens, layered on top of app.css for the selected Omarchy theme --}}
+        @if ($appearance === 'omarchy' && $omarchy)
+            {{-- The desktop font only exists on the host, so the theme's typeface is fetched for every visitor. --}}
+            <link rel="preconnect" href="https://fonts.bunny.net" crossorigin>
+            <link rel="stylesheet" href="https://fonts.bunny.net/css?family=jetbrains-mono:400,500,600,700&amp;display=swap">
+            <style>
+                html:root,
+                html.dark {
+                    background-color: {{ $omarchy->tokens['--background'] }};
+                    @foreach ($omarchy->tokens as $property => $value)
+                        {{ $property }}: {{ $value }};
+                    @endforeach
+                    --font-sans: "JetBrains Mono", ui-sans-serif, system-ui, sans-serif;
+                    --font-mono: "JetBrains Mono", "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                }
+            </style>
+        @endif
+
         <x-inertia::head>
             <title>{{ $preview['title'] ?? config('app.name') }}</title>
         </x-inertia::head>

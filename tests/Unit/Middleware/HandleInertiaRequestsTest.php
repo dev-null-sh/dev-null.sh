@@ -333,3 +333,29 @@ it('suggests the round of people the user refreshed to', function (string $cooki
     'not a number' => ['abc', 0],
     'negative' => ['-3', 0],
 ]);
+
+it('shares the resolved omarchy theme', function (): void {
+    config([
+        'omarchy.enabled' => true,
+        'omarchy.path' => fixturePath('omarchy/dark/colors.toml'),
+    ]);
+
+    $middleware = new HandleInertiaRequests();
+
+    $shared = $middleware->share(Request::create('/', 'GET'));
+
+    expect($shared['omarchy'])->toBe([
+        'name' => 'Warm Glass',
+        'mode' => 'dark',
+    ]);
+});
+
+it('shares null omarchy when unavailable', function (): void {
+    config(['omarchy.enabled' => false]);
+
+    $middleware = new HandleInertiaRequests();
+
+    $shared = $middleware->share(Request::create('/', 'GET'));
+
+    expect($shared['omarchy'])->toBeNull();
+});
