@@ -496,6 +496,11 @@ html body[data-scroll-locked] {
     overflow-x: clip;
 }
 
+/* Safari offsets the feed snapshot at fractional positions when only one axis clips. */
+::view-transition-group(log-feed) {
+    overflow-y: clip;
+}
+
 ::view-transition-new(*.staged-rail):only-child,
 ::view-transition-old(*.staged-rail):only-child {
     transform-origin: top;
