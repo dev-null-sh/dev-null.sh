@@ -16,6 +16,8 @@ export const maxVoiceMs = 60_000;
 
 export const voiceBars = 48;
 
+export const voiceSpeeds = [1, 1.5, 2];
+
 /**
  * A recorded voice note that hasn't been pushed yet.
  */
@@ -98,6 +100,21 @@ export function barsOf(levels: number[], bars = voiceBars): number[] {
     });
 }
 
+let silence: string | null = null;
+
+/**
+ * A tenth of a second of silence, for unlocking an audio element on iOS while the real audio downloads.
+ */
+export function silenceUrl(): string {
+    silence ??= URL.createObjectURL(
+        new Blob([encodeWav(new Float32Array(voiceSampleRate / 10))], {
+            type: 'audio/wav',
+        }),
+    );
+
+    return silence;
+}
+
 /**
  * "0:07", "1:00".
  */
@@ -105,6 +122,17 @@ export function formatVoiceTime(ms: number): string {
     const seconds = Math.max(0, Math.floor(ms / 1000));
 
     return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+/**
+ * The saved playback volume as a whole percent, at full volume until a sensible one is saved.
+ */
+export function voiceVolumeOf(saved: string): number {
+    const volume = Number(saved);
+
+    return saved === '' || !Number.isFinite(volume)
+        ? 1
+        : Math.round(Math.min(1, Math.max(0, volume)) * 100) / 100;
 }
 
 export function canRecordVoice(): boolean {

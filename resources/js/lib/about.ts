@@ -199,6 +199,17 @@ export const storyAfter: StoryEvent[] = [
     },
     {
         time: 'Oct 20',
+        title: 'Wes Bos joins',
+        body: 'The teacher behind a generation of JavaScript courses.',
+        kind: 'person',
+        person: {
+            login: 'wesbos',
+            name: 'Wes Bos',
+            avatar: 'https://avatars.githubusercontent.com/u/176013?v=4',
+        },
+    },
+    {
+        time: 'Oct 20',
         title: 'Rasmus Lerdorf joins',
         body: 'The creator of PHP, on a social network built in PHP.',
         kind: 'person',
@@ -210,9 +221,49 @@ export const storyAfter: StoryEvent[] = [
     },
     {
         time: 'Oct 20',
+        title: 'Cassidy Williams joins',
+        body: 'From GitHub, with memes, dreams, and software.',
+        kind: 'person',
+        person: {
+            login: 'cassidoo',
+            name: 'Cassidy Williams',
+            avatar: 'https://avatars.githubusercontent.com/u/1454517?v=4',
+        },
+    },
+    {
+        time: 'Oct 20',
+        title: '#1 Product of the Day',
+        body: '“/dev/null - a social network for devs” finishes first on Product Hunt, with 486 points.',
+        kind: 'press',
+        href: 'https://www.producthunt.com/products/dev-null',
+    },
+    {
+        time: 'Oct 20',
         title: '10,000 developers',
         body: 'Five days after the first commit.',
         kind: 'milestone',
+    },
+    {
+        time: 'Oct 22',
+        title: 'Quinn Slack joins',
+        body: 'The CEO of Amp.',
+        kind: 'person',
+        person: {
+            login: 'sqs',
+            name: 'Quinn Slack',
+            avatar: 'https://avatars.githubusercontent.com/u/1976?v=4',
+        },
+    },
+    {
+        time: 'Oct 22',
+        title: 'Thorsten Ball joins',
+        body: 'From the Amp team, and the author of Writing An Interpreter In Go.',
+        kind: 'person',
+        person: {
+            login: 'mrnugget',
+            name: 'Thorsten Ball',
+            avatar: 'https://avatars.githubusercontent.com/u/1185253?v=4',
+        },
     },
 ];
 

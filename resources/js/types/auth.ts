@@ -24,6 +24,7 @@ export type User = {
     has_github_account: boolean;
     lane: Lane;
     timezone: string | null;
+    show_local_time: boolean;
     /**
      * Only set while the user is streaming.
      */

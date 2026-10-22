@@ -5,8 +5,8 @@ declare(strict_types=1);
 use App\Models\Message;
 use App\Models\MessageVoice;
 use App\Models\User;
+use App\Services\EncryptedFiles;
 use App\Services\VoiceNotes;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -34,7 +34,7 @@ it('serves voice notes, decrypted, only to the people in the conversation', func
     foreach ([$mark, $nuno] as $participant) {
         $response = $this->actingAs($participant)->get(route('message-voice.show', $voice))
             ->assertOk()
-            ->assertHeader('Content-Type', 'audio/webm')
+            ->assertHeader('Content-Type', 'audio/mp4')
             ->assertHeader('X-Content-Type-Options', 'nosniff')
             ->assertHeader('Cache-Control', 'max-age=3600, private');
 
@@ -50,15 +50,15 @@ it('keeps voice notes encrypted at rest', function (): void {
 
     $stored = (string) Storage::disk()->get($voice->path);
 
-    expect($stored)->not->toContain('A_OPUS')
-        ->and(Crypt::decryptString($stored))->toStartWith("\x1A\x45\xDF\xA3");
+    expect($stored)->not->toContain('dOps')
+        ->and(resolve(EncryptedFiles::class)->decrypt($stored))->toContain('ftypisom');
 });
 
 it('serves WAV voice notes as WAV', function (): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create();
     $voice = MessageVoice::factory()->for(sendChatMessage($mark, $nuno))->create();
-    Storage::disk()->put($voice->path, Crypt::encryptString(voiceNoteWav()));
+    Storage::disk()->put($voice->path, resolve(EncryptedFiles::class)->encrypt(voiceNoteWav()));
 
     $this->actingAs($nuno)->get(route('message-voice.show', $voice))
         ->assertOk()
@@ -70,10 +70,10 @@ it('keeps voice notes out of the history an org member cannot see', function ():
     [$nuno, $taylor] = followersOf($mark, 2);
     $org = createOrg($mark, [$nuno]);
     $before = MessageVoice::factory()->for(pushToOrg($nuno, $org))->create();
-    Storage::disk()->put($before->path, Crypt::encryptString(voiceNoteWav()));
+    Storage::disk()->put($before->path, resolve(EncryptedFiles::class)->encrypt(voiceNoteWav()));
     $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
     $after = MessageVoice::factory()->for(pushToOrg($nuno, $org))->create();
-    Storage::disk()->put($after->path, Crypt::encryptString(voiceNoteWav()));
+    Storage::disk()->put($after->path, resolve(EncryptedFiles::class)->encrypt(voiceNoteWav()));
 
     $this->actingAs($taylor)->get(route('message-voice.show', $before))->assertNotFound();
     $this->get(route('message-voice.show', $after))->assertOk();

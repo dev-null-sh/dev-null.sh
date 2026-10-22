@@ -1,11 +1,20 @@
 import { Pause, Play, RotateCw, Square, Trash2 } from 'lucide-react';
 import type { KeyboardEvent, PointerEvent, SyntheticEvent } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { VoiceSpeed } from '@/components/chat/voice-speed';
+import { VoiceVolume, voiceVolumeRamp } from '@/components/chat/voice-volume';
+import { Waveform } from '@/components/chat/waveform';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import type { UseVoiceNoteReturn } from '@/hooks/use-voice-note';
+import { useVoiceVolume, voiceVolume } from '@/hooks/use-voice-volume';
 import { cn } from '@/lib/utils';
-import { formatVoiceTime, maxVoiceMs, voiceBars } from '@/lib/voice-notes';
+import {
+    formatVoiceTime,
+    maxVoiceMs,
+    silenceUrl,
+    voiceBars,
+} from '@/lib/voice-notes';
 import type { VoiceDraft } from '@/lib/voice-notes';
 import type { MessageVoice } from '@/types';
 
@@ -16,18 +25,26 @@ let playing: HTMLAudioElement | null = null;
 
 const keepToItself = (event: SyntheticEvent) => event.stopPropagation();
 
+const morphing =
+    'duration-240 ease-out motion-reduce:transition-none *:transition-[height] *:duration-240 *:ease-out motion-reduce:*:transition-none';
+
 /**
  * Nothing is downloaded until play is pressed. The played part of the waveform and the clock are painted straight onto
- * the elements on every frame, so playing never re-renders the thread.
+ * the elements on every frame, so playing never re-renders the thread. The clock counts in the time the note takes at
+ * its speed, so 0:14 at 2× reads 0:07.
  */
 export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
     const duration = voice.duration_ms;
+    const volume = useVoiceVolume();
+    const [isAdjusting, setIsAdjusting] = useState(false);
+    const [speed, setSpeed] = useState(1);
     const [state, setState] = useState<
         'idle' | 'loading' | 'playing' | 'paused' | 'failed'
     >('idle');
     const root = useRef<HTMLDivElement>(null);
     const slider = useRef<HTMLDivElement>(null);
     const clock = useRef<HTMLSpanElement>(null);
+    const leavingClock = useRef<HTMLSpanElement>(null);
     const audio = useRef<HTMLAudioElement | null>(null);
     const objectUrl = useRef<string | null>(null);
     const loading = useRef<Promise<HTMLAudioElement> | null>(null);
@@ -49,9 +66,18 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
         );
 
         if (clock.current !== null) {
-            clock.current.textContent = formatVoiceTime(at > 0 ? at : duration);
+            clock.current.textContent = formatVoiceTime(
+                (at > 0 ? at : duration) / speed,
+            );
         }
-    }, [duration]);
+    }, [duration, speed]);
+
+    // The audio outlives every render, so when it ends it repaints with the speed chosen since.
+    const latestPaint = useRef(paint);
+
+    useEffect(() => {
+        latestPaint.current = paint;
+    }, [paint]);
 
     useEffect(
         () => () => {
@@ -63,6 +89,21 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
         },
         [],
     );
+
+    useEffect(() => {
+        if (audio.current !== null) {
+            audio.current.volume = volume;
+        }
+    }, [volume]);
+
+    useEffect(() => {
+        if (audio.current !== null) {
+            audio.current.defaultPlaybackRate = speed;
+            audio.current.playbackRate = speed;
+        }
+
+        paint();
+    }, [speed, paint]);
 
     useEffect(() => {
         if (state !== 'playing') {
@@ -91,6 +132,44 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
         };
     }, []);
 
+    // The clock blurs from the old length into the new one while the speed pops in.
+    const changeSpeed = (to: number) => {
+        if (
+            !window.matchMedia('(prefers-reduced-motion: reduce)').matches &&
+            leavingClock.current !== null
+        ) {
+            leavingClock.current.textContent = clock.current?.textContent ?? '';
+            leavingClock.current.animate(
+                { opacity: [1, 0], filter: ['blur(0)', 'blur(3px)'] },
+                { duration: 200, easing: 'ease-in' },
+            );
+            clock.current?.animate(
+                { opacity: [0, 1], filter: ['blur(3px)', 'blur(0)'] },
+                { duration: 280, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' },
+            );
+        }
+
+        setSpeed(to);
+    };
+
+    const element = (): HTMLAudioElement => {
+        if (audio.current === null) {
+            const created = new Audio();
+            created.volume = voiceVolume();
+            created.defaultPlaybackRate = speed;
+
+            created.onpause = () =>
+                setState((state) => (state === 'playing' ? 'paused' : state));
+            created.onended = () => {
+                created.currentTime = 0;
+                latestPaint.current();
+            };
+            audio.current = created;
+        }
+
+        return audio.current;
+    };
+
     // Pressing play again or scrubbing while the note downloads waits for the same download.
     const load = (): Promise<HTMLAudioElement> => {
         loading.current ??= (async () => {
@@ -109,18 +188,9 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
                       });
 
             objectUrl.current = URL.createObjectURL(blob);
+            element().src = objectUrl.current;
 
-            const element = new Audio(objectUrl.current);
-
-            element.onpause = () =>
-                setState((state) => (state === 'playing' ? 'paused' : state));
-            element.onended = () => {
-                element.currentTime = 0;
-                paint();
-            };
-            audio.current = element;
-
-            return element;
+            return element();
         })().catch((error: unknown) => {
             loading.current = null;
 
@@ -131,24 +201,34 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
     };
 
     const play = async (from?: number) => {
+        const player = element();
+
+        if (playing !== player) {
+            playing?.pause();
+        }
+
+        playing = player;
+
+        // iOS only lets a page start audio from inside the tap itself, and the note is still downloading. Playing a
+        // moment of silence on the same element now, while the tap lasts, lets it play the note once it arrives.
+        if (objectUrl.current === null) {
+            player.src = silenceUrl();
+            void player.play().catch(() => undefined);
+        }
+
         if (state !== 'playing') {
             setState('loading');
         }
 
         try {
-            const element = await load();
+            await load();
 
             if (from !== undefined) {
-                element.currentTime = from / 1000;
+                player.currentTime = from / 1000;
                 paint();
             }
 
-            if (playing !== element) {
-                playing?.pause();
-            }
-
-            playing = element;
-            await element.play();
+            await player.play();
             setState('playing');
         } catch {
             setState('failed');
@@ -182,7 +262,7 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
     return (
         <div
             ref={root}
-            className="flex w-60 max-w-full items-center gap-2.5 [--played:0]"
+            className="relative flex w-60 max-w-full items-center gap-2.5 [--played:0]"
             data-test="voice-note"
         >
             <button
@@ -239,42 +319,46 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
                 onKeyDown={onKeyDown}
                 className="relative h-7 min-w-0 flex-1 cursor-pointer touch-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
-                <Waveform levels={voice.waveform} className="opacity-35" />
+                {/* While the volume is adjusted, the same bars grow into its ramp and fill up to it instead of to the played part. */}
                 <Waveform
-                    levels={voice.waveform}
-                    className="absolute inset-0 [clip-path:inset(0_calc(100%_-_var(--played)*100%)_0_0)]"
+                    levels={isAdjusting ? voiceVolumeRamp : voice.waveform}
+                    className={cn(morphing, 'opacity-35')}
+                />
+                <Waveform
+                    levels={isAdjusting ? voiceVolumeRamp : voice.waveform}
+                    className={cn(
+                        morphing,
+                        'absolute inset-0 transition-[clip-path] [clip-path:inset(0_calc(100%_-_var(--played)*100%)_0_0)]',
+                    )}
+                    style={
+                        isAdjusting
+                            ? {
+                                  clipPath: `inset(0 ${100 - volume * 100}% 0 0)`,
+                              }
+                            : undefined
+                    }
                 />
             </div>
             <span
-                ref={clock}
-                className="w-[4ch] shrink-0 text-right font-mono text-[11px] tabular-nums"
-                data-test="voice-note-clock"
+                className={cn(
+                    'relative w-[4ch] shrink-0 text-right font-mono text-[11px] tabular-nums transition-opacity duration-240 ease-out motion-reduce:transition-none',
+                    isAdjusting && 'opacity-0',
+                )}
             >
-                {formatVoiceTime(duration)}
-            </span>
-        </div>
-    );
-}
-
-function Waveform({
-    levels,
-    className,
-}: {
-    levels: number[];
-    className?: string;
-}) {
-    return (
-        <div
-            aria-hidden
-            className={cn('flex h-full items-center gap-px', className)}
-        >
-            {levels.map((level, index) => (
                 <span
-                    key={index}
-                    className="min-w-0 flex-1 rounded-[1px] bg-current"
-                    style={{ height: `${Math.max(10, level)}%` }}
+                    ref={leavingClock}
+                    aria-hidden
+                    className="absolute inset-0 opacity-0"
                 />
-            ))}
+                <span ref={clock} data-test="voice-note-clock">
+                    {formatVoiceTime(duration)}
+                </span>
+            </span>
+            <VoiceVolume
+                isAdjusting={isAdjusting}
+                onAdjustingChange={setIsAdjusting}
+            />
+            <VoiceSpeed speed={speed} onSpeedChange={changeSpeed} />
         </div>
     );
 }

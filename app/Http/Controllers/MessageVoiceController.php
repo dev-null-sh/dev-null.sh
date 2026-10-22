@@ -6,16 +6,16 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ShowMessageVoiceRequest;
 use App\Models\MessageVoice;
+use App\Services\EncryptedFiles;
 use App\Services\VoiceNotes;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 
 final readonly class MessageVoiceController
 {
-    public function show(ShowMessageVoiceRequest $request, MessageVoice $messageVoice, VoiceNotes $voiceNotes): Response
+    public function show(ShowMessageVoiceRequest $request, MessageVoice $messageVoice, VoiceNotes $voiceNotes, EncryptedFiles $encryptedFiles): Response
     {
-        $audio = Crypt::decryptString((string) Storage::disk()->get($messageVoice->path));
+        $audio = $encryptedFiles->decrypt((string) Storage::disk()->get($messageVoice->path));
 
         return response($audio, headers: [
             'Content-Type' => $voiceNotes->type($audio),
