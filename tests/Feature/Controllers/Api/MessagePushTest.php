@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateUserBan;
+use App\Enums\ModerationReason;
 use App\Enums\RemotesFrom;
 use App\Models\Conversation;
 use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\User;
+use App\Models\UserTimeout;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
@@ -57,6 +60,29 @@ it('stores a retried message once, answering with the one it already created', f
 
     expect(Message::query()->count())->toBe(1);
 });
+
+it('refuses messages from timed out and banned users without creating a message', function (string $target, string $restriction): void {
+    if ($target === 'org') {
+        $this->user->following()->attach($this->nuno);
+        $uri = route('api-org-message.store', createOrg($this->nuno, [$this->user]));
+    } else {
+        $uri = route('api-conversation-message.store', $this->nuno);
+    }
+
+    if ($restriction === 'timeout') {
+        UserTimeout::factory()->for($this->user)->create();
+    } else {
+        resolve(CreateUserBan::class)->handle($this->user, ModerationReason::Spam);
+    }
+
+    $messages = Message::query()->count();
+
+    signedApiRequest($this->keyPair, 'POST', $uri, ['body' => 'on it', 'client_id' => Str::uuid()->toString()])
+        ->assertForbidden()
+        ->assertJsonPath('code', $restriction === 'timeout' ? 'timed_out' : 'banned');
+
+    expect(Message::query()->count())->toBe($messages);
+})->with(['conversation', 'org'])->with(['timeout', 'banned']);
 
 it('replies to a message and picks the link card', function (): void {
     $question = sendChatMessage($this->nuno, $this->user, 'docs?');

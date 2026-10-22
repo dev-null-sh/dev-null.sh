@@ -220,11 +220,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Remotes: pushing a message, as often as the web's composer may...
         Route::post('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'store'])
-            ->middleware('throttle:messages')
+            ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
             ->name('api-conversation-message.store');
         Route::post('remotes/orgs/{org}/messages', [OrgMessageController::class, 'store'])
             ->whereUuid('org')
-            ->middleware('throttle:messages')
+            ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
             ->name('api-org-message.store');
 
         // Remote Reactions...

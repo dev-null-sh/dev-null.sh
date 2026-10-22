@@ -441,14 +441,14 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
 - star or unstar, and save or unsave;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
-- change Remotes settings, read conversations and mark them pulled, react to messages, find people, and start orgs;
+- change Remotes settings, read and send messages with images in conversations and orgs, mark them pulled, react to messages, find people, and start orgs;
 - stash or reopen conversations and orgs, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
 - report commits;
 - sync from GitHub and save your lane color;
 - delete your account.
 
-Signed request bodies are JSON, or multipart when they carry images, so app commits can have images or a poll but no link-card choice. Sending messages in Remotes remains web-only, as do pinning, scheduling, search, and translations. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
+Signed request bodies are JSON, or multipart when they carry images, so app commits can have images or a poll but no link-card choice. Voice notes, pinning, scheduling, search, and translations remain web-only. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
 
