@@ -12,7 +12,10 @@ use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 
 it('shows an approved commit to anyone', function (): void {
     $user = User::factory()->create([
@@ -654,6 +657,136 @@ it('may not quote a commit across a block, as on the web', function (bool $quote
 
     expect($quoted->quotes()->count())->toBe(0);
 })->with(['blocking' => true, 'blocked' => false]);
+
+it('commits images from a signed request, in order, with their descriptions', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    $response = signedApiRequestWithImages($keyPair, 'POST', route('api-commit.store'), [
+        'body' => 'Offsite photo dump',
+        'image_descriptions' => ['The cabin at sunrise, fog over the lake.', null],
+    ], [
+        UploadedFile::fake()->image('cabin.jpg', 40, 30),
+        UploadedFile::fake()->image('hike.png', 10, 20),
+        UploadedFile::fake()->image('lake.webp', 10, 10),
+    ]);
+
+    $commit = $user->commits()->sole();
+    $images = $commit->images()->orderBy('position')->get();
+
+    $response->assertCreated()
+        ->assertJsonPath('data.body', 'Offsite photo dump')
+        ->assertJsonPath('data.status', 'pending')
+        ->assertJsonPath('data.images', $images->map(fn (CommitImage $image): array => [...$image->toArray(), 'url' => $image->temporaryUrl()])->all());
+
+    expect($images->map(fn (CommitImage $image): array => [$image->width, $image->height, $image->description])->all())->toBe([
+        [40, 30, 'The cabin at sunrise, fog over the lake.'],
+        [10, 20, null],
+        [10, 10, null],
+    ])->and(Storage::disk()->allFiles('commit-images'))->toHaveCount(3);
+});
+
+it('may commit images from a signed request with a short body, or none, as on the web', function (array $body, string $expected): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequestWithImages($keyPair, 'POST', route('api-commit.store'), $body, [UploadedFile::fake()->image('screenshot.png', 40, 30)])
+        ->assertCreated();
+
+    expect($user->commits()->sole())
+        ->body->toBe($expected)
+        ->images->toHaveCount(1);
+})->with([
+    'missing' => [[], ''],
+    'blank' => [['body' => '   '], ''],
+    'short' => [['body' => 'ok'], 'ok'],
+]);
+
+it('reads the fields of a commit with images from its payload, cleaned like a json body', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequestWithImages($keyPair, 'POST', route('api-commit.store'), [
+        'body' => '  It was DNS :tada:  ',
+        'image_descriptions' => ['   ', ''],
+    ], [
+        UploadedFile::fake()->image('first.jpg', 10, 10),
+        UploadedFile::fake()->image('second.jpg', 10, 10),
+    ])->assertCreated();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->body)->toBe('It was DNS 🎉')
+        ->and($commit->images->pluck('description')->all())->toBe([null, null]);
+});
+
+it('replies and quotes with images from a signed request', function (string $field): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $other = Commit::factory()->create();
+
+    signedApiRequestWithImages($keyPair, 'POST', route('api-commit.store'), [$field => $other->id], [UploadedFile::fake()->image('trace.png', 10, 10)])
+        ->assertCreated()
+        ->assertJsonPath("data.{$field}", $other->id)
+        ->assertJsonCount(1, 'data.images');
+})->with(['parent_id', 'quoted_commit_id']);
+
+it('validates the images of a commit from a signed request as the web does', function (Closure $images, array $data, string $field, string $message): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequestWithImages($keyPair, 'POST', route('api-commit.store'), ['body' => 'Look at this', ...$data], $images())
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([$field => $message]);
+
+    expect($user->commits()->exists())->toBeFalse()
+        ->and(Storage::disk()->allFiles())->toBe([]);
+})->with([
+    'more than three' => [fn (): array => array_map(fn (int $index): UploadedFile => UploadedFile::fake()->image("{$index}.png", 10, 10), range(1, 4)), [], 'images', 'The images field must not have more than 3 items.'],
+    'not an image' => [fn (): array => [UploadedFile::fake()->create('notes.txt', 1, 'text/plain')], [], 'images.0', 'The images.0 field must be an image.'],
+    'a gif' => [fn (): array => [UploadedFile::fake()->image('party.gif', 10, 10)], [], 'images.0', 'The images.0 field must be a file of type: image/jpeg, image/png, image/webp.'],
+    'larger than 10 MB' => [fn (): array => [UploadedFile::fake()->image('huge.png', 10, 10)->size(10_001)], [], 'images.0', 'The images.0 field must not be greater than 10000 kilobytes.'],
+    'too many pixels' => [fn (): array => [UploadedFile::fake()->image('wide.png', 6001, 1)], [], 'images.0', 'The images.0 field has invalid image dimensions.'],
+    'too long a description' => [fn (): array => [UploadedFile::fake()->image('photo.jpg', 10, 10)], ['image_descriptions' => [str_repeat('a', 1001)]], 'image_descriptions.0', 'The image description field must not be greater than 1000 characters.'],
+]);
+
+it('shows the author the images of their pending commit through urls that need no session', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequestWithImages($keyPair, 'POST', route('api-commit.store'), ['body' => 'Look at this'], [UploadedFile::fake()->image('screenshot.png', 10, 10)])
+        ->assertCreated();
+
+    $commit = $user->commits()->sole();
+    $image = $commit->images->sole();
+
+    $url = signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.images.0.url', $image->temporaryUrl())
+        ->json('data.images.0.url');
+
+    Auth::forgetGuards();
+
+    $this->get($url)->assertOk()->assertHeader('Content-Type', 'image/webp');
+
+    $commit->update(['status' => CommitStatus::Approved]);
+
+    signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.images.0.url', route('commit-image.show', $image));
+});
 
 it('sends a commit from a signed request to the ai moderation the web uses', function (): void {
     config(['services.openai.key' => 'sk-test']);

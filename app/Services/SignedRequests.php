@@ -7,8 +7,12 @@ namespace App\Services;
 use App\Actions\UpdateDeviceLastUsedAt;
 use App\Dto\SshPublicKey;
 use App\Models\Device;
+use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
+use Illuminate\Foundation\Http\Middleware\TrimStrings;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
 
 /**
  * Verifies a request to the API, signed by the mobile app with an SSH key it keeps on the device.
@@ -16,12 +20,19 @@ use InvalidArgumentException;
  * The signed message is "<unix timestamp>\n<nonce>\n<METHOD>\n<path and query>\n<body>". The timestamp and nonce
  * are also sent in the X-Devnull-Timestamp and X-Devnull-Nonce headers, and the signature in X-SSH-Signature.
  *
+ * A request with images is sent as multipart, like a commit with images from the `devnull commit` script: the JSON
+ * body goes in a payload part, the images in images[], and the signed message carries one more line before the body,
+ * the comma-separated SHA-256 of each image in the order they are attached. It is signed under its own namespace, so
+ * the signature states which format it covers.
+ *
  * A key signs in as a user once that user approved it as a device on the web. The key doesn't have to be on their
  * GitHub account: the approval is the proof. So a key made for something else, like committing from CI, can't sign in.
  */
 final readonly class SignedRequests
 {
     public const string Namespace = 'devnull-api';
+
+    public const string ImagesNamespace = 'devnull-api-images';
 
     private const array Headers = ['X-Devnull-Timestamp', 'X-Devnull-Nonce', 'X-SSH-Signature'];
 
@@ -40,28 +51,30 @@ final readonly class SignedRequests
 
     /**
      * Checks the signature, its timestamp and its nonce, which it spends, and returns the key that signed the request,
-     * whether or not it is approved as a device yet.
+     * whether or not it is approved as a device yet. A request with images reads its fields from its payload from
+     * then on.
      */
     public function verifySignature(Request $request): SshPublicKey
     {
-        // Only the raw body is signed, so it has to be JSON. PHP hands a multipart body over as fields and files and
-        // keeps no raw body, and the same signed bytes read as a form would give the endpoint other fields...
-        throw_if(
-            $request->files->count() > 0 || ($request->getContent() === '' ? $request->request->count() > 0 : ! $request->isJson()),
-            InvalidArgumentException::class,
-            'Send the body of a signed request as JSON.',
-        );
+        $withImages = $request->files->count() > 0;
+        $body = $withImages ? $this->payload($request) : $this->body($request);
+
+        throw_if($body === null, InvalidArgumentException::class, 'Send the body of a signed request as JSON.');
 
         $timestamp = $request->headers->get('X-Devnull-Timestamp', '') ?? '';
         $nonce = $request->headers->get('X-Devnull-Nonce', '') ?? '';
 
         $publicKey = $this->sshSignatures->verify(
-            implode("\n", [$timestamp, $nonce, $request->getMethod(), $request->getRequestUri(), $request->getContent()]),
+            implode("\n", [$timestamp, $nonce, $request->getMethod(), $request->getRequestUri(), ...($withImages ? [implode(',', $this->imageHashes($request))] : []), $body]),
             $request->headers->get('X-SSH-Signature', '') ?? '',
-            self::Namespace,
+            $withImages ? self::ImagesNamespace : self::Namespace,
         );
 
         $this->sshSignatures->checkFreshness($timestamp, $nonce);
+
+        if ($withImages) {
+            $this->readPayload($request, $body);
+        }
 
         return $publicKey;
     }
@@ -85,5 +98,73 @@ final readonly class SignedRequests
             'publicKey' => $publicKey,
             'device' => $device,
         ];
+    }
+
+    /**
+     * The raw body, which is all that is signed, so it has to be JSON. PHP hands a multipart body over as fields and
+     * files and keeps no raw body, and the same signed bytes read as a form would give the endpoint other fields.
+     */
+    private function body(Request $request): ?string
+    {
+        $content = $request->getContent();
+
+        if ($content === '') {
+            return $request->request->count() > 0 ? null : '';
+        }
+
+        return $request->isJson() ? $content : null;
+    }
+
+    /**
+     * The JSON body of a request with images, or null unless it came as a payload part beside a list of images, with
+     * no other fields or files.
+     */
+    private function payload(Request $request): ?string
+    {
+        $files = $request->files->all();
+        $payload = $files['payload'] ?? null;
+        $images = $files['images'] ?? null;
+
+        $isMultipart = $request->request->count() === 0
+            && count($files) === 2
+            && $payload instanceof UploadedFile && $payload->isValid()
+            && is_array($images) && array_is_list($images) && array_all($images, fn (mixed $image): bool => $image instanceof UploadedFile);
+
+        $contents = $isMultipart ? file_get_contents($payload->getPathname()) : false;
+
+        return is_string($contents) && is_array(json_decode($contents, true)) ? $contents : null;
+    }
+
+    /**
+     * An image PHP couldn't take, too big for its upload limit for one, can't be hashed, and is a validation error,
+     * as on the web, rather than a bad signature.
+     *
+     * @return list<string>
+     */
+    private function imageHashes(Request $request): array
+    {
+        /** @var list<UploadedFile> $images */
+        $images = $request->files->all()['images'];
+
+        return array_map(function (UploadedFile $image): string {
+            throw_unless($image->isValid(), ValidationException::withMessages(['images' => __('validation.uploaded', ['attribute' => 'image'])]));
+
+            return (string) hash_file('sha256', $image->getPathname());
+        }, $images);
+    }
+
+    /**
+     * The payload becomes the request's fields, cleaned the way every request's fields are before it gets here.
+     */
+    private function readPayload(Request $request, string $payload): void
+    {
+        /** @var array<string, mixed> $fields */
+        $fields = json_decode($payload, true);
+
+        $request->request->replace($fields);
+
+        foreach ([TrimStrings::class, ConvertEmptyStringsToNull::class] as $middleware) {
+            resolve($middleware)->handle($request, fn (Request $request): Request => $request);
+        }
     }
 }
