@@ -31,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read User|null $partner
  * @property-read string $partner_id
  * @property-read int $ahead
+ * @property-read int|null $last_incoming_message_id
  * @property-read CarbonInterface|null $last_message_at
  * @property-read RemoteStatus $partner_status
  * @property-read int $partner_read_through_id
@@ -105,6 +106,7 @@ final class Conversation extends Model
             'updated_at' => 'datetime',
             'partner_id' => 'string',
             'ahead' => 'integer',
+            'last_incoming_message_id' => 'integer',
             'last_message_at' => 'datetime',
             'partner_status' => RemoteStatus::class,
             'partner_read_through_id' => 'integer',

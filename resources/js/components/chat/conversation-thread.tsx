@@ -286,9 +286,20 @@ export function ConversationThread({
     );
 
     useEffect(() => {
-        if (isVisible && thread?.isLoaded && isPinned.current) {
-            markThreadRead(target);
-        }
+        const markRead = () => {
+            if (isVisible && thread?.isLoaded && isPinned.current) {
+                markThreadRead(target);
+            }
+        };
+
+        markRead();
+        window.addEventListener('focus', markRead);
+        document.addEventListener('visibilitychange', markRead);
+
+        return () => {
+            window.removeEventListener('focus', markRead);
+            document.removeEventListener('visibilitychange', markRead);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isVisible, latestId, thread?.isLoaded, targetKey(target)]);
 
