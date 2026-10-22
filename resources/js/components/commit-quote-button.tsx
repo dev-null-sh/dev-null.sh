@@ -15,7 +15,6 @@ import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { QuotedCommit } from '@/components/quoted-commit';
-import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,7 +26,6 @@ import {
 import { UserAvatar } from '@/components/user-avatar';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
-import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
@@ -132,7 +130,6 @@ function QuoteComposer({
         stashKey,
     );
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const secrets = useSecretWarning(body);
     const commitRules = useCommitRules();
     const keys = useKeyLabels();
 
@@ -185,9 +182,7 @@ function QuoteComposer({
                 {...CommitController.store.form()}
                 errorBag="quote"
                 onBefore={() =>
-                    !attachments.isReading() &&
-                    commitRules.beforeSubmit() &&
-                    secrets.beforeSubmit()
+                    !attachments.isReading() && commitRules.beforeSubmit()
                 }
                 transform={(data) => ({
                     ...data,
@@ -262,15 +257,6 @@ function QuoteComposer({
                             <CommitRulesDialog
                                 rules={commitRules}
                                 textarea={textareaRef}
-                            />
-                            <SecretWarning
-                                body={body}
-                                findings={secrets.findings}
-                                textarea={textareaRef}
-                                onChange={updateBody}
-                                confirming={secrets.confirming}
-                                onConfirmingChange={secrets.setConfirming}
-                                onApprove={secrets.approve}
                             />
 
                             <ImagePickerPreviews

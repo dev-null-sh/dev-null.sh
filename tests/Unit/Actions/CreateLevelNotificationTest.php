@@ -88,6 +88,7 @@ it('counts only the XP everyone can see', function (): void {
 });
 
 it('checks the level of an author whose commit is approved', function (): void {
+    config(['queue.default' => 'sync']);
     $user = User::factory()->create();
     Commit::factory()->for($user)->count(3)->create();
     $pending = Commit::factory()->for($user)->pending()->create();
@@ -98,7 +99,8 @@ it('checks the level of an author whose commit is approved', function (): void {
 });
 
 it('checks the level of an author whose commit is approved right away', function (): void {
-    config(['app.admins' => ['nunomaduro']]);
+    config(['app.admins' => ['nunomaduro'], 'queue.default' => 'sync']);
+    Queue::fake()->except(CheckUserLevel::class);
     $user = User::factory()->create(['username' => 'nunomaduro']);
     Commit::factory()->for($user)->count(3)->create();
 
@@ -123,6 +125,7 @@ it('checks the level of both the author and the stargazer when a commit is starr
 });
 
 it('levels up the author a star pushes over the threshold', function (): void {
+    config(['queue.default' => 'sync']);
     $author = User::factory()->create();
     Commit::factory()->for($author)->count(2)->create();
     $commit = Commit::factory()->for($author)->create();

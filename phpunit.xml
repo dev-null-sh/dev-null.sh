@@ -29,7 +29,7 @@
         <env name="INERTIA_SSR_ENABLED" value="false"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
-        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="QUEUE_CONNECTION" value="database"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="SIGNUP_MIN_ACCOUNT_AGE_DAYS" value="0"/>
         <env name="SIGNUP_REQUIRE_VERIFIED_EMAIL" value="false"/>

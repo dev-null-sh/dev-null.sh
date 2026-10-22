@@ -16,7 +16,7 @@ it('fits commits that would overflow the card', function (string $body): void {
     expect(array_slice((array) getimagesizefromstring($image), 0, 2))->toBe([1200, 630]);
 })->with([
     'a one-liner' => ['Hello, world.'],
-    'a long body with a url' => [str_repeat('Writing PHP on purpose and shipping it before lunch. ', 3).'https://github.com/nunomaduro/dev-null.sh/pull/57/files#diff-0123456789abcdef'],
+    'a long body with a url' => [str_repeat('Writing PHP on purpose and shipping it before lunch. ', 3).'https://github.com/dev-null-sh/dev-null.sh/pull/57/files#diff-0123456789abcdef'],
     'an unbroken word wider than the card' => [str_repeat('supercalifragilistic', 14)],
     'paragraphs' => ["First line.\n\nSecond line.\nThird line.\n\n\nFourth line.\nFifth line.\nSixth line.\nSeventh line."],
     'nothing Geist can draw' => ['🚀🔥✨'],

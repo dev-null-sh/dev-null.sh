@@ -394,22 +394,17 @@ test('schedules in UTC with pasted images and the chosen link card', () => {
     });
 });
 
-test('retains restored images while sensitive text requires explicit approval', () => {
+test('submits token-shaped text and restored images without secret approval', () => {
     const token = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
     draft.body = token;
     draft.images = [image];
     draft.descriptions = ['A restored screenshot'];
-    const { form, fields } = render();
-    const warning = fields.find(
-        (element) => (element.props.findings as unknown[] | undefined)?.length,
-    )!;
+    const { form } = render();
 
-    assert.equal(form.props.onBefore(), false);
+    assert.equal(form.props.onBefore(), true);
     assert.equal(draft.drop.mock.calls.length, 0);
     assert.deepEqual(draft.images, [image]);
-    (warning.props.onApprove as () => void)();
     assert.equal(form.props.onBefore(), true);
-    assert.equal(form.props.onBefore(), false);
     assert.deepEqual(form.props.transform({ body: draft.body }), {
         body: draft.body,
         commit_rules_accepted: true,
@@ -577,13 +572,14 @@ test('picking a suggestion with Enter starts an empty issue, and the shortcut op
         assert.equal(enter.preventDefault.mock.calls.length, 1);
         assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['']);
 
-        draft.body = 'Search loses its filters';
+        draft.body =
+            'Search loses its filters ghp_Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
         keyDown(render(), 'Enter', { metaKey: true });
         assert.equal(http.submit.mock.calls.length, 1);
         const payload = http.transform.mock.calls[0][0] as () => unknown;
         assert.deepEqual(payload(), {
             command: '/bug',
-            body: 'Search loses its filters',
+            body: draft.body,
             environment: {
                 browser: 'Chrome 140.0.0.0',
                 os: 'macOS',

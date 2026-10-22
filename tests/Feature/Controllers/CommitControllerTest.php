@@ -7,6 +7,7 @@ use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Jobs\DetectCommitLanguage;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -799,6 +800,7 @@ it('reloads the commit alone without loading its thread', function (): void {
 });
 
 it('builds the link preview only for full page loads', function (): void {
+    Queue::fake([DetectCommitLanguage::class]);
     $commit = Commit::factory()->create();
     Commit::factory()->for($commit, 'parent')->create();
     $queries = function (array $headers) use ($commit): int {
@@ -937,11 +939,11 @@ it('trims long commits in the link preview description', function (): void {
 });
 
 it('shortens long urls in the link preview description', function (): void {
-    $commit = Commit::factory()->create(['body' => 'A lot came! https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc+is%3Apr']);
+    $commit = Commit::factory()->create(['body' => 'A lot came! https://github.com/dev-null-sh/dev-null.sh/pulls?q=sort%3Aupdated-desc+is%3Apr']);
 
     $this->get(route('commit.show', [$commit->user, $commit]))
         ->assertOk()
-        ->assertSee('<meta property="og:description" content="A lot came! github.com/nunomaduro/dev-nul…">', false);
+        ->assertSee('<meta property="og:description" content="A lot came! github.com/dev-null-sh/dev-nu…">', false);
 });
 
 it('escapes the commit in the link preview', function (): void {
@@ -1213,7 +1215,7 @@ it('attaches no link preview when the author chose none', function (): void {
 
     expect($user->commits()->sole()->link_preview_id)->toBeNull();
 
-    Queue::assertNothingPushed();
+    Queue::assertNotPushed(UnfurlLink::class);
 });
 
 it('may not choose a link preview for a url that is not in the body', function (string $url): void {

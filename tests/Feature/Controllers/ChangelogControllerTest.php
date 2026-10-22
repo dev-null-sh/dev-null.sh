@@ -15,7 +15,7 @@ function changelogPullRequest(int $number, string $mergedAt): array
     return [
         'number' => $number,
         'title' => 'feat: turn emoji shortcodes into emoji in remotes',
-        'html_url' => "https://github.com/nunomaduro/dev-null.sh/pull/{$number}",
+        'html_url' => "https://github.com/dev-null-sh/dev-null.sh/pull/{$number}",
         'merged_at' => $mergedAt,
         'updated_at' => $mergedAt,
         'merge_commit_sha' => 'c897f86700000000000000000000000000000000',
@@ -40,7 +40,7 @@ it('lists the latest days of merged pull requests for anyone, with a link to eve
 
     $request->getJson('/changelog?timezone=UTC')
         ->assertOk()
-        ->assertJsonPath('commitsUrl', 'https://github.com/nunomaduro/dev-null.sh/commits/production')
+        ->assertJsonPath('commitsUrl', 'https://github.com/dev-null-sh/dev-null.sh/commits/production')
         ->assertJsonPath('pullRequests.0.number', 377)
         ->assertJsonPath('pullRequests.0.type', 'feat')
         ->assertJsonPath('pullRequests.0.title', 'Turn emoji shortcodes into emoji in remotes')
