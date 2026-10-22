@@ -25,6 +25,7 @@ test('to array', function (): void {
             'updated_at',
             'has_sponsors_listing',
             'timezone',
+            'show_local_time',
             'lane',
             'has_github_account',
             'live',

@@ -16,6 +16,21 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 
+/**
+ * @phpstan-type ConversationSummary array{
+ *     id: string,
+ *     kind: ConversationKind,
+ *     name: string|null,
+ *     partner: User|null,
+ *     members: Collection<int, array{user: User, role: OrgRole|null}>|null,
+ *     last_message: Message|null,
+ *     last_message_at: string|null,
+ *     ahead: int,
+ *     partner_read_through_id: int,
+ *     partner_read_at: string|null,
+ *     is_archived: bool
+ * }
+ */
 final readonly class ConversationsQuery
 {
     public const int PAGE = 30;
@@ -24,7 +39,7 @@ final readonly class ConversationsQuery
      * One page of a tab, newest first, continuing before a conversation when scrolling down. The term matches the
      * partner's name or handle, already lowercased and without a leading @.
      *
-     * @return array{conversations: Collection<int, array{id: string, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}>, has_more: bool}
+     * @return array{conversations: Collection<int, ConversationSummary>, has_more: bool}
      */
     public function get(User $user, InboxTab $tab = InboxTab::Open, string $term = '', ?string $before = null): array
     {
@@ -79,7 +94,7 @@ final readonly class ConversationsQuery
                     ->whereNull('messages.event'),
                 'ahead',
             )
-            ->with(['lastMessage.user', 'lastMessage.subject', 'partner', 'participants.user'])
+            ->with(['lastMessage.user', 'lastMessage.subject', 'lastMessage.voice', 'partner', 'participants.user'])
             ->orderByDesc('mine.last_message_at')
             ->orderByDesc('conversations.id')
             ->limit(self::PAGE + 1)
@@ -133,7 +148,7 @@ final readonly class ConversationsQuery
     }
 
     /**
-     * @return array{id: string, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}
+     * @return ConversationSummary
      */
     private function summary(User $user, Conversation $conversation): array
     {

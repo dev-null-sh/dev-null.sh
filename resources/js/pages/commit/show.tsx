@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitCard, CommitTombstone } from '@/components/commit-card';
 import { CopyLinkButton } from '@/components/copy-link-button';
+import { GraphCanvas } from '@/components/graph-canvas';
 import { useContinuation } from '@/hooks/use-continuation';
 import AppLayout from '@/layouts/app-layout';
 import { isDeleted, laneOf, shortHash } from '@/lib/utils';
@@ -71,80 +72,98 @@ export default function Show({
                 <CopyLinkButton commit={commit} className="-mr-1 -ml-1.5" />
             </div>
 
-            {ancestors.map((ancestor, index) => {
-                const previous = ancestors[index - 1];
-                const previousLane = previous ? laneOf(previous) : undefined;
+            <GraphCanvas>
+                {ancestors.map((ancestor, index) => {
+                    const previous = ancestors[index - 1];
+                    const previousLane = previous
+                        ? laneOf(previous)
+                        : undefined;
 
-                return isDeleted(ancestor) ? (
-                    <CommitTombstone
-                        key={ancestor.id}
-                        previousLane={previousLane}
-                    />
-                ) : (
-                    <CommitCard
-                        key={ancestor.id}
-                        commit={ancestor}
-                        previousLane={previousLane}
-                        isGroupedWithPrevious={isSameAuthor(previous, ancestor)}
-                        canDelete={false}
-                        threadPosition={positionAt(
-                            focusedPosition - (ancestors.length - index),
-                        )}
-                    />
-                );
-            })}
-
-            <CommitCard
-                key={commit.id}
-                commit={commit}
-                previousLane={lastAncestor ? laneOf(lastAncestor) : undefined}
-                isGroupedWithPrevious={isSameAuthor(lastAncestor, commit)}
-                initialReplies={replies ?? undefined}
-                exceptReplyId={shown[0]?.id}
-                endsWithDot={shown.length === 0}
-                threadPosition={positionAt(focusedPosition)}
-                isFocused
-            />
-
-            {shown.map((next, index) => {
-                const previous = shown[index - 1] ?? commit;
-                const following = shown[index + 1];
-                const isLast = following === undefined;
-                const exceptReplyId = following?.id ?? nextId ?? undefined;
-
-                return (
-                    <CommitCard
-                        key={next.id}
-                        commit={next}
-                        previousLane={laneOf(previous)}
-                        isGroupedWithPrevious
-                        exceptReplyId={exceptReplyId}
-                        loadsReplies={isLast && nextId === null}
-                        endsWithDot={isLast && nextId === null}
-                        threadPosition={positionAt(focusedPosition + index + 1)}
-                    />
-                );
-            })}
-
-            {nextId !== null && (
-                <div className="pr-4 pl-16 sm:pl-18">
-                    <div className="border-b py-3">
-                        <button
-                            type="button"
-                            onClick={loadMore}
-                            aria-disabled={isLoading}
-                            className="-ml-2 min-w-44 rounded-md px-2 py-0.5 text-left text-[13px] text-muted-foreground transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground aria-disabled:pointer-events-none"
-                            data-test="more-thread-button"
-                        >
-                            {isLoading ? (
-                                <span role="status">Loading the thread…</span>
-                            ) : (
-                                'Show more of this thread'
+                    return isDeleted(ancestor) ? (
+                        <CommitTombstone
+                            key={ancestor.id}
+                            id={ancestor.id}
+                            previousLane={previousLane}
+                            graphAfter={previous?.id}
+                        />
+                    ) : (
+                        <CommitCard
+                            key={ancestor.id}
+                            commit={ancestor}
+                            previousLane={previousLane}
+                            graphAfter={previous?.id}
+                            isGroupedWithPrevious={isSameAuthor(
+                                previous,
+                                ancestor,
                             )}
-                        </button>
+                            canDelete={false}
+                            threadPosition={positionAt(
+                                focusedPosition - (ancestors.length - index),
+                            )}
+                        />
+                    );
+                })}
+
+                <CommitCard
+                    key={commit.id}
+                    commit={commit}
+                    previousLane={
+                        lastAncestor ? laneOf(lastAncestor) : undefined
+                    }
+                    graphAfter={lastAncestor?.id}
+                    isGroupedWithPrevious={isSameAuthor(lastAncestor, commit)}
+                    initialReplies={replies ?? undefined}
+                    exceptReplyId={shown[0]?.id}
+                    endsWithDot={shown.length === 0}
+                    threadPosition={positionAt(focusedPosition)}
+                    isFocused
+                />
+
+                {shown.map((next, index) => {
+                    const previous = shown[index - 1] ?? commit;
+                    const following = shown[index + 1];
+                    const isLast = following === undefined;
+                    const exceptReplyId = following?.id ?? nextId ?? undefined;
+
+                    return (
+                        <CommitCard
+                            key={next.id}
+                            commit={next}
+                            previousLane={laneOf(previous)}
+                            graphAfter={previous.id}
+                            isGroupedWithPrevious
+                            exceptReplyId={exceptReplyId}
+                            loadsReplies={isLast && nextId === null}
+                            endsWithDot={isLast && nextId === null}
+                            threadPosition={positionAt(
+                                focusedPosition + index + 1,
+                            )}
+                        />
+                    );
+                })}
+
+                {nextId !== null && (
+                    <div className="pr-4 pl-16 sm:pl-18">
+                        <div className="border-b py-3">
+                            <button
+                                type="button"
+                                onClick={loadMore}
+                                aria-disabled={isLoading}
+                                className="-ml-2 min-w-44 rounded-md px-2 py-0.5 text-left text-[13px] text-muted-foreground transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground aria-disabled:pointer-events-none"
+                                data-test="more-thread-button"
+                            >
+                                {isLoading ? (
+                                    <span role="status">
+                                        Loading the thread…
+                                    </span>
+                                ) : (
+                                    'Show more of this thread'
+                                )}
+                            </button>
+                        </div>
                     </div>
-                </div>
-            )}
+                )}
+            </GraphCanvas>
         </>
     );
 }

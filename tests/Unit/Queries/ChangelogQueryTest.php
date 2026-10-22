@@ -16,7 +16,7 @@ function pullRequest(int $number, ?string $mergedAt, ?string $updatedAt = null, 
     return [
         'number' => $number,
         'title' => $title,
-        'html_url' => "https://github.com/nunomaduro/dev-null.sh/pull/{$number}",
+        'html_url' => "https://github.com/dev-null-sh/dev-null.sh/pull/{$number}",
         'merged_at' => $mergedAt,
         'updated_at' => $updatedAt ?? $mergedAt ?? '2026-10-01T00:00:00Z',
         'merge_commit_sha' => mb_str_pad((string) $number, 40, 'a'),
@@ -33,7 +33,7 @@ function fakeGitHub(array $pullRequests): void
 {
     usort($pullRequests, fn (array $a, array $b): int => strcmp((string) $b['updated_at'], (string) $a['updated_at']));
 
-    Http::fake(['api.github.com/repos/nunomaduro/dev-null.sh/pulls*' => fn (Request $request) => Http::response(
+    Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/pulls*' => fn (Request $request) => Http::response(
         array_slice($pullRequests, ((int) $request['page'] - 1) * 100, 100),
     )]);
 }
@@ -66,9 +66,9 @@ it('lists the pull requests merged on the three latest days with merges, newest 
             'type' => 'feat',
             'breaking' => true,
             'title' => 'Turn emoji shortcodes into emoji in remotes',
-            'url' => 'https://github.com/nunomaduro/dev-null.sh/pull/377',
+            'url' => 'https://github.com/dev-null-sh/dev-null.sh/pull/377',
             'sha' => mb_str_pad('377', 40, 'a'),
-            'commit_url' => 'https://github.com/nunomaduro/dev-null.sh/commit/'.mb_str_pad('377', 40, 'a'),
+            'commit_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/'.mb_str_pad('377', 40, 'a'),
             'merged_at' => '2026-10-18T00:53:44Z',
             'author' => ['login' => 'xHeaven', 'avatar' => 'https://avatars.githubusercontent.com/u/377?v=4', 'lane' => null],
         ])

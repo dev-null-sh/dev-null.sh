@@ -86,6 +86,14 @@ export type MetricsRange = TrafficRange & { all_time: boolean };
 
 export type FunnelRate = 'conversion' | 'activation' | 'retention';
 
+export type AcquisitionDay = {
+    date: string;
+    signups: number;
+    visitors: number | null;
+    converted: number | null;
+    complete: boolean;
+};
+
 export type ActivationDay = {
     date: string;
     activated: number;
@@ -96,6 +104,7 @@ export type ActivationDay = {
 export type Funnel = {
     visitors: number | null;
     signups: number;
+    acquisition_by_day: AcquisitionDay[];
     activated: number;
     activation_eligible: number;
     activation_by_day: ActivationDay[];
