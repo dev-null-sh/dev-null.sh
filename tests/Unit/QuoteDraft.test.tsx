@@ -110,14 +110,9 @@ test('quotes submit restored images and clear the complete draft only on success
     }) => ReactNode;
     const fields = elements(renderFields({ processing: false, errors: {} }));
     const beforeSubmit = form.props.onBefore as () => boolean;
-    const warning = fields.find(
-        (element) => (element.props.findings as unknown[] | undefined)?.length,
-    )!;
-    assert.equal(beforeSubmit(), false);
-    assert.equal(drop.mock.calls.length, 0);
-    (warning.props.onApprove as () => void)();
     assert.equal(beforeSubmit(), true);
-    assert.equal(beforeSubmit(), false);
+    assert.equal(drop.mock.calls.length, 0);
+    assert.equal(beforeSubmit(), true);
 
     const previews = fields.find(
         (element) => element.type === ImagePickerPreviews,

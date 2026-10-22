@@ -8,7 +8,7 @@ use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
-    config(['services.openai.key' => 'sk-test']);
+    config(['ai.providers.openai.key' => 'sk-test']);
 });
 
 it('skips commits that were deleted in the meantime', function (): void {

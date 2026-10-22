@@ -185,6 +185,7 @@ test('suggested user row wraps the author in a user preview anchored to their av
         avatar_url: null,
         lane: 1,
         timezone: null,
+        show_local_time: false,
         followed_by_following_count: 15,
         followers_count: 20,
     } as SuggestedUser;

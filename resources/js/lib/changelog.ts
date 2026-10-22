@@ -11,11 +11,14 @@ export type ChangelogPullRequest = {
 };
 
 /**
- * Someone who merged a pull request. The lane is the one they chose on /dev/null, or null when they aren't on it.
+ * Someone who merged a pull request. The username, mention and lane are theirs on /dev/null, or null when they aren't
+ * on it.
  */
 export type ChangelogAuthor = {
     login: string;
     avatar: string;
+    username: string | null;
+    mention: string | null;
     lane: number | string | null;
 };
 

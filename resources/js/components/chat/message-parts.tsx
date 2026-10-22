@@ -30,7 +30,7 @@ export type Author = { name: string; lane: Lane; isMe: boolean };
  * Links, mentions and code keep the primary bubble's colours, so they stay readable on it.
  */
 const onPrimary =
-    '[&_a]:text-primary-foreground [&_a]:underline [&_a]:decoration-primary-foreground/50 [&_a]:underline-offset-2 [&_.text-muted-foreground]:text-primary-foreground/70 [&_.fill-foreground]:fill-primary-foreground [&_code]:bg-primary-foreground/15';
+    '[&_a]:text-primary-foreground [&_a]:underline [&_a]:decoration-primary-foreground/50 [&_a]:underline-offset-2 [&_.text-muted-foreground]:text-primary-foreground/70 [&_.fill-foreground]:fill-primary-foreground [&_blockquote]:border-neutral-200 [&_code]:bg-primary-foreground/15';
 
 export function MessageText({
     message,
@@ -297,16 +297,13 @@ export function Repliable({
         };
     }, [isMine, isReplyable]);
 
-    if (onReply === null) {
-        return children;
-    }
-
     return (
         <div
             ref={row}
             className={cn('group/message flex w-full touch-pan-y', {
                 'justify-end': isMine,
-                'transition-transform duration-200': offset === 0,
+                'transition-transform duration-200 motion-reduce:transition-none':
+                    offset === 0,
             })}
             style={
                 offset > 0
