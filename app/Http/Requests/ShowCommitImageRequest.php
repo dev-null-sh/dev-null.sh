@@ -13,7 +13,8 @@ use Illuminate\Support\Facades\Storage;
 final class ShowCommitImageRequest extends FormRequest
 {
     /**
-     * Pending and rejected images never leave the server for anyone but their author and moderators.
+     * Pending and rejected images never leave the server for anyone but their author and moderators, or the temporary
+     * URL the API gave one of them, until the commit is deleted.
      */
     public function authorize(): Response
     {
@@ -22,7 +23,7 @@ final class ShowCommitImageRequest extends FormRequest
 
         $commit = Commit::query()->find($commitImage->commit_id);
 
-        return $commit instanceof Commit && $commit->imagesAreVisibleTo($this->user()) && Storage::disk()->exists($commitImage->path)
+        return $commit instanceof Commit && ($commit->imagesAreVisibleTo($this->user()) || (! $commit->trashed() && $this->hasValidSignature())) && Storage::disk()->exists($commitImage->path)
             ? Response::allow()
             : Response::denyAsNotFound();
     }

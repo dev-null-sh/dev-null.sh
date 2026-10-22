@@ -68,7 +68,7 @@ This file documents the platform's features, stack, and stories. Feature entries
 
 ## Repository
 
-- **Repository:** [nunomaduro/dev-null.sh](https://github.com/nunomaduro/dev-null.sh).
+- **Repository:** [dev-null-sh/dev-null.sh](https://github.com/dev-null-sh/dev-null.sh).
 - **Setup and development:** [README](README.md).
 - **Product terminology and behavior:** [Product guide](PRODUCT.md).
 
@@ -165,11 +165,11 @@ The public search searches developers and commits, not this knowledge-base file.
 
 Sources: [search page](resources/js/pages/search/index.tsx), [commit search query](app/Queries/CommitSearchQuery.php), [search validation](app/Http/Requests/ListCommitSearchRequest.php), [knowledge-base query](app/Queries/KnowledgeBaseSearchQuery.php).
 
-Livestream history: the team agreed to build semantic search on [day two at 2:57:59](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=10679s). The discussion connects immutable commits with simpler embeddings: editing would require re-embedding, versioning, and reconsidering notifications. They deferred editing and versioning “for now,” rather than declaring that those features could never exist.
+Livestream history: the team agreed to build semantic search on [day two at 2:57:59](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=10679s). The discussion connects immutable commits with simpler embeddings: editing would require re-embedding, versioning, and reconsidering notifications. At the time they deferred editing and versioning “for now”; the decision is now final: commit editing will never be added.
 
 ### Writing commits
 
-A **commit** is a post on /dev/null, not a Git commit in a repository. Open the composer or press **c**, write your update, and choose **Commit** or press **⌘/Ctrl+Enter**. Text-only commits accept 3–4,000 characters; as you type, the ring around your avatar in the composer fills toward that limit. In the browser, an image attachment makes the text optional, but the 4,000-character maximum still applies. Lists fold posts longer than 280 characters or 8 lines behind **Show more**, without cutting through code. Commits can be created and deleted, but not edited after publication.
+A **commit** is a post on /dev/null, not a Git commit in a repository. Open the composer or press **c**, write your update, and choose **Commit** or press **⌘/Ctrl+Enter**. Text-only commits accept 3–4,000 characters; as you type, the ring around your avatar in the composer fills toward that limit. In the browser, an image attachment makes the text optional, but the 4,000-character maximum still applies. Lists fold posts longer than 280 characters or 8 lines behind **Show more**, without cutting through code. Commits can be created and deleted, but not edited after publication. There are no plans to add commit editing, and it will never be added: to change a commit, delete it and post a new one.
 
 Commits, replies, quotes, scheduling, terminal submissions, and app (signed API) commits share a limit of 10 attempts per minute per user. Posts go through [moderation](#moderation), so a newly submitted commit may be pending rather than public immediately; admins and authors with a good reputation are approved at once.
 
@@ -197,7 +197,7 @@ Commit and reply text supports inline code in backticks and fenced code blocks w
 
 Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions are limited to the org's members. Mentions link to profiles and can notify the mentioned developer after approval. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
 
-Typing **#123** in a composer looks up that exact issue or pull request in the configured upstream repository (`nunomaduro/dev-null.sh` by default). The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL. A space or punctuation after the number automatically inserts the match, without treating a pause midway through a longer number as completion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
+Typing **#123** in a composer looks up that exact issue or pull request in the configured upstream repository (`dev-null-sh/dev-null.sh` by default). The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL. A space or punctuation after the number automatically inserts the match, without treating a pause midway through a longer number as completion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
 
 The upstream is configured with `GITHUB_REPOSITORY=owner/repo` through `services.github.repository`. Issue suggestions, issue filing, the changelog, repository insights and history, and public repository links share this setting. Repository-specific caches are scoped to it.
 
@@ -219,7 +219,7 @@ Sources: [stash hook](resources/js/hooks/use-stash.ts), [image storage](resource
 
 ### Images and descriptions
 
-Attach up to **three JPEG, PNG, or WebP images** to a commit or reply. Each image can be at most **10 MB** and **6,000 pixels in either dimension**. Add an image description of up to **1,000 characters** for accessibility. Add images with the picker, by pasting, or by dropping them on the composer. Every image is re-encoded to WebP, at most 1,600 pixels wide, which strips metadata such as location. Images can be posted without accompanying text. Images on a pending commit are visible only to its author and admins. Image attachments and a poll cannot be combined in the same commit. Open an attached photo to view it in the photo viewer, move through the commit's images, read its description, or download it. Terminal commits can attach images without descriptions; the signed API cannot attach images.
+Attach up to **three JPEG, PNG, or WebP images** to a commit or reply. Each image can be at most **10 MB** and **6,000 pixels in either dimension**. Add an image description of up to **1,000 characters** for accessibility. Add images with the picker, by pasting, or by dropping them on the composer. Every image is re-encoded to WebP, at most 1,600 pixels wide, which strips metadata such as location. Images can be posted without accompanying text. Images on a pending commit are visible only to its author and admins. Image attachments and a poll cannot be combined in the same commit. Open an attached photo to view it in the photo viewer, move through the commit's images, read its description, or download it. Terminal commits can attach images without descriptions, and signed API commits with them.
 
 Sources: [image picker](resources/js/components/commit-image-picker.tsx), [image limits](app/Actions/CreateCommitImages.php), [attachment validation](app/Http/Requests/CreateCommitRequest.php), [photo controller](app/Http/Controllers/CommitPhotoController.php).
 
@@ -257,7 +257,7 @@ Livestream history: on [day two at 7:31:27](https://www.youtube.com/watch?v=nfmV
 
 ### Polls and voting
 
-Add a poll to a top-level commit with **two to four distinct options**, each up to **50 characters** (with the same emoji suggestions and `:shortcode:` conversion as the commit body), and a duration of **one hour, one day, three days, or seven days**. Polls cannot accompany images or be added to replies. Voting opens when the commit is approved, so time spent pending does not consume the voting period.
+Add a poll to a top-level commit with **two to four distinct options**, each up to **50 characters** (with the same emoji suggestions and `:shortcode:` conversion as the commit body), and a duration of **one hour, one day, three days, or seven days**. Polls cannot accompany images or be added to replies or quotes. Voting opens when the commit is approved, so time spent pending does not consume the voting period.
 
 Signed-in readers can choose one option and vote once while an approved, visible poll is open; a vote cannot be changed or withdrawn. The author cannot vote in their own poll. Results are visible to the author and people who have voted, and to everyone once the poll closes. Other people's individual votes are not revealed.
 
@@ -323,13 +323,13 @@ Livestream history: the notification requirements on [day one at 5:28:53](https:
 
 **Remotes** is /dev/null's private messaging inbox at `/remotes`. Open it from navigation or use a developer's **Remote** control. Remotes can be disabled in Settings → Profile; disabling keeps existing conversations but stops new messaging. By default, you can contact someone who follows you, provided both accounts have Remotes enabled and neither has blocked the other. The follow is only needed for the first message: once a conversation exists, both people can keep writing. Administrators have a contact-policy exception. Tom has Remotes turned off, so he cannot be messaged.
 
-Messages support up to **2,000 characters**, replies to messages, link cards, and up to three images with the same file limits and descriptions as commit attachments. An image makes message text optional. Messages cannot be edited or deleted, and mentions in them do not notify anyone. React to a message with any emoji, up to 12 different ones per person per message: three quick reactions sit next to each message, a picker searches the rest, and a double-tap or double-click toggles ❤️. Typing indicators show recent activity. Read receipts, called **pull receipts**, are on by default and shared only when both relevant people enable them. Stashing a conversation archives it for you without deleting it; it pops back when anyone writes in it. On desktop, **Dock** keeps the inbox at the bottom of every page. New messages arrive by polling, not push: every few seconds while a conversation is open. Message bodies are encrypted at rest with the app key, not end to end. Block someone from inside a conversation with its menu.
+Messages support up to **2,000 characters**, replies to messages, link cards, and up to three images with the same file limits and descriptions as commit attachments. An image makes message text optional. **Voice notes** of up to a minute can be recorded from the microphone button in the composer; a voice note is sent on its own (it can still reply to a message), and you can listen to it before pushing it or discard it. Voice notes are compressed with Opus in your browser, about 180 KB a minute (browsers that can't record Opus send plain 16 kHz mono audio instead). The server rebuilds each recording from its audio alone, so no metadata or tags are kept, and stores it encrypted with the app key like message bodies, only ever served to the people in the conversation, and erased with your account. On a computer, hovering the speaker next to a voice note turns its waveform into a volume ramp to drag; the volume you set applies to every voice note, from anyone, on that device, and is saved in your browser, never on the server. Phones and tablets use their volume buttons instead. Messages cannot be edited or deleted, and mentions in them do not notify anyone. React to a message with any emoji, up to 12 different ones per person per message: three quick reactions sit next to each message, a picker searches the rest, and a double-tap or double-click toggles ❤️. Typing indicators show recent activity. Read receipts, called **pull receipts**, are on by default and shared only when both relevant people enable them. Stashing a conversation archives it for you without deleting it; it pops back when anyone writes in it. On desktop, **Dock** keeps the inbox at the bottom of every page. New messages arrive by polling, not push: every few seconds while a conversation is open. Message bodies, images, and voice notes are encrypted at rest with keys derived from the app key, not end to end. Block someone from inside a conversation with its menu.
 
 Unread badges in conversation rows and the desktop dock display **99+** above 99; the full count remains available on hover and to screen readers. The **Fetched** tab applies the same display cap to waiting requests.
 
 Some deployments enable message requests and an **everyone** contact option. With requests enabled, a first message from someone outside the accepted contact policy waits in **Fetched**. The recipient can **merge** the request to accept or **drop** it privately. The sender cannot keep sending while waiting, and the recipient must merge before replying. These options are disabled by default in repository configuration; do not assume every installation exposes them.
 
-Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contact policy](app/Models/User.php), [push access](app/Queries/PushAccessQuery.php), [reactions](app/Http/Controllers/MessageReactionController.php), [message validation](app/Http/Requests/CreateConversationMessageRequest.php), [remote preferences](resources/js/components/chat/remote-settings-menu.tsx), [configuration](config/remotes.php).
+Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contact policy](app/Models/User.php), [push access](app/Queries/PushAccessQuery.php), [reactions](app/Http/Controllers/MessageReactionController.php), [message validation](app/Http/Requests/CreateConversationMessageRequest.php), [voice notes](app/Services/VoiceNotes.php), [remote preferences](resources/js/components/chat/remote-settings-menu.tsx), [configuration](config/remotes.php).
 
 ### Orgs: group chats
 
@@ -337,7 +337,7 @@ An **Org** is a private group chat within Remotes, not a synchronized GitHub org
 
 The creator starts as a **Maintainer**, and invited people start as **Contributors**. Maintainers can rename the group, add or remove members, and change roles. Contributors can read and send messages. When adding members, a maintainer can share existing history or only new messages. Members can leave or stash the group for themselves. At least one maintainer remains while the group has members: the last maintainer cannot be demoted, and if they leave, the longest-standing remaining member takes over. An org that everyone has left is deleted.
 
-Group messages support the same text, images, replies, link cards, reactions, and typing indicators as direct messages. A member's read position shows only when both you and that member have pull receipts on. Any new message pops the org back for members who stashed it. Membership and history access determine what a person can read.
+Group messages support the same text, images, voice notes, replies, link cards, reactions, and typing indicators as direct messages. A member's read position shows only when both you and that member have pull receipts on. Any new message pops the org back for members who stashed it. Membership and history access determine what a person can read.
 
 Sources: [group creation](app/Http/Requests/CreateOrgRequest.php), [invitation eligibility](app/Queries/RemoteCandidatesQuery.php), [history sharing](app/Actions/CreateOrgMembers.php), [role changes](app/Http/Requests/UpdateOrgMemberRequest.php), [leaving a group](app/Actions/DeleteOrgMember.php).
 
@@ -415,7 +415,7 @@ Livestream history: terminal posting was reported working on [day one at 6:32:47
 
 ### GitHub Actions integration
 
-Use `nunomaduro/dev-null.sh/.github/actions/commit@production` to publish updates from a GitHub workflow, for example when a release is published. Settings → Terminal includes a workflow example. The action accepts a commit body, an SSH private key supplied through a GitHub Actions secret, an optional `reply-to` reference, optional image paths (up to three), and an optional `url` for another /dev/null instance.
+Use `dev-null-sh/dev-null.sh/.github/actions/commit@production` to publish updates from a GitHub workflow, for example when a release is published. Settings → Terminal includes a workflow example. The action accepts a commit body, an SSH private key supplied through a GitHub Actions secret, an optional `reply-to` reference, optional image paths (up to three), and an optional `url` for another /dev/null instance.
 
 Generate a dedicated CI key, add its public half to GitHub as a signing or authentication key, and store the private half only in the repository's encrypted secrets. The action supports Ed25519 or RSA keys without a passphrase. It reports the created commit's link and whether it is pending review as a workflow annotation; it has no step outputs, and a refused submission fails the job. The usual moderation and submission limits still apply.
 
@@ -436,21 +436,25 @@ An app can use the same `/api/v1` for you with signed requests. It keeps an SSH 
 A signed request sees what the web shows you, such as your own pending commits. It can also, with the web's validation, moderation, and rate limits:
 
 - read your account, logs, replies, notifications, and saved commits;
-- commit, reply, and quote, and delete your commits;
+- commit, reply, and quote, with images, and delete your commits;
+- preview commit drafts without publishing them;
 - follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
 - star or unstar, and save or unsave;
+- create polls on commits that are neither replies nor quotes, and vote on polls;
+- change Remotes settings, read and send messages with images in conversations and orgs, mark them pulled, react to messages, find people, and start orgs;
+- stash or reopen conversations and orgs, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
 - report commits;
 - sync from GitHub and save your lane color;
 - delete your account.
 
-Signed request bodies are JSON, so app commits are text only: no images, polls, or link-card choice. Pinning, Remotes, scheduling, search, and translations are web-only for now. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
+Signed request bodies are JSON, or multipart when they carry images, so app commits can have images or a poll but no link-card choice. Voice notes, pinning, scheduling, search, and translations remain web-only. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
 
 ### Bug reports and feature requests
 
-Start a fresh commit draft with **`/bug `** or **`/feature `** to switch it into an issue draft. Submitting opens a **public GitHub issue** on `nunomaduro/dev-null.sh`, crediting you, rather than posting a normal commit. The issue includes your browser and screen details (browser, OS, viewport, pixel ratio, language, color scheme, and the current page) in a collapsed Environment section. The composer offers command suggestions and a way to cancel back to a commit. Issue drafts are text-only and accept 3–4,000 characters; remove detected secrets before submission.
+Start a fresh commit draft with **`/bug `** or **`/feature `** to switch it into an issue draft. Submitting opens a **public GitHub issue** on `dev-null-sh/dev-null.sh`, crediting you, rather than posting a normal commit. The issue includes your browser and screen details (browser, OS, viewport, pixel ratio, language, color scheme, and the current page) in a collapsed Environment section. The composer offers command suggestions and a way to cancel back to a commit. Issue drafts are text-only and accept 3–4,000 characters; remove detected secrets before submission.
 
 Empty issue drafts show a short Markdown template: steps and expected versus actual behavior for bugs, or the problem and proposal for features. The first top-level `# Heading` becomes the issue title and is removed from the body; the remaining Markdown is preserved. Without a heading, the first line is used as the title and the full draft remains in the body.
 
@@ -500,7 +504,7 @@ Sources: [last seen tracking](app/Http/Middleware/UpdateLastSeenAt.php), [Fathom
 
 ### Tom's repository insights and community statistics
 
-Tom can read public GitHub data for `nunomaduro/dev-null.sh`: up to ten top contributors by GitHub-reported commit count (excluding bots), recent pull requests merged into `production`, open issues labelled **good first issue** or **help wanted**, stars and forks, separate open-issue and open-PR counts, and repository language bytes. These are read-only tools, not arbitrary repository access. A merge does not prove deployment, and a limited list is not an exhaustive count. GitHub insights are cached for fifteen minutes; contributor data can lag by hours and changelog pages have an additional thirty-minute cache. Public reads reuse the application's existing GitHub OAuth credentials, not a user's token.
+Tom can read public GitHub data for `dev-null-sh/dev-null.sh`: up to ten top contributors by GitHub-reported commit count (excluding bots), recent pull requests merged into `production`, open issues labelled **good first issue** or **help wanted**, stars and forks, separate open-issue and open-PR counts, and repository language bytes. These are read-only tools, not arbitrary repository access. A merge does not prove deployment, and a limited list is not an exhaustive count. GitHub insights are cached for fifteen minutes; contributor data can lag by hours and changelog pages have an additional thirty-minute cache. Public reads reuse the application's existing GitHub OAuth credentials, not a user's token.
 
 For feature attribution, Tom can search all indexed dates of merged `production` PR titles and descriptions and non-merge Git commit messages on the default branch. He translates questions into feature keywords and can retry with synonyms or fewer words. All keywords must match, in any order, rather than as one exact phrase. This is AI-guided keyword search, not a semantic GitHub index. Each search returns up to five best matches of each kind, with source links, dates and GitHub-linked author accounts; descriptions are searched but not returned to the model. Results are cached for fifteen minutes, with at most two searches per reply. This is not a code or diff search: matches may be follow-up fixes, missing matches do not establish absence, and PR or commit authorship does not prove sole implementation or list every co-author. Unknown accounts stay unknown; committers and mergers are not credited as implementers. GitHub failures or incomplete searches are reported as unavailable.
 
@@ -542,9 +546,9 @@ The repository defaults to database-backed queues, cache, and sessions. File sto
 
 The knowledge base is split into Markdown sections by heading and stored with vector embeddings in PostgreSQL. An hourly scheduled job refreshes new or changed sections in production, so knowledge-base changes are picked up within an hour of being deployed. Unchanged sections reuse their embeddings.
 
-An [internal semantic search query](README.md#internal-semantic-search) retrieves the nearest knowledge-base sections using Laravel AI SDK query embeddings through OpenAI and PostgreSQL cosine distance, following the same embedding approach as commit search. Tom's read-only tools expose bounded knowledge-base excerpts and public commit search results to the model. There is no standalone public knowledge-base search endpoint.
+An [internal semantic search query](app/Queries/KnowledgeBaseSearchQuery.php) retrieves the nearest knowledge-base sections using Laravel AI SDK query embeddings through OpenAI and PostgreSQL cosine distance, following the same embedding approach as commit search. Tom's read-only tools expose bounded knowledge-base excerpts and public commit search results to the model. There is no standalone public knowledge-base search endpoint.
 
-Stack references: [PHP dependencies](composer.json), [frontend dependencies](package.json), [database configuration](config/database.php), [setup requirements](README.md#getting-started), [queue configuration](config/queue.php), [cache configuration](config/cache.php), [session configuration](config/session.php), [storage configuration](config/filesystems.php), and [existing AI integration](app/Services/OpenAI.php). Laravel Cloud hosting is confirmed by the project team.
+Stack references: [PHP dependencies](composer.json), [frontend dependencies](package.json), [database configuration](config/database.php), [setup requirements](README.md#contributing), [queue configuration](config/queue.php), [cache configuration](config/cache.php), [session configuration](config/session.php), [storage configuration](config/filesystems.php), and [existing AI integration](app/Services/OpenAI.php). Laravel Cloud hosting is confirmed by the project team.
 
 ### October 21, 2026: PHP security patches and precautionary downtime
 
@@ -626,7 +630,7 @@ Sources:
 
 - [Fernando's post arranging delivery to the crew](https://dev-null.sh/@fernandofreamunde/commits/01a144fe-ed29-7356-af93-03b9724e8af6).
 - [Matthieu's reply thanking him for the pastéis de nata](https://dev-null.sh/@mnapoli/commits/01a1453f-ac59-7077-b99e-98d72547ae8f).
-- [Pastéis mode contribution](https://github.com/nunomaduro/dev-null.sh/pull/286).
+- [Pastéis mode contribution](https://github.com/dev-null-sh/dev-null.sh/pull/286).
 - The project team's account confirms that the emoji and mode are a tribute to Fernando.
 
 ### The pushup break

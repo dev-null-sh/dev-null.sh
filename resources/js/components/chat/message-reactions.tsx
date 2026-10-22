@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { emojiName, searchEmojiByUse } from '@/lib/emoji';
+import { formatCount, formatExactCount } from '@/lib/numbers';
 import type { ReactionUsage, Tap } from '@/lib/reactions';
 import {
     frequentReactions,
@@ -132,7 +133,7 @@ export function ReactionChips({
                             type="button"
                             disabled={onToggle === null}
                             aria-pressed={summary.isMine}
-                            aria-label={`${shortcodeOf(summary.emoji)} ${summary.count}, from ${names}`}
+                            aria-label={`${shortcodeOf(summary.emoji)} ${formatExactCount(summary.count)}, from ${names}`}
                             title={`${names} reacted with ${shortcodeOf(summary.emoji)}`}
                             onClick={() => onToggle?.(summary.emoji)}
                             className={cn(
@@ -152,7 +153,7 @@ export function ReactionChips({
                                     { 'text-primary': summary.isMine },
                                 )}
                             >
-                                {summary.count}
+                                {formatCount(summary.count)}
                             </span>
                         </button>
                     </li>

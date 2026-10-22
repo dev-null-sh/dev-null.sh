@@ -7,6 +7,7 @@ use App\Models\Commit;
 use App\Models\Device;
 use App\Models\SshKey;
 use App\Models\User;
+use App\Services\SignedRequests;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
@@ -312,6 +313,60 @@ it('rejects a signed body sent as anything but json, which could read as other f
     $this->call('POST', route('api-commit.store'), server: $server, content: $body)
         ->assertUnauthorized()
         ->assertExactJson(['message' => 'Send the body of a signed request as JSON.', 'code' => 'invalid_signature']);
+
+    expect(Commit::query()->exists())->toBeFalse();
+});
+
+it('rejects images that do not match the hashes that were signed', function (Closure $signed): void {
+    $images = [UploadedFile::fake()->image('wide.png', 40, 10), UploadedFile::fake()->image('tall.png', 10, 40)];
+
+    signedApiRequestWithImages($this->keyPair, 'POST', route('api-commit.store'), ['body' => 'It was DNS.'], $images, $signed($images))
+        ->assertUnauthorized()
+        ->assertExactJson(['message' => 'Invalid signature.', 'code' => 'invalid_signature']);
+
+    expect(Commit::query()->exists())->toBeFalse();
+})->with([
+    'another image' => fn (array $images): array => [$images[0], UploadedFile::fake()->image('other.png', 10, 10)],
+    'another order' => array_reverse(...),
+    'one image less' => fn (array $images): array => [$images[0]],
+]);
+
+it('rejects images signed as a json body, without their own namespace', function (): void {
+    signedApiRequestWithImages($this->keyPair, 'POST', route('api-commit.store'), ['body' => 'It was DNS.'], [UploadedFile::fake()->image('dns.png', 10, 10)], namespace: SignedRequests::Namespace)
+        ->assertUnauthorized()
+        ->assertExactJson(['message' => 'Invalid signature.', 'code' => 'invalid_signature']);
+
+    expect(Commit::query()->exists())->toBeFalse();
+});
+
+it('rejects images sent any other way than beside a json payload', function (array $parameters, Closure $files): void {
+    $image = UploadedFile::fake()->image('dns.png', 10, 10);
+    $payload = '{"body":"It was DNS."}';
+    $server = [
+        ...signApiRequest($this->keyPair, 'POST', route('api-commit.store'), hash_file('sha256', $image->getPathname())."\n".$payload, namespace: SignedRequests::ImagesNamespace),
+        'CONTENT_TYPE' => 'multipart/form-data; boundary=devnull',
+    ];
+
+    $this->call('POST', route('api-commit.store'), $parameters, files: $files($image, $payload), server: $server)
+        ->assertUnauthorized()
+        ->assertExactJson(['message' => 'Send the body of a signed request as JSON.', 'code' => 'invalid_signature']);
+
+    expect(Commit::query()->exists())->toBeFalse();
+})->with([
+    'with a field beside the payload' => [['body' => 'Not what was signed'], fn (UploadedFile $image, string $payload): array => ['payload' => UploadedFile::fake()->createWithContent('payload', $payload), 'images' => [$image]]],
+    'with the payload as a field' => [['payload' => '{"body":"It was DNS."}'], fn (UploadedFile $image, string $payload): array => ['images' => [$image]]],
+    'with a payload that is not json' => [[], fn (UploadedFile $image, string $payload): array => ['payload' => UploadedFile::fake()->createWithContent('payload', 'body=It was DNS.'), 'images' => [$image]]],
+    'with another file' => [[], fn (UploadedFile $image, string $payload): array => ['payload' => UploadedFile::fake()->createWithContent('payload', $payload), 'images' => [$image], 'avatar' => $image]],
+    'with one image that is not in a list' => [[], fn (UploadedFile $image, string $payload): array => ['payload' => UploadedFile::fake()->createWithContent('payload', $payload), 'images' => $image]],
+    'with nested images' => [[], fn (UploadedFile $image, string $payload): array => ['payload' => UploadedFile::fake()->createWithContent('payload', $payload), 'images' => [[$image]]]],
+]);
+
+it('says when an image did not upload, which is no fault of the signature', function (): void {
+    $image = UploadedFile::fake()->image('dns.png', 10, 10);
+
+    signedApiRequestWithImages($this->keyPair, 'POST', route('api-commit.store'), ['body' => 'It was DNS.'], [new UploadedFile($image->getPathname(), 'dns.png', 'image/png', UPLOAD_ERR_INI_SIZE, test: true)], [$image])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['images' => 'The image failed to upload.']);
 
     expect(Commit::query()->exists())->toBeFalse();
 });

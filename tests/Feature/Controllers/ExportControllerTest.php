@@ -10,6 +10,8 @@ use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Device;
+use App\Models\Message;
+use App\Models\MessageVoice;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\PollVote;
@@ -499,6 +501,15 @@ it('exports the messages the user sent, and not the ones they received', functio
     $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['messages'])->toBe([
-        ['to' => 'nunomaduro', 'body' => 'merged it this morning', 'created_at' => now()->toIso8601String()],
+        ['to' => 'nunomaduro', 'body' => 'merged it this morning', 'voice' => null, 'created_at' => now()->toIso8601String()],
     ]);
+});
+
+it('exports the voice notes the user sent as links', function (): void {
+    $user = User::factory()->create();
+    $voice = MessageVoice::factory()->for(Message::factory()->for($user)->state(['body' => '']))->create();
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['messages'][0]['voice'])->toBe(route('message-voice.show', $voice));
 });

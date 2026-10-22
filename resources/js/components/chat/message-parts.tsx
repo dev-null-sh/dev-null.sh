@@ -1,4 +1,4 @@
-import { Image, Reply, SmilePlus } from 'lucide-react';
+import { Image, Mic, Reply, SmilePlus } from 'lucide-react';
 import type { ReactNode, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { show as showMessageImage } from '@/actions/App/Http/Controllers/MessageImageController';
@@ -117,6 +117,15 @@ function snippetOf(reply: MessageReply): ReactNode {
         return body;
     }
 
+    if (reply.has_voice) {
+        return (
+            <span className="inline-flex items-center gap-1">
+                <Mic aria-hidden className="size-3.5" />
+                Voice note
+            </span>
+        );
+    }
+
     return (
         <span className="inline-flex items-center gap-1">
             <Image aria-hidden className="size-3.5" />
@@ -147,7 +156,7 @@ export function ReplyGhost({
             type="button"
             onClick={() => onJump?.(reply.id)}
             disabled={onJump === undefined}
-            aria-label={`In reply to ${author.name}: ${reply.body || 'an image'}`}
+            aria-label={`In reply to ${author.name}: ${reply.body || (reply.has_voice ? 'a voice note' : 'an image')}`}
             className={cn(
                 'flex max-w-full min-w-0 flex-col items-start rounded-lg px-3 text-left text-[13px] leading-snug transition-colors enabled:cursor-pointer',
                 author.isMe

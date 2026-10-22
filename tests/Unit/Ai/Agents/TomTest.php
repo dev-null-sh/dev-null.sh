@@ -71,14 +71,14 @@ it('forces the selected tools before Tom answers and supports a bounded follow-u
         'api.openai.com/v1/decisions' => Http::sequence()->push(['answers' => collect($calls)->take(5)->map(fn (array $call): array => [
             'name' => $call['name'], 'type' => 'predicate', 'probability' => 1,
         ])->all()])->push(relevanceResponse([true])),
-        'api.github.com/repos/nunomaduro/dev-null.sh/languages' => Http::response(['PHP' => 123]),
+        'api.github.com/repos/dev-null-sh/dev-null.sh/languages' => Http::response(['PHP' => 123]),
         'api.github.com/search/issues*' => Http::response(['incomplete_results' => false, 'items' => []]),
         'api.github.com/search/commits*' => Http::sequence()->push(['incomplete_results' => false, 'items' => [[
-            'html_url' => 'https://github.com/nunomaduro/dev-null.sh/commit/abc',
+            'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/abc',
             'author' => ['login' => 'alice', 'id' => 123], 'committer' => ['login' => 'not-the-author'],
             'commit' => ['message' => "feat: database search\n\nsecret trailer", 'author' => ['email' => 'secret@example.com', 'date' => '2025-01-01T00:00:00Z']],
         ]]])->push(['incomplete_results' => false, 'items' => [[
-            'html_url' => 'https://github.com/nunomaduro/dev-null.sh/commit/def',
+            'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/def',
             'author' => ['login' => 'bob', 'id' => 456],
             'commit' => ['message' => 'feat: semantic search', 'author' => ['date' => '2024-01-01T00:00:00Z']],
         ]]]),
@@ -120,8 +120,8 @@ it('forces the selected tools before Tom answers and supports a bounded follow-u
             && str_contains($tools, '"languages":{"PHP":123}')
             && str_contains($tools, '"commit_author":"alice"')
             && str_contains($tools, '"mention":"@alice-local"')
-            && str_contains(stripslashes($tools), 'https://github.com/nunomaduro/dev-null.sh/commit/abc')
-            && str_contains(stripslashes($tools), 'https://github.com/nunomaduro/dev-null.sh/commit/def')
+            && str_contains(stripslashes($tools), 'https://github.com/dev-null-sh/dev-null.sh/commit/abc')
+            && str_contains(stripslashes($tools), 'https://github.com/dev-null-sh/dev-null.sh/commit/def')
             && ! str_contains($tools, 'not-the-author')
             && str_contains($tools, '"count":1')
             && str_contains($tools, 'Not nationality or verified residence')
@@ -167,7 +167,7 @@ it('retains all three search sources through retries and removes only spent tool
         'api.openai.com/v1/decisions' => $decisions,
         'api.github.com/search/issues*' => Http::response(['incomplete_results' => false, 'items' => []]),
         'api.github.com/search/commits*' => Http::response(['incomplete_results' => false, 'items' => [[
-            'html_url' => 'https://github.com/nunomaduro/dev-null.sh/commit/abc',
+            'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/abc',
             'author' => ['login' => 'alice', 'id' => 123],
             'commit' => ['message' => 'feat: introduce badges', 'author' => ['date' => '2026-10-20T00:00:00Z']],
         ]]]),
