@@ -8,6 +8,7 @@ use App\Actions\UpdateCommitHotScores;
 use App\Ai\Agents\CommitTranslator;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Conversation;
 use App\Models\Device;
 use App\Models\LinkPreview;
 use App\Models\Message;
@@ -311,4 +312,26 @@ it('erases the voice notes a deleted user sent in remotes, keeping the ones sent
 
     expect(Storage::disk()->allFiles('message-voices'))->toBe([$received->path])
         ->and(MessageVoice::query()->pluck('id')->all())->toBe([$received->id]);
+});
+
+it('erases the orgs a deleted user was the last one in, with the images and voice notes sent in them', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    [$former] = followersOf($user, 1);
+    $emptied = createOrg($user, [$former]);
+    $kept = createOrg($user, [$former]);
+    $image = MessageImage::factory()->for(pushToOrg($former, $emptied))->create();
+    $voice = MessageVoice::factory()->for(pushToOrg($former, $emptied))->create();
+    $other = MessageVoice::factory()->for(pushToOrg($former, $kept))->create();
+    foreach ([$image, $voice, $other] as $file) {
+        Storage::disk()->put($file->path, 'file');
+    }
+
+    $this->actingAs($former)->deleteJson(route('org-member.destroy', [$emptied, $former]))->assertNoContent();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(Conversation::query()->pluck('id')->all())->toBe([$kept])
+        ->and(Storage::disk()->allFiles())->toBe([$other->path]);
 });
