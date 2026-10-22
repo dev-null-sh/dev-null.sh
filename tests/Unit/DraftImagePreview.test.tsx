@@ -12,6 +12,9 @@ vi.doMock('react', () => ({
     ...React,
     useId: () => 'preview-test-id',
     useRef: (initial: unknown) => ({ current: initial }),
+    useMemo: (factory: () => unknown) => factory(),
+    useEffect: () => {},
+    useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) => snapshot(),
     useState: (initial: unknown) => {
         const index = cursor++;
         if (!(index in state)) {
@@ -29,6 +32,7 @@ vi.doMock('react', () => ({
 
 const { ImagePickerPreviews } = await import('../../resources/js/components/commit-image-picker');
 const { ImageViewer } = await import('../../resources/js/components/image-viewer');
+const { CommitComposerDialog } = await import('../../resources/js/components/commit-composer-dialog');
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
     if (!React.isValidElement(node)) {
@@ -238,4 +242,151 @@ test('removing an image preceding the currently previewed image shifts the index
     );
     viewer = tree.find((el) => el.type === ImageViewer);
     assert.equal(viewer?.props.index, 1);
+});
+
+test('closing the viewer returns focus to the corresponding preview button', () => {
+    const file = new File(['data'], 'shot.png', { type: 'image/png' });
+    const focused: string[] = [];
+
+    vi.stubGlobal('document', {
+        getElementById: (id: string) => ({
+            focus: () => focused.push(id),
+        }),
+    });
+    vi.stubGlobal('requestAnimationFrame', (fn: () => void) => fn());
+
+    cursor = 0;
+    let tree = elements(
+        ImagePickerPreviews({
+            images: [file],
+            descriptions: [''],
+            onDescribe: () => {},
+            onRemove: () => {},
+        }),
+    );
+
+    const previewBtn = tree.find((el) => el.props['data-test'] === 'preview-image-button')!;
+    assert.equal(previewBtn.props.id, 'preview-test-id-preview-0');
+
+    // Click preview button to open
+    (previewBtn.props.onClick as () => void)();
+
+    cursor = 0;
+    tree = elements(
+        ImagePickerPreviews({
+            images: [file],
+            descriptions: [''],
+            onDescribe: () => {},
+            onRemove: () => {},
+        }),
+    );
+    const viewer = tree.find((el) => el.type === ImageViewer)!;
+    assert.equal(viewer.props.index, 0);
+
+    // Close viewer
+    (viewer.props.onClose as () => void)();
+
+    assert.deepEqual(focused, ['preview-test-id-preview-0']);
+
+    vi.unstubAllGlobals();
+});
+
+test('preserves the original file format and filename when downloading draft images', () => {
+    const png = new File(['png-data'], 'shot.png', { type: 'image/png' });
+    const jpeg = new File(['jpeg-data'], 'photo.jpeg', { type: 'image/jpeg' });
+    const noExtWebp = new File(['webp-data'], 'avatar', { type: 'image/webp' });
+    const emptyNamePng = new File(['data'], '', { type: 'image/png' });
+
+    cursor = 0;
+    const tree = elements(
+        ImagePickerPreviews({
+            images: [png, jpeg, noExtWebp, emptyNamePng],
+            descriptions: ['', '', '', ''],
+            onDescribe: () => {},
+            onRemove: () => {},
+        }),
+    );
+
+    const viewer = tree.find((el) => el.type === ImageViewer)!;
+    assert.ok(viewer);
+    const downloadFilename = viewer.props.downloadFilename as (image: ShownImage, index: number) => string;
+    assert.ok(downloadFilename);
+
+    assert.equal(downloadFilename({ id: 'shot', url: 'blob:1', description: null }, 0), 'shot.png');
+    assert.equal(downloadFilename({ id: 'photo', url: 'blob:2', description: null }, 1), 'photo.jpeg');
+    assert.equal(downloadFilename({ id: 'avatar', url: 'blob:3', description: null }, 2), 'avatar.webp');
+    assert.equal(downloadFilename({ id: 'image-4', url: 'blob:4', description: null }, 3), 'image-4.png');
+});
+
+test('ImageViewer passes original filenames to slides and includes Download plugin when downloadUrl is provided', () => {
+    const images: ShownImage[] = [
+        { id: '1', url: 'blob:1', description: null },
+        { id: '2', url: 'blob:2', description: null },
+    ];
+
+    const tree = elements(
+        ImageViewer({
+            images,
+            index: 0,
+            onView: () => {},
+            onClose: () => {},
+            downloadUrl: (image) => image.url,
+            downloadFilename: (_image, index) => (index === 0 ? 'original-shot.png' : 'original-shot.jpg'),
+        }),
+    );
+
+    const lightbox = tree.find((el) => 'slides' in el.props)!;
+    const slides = lightbox.props.slides as Array<{ download?: { url: string; filename: string } }>;
+    assert.equal(slides[0].download?.filename, 'original-shot.png');
+    assert.equal(slides[0].download?.url, 'blob:1');
+    assert.equal(slides[1].download?.filename, 'original-shot.jpg');
+    assert.equal(slides[1].download?.url, 'blob:2');
+});
+
+test('CommitComposerDialog prevents Escape dismissal while image viewer is open in the DOM', () => {
+    cursor = 0;
+    const tree = elements(
+        CommitComposerDialog({
+            open: true,
+            onOpenChange: () => {},
+        }),
+    );
+
+    const dialogContent = tree.find((el) => el.props['data-test'] === 'commit-composer-dialog')!;
+    assert.ok(dialogContent);
+    const onEscapeKeyDown = dialogContent.props.onEscapeKeyDown as (event: { preventDefault: () => void }) => void;
+    assert.ok(onEscapeKeyDown);
+
+    // 1. When image viewer is open in the DOM ([role="dialog"].yarl__root)
+    let defaultPrevented = false;
+    vi.stubGlobal('document', {
+        querySelector: (selector: string) => {
+            if (selector.includes('[role="dialog"].yarl__root')) {
+                return {} as Element;
+            }
+            return null;
+        },
+    });
+
+    onEscapeKeyDown({
+        preventDefault: () => {
+            defaultPrevented = true;
+        },
+    });
+    assert.equal(defaultPrevented, true, 'Escape must be prevented when image viewer is open');
+
+    // 2. When image viewer is not in the DOM
+    defaultPrevented = false;
+    vi.stubGlobal('document', {
+        querySelector: () => null,
+    });
+
+    onEscapeKeyDown({
+        preventDefault: () => {
+            defaultPrevented = true;
+        },
+    });
+    assert.equal(defaultPrevented, false, 'Escape should not be prevented when image viewer is closed');
+
+    vi.unstubAllGlobals();
 });

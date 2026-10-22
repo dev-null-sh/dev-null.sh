@@ -152,14 +152,20 @@ function QuoteComposer({
     return (
         <DialogContent
             onEscapeKeyDown={(event) => {
-                if (document.querySelector('[data-mention-suggestions]')) {
+                if (
+                    document.querySelector(
+                        '[data-mention-suggestions], [role="dialog"].yarl__root',
+                    )
+                ) {
                     event.preventDefault();
                 }
             }}
             onInteractOutside={(event) => {
                 if (
                     event.target instanceof Element &&
-                    event.target.closest('[data-mention-suggestions]')
+                    event.target.closest(
+                        '[data-mention-suggestions], [role="dialog"].yarl__root',
+                    )
                 ) {
                     event.preventDefault();
                 }
