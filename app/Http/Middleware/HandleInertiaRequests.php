@@ -14,10 +14,12 @@ use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use App\Queries\UserWalletQuery;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Middleware;
+use Symfony\Component\HttpFoundation\Response;
 
 final class HandleInertiaRequests extends Middleware
 {
@@ -37,6 +39,24 @@ final class HandleInertiaRequests extends Middleware
     }
 
     /**
+     * A deploy sends a page built for the previous version back for a full reload. That page already took the flashed
+     * data off the session, so it is flashed again for the reload: the composer learns its commit went through.
+     */
+    public function onVersionChange(Request $request, Response $response): Response
+    {
+        /** @var array{flash?: array<string, mixed>} $page */
+        $page = $response instanceof JsonResponse ? $response->getData(true) : [];
+
+        $response = parent::onVersionChange($request, $response);
+
+        if (($page['flash'] ?? []) !== []) {
+            Inertia::flash($page['flash']);
+        }
+
+        return $response;
+    }
+
+    /**
      * @see https://inertiajs.com/shared-data
      *
      * @return array<string, mixed>
@@ -50,9 +70,11 @@ final class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            'repository' => config('services.github.repository'),
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'isAdmin' => $isAdmin,
+                'mustReadCommitRules' => $user instanceof User && $user->commit_rules_accepted_at === null,
                 'log' => fn (): ?Log => $request->user()?->log,
                 'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0,
                 'unreadMessagesCount' => fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0,
@@ -81,7 +103,8 @@ final class HandleInertiaRequests extends Middleware
                 'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get(
                     $user,
                     round: max(0, (int) $request->cookie('who_to_follow_round')),
-                ))->once(),
+                    spares: 3,
+                ))->once()->merge()->matchOn('id'),
             ] : [],
         ];
     }

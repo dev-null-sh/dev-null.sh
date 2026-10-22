@@ -6,12 +6,13 @@ import CommitStarController from '@/actions/App/Http/Controllers/CommitStarContr
 import { ActionTooltip } from '@/components/action-tooltip';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
 import { CommitStargazersDialog } from '@/components/commit-stargazers-dialog';
+import { StarredRemovalContext } from '@/components/starred-removal-context';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
 import { commitStateKey } from '@/lib/commit-state';
-import { formatCount } from '@/lib/numbers';
+import { formatCount, formatExactCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -25,7 +26,7 @@ function starLabel(starred: boolean, count: number): string {
 
     const noun = count === 1 ? 'star' : 'stars';
 
-    return `${verb} commit, ${count} ${noun}`;
+    return `${verb} commit, ${formatExactCount(count)} ${noun}`;
 }
 
 export function CommitStarButton({
@@ -53,6 +54,7 @@ export function CommitStarButton({
     const [isAnimating, setIsAnimating] = useState(false);
     const [localMutations] = useState(createCommitStarMutations);
     const polling = useContext(CommitStarPollingContext);
+    const onRemoved = useContext(StarredRemovalContext);
     const mutations = polling?.mutations ?? localMutations;
     const canPoll =
         (isOwn || commit.status === 'approved') && auth.user !== null;
@@ -144,6 +146,7 @@ export function CommitStarButton({
             setStarred(response.starred);
             setCount(response.stars_count);
             router.flushAll();
+            if (!response.starred) onRemoved?.(commit.id);
         } catch {
             setStarred(!next);
             setCount((current) => Math.max(0, current + (next ? -1 : 1)));
@@ -209,7 +212,7 @@ function StarCount({
     const label =
         count === 0
             ? 'No stars yet'
-            : `${count} ${count === 1 ? 'star' : 'stars'}, show who starred`;
+            : `${formatExactCount(count)} ${count === 1 ? 'star' : 'stars'}, show who starred`;
 
     return (
         <ActionTooltip label={label}>

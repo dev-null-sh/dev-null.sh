@@ -5,10 +5,14 @@ declare(strict_types=1);
 use App\Jobs\UnfurlLink;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\MessageVoice;
 use App\Models\User;
+use App\Services\EncryptedFiles;
+use App\Services\VoiceNotes;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -249,7 +253,8 @@ it('sends images, with or without a body', function (string $body): void {
         ->assertJsonPath('message.images.0.description', 'The deploy log.')
         ->assertJsonCount(2, 'message.images');
 
-    expect(Storage::disk()->allFiles('message-images'))->toHaveCount(2)
+    expect(Storage::disk()->get(Message::query()->sole()->images->firstOrFail()->path))->not->toStartWith('RIFF')
+        ->and(Storage::disk()->allFiles('message-images'))->toHaveCount(2)
         ->and($response->json('message.images.0.url'))->toBe(route('message-image.show', Message::query()->sole()->images->first()));
 })->with(['look at this', '']);
 
@@ -264,4 +269,196 @@ it('stores the images of a retried message only once', function (): void {
     $this->post(route('conversation-message.store', $nuno), [...$payload, 'images' => [UploadedFile::fake()->image('a.png', 10, 10)]], ['Accept' => 'application/json'])->assertCreated();
 
     expect(Storage::disk()->allFiles('message-images'))->toHaveCount(1);
+});
+
+it('sends a WAV voice note, rebuilt from its samples and encrypted at rest', function (): void {
+    Storage::fake();
+
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+    $metadata = 'LIST'.pack('V', 16).'INFOIART'.pack('V', 4).'mark';
+
+    $response = $this->actingAs($mark)->post(route('conversation-message.store', $nuno), [
+        'client_id' => Str::uuid()->toString(),
+        'voice' => voiceNoteUpload(voiceNoteWav(1500, chunks: $metadata)),
+        'voice_waveform' => voiceNoteWaveform(),
+    ], ['Accept' => 'application/json'])->assertCreated()
+        ->assertJsonPath('message.body', '')
+        ->assertJsonPath('message.voice.duration_ms', 1500)
+        ->assertJsonPath('message.voice.waveform', voiceNoteWaveform())
+        ->assertJsonMissingPath('message.voice.path');
+
+    $voice = Message::query()->sole()->voice;
+    $stored = (string) Storage::disk()->get((string) $voice?->path);
+
+    expect($response->json('message.voice.url'))->toBe(route('message-voice.show', $voice))
+        ->and(Storage::disk()->allFiles('message-voices'))->toHaveCount(1)
+        ->and($stored)->not->toContain('RIFF')
+        ->and(resolve(EncryptedFiles::class)->decrypt($stored))->toBe(voiceNoteWav(1500))
+        ->and(DB::table('message_voices')->value('waveform'))->not->toContain('[')
+        ->and(DB::table('message_voices')->value('duration_ms'))->not->toBe('1500');
+});
+
+it('sends an Opus voice note, rebuilt from its packets and encrypted at rest', function (): void {
+    Storage::fake();
+
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+
+    $this->actingAs($mark)->post(route('conversation-message.store', $nuno), [
+        'client_id' => Str::uuid()->toString(),
+        'voice' => voiceNoteUpload(voiceNoteWebm(3000)),
+        'voice_waveform' => voiceNoteWaveform(),
+    ], ['Accept' => 'application/json'])->assertCreated()
+        ->assertJsonPath('message.voice.duration_ms', 3000);
+
+    $stored = (string) Storage::disk()->get((string) Message::query()->sole()->voice?->path);
+
+    expect($stored)->not->toContain('dOps')
+        ->and(resolve(EncryptedFiles::class)->decrypt($stored))->toBe(resolve(VoiceNotes::class)->rebuild(voiceNoteWebm(3000))['file'] ?? null)
+        ->and(mb_strlen(resolve(EncryptedFiles::class)->decrypt($stored), '8bit'))->toBeLessThan(mb_strlen(voiceNoteWebm(3000), '8bit'));
+});
+
+it('needs the waveform of a voice note', function (array $waveform, string $error): void {
+    Storage::fake();
+
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+
+    $this->actingAs($mark)->post(route('conversation-message.store', $nuno), [
+        'client_id' => Str::uuid()->toString(),
+        'voice' => voiceNoteUpload(),
+        ...$waveform,
+    ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors($error);
+})->with([
+    'missing' => [[], 'voice_waveform'],
+    'too few bars' => [['voice_waveform' => [50, 50]], 'voice_waveform'],
+    'too loud' => [['voice_waveform' => array_fill(0, 48, 101)], 'voice_waveform.0'],
+]);
+
+it('replies with a voice note, and shows it in the reply and the inbox', function (): void {
+    Storage::fake();
+
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+    $question = sendChatMessage($nuno, $mark, 'can you explain the bug?');
+
+    $this->actingAs($mark)->post(route('conversation-message.store', $nuno), [
+        'client_id' => Str::uuid()->toString(),
+        'reply_to_id' => $question->id,
+        'voice' => voiceNoteUpload(),
+        'voice_waveform' => voiceNoteWaveform(),
+    ], ['Accept' => 'application/json'])->assertCreated()
+        ->assertJsonPath('message.reply_to.has_voice', false);
+
+    $voiceNote = Message::query()->latest('id')->firstOrFail();
+
+    $this->actingAs($nuno)->getJson(route('inbox.index'))
+        ->assertJsonPath('conversations.0.last_message.voice.duration_ms', 2000);
+
+    $this->postJson(route('conversation-message.store', $mark), [
+        'body' => 'got it',
+        'client_id' => Str::uuid()->toString(),
+        'reply_to_id' => $voiceNote->id,
+    ])->assertCreated()
+        ->assertJsonPath('message.reply_to.has_voice', true);
+});
+
+it('sends a voice note on its own', function (array $with, string $error): void {
+    Storage::fake();
+
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+
+    $this->actingAs($mark)->post(route('conversation-message.store', $nuno), [
+        'client_id' => Str::uuid()->toString(),
+        'voice' => voiceNoteUpload(),
+        'voice_waveform' => voiceNoteWaveform(),
+        ...$with,
+    ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors($error);
+
+    expect(Storage::disk()->allFiles())->toBe([])
+        ->and(Message::query()->count())->toBe(0);
+})->with([
+    'with a body' => [['body' => 'and some text'], 'voice'],
+    'with images' => [fn (): array => ['images' => [UploadedFile::fake()->image('a.png', 10, 10)]], 'voice'],
+]);
+
+it('refuses audio that is not a voice note', function (UploadedFile $voice): void {
+    Storage::fake();
+
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+
+    $this->actingAs($mark)->post(route('conversation-message.store', $nuno), [
+        'client_id' => Str::uuid()->toString(),
+        'voice' => $voice,
+        'voice_waveform' => voiceNoteWaveform(),
+    ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('voice');
+
+    expect(Storage::disk()->allFiles())->toBe([]);
+})->with([
+    'another sample rate' => fn (): UploadedFile => voiceNoteUpload(voiceNoteWav(sampleRate: 44_100)),
+    'longer than a minute' => fn (): UploadedFile => voiceNoteUpload(voiceNoteWav(62_000)),
+    'html in disguise' => fn (): UploadedFile => UploadedFile::fake()->createWithContent('voice-note.wav', '<script>alert(1)</script>'),
+    'too large to read' => fn (): UploadedFile => UploadedFile::fake()->create('voice-note.wav', 4096, 'audio/wav'),
+]);
+
+it('stores the voice note of a retried message only once', function (): void {
+    Storage::fake();
+
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+    $clientId = Str::uuid()->toString();
+
+    $this->actingAs($mark)->post(route('conversation-message.store', $nuno), ['client_id' => $clientId, 'voice' => voiceNoteUpload(), 'voice_waveform' => voiceNoteWaveform()], ['Accept' => 'application/json'])->assertCreated();
+    $this->post(route('conversation-message.store', $nuno), ['client_id' => $clientId, 'voice' => voiceNoteUpload(), 'voice_waveform' => voiceNoteWaveform()], ['Accept' => 'application/json'])->assertCreated();
+
+    expect(Storage::disk()->allFiles('message-voices'))->toHaveCount(1);
+});
+
+it('erases a stored voice note when its message is not saved', function (): void {
+    Storage::fake();
+
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+
+    Event::listen('eloquent.created: '.MessageVoice::class, fn () => throw new RuntimeException('database went away'));
+
+    $this->actingAs($mark)->post(route('conversation-message.store', $nuno), [
+        'client_id' => Str::uuid()->toString(),
+        'voice' => voiceNoteUpload(),
+        'voice_waveform' => voiceNoteWaveform(),
+    ], ['Accept' => 'application/json'])->assertServerError();
+
+    expect(Storage::disk()->allFiles())->toBe([]);
+});
+
+it('saves no message when its voice note cannot be stored', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+
+    Storage::shouldReceive('disk->put')->once()->andReturnFalse();
+
+    $this->actingAs($mark)->post(route('conversation-message.store', $nuno), [
+        'client_id' => Str::uuid()->toString(),
+        'voice' => voiceNoteUpload(),
+        'voice_waveform' => voiceNoteWaveform(),
+    ], ['Accept' => 'application/json'])->assertServerError();
+
+    expect(Message::query()->count())->toBe(0);
+});
+
+it('stores a voice note of a full minute', function (): void {
+    Storage::fake();
+
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+
+    $this->actingAs($mark)->post(route('conversation-message.store', $nuno), [
+        'client_id' => Str::uuid()->toString(),
+        'voice' => voiceNoteUpload(voiceNoteWebm(60_500)),
+        'voice_waveform' => voiceNoteWaveform(),
+    ], ['Accept' => 'application/json'])->assertCreated()
+        ->assertJsonPath('message.voice.duration_ms', 60_500);
 });

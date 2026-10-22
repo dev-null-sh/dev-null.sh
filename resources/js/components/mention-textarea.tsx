@@ -1,21 +1,31 @@
+import { usePage } from '@inertiajs/react';
 import type { ComponentProps, KeyboardEvent, Ref, SyntheticEvent } from 'react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { index as issueSuggestions } from '@/actions/App/Http/Controllers/IssueSuggestionController';
 import MentionSuggestionController from '@/actions/App/Http/Controllers/MentionSuggestionController';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { typedProse } from '@/lib/code';
 import type { EmojiSuggestion } from '@/lib/emoji';
 import { emojifyInput, searchEmoji } from '@/lib/emoji';
+import { issueReferenceBeforeCaret } from '@/lib/issue-reference';
 import { suggestionPosition } from '@/lib/suggestion-position';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
-import type { User } from '@/types';
+import type { OrgMember, User } from '@/types';
 
 type Trigger = {
-    kind: 'mention' | 'emoji';
+    kind: 'mention' | 'emoji' | 'issue';
     start: number;
     query: string;
+    complete?: boolean;
+};
+
+type IssueSuggestion = {
+    number: number;
+    title: string;
+    url: string;
 };
 
 type Suggestions = {
@@ -70,6 +80,7 @@ const mirroredProperties = [
 function triggerAt(
     textarea: HTMLTextAreaElement,
     suggestsMentions: boolean,
+    suggestsIssues: boolean,
 ): Trigger | null {
     if (textarea.selectionStart !== textarea.selectionEnd) {
         return null;
@@ -93,9 +104,19 @@ function triggerAt(
         emojiBeforeCaretPattern,
     );
 
-    return emoji
-        ? { kind: 'emoji', start: caret - emoji[1].length, query: emoji[2] }
+    if (emoji) {
+        return {
+            kind: 'emoji',
+            start: caret - emoji[1].length,
+            query: emoji[2],
+        };
+    }
+
+    const issue = suggestsIssues
+        ? issueReferenceBeforeCaret(textarea.value, caret)
         : null;
+
+    return issue ? { kind: 'issue', ...issue } : null;
 }
 
 /**
@@ -235,7 +256,9 @@ export function MentionTextarea({
     onBlur,
     maxLength,
     suggestsMentions = true,
+    suggestsIssues = suggestsMentions,
     org,
+    members,
     reply,
     quote,
     ...props
@@ -244,17 +267,27 @@ export function MentionTextarea({
     value: string;
     onValueChange: (value: string) => void;
     suggestsMentions?: boolean;
+    suggestsIssues?: boolean;
     org?: string;
+    members?: OrgMember[];
     reply?: string;
     quote?: string;
 }) {
+    const { repository } = usePage().props;
     const id = useId();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const listRef = useRef<HTMLUListElement>(null);
+    const dismissedIssue = useRef<string | null>(null);
     const [trigger, setTrigger] = useState<Trigger | null>(null);
     const [position, setPosition] = useState<Position | null>(null);
     const [results, setResults] = useState<Suggestions | null>(null);
     const [activeIndex, setActiveIndex] = useState(0);
+    const [issueResult, setIssueResult] = useState<IssueSuggestion | null>(
+        null,
+    );
+    const issueQuery = trigger?.kind === 'issue' ? trigger.query : null;
+    const issue =
+        issueQuery === String(issueResult?.number) ? issueResult : null;
 
     const query =
         trigger?.kind === 'mention' ? trigger.query.toLowerCase() : null;
@@ -279,7 +312,18 @@ export function MentionTextarea({
     };
 
     const track = (textarea: HTMLTextAreaElement) => {
-        const next = triggerAt(textarea, suggestsMentions);
+        const next = triggerAt(textarea, suggestsMentions, suggestsIssues);
+
+        if (
+            next?.kind === 'issue' &&
+            dismissedIssue.current === `${next.start}:${next.query}`
+        ) {
+            close();
+
+            return;
+        }
+
+        dismissedIssue.current = null;
 
         if (!next) {
             close();
@@ -300,7 +344,12 @@ export function MentionTextarea({
     };
 
     useEffect(() => {
-        if (query === null || key === null || cache.has(key)) {
+        if (
+            members !== undefined ||
+            query === null ||
+            key === null ||
+            cache.has(key)
+        ) {
             return;
         }
 
@@ -317,7 +366,40 @@ export function MentionTextarea({
             clearTimeout(timeout);
             controller.abort();
         };
-    }, [key, query, org, reply, quote]);
+    }, [key, query, org, reply, quote, members]);
+
+    useEffect(() => {
+        if (issueQuery === null) {
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => {
+            void fetch(issueSuggestions.url({ query: { q: issueQuery } }), {
+                headers: { Accept: 'application/json' },
+                signal: controller.signal,
+            })
+                .then(async (response) => {
+                    if (!response.ok) {
+                        return;
+                    }
+
+                    const data = (await response.json()) as {
+                        issue: IssueSuggestion | null;
+                    };
+
+                    if (!controller.signal.aborted) {
+                        setIssueResult(data.issue);
+                    }
+                })
+                .catch(() => undefined);
+        }, debounce);
+
+        return () => {
+            clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [issueQuery]);
 
     useEffect(() => {
         if (!trigger) {
@@ -353,23 +435,70 @@ export function MentionTextarea({
         listRef.current
             ?.querySelector('[aria-selected="true"]')
             ?.scrollIntoView({ block: 'nearest' });
-    }, [activeIndex]);
+    }, [activeIndex, members]);
 
     const cached = key === null ? undefined : cache.get(key);
-    const current = key !== null && cached ? { key, users: cached } : results;
+    const local =
+        members === undefined || query === null
+            ? null
+            : members
+                  .filter((member) => member.suggests_mentions)
+                  .filter(
+                      ({ user }) =>
+                          user.username.toLowerCase().includes(query) ||
+                          user.name.toLowerCase().includes(query),
+                  )
+                  .map((member) => ({
+                      ...member,
+                      tier:
+                          member.user.username.toLowerCase() === query
+                              ? 0
+                              : member.user.username
+                                      .toLowerCase()
+                                      .startsWith(query)
+                                ? 1
+                                : member.user.name
+                                        .toLowerCase()
+                                        .startsWith(query)
+                                  ? 2
+                                  : 3,
+                  }))
+                  .sort(
+                      (a, b) =>
+                          a.tier - b.tier ||
+                          Number(b.is_followed) - Number(a.is_followed) ||
+                          (a.user.username < b.user.username ? -1 : 1),
+                  )
+                  .slice(0, 6)
+                  .map(({ user }) => user);
+    const current =
+        local !== null && key !== null
+            ? { key, users: local }
+            : key !== null && cached
+              ? { key, users: cached }
+              : results;
     const suggestions =
         key !== null && current?.key === key ? current.users : [];
     const emojiQuery =
         trigger?.kind === 'emoji' ? trigger.query.toLowerCase() : '';
     const emojis = emojiQuery === '' ? [] : searchEmoji(emojiQuery);
     const optionCount =
-        trigger?.kind === 'emoji' ? emojis.length : suggestions.length;
+        trigger?.kind === 'issue'
+            ? issue
+                ? 1
+                : 0
+            : trigger?.kind === 'emoji'
+              ? emojis.length
+              : suggestions.length;
+    const selectedIndex = Math.min(activeIndex, Math.max(0, optionCount - 1));
     const isOpen =
         trigger !== null &&
         position !== null &&
-        (trigger.kind === 'emoji'
-            ? emojis.length > 0
-            : suggestions.length > 0 || query !== '');
+        (trigger.kind === 'issue'
+            ? issue !== null && !trigger.complete
+            : trigger.kind === 'emoji'
+              ? emojis.length > 0
+              : suggestions.length > 0 || query !== '');
 
     const insert = (text: string, separator: string) => {
         const textarea = textareaRef.current;
@@ -379,6 +508,16 @@ export function MentionTextarea({
         }
 
         const caret = trigger.start + 1 + trigger.query.length;
+
+        if (
+            trigger.kind === 'issue' &&
+            value.slice(trigger.start, caret) !== `#${trigger.query}`
+        ) {
+            close();
+
+            return;
+        }
+
         const after = value.slice(caret);
         const spacing = /^\s/u.test(after) ? '' : separator;
         let next = `${value.slice(0, trigger.start)}${text}${spacing}${after}`;
@@ -393,7 +532,10 @@ export function MentionTextarea({
             return;
         }
 
-        const nextCaret = trigger.start + text.length + separator.length;
+        const nextCaret =
+            trigger.kind === 'issue'
+                ? textarea.selectionStart + next.length - value.length
+                : trigger.start + text.length + separator.length;
 
         onValueChange(next);
         close();
@@ -411,6 +553,18 @@ export function MentionTextarea({
 
     const selectEmoji = (emoji: EmojiSuggestion) => insert(emoji.emoji, '');
 
+    const autoLinkIssue = useEffectEvent(() => {
+        if (trigger?.kind === 'issue' && trigger.complete && issue) {
+            insert(issue.url, '');
+        }
+    });
+
+    useEffect(() => {
+        const frame = requestAnimationFrame(autoLinkIssue);
+
+        return () => cancelAnimationFrame(frame);
+    }, [trigger, issue]);
+
     const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (isOpen && !event.nativeEvent.isComposing) {
             const hasModifier = event.metaKey || event.ctrlKey || event.altKey;
@@ -422,7 +576,7 @@ export function MentionTextarea({
                 event.preventDefault();
                 const step = event.key === 'ArrowDown' ? 1 : -1;
                 setActiveIndex(
-                    (index) => (index + step + optionCount) % optionCount,
+                    (selectedIndex + step + optionCount) % optionCount,
                 );
 
                 return;
@@ -432,14 +586,16 @@ export function MentionTextarea({
                 (event.key === 'Enter' || event.key === 'Tab') &&
                 !hasModifier &&
                 !event.shiftKey &&
-                activeIndex < optionCount
+                selectedIndex < optionCount
             ) {
                 event.preventDefault();
 
-                if (trigger?.kind === 'emoji') {
-                    selectEmoji(emojis[activeIndex]);
+                if (trigger?.kind === 'issue' && issue) {
+                    insert(issue.url, ' ');
+                } else if (trigger?.kind === 'emoji') {
+                    selectEmoji(emojis[selectedIndex]);
                 } else {
-                    select(suggestions[activeIndex]);
+                    select(suggestions[selectedIndex]);
                 }
 
                 return;
@@ -448,6 +604,11 @@ export function MentionTextarea({
             if (event.key === 'Escape') {
                 event.preventDefault();
                 event.stopPropagation();
+
+                if (trigger?.kind === 'issue') {
+                    dismissedIssue.current = `${trigger.start}:${trigger.query}`;
+                }
+
                 close();
 
                 return;
@@ -459,14 +620,21 @@ export function MentionTextarea({
 
     const activeId = !isOpen
         ? undefined
-        : trigger?.kind === 'emoji'
-          ? emojis[activeIndex] && `${id}-emoji-${emojis[activeIndex].name}`
-          : suggestions[activeIndex] &&
-            `${id}-mention-${suggestions[activeIndex].id}`;
+        : trigger?.kind === 'issue'
+          ? `${id}-issue-${issue?.number}`
+          : trigger?.kind === 'emoji'
+            ? emojis[selectedIndex] &&
+              `${id}-emoji-${emojis[selectedIndex].name}`
+            : suggestions[selectedIndex] &&
+              `${id}-mention-${suggestions[selectedIndex].id}`;
 
     const isSearching = current?.key !== key;
     const listId =
-        trigger?.kind === 'emoji' ? `${id}-emojis` : `${id}-mentions`;
+        trigger?.kind === 'issue'
+            ? `${id}-issues`
+            : trigger?.kind === 'emoji'
+              ? `${id}-emojis`
+              : `${id}-mentions`;
 
     return (
         <>
@@ -487,6 +655,12 @@ export function MentionTextarea({
                             : limitCharacters(text, maxLength);
 
                     onValueChange(limited);
+
+                    if ((event.nativeEvent as InputEvent).isComposing) {
+                        close();
+
+                        return;
+                    }
 
                     if (limited === target.value) {
                         track(target);
@@ -517,13 +691,42 @@ export function MentionTextarea({
             {isOpen &&
                 createPortal(
                     <div
-                        className="pointer-events-auto fixed z-50 flex flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
+                        className="pointer-events-auto fixed z-50 flex flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
                         style={position}
                         onMouseDown={(event) => event.preventDefault()}
                         data-mention-suggestions
                         data-test="mention-suggestions"
                     >
-                        {trigger?.kind === 'emoji' ? (
+                        {trigger?.kind === 'issue' && issue ? (
+                            <ul
+                                ref={listRef}
+                                id={listId}
+                                role="listbox"
+                                aria-label="Link an issue or pull request"
+                                className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
+                            >
+                                <li
+                                    id={`${id}-issue-${issue.number}`}
+                                    role="option"
+                                    aria-selected
+                                    onClick={() => insert(issue.url, ' ')}
+                                    className="cursor-pointer rounded-sm bg-accent px-2.5 py-2"
+                                >
+                                    <span
+                                        className="block truncate text-sm font-semibold"
+                                        title={issue.title}
+                                    >
+                                        {issue.title}
+                                    </span>
+                                    <span
+                                        className="block truncate font-mono text-xs text-muted-foreground"
+                                        title={`${repository}#${issue.number}`}
+                                    >
+                                        {repository}#{issue.number}
+                                    </span>
+                                </li>
+                            </ul>
+                        ) : trigger?.kind === 'emoji' ? (
                             <ul
                                 ref={listRef}
                                 id={listId}
@@ -536,16 +739,16 @@ export function MentionTextarea({
                                         key={emoji.name}
                                         id={`${id}-emoji-${emoji.name}`}
                                         role="option"
-                                        aria-selected={index === activeIndex}
+                                        aria-selected={index === selectedIndex}
                                         onMouseMove={() =>
                                             setActiveIndex(index)
                                         }
                                         onClick={() => selectEmoji(emoji)}
                                         className={cn(
-                                            'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5',
+                                            'flex cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-1.5',
                                             {
                                                 'bg-accent':
-                                                    index === activeIndex,
+                                                    index === selectedIndex,
                                             },
                                         )}
                                         data-test="emoji-suggestion"
@@ -570,7 +773,7 @@ export function MentionTextarea({
                                                 'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
                                                 {
                                                     'opacity-100':
-                                                        index === activeIndex,
+                                                        index === selectedIndex,
                                                 },
                                             )}
                                         >
@@ -605,16 +808,16 @@ export function MentionTextarea({
                                         key={user.id}
                                         id={`${id}-mention-${user.id}`}
                                         role="option"
-                                        aria-selected={index === activeIndex}
+                                        aria-selected={index === selectedIndex}
                                         onMouseMove={() =>
                                             setActiveIndex(index)
                                         }
                                         onClick={() => select(user)}
                                         className={cn(
-                                            'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2',
+                                            'flex cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-2',
                                             {
                                                 'bg-accent':
-                                                    index === activeIndex,
+                                                    index === selectedIndex,
                                             },
                                         )}
                                         data-test="mention-suggestion"
@@ -655,7 +858,7 @@ export function MentionTextarea({
                                                 'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
                                                 {
                                                     'opacity-100':
-                                                        index === activeIndex,
+                                                        index === selectedIndex,
                                                 },
                                             )}
                                         >

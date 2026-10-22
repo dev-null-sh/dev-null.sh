@@ -50,7 +50,8 @@ final readonly class UserAchievementsQuery
      *         kudos_given: array{count: int, multiplier: int, xp: int},
      *         kudos_received: array{count: int, multiplier: int, xp: int},
      *         skins_unlocked: array{count: int, multiplier: int, xp: int},
-     *         luddite: array{count: int, multiplier: int, xp: int}
+     *         luddite: array{count: int, multiplier: int, xp: int},
+     *         shell_shocked: array{count: int, multiplier: int, xp: int}
      *     },
      *     level_rewards: list<array{level: int, bytes: int, skin: ?string, claimed: bool, eligible: bool}>,
      *     ranks: list<array{
@@ -130,6 +131,7 @@ final readonly class UserAchievementsQuery
         $hasSshKey = $user->sshKeys()->exists();
         $hasUnfollowedTom = $user->followers()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists()
             && ! $user->following()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists();
+        $isShellShocked = $user->created_at->lt('2026-10-21 14:00:00 UTC');
 
         // XP breakdown: 10 per commit, 15 per streak day, 5 per star received, 5 per reply, 2 per star given
         $commitsXp = $commitsCount * 10;
@@ -141,9 +143,10 @@ final readonly class UserAchievementsQuery
         $kudosReceivedXp = $kudosReceivedCount * 5;
         $skinsUnlockedXp = $skinsUnlockedCount * 10;
         $ludditeXp = $hasUnfollowedTom ? -100 : 0;
+        $shellShockedXp = $isShellShocked ? 100 : 0;
 
         $xp = max(0, $commitsXp + $streakXp + $starsReceivedXp + $repliesXp + $starsGivenXp
-            + $kudosGivenXp + $kudosReceivedXp + $skinsUnlockedXp + $ludditeXp);
+            + $kudosGivenXp + $kudosReceivedXp + $skinsUnlockedXp + $ludditeXp + $shellShockedXp);
 
         $currentRank = UnixRank::forXp($xp);
         $nextRank = $currentRank->next();
@@ -162,6 +165,7 @@ final readonly class UserAchievementsQuery
             'kudos_received' => ['count' => $kudosReceivedCount, 'multiplier' => 5, 'xp' => $kudosReceivedXp],
             'skins_unlocked' => ['count' => $skinsUnlockedCount, 'multiplier' => 10, 'xp' => $skinsUnlockedXp],
             'luddite' => ['count' => $hasUnfollowedTom ? 1 : 0, 'multiplier' => -100, 'xp' => $ludditeXp],
+            'shell_shocked' => ['count' => $isShellShocked ? 1 : 0, 'multiplier' => 100, 'xp' => $shellShockedXp],
         ];
 
         $ranks = array_map(fn (UnixRank $rank): array => [
@@ -224,6 +228,10 @@ final readonly class UserAchievementsQuery
             Achievement::Luddite->value => [
                 'progress' => $hasUnfollowedTom ? 1 : 0,
                 'target' => Achievement::Luddite->target(),
+            ],
+            Achievement::ShellShocked->value => [
+                'progress' => $isShellShocked ? 1 : 0,
+                'target' => Achievement::ShellShocked->target(),
             ],
         ];
 

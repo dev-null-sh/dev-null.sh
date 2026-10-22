@@ -101,8 +101,6 @@ export type Funnel = {
     activation_by_day: ActivationDay[];
     retained: number;
     retention_eligible: number;
-    retention_horizon: 1 | 7 | 14 | null;
-    retention_full_on: string | null;
     rates: Record<FunnelRate, number | null>;
     changes: Record<FunnelRate, number | null>;
 };

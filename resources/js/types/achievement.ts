@@ -32,6 +32,7 @@ export type XpBreakdown = {
     kudos_received: XpMetric;
     skins_unlocked: XpMetric;
     luddite: XpMetric;
+    shell_shocked: XpMetric;
 };
 
 export type Achievements = {

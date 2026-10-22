@@ -210,12 +210,51 @@ it('skips urls in code', function (): void {
         ->and($urls->first('only `https://example.com` here'))->toBeNull();
 });
 
+it('detects oversized prose urls including the inferred scheme', function (string $text, bool $oversized): void {
+    expect(resolve(Urls::class)->hasOversizedUrl($text))->toBe($oversized);
+})->with([
+    'no links' => ['Hello world', false],
+    '2048 characters' => ['https://example.com/'.str_repeat('x', 2028), false],
+    'sentence punctuation' => ['(https://example.com/'.str_repeat('x', 2028).').', false],
+    '2049 characters' => ['https://example.com/'.str_repeat('x', 2029), true],
+    'bare domain at limit' => ['example.com/'.str_repeat('x', 2028), false],
+    'bare domain over limit' => ['example.com/'.str_repeat('x', 2029), true],
+    'second link oversized' => ['https://example.org https://example.com/'.str_repeat('x', 2029), true],
+    'code is literal' => ['`https://example.com/'.str_repeat('x', 2029).'`', false],
+]);
+
+it('counts each prose link as at most 23 characters', function (string $body, int $length): void {
+    expect(resolve(Urls::class)->characterCount($body))->toBe($length);
+})->with([
+    'unicode text' => ['é🚀 hello', 8],
+    'short bare domain' => ['example.com', 11],
+    'long link' => ['https://example.com/long-path-here', 23],
+    'Unicode letter before a scheme' => ['éhttps://example.com/long-path-here', 35],
+    'Unicode number before a scheme' => ['٤https://example.com/long-path-here', 35],
+    'combining mark before a scheme' => ["\u{0301}https://example.com/long-path-here", 35],
+    'connector punctuation before a scheme' => ["\u{203f}https://example.com/long-path-here", 35],
+    'underscore before a scheme' => ['_https://example.com/long-path-here', 35],
+    'emoji before a scheme' => ['🚀https://example.com/long-path-here', 24],
+    'repeated links' => ['https://example.com/long-path-here https://example.com/long-path-here', 47],
+    'punctuation' => ['(https://example.com/long-path-here).', 26],
+    'balanced brackets' => ['https://example.com/a_(long_article).', 24],
+    'bare domain path' => ['example.com/long-path-here', 23],
+    'inline code' => ['`https://example.com/long-path-here`', 36],
+    'fenced code' => ["```\nhttps://example.com/long-path-here\n```", 42],
+    'unclosed code is prose' => ['`https://example.com/long-path-here', 24],
+    'scheme only' => ['https://', 8],
+    'scheme with punctuation' => ['https://...', 11],
+    'unsupported scheme' => ['javascript:alert(1)', 19],
+    'longest recognized link' => ['https://example.com/'.str_repeat('x', 2028), 23],
+    'oversized link' => ['https://example.com/'.str_repeat('x', 2029), 2049],
+]);
+
 it('shortens urls for display', function (string $url, string $shortened): void {
     $urls = resolve(Urls::class);
 
     expect($urls->shorten($url))->toBe($shortened);
 })->with([
-    'long query' => ['https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc+is%3Apr+state%3Aopen+author%3AxHeaven', 'github.com/nunomaduro/dev-nul…'],
+    'long query' => ['https://github.com/dev-null-sh/dev-null.sh/pulls?q=sort%3Aupdated-desc+is%3Apr+state%3Aopen+author%3AxHeaven', 'github.com/dev-null-sh/dev-nu…'],
     'long path' => ['https://laravel.com/docs/13.x/eloquent-relationships#one-to-many-polymorphic-relations', 'laravel.com/docs/13.x/eloquent…'],
     'www' => ['https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PLx0sYbCqOb8TBPRdmBHs5Iftvv9TPboYG', 'youtube.com/watch?v=dQw4w9WgXc…'],
     'port' => ['http://localhost:8000/telescope/requests/9d1f3c2a-1b2c-4d5e-8f90', 'localhost:8000/telescope/requests…'],
@@ -239,8 +278,8 @@ it('shortens urls for display', function (string $url, string $shortened): void 
 it('shortens the urls in prose', function (): void {
     $urls = resolve(Urls::class);
 
-    expect($urls->withShortenedUrls('A lot came! https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc. See https://laravel.com'))
-        ->toBe('A lot came! github.com/nunomaduro/dev-nul…. See laravel.com');
+    expect($urls->withShortenedUrls('A lot came! https://github.com/dev-null-sh/dev-null.sh/pulls?q=sort%3Aupdated-desc. See https://laravel.com'))
+        ->toBe('A lot came! github.com/dev-null-sh/dev-nu…. See laravel.com');
 });
 
 it('does not shorten what it would not link', function (string $text): void {
@@ -248,8 +287,8 @@ it('does not shorten what it would not link', function (string $text): void {
 
     expect($urls->withShortenedUrls($text))->toBe($text);
 })->with([
-    'inline code' => ['run `curl https://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc`'],
-    'code block' => ["```\nhttps://github.com/nunomaduro/dev-null.sh/pulls?q=sort%3Aupdated-desc\n```"],
+    'inline code' => ['run `curl https://github.com/dev-null-sh/dev-null.sh/pulls?q=sort%3Aupdated-desc`'],
+    'code block' => ["```\nhttps://github.com/dev-null-sh/dev-null.sh/pulls?q=sort%3Aupdated-desc\n```"],
     'scheme only' => ['see https:// for details'],
     'longer than 2048 characters' => ['https://example.com/'.str_repeat('a', 2029)],
 ]);

@@ -12,8 +12,7 @@ use Illuminate\Foundation\Http\FormRequest;
 final class CreateApiCommitStarRequest extends FormRequest
 {
     /**
-     * Like on the web, the user may star any commit they may see but their own. One they may not see looks like it does
-     * not exist.
+     * The user may star another author’s commit they may see. One they may not see looks like it does not exist.
      */
     public function authorize(): Response
     {
@@ -24,7 +23,7 @@ final class CreateApiCommitStarRequest extends FormRequest
         assert($commit instanceof Commit);
 
         return match (true) {
-            $commit->user_id === $user->id => Response::deny(__('You cannot star your own commit.')),
+            $commit->user_id === $user->id => Response::deny(),
             $commit->isVisibleTo($user) => Response::allow(),
             default => Response::denyAsNotFound(),
         };

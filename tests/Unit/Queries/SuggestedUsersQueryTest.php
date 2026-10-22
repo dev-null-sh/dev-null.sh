@@ -158,20 +158,22 @@ it('limits the number of suggestions', function (): void {
         ->and(resolve(SuggestedUsersQuery::class)->get($user, limit: 2))->toHaveCount(2);
 });
 
-it('does not suggest muted people or people across a block', function (): void {
+it('does not suggest muted or dismissed people or people across a block', function (): void {
     $user = User::factory()->create();
     $muted = User::factory()->has(Commit::factory())->create();
+    $dismissed = User::factory()->has(Commit::factory())->create();
     $blocked = User::factory()->has(Commit::factory())->create();
     $blocker = User::factory()->has(Commit::factory())->create();
     $stranger = User::factory()->has(Commit::factory())->create();
 
     $user->muting()->attach($muted);
+    $user->dismissedSuggestions()->attach($dismissed);
     $user->blocking()->attach($blocked);
     $blocker->blocking()->attach($user);
 
     $friend = User::factory()->create();
     $user->following()->attach($friend);
-    $friend->following()->attach([$muted->id, $blocked->id, $blocker->id]);
+    $friend->following()->attach([$muted->id, $dismissed->id, $blocked->id, $blocker->id]);
 
     expect(resolve(SuggestedUsersQuery::class)->get($user)->pluck('id')->all())->toBe([$stranger->id]);
 });
@@ -189,6 +191,20 @@ it('suggests other people on the next round', function (): void {
     expect($first)->toHaveCount(3)
         ->and($second)->toHaveCount(3)
         ->and(array_intersect($first, $second))->toBeEmpty();
+});
+
+it('adds the next rounds as spares after the shown people', function (): void {
+    $user = User::factory()->create();
+    popularUsers(5);
+
+    $query = resolve(SuggestedUsersQuery::class);
+
+    $shown = $query->get($user)->pluck('id')->all();
+    $withSpares = $query->get($user, spares: 3)->pluck('id')->all();
+
+    expect($withSpares)->toHaveCount(5)
+        ->and(array_slice($withSpares, 0, 3))->toBe($shown)
+        ->and(array_slice($withSpares, 3))->toBe(array_values(array_diff($query->get($user, round: 1)->pluck('id')->all(), $shown)));
 });
 
 it('keeps the first round as the suggestions of the day', function (): void {
