@@ -1390,6 +1390,7 @@ function Composer({
         });
         voiceNote.discard();
         showError(null);
+        attachments.clearError();
     };
 
     const submit = (event?: FormEvent) => {
@@ -1418,6 +1419,7 @@ function Composer({
         stash.drop();
         linkCard.reset();
         showError(null);
+        attachments.clearError();
         input.current?.focus();
     };
 
@@ -1610,13 +1612,8 @@ function Composer({
                                     maxLength={maxLength}
                                     onValueChange={(value) => {
                                         stash.updateBody(value);
-
-                                        if (
-                                            error !== null &&
-                                            characterCount(value) < maxLength
-                                        ) {
-                                            showError(null);
-                                        }
+                                        showError(null);
+                                        attachments.clearError();
 
                                         if (value.trim() !== '') {
                                             pingTyping(target);
