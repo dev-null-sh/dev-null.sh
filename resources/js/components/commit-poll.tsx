@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
 import { bodySegments } from '@/lib/code';
-import { formatCount, formatExactCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import type { Commit, Poll } from '@/types';
 
@@ -271,7 +271,19 @@ export function CommitPoll({
                         role="status"
                         data-test="poll-summary"
                     >
-                        {votesLabel(poll.total_votes, formatCount)}
+                        <span
+                            aria-hidden
+                            title={
+                                exactCountTitle(poll.total_votes) === undefined
+                                    ? undefined
+                                    : votesLabel(poll.total_votes)
+                            }
+                        >
+                            {votesLabel(poll.total_votes, formatCount)}
+                        </span>
+                        <span className="sr-only">
+                            {votesLabel(poll.total_votes)}
+                        </span>
                         <span aria-hidden> · </span>
                         {status}
                     </p>
