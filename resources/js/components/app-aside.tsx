@@ -112,7 +112,7 @@ export function AppAside({
                             </span>
                         </span>
                     </Link>
-                    <dl className="mt-4 flex gap-4 text-sm">
+                    <dl className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-sm">
                         {[
                             {
                                 count: commitsCount,
