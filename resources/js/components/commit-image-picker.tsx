@@ -1,5 +1,5 @@
 import { ImagePlus, X } from 'lucide-react';
-import { useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { ActionTooltip } from '@/components/action-tooltip';
 import type { ShownImage } from '@/components/commit-images';
 import { ImageViewer } from '@/components/image-viewer';
@@ -182,13 +182,62 @@ export function ImagePickerPreviews({
             ? viewedIndex
             : null;
     const altButtonId = (index: number) => `${id}-alt-${index}`;
+    const previewButtonId = (index: number) => `${id}-preview-${index}`;
+
+    const closeViewer = useCallback(() => {
+        if (activeViewedIndex !== null && typeof document !== 'undefined') {
+            document
+                .getElementById(`${id}-preview-${activeViewedIndex}`)
+                ?.focus();
+        }
+
+        setViewedIndex(null);
+    }, [activeViewedIndex, id]);
+
+    useEffect(() => {
+        if (activeViewedIndex === null || typeof window === 'undefined') {
+            return;
+        }
+
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                closeViewer();
+            }
+        };
+
+        window.addEventListener('keydown', onKeyDown, { capture: true });
+
+        return () =>
+            window.removeEventListener('keydown', onKeyDown, { capture: true });
+    }, [activeViewedIndex, closeViewer]);
 
     const finishDescribing = () => {
-        if (editing !== null) {
+        if (editing !== null && typeof document !== 'undefined') {
             document.getElementById(altButtonId(editing))?.focus();
         }
 
         setDescribedIndex(null);
+    };
+
+    const downloadFilename = (_image: ShownImage, index: number): string => {
+        const file = images[index];
+        if (!file) {
+            return `image-${index + 1}.png`;
+        }
+
+        if (file.name && file.name.includes('.')) {
+            return file.name;
+        }
+
+        const subtype = file.type
+            ? file.type.replace(/^image\//, '').toLowerCase()
+            : '';
+        const ext = subtype === 'jpeg' ? 'jpg' : subtype || 'png';
+        const baseName = file.name || `image-${index + 1}`;
+
+        return `${baseName}.${ext}`;
     };
 
     const shownImages: ShownImage[] = images.map((image, index) => ({
@@ -206,6 +255,7 @@ export function ImagePickerPreviews({
                     return (
                         <li key={url} className="relative">
                             <button
+                                id={previewButtonId(index)}
                                 type="button"
                                 onClick={() => setViewedIndex(index)}
                                 aria-label={`Preview attached image ${index + 1}`}
@@ -271,8 +321,9 @@ export function ImagePickerPreviews({
                 images={shownImages}
                 index={activeViewedIndex}
                 onView={setViewedIndex}
-                onClose={() => setViewedIndex(null)}
+                onClose={closeViewer}
                 downloadUrl={(image) => image.url}
+                downloadFilename={downloadFilename}
             />
 
             {editing !== null && (
