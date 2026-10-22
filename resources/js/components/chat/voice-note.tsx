@@ -2,6 +2,7 @@ import { Pause, Play, RotateCw, Square, Trash2 } from 'lucide-react';
 import type { KeyboardEvent, PointerEvent, SyntheticEvent } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { VoiceVolume } from '@/components/chat/voice-volume';
+import { Waveform } from '@/components/chat/waveform';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import type { UseVoiceNoteReturn } from '@/hooks/use-voice-note';
@@ -30,6 +31,7 @@ const keepToItself = (event: SyntheticEvent) => event.stopPropagation();
 export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
     const duration = voice.duration_ms;
     const volume = useVoiceVolume();
+    const [isAdjusting, setIsAdjusting] = useState(false);
     const [state, setState] = useState<
         'idle' | 'loading' | 'playing' | 'paused' | 'failed'
     >('idle');
@@ -214,7 +216,7 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
     return (
         <div
             ref={root}
-            className="flex w-60 max-w-full items-center gap-2.5 [--played:0]"
+            className="relative flex w-60 max-w-full items-center gap-2.5 [--played:0]"
             data-test="voice-note"
         >
             <button
@@ -269,7 +271,10 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
                 }}
                 onPointerUp={keepToItself}
                 onKeyDown={onKeyDown}
-                className="relative h-7 min-w-0 flex-1 cursor-pointer touch-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className={cn(
+                    'relative h-7 min-w-0 flex-1 cursor-pointer touch-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                    isAdjusting && 'invisible',
+                )}
             >
                 <Waveform levels={voice.waveform} className="opacity-35" />
                 <Waveform
@@ -279,35 +284,18 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
             </div>
             <span
                 ref={clock}
-                className="w-[4ch] shrink-0 text-right font-mono text-[11px] tabular-nums"
+                className={cn(
+                    'w-[4ch] shrink-0 text-right font-mono text-[11px] tabular-nums',
+                    isAdjusting && 'invisible',
+                )}
                 data-test="voice-note-clock"
             >
                 {formatVoiceTime(duration)}
             </span>
-            <VoiceVolume />
-        </div>
-    );
-}
-
-function Waveform({
-    levels,
-    className,
-}: {
-    levels: number[];
-    className?: string;
-}) {
-    return (
-        <div
-            aria-hidden
-            className={cn('flex h-full items-center gap-px', className)}
-        >
-            {levels.map((level, index) => (
-                <span
-                    key={index}
-                    className="min-w-0 flex-1 rounded-[1px] bg-current"
-                    style={{ height: `${Math.max(10, level)}%` }}
-                />
-            ))}
+            <VoiceVolume
+                isAdjusting={isAdjusting}
+                onAdjustingChange={setIsAdjusting}
+            />
         </div>
     );
 }
