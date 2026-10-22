@@ -194,6 +194,16 @@ it('stops a user in timeout from starting, renaming, or growing orgs and messagi
         ->and(Conversation::query()->sole()->participants()->count())->toBe(2);
 });
 
+it('stops a user in timeout from opening issues', function (): void {
+    $user = User::factory()->create();
+    UserTimeout::factory()->for($user)->create();
+
+    $this->actingAs($user)
+        ->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'buy my course'])
+        ->assertForbidden()
+        ->assertJsonPath('timeout.reason', 'Spam or self-promotion');
+});
+
 it('tells the user how long is left of the timeout that ends last, rounded up', function (string $endsIn, string $remaining): void {
     $user = User::factory()->create();
     UserTimeout::factory()->for($user)->create(['ends_at' => now()->addMinutes(30)]);
