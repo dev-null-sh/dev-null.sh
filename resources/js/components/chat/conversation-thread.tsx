@@ -216,6 +216,7 @@ export function ConversationThread({
         }
 
         isPinned.current = isPinned.current || (!isOpen && isAtLatest(element));
+        anchor.current ??= scrollAnchorOf(element);
     }, []);
 
     const authorOf = useCallback(
@@ -333,6 +334,11 @@ export function ConversationThread({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [contentKey, thread?.isLoaded]);
 
+    const releaseScrollAnchor = useCallback(() => {
+        // Let deliberate input own the viewport until the fold settles, including delayed automatic scroll events.
+        anchor.current = null;
+    }, []);
+
     // A row below the visible ones can still change height, as reactions or a link card arrive, and the scroller itself
     // shrinks as the composer grows or the keyboard opens. Anchored at its bottom, either would move what is being read,
     // so the top visible row is kept where it was.
@@ -351,11 +357,41 @@ export function ConversationThread({
             }
         });
 
+        const onWheel = (event: WheelEvent) => {
+            if (event.defaultPrevented || event.deltaY === 0) {
+                return;
+            }
+
+            releaseScrollAnchor();
+
+            if (isReplyResizing.current) {
+                // WebKit can drop native wheel scrolling after a frame's scrollTop correction.
+                event.preventDefault();
+                const unit =
+                    event.deltaMode === WheelEvent.DOM_DELTA_LINE
+                        ? parseFloat(getComputedStyle(element).lineHeight)
+                        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+                          ? element.clientHeight
+                          : 1;
+                element.scrollTop += event.deltaY * unit;
+            }
+        };
+
         observer.observe(content);
         observer.observe(element);
+        element.addEventListener('wheel', onWheel, {
+            passive: false,
+        });
+        element.addEventListener('touchmove', releaseScrollAnchor, {
+            passive: false,
+        });
 
-        return () => observer.disconnect();
-    }, [thread?.isLoaded]);
+        return () => {
+            observer.disconnect();
+            element.removeEventListener('wheel', onWheel);
+            element.removeEventListener('touchmove', releaseScrollAnchor);
+        };
+    }, [releaseScrollAnchor, thread?.isLoaded]);
 
     const onScroll = () => {
         const element = scroller.current;
@@ -376,7 +412,9 @@ export function ConversationThread({
 
         restoredScrollTop.current = null;
         isPinned.current = isAtLatest(element);
-        anchor.current = scrollAnchorOf(element);
+        if (!isReplyResizing.current || anchor.current !== null) {
+            anchor.current = scrollAnchorOf(element);
+        }
 
         if (isPinned.current) {
             seenLatest.current = latestId;
@@ -419,6 +457,27 @@ export function ConversationThread({
             <div
                 ref={scroller}
                 onScroll={onScroll}
+                onKeyDown={(event) => {
+                    if (
+                        !event.defaultPrevented &&
+                        [
+                            'ArrowUp',
+                            'ArrowDown',
+                            'PageUp',
+                            'PageDown',
+                            'Home',
+                            'End',
+                            ' ',
+                        ].includes(event.key)
+                    ) {
+                        releaseScrollAnchor();
+                    }
+                }}
+                onPointerDown={(event) => {
+                    if (event.target === event.currentTarget) {
+                        releaseScrollAnchor();
+                    }
+                }}
                 className="flex min-h-0 flex-1 scrollbar-thin flex-col-reverse overflow-y-auto overscroll-contain [overflow-anchor:none]"
                 data-test="conversation-messages"
             >
