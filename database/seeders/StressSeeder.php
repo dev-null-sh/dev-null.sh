@@ -124,7 +124,7 @@ final class StressSeeder extends Seeder
         $started = microtime(true);
         $callback();
 
-        $this->command->info(sprintf('  %-28s %6.1fs', $label, microtime(true) - $started));
+        $this->command?->info(sprintf('  %-28s %6.1fs', $label, microtime(true) - $started));
     }
 
     /**
