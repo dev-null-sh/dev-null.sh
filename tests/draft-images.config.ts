@@ -39,6 +39,7 @@ export default defineConfig({
             'tests/Unit/LinkEmbedHeight.test.tsx',
             'tests/Unit/CommitRules.test.tsx',
             'tests/Unit/TimeoutRefusals.test.tsx',
+            'tests/Unit/VoiceVolume.test.tsx',
         ],
     },
 });

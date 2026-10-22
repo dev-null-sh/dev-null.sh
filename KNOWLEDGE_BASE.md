@@ -257,7 +257,7 @@ Livestream history: on [day two at 7:31:27](https://www.youtube.com/watch?v=nfmV
 
 ### Polls and voting
 
-Add a poll to a top-level commit with **two to four distinct options**, each up to **50 characters** (with the same emoji suggestions and `:shortcode:` conversion as the commit body), and a duration of **one hour, one day, three days, or seven days**. Polls cannot accompany images or be added to replies. Voting opens when the commit is approved, so time spent pending does not consume the voting period.
+Add a poll to a top-level commit with **two to four distinct options**, each up to **50 characters** (with the same emoji suggestions and `:shortcode:` conversion as the commit body), and a duration of **one hour, one day, three days, or seven days**. Polls cannot accompany images or be added to replies or quotes. Voting opens when the commit is approved, so time spent pending does not consume the voting period.
 
 Signed-in readers can choose one option and vote once while an approved, visible poll is open; a vote cannot be changed or withdrawn. The author cannot vote in their own poll. Results are visible to the author and people who have voted, and to everyone once the poll closes. Other people's individual votes are not revealed.
 
@@ -323,7 +323,7 @@ Livestream history: the notification requirements on [day one at 5:28:53](https:
 
 **Remotes** is /dev/null's private messaging inbox at `/remotes`. Open it from navigation or use a developer's **Remote** control. Remotes can be disabled in Settings → Profile; disabling keeps existing conversations but stops new messaging. By default, you can contact someone who follows you, provided both accounts have Remotes enabled and neither has blocked the other. The follow is only needed for the first message: once a conversation exists, both people can keep writing. Administrators have a contact-policy exception. Tom has Remotes turned off, so he cannot be messaged.
 
-Messages support up to **2,000 characters**, replies to messages, link cards, and up to three images with the same file limits and descriptions as commit attachments. An image makes message text optional. **Voice notes** of up to a minute can be recorded from the microphone button in the composer; a voice note is sent on its own (it can still reply to a message), and you can listen to it before pushing it or discard it. Voice notes are compressed with Opus in your browser, about 180 KB a minute (browsers that can't record Opus send plain 16 kHz mono audio instead). The server rebuilds each recording from its audio alone, so no metadata or tags are kept, and stores it encrypted with the app key like message bodies, only ever served to the people in the conversation, and erased with your account. Messages cannot be edited or deleted, and mentions in them do not notify anyone. React to a message with any emoji, up to 12 different ones per person per message: three quick reactions sit next to each message, a picker searches the rest, and a double-tap or double-click toggles ❤️. Typing indicators show recent activity. Read receipts, called **pull receipts**, are on by default and shared only when both relevant people enable them. Stashing a conversation archives it for you without deleting it; it pops back when anyone writes in it. On desktop, **Dock** keeps the inbox at the bottom of every page. New messages arrive by polling, not push: every few seconds while a conversation is open. Message bodies, images, and voice notes are encrypted at rest with keys derived from the app key, not end to end. Block someone from inside a conversation with its menu.
+Messages support up to **2,000 characters**, replies to messages, link cards, and up to three images with the same file limits and descriptions as commit attachments. An image makes message text optional. **Voice notes** of up to a minute can be recorded from the microphone button in the composer; a voice note is sent on its own (it can still reply to a message), and you can listen to it before pushing it or discard it. Voice notes are compressed with Opus in your browser, about 180 KB a minute (browsers that can't record Opus send plain 16 kHz mono audio instead). The server rebuilds each recording from its audio alone, so no metadata or tags are kept, and stores it encrypted with the app key like message bodies, only ever served to the people in the conversation, and erased with your account. On a computer, hovering the speaker next to a voice note turns its waveform into a volume ramp to drag; the volume you set applies to every voice note, from anyone, on that device, and is saved in your browser, never on the server. Phones and tablets use their volume buttons instead. Messages cannot be edited or deleted, and mentions in them do not notify anyone. React to a message with any emoji, up to 12 different ones per person per message: three quick reactions sit next to each message, a picker searches the rest, and a double-tap or double-click toggles ❤️. Typing indicators show recent activity. Read receipts, called **pull receipts**, are on by default and shared only when both relevant people enable them. Stashing a conversation archives it for you without deleting it; it pops back when anyone writes in it. On desktop, **Dock** keeps the inbox at the bottom of every page. New messages arrive by polling, not push: every few seconds while a conversation is open. Message bodies, images, and voice notes are encrypted at rest with keys derived from the app key, not end to end. Block someone from inside a conversation with its menu.
 
 Unread badges in conversation rows and the desktop dock display **99+** above 99; the full count remains available on hover and to screen readers. The **Fetched** tab applies the same display cap to waiting requests.
 
@@ -437,16 +437,18 @@ A signed request sees what the web shows you, such as your own pending commits. 
 
 - read your account, logs, replies, notifications, and saved commits;
 - commit, reply, and quote, with images, and delete your commits;
+- preview commit drafts without publishing them;
 - follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
 - star or unstar, and save or unsave;
-- vote on polls;
+- create polls on commits that are neither replies nor quotes, and vote on polls;
 - change Remotes settings, read conversations and mark them pulled, react to messages, find people, and start orgs;
+- stash or reopen conversations and orgs, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
 - report commits;
 - sync from GitHub and save your lane color;
 - delete your account.
 
-Signed request bodies are JSON, or multipart when they carry images, so app commits can have images but no polls or link-card choice. Sending messages, stashing conversations, and typing indicators in Remotes remain web-only, as do pinning, scheduling, search, and translations. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
+Signed request bodies are JSON, or multipart when they carry images, so app commits can have images or a poll but no link-card choice. Sending messages in Remotes remains web-only, as do pinning, scheduling, search, and translations. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
 
