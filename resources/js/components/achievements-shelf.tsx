@@ -1,5 +1,6 @@
 import {
     Award,
+    Bomb,
     BotOff,
     Box,
     ChevronRight,
@@ -45,6 +46,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     key: Key,
     cookie: Cookie,
     'bot-off': BotOff,
+    bomb: Bomb,
 };
 
 export function AchievementsShelf({

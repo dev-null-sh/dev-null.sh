@@ -91,7 +91,9 @@ function ConversationRow({
             ? orgTitle(conversation, conversation.members, user)
             : `@${partner.username}`;
     const isMine = lastMessage?.user_id === user.id && !lastMessage.event;
-    const lastBody = lastMessage?.body || 'sent an image';
+    const lastBody =
+        lastMessage?.body ||
+        (lastMessage?.voice ? 'sent a voice note' : 'sent an image');
     const preview =
         lastMessage === null
             ? ''
