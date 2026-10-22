@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { LinkEmbed } from '@/components/link-embed';
 import { Skeleton } from '@/components/ui/skeleton';
-import { hostname } from '@/lib/urls';
+import { hostname, withRef } from '@/lib/urls';
 import type { LinkPreview as LinkPreviewData } from '@/types';
 
 const POLL_DELAYS = [1000, 2000, 3000, 5000, 8000, 13000];
@@ -179,7 +179,7 @@ export function LinkPreview({
 
     return (
         <a
-            href={preview.url}
+            href={withRef(preview.url)}
             target="_blank"
             rel="noopener noreferrer nofollow ugc"
             onClick={(event) => event.stopPropagation()}

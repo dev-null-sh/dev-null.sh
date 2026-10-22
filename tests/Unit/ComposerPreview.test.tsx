@@ -231,7 +231,7 @@ test('omits the preview card when the author chooses no card', () => {
         <ComposerPreviewBody preview={preview} images={[]} url={null} />,
     );
 
-    assert.ok(markup.includes('href="https://first.example.com"'));
+    assert.ok(markup.includes('href="https://first.example.com/?ref=dev-null.sh"'));
     assert.ok(!markup.includes('data-test="link-card-preview"'));
 });
 
@@ -448,7 +448,7 @@ for (const pasteisMode of [false, true]) {
             assert.match(markup, /<code[^>]*>pasteis<\/code>/);
             assert.match(markup, /<pre[^>]*>pastéis<\/pre>/);
             assert.equal(
-                markup.includes('href="https://pasteis.com/pastel"'),
+                markup.includes('href="https://pasteis.com/pastel?ref=dev-null.sh"'),
                 !isStatic,
             );
             assert.equal(markup.includes('data-test="mention"'), !isStatic);
