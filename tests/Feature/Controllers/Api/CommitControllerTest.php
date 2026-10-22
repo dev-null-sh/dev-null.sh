@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Enums\PollDuration;
 use App\Http\Requests\CreateApiCommitRequest;
 use App\Jobs\ModerateCommit;
 use App\Models\Commit;
@@ -657,6 +658,82 @@ it('may not quote a commit across a block, as on the web', function (bool $quote
 
     expect($quoted->quotes()->count())->toBe(0);
 })->with(['blocking' => true, 'blocked' => false]);
+
+it('commits a poll from a signed request, which waits for the commit to be approved', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    $response = signedApiRequest($keyPair, 'POST', route('api-commit.store'), [
+        'body' => 'Tabs or spaces?',
+        'poll' => ['options' => ['Tabs', ' Spaces ', 'Both :tada:'], 'duration' => PollDuration::SevenDays->value],
+    ]);
+
+    $poll = $user->commits()->sole()->poll;
+
+    $response->assertCreated()
+        ->assertJsonPath('data.status', 'pending')
+        ->assertJsonPath('data.poll.id', $poll->id)
+        ->assertJsonPath('data.poll.closes_at', null)
+        ->assertJsonPath('data.poll.options.*.label', ['Tabs', 'Spaces', 'Both 🎉']);
+
+    expect($poll->duration)->toBe(PollDuration::SevenDays)
+        ->and($poll->opened_at)->toBeNull();
+});
+
+it('opens the poll of an admin right away', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    config(['app.admins' => [$user->username]]);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), [
+        'body' => 'Tabs or spaces?',
+        'poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => PollDuration::OneHour->value],
+    ])
+        ->assertCreated()
+        ->assertJsonPath('data.status', 'approved')
+        ->assertJsonPath('data.poll.closes_at', now()->startOfSecond()->addHour()->toJSON())
+        ->assertJsonPath('data.poll.is_closed', false);
+});
+
+it('rejects a poll on a quote from a signed request', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $quoted = Commit::factory()->create();
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), [
+        'body' => 'Which is it?',
+        'quoted_commit_id' => $quoted->id,
+        'poll' => ['options' => ['DNS', 'Not DNS'], 'duration' => PollDuration::OneDay->value],
+    ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['poll' => 'The poll field prohibits quoted commit id from being present.']);
+
+    expect($user->commits()->exists())->toBeFalse()
+        ->and(Poll::query()->exists())->toBeFalse();
+});
+
+it('validates the poll of a commit from a signed request as the web does', function (Closure $data, string $field, string $message): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'Tabs or spaces?', ...$data()])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors([$field => $message]);
+
+    expect($user->commits()->exists())->toBeFalse()
+        ->and(Poll::query()->exists())->toBeFalse();
+})->with([
+    'one option' => [fn (): array => ['poll' => ['options' => ['Tabs'], 'duration' => 1440]], 'poll.options', 'The poll.options field must have at least 2 items.'],
+    'five options' => [fn (): array => ['poll' => ['options' => ['A', 'B', 'C', 'D', 'E'], 'duration' => 1440]], 'poll.options', 'The poll.options field must not have more than 4 items.'],
+    'empty option' => [fn (): array => ['poll' => ['options' => ['Tabs', '  '], 'duration' => 1440]], 'poll.options.1', 'The poll.options.1 field is required.'],
+    'long option' => [fn (): array => ['poll' => ['options' => ['Tabs', str_repeat('a', 51)], 'duration' => 1440]], 'poll.options.1', 'The poll.options.1 field must not be greater than 50 characters.'],
+    'duplicate options' => [fn (): array => ['poll' => ['options' => ['Tabs', 'tabs'], 'duration' => 1440]], 'poll.options.1', 'The poll.options.1 field has a duplicate value.'],
+    'unknown duration' => [fn (): array => ['poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => 30]], 'poll.duration', 'The selected poll.duration is invalid.'],
+    'no duration' => [fn (): array => ['poll' => ['options' => ['Tabs', 'Spaces']]], 'poll.duration', 'The poll.duration field is required when poll is present.'],
+    'no options' => [fn (): array => ['poll' => ['duration' => 1440]], 'poll.options', 'The poll.options field is required when poll is present.'],
+    'a reply' => [fn (): array => ['parent_id' => Commit::factory()->create()->id, 'poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => 1440]], 'poll', 'The poll field prohibits parent id / images from being present.'],
+]);
 
 it('commits images from a signed request, in order, with their descriptions', function (): void {
     Storage::fake();
