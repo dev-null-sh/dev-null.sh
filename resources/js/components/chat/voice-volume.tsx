@@ -1,21 +1,21 @@
 import { Volume1, Volume2, VolumeX } from 'lucide-react';
 import type { KeyboardEvent, PointerEvent, SyntheticEvent } from 'react';
 import { useEffect, useId, useRef } from 'react';
-import { Waveform } from '@/components/chat/waveform';
 import { setVoiceVolume, useVoiceVolume } from '@/hooks/use-voice-volume';
+import { cn } from '@/lib/utils';
 import { voiceBars } from '@/lib/voice-notes';
 
 const keepToItself = (event: SyntheticEvent) => event.stopPropagation();
 
-const ramp = Array.from(
+export const voiceVolumeRamp = Array.from(
     { length: voiceBars },
     (_, bar) => 15 + (85 * bar) / (voiceBars - 1),
 );
 
 /**
- * One volume for every voice note on this device. Hovering the speaker, or pressing it from the keyboard, turns the
- * waveform into a ramp of the same bars, filled up to the volume, with the volume in the clock's place. Phones and
- * tablets have volume buttons, so touch screens don't show it.
+ * One volume for every voice note on this device. Resting on the speaker, or pressing it from the keyboard, lays a fader
+ * over the voice note while its waveform grows into a ramp filled up to the volume, with the volume in the clock's
+ * place. Phones and tablets have volume buttons, so touch screens don't show it.
  */
 export function VoiceVolume({
     isAdjusting,
@@ -29,8 +29,7 @@ export function VoiceVolume({
     const id = useId();
     const speaker = useRef<HTMLButtonElement>(null);
     const fader = useRef<HTMLDivElement>(null);
-    const track = useRef<HTMLDivElement>(null);
-    const closing = useRef<number | undefined>(undefined);
+    const hovering = useRef<number | undefined>(undefined);
     const shouldFocus = useRef(false);
 
     useEffect(() => {
@@ -40,31 +39,30 @@ export function VoiceVolume({
         }
     }, [isAdjusting]);
 
-    // Leaving puts the waveform back, unless the keyboard is still on the fader.
+    // Passing over the speaker on the way elsewhere changes nothing, and leaving puts the waveform back unless the
+    // keyboard is still on the fader.
     const hover = (isEntering: boolean) => (event: PointerEvent) => {
         if (event.pointerType !== 'mouse') {
             return;
         }
 
-        window.clearTimeout(closing.current);
-
-        if (isEntering) {
-            onAdjustingChange(true);
-        } else {
-            closing.current = window.setTimeout(() => {
-                if (document.activeElement !== fader.current) {
+        window.clearTimeout(hovering.current);
+        hovering.current = window.setTimeout(
+            () => {
+                if (isEntering) {
+                    onAdjustingChange(true);
+                } else if (document.activeElement !== fader.current) {
                     onAdjustingChange(false);
                 }
-            }, 200);
-        }
+            },
+            isEntering ? 120 : 200,
+        );
     };
 
     const seekTo = (event: PointerEvent<HTMLDivElement>) => {
-        const box = track.current?.getBoundingClientRect();
+        const box = event.currentTarget.getBoundingClientRect();
 
-        if (box !== undefined) {
-            setVoiceVolume((event.clientX - box.left) / box.width);
-        }
+        setVoiceVolume((event.clientX - box.left) / box.width);
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -94,64 +92,53 @@ export function VoiceVolume({
 
     return (
         <>
-            {isAdjusting && (
+            <div
+                className={cn(
+                    'absolute inset-y-0 right-9.5 left-10.5 flex items-center gap-2.5 transition-opacity duration-240 ease-out motion-reduce:transition-none',
+                    // Hidden only once it has faded out, and shown at once so the keyboard can move onto the fader.
+                    !isAdjusting &&
+                        'invisible opacity-0 transition-[opacity,visibility]',
+                )}
+                onPointerEnter={hover(true)}
+                onPointerLeave={hover(false)}
+            >
                 <div
-                    className="absolute inset-y-0 right-9.5 left-10.5 flex animate-in items-center gap-2.5 duration-150 fade-in-0"
-                    onPointerEnter={hover(true)}
-                    onPointerLeave={hover(false)}
-                >
-                    <div
-                        ref={fader}
-                        id={id}
-                        role="slider"
-                        tabIndex={0}
-                        aria-label="Voice volume"
-                        aria-valuemin={0}
-                        aria-valuemax={100}
-                        aria-valuenow={percent}
-                        aria-valuetext={`${percent}%`}
-                        // Adjusting with the mouse leaves the focus where it was, such as in the message field.
-                        onPointerDown={(event) => {
-                            keepToItself(event);
-                            event.preventDefault();
-                            event.currentTarget.setPointerCapture(
+                    ref={fader}
+                    id={id}
+                    role="slider"
+                    tabIndex={0}
+                    aria-label="Voice volume"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={percent}
+                    aria-valuetext={`${percent}%`}
+                    // Adjusting with the mouse leaves the focus where it was, such as in the message field.
+                    onPointerDown={(event) => {
+                        keepToItself(event);
+                        event.preventDefault();
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        seekTo(event);
+                    }}
+                    onPointerMove={(event) => {
+                        if (
+                            event.currentTarget.hasPointerCapture(
                                 event.pointerId,
-                            );
+                            )
+                        ) {
                             seekTo(event);
-                        }}
-                        onPointerMove={(event) => {
-                            if (
-                                event.currentTarget.hasPointerCapture(
-                                    event.pointerId,
-                                )
-                            ) {
-                                seekTo(event);
-                            }
-                        }}
-                        onPointerUp={keepToItself}
-                        onClick={keepToItself}
-                        onKeyDown={onKeyDown}
-                        onBlur={() => onAdjustingChange(false)}
-                        className="h-7 min-w-0 flex-1 cursor-pointer touch-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                        data-test="voice-volume-fader"
-                    >
-                        <div ref={track} className="relative h-full">
-                            <Waveform levels={ramp} className="opacity-35" />
-                            <div
-                                className="absolute inset-0"
-                                style={{
-                                    clipPath: `inset(0 ${100 - percent}% 0 0)`,
-                                }}
-                            >
-                                <Waveform levels={ramp} />
-                            </div>
-                        </div>
-                    </div>
-                    <span className="w-[4ch] shrink-0 text-right font-mono text-[11px] tabular-nums">
-                        {percent}%
-                    </span>
-                </div>
-            )}
+                        }
+                    }}
+                    onPointerUp={keepToItself}
+                    onClick={keepToItself}
+                    onKeyDown={onKeyDown}
+                    onBlur={() => onAdjustingChange(false)}
+                    className="h-7 min-w-0 flex-1 cursor-pointer touch-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    data-test="voice-volume-fader"
+                />
+                <span className="w-[4ch] shrink-0 text-right font-mono text-[11px] whitespace-nowrap tabular-nums">
+                    {percent}%
+                </span>
+            </div>
             <button
                 ref={speaker}
                 type="button"
@@ -169,7 +156,7 @@ export function VoiceVolume({
                         onAdjustingChange(!isAdjusting);
                     }
                 }}
-                className="grid size-7 shrink-0 place-items-center rounded-md opacity-60 transition-opacity hover:bg-current/10 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-expanded:bg-current/10 aria-expanded:opacity-100 pointer-coarse:hidden"
+                className="grid size-7 shrink-0 place-items-center rounded-md opacity-60 transition-[opacity,background-color] hover:bg-current/10 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-expanded:bg-current/10 aria-expanded:opacity-100 pointer-coarse:hidden"
                 data-test="voice-volume"
             >
                 {volume === 0 ? (

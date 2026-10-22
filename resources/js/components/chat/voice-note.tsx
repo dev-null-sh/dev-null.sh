@@ -1,7 +1,7 @@
 import { Pause, Play, RotateCw, Square, Trash2 } from 'lucide-react';
 import type { KeyboardEvent, PointerEvent, SyntheticEvent } from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { VoiceVolume } from '@/components/chat/voice-volume';
+import { VoiceVolume, voiceVolumeRamp } from '@/components/chat/voice-volume';
 import { Waveform } from '@/components/chat/waveform';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
@@ -23,6 +23,9 @@ import type { MessageVoice } from '@/types';
 let playing: HTMLAudioElement | null = null;
 
 const keepToItself = (event: SyntheticEvent) => event.stopPropagation();
+
+const morphing =
+    'duration-240 ease-out motion-reduce:transition-none *:transition-[height] *:duration-240 *:ease-out motion-reduce:*:transition-none';
 
 /**
  * Nothing is downloaded until play is pressed. The played part of the waveform and the clock are painted straight onto
@@ -271,22 +274,33 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
                 }}
                 onPointerUp={keepToItself}
                 onKeyDown={onKeyDown}
-                className={cn(
-                    'relative h-7 min-w-0 flex-1 cursor-pointer touch-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                    isAdjusting && 'invisible',
-                )}
+                className="relative h-7 min-w-0 flex-1 cursor-pointer touch-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
-                <Waveform levels={voice.waveform} className="opacity-35" />
+                {/* While the volume is adjusted, the same bars grow into its ramp and fill up to it instead of to the played part. */}
                 <Waveform
-                    levels={voice.waveform}
-                    className="absolute inset-0 [clip-path:inset(0_calc(100%_-_var(--played)*100%)_0_0)]"
+                    levels={isAdjusting ? voiceVolumeRamp : voice.waveform}
+                    className={cn(morphing, 'opacity-35')}
+                />
+                <Waveform
+                    levels={isAdjusting ? voiceVolumeRamp : voice.waveform}
+                    className={cn(
+                        morphing,
+                        'absolute inset-0 transition-[clip-path] [clip-path:inset(0_calc(100%_-_var(--played)*100%)_0_0)]',
+                    )}
+                    style={
+                        isAdjusting
+                            ? {
+                                  clipPath: `inset(0 ${100 - volume * 100}% 0 0)`,
+                              }
+                            : undefined
+                    }
                 />
             </div>
             <span
                 ref={clock}
                 className={cn(
-                    'w-[4ch] shrink-0 text-right font-mono text-[11px] tabular-nums',
-                    isAdjusting && 'invisible',
+                    'w-[4ch] shrink-0 text-right font-mono text-[11px] tabular-nums transition-opacity duration-240 ease-out motion-reduce:transition-none',
+                    isAdjusting && 'opacity-0',
                 )}
                 data-test="voice-note-clock"
             >

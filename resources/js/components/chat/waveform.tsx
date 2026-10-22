@@ -1,16 +1,20 @@
+import type { CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
 
 export function Waveform({
     levels,
     className,
+    style,
 }: {
     levels: number[];
     className?: string;
+    style?: CSSProperties;
 }) {
     return (
         <div
             aria-hidden
             className={cn('flex h-full items-center gap-px', className)}
+            style={style}
         >
             {levels.map((level, index) => (
                 <span
