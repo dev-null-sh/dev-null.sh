@@ -103,7 +103,7 @@ export function VoiceVolume({
             <div
                 inert={!isAdjusting}
                 className={cn(
-                    'absolute inset-y-0 right-9.5 left-10.5 flex items-center gap-2.5 transition-opacity duration-240 ease-out motion-reduce:transition-none',
+                    'absolute inset-y-0 right-19 left-10.5 flex items-center gap-2.5 transition-opacity duration-240 ease-out motion-reduce:transition-none',
                     !isAdjusting && 'opacity-0',
                 )}
                 onPointerEnter={hover(true)}
