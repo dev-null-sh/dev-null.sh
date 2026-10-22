@@ -11,9 +11,13 @@ export const invalidImageMessage =
  * Android photo providers can report changing timestamps, causing Chromium to
  * reject later reads with ERR_UPLOAD_FILE_CHANGED (crbug.com/40123366).
  */
-async function readPickedImage(file: File): Promise<File> {
+export async function readPickedImage(
+    file: File,
+    maxBytes = maxImageBytes,
+    invalidMessage = invalidImageMessage,
+): Promise<File> {
     if (!acceptedImageTypes.includes(file.type)) {
-        throw new PickedImageError(invalidImageMessage);
+        throw new PickedImageError(invalidMessage);
     }
 
     // Bound the copy without inspecting the provider's size/lastModified.
@@ -26,8 +30,8 @@ async function readPickedImage(file: File): Promise<File> {
             const { done, value } = await reader.read();
             if (done) break;
             bytes += value.byteLength;
-            if (bytes > maxImageBytes) {
-                throw new PickedImageError(invalidImageMessage);
+            if (bytes > maxBytes) {
+                throw new PickedImageError(invalidMessage);
             }
             chunks.push(new Uint8Array(value));
         }

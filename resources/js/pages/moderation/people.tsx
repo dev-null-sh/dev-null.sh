@@ -6,7 +6,7 @@ import BanController from '@/actions/App/Http/Controllers/BanController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserTimeoutController from '@/actions/App/Http/Controllers/UserTimeoutController';
 import { EmptyFeed } from '@/components/commit-feed';
-import { ModerationTabs } from '@/components/moderation-tabs';
+import { ModerationHeader } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
@@ -47,12 +47,7 @@ export default function People({
     return (
         <>
             <Head title="Timeouts and bans" />
-            <div className="sticky top-0 z-10 bg-card">
-                <div className="flex h-14 items-center border-b px-4">
-                    <h1 className="font-semibold">Moderation</h1>
-                </div>
-                <ModerationTabs active="people" />
-            </div>
+            <ModerationHeader active="people" />
 
             <Section
                 title="In timeout"

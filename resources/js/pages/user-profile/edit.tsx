@@ -3,6 +3,7 @@ import { ArrowUpRight, Download, RefreshCw } from 'lucide-react';
 import ExportController from '@/actions/App/Http/Controllers/ExportController';
 import UserProfileController from '@/actions/App/Http/Controllers/UserProfileController';
 import ActivityGraphEmbed from '@/components/activity-graph-embed';
+import { CoverImageSetting } from '@/components/cover-image-setting';
 import DeleteUser from '@/components/delete-user';
 import { GitHubProfile } from '@/components/github-profile';
 import Heading from '@/components/heading';
@@ -30,6 +31,8 @@ export default function Edit({
     githubSyncedAt,
     activityGraphUrl,
     profileUrl,
+    coverImageUrl,
+    coverImagePending,
 }: {
     translationLanguage: string | null;
     translationLanguages: TranslationLanguage[];
@@ -38,6 +41,8 @@ export default function Edit({
     githubSyncedAt: string | null;
     activityGraphUrl: string;
     profileUrl: string;
+    coverImageUrl: string | null;
+    coverImagePending: boolean;
 }) {
     const { user } = useUser();
     const now = useNow();
@@ -107,6 +112,11 @@ export default function Edit({
                     )}
                 </p>
             </section>
+
+            <CoverImageSetting
+                url={coverImageUrl}
+                isPending={coverImagePending}
+            />
 
             <LanePicker
                 preferredLane={preferredLane}

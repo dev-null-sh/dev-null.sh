@@ -16,7 +16,7 @@ Developers who left X or Bluesky, or are thinking about it, and want a feed with
 
 ## Positioning
 
-- **Verified developers.** Every account is a real GitHub user, and the profile is mirrored from GitHub and cannot be edited here. A general-purpose network cannot truthfully claim that everyone on it is a developer with a public GitHub identity.
+- **Verified developers.** Every account is a real GitHub user, and the profile's identity is mirrored from GitHub and cannot be edited here. A general-purpose network cannot truthfully claim that everyone on it is a developer with a public GitHub identity.
 - **Native to how developers work.** Posting from the terminal or a GitHub Action with an SSH signature, code blocks with highlighting, keyboard shortcuts, git vocabulary, GitHub links rendered as `owner/repo#123`.
 - **About developers and their projects.** The content is code, releases, side projects, and the people building them, not general chatter.
 
@@ -34,7 +34,7 @@ What exists, one line each (details in the knowledge base):
 - **Commits:** text with code, images, link cards and embedded players, or a poll; replies, quotes, threads, scheduling, translation.
 - **Logs:** Following, Latest, and Trending.
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
-- **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
+- **Profiles:** mirrored from GitHub, with an optional moderated cover image, an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
 - **Remotes:** private one-to-one and group messages (orgs).
 - **Notifications:** in-app only.
 - **Search:** developers by name, commits by meaning.

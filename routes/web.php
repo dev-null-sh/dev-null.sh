@@ -67,6 +67,7 @@ use App\Http\Controllers\OrgMemberController;
 use App\Http\Controllers\OrgMessageController;
 use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
+use App\Http\Controllers\PendingCoverImageController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\ProductMetricsController;
 use App\Http\Controllers\RemoteCandidateController;
@@ -85,6 +86,9 @@ use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserBanController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\UserCoverImageApprovalController;
+use App\Http\Controllers\UserCoverImageController;
+use App\Http\Controllers\UserCoverImageRejectionController;
 use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
@@ -190,6 +194,8 @@ Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])
     ->name('user-preview.show');
 Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
+Route::get('@{user:username}/cover.webp', [UserCoverImageController::class, 'show'])
+    ->name('user-cover-image.show');
 Route::get('@{user:username}/feed.atom', [UserFeedController::class, 'show'])
     ->middleware('cache.headers:public;max_age=300;etag')
     ->name('user-feed.show');
@@ -369,6 +375,11 @@ Route::middleware('auth')->group(function (): void {
     Route::put('moderation', [ModerationController::class, 'update'])->name('moderation.update');
     Route::get('moderation/people', [ModeratedUserController::class, 'index'])->name('moderated-user.index');
     Route::delete('moderation/bans/{ban}', [BanController::class, 'destroy'])->whereUuid('ban')->name('ban.destroy');
+    Route::get('moderation/covers', [PendingCoverImageController::class, 'index'])->name('pending-cover-image.index');
+    Route::post('moderation/covers/@{user:username}/approval', [UserCoverImageApprovalController::class, 'store'])
+        ->name('user-cover-image-approval.store');
+    Route::post('moderation/covers/@{user:username}/rejection', [UserCoverImageRejectionController::class, 'store'])
+        ->name('user-cover-image-rejection.store');
 
     // Operations...
     Route::get('operations', [OperationsController::class, 'show'])->name('operations.show');
@@ -403,6 +414,14 @@ Route::middleware('auth')->group(function (): void {
     Route::get('settings/export', ExportController::class)
         ->middleware(['throttle:exports', 'throttle:5,1'])
         ->name('export');
+
+    // User Cover Image...
+    Route::put('settings/cover-image', [UserCoverImageController::class, 'update'])
+        ->middleware('throttle:cover-images')
+        ->name('user-cover-image.update');
+    Route::delete('settings/cover-image', [UserCoverImageController::class, 'destroy'])
+        ->middleware('throttle:cover-images')
+        ->name('user-cover-image.destroy');
 
     // User Lane...
     Route::put('settings/lane', [UserLaneController::class, 'update'])->name('user-lane.update');

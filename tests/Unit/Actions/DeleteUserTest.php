@@ -209,6 +209,18 @@ it('erases the images of a deleted user and of the replies under their commits',
         ->and(CommitImage::query()->pluck('path')->sort()->values()->all())->toBe($kept);
 });
 
+it('erases the cover image of a deleted user', function (): void {
+    Storage::fake();
+    Storage::disk()->put('cover-images/cover.webp', 'cover');
+    Storage::disk()->put('cover-images/other.webp', 'cover');
+    $user = User::factory()->create(['cover_image_path' => 'cover-images/cover.webp']);
+    User::factory()->create(['cover_image_path' => 'cover-images/other.webp']);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(Storage::disk()->allFiles('cover-images'))->toBe(['cover-images/other.webp']);
+});
+
 it('erases the images a deleted user sent in remotes, keeping the images sent to them', function (): void {
     Storage::fake();
 

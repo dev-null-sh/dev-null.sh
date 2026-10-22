@@ -6,7 +6,7 @@ import { store as reject } from '@/actions/App/Http/Controllers/CommitRejectionC
 import { destroy } from '@/actions/App/Http/Controllers/CommitReportController';
 import { CommitCard } from '@/components/commit-card';
 import { EmptyFeed } from '@/components/commit-feed';
-import { ModerationTabs } from '@/components/moderation-tabs';
+import { ModerationHeader } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
 import AppLayout from '@/layouts/app-layout';
@@ -63,15 +63,7 @@ export default function Reports({
     return (
         <>
             <Head title="Reported commits" />
-            <div className="sticky top-0 z-10 bg-card">
-                <div className="flex h-14 items-center border-b px-4">
-                    <h1 className="font-semibold">Moderation</h1>
-                    <p className="ml-auto text-sm text-muted-foreground">
-                        Oldest first
-                    </p>
-                </div>
-                <ModerationTabs active="reports" />
-            </div>
+            <ModerationHeader active="reports" />
             <p className="border-b px-4 py-3 text-sm text-muted-foreground">
                 Private reports on published commits. Dismiss a report to keep
                 the commit, or reject the original.
