@@ -169,6 +169,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 ->name('api-conversation-merge.store');
             Route::post('remotes/@{partner:username}/drop', [ConversationDropController::class, 'store'])
                 ->name('api-conversation-drop.store');
+        });
 
         // Remote Reactions...
         Route::middleware('throttle:conversations')->group(function (): void {
