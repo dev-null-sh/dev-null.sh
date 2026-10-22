@@ -695,6 +695,18 @@ export function useTouchReactions(
             }
 
             didLongPress.current = false;
+
+            // Portaled viewers still bubble through React, and a second finger starts a pinch, not a hold.
+            if (
+                !event.currentTarget.contains(event.target as Node) ||
+                !event.isPrimary
+            ) {
+                cancel();
+                lastTap.current = null;
+
+                return;
+            }
+
             start.current = { x: event.clientX, y: event.clientY };
             timer.current = window.setTimeout(() => {
                 didLongPress.current = true;
