@@ -12,6 +12,27 @@ use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * @phpstan-type XpContribution array{count: int, multiplier: int, xp: int}
+ * @phpstan-type UserAchievements array{
+ *     level: int,
+ *     rank: string,
+ *     xp: int,
+ *     next_level_xp: ?int,
+ *     level_progress: int,
+ *     xp_breakdown: array{
+ *         commits: XpContribution,
+ *         streak: XpContribution,
+ *         stars_received: XpContribution,
+ *         replies: XpContribution,
+ *         stars_given: XpContribution,
+ *         luddite: XpContribution,
+ *         shell_shocked: XpContribution
+ *     },
+ *     ranks: list<array{rank: string, level: int, min_xp: int, description: string, achieved: bool}>,
+ *     badges: list<array{id: string, name: string, description: string, icon: string, unlocked: bool, progress: int, target: int}>
+ * }
+ */
 final readonly class UserAchievementsQuery
 {
     public function __construct(private UserStreakQuery $streaks)
@@ -32,38 +53,7 @@ final readonly class UserAchievementsQuery
 
     /**
      * @param  array{longest: int, current: int}|null  $streaks
-     * @return array{
-     *     level: int,
-     *     rank: string,
-     *     xp: int,
-     *     next_level_xp: ?int,
-     *     level_progress: int,
-     *     xp_breakdown: array{
-     *         commits: array{count: int, multiplier: int, xp: int},
-     *         streak: array{count: int, multiplier: int, xp: int},
-     *         stars_received: array{count: int, multiplier: int, xp: int},
-     *         replies: array{count: int, multiplier: int, xp: int},
-     *         stars_given: array{count: int, multiplier: int, xp: int},
-     *         luddite: array{count: int, multiplier: int, xp: int},
-     *         shell_shocked: array{count: int, multiplier: int, xp: int}
-     *     },
-     *     ranks: list<array{
-     *         rank: string,
-     *         level: int,
-     *         min_xp: int,
-     *         description: string,
-     *         achieved: bool
-     *     }>,
-     *     badges: list<array{
-     *         id: string,
-     *         name: string,
-     *         description: string,
-     *         icon: string,
-     *         unlocked: bool,
-     *         progress: int,
-     *         target: int
-     *     }>
-     * }
+     * @return UserAchievements
      */
     public function get(User $user, ?User $viewer, ?array $streaks = null): array
     {

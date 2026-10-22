@@ -12,6 +12,11 @@ use Illuminate\Support\Str;
 
 /**
  * @phpstan-type Image array{url: string, width: int, height: int, type: string, alt: string}
+ * @phpstan-type Feed array{url: string, title: string}
+ * @phpstan-type WebsiteMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
+ * @phpstan-type CommitMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, publishedAt: string, author: string, feed: Feed, structuredData: array<string, mixed>}
+ * @phpstan-type UserMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, feed: Feed, username: string, structuredData: array<string, mixed>}
+ * @phpstan-type ConnectionsMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, username: string}
  */
 final readonly class PageMetadata
 {
@@ -36,7 +41,7 @@ final readonly class PageMetadata
     /**
      * The link preview and structured data of the landing page.
      *
-     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
+     * @return WebsiteMetadata
      */
     public function home(): array
     {
@@ -85,7 +90,7 @@ final readonly class PageMetadata
     /**
      * The link preview and structured data of a static page, such as the terms of service or the privacy policy.
      *
-     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
+     * @return WebsiteMetadata
      */
     public function page(string $title, string $description, string $url): array
     {
@@ -120,7 +125,7 @@ final readonly class PageMetadata
      * The commit's own images are previewed first, with its drawn card as a fallback.
      *
      * @param  array<int, Commit>  $replies
-     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, publishedAt: string, author: string, feed: array{url: string, title: string}, structuredData: array<string, mixed>}|null
+     * @return CommitMetadata|null
      */
     public function commit(Commit $commit, array $replies = []): ?array
     {
@@ -202,7 +207,7 @@ final readonly class PageMetadata
     /**
      * The link preview and structured data of a profile, from its public counts.
      *
-     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, feed: array{url: string, title: string}, username: string, structuredData: array<string, mixed>}
+     * @return UserMetadata
      */
     public function user(User $user): array
     {
@@ -244,7 +249,7 @@ final readonly class PageMetadata
      * The link preview of who follows a profile, or who it follows. The lists are thin pages, so they are not indexed, though their links are followed.
      *
      * @param  'followers'|'following'  $type
-     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, username: string}
+     * @return ConnectionsMetadata
      */
     public function connections(User $user, string $type): array
     {
@@ -295,7 +300,7 @@ final readonly class PageMetadata
     /**
      * The Atom feed of the user's commits.
      *
-     * @return array{url: string, title: string}
+     * @return Feed
      */
     private function feed(User $user): array
     {
