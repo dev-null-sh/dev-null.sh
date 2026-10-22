@@ -112,7 +112,7 @@ export function AppAside({
                             </span>
                         </span>
                     </Link>
-                    <dl className="mt-4 grid grid-cols-3 gap-4 text-sm">
+                    <dl className="mt-4 grid grid-cols-3 gap-4 text-center text-sm">
                         {[
                             {
                                 count: commitsCount,
