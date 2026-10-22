@@ -439,3 +439,94 @@ for (const link of [
         assert.ok(markup.includes(`href="${link}"`));
     });
 }
+
+for (const [url, label, shown] of [
+    [
+        'https://gitlab.com/gitlab-org/gitlab',
+        'gitlab-org/gitlab on GitLab',
+        'gitlab-org/gitlab',
+    ],
+    [
+        'https://gitlab.com/gitlab-org/gitlab/-/issues/42',
+        'gitlab-org/gitlab issue #42 on GitLab',
+        'gitlab-org/gitlab#42',
+    ],
+    [
+        'https://gitlab.com/gitlab-org/gitlab/-/merge_requests/42',
+        'gitlab-org/gitlab merge request !42 on GitLab',
+        'gitlab-org/gitlab!42',
+    ],
+    [
+        'https://codeberg.org/forgejo/forgejo',
+        'forgejo/forgejo on Codeberg',
+        'forgejo/forgejo',
+    ],
+    [
+        'https://codeberg.org/forgejo/forgejo/issues/42',
+        'forgejo/forgejo issue #42 on Codeberg',
+        'forgejo/forgejo#42',
+    ],
+    [
+        'https://codeberg.org/forgejo/forgejo/pulls/42',
+        'forgejo/forgejo pull request #42 on Codeberg',
+        'forgejo/forgejo#42',
+    ],
+    [
+        'https://codeberg.org/some.user/my_repo',
+        'some.user/my_repo on Codeberg',
+        'some.user/my_repo',
+    ],
+]) {
+    test(`shows a link to another forge as its forge writes it: ${url}`, () => {
+        const text = `see ${url}.`;
+        const markup = renderToStaticMarkup(
+            <LinkifiedText text={text} mentions={null} />,
+        );
+
+        assert.ok(markup.includes(`href="${url}"`));
+        assert.ok(markup.includes(`aria-label="${label}"`));
+        assert.equal(markup.replace(/<[^>]+>/g, ''), `see ${url}${shown}.`);
+        assert.equal(
+            markup
+                .replace(/<span aria-hidden="true"[^>]*>.*?<\/span><\/a>/g, '')
+                .replace(/<[^>]+>/g, ''),
+            text,
+        );
+    });
+}
+
+test('shows a link to another forge without a link when static', () => {
+    const url = 'https://codeberg.org/forgejo/forgejo';
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text={url} mentions={null} isStatic />,
+    );
+
+    assert.ok(!markup.includes('<a'));
+    assert.ok(markup.includes(`title="${url}"`));
+    assert.equal(markup.replace(/<[^>]+>/g, ''), `${url}forgejo/forgejo`);
+});
+
+for (const link of [
+    'https://gitlab.com/gitlab-org',
+    'https://gitlab.com/gitlab-org/frontend/gitlab-ui',
+    'https://gitlab.com/gitlab-org/gitlab/-/tree/master',
+    'https://gitlab.com/gitlab-org/gitlab/issues/42',
+    'https://gitlab.com/gitlab-org/gitlab/-/pulls/42',
+    'https://gitlab.com/explore/projects',
+    'https://gitlab.com/users/sign_in',
+    'https://codeberg.org/forgejo',
+    'https://codeberg.org/forgejo/forgejo/pull/42',
+    'https://codeberg.org/forgejo/forgejo/src/branch/forgejo',
+    'https://codeberg.org/user/login',
+    'https://codeberg.org/explore/repos',
+    'https://notcodeberg.org/forgejo/forgejo',
+]) {
+    test(`keeps other forge links as URLs: ${link}`, () => {
+        const markup = renderToStaticMarkup(
+            <LinkifiedText text={link} mentions={null} />,
+        );
+
+        assert.ok(!markup.includes('aria-label'));
+        assert.ok(markup.includes(`href="${link}"`));
+    });
+}
