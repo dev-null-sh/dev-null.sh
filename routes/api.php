@@ -9,14 +9,25 @@ use App\Http\Controllers\Api\CommitPollVoteController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CommitReportController;
 use App\Http\Controllers\Api\CommitStarController;
+use App\Http\Controllers\Api\ConversationArchiveController;
+use App\Http\Controllers\Api\ConversationController;
+use App\Http\Controllers\Api\ConversationDropController;
+use App\Http\Controllers\Api\ConversationMergeController;
+use App\Http\Controllers\Api\ConversationMessageController;
+use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
+use App\Http\Controllers\Api\MessageImageController;
+use App\Http\Controllers\Api\MessageLinkPreviewController;
 use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
+use App\Http\Controllers\Api\OrgArchiveController;
 use App\Http\Controllers\Api\OrgController;
+use App\Http\Controllers\Api\OrgMessageController;
+use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\OrgTypingController;
 use App\Http\Controllers\Api\RemoteCandidateController;
 use App\Http\Controllers\Api\StarredCommitController;
@@ -71,6 +82,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         ->withoutMiddleware('throttle:api')
         ->middleware('throttle:devices')
         ->name('api-device.store');
+
+    // Remote images: the app's image views can't sign requests, so a thread hands out URLs signed for the user...
+    Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])
+        ->whereUuid('messageImage')
+        ->withoutMiddleware('throttle:api')
+        ->middleware('signed:relative')
+        ->name('api-message-image.show');
 
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
@@ -150,6 +168,42 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('me/blocked', [UserBlockController::class, 'index'])->name('api-user-block.index');
         Route::post('users/{user:username}/block', [UserBlockController::class, 'store'])->name('api-user-block.store');
         Route::delete('users/{user:username}/block', [UserBlockController::class, 'destroy'])->name('api-user-block.destroy');
+
+        // Remotes: stashing a conversation or an org, and merging or dropping a fetched request...
+        Route::middleware('throttle:conversations')->group(function (): void {
+            Route::post('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'store'])
+                ->name('api-conversation-archive.store');
+            Route::delete('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'destroy'])
+                ->name('api-conversation-archive.destroy');
+            Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])
+                ->whereUuid('org')
+                ->name('api-org-archive.store');
+            Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])
+                ->whereUuid('org')
+                ->name('api-org-archive.destroy');
+            Route::post('remotes/@{partner:username}/merge', [ConversationMergeController::class, 'store'])
+                ->name('api-conversation-merge.store');
+            Route::post('remotes/@{partner:username}/drop', [ConversationDropController::class, 'store'])
+                ->name('api-conversation-drop.store');
+        });
+
+        // Remotes: the inbox and threads of the web's Remotes page, polled as often as it polls them...
+        Route::middleware('throttle:conversations')->group(function (): void {
+            Route::get('remotes', [ConversationController::class, 'index'])->name('api-conversation.index');
+            Route::get('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'index'])
+                ->name('api-conversation-message.index');
+            Route::put('remotes/@{partner:username}/read', [ConversationReadController::class, 'update'])
+                ->name('api-conversation-read.update');
+            Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])
+                ->whereUuid('org')
+                ->name('api-org-message.index');
+            Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])
+                ->whereUuid('org')
+                ->name('api-org-read.update');
+            Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
+                ->whereNumber('message')
+                ->name('api-message-link-preview.show');
+        });
 
         // Remotes: saying the user is typing, as the web's composer does every few seconds...
         Route::middleware('throttle:conversations')->group(function (): void {
