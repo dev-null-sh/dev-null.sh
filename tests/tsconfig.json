@@ -22,6 +22,7 @@
         "Unit/VoiceVolume.test.tsx",
         "Unit/VoiceVolumeHover.test.tsx",
         "Unit/VoiceSpeed.test.tsx",
+        "Unit/VoiceNoteSpeed.test.tsx",
         "Unit/OrgMentionSuggestions.test.tsx",
         "../resources/js/types/*.d.ts",
         "draft-images.config.ts"

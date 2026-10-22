@@ -72,6 +72,13 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
         }
     }, [duration, speed]);
 
+    // The audio outlives every render, so when it ends it repaints with the speed chosen since.
+    const latestPaint = useRef(paint);
+
+    useEffect(() => {
+        latestPaint.current = paint;
+    }, [paint]);
+
     useEffect(
         () => () => {
             audio.current?.pause();
@@ -155,7 +162,7 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
                 setState((state) => (state === 'playing' ? 'paused' : state));
             created.onended = () => {
                 created.currentTime = 0;
-                paint();
+                latestPaint.current();
             };
             audio.current = created;
         }
