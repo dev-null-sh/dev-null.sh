@@ -83,6 +83,8 @@ export type OrgEvent =
 export type OrgRef = { id: string; name: string | null };
 
 export type OrgMember = {
+    suggests_mentions: boolean;
+    is_followed: boolean;
     user: User;
     role: OrgRole | null;
     read_through_id: number;

@@ -30,6 +30,7 @@ const reply = (id: string): Commit =>
             username: 'author',
             lane: 1,
             timezone: null,
+            show_local_time: false,
         },
     }) as Commit;
 

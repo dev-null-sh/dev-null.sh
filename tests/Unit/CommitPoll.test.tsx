@@ -90,3 +90,38 @@ for (const results of [false, true]) {
         assert.match(markup, /<code[^>]*>rm -rf<\/code>/);
     });
 }
+
+test('shortens a big poll total but keeps the exact total on hover and for screen readers', () => {
+    const poll = {
+        ...pollWith(true),
+        total_votes: 10_250,
+        options: pollWith(true).options.map((option, index) => ({
+            ...option,
+            votes_count: index === 0 ? 10_247 : 1,
+        })),
+    };
+    const markup = renderPage(<CommitPoll commit={commit} poll={poll} />);
+    const summary = markup.match(
+        /<p[^>]*data-test="poll-summary"[^>]*>(.*?)<\/p>/,
+    )?.[1];
+
+    assert.ok(summary);
+    assert.match(
+        summary,
+        /<span aria-hidden="true" title="10,250 votes">10\.2k votes<\/span>/,
+    );
+    assert.match(summary, /<span class="sr-only">10,250 votes<\/span>/);
+});
+
+test('shows a small poll total in full without a hover', () => {
+    const markup = renderPage(
+        <CommitPoll commit={commit} poll={pollWith(true)} />,
+    );
+    const summary = markup.match(
+        /<p[^>]*data-test="poll-summary"[^>]*>(.*?)<\/p>/,
+    )?.[1];
+
+    assert.ok(summary);
+    assert.match(summary, /<span aria-hidden="true">4 votes<\/span>/);
+    assert.match(summary, /<span class="sr-only">4 votes<\/span>/);
+});

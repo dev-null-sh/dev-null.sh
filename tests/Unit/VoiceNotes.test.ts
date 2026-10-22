@@ -6,6 +6,7 @@ import {
     formatVoiceTime,
     voiceBars,
     voiceSampleRate,
+    voiceVolumeOf,
     waveformOf,
 } from '../../resources/js/lib/voice-notes.ts';
 
@@ -47,7 +48,10 @@ void test('draws the loudest part of each slice the way the server does', () => 
     assert.equal(waveform.length, voiceBars);
     assert.equal(waveform[0], 100);
     assert.ok(waveform.slice(1).every((bar) => bar === 50));
-    assert.deepEqual(waveformOf(new Float32Array(480)), Array(voiceBars).fill(0));
+    assert.deepEqual(
+        waveformOf(new Float32Array(480)),
+        Array(voiceBars).fill(0),
+    );
 });
 
 void test('prints minutes and seconds', () => {
@@ -70,4 +74,14 @@ void test('draws the bars of an Opus note from the levels heard while recording'
     assert.deepEqual(barsOf([0.25, 2]).slice(0, 1), [25]);
     assert.equal(barsOf([0.25, 2])[voiceBars - 1], 100);
     assert.deepEqual(barsOf([]), Array(voiceBars).fill(0));
+});
+
+void test('reads the saved volume as a whole percent, at full volume until a sensible one is saved', () => {
+    assert.equal(voiceVolumeOf(''), 1);
+    assert.equal(voiceVolumeOf('loud'), 1);
+    assert.equal(voiceVolumeOf('Infinity'), 1);
+    assert.equal(voiceVolumeOf('0'), 0);
+    assert.equal(voiceVolumeOf('0.4237'), 0.42);
+    assert.equal(voiceVolumeOf('-0.3'), 0);
+    assert.equal(voiceVolumeOf('1.5'), 1);
 });
