@@ -6,25 +6,21 @@ const key = 'voice-note-volume';
 const listeners = new Set<() => void>();
 let volume: number | null = null;
 
-// Another tab saved a volume, or cleared everything it saved.
-function onStorage(event: StorageEvent) {
-    if (event.key === key || event.key === null) {
-        volume = null;
-        listeners.forEach((listener) => listener());
-    }
+// Another tab saved a volume, or cleared everything it saved. Heard for as long as the page lives, so the volume
+// kept in memory is never stale, not even after leaving every voice note behind.
+if (typeof window !== 'undefined') {
+    window.addEventListener('storage', (event: StorageEvent) => {
+        if (event.key === key || event.key === null) {
+            volume = null;
+            listeners.forEach((listener) => listener());
+        }
+    });
 }
 
 function subscribe(listener: () => void) {
     listeners.add(listener);
-    window.addEventListener('storage', onStorage);
 
-    return () => {
-        listeners.delete(listener);
-
-        if (listeners.size === 0) {
-            window.removeEventListener('storage', onStorage);
-        }
-    };
+    return () => listeners.delete(listener);
 }
 
 /**

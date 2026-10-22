@@ -102,6 +102,7 @@ export function VoiceVolume() {
             </PopoverTrigger>
             <PopoverContent
                 ref={fader}
+                aria-label="Voice volume"
                 side="top"
                 sideOffset={2}
                 onOpenAutoFocus={keepFocus}

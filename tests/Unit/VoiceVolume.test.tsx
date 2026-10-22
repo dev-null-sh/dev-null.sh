@@ -4,6 +4,7 @@ import { test } from 'vite-plus/test';
 
 const saved = new Map<string, string>();
 let isStorageFull = false;
+const storageListeners: ((event: { key: string | null }) => void)[] = [];
 
 Object.assign(globalThis, {
     window: {
@@ -18,6 +19,15 @@ Object.assign(globalThis, {
             },
             removeItem: (key: string) => saved.delete(key),
         },
+        addEventListener: (
+            type: string,
+            listener: (event: { key: string | null }) => void,
+        ) => {
+            if (type === 'storage') {
+                storageListeners.push(listener);
+            }
+        },
+        removeEventListener: () => undefined,
     },
 });
 
@@ -39,4 +49,13 @@ test('keeps the volume set while the browser cannot save it', () => {
     setVoiceVolume(0.48);
 
     assert.equal(voiceVolume(), 0.48);
+});
+
+test('follows a volume another tab saves, even with no voice note on screen', () => {
+    saved.set('voice-note-volume', '0.7');
+    storageListeners.forEach((listener) =>
+        listener({ key: 'voice-note-volume' }),
+    );
+
+    assert.equal(voiceVolume(), 0.7);
 });
