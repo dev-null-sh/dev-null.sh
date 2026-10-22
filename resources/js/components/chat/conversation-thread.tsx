@@ -160,6 +160,7 @@ export function ConversationThread({
     const hasScrolledIn = useRef(false);
     const anchor = useRef<ScrollAnchor | null>(null);
     const restoredScrollTop = useRef<number | null>(null);
+    const isReplyResizing = useRef(false);
     const seenLatest = useRef(0);
     const [unseen, setUnseen] = useState(0);
 
@@ -196,6 +197,27 @@ export function ConversationThread({
     const draft = useMessageDraft(user, current);
     const replyingTo = thread?.replyingTo ?? null;
     const members = thread?.members;
+
+    useLayoutEffect(() => {
+        isReplyResizing.current = true;
+    }, [replyingTo]);
+
+    const settleReplyPreview = useCallback((isOpen: boolean) => {
+        const element = scroller.current;
+        isReplyResizing.current = false;
+
+        if (element === null) {
+            return;
+        }
+
+        if (!isPinned.current && anchor.current !== null) {
+            restoreScrollAnchor(element, anchor.current);
+            restoredScrollTop.current = element.scrollTop;
+        }
+
+        isPinned.current = isPinned.current || (!isOpen && isAtLatest(element));
+        anchor.current = scrollAnchorOf(element);
+    }, []);
 
     const authorOf = useCallback(
         (userId: string): Author => {
@@ -236,8 +258,13 @@ export function ConversationThread({
 
     const replyTo = useCallback(
         (reply: MessageReply) => {
+            if (scroller.current !== null) {
+                anchor.current = scrollAnchorOf(scroller.current);
+                isPinned.current = false;
+            }
+
             setReplyingTo(target, reply);
-            draft.input.current?.focus();
+            draft.input.current?.focus({ preventScroll: true });
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [targetKey(target)],
@@ -335,10 +362,10 @@ export function ConversationThread({
             return;
         }
 
-        // Keep the reading anchor during a fold, but resume following messages when a correction reaches the bottom.
+        // A correction during the reply fold is not an intentional scroll, even while it is close to the bottom.
         if (
             element.scrollTop === restoredScrollTop.current &&
-            !isAtLatest(element)
+            (isReplyResizing.current || !isAtLatest(element))
         ) {
             restoredScrollTop.current = null;
 
@@ -472,6 +499,7 @@ export function ConversationThread({
                     onSend={() => {
                         isPinned.current = true;
                     }}
+                    onReplySettled={settleReplyPreview}
                     isCompact={isCompact}
                     autoFocus={autoFocus}
                     typing={
@@ -1134,16 +1162,37 @@ function ReplyPreview({
     reply,
     author,
     onCancel,
+    onSettled,
 }: {
     reply: MessageReply | null;
     author: Author | null;
     onCancel: () => void;
+    onSettled: (isOpen: boolean) => void;
 }) {
+    const preview = useRef<HTMLDivElement>(null);
     const [shown, setShown] = useState<{
         reply: MessageReply;
         author: Author;
     } | null>(null);
     const isOpen = reply !== null && author !== null;
+
+    useEffect(() => {
+        let isCurrent = true;
+
+        void Promise.allSettled(
+            preview.current
+                ?.getAnimations()
+                .map((animation) => animation.finished) ?? [],
+        ).then(() => {
+            if (isCurrent) {
+                onSettled(isOpen);
+            }
+        });
+
+        return () => {
+            isCurrent = false;
+        };
+    }, [isOpen, onSettled, reply]);
 
     if (
         isOpen &&
@@ -1156,10 +1205,11 @@ function ReplyPreview({
 
     return (
         <div
+            ref={preview}
             aria-hidden={!isOpen}
             inert={!isOpen}
             className={cn(
-                'grid transition-[grid-template-rows,opacity,margin-bottom] duration-200 ease-out motion-reduce:transition-none',
+                'grid transition-[grid-template-rows,opacity,margin-bottom] duration-300 ease-in-out motion-reduce:transition-none',
                 isOpen
                     ? 'grid-rows-[1fr] opacity-100'
                     : '-mb-2 grid-rows-[0fr] opacity-0',
@@ -1206,6 +1256,7 @@ function Composer({
     autoFocus,
     typing,
     onSend,
+    onReplySettled,
 }: {
     target: ChatTarget;
     members: OrgMember[] | undefined;
@@ -1219,6 +1270,7 @@ function Composer({
      * Called as the user pushes, so the thread follows their own message down.
      */
     onSend: () => void;
+    onReplySettled: (isOpen: boolean) => void;
 }) {
     const id = `message-${targetKey(target).replace(':', '-')}`;
     const placeholder =
@@ -1428,6 +1480,7 @@ function Composer({
                 <ReplyPreview
                     reply={replyingTo}
                     author={replyAuthor}
+                    onSettled={onReplySettled}
                     onCancel={() => {
                         setReplyingTo(target, null);
                         input.current?.focus();
