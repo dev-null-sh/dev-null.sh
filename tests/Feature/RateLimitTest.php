@@ -202,6 +202,24 @@ it('keeps pastéis apart from the issue and export budgets', function (): void {
     $this->get(route('export'))->assertOk();
 });
 
+it('shares the pastéis budget between the web and the API', function (): void {
+    $user = User::factory()->create(['pasteis_mode' => true]);
+    $commit = Commit::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    $this->actingAs($user);
+
+    foreach (range(1, 60) as $attempt) {
+        expect($this->postJson(route('commit-pastel.store', $commit))->getStatusCode())->not->toBe(429);
+    }
+
+    signedApiRequest($keyPair, 'POST', route('api-commit-pastel.store', $commit))->assertTooManyRequests();
+
+    $other = User::factory()->create(['pasteis_mode' => true]);
+
+    expect(signedApiRequest(apiKeyPairFor($other), 'POST', route('api-commit-pastel.store', $commit))->getStatusCode())->not->toBe(429);
+});
+
 it('keeps the sign-in budget per guest IP apart from CLI key lookups', function (): void {
     $publicKey = SshKeyPair::generate()->publicKey->toOpenSsh();
 

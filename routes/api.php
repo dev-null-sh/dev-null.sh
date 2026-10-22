@@ -138,7 +138,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Commit Pastel...
         Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
-            ->middleware('throttle:60,1')
+            ->middleware('throttle:pasteis')
             ->name('api-commit-pastel.store');
 
         // Commit Poll Vote...
