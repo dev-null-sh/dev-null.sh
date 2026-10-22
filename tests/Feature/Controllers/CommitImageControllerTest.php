@@ -88,6 +88,28 @@ it('serves images of pending commits to moderators', function (): void {
         ->assertOk();
 });
 
+it('serves images of pending and rejected commits through a temporary url, until it expires', function (string $state): void {
+    $image = storedCommitImage(Commit::factory()->{$state}()->create());
+    $url = $image->temporaryUrl();
+
+    $this->get($url)->assertOk();
+    $this->get($url.'&download=1')->assertNotFound();
+
+    $this->travel(2)->hours();
+
+    $this->get($url)->assertNotFound();
+})->with(['pending', 'rejected']);
+
+it('hides images of deleted commits behind a temporary url', function (): void {
+    $commit = Commit::factory()->pending()->create();
+    $image = storedCommitImage($commit);
+    $url = $image->temporaryUrl();
+
+    $commit->delete();
+
+    $this->get($url)->assertNotFound();
+});
+
 it('hides images of deleted commits', function (): void {
     $commit = Commit::factory()->create();
     $image = storedCommitImage($commit);

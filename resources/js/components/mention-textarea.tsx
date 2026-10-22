@@ -13,7 +13,7 @@ import { issueReferenceBeforeCaret } from '@/lib/issue-reference';
 import { suggestionPosition } from '@/lib/suggestion-position';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
-import type { User } from '@/types';
+import type { OrgMember, User } from '@/types';
 
 type Trigger = {
     kind: 'mention' | 'emoji' | 'issue';
@@ -258,6 +258,7 @@ export function MentionTextarea({
     suggestsMentions = true,
     suggestsIssues = suggestsMentions,
     org,
+    members,
     reply,
     quote,
     ...props
@@ -268,6 +269,7 @@ export function MentionTextarea({
     suggestsMentions?: boolean;
     suggestsIssues?: boolean;
     org?: string;
+    members?: OrgMember[];
     reply?: string;
     quote?: string;
 }) {
@@ -342,7 +344,12 @@ export function MentionTextarea({
     };
 
     useEffect(() => {
-        if (query === null || key === null || cache.has(key)) {
+        if (
+            members !== undefined ||
+            query === null ||
+            key === null ||
+            cache.has(key)
+        ) {
             return;
         }
 
@@ -359,7 +366,7 @@ export function MentionTextarea({
             clearTimeout(timeout);
             controller.abort();
         };
-    }, [key, query, org, reply, quote]);
+    }, [key, query, org, reply, quote, members]);
 
     useEffect(() => {
         if (issueQuery === null) {
@@ -428,10 +435,48 @@ export function MentionTextarea({
         listRef.current
             ?.querySelector('[aria-selected="true"]')
             ?.scrollIntoView({ block: 'nearest' });
-    }, [activeIndex]);
+    }, [activeIndex, members]);
 
     const cached = key === null ? undefined : cache.get(key);
-    const current = key !== null && cached ? { key, users: cached } : results;
+    const local =
+        members === undefined || query === null
+            ? null
+            : members
+                  .filter((member) => member.suggests_mentions)
+                  .filter(
+                      ({ user }) =>
+                          user.username.toLowerCase().includes(query) ||
+                          user.name.toLowerCase().includes(query),
+                  )
+                  .map((member) => ({
+                      ...member,
+                      tier:
+                          member.user.username.toLowerCase() === query
+                              ? 0
+                              : member.user.username
+                                      .toLowerCase()
+                                      .startsWith(query)
+                                ? 1
+                                : member.user.name
+                                        .toLowerCase()
+                                        .startsWith(query)
+                                  ? 2
+                                  : 3,
+                  }))
+                  .sort(
+                      (a, b) =>
+                          a.tier - b.tier ||
+                          Number(b.is_followed) - Number(a.is_followed) ||
+                          (a.user.username < b.user.username ? -1 : 1),
+                  )
+                  .slice(0, 6)
+                  .map(({ user }) => user);
+    const current =
+        local !== null && key !== null
+            ? { key, users: local }
+            : key !== null && cached
+              ? { key, users: cached }
+              : results;
     const suggestions =
         key !== null && current?.key === key ? current.users : [];
     const emojiQuery =
@@ -445,6 +490,7 @@ export function MentionTextarea({
             : trigger?.kind === 'emoji'
               ? emojis.length
               : suggestions.length;
+    const selectedIndex = Math.min(activeIndex, Math.max(0, optionCount - 1));
     const isOpen =
         trigger !== null &&
         position !== null &&
@@ -530,7 +576,7 @@ export function MentionTextarea({
                 event.preventDefault();
                 const step = event.key === 'ArrowDown' ? 1 : -1;
                 setActiveIndex(
-                    (index) => (index + step + optionCount) % optionCount,
+                    (selectedIndex + step + optionCount) % optionCount,
                 );
 
                 return;
@@ -540,16 +586,16 @@ export function MentionTextarea({
                 (event.key === 'Enter' || event.key === 'Tab') &&
                 !hasModifier &&
                 !event.shiftKey &&
-                activeIndex < optionCount
+                selectedIndex < optionCount
             ) {
                 event.preventDefault();
 
                 if (trigger?.kind === 'issue' && issue) {
                     insert(issue.url, ' ');
                 } else if (trigger?.kind === 'emoji') {
-                    selectEmoji(emojis[activeIndex]);
+                    selectEmoji(emojis[selectedIndex]);
                 } else {
-                    select(suggestions[activeIndex]);
+                    select(suggestions[selectedIndex]);
                 }
 
                 return;
@@ -577,9 +623,10 @@ export function MentionTextarea({
         : trigger?.kind === 'issue'
           ? `${id}-issue-${issue?.number}`
           : trigger?.kind === 'emoji'
-            ? emojis[activeIndex] && `${id}-emoji-${emojis[activeIndex].name}`
-            : suggestions[activeIndex] &&
-              `${id}-mention-${suggestions[activeIndex].id}`;
+            ? emojis[selectedIndex] &&
+              `${id}-emoji-${emojis[selectedIndex].name}`
+            : suggestions[selectedIndex] &&
+              `${id}-mention-${suggestions[selectedIndex].id}`;
 
     const isSearching = current?.key !== key;
     const listId =
@@ -644,7 +691,7 @@ export function MentionTextarea({
             {isOpen &&
                 createPortal(
                     <div
-                        className="pointer-events-auto fixed z-50 flex flex-col overflow-hidden rounded-xl border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
+                        className="pointer-events-auto fixed z-50 flex flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
                         style={position}
                         onMouseDown={(event) => event.preventDefault()}
                         data-mention-suggestions
@@ -663,7 +710,7 @@ export function MentionTextarea({
                                     role="option"
                                     aria-selected
                                     onClick={() => insert(issue.url, ' ')}
-                                    className="cursor-pointer rounded-lg bg-accent px-2.5 py-2"
+                                    className="cursor-pointer rounded-sm bg-accent px-2.5 py-2"
                                 >
                                     <span
                                         className="block truncate text-sm font-semibold"
@@ -692,16 +739,16 @@ export function MentionTextarea({
                                         key={emoji.name}
                                         id={`${id}-emoji-${emoji.name}`}
                                         role="option"
-                                        aria-selected={index === activeIndex}
+                                        aria-selected={index === selectedIndex}
                                         onMouseMove={() =>
                                             setActiveIndex(index)
                                         }
                                         onClick={() => selectEmoji(emoji)}
                                         className={cn(
-                                            'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5',
+                                            'flex cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-1.5',
                                             {
                                                 'bg-accent':
-                                                    index === activeIndex,
+                                                    index === selectedIndex,
                                             },
                                         )}
                                         data-test="emoji-suggestion"
@@ -726,7 +773,7 @@ export function MentionTextarea({
                                                 'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
                                                 {
                                                     'opacity-100':
-                                                        index === activeIndex,
+                                                        index === selectedIndex,
                                                 },
                                             )}
                                         >
@@ -761,16 +808,16 @@ export function MentionTextarea({
                                         key={user.id}
                                         id={`${id}-mention-${user.id}`}
                                         role="option"
-                                        aria-selected={index === activeIndex}
+                                        aria-selected={index === selectedIndex}
                                         onMouseMove={() =>
                                             setActiveIndex(index)
                                         }
                                         onClick={() => select(user)}
                                         className={cn(
-                                            'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2',
+                                            'flex cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-2',
                                             {
                                                 'bg-accent':
-                                                    index === activeIndex,
+                                                    index === selectedIndex,
                                             },
                                         )}
                                         data-test="mention-suggestion"
@@ -811,7 +858,7 @@ export function MentionTextarea({
                                                 'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
                                                 {
                                                     'opacity-100':
-                                                        index === activeIndex,
+                                                        index === selectedIndex,
                                                 },
                                             )}
                                         >

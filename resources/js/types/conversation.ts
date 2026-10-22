@@ -9,6 +9,7 @@ export type MessageReply = {
     user_id: string;
     body: string;
     images_count: number;
+    has_voice: boolean;
 };
 
 export type MessageImage = {
@@ -17,6 +18,16 @@ export type MessageImage = {
     width: number;
     height: number;
     description: string | null;
+};
+
+/**
+ * A voice note's waveform runs from 0 to 100 per bar. The audio itself is only fetched when it is played.
+ */
+export type MessageVoice = {
+    id: string;
+    url: string;
+    duration_ms: number;
+    waveform: number[];
 };
 
 export type MessageReaction = {
@@ -43,6 +54,7 @@ export type Message = {
     mentions?: Record<string, string> | null;
     link_preview?: LinkPreview | null;
     images?: MessageImage[];
+    voice?: MessageVoice | null;
     reactions?: MessageReaction[];
     event?: OrgEvent | null;
     subject_id?: string | null;
@@ -71,6 +83,8 @@ export type OrgEvent =
 export type OrgRef = { id: string; name: string | null };
 
 export type OrgMember = {
+    suggests_mentions: boolean;
+    is_followed: boolean;
     user: User;
     role: OrgRole | null;
     read_through_id: number;
