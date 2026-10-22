@@ -1,8 +1,10 @@
 import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
+import BroadcastController from '@/actions/App/Http/Controllers/BroadcastController';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
+import { BroadcastTile } from '@/components/chat/broadcast';
 import { ConversationActions } from '@/components/chat/conversation-actions';
 import { MessageStatusGlyph } from '@/components/chat/message-status';
 import { eventText, MemberStack, orgTitle } from '@/components/chat/org';
@@ -83,12 +85,15 @@ function ConversationRow({
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const { partner, last_message: lastMessage, ahead } = conversation;
     const target = targetOf(conversation);
+    const isBroadcast = conversation.kind === 'broadcast';
     const others = (conversation.members ?? [])
         .map((member) => member.user)
         .filter((member) => member.id !== user.id);
     const title =
         partner === null
-            ? orgTitle(conversation, conversation.members, user)
+            ? isBroadcast
+                ? (conversation.name ?? 'Broadcast')
+                : orgTitle(conversation, conversation.members, user)
             : `@${partner.username}`;
     const isMine = lastMessage?.user_id === user.id && !lastMessage.event;
     const lastBody =
@@ -119,7 +124,9 @@ function ConversationRow({
                     className="absolute inset-y-2 left-0 w-[3px] rounded-r-full bg-primary"
                 />
             )}
-            {partner === null ? (
+            {isBroadcast ? (
+                <BroadcastTile isCompact={isCompact} />
+            ) : partner === null ? (
                 <OrgAvatar users={others} isCompact={isCompact} />
             ) : (
                 <UserAvatar
@@ -148,7 +155,9 @@ function ConversationRow({
                             {title}
                         </span>
                         <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                            org · {others.length + 1}
+                            {isBroadcast
+                                ? 'broadcast'
+                                : `org · ${others.length + 1}`}
                         </span>
                     </span>
                 ) : (
@@ -242,9 +251,13 @@ function ConversationRow({
             ) : (
                 <Link
                     href={
-                        partner === null
-                            ? OrgController.show({ org: conversation.id })
-                            : ConversationController.show(partner)
+                        isBroadcast
+                            ? BroadcastController.show({
+                                  broadcast: conversation.id,
+                              })
+                            : partner === null
+                              ? OrgController.show({ org: conversation.id })
+                              : ConversationController.show(partner)
                     }
                     preserveScroll
                     aria-current={isActive ? 'page' : undefined}

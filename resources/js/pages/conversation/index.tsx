@@ -2,12 +2,20 @@ import { Head, Link, router } from '@inertiajs/react';
 import {
     ChevronLeft,
     PanelBottomOpen,
+    Radio,
     SquarePen,
     UsersRound,
 } from 'lucide-react';
 import { useState } from 'react';
+import BroadcastController from '@/actions/App/Http/Controllers/BroadcastController';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
+import {
+    BroadcastDirectoryDialog,
+    BroadcastHeader,
+    BroadcastLanding,
+    BroadcastTile,
+} from '@/components/chat/broadcast';
 import { ConversationActions } from '@/components/chat/conversation-actions';
 import { ConversationThread } from '@/components/chat/conversation-thread';
 import { InboxPanel } from '@/components/chat/inbox-panel';
@@ -29,38 +37,65 @@ import type { ChatTarget } from '@/lib/chat';
 import { setChatDocked, useChatDock } from '@/lib/chat-dock';
 import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { InboxPage, OrgRef, OrgThread, Thread, User } from '@/types';
+import type {
+    BroadcastSummary,
+    InboxPage,
+    OrgRef,
+    OrgThread,
+    Thread,
+    BroadcastThread,
+    User,
+} from '@/types';
 
 export default function Index({
     inbox,
     partner,
     org = null,
+    broadcast = null,
     thread,
 }: {
     inbox: InboxPage;
     partner: User | null;
     org?: OrgRef | null;
-    thread: Thread | OrgThread | null;
+    broadcast?: BroadcastSummary | null;
+    thread: Thread | OrgThread | BroadcastThread | null;
 }) {
     const { user } = useUser();
     const dock = useChatDock();
     const [isPicking, setIsPicking] = useState(false);
     const [isStartingOrg, setIsStartingOrg] = useState(false);
+    const [isBrowsing, setIsBrowsing] = useState(false);
     const [seededFrom, setSeededFrom] = useState<object | null>(null);
+    const [seededThreadFrom, setSeededThreadFrom] = useState<object | null>(
+        null,
+    );
     const target: ChatTarget | null =
         partner !== null
             ? { kind: 'direct', partner }
             : org !== null
               ? { kind: 'org', org }
-              : null;
+              : broadcast !== null && thread !== null
+                ? {
+                      kind: 'broadcast',
+                      broadcast: {
+                          id: broadcast.id,
+                          name: broadcast.name,
+                          visibility: broadcast.visibility,
+                      },
+                  }
+                : null;
+    // A broadcast not yet subscribed to shows its landing instead of a thread, with the way in.
+    const isLanding = broadcast !== null && thread === null;
 
     if (seededFrom !== inbox) {
         setSeededFrom(inbox);
         seedInbox(inbox);
+    }
 
-        if (target !== null && thread !== null) {
-            seedThread(target, thread);
-        }
+    // Subscribing from a broadcast's landing reloads only its own thread, so the seed follows the thread too.
+    if (target !== null && thread !== null && seededThreadFrom !== thread) {
+        setSeededThreadFrom(thread);
+        seedThread(target, thread);
     }
 
     useInbox();
@@ -73,7 +108,9 @@ export default function Index({
         visit(
             next.kind === 'direct'
                 ? ConversationController.show(next.partner)
-                : OrgController.show({ org: next.org.id }),
+                : next.kind === 'org'
+                  ? OrgController.show({ org: next.org.id })
+                  : BroadcastController.show({ broadcast: next.broadcast.id }),
         );
 
     const message = (person: User) => open({ kind: 'direct', partner: person });
@@ -88,7 +125,9 @@ export default function Index({
                         ? `@${partner.username} · Remotes`
                         : org
                           ? `${org.name ?? 'Org'} · Remotes`
-                          : 'Remotes'
+                          : broadcast
+                            ? `${broadcast.name} · Remotes`
+                            : 'Remotes'
                 }
             />
 
@@ -98,7 +137,7 @@ export default function Index({
                     aria-label="Conversations"
                     className={cn(
                         'flex min-h-0 w-full flex-col lg:w-80 lg:shrink-0 lg:border-r',
-                        { 'hidden lg:flex': target !== null },
+                        { 'hidden lg:flex': target !== null || isLanding },
                     )}
                 >
                     <div className="flex h-16 shrink-0 items-center justify-between gap-2 px-4">
@@ -134,6 +173,20 @@ export default function Index({
                                 </TooltipContent>
                             </Tooltip>
                             <RemoteSettingsMenu />
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        type="button"
+                                        aria-label="Browse broadcasts"
+                                        onClick={() => setIsBrowsing(true)}
+                                        className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                        data-test="browse-broadcasts"
+                                    >
+                                        <Radio className="size-[18px]" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent>Broadcasts</TooltipContent>
+                            </Tooltip>
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <button
@@ -189,10 +242,19 @@ export default function Index({
                                     user={user}
                                     onLeave={leave}
                                 />
-                            ) : (
+                            ) : target.kind === 'org' ? (
                                 <header className="flex h-16 shrink-0 items-center gap-3 border-b px-4">
                                     <OrgHeader
                                         org={target.org}
+                                        user={user}
+                                        before={<BackToRemotes />}
+                                        onLeft={leave}
+                                    />
+                                </header>
+                            ) : (
+                                <header className="flex h-16 shrink-0 items-center gap-3 border-b px-4">
+                                    <BroadcastHeader
+                                        broadcast={target.broadcast}
                                         user={user}
                                         before={<BackToRemotes />}
                                         onLeft={leave}
@@ -203,6 +265,30 @@ export default function Index({
                         autoFocus
                         onDropped={leave}
                     />
+                ) : isLanding && broadcast !== null ? (
+                    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                        <header className="flex h-16 shrink-0 items-center gap-3 border-b px-4">
+                            <BackToRemotes />
+                            <BroadcastTile />
+                            <span className="min-w-0">
+                                <span
+                                    className="block truncate text-[15px] font-semibold"
+                                    title={broadcast.name}
+                                >
+                                    {broadcast.name}
+                                </span>
+                                <span className="block truncate font-mono text-xs text-muted-foreground">
+                                    broadcast
+                                </span>
+                            </span>
+                        </header>
+                        <BroadcastLanding
+                            broadcast={broadcast}
+                            onSubscribed={() =>
+                                router.reload({ only: ['broadcast', 'thread'] })
+                            }
+                        />
+                    </div>
                 ) : (
                     <div className="hidden flex-1 flex-col items-center justify-center gap-3 px-8 text-center lg:flex">
                         <p className="font-mono text-[13px] text-muted-foreground">
@@ -231,6 +317,14 @@ export default function Index({
                 open={isStartingOrg}
                 onOpenChange={setIsStartingOrg}
                 onDone={(created) => open({ kind: 'org', org: created })}
+            />
+
+            <BroadcastDirectoryDialog
+                open={isBrowsing}
+                onOpenChange={setIsBrowsing}
+                onOpen={(found) =>
+                    visit(BroadcastController.show({ broadcast: found.id }))
+                }
             />
         </>
     );

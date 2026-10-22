@@ -35,6 +35,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Notifications](#notifications)
   - [Remotes: direct messages](#remotes-direct-messages)
   - [Orgs: group chats](#orgs-group-chats)
+  - [Broadcasts: subscriber channels](#broadcasts-subscriber-channels)
   - [Muting and blocking](#muting-and-blocking)
   - [Reporting commits](#reporting-commits)
   - [Appearance, color, and timezone](#appearance-color-and-timezone)
@@ -340,6 +341,16 @@ The creator starts as a **Maintainer**, and invited people start as **Contributo
 Group messages support the same text, images, voice notes, replies, link cards, reactions, and typing indicators as direct messages. A member's read position shows only when both you and that member have pull receipts on. Any new message pops the org back for members who stashed it. Membership and history access determine what a person can read.
 
 Sources: [group creation](app/Http/Requests/CreateOrgRequest.php), [invitation eligibility](app/Queries/RemoteCandidatesQuery.php), [history sharing](app/Actions/CreateOrgMembers.php), [role changes](app/Http/Requests/UpdateOrgMemberRequest.php), [leaving a group](app/Actions/DeleteOrgMember.php).
+
+### Broadcasts: subscriber channels
+
+A **broadcast** is a channel inside Remotes where only the owner and selected publishers can send messages. Subscribers can read and react, but cannot post. Open broadcasts accept subscriptions from developers with Remotes enabled; invite-only broadcasts require an invitation from the owner. Profiles show an owner's latest 30 public broadcasts, with a browse control opening the searchable directory prefilled with their handle. The directory provides further pages; users without Remotes enabled are prompted to sign in or enable it first. Directory entries expose channel metadata, not messages; invite-only broadcasts are visible only to their members and invitees.
+
+Only active subscribers can read messages or their attachments and link cards. History begins at each subscriber's first join: messages published before that remain hidden. Subscribers can leave at any time and lose reading access. Rejoining restores messages since the original first-join cutoff, including messages published while away, without revealing earlier history. The owner cannot leave; ownership transfer and channel deletion are not currently supported.
+
+The owner can invite developers and promote subscribed developers to publishers or demote them to read-only subscribers. The owner-only member screen lists and searches current subscribers and banned accounts. **Kick** immediately removes a member's reading and publishing access; they can rejoin an open channel, or accept a new invitation to an invite-only channel. **Ban** also prevents rejoining until the owner unbans them. Unbanning only restores eligibility to subscribe: it does not resubscribe the person or restore their publishing role, and invite-only channels require a fresh invitation. Both actions preserve the first-join history cutoff and remove pending invitations. Owners cannot kick or ban themselves. Messages arrive in the existing Remotes inbox, not through an email newsletter service. Broadcasts use the same encrypted message storage, text, attachment, and link-card infrastructure as other remotes.
+
+Sources: [broadcast controller](app/Http/Controllers/BroadcastController.php), [subscriptions](app/Actions/CreateBroadcastSubscription.php), [visibility checks](app/Models/Message.php), [broadcast queries](app/Queries/BroadcastsQuery.php), [broadcast tests](tests/Feature/Controllers/BroadcastSubscriptionControllerTest.php).
 
 ### Muting and blocking
 

@@ -7,9 +7,11 @@ import {
     Link2,
     MapPin,
     MessagesSquare,
+    Radio,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
+import BroadcastController from '@/actions/App/Http/Controllers/BroadcastController';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
@@ -19,6 +21,7 @@ import { AchievementsShelf } from '@/components/achievements-shelf';
 import { ActivityGraph } from '@/components/activity-graph';
 import { ActivityStreaks } from '@/components/activity-streaks';
 import { BioText } from '@/components/bio-text';
+import { BroadcastDirectoryDialog } from '@/components/chat/broadcast';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
@@ -50,6 +53,7 @@ import type {
     Commit,
     CursorPaginated,
     Profile,
+    PublicBroadcast,
     Streaks,
 } from '@/types';
 
@@ -71,6 +75,7 @@ export default function Show({
     commits,
     tab,
     pinnedCommit,
+    broadcasts,
 }: {
     user: Profile;
     pasteisReceived: number | null;
@@ -85,6 +90,7 @@ export default function Show({
     commits: CursorPaginated<Commit>;
     tab: 'commits' | 'replies';
     pinnedCommit: Commit | null;
+    broadcasts: PublicBroadcast[];
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user?.id === user.id;
@@ -93,6 +99,7 @@ export default function Show({
         null,
     );
     const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+    const [isBroadcastsOpen, setIsBroadcastsOpen] = useState(false);
     const [pasteisCount] = useSharedState(
         commitStateKey('pasteis_received', user.id),
         pasteisReceived ?? 0,
@@ -409,6 +416,70 @@ export default function Show({
                         {pluralize(pasteisCount, 'pastel', 'pastéis')} received
                     </p>
                 )}
+
+                {broadcasts.length > 0 && (
+                    <section
+                        className="mt-4"
+                        aria-label={`Public broadcasts by @${user.username}`}
+                        data-test="profile-broadcasts"
+                    >
+                        <div className="flex items-center justify-between gap-2">
+                            <h2 className="font-mono text-xs text-muted-foreground">
+                                latest broadcasts
+                            </h2>
+                            {auth.remotes !== null ? (
+                                <Button
+                                    variant="ghost"
+                                    className="h-7 text-xs"
+                                    onClick={() => setIsBroadcastsOpen(true)}
+                                >
+                                    Browse broadcasts
+                                </Button>
+                            ) : (
+                                <Link
+                                    href={
+                                        auth.user === null
+                                            ? '/login'
+                                            : '/settings/profile'
+                                    }
+                                    className="text-xs text-muted-foreground hover:underline"
+                                >
+                                    {auth.user === null
+                                        ? 'Sign in to browse'
+                                        : 'Enable Remotes'}
+                                </Link>
+                            )}
+                        </div>
+                        <ul className="mt-1.5 space-y-1">
+                            {broadcasts.map((broadcast) => (
+                                <li key={broadcast.id} className="min-w-0">
+                                    <Link
+                                        href={BroadcastController.show({
+                                            broadcast: broadcast.id,
+                                        })}
+                                        className="flex min-w-0 items-center gap-2 text-sm hover:underline"
+                                    >
+                                        <Radio className="size-4 shrink-0 text-muted-foreground" />
+                                        <span
+                                            className="truncate font-medium"
+                                            title={broadcast.name}
+                                        >
+                                            {broadcast.name}
+                                        </span>
+                                        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+                                            {broadcast.subscriber_count}{' '}
+                                            {pluralize(
+                                                broadcast.subscriber_count,
+                                                'subscriber',
+                                                'subscribers',
+                                            )}
+                                        </span>
+                                    </Link>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
             </header>
 
             <ActivityGraph
@@ -432,6 +503,21 @@ export default function Show({
                 user={user}
                 lane={lane}
             />
+
+            {auth.remotes !== null && (
+                <BroadcastDirectoryDialog
+                    key={user.id}
+                    open={isBroadcastsOpen}
+                    onOpenChange={setIsBroadcastsOpen}
+                    initialQuery={`@${user.username}`}
+                    onOpen={({ id }) => {
+                        setIsBroadcastsOpen(false);
+                        router.visit(
+                            BroadcastController.show.url({ broadcast: id }),
+                        );
+                    }}
+                />
+            )}
 
             <div className="min-h-dvh">
                 <PageTabs

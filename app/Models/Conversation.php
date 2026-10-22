@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\BroadcastRole;
+use App\Enums\BroadcastVisibility;
 use App\Enums\ConversationKind;
 use App\Enums\OrgRole;
 use App\Enums\RemoteStatus;
@@ -21,16 +23,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read ConversationKind $kind
  * @property-read string|null $pair
  * @property-read string|null $name
+ * @property-read BroadcastVisibility|null $visibility
  * @property-read int|null $last_message_id
  * @property-read int $reactions_version
+ * @property-read int $subscriber_count
+ * @property-read bool $is_invited
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, ConversationParticipant> $participants
+ * @property-read Collection<int, BroadcastInvitation> $invitations
  * @property-read Collection<int, Message> $messages
  * @property-read Message|null $lastMessage
  * @property-read User|null $partner
  * @property-read string $partner_id
  * @property-read int $ahead
+ * @property-read int|null $visible_from_id
  * @property-read CarbonInterface|null $last_message_at
  * @property-read RemoteStatus $partner_status
  * @property-read int $partner_read_through_id
@@ -75,12 +82,28 @@ final class Conversation extends Model
         return $this->kind === ConversationKind::Org;
     }
 
+    public function isBroadcast(): bool
+    {
+        return $this->kind === ConversationKind::Broadcast;
+    }
+
     /**
      * The user's role in the org, or null when they aren't in it.
      */
     public function roleOf(User $user): ?OrgRole
     {
-        return $this->isOrg() ? $this->participants()->where('user_id', $user->id)->first()?->role : null;
+        return $this->isOrg() ? $this->participants()->where('user_id', $user->id)->first()?->orgRole() : null;
+    }
+
+    /**
+     * The user's role in the broadcast while they are subscribed: participants keep their row when they leave, so
+     * only an open status means access, and a null means none.
+     */
+    public function activeBroadcastRoleOf(User $user): ?BroadcastRole
+    {
+        return $this->isBroadcast()
+            ? $this->participants()->where('user_id', $user->id)->where('status', RemoteStatus::Open)->first()?->broadcastRole()
+            : null;
     }
 
     public function isMaintainedBy(User $user): bool
@@ -98,12 +121,14 @@ final class Conversation extends Model
             'kind' => ConversationKind::class,
             'pair' => 'string',
             'name' => 'string',
+            'visibility' => BroadcastVisibility::class,
             'last_message_id' => 'integer',
             'reactions_version' => 'integer',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'partner_id' => 'string',
             'ahead' => 'integer',
+            'visible_from_id' => 'integer',
             'last_message_at' => 'datetime',
             'partner_status' => RemoteStatus::class,
             'partner_read_through_id' => 'integer',
@@ -118,6 +143,14 @@ final class Conversation extends Model
     public function participants(): HasMany
     {
         return $this->hasMany(ConversationParticipant::class);
+    }
+
+    /**
+     * @return HasMany<BroadcastInvitation, $this>
+     */
+    public function invitations(): HasMany
+    {
+        return $this->hasMany(BroadcastInvitation::class);
     }
 
     /**

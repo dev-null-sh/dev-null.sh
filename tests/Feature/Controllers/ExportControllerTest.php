@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateBroadcast;
 use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
 use App\Ai\Agents\CommitTranslator;
+use App\Enums\BroadcastVisibility;
 use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
+use App\Models\BroadcastInvitation;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Device;
@@ -23,6 +26,20 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+
+it('exports only the users own pending broadcast invitations', function (): void {
+    $user = User::factory()->create();
+    $broadcast = resolve(CreateBroadcast::class)->handle(User::factory()->create(), 'private crew', BroadcastVisibility::Invite);
+    $invitation = BroadcastInvitation::factory()->for($user)->for($broadcast)->create();
+    BroadcastInvitation::factory()->create();
+
+    $response = $this->actingAs($user)->get(route('export'))->assertOk();
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['broadcast_invitations'])->toBe([
+        ['name' => 'private crew', 'created_at' => $invitation->created_at->toIso8601String()],
+    ]);
+});
 
 it('requires authentication to download personal data', function (): void {
     $this->get(route('export'))->assertRedirectToRoute('home');
@@ -126,6 +143,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'blocking' => [],
         'dismissed_suggestions' => [],
         'messages' => [],
+        'broadcast_invitations' => [],
         'notifications' => [],
         'ssh_keys' => [],
         'devices' => [],

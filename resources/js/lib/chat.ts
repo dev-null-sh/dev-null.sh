@@ -1,5 +1,14 @@
 import { router } from '@inertiajs/react';
 import BannedController from '@/actions/App/Http/Controllers/BannedController';
+import BroadcastArchiveController from '@/actions/App/Http/Controllers/BroadcastArchiveController';
+import BroadcastController from '@/actions/App/Http/Controllers/BroadcastController';
+import BroadcastInvitationController from '@/actions/App/Http/Controllers/BroadcastInvitationController';
+import BroadcastMemberController from '@/actions/App/Http/Controllers/BroadcastMemberController';
+import BroadcastMessageController from '@/actions/App/Http/Controllers/BroadcastMessageController';
+import BroadcastPublisherController from '@/actions/App/Http/Controllers/BroadcastPublisherController';
+import BroadcastReadController from '@/actions/App/Http/Controllers/BroadcastReadController';
+import BroadcastSubscriptionController from '@/actions/App/Http/Controllers/BroadcastSubscriptionController';
+import BroadcastTypingController from '@/actions/App/Http/Controllers/BroadcastTypingController';
 import ConversationArchiveController from '@/actions/App/Http/Controllers/ConversationArchiveController';
 import ConversationDropController from '@/actions/App/Http/Controllers/ConversationDropController';
 import ConversationMergeController from '@/actions/App/Http/Controllers/ConversationMergeController';
@@ -21,6 +30,12 @@ import type { ReactionUsage } from '@/lib/reactions';
 import { withReactionUse } from '@/lib/reactions';
 import type { VoiceDraft } from '@/lib/voice-notes';
 import type {
+    BroadcastDirectoryPage,
+    BroadcastMemberPage,
+    BroadcastRef,
+    BroadcastRole,
+    BroadcastThread,
+    BroadcastVisibility,
     ConversationSummary,
     InboxPage,
     InboxTab,
@@ -38,11 +53,12 @@ import type {
 } from '@/types';
 
 /**
- * Who a conversation is with: one person, or an org.
+ * Who a conversation is with: one person, an org, or a broadcast.
  */
 export type ChatTarget =
     | { kind: 'direct'; partner: User }
-    | { kind: 'org'; org: OrgRef };
+    | { kind: 'org'; org: OrgRef }
+    | { kind: 'broadcast'; broadcast: BroadcastRef };
 
 /**
  * What the composer pushes: the body, the message it replies to, its images, the link chosen for its card, which
@@ -79,9 +95,16 @@ export type ThreadState = {
     partner_typing: boolean;
     members: OrgMember[];
     typing: string[];
-    role: OrgRole | null;
+    role: OrgRole | BroadcastRole | null;
     is_archived: boolean;
     access: PushAccess;
+    /**
+     * A broadcast's publishers, its size, and whether the viewer may push to it. Null or empty for direct and org
+     * conversations, which have no such roles.
+     */
+    publishers: User[];
+    subscriberCount: number;
+    canPost: boolean;
     pending: PendingMessage[];
     /**
      * The conversation's reactions version the thread is current with, which polls ask for the changes after. Null
@@ -158,21 +181,39 @@ let inboxTimer: number | undefined;
 let isLoadingReactionUsage = false;
 
 export function targetKey(target: ChatTarget): string {
-    return target.kind === 'direct'
-        ? target.partner.username
-        : `org:${target.org.id}`;
+    if (target.kind === 'direct') {
+        return target.partner.username;
+    }
+
+    return target.kind === 'org'
+        ? `org:${target.org.id}`
+        : `broadcast:${target.broadcast.id}`;
 }
 
 export function summaryKey(summary: ConversationSummary): string {
-    return summary.kind === 'org' || summary.partner === null
-        ? `org:${summary.id}`
-        : summary.partner.username;
+    if (summary.kind === 'direct' && summary.partner !== null) {
+        return summary.partner.username;
+    }
+
+    return `${summary.kind}:${summary.id}`;
 }
 
 export function targetOf(summary: ConversationSummary): ChatTarget {
-    return summary.kind === 'org' || summary.partner === null
-        ? { kind: 'org', org: { id: summary.id, name: summary.name } }
-        : { kind: 'direct', partner: summary.partner };
+    if (summary.kind === 'direct' && summary.partner !== null) {
+        return { kind: 'direct', partner: summary.partner };
+    }
+
+    if (summary.kind === 'broadcast') {
+        return {
+            kind: 'broadcast',
+            broadcast: {
+                id: summary.id,
+                name: summary.name ?? 'Broadcast',
+            },
+        };
+    }
+
+    return { kind: 'org', org: { id: summary.id, name: summary.name } };
 }
 
 function urls(target: ChatTarget) {
@@ -190,6 +231,23 @@ function urls(target: ChatTarget) {
             typing: ConversationTypingController.update.url(partner),
             stash: ConversationArchiveController.store.url(partner),
             pop: ConversationArchiveController.destroy.url(partner),
+        };
+    }
+
+    if (target.kind === 'broadcast') {
+        const broadcast = { broadcast: target.broadcast.id };
+
+        return {
+            index: (query?: Record<string, number>) =>
+                BroadcastMessageController.index.url(
+                    broadcast,
+                    query ? { query } : undefined,
+                ),
+            store: BroadcastMessageController.store.url(broadcast),
+            read: BroadcastReadController.update.url(broadcast),
+            typing: BroadcastTypingController.update.url(broadcast),
+            stash: BroadcastArchiveController.store.url(broadcast),
+            pop: BroadcastArchiveController.destroy.url(broadcast),
         };
     }
 
@@ -480,6 +538,9 @@ function emptyThread(target: ChatTarget): ThreadState {
         role: null,
         is_archived: false,
         access: 'open',
+        publishers: [],
+        subscriberCount: 0,
+        canPost: false,
         pending: [],
         reactions_version: null,
         replyingTo: null,
@@ -490,22 +551,38 @@ function emptyThread(target: ChatTarget): ThreadState {
     };
 }
 
-function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
-    return 'members' in thread
-        ? {
-              members: thread.members,
-              typing: thread.typing,
-              role: thread.role,
-              is_archived: thread.is_archived,
-              access: thread.access,
-          }
-        : {
-              partner_read_through_id: thread.partner_read_through_id,
-              partner_read_at: thread.partner_read_at,
-              partner_typing: thread.partner_typing,
-              is_archived: thread.is_archived,
-              access: thread.access,
-          };
+function fromServer(
+    thread: Thread | OrgThread | BroadcastThread,
+): Partial<ThreadState> {
+    if ('members' in thread) {
+        return {
+            members: thread.members,
+            typing: thread.typing,
+            role: thread.role,
+            is_archived: thread.is_archived,
+            access: thread.access,
+        };
+    }
+
+    if ('publishers' in thread) {
+        return {
+            publishers: thread.publishers,
+            subscriberCount: thread.subscriber_count,
+            typing: thread.typing,
+            role: thread.role,
+            canPost: thread.can_post,
+            is_archived: thread.is_archived,
+            access: 'open',
+        };
+    }
+
+    return {
+        partner_read_through_id: thread.partner_read_through_id,
+        partner_read_at: thread.partner_read_at,
+        partner_typing: thread.partner_typing,
+        is_archived: thread.is_archived,
+        access: thread.access,
+    };
 }
 
 /**
@@ -513,7 +590,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
  */
 export function seedThread(
     target: ChatTarget,
-    thread: Thread | OrgThread,
+    thread: Thread | OrgThread | BroadcastThread,
 ): void {
     const key = targetKey(target);
     const current = state.threads[key] ?? emptyThread(target);
@@ -649,7 +726,9 @@ async function pollThread(target: ChatTarget): Promise<void> {
     const polledAt = performance.now();
 
     const fresh = await request<
-        (Thread & { partner: User }) | (OrgThread & { org: OrgRef })
+        | (Thread & { partner: User })
+        | (OrgThread & { org: OrgRef })
+        | (BroadcastThread & { broadcast: BroadcastRef })
     >(
         urls(target).index(
             after === null
@@ -661,11 +740,38 @@ async function pollThread(target: ChatTarget): Promise<void> {
                           : { reactions_after: reactionsAfter }),
                   },
         ),
-    );
+    ).catch((error: unknown) => {
+        if (
+            target.kind === 'broadcast' &&
+            error instanceof ChatRequestError &&
+            (error.status === 403 || error.status === 404)
+        ) {
+            update({
+                conversations: withoutKey(state.conversations, key),
+                archived: withoutKey(state.archived, key),
+                threads: {
+                    ...state.threads,
+                    [key]: {
+                        ...emptyThread(target),
+                        isLoaded: true,
+                        access: 'restricted',
+                    },
+                },
+            });
+            return null;
+        }
+        throw error;
+    });
+
+    if (fresh === null) {
+        return;
+    }
 
     const current = state.threads[key] ?? emptyThread(target);
     const isTyping =
-        'members' in fresh ? fresh.typing.length > 0 : fresh.partner_typing;
+        'partner_typing' in fresh
+            ? fresh.partner_typing
+            : fresh.typing.length > 0;
 
     if (fresh.messages.length > 0 || isTyping) {
         lastActivity.set(key, Date.now());
@@ -678,11 +784,13 @@ async function pollThread(target: ChatTarget): Promise<void> {
                 ...current,
                 ...fromServer(fresh),
                 target:
-                    'org' in fresh
-                        ? { kind: 'org', org: fresh.org }
-                        : current.isLoaded
-                          ? current.target
-                          : { kind: 'direct', partner: fresh.partner },
+                    'broadcast' in fresh
+                        ? { kind: 'broadcast', broadcast: fresh.broadcast }
+                        : 'org' in fresh
+                          ? { kind: 'org', org: fresh.org }
+                          : current.isLoaded
+                            ? current.target
+                            : { kind: 'direct', partner: fresh.partner },
                 messages: mergeMessages(
                     withReactionChanges(
                         current.messages,
@@ -806,7 +914,7 @@ function touchInbox(target: ChatTarget, message: Message): void {
         (conversation) => summaryKey(conversation) === key,
     );
 
-    if (existing === undefined && target.kind === 'org') {
+    if (existing === undefined && target.kind !== 'direct') {
         void pollInbox();
 
         return;
@@ -815,7 +923,9 @@ function touchInbox(target: ChatTarget, message: Message): void {
     const summary: ConversationSummary = {
         id: existing?.id ?? '',
         kind: target.kind,
-        name: existing?.name ?? null,
+        name:
+            existing?.name ??
+            (target.kind === 'broadcast' ? target.broadcast.name : null),
         partner: target.kind === 'direct' ? target.partner : null,
         members: existing?.members ?? null,
         last_message: message,
@@ -1133,7 +1243,7 @@ export async function loadOlderMessages(target: ChatTarget): Promise<void> {
     updateThread(key, () => ({ isLoadingOlder: true }));
 
     try {
-        const older = await request<Thread | OrgThread>(
+        const older = await request<Thread | OrgThread | BroadcastThread>(
             urls(target).index({ before: oldest }),
         );
 
@@ -1423,4 +1533,188 @@ export async function removeOrgMember(
         archived: withoutKey(state.archived, key),
         threads,
     });
+}
+
+/**
+ * The directory of broadcasts: every public one, plus the invite-only ones the viewer belongs to or is invited to,
+ * matching the term against the broadcast's or its owner's name or handle.
+ */
+export async function searchBroadcasts(
+    term: string,
+    signal: AbortSignal,
+    before?: string,
+): Promise<BroadcastDirectoryPage> {
+    const response = await fetch(
+        BroadcastController.index.url({
+            query: {
+                ...(term === '' ? {} : { q: term }),
+                ...(before === undefined ? {} : { before }),
+            },
+        }),
+        { headers: { Accept: 'application/json' }, cache: 'no-store', signal },
+    );
+
+    if (!response.ok) {
+        throw new Error(`Broadcast search failed: ${response.status}`);
+    }
+
+    return (await response.json()) as BroadcastDirectoryPage;
+}
+
+/**
+ * Starts a broadcast the creator owns, and returns its id.
+ */
+export async function createBroadcast(
+    name: string,
+    visibility: BroadcastVisibility,
+): Promise<string> {
+    const { broadcast } = await request<{ broadcast: { id: string } }>(
+        BroadcastController.store.url(),
+        'POST',
+        { name, visibility },
+    );
+
+    void pollInbox();
+
+    return broadcast.id;
+}
+
+async function refreshBroadcast(broadcast: BroadcastRef): Promise<void> {
+    await pollThread({ kind: 'broadcast', broadcast }).catch(() => undefined);
+    void pollInbox();
+}
+
+/**
+ * The owner names the broadcast and decides whether it is listed and open, or hidden and invite-only.
+ */
+export async function updateBroadcast(
+    broadcast: BroadcastRef,
+    name: string | null,
+    visibility: BroadcastVisibility | null,
+): Promise<void> {
+    await request(
+        BroadcastController.update.url({ broadcast: broadcast.id }),
+        'PUT',
+        { name, visibility },
+    );
+    await refreshBroadcast(broadcast);
+}
+
+/**
+ * Subscribes to a public broadcast, or accepts an invitation to an invite-only one. The server rehands the thread,
+ * so the caller reloads the page's own props.
+ */
+export async function subscribeBroadcast(broadcast: {
+    id: string;
+}): Promise<void> {
+    await request(
+        BroadcastSubscriptionController.store.url({
+            broadcast: broadcast.id,
+        }),
+        'POST',
+    );
+
+    void pollInbox();
+}
+
+/**
+ * Leaves a broadcast, taking it out of the inbox. Its participant row and the cutoff it set stay, so rejoining
+ * picks up where the history already seen ends.
+ */
+export async function leaveBroadcast(broadcast: BroadcastRef): Promise<void> {
+    await request(
+        BroadcastSubscriptionController.destroy.url({
+            broadcast: broadcast.id,
+        }),
+        'DELETE',
+    );
+
+    const key = targetKey({ kind: 'broadcast', broadcast });
+    const threads = { ...state.threads };
+    delete threads[key];
+
+    update({
+        conversations: withoutKey(state.conversations, key),
+        archived: withoutKey(state.archived, key),
+        threads,
+    });
+}
+
+/**
+ * The owner invites someone by handle. The server says who cannot be invited, and why.
+ */
+export async function inviteToBroadcast(
+    broadcast: { id: string },
+    member: string,
+): Promise<void> {
+    await request(
+        BroadcastInvitationController.store.url({ broadcast: broadcast.id }),
+        'POST',
+        { member },
+    );
+}
+
+export async function listBroadcastMembers(
+    broadcast: { id: string },
+    term: string,
+    signal: AbortSignal,
+    after?: number,
+): Promise<BroadcastMemberPage> {
+    const response = await fetch(
+        BroadcastMemberController.index.url(
+            { broadcast: broadcast.id },
+            {
+                query: { q: term, ...(after === undefined ? {} : { after }) },
+            },
+        ),
+        { headers: { Accept: 'application/json' }, cache: 'no-store', signal },
+    );
+    if (!response.ok) {
+        throw new Error(`Could not load members (${response.status}).`);
+    }
+    return (await response.json()) as BroadcastMemberPage;
+}
+
+export async function moderateBroadcastMember(
+    broadcast: BroadcastRef,
+    member: string,
+    action: 'kick' | 'ban' | 'unban',
+): Promise<void> {
+    await request(
+        action === 'kick'
+            ? BroadcastMemberController.destroy.url({
+                  broadcast: broadcast.id,
+                  member,
+              })
+            : BroadcastMemberController.update.url({
+                  broadcast: broadcast.id,
+                  member,
+              }),
+        action === 'kick' ? 'DELETE' : 'PUT',
+        action === 'kick' ? undefined : { banned: action === 'ban' },
+    );
+    await refreshBroadcast(broadcast);
+}
+
+/**
+ * The owner lets a subscriber post alongside them, or takes posting back.
+ */
+export async function setBroadcastPublisher(
+    broadcast: BroadcastRef,
+    publisher: string,
+    isPromoting: boolean,
+): Promise<void> {
+    await request(
+        isPromoting
+            ? BroadcastPublisherController.store.url({
+                  broadcast: broadcast.id,
+                  publisher,
+              })
+            : BroadcastPublisherController.destroy.url({
+                  broadcast: broadcast.id,
+                  publisher,
+              }),
+        isPromoting ? 'POST' : 'DELETE',
+    );
+    await refreshBroadcast(broadcast);
 }

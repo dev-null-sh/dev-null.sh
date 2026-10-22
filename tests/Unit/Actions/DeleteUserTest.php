@@ -6,6 +6,8 @@ use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Ai\Agents\CommitTranslator;
+use App\Enums\ConversationKind;
+use App\Models\BroadcastInvitation;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Conversation;
@@ -297,6 +299,16 @@ it('erases cached translations of the user and replies in their deleted threads'
         ->and(Cache::has($unrelatedKey))->toBeTrue()
         ->and($bodyReads)->toHaveCount(2);
     $this->assertModelMissing($user);
+});
+
+it('erases the broadcast invitations of a deleted user', function (): void {
+    $broadcast = Conversation::factory()->create(['kind' => ConversationKind::Broadcast]);
+    $invitation = BroadcastInvitation::factory()->for($broadcast)->create();
+    $other = BroadcastInvitation::factory()->for($broadcast)->create();
+
+    resolve(DeleteUser::class)->handle($invitation->user);
+
+    expect(BroadcastInvitation::query()->get()->modelKeys())->toBe([$other->id]);
 });
 
 it('erases the voice notes a deleted user sent in remotes, keeping the ones sent to them', function (): void {

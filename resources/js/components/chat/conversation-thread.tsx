@@ -151,6 +151,9 @@ export function ConversationThread({
     const thread = useThread(target);
     const usage = useChat().reactionUsage ?? noUsage;
     const isOrg = target.kind === 'org';
+    const isBroadcast = target.kind === 'broadcast';
+    // Authors are named wherever more than two people write: orgs, and a broadcast's publishers.
+    const showsAuthors = target.kind !== 'direct';
     // Renaming an org updates the thread's target, not the one this was opened with.
     const current = thread?.target ?? target;
     const scroller = useRef<HTMLDivElement>(null);
@@ -168,12 +171,15 @@ export function ConversationThread({
     const head = thread?.head ?? 0;
     const headUntil = thread?.headUntil ?? 0;
     const items = useMemo(
-        () => itemsOf(messages, pending, head, headUntil, user, isOrg),
-        [messages, pending, head, headUntil, user, isOrg],
+        () => itemsOf(messages, pending, head, headUntil, user, showsAuthors),
+        [messages, pending, head, headUntil, user, showsAuthors],
     );
     const statusMessage = useMemo(
-        () => statusMessageOf(messages, pending, user, isOrg),
-        [messages, pending, user, isOrg],
+        () =>
+            isBroadcast
+                ? null
+                : statusMessageOf(messages, pending, user, isOrg),
+        [messages, pending, user, isOrg, isBroadcast],
     );
     const pulls = useMemo<Pulls>(
         () => ({
@@ -192,6 +198,9 @@ export function ConversationThread({
     );
     const contentKey = `${latestId}:${pending.length}:${pending.map((item) => item.status).join()}`;
     const isOpen = (thread?.access ?? 'open') === 'open';
+    // A broadcast's composer belongs to its owner and publishers alone; subscribers read and react.
+    const canCompose = isBroadcast ? (thread?.canPost ?? false) : isOpen;
+    const canReact = isBroadcast ? Boolean(thread?.role) : isOpen;
     const draft = useMessageDraft(user, current);
     const replyingTo = thread?.replyingTo ?? null;
     const members = thread?.members;
@@ -366,10 +375,12 @@ export function ConversationThread({
             aria-label={
                 current.kind === 'direct'
                     ? `Conversation with ${current.partner.name}`
-                    : `Org ${current.org.name ?? ''}`.trim()
+                    : current.kind === 'org'
+                      ? `Org ${current.org.name ?? ''}`.trim()
+                      : `Broadcast ${current.broadcast.name}`
             }
             className="relative flex min-h-0 min-w-0 flex-1 flex-col"
-            {...(isOpen ? draft.attachments.dropzone : {})}
+            {...(canCompose ? draft.attachments.dropzone : {})}
         >
             {header}
 
@@ -398,14 +409,30 @@ export function ConversationThread({
                                 <Spinner className="size-4 text-muted-foreground" />
                             </li>
                         )}
+                        {isBroadcast &&
+                            (thread.role ?? 'subscriber') !== 'owner' &&
+                            !thread.has_older &&
+                            !thread.isLoadingOlder && (
+                                <li
+                                    className="py-2 text-center font-mono text-[11px] text-muted-foreground"
+                                    data-test="broadcast-cutoff"
+                                >
+                                    · history starts where you first subscribed
+                                    ·
+                                </li>
+                            )}
                         {thread.messages.length === 0 &&
                             thread.pending.length === 0 &&
-                            thread.access === 'open' && (
+                            (isBroadcast || thread.access === 'open') && (
                                 <li className="py-10 text-center font-mono text-[13px] text-muted-foreground">
                                     empty history.{' '}
                                     {target.kind === 'direct'
                                         ? `say hi to @${target.partner.username}`
-                                        : 'say hi to the org'}
+                                        : target.kind === 'org'
+                                          ? 'say hi to the org'
+                                          : canCompose
+                                            ? 'push the first broadcast'
+                                            : 'nothing pushed yet'}
                                 </li>
                             )}
                         {items.map((item) => (
@@ -420,9 +447,9 @@ export function ConversationThread({
                                 isCompact={isCompact}
                                 authorOf={authorOf}
                                 onJump={jumpTo}
-                                onReply={isOpen ? replyTo : null}
+                                onReply={canCompose ? replyTo : null}
                                 usage={usage}
-                                onReact={isOpen ? react : null}
+                                onReact={canReact ? react : null}
                             />
                         ))}
                     </ol>
@@ -440,11 +467,11 @@ export function ConversationThread({
                 </button>
             )}
 
-            {isOpen && draft.attachments.isDraggingFiles && (
+            {canCompose && draft.attachments.isDraggingFiles && (
                 <ImageDropOverlay className="inset-2" />
             )}
 
-            {isOpen ? (
+            {canCompose ? (
                 <Composer
                     target={current}
                     draft={draft}
@@ -461,14 +488,22 @@ export function ConversationThread({
                     isCompact={isCompact}
                     autoFocus={autoFocus}
                     typing={
-                        target.kind === 'org'
-                            ? (thread?.typing ?? []).length > 0
-                                ? typingText(thread?.typing ?? [])
+                        target.kind === 'direct'
+                            ? thread?.partner_typing
+                                ? `@${target.partner.username} is typing…`
                                 : null
-                            : thread?.partner_typing
-                              ? `@${target.partner.username} is typing…`
+                            : (thread?.typing ?? []).length > 0
+                              ? typingText(thread?.typing ?? [])
                               : null
                     }
+                />
+            ) : isBroadcast ? (
+                <SubscriberBar
+                    hasAccess={Boolean(thread?.role)}
+                    name={
+                        target.kind === 'broadcast' ? target.broadcast.name : ''
+                    }
+                    isCompact={isCompact}
                 />
             ) : (
                 target.kind === 'direct' && (
@@ -490,7 +525,7 @@ function itemsOf(
     head: number,
     headUntil: number,
     user: User,
-    isOrg: boolean,
+    withAuthors: boolean,
 ): Item[] {
     const bubbles: {
         bubble: Bubble;
@@ -573,7 +608,7 @@ function itemsOf(
             isMine,
             authorId: author,
             author:
-                isOrg && !isMine && bubble.kind === 'message'
+                withAuthors && !isMine && bubble.kind === 'message'
                     ? (bubble.message.user ?? null)
                     : null,
             bubbles: [bubble],
@@ -1143,7 +1178,9 @@ function Composer({
     const placeholder =
         target.kind === 'direct'
             ? `Message @${target.partner.username}`
-            : `Message ${target.org.name ?? 'the org'}`;
+            : target.kind === 'org'
+              ? `Message ${target.org.name ?? 'the org'}`
+              : `Push to ${target.broadcast.name}`;
     const lane = target.kind === 'direct' ? target.partner.lane : 0;
     const { stash, attachments, linkCard, secrets, input } = draft;
     const body = stash.body;
@@ -1397,26 +1434,28 @@ function Composer({
                                     isCompact ? 'size-9' : 'size-10',
                                 )}
                             />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                disabled={trimmed !== '' || hasImages}
-                                onClick={() => void voiceNote.start()}
-                                aria-label="Record a voice note"
-                                title={
-                                    trimmed !== '' || hasImages
-                                        ? 'Voice notes go on their own'
-                                        : 'Record a voice note, up to a minute'
-                                }
-                                className={cn(
-                                    '-mx-1 shrink-0 text-muted-foreground',
-                                    isCompact ? 'size-9' : 'size-10',
-                                )}
-                                data-test="record-voice-note"
-                            >
-                                <Mic className="size-5" />
-                            </Button>
+                            {target.kind !== 'broadcast' && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    disabled={trimmed !== '' || hasImages}
+                                    onClick={() => void voiceNote.start()}
+                                    aria-label="Record a voice note"
+                                    title={
+                                        trimmed !== '' || hasImages
+                                            ? 'Voice notes go on their own'
+                                            : 'Record a voice note, up to a minute'
+                                    }
+                                    className={cn(
+                                        '-mx-1 shrink-0 text-muted-foreground',
+                                        isCompact ? 'size-9' : 'size-10',
+                                    )}
+                                    data-test="record-voice-note"
+                                >
+                                    <Mic className="size-5" />
+                                </Button>
+                            )}
                             <MentionTextarea
                                 id={id}
                                 ref={input}
@@ -1477,6 +1516,44 @@ function Composer({
                     </Button>
                 </div>
             </form>
+        </>
+    );
+}
+
+/**
+ * Takes the composer's place for a subscriber, who reads and reacts but cannot push. As tall as the composer,
+ * so nothing jumps.
+ */
+function SubscriberBar({
+    name,
+    isCompact,
+    hasAccess,
+}: {
+    name: string;
+    isCompact: boolean;
+    hasAccess: boolean;
+}) {
+    const message = hasAccess
+        ? `following ${name}. only its owner and publishers push.`
+        : 'You no longer have access to this broadcast.';
+
+    return (
+        <>
+            <div aria-hidden className="h-6 shrink-0" />
+            <div
+                className={cn(
+                    'flex min-h-16 shrink-0 items-center border-t',
+                    isCompact ? 'px-3 py-2.5' : 'px-4 py-3',
+                )}
+                data-test="broadcast-subscriber-bar"
+            >
+                <p
+                    className="min-w-0 flex-1 font-mono text-[13px] text-muted-foreground"
+                    title={message}
+                >
+                    {message}
+                </p>
+            </div>
         </>
     );
 }

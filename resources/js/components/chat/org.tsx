@@ -251,7 +251,12 @@ export function OrgHeader({
             <OrgMembersDialog
                 org={current}
                 members={members}
-                role={thread?.role ?? null}
+                role={
+                    thread?.role === 'maintainer' ||
+                    thread?.role === 'contributor'
+                        ? thread.role
+                        : null
+                }
                 user={user}
                 open={isShowingMembers}
                 onOpenChange={setIsShowingMembers}

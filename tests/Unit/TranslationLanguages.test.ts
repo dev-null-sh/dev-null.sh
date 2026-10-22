@@ -9,16 +9,16 @@ const languages = [
 ];
 
 for (const query of ['Hungarian', 'magyar', '  MAGYAR  ', 'hung', 'hu']) {
-    test(`finds Hungarian by ${JSON.stringify(query)}`, () => {
+    void test(`finds Hungarian by ${JSON.stringify(query)}`, () => {
         assert.deepEqual(searchTranslationLanguages(languages, query), [languages[0]]);
     });
 }
 
-test('finds languages in their native script', () => {
+void test('finds languages in their native script', () => {
     assert.deepEqual(searchTranslationLanguages(languages, '日本語'), [languages[1]]);
 });
 
-test('returns every language for an empty search and none for an unknown name', () => {
+void test('returns every language for an empty search and none for an unknown name', () => {
     assert.deepEqual(searchTranslationLanguages(languages, ''), languages);
     assert.deepEqual(searchTranslationLanguages(languages, 'not-a-language'), []);
 });

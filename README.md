@@ -31,6 +31,31 @@ composer dev
 
 Run `composer test` before opening a pull request.
 
+### Testing broadcast remotes locally
+
+Broadcasts are subscriber-only message channels: an owner and selected publishers can post, while subscribers can read and react. Channels can accept anyone or require an invitation. The latest 30 public channels appear on the owner's profile; **Browse broadcasts** opens the searchable directory prefilled with their handle. The directory inside Remotes provides further pages. A subscription never reveals messages from before the user's first join; leaving removes access, and rejoining preserves that original cutoff.
+
+After migrating, load the optional local-only demo (safe to rerun):
+
+```bash
+php artisan db:seed --class=BroadcastDemoSeeder
+```
+
+With `APP_ENV=local`, sign in with any of these usernames, using separate browser profiles for simultaneous sessions:
+
+| Username | Demo role |
+|---|---|
+| `broadcast-owner` | Owns an open channel and an invite-only channel; can invite and manage publishers |
+| `broadcast-publisher` | Can post in the open channel |
+| `broadcast-reader` | Already subscribed; can read but not post |
+| `broadcast-new` | Not subscribed; can discover and join the open channel |
+| `broadcast-invitee` | Has an invitation to the invite-only channel |
+| `broadcast-returning` | Left the open channel; rejoining restores messages since their first join |
+
+To moderate subscribers as `broadcast-owner`, open a channel and click its name. **Members and bans** lets you search members, kick or ban them, and unban banned accounts. Kicking permits rejoining an open channel; banning prevents it until unbanned. Both remove publishing privileges and preserve the original history cutoff. Unbanning does not automatically resubscribe anyone.
+
+Open Remotes after signing in. The open channel includes one message from before the subscribers joined (visible only to its owner) and messages after they joined. To test invite-only delivery, accept the invitation as `broadcast-invitee`, then publish a new message as the owner. Accounts need Remotes enabled in Settings → Profile; the demo enables it for these accounts. No GitHub credentials or AI keys are needed for this demo.
+
 ## License
 
 /dev/null is open-sourced software licensed under the **[MIT license](composer.json)**.

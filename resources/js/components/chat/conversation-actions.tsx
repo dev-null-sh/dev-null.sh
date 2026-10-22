@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import {
     blockPartner,
+    leaveBroadcast,
     removeOrgMember,
     setConversationArchived,
 } from '@/lib/chat';
@@ -45,6 +46,7 @@ export function ConversationActions({
     title,
     user,
     isArchived,
+    canLeave = true,
     onLeave,
     onBlocked,
     onOpenChange,
@@ -57,6 +59,10 @@ export function ConversationActions({
     title: string;
     user: User;
     isArchived: boolean;
+    /**
+     * Whether the user may leave at all: an owner stays with their broadcast.
+     */
+    canLeave?: boolean;
     /**
      * Called once the conversation leaves the list being shown, so an open thread can step back to the inbox.
      */
@@ -105,6 +111,22 @@ export function ConversationActions({
                 await removeOrgMember(target.org, user, true);
                 changeOpen(false, false);
                 (onBlocked ?? onLeave)?.();
+            } catch {
+                toast.error(`Could not leave ${title}. Try again.`);
+            } finally {
+                setIsBlocking(false);
+            }
+
+            return;
+        }
+
+        if (target.kind === 'broadcast') {
+            setIsBlocking(true);
+
+            try {
+                await leaveBroadcast(target.broadcast);
+                changeOpen(false, false);
+                onLeave?.();
             } catch {
                 toast.error(`Could not leave ${title}. Try again.`);
             } finally {
@@ -169,16 +191,26 @@ export function ConversationActions({
                         {isArchived ? 'Pop' : 'Stash'}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                        variant="destructive"
-                        onSelect={() => changeOpen(false, true)}
-                        data-test={
-                            target.kind === 'org' ? 'leave-org' : undefined
-                        }
-                    >
-                        {target.kind === 'org' ? <LogOut /> : <Ban />}
-                        {target.kind === 'org' ? 'Leave org' : `Block ${title}`}
-                    </DropdownMenuItem>
+                    {(target.kind !== 'broadcast' || canLeave) && (
+                        <DropdownMenuItem
+                            variant="destructive"
+                            onSelect={() => changeOpen(false, true)}
+                            data-test={
+                                target.kind === 'org'
+                                    ? 'leave-org'
+                                    : target.kind === 'broadcast'
+                                      ? 'leave-broadcast'
+                                      : undefined
+                            }
+                        >
+                            {target.kind === 'direct' ? <Ban /> : <LogOut />}
+                            {target.kind === 'direct'
+                                ? `Block ${title}`
+                                : target.kind === 'org'
+                                  ? 'Leave org'
+                                  : 'Leave broadcast'}
+                        </DropdownMenuItem>
+                    )}
                 </DropdownMenuContent>
             </DropdownMenu>
 
@@ -188,12 +220,14 @@ export function ConversationActions({
             >
                 <DialogContent onClick={(event) => event.stopPropagation()}>
                     <DialogTitle className="truncate" title={title}>
-                        {target.kind === 'org' ? 'Leave' : 'Block'} {title}?
+                        {target.kind === 'direct' ? 'Block' : 'Leave'} {title}?
                     </DialogTitle>
                     <DialogDescription>
                         {target.kind === 'org'
                             ? 'You stop seeing the org and its history. A maintainer would have to add you back. If you are its only maintainer, the longest-standing member takes over.'
-                            : "This conversation goes away for both of you, and neither of you can message, follow, reply to, or star the other. They won't be told. You can unblock them any time from your settings."}
+                            : target.kind === 'broadcast'
+                              ? 'You stop seeing the broadcast and what is pushed to it. Coming back starts where the history you have already seen ends.'
+                              : "This conversation goes away for both of you, and neither of you can message, follow, reply to, or star the other. They won't be told. You can unblock them any time from your settings."}
                     </DialogDescription>
 
                     <DialogFooter className="gap-2">
@@ -207,7 +241,7 @@ export function ConversationActions({
                             className="min-w-20"
                             data-test="confirm-block-button"
                         >
-                            {target.kind === 'org' ? 'Leave' : 'Block'}
+                            {target.kind === 'direct' ? 'Block' : 'Leave'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

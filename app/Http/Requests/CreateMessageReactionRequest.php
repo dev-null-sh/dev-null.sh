@@ -37,6 +37,11 @@ final class CreateMessageReactionRequest extends FormRequest
 
         $conversation = $message->conversation;
 
+        if ($conversation->isBroadcast()) {
+            // isVisibleTo above already settled it: an active subscriber, within their cutoff.
+            return Response::allow();
+        }
+
         if ($conversation->isOrg()) {
             return $conversation->roleOf($user) instanceof OrgRole ? Response::allow() : Response::denyAsNotFound();
         }

@@ -35,7 +35,7 @@ What exists, one line each (details in the knowledge base):
 - **Logs:** Following, Latest, and Trending.
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
 - **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
-- **Remotes:** private one-to-one and group messages (orgs).
+- **Remotes:** private one-to-one and group messages (orgs), and subscriber-only broadcast channels.
 - **Notifications:** in-app only.
 - **Search:** developers by name, commits by meaning.
 - **Safety:** mute, block, reports, and moderation.

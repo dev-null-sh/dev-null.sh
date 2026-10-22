@@ -92,6 +92,7 @@ final readonly class CreateMessage
             ConversationParticipant::query()
                 ->where('conversation_id', $conversation->id)
                 ->where('user_id', $sender->id)
+                ->when($conversation->isBroadcast(), fn (Builder $query): Builder => $query->where('status', RemoteStatus::Open))
                 ->update(['status' => RemoteStatus::Open]);
 
             ConversationParticipant::query()

@@ -1,0 +1,38 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests;
+
+use App\Enums\BroadcastRole;
+use App\Models\Conversation;
+use App\Models\User;
+use Illuminate\Auth\Access\Response;
+use Illuminate\Foundation\Http\FormRequest;
+
+final class CreateBroadcastArchiveRequest extends FormRequest
+{
+    /**
+     * Stashing is the subscriber's own: everyone else keeps the broadcast in their inbox.
+     */
+    public function authorize(): Response
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        $broadcast = $this->route('broadcast');
+        assert($broadcast instanceof Conversation);
+
+        return $user->remotes_enabled && $broadcast->isBroadcast() && $broadcast->activeBroadcastRoleOf($user) instanceof BroadcastRole
+            ? Response::allow()
+            : Response::denyAsNotFound();
+    }
+
+    /**
+     * @return array{}
+     */
+    public function rules(): array
+    {
+        return [];
+    }
+}

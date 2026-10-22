@@ -47,7 +47,7 @@ final readonly class ConversationsQuery
             ->when($tab === InboxTab::Stashed, fn (Builder $query): Builder => $query->whereNotNull('mine.archived_at'))
             ->whereNotNull('mine.last_message_at')
             ->where(fn (Builder $query): Builder => $query
-                ->where('conversations.kind', ConversationKind::Org)
+                ->whereIn('conversations.kind', [ConversationKind::Org, ConversationKind::Broadcast])
                 ->orWhereNotIn('theirs.user_id', $user->idsAcrossBlocks()))
             ->when($term !== '', fn (Builder $query): Builder => $query->where(fn (Builder $query): Builder => $query
                 ->whereIn('theirs.user_id', $this->matching($escaped))
@@ -69,6 +69,7 @@ final readonly class ConversationsQuery
                 'theirs.read_at as partner_read_at',
                 'mine.last_message_at as last_message_at',
                 'mine.archived_at as archived_at',
+                'mine.visible_from_id as visible_from_id',
             ])
             ->selectSub(
                 Message::query()
@@ -79,11 +80,12 @@ final readonly class ConversationsQuery
                     ->whereNull('messages.event'),
                 'ahead',
             )
-            ->with(['lastMessage.user', 'lastMessage.subject', 'lastMessage.voice', 'partner', 'participants.user'])
+            ->with(['lastMessage.user', 'lastMessage.subject', 'lastMessage.voice', 'partner'])
             ->orderByDesc('mine.last_message_at')
             ->orderByDesc('conversations.id')
             ->limit(self::PAGE + 1)
             ->get();
+        $conversations->filter(fn (Conversation $conversation): bool => $conversation->isOrg())->load('participants.user');
 
         return [
             'conversations' => $conversations
@@ -140,6 +142,10 @@ final readonly class ConversationsQuery
         $partner = $conversation->partner;
         $sharesReads = $partner instanceof User && $user->pull_receipts && $partner->pull_receipts && $conversation->partner_status === RemoteStatus::Open;
 
+        // The conversation's latest message can sit before where the viewer's history starts, like a broadcast
+        // joined after it was pushed, so it is no preview to them.
+        $lastMessage = $conversation->lastMessage?->id > $conversation->visible_from_id ? $conversation->lastMessage : null;
+
         return [
             'id' => $conversation->id,
             'kind' => $conversation->kind,
@@ -147,10 +153,10 @@ final readonly class ConversationsQuery
             'partner' => $partner,
             'members' => $conversation->isOrg() ? $conversation->participants
                 ->sortBy('id')
-                ->map(fn (ConversationParticipant $participant): array => ['user' => $participant->user, 'role' => $participant->role])
+                ->map(fn (ConversationParticipant $participant): array => ['user' => $participant->user, 'role' => $participant->orgRole()])
                 ->values()
                 ->toBase() : null,
-            'last_message' => $conversation->lastMessage,
+            'last_message' => $lastMessage,
             'last_message_at' => $conversation->last_message_at?->toJSON(),
             'ahead' => $conversation->ahead,
             'partner_read_through_id' => $sharesReads ? $conversation->partner_read_through_id : 0,
