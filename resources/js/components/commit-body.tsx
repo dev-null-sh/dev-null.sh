@@ -2,6 +2,7 @@ import { usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
 import { CodeBlock } from '@/components/code-block';
 import { LinkifiedText } from '@/components/linkified-text';
+import { quoteRuns } from '@/lib/block-quotes';
 import { emojify } from '@/lib/emoji';
 import { cn } from '@/lib/utils';
 import type { BodySegment, Commit } from '@/types';
@@ -25,11 +26,27 @@ export function CommitBody({
                 className,
             )}
         >
-            <BodySegments
-                segments={segments}
-                mentions={mentions}
-                isStatic={isStatic}
-            />
+            {quoteRuns(segments).map((run, index) =>
+                run.isQuote ? (
+                    <blockquote
+                        key={index}
+                        className="my-2 border-l-2 border-rail pl-3 text-muted-foreground"
+                    >
+                        <BodySegments
+                            segments={run.segments}
+                            mentions={mentions}
+                            isStatic={isStatic}
+                        />
+                    </blockquote>
+                ) : (
+                    <BodySegments
+                        key={index}
+                        segments={run.segments}
+                        mentions={mentions}
+                        isStatic={isStatic}
+                    />
+                ),
+            )}
         </div>
     );
 }
