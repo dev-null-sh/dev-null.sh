@@ -11,6 +11,7 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import {
+    drawnStretch,
     entranceDelay,
     graphEdges,
     isOnScreen,
@@ -548,7 +549,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                     key={edge.id}
                                     id={`${id}-${index}`}
                                     edge={edge}
-                                    drawDelay={entering.get(edge.id)}
+                                    draw={entering.get(edge.id)}
                                     onDrawn={onDrawn}
                                 />
                             ))}
@@ -599,31 +600,48 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     );
 }
 
+/** How a line draws itself in: after how long, and from how far along, in px, as the stretch before is already painted. */
+type Draw = { delay: number; from: number };
+
 function EdgeDefs({
     id,
     edge,
-    drawDelay,
+    draw,
     onDrawn,
 }: {
     id: string;
     edge: GraphEdge;
     /** Set while the line draws itself in, after its nodes have scaled in. */
-    drawDelay?: number;
+    draw?: Draw;
     onDrawn: (edgeId: string) => void;
 }) {
-    if (drawDelay === undefined) {
+    const from = draw?.from ?? 0;
+    const startAt = useCallback(
+        (path: SVGPathElement | null) => {
+            const length = path?.getTotalLength() ?? 0;
+
+            path?.style.setProperty(
+                '--graph-draw-from',
+                String(length > 0 ? Math.max(0, 1 - from / length) : 1),
+            );
+        },
+        [from],
+    );
+
+    if (draw === undefined) {
         return null;
     }
 
     return (
         <mask id={`${id}-draw`} maskUnits="userSpaceOnUse">
             <path
+                ref={startAt}
                 d={edge.d}
                 stroke="white"
                 strokeWidth={strokeWidth * 4}
                 pathLength={1}
                 strokeDasharray="1 1"
-                style={{ animationDelay: `${drawDelay}ms` }}
+                style={{ animationDelay: `${draw.delay}ms` }}
                 className="motion-safe:animate-graph-draw"
                 onAnimationEnd={() => onDrawn(edge.id)}
             />
@@ -639,9 +657,9 @@ function useEnteringEdges(
     edges: GraphEdge[],
     delayOf: (edge: GraphEdge) => number,
     canvasTop: () => number,
-): { entering: Map<string, number>; onDrawn: (edgeId: string) => void } {
-    const known = useRef<Set<string> | null>(null);
-    const [entering, setEntering] = useState<Map<string, number>>(new Map());
+): { entering: Map<string, Draw>; onDrawn: (edgeId: string) => void } {
+    const known = useRef<GraphEdge[] | null>(null);
+    const [entering, setEntering] = useState<Map<string, Draw>>(new Map());
 
     // Before the browser paints, so a new line never shows in full for a frame before its mask hides it.
     useLayoutEffect(() => {
@@ -649,14 +667,16 @@ function useEnteringEdges(
 
         if (known.current === null) {
             if (edges.length > 0) {
-                known.current = ids;
+                known.current = edges;
             }
 
             return;
         }
 
-        const fresh = [...ids].filter((edgeId) => !known.current?.has(edgeId));
-        known.current = ids;
+        const before = new Set(known.current.map((edge) => edge.id));
+        const fresh = [...ids].filter((edgeId) => !before.has(edgeId));
+        const gone = known.current.filter((edge) => !ids.has(edge.id));
+        known.current = edges;
         const top = canvasTop();
         // Without motion, no draw would ever end to take its mask off.
         const isStill = window.matchMedia(
@@ -680,10 +700,19 @@ function useEnteringEdges(
 
             return new Map([
                 ...kept,
-                ...drawing.map((edge): [string, number] => [
-                    edge.id,
-                    delayOf(edge),
-                ]),
+                ...drawing.map((edge): [string, Draw] => {
+                    const delay = delayOf(edge);
+
+                    // A line waiting for a node to scale in, like a reply just posted, draws in full once it has, so
+                    // no stretch of it runs over the node as it overshoots.
+                    return [
+                        edge.id,
+                        {
+                            delay,
+                            from: delay > 0 ? 0 : drawnStretch(edge, gone),
+                        },
+                    ];
+                }),
             ]);
         });
     }, [edges, delayOf, canvasTop]);
