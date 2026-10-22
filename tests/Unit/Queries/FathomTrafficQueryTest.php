@@ -110,3 +110,47 @@ it('is null when Fathom cannot be reached or answers with something unexpected',
     'no total' => fn () => Http::response(['message' => 'nope']),
     'a timeout' => fn () => Http::failedConnection(),
 ]);
+
+it('counts the people who sent an event, cached for five minutes', function (): void {
+    Http::fake(['api.usefathom.com/v1/aggregations*' => Http::response([['unique_conversions' => '7']])]);
+
+    $query = resolve(FathomTrafficQuery::class);
+    $from = CarbonImmutable::parse('2026-10-01');
+    $to = CarbonImmutable::parse('2026-10-18');
+
+    expect($query->eventVisitors($from, $to, 'signup'))->toBe(7)
+        ->and($query->eventVisitors($from, $to, 'signup'))->toBe(7);
+
+    Http::assertSentCount(1);
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.usefathom.com/v1/aggregations?entity=event&site_id=SITE'
+        .'&entity_name=signup&date_from=2026-10-01%2000%3A00%3A00&date_to=2026-10-18%2012%3A00%3A00&timezone=UTC&aggregates=unique_conversions');
+});
+
+it('counts the people who sent an event on each day', function (): void {
+    Http::fake(['api.usefathom.com/v1/aggregations*' => Http::response([
+        ['unique_conversions' => '7', 'date' => '2026-10-16'],
+        ['unique_conversions' => '9', 'date' => '2026-10-18'],
+    ])]);
+
+    expect(resolve(FathomTrafficQuery::class)->eventVisitorsByDay(CarbonImmutable::parse('2026-10-16'), CarbonImmutable::parse('2026-10-18'), 'signup'))
+        ->toBe(['2026-10-16' => 7, '2026-10-18' => 9]);
+
+    Http::assertSent(fn (Request $request): bool => $request->data()['date_grouping'] === 'day');
+});
+
+it('has no counts without Fathom, and stops asking it for the rest of the request once it cannot be reached', function (): void {
+    $from = CarbonImmutable::parse('2026-10-01');
+    $to = CarbonImmutable::parse('2026-10-18');
+
+    config(['services.fathom.token' => null]);
+
+    expect(resolve(FathomTrafficQuery::class)->eventVisitors($from, $to, 'signup'))->toBeNull();
+
+    config(['services.fathom.token' => 'token']);
+    Http::fake(['api.usefathom.com/*' => Http::response(status: 500)]);
+
+    expect(resolve(FathomTrafficQuery::class)->eventVisitors($from, $to, 'signup'))->toBeNull()
+        ->and(resolve(FathomTrafficQuery::class)->eventVisitors($from, $to, 'guest-visit'))->toBeNull();
+
+    Http::assertSentCount(1);
+});

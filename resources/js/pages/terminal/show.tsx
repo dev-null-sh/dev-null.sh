@@ -17,7 +17,7 @@ const workflow = [
     '  commit:',
     '    runs-on: ubuntu-latest',
     '    steps:',
-    '      - uses: nunomaduro/dev-null.sh/.github/actions/commit@production',
+    '      - uses: dev-null-sh/dev-null.sh/.github/actions/commit@production',
     '        with:',
     '          body: |',
     '            Released ${{ github.event.release.name }}.',
@@ -26,7 +26,7 @@ const workflow = [
 ].join('\n');
 
 const inputs = [
-    { name: 'body', description: 'The commit, 3 to 4,000 characters.' },
+    { name: 'body', description: 'The commit, up to 4,000 characters.' },
     {
         name: 'ssh-key',
         description:

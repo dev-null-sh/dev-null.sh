@@ -170,7 +170,6 @@ it('rejects invalid times and bodies', function (array $payload, string $field):
     'now' => [['scheduled_at' => '2026-10-15T12:00:00+00:00'], 'scheduled_at'],
     'past' => [['scheduled_at' => '2026-10-15T11:59:00+00:00'], 'scheduled_at'],
     'beyond thirty days' => [['scheduled_at' => '2026-11-14T12:00:01+00:00'], 'scheduled_at'],
-    'too short' => [['body' => 'ab'], 'body'],
     'whitespace' => [['body' => '    '], 'body'],
     'too long' => [['body' => str_repeat('a', 4001)], 'body'],
     'poll with one option' => [['poll' => ['options' => ['Tabs'], 'duration' => 1440]], 'poll.options'],

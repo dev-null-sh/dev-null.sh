@@ -24,6 +24,12 @@
         }
     }
 }
+
+/* The launch strip sits above the layout, so the sidebar has less room until it disappears. */
+:root:has([data-test='product-hunt-banner']) {
+    --launch-banner-height: 42px;
+}
+
 @media (min-width: 64rem) {
     [data-nav] {
         --sidebar-width: 256px;
@@ -49,6 +55,15 @@
     :root[data-nav-sliding] [data-main] {
         transition: max-width 300ms cubic-bezier(0.33, 1, 0.68, 1);
     }
+}
+
+/* Toasts stack above the docked chat instead of covering it. */
+:root:has([data-chat-dock]) {
+    --chat-dock-height: 3rem;
+}
+
+:root:has([data-chat-dock='expanded']) {
+    --chat-dock-height: min(520px, 100dvh - 5rem);
 }
 
 :root[data-nav-measuring] [data-nav],
@@ -118,7 +133,8 @@
 
 @custom-variant reply-hover {
     @media (hover: hover) {
-        [data-reply]:hover:not(:has([data-reply]:hover)) & {
+        [data-reply]:hover:not(:has([data-reply]:hover))
+            &:not([data-reply]:not(:hover) *) {
             @slot;
         }
     }
@@ -212,6 +228,7 @@
 
     --animate-node-in: node-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-rail-draw: rail-draw 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    --animate-graph-draw: graph-draw 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-star-pop: star-pop 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275)
         both;
 
@@ -233,6 +250,15 @@
         }
         to {
             transform: scaleY(1);
+        }
+    }
+
+    @keyframes graph-draw {
+        from {
+            stroke-dashoffset: 1;
+        }
+        to {
+            stroke-dashoffset: 0;
         }
     }
 
@@ -375,6 +401,15 @@ html body[data-scroll-locked] {
     margin-right: 0 !important;
 }
 
+/* Give the loading bar its own snapshot above the sticky headers during navigation. */
+#nprogress .bar {
+    view-transition-name: page-progress;
+}
+
+::view-transition-group(page-progress) {
+    z-index: 6;
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
     animation-duration: 160ms;
@@ -413,6 +448,12 @@ html body[data-scroll-locked] {
     animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Keep sticky headers opaque while controls animate within the page. */
+:root[data-view-transition='in-place']::view-transition-old(*.tab-header),
+:root[data-view-transition='in-place']::view-transition-new(*.tab-header) {
+    animation: none;
+}
+
 ::view-transition-group(*.indicator-label) {
     z-index: 1;
 }
@@ -439,6 +480,28 @@ html body[data-scroll-locked] {
     animation-name: none;
     animation-duration: 160ms;
     overflow-x: clip;
+}
+
+::view-transition-new(*.staged-rail):only-child,
+::view-transition-old(*.staged-rail):only-child {
+    transform-origin: top;
+    animation: staged-rail-grow 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+::view-transition-old(*.staged-rail):only-child {
+    animation-name: staged-rail-shrink;
+}
+
+@keyframes staged-rail-grow {
+    from {
+        transform: scaleY(0);
+    }
+}
+
+@keyframes staged-rail-shrink {
+    to {
+        transform: scaleY(0);
+    }
 }
 
 [data-sonner-toaster] {

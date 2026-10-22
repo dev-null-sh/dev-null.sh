@@ -22,9 +22,12 @@ final readonly class SuggestedUsersQuery
      * The day's candidates are split into pages of that mix, and each round shows the next page,
      * going back to the first one after the last.
      *
+     * Spares come after the page, taken from the pages that follow it, to fill the slot of someone dismissed without
+     * reloading the rest.
+     *
      * @return Collection<int, User>
      */
-    public function get(User $user, int $limit = 3, int $round = 0): Collection
+    public function get(User $user, int $limit = 3, int $round = 0, int $spares = 0): Collection
     {
         $randomizer = $this->randomizerFor($user);
 
@@ -43,7 +46,7 @@ final readonly class SuggestedUsersQuery
                 'users.id',
             )
             ->select(['users.*', 'network.followed_by_following_count'])
-            ->addSelect(['followers_count' => $this->followersCount($following)])
+            ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
             ->whereIn('users.id', $this->committers($user))
             ->orderByDesc('followed_by_following_count')
             ->orderByDesc('followers_count')
@@ -57,7 +60,7 @@ final readonly class SuggestedUsersQuery
                 ->whereNotExists($this->followedByFollowing($user, $following))
                 ->select('users.*')
                 ->selectRaw('0 as followed_by_following_count')
-                ->addSelect(['followers_count' => $this->followersCount($following)])
+                ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
                 ->orderByDesc('followers_count')
                 ->latest('users.id'), 'users')
             ->whereIn('users.id', $this->committers($user))
@@ -67,8 +70,14 @@ final readonly class SuggestedUsersQuery
             ->get();
 
         $pages = $this->pages($randomizer, $network, $popularPool, $limit);
+        $current = max(0, $round) % count($pages);
 
-        return $pages[max(0, $round) % count($pages)];
+        $rotated = [...array_slice($pages, $current), ...array_slice($pages, 0, $current)];
+
+        return new Collection(array_merge(...array_map(fn (Collection $page): array => $page->all(), $rotated)))
+            ->unique('id')
+            ->take($limit + $spares)
+            ->values();
     }
 
     /**
@@ -113,7 +122,8 @@ final readonly class SuggestedUsersQuery
         return User::query()
             ->whereKeyNot($user->id)
             ->whereNotIn('users.id', $followingIds)
-            ->whereNotIn('users.id', $user->mutedIds());
+            ->whereNotIn('users.id', $user->mutedIds())
+            ->whereNotIn('users.id', $user->dismissedSuggestions()->newPivotQuery()->select('dismissed_id'));
     }
 
     /**
@@ -143,6 +153,15 @@ final readonly class SuggestedUsersQuery
         return $following->newPivotStatement()
             ->selectRaw('count(*)')
             ->whereColumn($following->getQualifiedRelatedPivotKeyName(), 'users.id');
+    }
+
+    private function followsUser(User $user): QueryBuilder
+    {
+        $followers = $user->followers();
+
+        return $followers->newPivotQuery()
+            ->selectRaw('count(*) > 0')
+            ->whereColumn($followers->getQualifiedRelatedPivotKeyName(), 'users.id');
     }
 
     private function committers(User $user): CommitBuilder

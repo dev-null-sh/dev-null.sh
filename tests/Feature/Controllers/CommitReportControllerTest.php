@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
-use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -99,7 +98,6 @@ it('includes reported polls with viewer specific results and card state', functi
     $poll = ($closed ? $factory->closed() : $factory)->create();
     PollVote::factory()->for($poll->options[0], 'option')->for($voted ? $moderator : User::factory())->create();
     $poll->commit->stars()->attach($moderator);
-    Bookmark::factory()->create(['user_id' => $moderator->id, 'commit_id' => $poll->commit_id]);
     CommitReport::factory()->for($poll->commit)->create();
 
     $this->actingAs($moderator)->get(route('reported-commit.index'))
@@ -107,7 +105,6 @@ it('includes reported polls with viewer specific results and card state', functi
         ->assertInertia(fn ($page) => $page
             ->where('reports.data.0.commit.poll.options.0.label', 'Tabs')
             ->where('reports.data.0.commit.starred', true)
-            ->where('reports.data.0.commit.is_saved', true)
             ->where('reports.data.0.commit.poll.has_voted', $voted)
             ->where('reports.data.0.commit.poll.is_closed', $closed)
             ->where('reports.data.0.commit.poll.total_votes', $voted || $closed ? 1 : null)
