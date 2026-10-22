@@ -73,7 +73,7 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
     );
 
     useEffect(() => {
-        if (audio.current !== null && volume !== null) {
+        if (audio.current !== null) {
             audio.current.volume = volume;
         }
     }, [volume]);

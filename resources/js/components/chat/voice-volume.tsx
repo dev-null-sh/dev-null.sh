@@ -11,19 +11,19 @@ import { setVoiceVolume, useVoiceVolume } from '@/hooks/use-voice-volume';
 const keepToItself = (event: SyntheticEvent) => event.stopPropagation();
 
 /**
- * One volume for every voice note on this device. A mouse opens the fader by hovering the speaker; touch and keyboard
- * open it by pressing the speaker. Hidden where the browser only plays at the device's volume.
+ * One volume for every voice note on this device. A mouse opens the fader by hovering the speaker, the keyboard by
+ * pressing it. Phones and tablets have volume buttons, so touch screens don't show it.
  */
 export function VoiceVolume() {
     const volume = useVoiceVolume();
     const [isOpen, setIsOpen] = useState(false);
     const isHovering = useRef(false);
+    const isOpenedByHover = useRef(false);
     const closing = useRef<number | undefined>(undefined);
     const trigger = useRef<HTMLButtonElement>(null);
     const fader = useRef<HTMLDivElement>(null);
 
-    // On touch, Radix waits for the click after a tap elsewhere, which iOS never sends for plain content. Capturing
-    // also sees taps on the voice note's own controls, which keep their presses to themselves.
+    // The voice note's own controls keep their presses to themselves, so only capturing sees them close the fader.
     useEffect(() => {
         if (!isOpen) {
             return;
@@ -46,10 +46,6 @@ export function VoiceVolume() {
             document.removeEventListener('pointerdown', onPointerDown, true);
     }, [isOpen]);
 
-    if (volume === null) {
-        return null;
-    }
-
     const percent = Math.round(volume * 100);
     const Icon = volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
@@ -62,6 +58,7 @@ export function VoiceVolume() {
         window.clearTimeout(closing.current);
 
         if (isEntering) {
+            isOpenedByHover.current ||= !isOpen;
             setIsOpen(true);
         } else {
             closing.current = window.setTimeout(() => setIsOpen(false), 150);
@@ -70,13 +67,22 @@ export function VoiceVolume() {
 
     // Hovering opens and closes the fader without taking focus from wherever the person is typing.
     const keepFocus = (event: Event) => {
-        if (isHovering.current) {
+        if (isOpenedByHover.current) {
             event.preventDefault();
         }
     };
 
     return (
-        <Popover open={isOpen} onOpenChange={setIsOpen}>
+        <Popover
+            open={isOpen}
+            onOpenChange={(isOpening) => {
+                if (isOpening) {
+                    isOpenedByHover.current = false;
+                }
+
+                setIsOpen(isOpening);
+            }}
+        >
             <PopoverTrigger
                 ref={trigger}
                 aria-label={`Voice volume, ${percent}%`}
@@ -89,7 +95,7 @@ export function VoiceVolume() {
                         event.preventDefault();
                     }
                 }}
-                className="grid size-7 shrink-0 place-items-center rounded-md opacity-60 transition-opacity hover:bg-current/10 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-[state=open]:bg-current/10 data-[state=open]:opacity-100"
+                className="grid size-7 shrink-0 place-items-center rounded-md opacity-60 transition-opacity hover:bg-current/10 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-[state=open]:bg-current/10 data-[state=open]:opacity-100 pointer-coarse:hidden"
                 data-test="voice-volume"
             >
                 <Icon aria-hidden className="size-3.5" />
@@ -104,6 +110,7 @@ export function VoiceVolume() {
                 onPointerLeave={hover(false)}
                 onPointerDown={keepToItself}
                 onPointerUp={keepToItself}
+                onClick={keepToItself}
                 className="w-auto p-0.5"
             >
                 <VolumeFader percent={percent} />
@@ -161,7 +168,7 @@ function VolumeFader({ percent }: { percent: number }) {
                 }
             }}
             onKeyDown={onKeyDown}
-            className="group flex h-24 w-7 cursor-pointer touch-none justify-center rounded-md py-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none pointer-coarse:h-32 pointer-coarse:w-11"
+            className="group flex h-24 w-7 cursor-pointer touch-none justify-center rounded-md py-2 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             data-test="voice-volume-fader"
         >
             <div

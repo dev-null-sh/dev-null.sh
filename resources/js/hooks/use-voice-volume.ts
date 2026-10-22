@@ -4,43 +4,47 @@ import { voiceVolumeOf } from '@/lib/voice-notes';
 
 const key = 'voice-note-volume';
 const listeners = new Set<() => void>();
-let isAdjustable: boolean | null = null;
+let volume: number | null = null;
+
+// Another tab saved a volume, or cleared everything it saved.
+function onStorage(event: StorageEvent) {
+    if (event.key === key || event.key === null) {
+        volume = null;
+        listeners.forEach((listener) => listener());
+    }
+}
 
 function subscribe(listener: () => void) {
     listeners.add(listener);
-    window.addEventListener('storage', listener);
+    window.addEventListener('storage', onStorage);
 
     return () => {
         listeners.delete(listener);
-        window.removeEventListener('storage', listener);
+
+        if (listeners.size === 0) {
+            window.removeEventListener('storage', onStorage);
+        }
     };
 }
 
 /**
- * iOS plays every page's audio at the device's volume and ignores the one a page sets.
+ * Kept in memory as well, so the volume still changes when the browser can't save it.
  */
-function adjustableVolume(): number | null {
-    if (isAdjustable === null) {
-        const probe = new Audio();
-        probe.volume = 0.5;
-        isAdjustable = probe.volume === 0.5;
-    }
-
-    return isAdjustable ? voiceVolume() : null;
-}
-
 export function voiceVolume(): number {
-    return voiceVolumeOf(readStorage(key));
+    volume ??= voiceVolumeOf(readStorage(key));
+
+    return volume;
 }
 
-export function setVoiceVolume(volume: number): void {
-    writeStorage(key, String(voiceVolumeOf(String(volume))));
+export function setVoiceVolume(to: number): void {
+    volume = voiceVolumeOf(String(to));
+    writeStorage(key, String(volume));
     listeners.forEach((listener) => listener());
 }
 
 /**
- * The volume every voice note plays at on this device, or null where the browser does not let a page change it.
+ * The volume every voice note plays at on this device.
  */
-export function useVoiceVolume(): number | null {
-    return useSyncExternalStore(subscribe, adjustableVolume, () => 1);
+export function useVoiceVolume(): number {
+    return useSyncExternalStore(subscribe, voiceVolume, () => 1);
 }
