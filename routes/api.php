@@ -10,16 +10,23 @@ use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CommitReportController;
 use App\Http\Controllers\Api\CommitStarController;
 use App\Http\Controllers\Api\ConversationArchiveController;
+use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\ConversationDropController;
 use App\Http\Controllers\Api\ConversationMergeController;
+use App\Http\Controllers\Api\ConversationMessageController;
+use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
+use App\Http\Controllers\Api\MessageImageController;
+use App\Http\Controllers\Api\MessageLinkPreviewController;
 use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
 use App\Http\Controllers\Api\OrgArchiveController;
 use App\Http\Controllers\Api\OrgController;
+use App\Http\Controllers\Api\OrgMessageController;
+use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\RemoteCandidateController;
 use App\Http\Controllers\Api\StarredCommitController;
 use App\Http\Controllers\Api\UserBlockController;
@@ -73,6 +80,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         ->withoutMiddleware('throttle:api')
         ->middleware('throttle:devices')
         ->name('api-device.store');
+
+    // Remote images: the app's image views can't sign requests, so a thread hands out URLs signed for the user...
+    Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])
+        ->whereUuid('messageImage')
+        ->withoutMiddleware('throttle:api')
+        ->middleware('signed:relative')
+        ->name('api-message-image.show');
 
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
@@ -169,6 +183,24 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 ->name('api-conversation-merge.store');
             Route::post('remotes/@{partner:username}/drop', [ConversationDropController::class, 'store'])
                 ->name('api-conversation-drop.store');
+        });
+
+        // Remotes: the inbox and threads of the web's Remotes page, polled as often as it polls them...
+        Route::middleware('throttle:conversations')->group(function (): void {
+            Route::get('remotes', [ConversationController::class, 'index'])->name('api-conversation.index');
+            Route::get('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'index'])
+                ->name('api-conversation-message.index');
+            Route::put('remotes/@{partner:username}/read', [ConversationReadController::class, 'update'])
+                ->name('api-conversation-read.update');
+            Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])
+                ->whereUuid('org')
+                ->name('api-org-message.index');
+            Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])
+                ->whereUuid('org')
+                ->name('api-org-read.update');
+            Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
+                ->whereNumber('message')
+                ->name('api-message-link-preview.show');
         });
 
         // Remote Reactions...
