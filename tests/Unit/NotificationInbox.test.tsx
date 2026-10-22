@@ -20,6 +20,7 @@ const actor: User = {
     company: null,
     has_sponsors_listing: false,
     timezone: null,
+    show_local_time: false,
     has_github_account: true,
     contributor: false,
     lane: 0,

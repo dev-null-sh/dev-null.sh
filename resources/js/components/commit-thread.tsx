@@ -7,7 +7,13 @@ import {
     Trash2,
 } from 'lucide-react';
 import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import {
+    useCallback,
+    useEffect,
+    useEffectEvent,
+    useRef,
+    useState,
+} from 'react';
 import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
@@ -34,7 +40,13 @@ import {
     useComposerPreview,
 } from '@/components/composer-preview';
 import { ContributorBadge } from '@/components/contributor-badge';
-import { RailDot } from '@/components/graph-rail';
+import {
+    useGraphDimmed,
+    useGraphNode,
+    useGraphNodeId,
+    useGraphOverlay,
+} from '@/components/graph-canvas';
+import { RailDot, railDotRing } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
@@ -72,6 +84,7 @@ import {
 } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
+import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
 import {
     characterCount,
     cn,
@@ -585,7 +598,12 @@ export function ThreadActions({
                     {thread.count > 0 && !thread.isPreview && (
                         <ActionTooltip
                             label={
-                                thread.isOpen ? 'Hide replies' : 'Show replies'
+                                thread.isOpen
+                                    ? 'Hide replies'
+                                    : exactCountTitle(thread.count) ===
+                                        undefined
+                                      ? 'Show replies'
+                                      : `Show ${exactCountTitle(thread.count)} replies`
                             }
                             shortcut={hasKeyboardShortcuts ? 'o' : undefined}
                         >
@@ -609,7 +627,7 @@ export function ThreadActions({
                                 />
                                 {thread.isOpen
                                     ? 'Hide replies'
-                                    : `${thread.count} ${thread.count === 1 ? 'reply' : 'replies'}`}
+                                    : `${formatCount(thread.count)} ${thread.count === 1 ? 'reply' : 'replies'}`}
                             </button>
                         </ActionTooltip>
                     )}
@@ -641,7 +659,9 @@ export function ThreadSpine({
     thread: Thread;
     className?: string;
 }) {
-    if (!thread.isOpen || !thread.replies?.length) {
+    const isOverlaid = useGraphOverlay();
+
+    if (isOverlaid || !thread.isOpen || !thread.replies?.length) {
         return null;
     }
 
@@ -720,13 +740,21 @@ function ThreadElbow() {
 export function ThreadReplies({
     thread,
     depth,
+    graphParent,
 }: {
     thread: Thread;
     depth: number;
+    /** In a graph canvas, the node the first reply branches off. */
+    graphParent?: string;
 }) {
+    const isOverlaid = useGraphOverlay();
+    const nodeId = useGraphNodeId();
+
     if (!thread.isOpen) {
         return null;
     }
+
+    const branchFrom = graphParent ?? nodeId(thread.commit.id);
 
     const isFlattened = depth >= maxIndentDepth;
     const layout =
@@ -752,8 +780,24 @@ export function ThreadReplies({
                             reply={reply}
                             parent={thread.commit}
                             depth={depth + 1}
+                            graph={
+                                isFlattened
+                                    ? {}
+                                    : {
+                                          after:
+                                              index === 0
+                                                  ? undefined
+                                                  : nodeId(
+                                                        replies[index - 1].id,
+                                                    ),
+                                          parent:
+                                              index === 0
+                                                  ? branchFrom
+                                                  : undefined,
+                                      }
+                            }
                             links={
-                                isFlattened ? null : (
+                                isFlattened || isOverlaid ? null : (
                                     <ReplyLinks
                                         previousLane={
                                             index === 0
@@ -773,25 +817,41 @@ export function ThreadReplies({
                     ))}
                     {thread.hasMore && (
                         <div className="relative pt-1.5 pl-(--indent)">
-                            {!isFlattened && thread.replies.length > 0 && (
-                                <span
-                                    aria-hidden
-                                    className={cn(
-                                        replyLink,
-                                        'top-0 h-5 sm:h-5.5',
-                                    )}
-                                    style={laneStrokeStyle(
-                                        laneOf(
-                                            thread.replies[
-                                                thread.replies.length - 1
-                                            ],
-                                        ),
-                                    )}
-                                />
-                            )}
+                            {!isFlattened &&
+                                !isOverlaid &&
+                                thread.replies.length > 0 && (
+                                    <span
+                                        aria-hidden
+                                        className={cn(
+                                            replyLink,
+                                            'top-0 h-5 sm:h-5.5',
+                                        )}
+                                        style={laneStrokeStyle(
+                                            laneOf(
+                                                thread.replies[
+                                                    thread.replies.length - 1
+                                                ],
+                                            ),
+                                        )}
+                                    />
+                                )}
                             <MoreRepliesButton
                                 thread={thread}
                                 isFlattened={depth + 1 > maxIndentDepth}
+                                graph={
+                                    isFlattened
+                                        ? {}
+                                        : thread.replies.length > 0
+                                          ? {
+                                                after: nodeId(
+                                                    thread.replies[
+                                                        thread.replies.length -
+                                                            1
+                                                    ].id,
+                                                ),
+                                            }
+                                          : { parent: branchFrom }
+                                }
                             />
                         </div>
                     )}
@@ -828,17 +888,28 @@ function moreRepliesLabel(thread: Thread): string {
     }
 
     return thread.remaining > 1
-        ? `Show the last ${thread.remaining}`
+        ? `Show the last ${formatCount(thread.remaining)}`
         : 'Show more';
 }
 
 function MoreRepliesButton({
     thread,
     isFlattened,
+    graph,
 }: {
     thread: Thread;
     isFlattened: boolean;
+    graph: ReplyGraph;
 }) {
+    const dotRef = useGraphNode({
+        id: useGraphNodeId()(`${thread.commit.id}:more`),
+        lane: 'var(--muted-foreground)',
+        dashed: true,
+        dimmed: useGraphDimmed(),
+        ring: railDotRing,
+        ...graph,
+    });
+
     return (
         <div className="flex max-w-full items-center gap-0.5 text-[13px] text-muted-foreground">
             <button
@@ -852,7 +923,9 @@ function MoreRepliesButton({
                     aria-hidden
                     className="relative flex size-6 shrink-0 items-center justify-center [--lane:var(--muted-foreground)] sm:size-7"
                 >
-                    <RailDot />
+                    <span ref={dotRef} className="flex">
+                        <RailDot />
+                    </span>
                 </span>
                 {thread.isLoading ? (
                     <span role="status">Loading replies…</span>
@@ -881,8 +954,9 @@ function MoreRepliesButton({
                         aria-disabled={thread.isLoading}
                         className="shrink-0 rounded-md px-2 py-0.5 tabular-nums transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground aria-disabled:pointer-events-none"
                         data-test="all-replies-button"
+                        title={exactCountTitle(thread.remaining)}
                     >
-                        Show all {thread.remaining}
+                        Show all {formatCount(thread.remaining)}
                     </button>
                 </>
             )}
@@ -890,20 +964,35 @@ function MoreRepliesButton({
     );
 }
 
+type ReplyGraph = { after?: string; parent?: string };
+
+/** A reply avatar's ring is a 2px ring, 2px away from the picture. */
+const replyRing = 4;
+
 function ReplyItem({
     reply,
     parent,
     depth,
     links,
+    graph,
     onDeleted,
 }: {
     reply: ThreadCommit;
     parent: ThreadCommit;
     depth: number;
     links: ReactNode;
+    graph: ReplyGraph;
     onDeleted: () => void;
 }) {
     const thread = useThread(reply);
+    const nodeRef = useGraphNode({
+        id: useGraphNodeId()(reply.id),
+        lane: laneOf(reply),
+        dashed: true,
+        dimmed: useGraphDimmed(),
+        ring: isDeleted(reply) ? 0 : replyRing,
+        ...graph,
+    });
 
     if (isDeleted(reply)) {
         return (
@@ -916,6 +1005,7 @@ function ReplyItem({
                 <div className="flex gap-2 sm:gap-2.5">
                     <div className="relative shrink-0">
                         <span
+                            ref={nodeRef}
                             aria-hidden
                             className="block size-6 rounded-full border-2 border-dashed border-rail sm:size-7"
                         />
@@ -947,6 +1037,7 @@ function ReplyItem({
             depth={depth}
             links={links}
             thread={thread}
+            nodeRef={nodeRef}
             onDeleted={onDeleted}
         />
     );
@@ -958,6 +1049,7 @@ function CommitReply({
     depth,
     links,
     thread,
+    nodeRef,
     onDeleted,
 }: {
     reply: Commit;
@@ -965,6 +1057,7 @@ function CommitReply({
     depth: number;
     links: ReactNode;
     thread: Thread;
+    nodeRef: (element: HTMLElement | null) => void;
     onDeleted: () => void;
 }) {
     const { auth } = usePage().props;
@@ -979,6 +1072,14 @@ function CommitReply({
     const updateCommitsCount = useCommitsCountUpdate();
 
     const avatarRef = useRef<HTMLAnchorElement>(null);
+    // A stable ref, so the node stays registered across renders, like hover dimming its lane.
+    const avatarNodeRef = useCallback(
+        (element: HTMLAnchorElement | null) => {
+            avatarRef.current = element;
+            nodeRef(element);
+        },
+        [nodeRef],
+    );
 
     const isOwn = reply.user_id === auth.user?.id;
     const isFlattened = depth > maxIndentDepth;
@@ -1035,7 +1136,7 @@ function CommitReply({
                 <div className="relative shrink-0">
                     <UserPreview user={reply.user} anchor={avatarRef}>
                         <Link
-                            ref={avatarRef}
+                            ref={avatarNodeRef}
                             href={show(reply.user)}
                             className="block rounded-full"
                         >

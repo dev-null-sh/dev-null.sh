@@ -1,6 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
-    ArrowUpRight,
     Building2,
     CalendarDays,
     Heart,
@@ -21,12 +20,14 @@ import { ActivityStreaks } from '@/components/activity-streaks';
 import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { ContributorBadge } from '@/components/contributor-badge';
+import { EditProfileMenu } from '@/components/edit-profile-menu';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import {
     LiveAvatarMarker,
     LiveStreamTrigger,
 } from '@/components/live-stream-card';
+import { LocalTime } from '@/components/local-time';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { ProfileActionsMenu } from '@/components/profile-actions-menu';
@@ -42,6 +43,7 @@ import { UserSafetyMenu } from '@/components/user-safety-menu';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { dateLocale, laneColor, laneTint } from '@/lib/utils';
 import type {
     Achievements,
@@ -119,8 +121,11 @@ export default function Show({
                     <span className="truncate">{user.name}</span>
                     {user.contributor && <ContributorBadge />}
                 </p>
-                <p className="shrink-0 font-mono text-[13px] text-muted-foreground">
-                    {user.commits_count}{' '}
+                <p
+                    className="shrink-0 font-mono text-[13px] text-muted-foreground"
+                    title={exactCountTitle(user.commits_count)}
+                >
+                    {formatCount(user.commits_count)}{' '}
                     {pluralize(user.commits_count, 'commit', 'commits')}
                 </p>
             </div>
@@ -166,16 +171,7 @@ export default function Show({
                         {isCurrentUser ? (
                             <>
                                 <ProfileActionsMenu user={user} />
-                                <Button variant="outline" asChild>
-                                    <a
-                                        href="https://github.com/settings/profile"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        Edit on GitHub
-                                        <ArrowUpRight />
-                                    </a>
-                                </Button>
+                                <EditProfileMenu />
                             </>
                         ) : (
                             <>
@@ -286,6 +282,9 @@ export default function Show({
                             {user.location}
                         </li>
                     )}
+                    {user.show_local_time && user.timezone && (
+                        <LocalTime timeZone={user.timezone} />
+                    )}
                     {user.website && (
                         <li className="flex min-w-0 items-center gap-1.5">
                             <Link2 className="size-4 shrink-0" />
@@ -377,8 +376,9 @@ export default function Show({
                                 <Link
                                     href={stat.href}
                                     className="group-hover:underline"
+                                    title={exactCountTitle(stat.count)}
                                 >
-                                    {stat.count}
+                                    {formatCount(stat.count)}
                                 </Link>
                             </dd>
                         </div>
@@ -396,8 +396,11 @@ export default function Show({
                             height={20}
                             className="size-5 shrink-0 object-contain"
                         />
-                        <span className="font-mono font-medium text-foreground tabular-nums">
-                            {pasteisCount}
+                        <span
+                            className="font-mono font-medium text-foreground tabular-nums"
+                            title={exactCountTitle(pasteisCount)}
+                        >
+                            {formatCount(pasteisCount)}
                         </span>
                         {pluralize(pasteisCount, 'pastel', 'pastéis')} received
                     </p>

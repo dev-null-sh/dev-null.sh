@@ -12,16 +12,17 @@ use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
 use App\Queries\NotificationGroupsQuery;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 
 function starAt(User $user, Commit $commit, int $minutesAgo): void
 {
-    test()->travelTo(now()->subMinutes($minutesAgo), fn () => resolve(CreateCommitStar::class)->handle($user, $commit));
+    Date::withTestNow(now()->subMinutes($minutesAgo), fn () => resolve(CreateCommitStar::class)->handle($user, $commit));
 }
 
 function replyAt(User $user, Commit $commit, int $minutesAgo): Commit
 {
-    return test()->travelTo(now()->subMinutes($minutesAgo), function () use ($user, $commit): Commit {
+    return Date::withTestNow(now()->subMinutes($minutesAgo), function () use ($user, $commit): Commit {
         $reply = Commit::factory()->for($user)->for($commit, 'parent')->create();
 
         resolve(CreateReplyNotifications::class)->handle($reply);
@@ -32,7 +33,7 @@ function replyAt(User $user, Commit $commit, int $minutesAgo): Commit
 
 function followAt(User $follower, User $user, int $minutesAgo): void
 {
-    test()->travelTo(now()->subMinutes($minutesAgo), fn () => resolve(CreateUserFollow::class)->handle($follower, $user));
+    Date::withTestNow(now()->subMinutes($minutesAgo), fn () => resolve(CreateUserFollow::class)->handle($follower, $user));
 }
 
 it('groups stars per commit, newest stargazer first', function (): void {
@@ -82,6 +83,7 @@ it('shows every reply to a commit as its own notification', function (): void {
 });
 
 it('keeps stars and conversations apart while grouping followers', function (): void {
+    $this->travelTo(today()->setTime(12, 0));
     $user = User::factory()->create();
     [$first, $second] = Commit::factory()->for($user)->count(2)->create()->all();
     $other = User::factory()->create();
@@ -89,8 +91,8 @@ it('keeps stars and conversations apart while grouping followers', function (): 
     starAt($other, $first, 7);
     starAt($other, $second, 6);
     replyAt($other, $first, 5);
-    $this->travelTo(now()->subMinutes(4), fn () => Notification::factory()->for($user, 'recipient')->for($other, 'actor')->mentioned()->create());
-    $this->travelTo(now()->subMinutes(3), fn () => Notification::factory()->for($user, 'recipient')->for($other, 'actor')->mentioned()->create());
+    Date::withTestNow(now()->subMinutes(4), fn () => Notification::factory()->for($user, 'recipient')->for($other, 'actor')->mentioned()->create());
+    Date::withTestNow(now()->subMinutes(3), fn () => Notification::factory()->for($user, 'recipient')->for($other, 'actor')->mentioned()->create());
     followAt($other, $user, 2);
     followAt(User::factory()->create(), $user, 1);
 

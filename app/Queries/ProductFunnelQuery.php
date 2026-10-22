@@ -31,11 +31,11 @@ final readonly class ProductFunnelQuery
     /**
      * The funnel of the people who signed up in the range, bots left out, as defined in PRODUCT_METRICS.md: visitors
      * not signed in, signups, activation and retention, each with its rate and its change in percentage
-     * points, and activation for each signup day. Changes compare the last 7 days with the 7 before when the range is all
+     * points, acquisition for each day, and activation for each signup day. Changes compare the last 7 days with the 7 before when the range is all
      * time, or the range with as many days before it otherwise, and are null until both periods are after the launch.
      * Rates are fractions, null when nothing counts.
      *
-     * @return array{visitors: int|null, signups: int, activated: int, activation_eligible: int, activation_by_day: list<array{date: string, activated: int, eligible: int, complete: bool}>, retained: int, retention_eligible: int, rates: array{conversion: float|null, activation: float|null, retention: float|null}, changes: array{conversion: float|null, activation: float|null, retention: float|null}}
+     * @return array{visitors: int|null, signups: int, acquisition_by_day: list<array{date: string, signups: int, visitors: int|null, converted: int|null, complete: bool}>, activated: int, activation_eligible: int, activation_by_day: list<array{date: string, activated: int, eligible: int, complete: bool}>, retained: int, retention_eligible: int, rates: array{conversion: float|null, activation: float|null, retention: float|null}, changes: array{conversion: float|null, activation: float|null, retention: float|null}}
      */
     public function get(CarbonImmutable $from, CarbonImmutable $to, bool $isAllTime): array
     {
@@ -94,6 +94,7 @@ final readonly class ProductFunnelQuery
                 ->where('created_at', '>=', $from->startOfDay())
                 ->where('created_at', '<', $to->addDay()->startOfDay())
                 ->count(),
+            'acquisition_by_day' => $this->acquisitionByDay($from, $to),
             'activated' => $activation['activated'],
             'activation_eligible' => $activation['eligible'],
             'activation_by_day' => array_map(fn (array $day): array => [
@@ -120,6 +121,41 @@ final readonly class ProductFunnelQuery
         $signups = $visitors === null ? null : $this->traffic->eventVisitors($from, $to, self::SIGNUP_EVENT);
 
         return $signups === null ? null : $this->rate($signups, $visitors);
+    }
+
+    /**
+     * Signups from the database, and visitors not signed in and signups from Fathom for the conversion, for each day
+     * that has any, oldest first. Fathom's are null when it isn't set up or didn't answer. Today is incomplete.
+     *
+     * @return list<array{date: string, signups: int, visitors: int|null, converted: int|null, complete: bool}>
+     */
+    private function acquisitionByDay(CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        /** @var list<object{date: string, signups: int}> $rows */
+        $rows = DB::select(<<<'SQL'
+            select created_at::date as date, count(*) as signups from users
+            where github_id <> all(?::text[]) and created_at >= ? and created_at < ?
+            group by 1
+            SQL, [
+            User::botGitHubIdsArray(),
+            $from->startOfDay(),
+            $to->addDay()->startOfDay(),
+        ]);
+
+        $signups = array_column($rows, 'signups', 'date');
+
+        $visitors = $this->traffic->eventVisitorsByDay($from, $to, self::GUEST_VISIT_EVENT);
+        $converted = $visitors === null ? null : $this->traffic->eventVisitorsByDay($from, $to, self::SIGNUP_EVENT);
+        $dates = array_unique([...array_keys($signups), ...array_keys($visitors ?? [])]);
+        sort($dates);
+
+        return array_map(fn (string $date): array => [
+            'date' => $date,
+            'signups' => (int) ($signups[$date] ?? 0),
+            'visitors' => $visitors === null ? null : $visitors[$date] ?? 0,
+            'converted' => $converted === null ? null : $converted[$date] ?? 0,
+            'complete' => $date < CarbonImmutable::today()->toDateString(),
+        ], $dates);
     }
 
     /**

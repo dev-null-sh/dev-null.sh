@@ -28,6 +28,7 @@ export type User = {
     contributor: boolean;
     lane: Lane;
     timezone: string | null;
+    show_local_time: boolean;
     /**
      * Only set while the user is streaming.
      */

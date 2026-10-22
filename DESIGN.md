@@ -259,7 +259,7 @@ Quiet, rectangular, decisive.
 - **Shape:** gently rounded (6px); default height 36px, small 32px, large 40px (landing CTA 44px).
 - **Primary:** Commit Blue fill, white label, 14px medium. Disabled at 50% opacity (the empty composer).
 - **Hover / Focus:** fill steps to Pressed Commit Blue; focus shows a 3px ring at 50% of the ring color.
-- **Outline:** hairline input stroke on the shell color; hover to the wash. Used for "Following", "Edit on GitHub" on your own profile, "View profile".
+- **Outline:** hairline input stroke on the shell color; hover to the wash. Used for "Following", "Edit profile" on your own profile, "View profile".
 - **Ghost:** no fill until hover. Used for "Cancel".
 - **Destructive:** Rm Red fill, white label, small size. Appears only after an explicit confirm step.
 

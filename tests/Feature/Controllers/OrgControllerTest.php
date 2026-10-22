@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\OrgEvent;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
@@ -98,6 +99,24 @@ it('shows an org only to its members', function (): void {
 
     $this->actingAs(User::factory()->create())->get(route('org.show', $org))->assertNotFound();
     $this->getJson(route('org-message.index', $org))->assertNotFound();
+});
+
+it('polls the badge counts on an open org without marking it read', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    pushToOrg($nuno, $org, 'standup in 10?');
+
+    $this->actingAs($mark)->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'conversation/index',
+        'X-Inertia-Partial-Data' => 'auth.unreadNotificationsCount,auth.unreadMessagesCount',
+    ])->get(route('org.show', $org))->assertOk()
+        ->assertJsonPath('props.auth.unreadMessagesCount', 1)
+        ->assertJsonMissingPath('props.thread');
+
+    $this->actingAs(User::factory()->create())->get(route('org.show', $org))->assertNotFound();
 });
 
 it('lets maintainers rename the org', function (): void {
