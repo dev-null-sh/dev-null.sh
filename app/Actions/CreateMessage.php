@@ -23,7 +23,7 @@ final readonly class CreateMessage
 {
     public function __construct(
         private EmojiShortcodes $emojiShortcodes,
-        private CreateCommitImageFiles $createCommitImageFiles,
+        private CreateImageFiles $createImageFiles,
         private CreateMessageVoiceFile $createMessageVoiceFile,
         private MentionedUsersQuery $mentionedUsers,
         private Urls $urls,
@@ -81,7 +81,7 @@ final readonly class CreateMessage
                 return $message;
             }
 
-            $message->images()->createMany($this->createCommitImageFiles->handle($images, $imageDescriptions, 'message-images'));
+            $message->images()->createMany($this->createImageFiles->handle($images, $imageDescriptions, 'message-images', encrypted: true));
 
             if ($voice instanceof UploadedFile) {
                 $message->voice()->create($this->createMessageVoiceFile->handle($voice, $voiceWaveform));
