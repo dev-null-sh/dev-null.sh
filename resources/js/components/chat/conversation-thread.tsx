@@ -64,6 +64,7 @@ import {
     toggleReaction,
 } from '@/lib/chat';
 import type { ChatTarget, PendingMessage } from '@/lib/chat';
+import { formatCount } from '@/lib/numbers';
 import { pullsOf, statusMessageOf } from '@/lib/pulls';
 import { doubleTapReaction } from '@/lib/reactions';
 import type { ReactionUsage } from '@/lib/reactions';
@@ -158,6 +159,7 @@ export function ConversationThread({
     const isPinned = useRef(true);
     const hasScrolledIn = useRef(false);
     const anchor = useRef<ScrollAnchor | null>(null);
+    const restoredScrollTop = useRef<number | null>(null);
     const seenLatest = useRef(0);
     const [unseen, setUnseen] = useState(0);
 
@@ -285,6 +287,7 @@ export function ConversationThread({
         } else {
             if (anchor.current !== null) {
                 restoreScrollAnchor(element, anchor.current);
+                restoredScrollTop.current = element.scrollTop;
             }
 
             setUnseen(
@@ -315,6 +318,7 @@ export function ConversationThread({
         const observer = new ResizeObserver(() => {
             if (!isPinned.current && anchor.current !== null) {
                 restoreScrollAnchor(element, anchor.current);
+                restoredScrollTop.current = element.scrollTop;
             }
         });
 
@@ -331,6 +335,17 @@ export function ConversationThread({
             return;
         }
 
+        // Keep the reading anchor during a fold, but resume following messages when a correction reaches the bottom.
+        if (
+            element.scrollTop === restoredScrollTop.current &&
+            !isAtLatest(element)
+        ) {
+            restoredScrollTop.current = null;
+
+            return;
+        }
+
+        restoredScrollTop.current = null;
         isPinned.current = isAtLatest(element);
         anchor.current = scrollAnchorOf(element);
 
@@ -447,6 +462,7 @@ export function ConversationThread({
                 <Composer
                     target={current}
                     draft={draft}
+                    members={isOrg ? thread?.members : undefined}
                     replyingTo={replyingTo}
                     replyAuthor={
                         replyingTo === null
@@ -632,7 +648,7 @@ const ThreadItem = memo(function ThreadItem({
                     ref={headLine}
                     className="my-3 flex items-center gap-2 font-mono text-[11px] font-medium text-primary after:h-px after:flex-1 after:bg-primary/50"
                 >
-                    HEAD · {item.count} new
+                    HEAD · {formatCount(item.count)} new
                 </div>
             </li>
         );
@@ -913,6 +929,7 @@ function BubbleWithMeta({
                             trigger={reactButton}
                             usage={usage}
                             reacted={reacted}
+                            hasReactions={(reactions?.length ?? 0) > 0}
                             isMine={isMine}
                             onReact={reactToThis}
                         />
@@ -1115,6 +1132,7 @@ type MessageDraftState = ReturnType<typeof useMessageDraft>;
  */
 function Composer({
     target,
+    members,
     draft,
     replyingTo,
     replyAuthor,
@@ -1124,6 +1142,7 @@ function Composer({
     onSend,
 }: {
     target: ChatTarget;
+    members: OrgMember[] | undefined;
     draft: MessageDraftState;
     replyingTo: MessageReply | null;
     replyAuthor: Author | null;
@@ -1258,7 +1277,7 @@ function Composer({
         if (total > maxLength) {
             event.preventDefault();
             showError(
-                `fatal: paste rejected, message would be ${total.toLocaleString()}/${maxLength.toLocaleString()} chars`,
+                `fatal: paste rejected, message would be ${formatCount(total)}/${formatCount(maxLength)} chars`,
             );
         }
     };
@@ -1314,7 +1333,7 @@ function Composer({
                         })}
                         data-test="message-counter"
                     >
-                        {length.toLocaleString()}/{maxLength.toLocaleString()}
+                        {formatCount(length)}/{formatCount(maxLength)}
                     </span>
                 )}
             </div>
@@ -1416,6 +1435,7 @@ function Composer({
                             <MentionTextarea
                                 id={id}
                                 ref={input}
+                                members={members}
                                 org={
                                     target.kind === 'org'
                                         ? target.org.id

@@ -42,3 +42,32 @@ await test('preserves ordinary code and obvious placeholder examples', () => {
         assert.equal(stashableBody(body), body);
     }
 });
+
+await test('leaves the commit hash in a GitHub link alone', () => {
+    const hash = '3f2a9c1e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a39';
+    for (const body of [
+        `Fixed in https://github.com/nunomaduro/dev-null.sh/commit/${hash}`,
+        `[the fix](https://github.com/nunomaduro/dev-null.sh/blob/${hash}/app/Models/User.php#L12)`,
+    ]) {
+        assert.deepEqual(findSecrets(body), []);
+        assert.equal(removeSecrets(body), body);
+        assert.equal(stashableBody(body), body);
+    }
+});
+
+await test('still finds a GitHub secret outside a link path, even beside a commit link', () => {
+    const hash = '3f2a9c1e8b7d6a5f4e3d2c1b0a9f8e7d6c5b4a39';
+    const secret = '4e1b8d2c7a6f5e4d3c2b1a0f9e8d7c6b5a4f3e21';
+    assert.equal(
+        removeSecrets(`My GitHub client secret: ${secret}`),
+        'My GitHub client secret: [REDACTED]',
+    );
+    assert.equal(
+        removeSecrets(`git clone https://${secret}@github.com/acme/app.git`),
+        'git clone https://[REDACTED]@github.com/acme/app.git',
+    );
+    assert.equal(
+        removeSecrets(`See https://github.com/acme/app/commit/${hash}, secret ${secret}`),
+        `See https://github.com/acme/app/commit/${hash}, secret [REDACTED]`,
+    );
+});

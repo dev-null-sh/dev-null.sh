@@ -27,7 +27,7 @@ final class OrgThreadResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        /** @var array{org: Conversation, messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int}>, typing: array<int, string>, is_archived: bool, role: OrgRole|null, access: PushAccess} $thread */
+        /** @var array{org: Conversation, messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int, suggests_mentions: bool, is_followed: bool}>, typing: array<int, string>, is_archived: bool, role: OrgRole|null, access: PushAccess} $thread */
         $thread = $this->resource;
 
         return [
@@ -35,7 +35,8 @@ final class OrgThreadResource extends JsonResource
             'org' => ['id' => $thread['org']->id, 'name' => $thread['org']->name],
             'messages' => MessageResource::collection($thread['messages']),
             'members' => $thread['members']->map(fn (array $member): array => [
-                ...$member,
+                'role' => $member['role'],
+                'read_through_id' => $member['read_through_id'],
                 'user' => UserResource::make($member['user']),
             ]),
         ];

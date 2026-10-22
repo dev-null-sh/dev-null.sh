@@ -164,6 +164,7 @@ function suggestion(username: string): SuggestedUser {
         avatar_url: null,
         lane: 1,
         timezone: null,
+        show_local_time: false,
         followed_by_following_count: 0,
         followers_count: 0,
     } as unknown as SuggestedUser;

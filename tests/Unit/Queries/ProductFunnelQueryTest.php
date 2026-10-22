@@ -176,6 +176,33 @@ it('has no visitors or conversion without Fathom', function (): void {
         ->rates->conversion->toBeNull();
 });
 
+it('tells acquisition for each day, signups from the database and conversion from Fathom, today as incomplete', function (): void {
+    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
+
+    Http::fake(fn (Request $request) => Http::response(isset($request->data()['date_grouping']) ? match ($request->data()['entity_name']) {
+        'guest-visit' => [['unique_conversions' => '400', 'date' => '2026-10-17'], ['unique_conversions' => '50', 'date' => '2026-10-19']],
+        'signup' => [['unique_conversions' => '3', 'date' => '2026-10-17']],
+    } : [['unique_conversions' => '0']]));
+
+    User::factory()->count(2)->create(['created_at' => '2026-10-17 08:00:00']);
+    User::factory()->create(['created_at' => '2026-10-18 23:00:00']);
+    User::factory()->create(['github_id' => CreateTomFriendship::GITHUB_ID, 'created_at' => '2026-10-18 00:00:00']);
+
+    expect(($this->funnel)()['acquisition_by_day'])->toBe([
+        ['date' => '2026-10-17', 'signups' => 2, 'visitors' => 400, 'converted' => 3, 'complete' => true],
+        ['date' => '2026-10-18', 'signups' => 1, 'visitors' => 0, 'converted' => 0, 'complete' => true],
+        ['date' => '2026-10-19', 'signups' => 0, 'visitors' => 50, 'converted' => 0, 'complete' => false],
+    ]);
+});
+
+it('tells signups for each day without Fathom', function (): void {
+    User::factory()->create(['created_at' => '2026-10-17 08:00:00']);
+
+    expect(($this->funnel)()['acquisition_by_day'])->toBe([
+        ['date' => '2026-10-17', 'signups' => 1, 'visitors' => null, 'converted' => null, 'complete' => true],
+    ]);
+});
+
 it('compares the last seven days with the seven before when the range is all time', function (): void {
     ($this->trackSince)('2026-09-01');
 

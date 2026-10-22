@@ -24,21 +24,22 @@ import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { currentRound, useWhoToFollow } from '@/hooks/use-who-to-follow';
+import { formatCount, formatExactCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, laneColor } from '@/lib/utils';
 import { edit } from '@/routes/appearance';
 import { show } from '@/routes/user';
 import type { SuggestedUser } from '@/types';
 
-function reasonFor(user: SuggestedUser): string | null {
+function reasonFor(user: SuggestedUser, format = formatCount): string | null {
     if (user.followed_by_following_count > 0) {
-        return `Followed by ${user.followed_by_following_count} you follow`;
+        return `Followed by ${format(user.followed_by_following_count)} you follow`;
     }
 
     if (user.followers_count > 0) {
         return user.followers_count === 1
             ? '1 follower'
-            : `${user.followers_count} followers`;
+            : `${format(user.followers_count)} followers`;
     }
 
     return null;
@@ -58,11 +59,11 @@ function BioComment({ bio }: { bio: string }) {
     );
 }
 
-function Reason({ reason }: { reason: string }) {
+function Reason({ reason, title }: { reason: string; title: string }) {
     return (
         <span
             className="block truncate text-xs text-muted-foreground"
-            title={reason}
+            title={title}
         >
             {reason}
         </span>
@@ -124,11 +125,12 @@ export function SuggestedUserRow({
     onDismiss?: (onFailed: () => void) => boolean;
 }) {
     const reason = reasonFor(user);
+    const exactReason = reasonFor(user, formatExactCount);
     const bio = user.bio?.trim() || null;
     const details = (bio || reason) && (
         <>
             {bio && <BioComment bio={bio} />}
-            {reason && <Reason reason={reason} />}
+            {reason && <Reason reason={reason} title={exactReason ?? reason} />}
         </>
     );
     const avatarRef = useRef<HTMLSpanElement>(null);
