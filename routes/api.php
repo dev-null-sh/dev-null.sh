@@ -158,6 +158,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])
                 ->whereUuid('org')
                 ->name('api-org-typing.update');
+        });
 
         // Remote Reactions...
         Route::middleware('throttle:conversations')->group(function (): void {
