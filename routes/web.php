@@ -89,6 +89,7 @@ use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
+use App\Http\Controllers\UserFriendshipsController;
 use App\Http\Controllers\UserLaneController;
 use App\Http\Controllers\UserLiveController;
 use App\Http\Controllers\UserMuteController;
@@ -157,6 +158,8 @@ Route::middleware(RememberIntendedUrl::class)->group(function (): void {
         ->name('user-following.index');
     Route::get('@{user:username}/followers', [UserFollowersController::class, 'index'])
         ->name('user-followers.index');
+    Route::get('@{user:username}/friendships', [UserFriendshipsController::class, 'index'])
+        ->name('user-friendships.index');
     Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])
         ->scopeBindings()
         ->name('commit.show');
