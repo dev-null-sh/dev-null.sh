@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class CreateScheduledCommit
 {
-    public function __construct(private CreateCommitImageFiles $createCommitImageFiles, private Urls $urls)
+    public function __construct(private CreateImageFiles $createImageFiles, private Urls $urls)
     {
         //
     }
@@ -34,7 +34,7 @@ final readonly class CreateScheduledCommit
             'user_id' => $user->id,
             'body' => $body,
             'poll' => $poll instanceof NewPoll ? ['options' => $poll->options, 'duration' => $poll->duration->value] : null,
-            'images' => $images === [] ? null : $this->createCommitImageFiles->handle($images, $imageDescriptions),
+            'images' => $images === [] ? null : $this->createImageFiles->handle($images, $imageDescriptions),
             'link_preview_url' => match ($linkPreview) {
                 true => $this->urls->first($body),
                 false => null,

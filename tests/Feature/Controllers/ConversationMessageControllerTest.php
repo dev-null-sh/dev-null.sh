@@ -7,6 +7,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageVoice;
 use App\Models\User;
+use App\Services\EncryptedFiles;
 use App\Services\VoiceNotes;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
@@ -252,7 +253,8 @@ it('sends images, with or without a body', function (string $body): void {
         ->assertJsonPath('message.images.0.description', 'The deploy log.')
         ->assertJsonCount(2, 'message.images');
 
-    expect(Storage::disk()->allFiles('message-images'))->toHaveCount(2)
+    expect(Storage::disk()->get(Message::query()->sole()->images->firstOrFail()->path))->not->toStartWith('RIFF')
+        ->and(Storage::disk()->allFiles('message-images'))->toHaveCount(2)
         ->and($response->json('message.images.0.url'))->toBe(route('message-image.show', Message::query()->sole()->images->first()));
 })->with(['look at this', '']);
 
@@ -292,8 +294,9 @@ it('sends a WAV voice note, rebuilt from its samples and encrypted at rest', fun
     expect($response->json('message.voice.url'))->toBe(route('message-voice.show', $voice))
         ->and(Storage::disk()->allFiles('message-voices'))->toHaveCount(1)
         ->and($stored)->not->toContain('RIFF')
-        ->and(Crypt::decryptString($stored))->toBe(voiceNoteWav(1500))
-        ->and(DB::table('message_voices')->value('waveform'))->not->toContain('[');
+        ->and(resolve(EncryptedFiles::class)->decrypt($stored))->toBe(voiceNoteWav(1500))
+        ->and(DB::table('message_voices')->value('waveform'))->not->toContain('[')
+        ->and(DB::table('message_voices')->value('duration_ms'))->not->toBe('1500');
 });
 
 it('sends an Opus voice note, rebuilt from its packets and encrypted at rest', function (): void {
@@ -311,9 +314,9 @@ it('sends an Opus voice note, rebuilt from its packets and encrypted at rest', f
 
     $stored = (string) Storage::disk()->get((string) Message::query()->sole()->voice?->path);
 
-    expect($stored)->not->toContain('A_OPUS')
-        ->and(Crypt::decryptString($stored))->toBe(resolve(VoiceNotes::class)->rebuild(voiceNoteWebm(3000))['file'] ?? null)
-        ->and(mb_strlen(Crypt::decryptString($stored), '8bit'))->toBeLessThan(mb_strlen(voiceNoteWebm(3000), '8bit'));
+    expect($stored)->not->toContain('dOps')
+        ->and(resolve(EncryptedFiles::class)->decrypt($stored))->toBe(resolve(VoiceNotes::class)->rebuild(voiceNoteWebm(3000))['file'] ?? null)
+        ->and(mb_strlen(resolve(EncryptedFiles::class)->decrypt($stored), '8bit'))->toBeLessThan(mb_strlen(voiceNoteWebm(3000), '8bit'));
 });
 
 it('needs the waveform of a voice note', function (array $waveform, string $error): void {

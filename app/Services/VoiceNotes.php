@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace App\Services;
 
 /**
- * Voice notes are Opus in WebM, about 180 KB a minute, or 16 kHz, mono, 16-bit PCM WAV from browsers that can't
- * record Opus. The server never decodes either: the WebM container is walked element by element and each Opus packet
- * is only measured from its first byte, and the WAV is checked as it is. Either way the stored file is written anew
- * from the audio alone, so nothing that came along with it, such as metadata or tags, is kept. Lengths and offsets
- * are in bytes, hence the 8-bit encoding.
+ * Voice notes arrive as Opus in WebM, about 180 KB a minute, or as 16 kHz, mono, 16-bit PCM WAV from browsers that
+ * can't record Opus. The server never decodes either: the WebM container is walked element by element and each Opus
+ * packet is only measured from its first byte, and the WAV is checked as it is. Either way the stored file is written
+ * anew from the audio alone, Opus as MP4, so nothing that came along with it, such as metadata or tags, is kept.
+ * Lengths and offsets are in bytes, hence the 8-bit encoding.
  */
 final readonly class VoiceNotes
 {
@@ -53,8 +53,6 @@ final readonly class VoiceNotes
 
     private const int CLUSTER = 0x1F43B675;
 
-    private const int TIMECODE = 0xE7;
-
     private const int SIMPLE_BLOCK = 0xA3;
 
     private const int BLOCK_GROUP = 0xA0;
@@ -81,12 +79,12 @@ final readonly class VoiceNotes
 
         $opus = $this->opus($upload);
 
-        return $opus === null ? null : ['file' => $this->webm(...$opus), 'duration_ms' => $opus['milliseconds']];
+        return $opus === null ? null : ['file' => $this->mp4(...$opus), 'duration_ms' => $opus['milliseconds']];
     }
 
     public function type(string $file): string
     {
-        return str_starts_with($file, 'RIFF') ? 'audio/wav' : 'audio/webm';
+        return str_starts_with($file, 'RIFF') ? 'audio/wav' : 'audio/mp4';
     }
 
     private function samples(string $wav): ?string
@@ -135,8 +133,8 @@ final readonly class VoiceNotes
     }
 
     /**
-     * The one Opus track of a WebM file: its channels, the samples its decoder skips, and its packets with when each
-     * one plays, timed from the packets themselves rather than from the file.
+     * The one Opus track of a WebM file: its channels, the samples its decoder skips, and its packets with how many
+     * samples each one holds, read from the packets themselves rather than from the file's timestamps.
      *
      * @return array{channels: int, preSkip: int, packets: list<array{int, string}>, milliseconds: int}|null
      */
@@ -188,7 +186,7 @@ final readonly class VoiceNotes
                     return null;
                 }
 
-                $packets[] = [intdiv($at * 1000, self::OPUS_RATE), $packet];
+                $packets[] = [$samples, $packet];
                 $at += $samples;
             }
         }
@@ -242,68 +240,63 @@ final readonly class VoiceNotes
     }
 
     /**
-     * A fresh WebM file holding the one Opus track and its packets, and nothing else.
+     * A fresh MP4 file holding the one Opus track and its packets, and nothing else, laid out as the Opus in ISO
+     * BMFF specification has it. MP4 rather than WebM, since it is the container every browser plays Opus from,
+     * Safari on iOS included. The edit list hides the samples the decoder skips at the start.
      *
      * @param  list<array{int, string}>  $packets
      */
-    private function webm(int $channels, int $preSkip, array $packets, int $milliseconds): string
+    private function mp4(int $channels, int $preSkip, array $packets, int $milliseconds): string
     {
-        $head = 'OpusHead'.pack('CC', 1, $channels).pack('v', $preSkip).pack('V', self::OPUS_RATE).pack('v', 0).chr(0);
-        $clusters = '';
-        $cluster = '';
-        $clusterAt = 0;
+        $samples = array_sum(array_column($packets, 0));
+        $matrix = pack('N9', 0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000);
+        $durations = [];
 
-        foreach ($packets as [$at, $packet]) {
-            if ($cluster === '' || $at - $clusterAt > 30_000) {
-                $clusters .= $cluster === '' ? '' : $this->element(self::CLUSTER, $cluster);
-                $clusterAt = $at;
-                $cluster = $this->element(self::TIMECODE, pack('J', $at));
+        foreach ($packets as [$length]) {
+            $last = count($durations) - 1;
+
+            if ($last >= 0 && $durations[$last][1] === $length) {
+                $durations[$last][0]++;
+            } else {
+                $durations[] = [1, $length];
             }
-
-            $cluster .= $this->element(self::SIMPLE_BLOCK, "\x81".pack('n', $at - $clusterAt)."\x80".$packet);
         }
 
-        return $this->element(self::EBML,
-            $this->element(0x4286, pack('J', 1))
-            .$this->element(0x42F7, pack('J', 1))
-            .$this->element(0x42F2, pack('J', 4))
-            .$this->element(0x42F3, pack('J', 8))
-            .$this->element(self::DOC_TYPE, 'webm')
-            .$this->element(0x4287, pack('J', 4))
-            .$this->element(0x4285, pack('J', 2)),
-        ).$this->element(self::SEGMENT,
-            $this->element(0x1549A966,
-                $this->element(0x2AD7B1, pack('J', 1_000_000))
-                .$this->element(0x4489, pack('E', (float) $milliseconds)),
-            )
-            .$this->element(self::TRACKS, $this->element(self::TRACK_ENTRY,
-                $this->element(self::TRACK_NUMBER, pack('J', 1))
-                .$this->element(0x73C5, pack('J', 1))
-                .$this->element(self::TRACK_TYPE, "\x02")
-                .$this->element(self::CODEC_ID, 'A_OPUS')
-                .$this->element(self::CODEC_PRIVATE, $head)
-                .$this->element(0x56AA, pack('J', intdiv($preSkip * 1_000_000_000, self::OPUS_RATE)))
-                .$this->element(0x56BB, pack('J', 80_000_000))
-                .$this->element(0xE1, $this->element(0xB5, pack('E', (float) self::OPUS_RATE)).$this->element(0x9F, pack('J', $channels))),
-            ))
-            .$clusters
-            .$this->element(self::CLUSTER, $cluster),
+        $moov = fn (int $offset): string => $this->box('moov',
+            $this->box('mvhd', pack('N6', 0, 0, 0, 1000, $milliseconds, 0x10000).pack('n', 0x100).str_repeat("\0", 10).$matrix.str_repeat("\0", 24).pack('N', 2))
+            .$this->box('trak',
+                $this->box('tkhd', pack('N6', 3, 0, 0, 1, 0, $milliseconds).str_repeat("\0", 8).pack('nnnn', 0, 0, 0x100, 0).$matrix.pack('NN', 0, 0))
+                .$this->box('edts', $this->box('elst', pack('N5', 0, 1, $milliseconds, $preSkip, 0x10000)))
+                .$this->box('mdia',
+                    $this->box('mdhd', pack('N5', 0, 0, 0, self::OPUS_RATE, $samples).pack('nn', 0x55C4, 0))
+                    .$this->box('hdlr', pack('N2', 0, 0).'soun'.str_repeat("\0", 12)."SoundHandler\0")
+                    .$this->box('minf',
+                        $this->box('smhd', pack('N2', 0, 0))
+                        .$this->box('dinf', $this->box('dref', pack('N2', 0, 1).$this->box('url ', pack('N', 1))))
+                        .$this->box('stbl',
+                            $this->box('stsd', pack('N2', 0, 1).$this->box('Opus',
+                                str_repeat("\0", 6).pack('n', 1).str_repeat("\0", 8).pack('nnnn', $channels, 16, 0, 0).pack('N', self::OPUS_RATE << 16)
+                                .$this->box('dOps', pack('CCnNnC', 0, $channels, $preSkip, self::OPUS_RATE, 0, 0)),
+                            ))
+                            .$this->box('stts', pack('N2', 0, count($durations)).implode('', array_map(fn (array $run): string => pack('N2', ...$run), $durations)))
+                            .$this->box('stsc', pack('N5', 0, 1, 1, count($packets), 1))
+                            .$this->box('stsz', pack('N3', 0, 0, count($packets)).implode('', array_map(fn (array $packet): string => pack('N', mb_strlen($packet[1], '8bit')), $packets)))
+                            .$this->box('stco', pack('N3', 0, 1, $offset)),
+                        ),
+                    ),
+                ),
+            ),
         );
+
+        $ftyp = $this->box('ftyp', 'isom'.pack('N', 0x200).'isomiso2mp41');
+        $offset = mb_strlen($ftyp, '8bit') + mb_strlen($moov(0), '8bit') + 8;
+
+        return $ftyp.$moov($offset).$this->box('mdat', implode('', array_column($packets, 1)));
     }
 
-    /**
-     * An element with its size in as few bytes as it fits, as every block carries one.
-     */
-    private function element(int $id, string $data): string
+    private function box(string $type, string $data): string
     {
-        $size = mb_strlen($data, '8bit');
-        $length = 1;
-
-        while ($size >= (1 << (7 * $length)) - 1) {
-            $length++;
-        }
-
-        return mb_ltrim(pack('N', $id), "\0", '8bit').mb_substr(pack('J', $size | (1 << (7 * $length))), 8 - $length, null, '8bit').$data;
+        return pack('N', 8 + mb_strlen($data, '8bit')).$type.$data;
     }
 
     /**

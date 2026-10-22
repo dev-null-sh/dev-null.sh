@@ -5,7 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import type { UseVoiceNoteReturn } from '@/hooks/use-voice-note';
 import { cn } from '@/lib/utils';
-import { formatVoiceTime, maxVoiceMs, voiceBars } from '@/lib/voice-notes';
+import {
+    formatVoiceTime,
+    maxVoiceMs,
+    silenceUrl,
+    voiceBars,
+} from '@/lib/voice-notes';
 import type { VoiceDraft } from '@/lib/voice-notes';
 import type { MessageVoice } from '@/types';
 
@@ -91,6 +96,22 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
         };
     }, []);
 
+    const element = (): HTMLAudioElement => {
+        if (audio.current === null) {
+            const created = new Audio();
+
+            created.onpause = () =>
+                setState((state) => (state === 'playing' ? 'paused' : state));
+            created.onended = () => {
+                created.currentTime = 0;
+                paint();
+            };
+            audio.current = created;
+        }
+
+        return audio.current;
+    };
+
     // Pressing play again or scrubbing while the note downloads waits for the same download.
     const load = (): Promise<HTMLAudioElement> => {
         loading.current ??= (async () => {
@@ -109,18 +130,9 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
                       });
 
             objectUrl.current = URL.createObjectURL(blob);
+            element().src = objectUrl.current;
 
-            const element = new Audio(objectUrl.current);
-
-            element.onpause = () =>
-                setState((state) => (state === 'playing' ? 'paused' : state));
-            element.onended = () => {
-                element.currentTime = 0;
-                paint();
-            };
-            audio.current = element;
-
-            return element;
+            return element();
         })().catch((error: unknown) => {
             loading.current = null;
 
@@ -131,24 +143,34 @@ export function VoiceNote({ voice }: { voice: MessageVoice | VoiceDraft }) {
     };
 
     const play = async (from?: number) => {
+        const player = element();
+
+        if (playing !== player) {
+            playing?.pause();
+        }
+
+        playing = player;
+
+        // iOS only lets a page start audio from inside the tap itself, and the note is still downloading. Playing a
+        // moment of silence on the same element now, while the tap lasts, lets it play the note once it arrives.
+        if (objectUrl.current === null) {
+            player.src = silenceUrl();
+            void player.play().catch(() => undefined);
+        }
+
         if (state !== 'playing') {
             setState('loading');
         }
 
         try {
-            const element = await load();
+            await load();
 
             if (from !== undefined) {
-                element.currentTime = from / 1000;
+                player.currentTime = from / 1000;
                 paint();
             }
 
-            if (playing !== element) {
-                playing?.pause();
-            }
-
-            playing = element;
-            await element.play();
+            await player.play();
             setState('playing');
         } catch {
             setState('failed');

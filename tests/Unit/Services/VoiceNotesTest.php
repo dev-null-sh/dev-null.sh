@@ -4,17 +4,18 @@ declare(strict_types=1);
 
 use App\Services\VoiceNotes;
 
-it('rebuilds an Opus WebM recording from its packets alone', function (bool $blockGroups): void {
+it('rebuilds an Opus WebM recording as MP4 from its packets alone', function (bool $blockGroups): void {
     $rebuilt = resolve(VoiceNotes::class)->rebuild(voiceNoteWebm(2000, blockGroups: $blockGroups));
 
     expect($rebuilt)->not->toBeNull()
         ->and($rebuilt['duration_ms'] ?? null)->toBe(2000)
-        ->and($rebuilt['file'] ?? '')->toStartWith("\x1A\x45\xDF\xA3")
-        ->not->toContain('secret title')
+        ->and(mb_substr($rebuilt['file'] ?? '', 4, 8, '8bit'))->toBe('ftypisom')
+        ->and($rebuilt['file'] ?? '')->not->toContain('secret title')
         ->not->toContain('Chrome')
-        ->toContain('A_OPUS')
-        ->and(resolve(VoiceNotes::class)->type($rebuilt['file'] ?? ''))->toBe('audio/webm')
-        ->and(resolve(VoiceNotes::class)->rebuild($rebuilt['file'] ?? ''))->toBe($rebuilt);
+        ->toContain('dOps')
+        ->toContain('stts'.pack('N2', 0, 1).pack('N2', 100, 960))
+        ->toContain(pack('N', 8 + 100 * 41).'mdat')
+        ->and(resolve(VoiceNotes::class)->type($rebuilt['file'] ?? ''))->toBe('audio/mp4');
 })->with(['simple blocks' => false, 'block groups' => true]);
 
 it('rebuilds a recording made by a real Opus encoder, dropping its tags', function (): void {
@@ -35,11 +36,10 @@ it('times packets from their table of contents', function (string $toc, int $mil
     'three 20 ms CELT frames' => ["\xFB\x03", 6000],
 ]);
 
-it('starts a new cluster every 30 seconds', function (): void {
-    $file = resolve(VoiceNotes::class)->rebuild(voiceNoteWebm(45_000))['file'] ?? '';
+it('keeps runs of packet lengths in the sample table', function (): void {
+    $file = resolve(VoiceNotes::class)->rebuild(voiceNoteWebm(2000, toc: "\xF9"))['file'] ?? '';
 
-    expect(mb_substr_count($file, "\x1F\x43\xB6\x75", '8bit'))->toBe(2)
-        ->and(resolve(VoiceNotes::class)->rebuild($file)['duration_ms'] ?? null)->toBe(45_000);
+    expect($file)->toContain('stts'.pack('N2', 0, 1).pack('N2', 100, 1920));
 });
 
 it('rebuilds a 16 kHz mono WAV recording from its samples alone', function (): void {
