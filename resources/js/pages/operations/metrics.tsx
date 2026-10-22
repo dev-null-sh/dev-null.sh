@@ -17,6 +17,7 @@ import OperationsLayout from '@/layouts/operations/layout';
 import { formatCount } from '@/lib/numbers';
 import { cn, formatZonedDate } from '@/lib/utils';
 import type {
+    AcquisitionDay,
     ActivationDay,
     ActiveUsers,
     ActivityBucket,
@@ -429,6 +430,89 @@ function DailyBars({
     );
 }
 
+/**
+ * Signups and the conversion rate as two charts of the same days, one under the other, rather than one chart with two
+ * scales: each keeps its own zero, so neither trend is drawn against the other's.
+ */
+function AcquisitionByDay({
+    range,
+    days,
+    conversion,
+}: {
+    range: TrafficRange;
+    days: AcquisitionDay[];
+    conversion: number | null;
+}) {
+    const complete = days.filter((day) => day.complete);
+    const converting = days.filter(
+        (
+            day,
+        ): day is AcquisitionDay & { visitors: number; converted: number } =>
+            day.visitors !== null && day.visitors > 0 && day.converted !== null,
+    );
+
+    return (
+        <div className="space-y-4">
+            <div>
+                <p className="font-mono text-xs text-muted-foreground">
+                    sign-ups
+                </p>
+                <DailyBars
+                    range={range}
+                    average={
+                        complete.length === 0
+                            ? null
+                            : Math.round(
+                                  complete.reduce(
+                                      (sum, day) => sum + day.signups,
+                                      0,
+                                  ) / complete.length,
+                              )
+                    }
+                    bars={days
+                        .filter((day) => day.signups > 0)
+                        .map((day) => ({
+                            date: day.date,
+                            value: day.signups,
+                            isPartial: !day.complete,
+                            label:
+                                day.visitors && day.converted !== null
+                                    ? `${formatCount(day.signups)} sign-ups, ${percent(day.converted / day.visitors)} conversion`
+                                    : `${formatCount(day.signups)} sign-ups`,
+                        }))}
+                    caption="Sign-ups by day"
+                    column="Sign-ups"
+                    format={formatCount}
+                    empty="no sign-ups in these dates"
+                />
+            </div>
+            <div>
+                <p className="font-mono text-xs text-muted-foreground">
+                    conversion rate
+                </p>
+                <DailyBars
+                    range={range}
+                    average={conversion}
+                    bars={converting.map((day) => {
+                        const rate = day.converted / day.visitors;
+
+                        return {
+                            date: day.date,
+                            value: rate,
+                            isPartial: !day.complete,
+                            label: `${percent(rate)} of ${formatCount(day.visitors)} visitors, ${formatCount(day.signups)} sign-ups`,
+                        };
+                    })}
+                    caption="Conversion rate by day"
+                    column="Conversion rate"
+                    format={percent}
+                    empty="nothing yet: Fathom isn't set up, didn't answer, or had no visitors in these dates"
+                />
+            </div>
+        </div>
+    );
+}
+
 function ActivationByDay({
     range,
     days,
@@ -538,6 +622,21 @@ export default function Show({
 
             <Section title="Daily active users" meta="by day, utc">
                 <ActiveUserCounts range={range} counts={activeUserCounts} />
+            </Section>
+
+            <Section title="Acquisition by day" meta="by day, utc">
+                <Deferred
+                    data="funnel"
+                    fallback={<Skeleton className="h-96 w-full rounded-lg" />}
+                >
+                    {funnel && (
+                        <AcquisitionByDay
+                            range={range}
+                            days={funnel.acquisition_by_day}
+                            conversion={funnel.rates.conversion}
+                        />
+                    )}
+                </Deferred>
             </Section>
 
             <Section title="Activation by signup day" meta="by day, utc">

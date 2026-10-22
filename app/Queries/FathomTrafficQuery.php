@@ -88,11 +88,34 @@ final readonly class FathomTrafficQuery
     }
 
     /**
+     * The people who sent the event on each UTC day of the range that has any, by date, or null when Fathom isn't set up
+     * or didn't answer. Cached for five minutes, like the report.
+     *
+     * @return array<string, int>|null
+     */
+    public function eventVisitorsByDay(CarbonImmutable $from, CarbonImmutable $to, string $event): ?array
+    {
+        return $this->count("event-by-day:{$event}:{$from->toDateString()}:{$to->toDateString()}", fn (): array => $this->aggregate($from, $to, [
+            'aggregates' => 'unique_conversions',
+            'date_grouping' => 'day',
+            'sort_by' => 'timestamp:asc',
+        ], $event)
+            ->collect()
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->mapInto(Fluent::class)
+            ->mapWithKeys(fn (Fluent $row): array => [$row->string('date')->substr(0, 10)->value() => $row->integer('unique_conversions')])
+            ->all());
+    }
+
+    /**
      * Once Fathom fails to answer, the rest of the request stops asking it, so a slow Fathom is only waited on once.
      *
-     * @param  Closure(): int  $count
+     * @template T of int|array<string, int>
+     *
+     * @param  Closure(): T  $count
+     * @return T|null
      */
-    private function count(string $key, Closure $count): ?int
+    private function count(string $key, Closure $count): int|array|null
     {
         if (! $this->isConfigured() || Context::hasHidden(self::UNAVAILABLE)) {
             return null;
