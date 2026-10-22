@@ -39,6 +39,14 @@ export function VoiceVolume({
         }
     }, [isAdjusting]);
 
+    useEffect(() => () => window.clearTimeout(hovering.current), []);
+
+    // The keyboard and leaving the fader decide at once, overruling a hover still waiting.
+    const setAdjusting = (to: boolean) => {
+        window.clearTimeout(hovering.current);
+        onAdjustingChange(to);
+    };
+
     // Passing over the speaker on the way elsewhere changes nothing, and leaving puts the waveform back unless the
     // keyboard is still on the fader.
     const hover = (isEntering: boolean) => (event: PointerEvent) => {
@@ -67,7 +75,7 @@ export function VoiceVolume({
 
     const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
         if (event.key === 'Escape') {
-            onAdjustingChange(false);
+            setAdjusting(false);
             speaker.current?.focus();
 
             return;
@@ -93,11 +101,10 @@ export function VoiceVolume({
     return (
         <>
             <div
+                inert={!isAdjusting}
                 className={cn(
                     'absolute inset-y-0 right-9.5 left-10.5 flex items-center gap-2.5 transition-opacity duration-240 ease-out motion-reduce:transition-none',
-                    // Hidden only once it has faded out, and shown at once so the keyboard can move onto the fader.
-                    !isAdjusting &&
-                        'invisible opacity-0 transition-[opacity,visibility]',
+                    !isAdjusting && 'opacity-0',
                 )}
                 onPointerEnter={hover(true)}
                 onPointerLeave={hover(false)}
@@ -131,7 +138,7 @@ export function VoiceVolume({
                     onPointerUp={keepToItself}
                     onClick={keepToItself}
                     onKeyDown={onKeyDown}
-                    onBlur={() => onAdjustingChange(false)}
+                    onBlur={() => setAdjusting(false)}
                     className="h-7 min-w-0 flex-1 cursor-pointer touch-none rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                     data-test="voice-volume-fader"
                 />
@@ -153,7 +160,7 @@ export function VoiceVolume({
                 onClick={(event) => {
                     if (event.detail === 0) {
                         shouldFocus.current = !isAdjusting;
-                        onAdjustingChange(!isAdjusting);
+                        setAdjusting(!isAdjusting);
                     }
                 }}
                 className="grid size-7 shrink-0 place-items-center rounded-md opacity-60 transition-[opacity,background-color] hover:bg-current/10 hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none aria-expanded:bg-current/10 aria-expanded:opacity-100 pointer-coarse:hidden"

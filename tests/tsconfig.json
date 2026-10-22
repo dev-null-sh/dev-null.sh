@@ -20,6 +20,7 @@
         "Unit/FollowState.test.tsx",
         "Unit/LinkEmbedHeight.test.tsx",
         "Unit/VoiceVolume.test.tsx",
+        "Unit/VoiceVolumeHover.test.tsx",
         "Unit/OrgMentionSuggestions.test.tsx",
         "../resources/js/types/*.d.ts",
         "draft-images.config.ts"
