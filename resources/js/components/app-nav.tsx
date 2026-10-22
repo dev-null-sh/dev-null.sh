@@ -553,14 +553,16 @@ export function MobileNav({ children }: { children?: ReactNode }) {
 
         const root = document.documentElement;
         // Hidden while the keyboard is open, it keeps its height, so toasts above it do not drop onto it on the way back.
-        const observer = new ResizeObserver(() => {
+        const updateHeight = () => {
             const { height } = element.getBoundingClientRect();
 
             if (height > 0) {
                 root.style.setProperty('--mobile-nav-height', `${height}px`);
             }
-        });
+        };
+        const observer = new ResizeObserver(updateHeight);
 
+        updateHeight();
         observer.observe(element, { box: 'border-box' });
 
         return () => {

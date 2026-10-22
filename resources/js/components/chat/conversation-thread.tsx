@@ -1610,44 +1610,61 @@ function Composer({
                             >
                                 <Mic className="size-5" />
                             </Button>
-                            <MentionTextarea
-                                id={id}
-                                ref={input}
-                                members={members}
-                                org={
-                                    target.kind === 'org'
-                                        ? target.org.id
-                                        : undefined
-                                }
-                                rows={1}
-                                autoFocus={autoFocus}
-                                value={body}
-                                maxLength={maxLength}
-                                onValueChange={(value) => {
-                                    stash.updateBody(value);
-
-                                    if (
-                                        error !== null &&
-                                        characterCount(value) < maxLength
-                                    ) {
-                                        showError(null);
+                            <div className="relative min-w-0 flex-1">
+                                <MentionTextarea
+                                    id={id}
+                                    ref={input}
+                                    members={members}
+                                    org={
+                                        target.kind === 'org'
+                                            ? target.org.id
+                                            : undefined
                                     }
+                                    rows={1}
+                                    autoFocus={autoFocus}
+                                    value={body}
+                                    maxLength={maxLength}
+                                    onValueChange={(value) => {
+                                        stash.updateBody(value);
 
-                                    if (value.trim() !== '') {
-                                        pingTyping(target);
+                                        if (
+                                            error !== null &&
+                                            characterCount(value) < maxLength
+                                        ) {
+                                            showError(null);
+                                        }
+
+                                        if (value.trim() !== '') {
+                                            pingTyping(target);
+                                        }
+                                    }}
+                                    onFocus={moveCaretToEnd}
+                                    onPaste={onPaste}
+                                    onKeyDown={onKeyDown}
+                                    aria-invalid={
+                                        shownError !== null || undefined
                                     }
-                                }}
-                                onFocus={moveCaretToEnd}
-                                onPaste={onPaste}
-                                onKeyDown={onKeyDown}
-                                placeholder={placeholder}
-                                aria-invalid={shownError !== null || undefined}
-                                className={cn(
-                                    'field-sizing-content max-h-[min(10rem,calc(var(--visual-viewport-height,100dvh)/4))] min-h-10 min-w-0 flex-1 resize-none overflow-x-hidden rounded-lg border border-input bg-card px-4 py-2 text-base leading-snug outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
-                                    { 'min-h-9 py-1.5 md:text-sm': isCompact },
+                                    className={cn(
+                                        'block field-sizing-content max-h-[min(10rem,calc(var(--visual-viewport-height,100dvh)/4))] min-h-10 w-full resize-none overflow-x-hidden rounded-lg border border-input bg-card px-4 py-2 text-base leading-snug outline-none focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
+                                        {
+                                            'min-h-9 py-1.5 md:text-sm':
+                                                isCompact,
+                                        },
+                                    )}
+                                    data-test="message-input"
+                                />
+                                {body === '' && (
+                                    <span
+                                        aria-hidden
+                                        className={cn(
+                                            'pointer-events-none absolute inset-x-px top-px truncate px-4 py-2 text-base leading-snug text-muted-foreground md:text-[15px]',
+                                            { 'py-1.5 md:text-sm': isCompact },
+                                        )}
+                                    >
+                                        {placeholder}
+                                    </span>
                                 )}
-                                data-test="message-input"
-                            />
+                            </div>
                         </>
                     )}
                     <Button
