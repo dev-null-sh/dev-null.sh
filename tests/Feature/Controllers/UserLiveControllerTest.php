@@ -39,6 +39,30 @@ it('goes live with a YouTube stream for a few hours', function (string $url): vo
     'short link' => 'https://youtu.be/dQw4w9WgXcQ',
 ]);
 
+it('goes live with a Twitch stream for a few hours', function (string $url): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->fromRoute('user.show', $user)
+        ->put(route('user-live.update'), ['url' => " {$url} ", 'hours' => 3])
+        ->assertRedirectToRoute('user.show', $user);
+
+    expect($user->refresh())
+        ->live_platform->toBe(LivePlatform::Twitch)
+        ->live_url->toBe('https://www.twitch.tv/octocat')
+        ->and($user->live_ends_at?->toIso8601String())->toBe(now()->addHours(3)->toIso8601String());
+
+    $this->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page
+            ->where('user.live', [
+                'url' => 'https://www.twitch.tv/octocat',
+                'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_octocat-1280x720.jpg',
+            ]));
+})->with([
+    'channel link' => 'https://www.twitch.tv/octocat',
+    'channel without www' => 'https://twitch.tv/octocat',
+    'mobile link' => 'https://m.twitch.tv/octocat',
+]);
+
 it('shows the live marker on their commits in the log', function (): void {
     $user = liveUser();
     Commit::factory()->for($user)->create();
@@ -51,7 +75,7 @@ it('shows the live marker on their commits in the log', function (): void {
             ->missing('commits.data.0.user.live_ends_at'));
 });
 
-it('rejects links that are not a YouTube video', function (array $payload): void {
+it('rejects links that are not a stream', function (array $payload): void {
     $user = User::factory()->create();
 
     $this->actingAs($user)->putJson(route('user-live.update'), [...$payload, 'hours' => 2])
@@ -63,7 +87,7 @@ it('rejects links that are not a YouTube video', function (array $payload): void
     'missing' => fn (): array => [],
     'not a link' => fn (): array => ['url' => 'youtube'],
     'not a stream' => fn (): array => ['url' => 'https://example.com/live'],
-    'twitch' => fn (): array => ['url' => 'https://www.twitch.tv/octocat'],
+    'twitch page' => fn (): array => ['url' => 'https://www.twitch.tv/directory'],
     'playlist' => fn (): array => ['url' => 'https://www.youtube.com/playlist?list=PL590L5WQmH8fJ54F369BLDSqIwcs-TCfs'],
     'too long' => fn (): array => ['url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ&x='.str_repeat('a', 2048)],
 ]);

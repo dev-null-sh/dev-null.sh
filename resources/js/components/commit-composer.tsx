@@ -12,6 +12,7 @@ import {
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
+import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
 import {
     ComposerPollPreview,
     ComposerPreviewBody,
@@ -102,6 +103,7 @@ function CommitComposerBody({
     poll,
     setPoll,
     secrets,
+    commitRules,
     isSubmittable,
     processing,
     issue,
@@ -119,6 +121,7 @@ function CommitComposerBody({
     poll: PollDraft | null;
     setPoll: (poll: PollDraft | null) => void;
     secrets: ReturnType<typeof useSecretWarning>;
+    commitRules: ReturnType<typeof useCommitRules>;
     isSubmittable: boolean;
     processing: boolean;
     issue: UseIssueCommandReturn;
@@ -318,6 +321,10 @@ function CommitComposerBody({
                         />
                     )}
 
+                    <CommitRulesDialog
+                        rules={commitRules}
+                        textarea={textareaRef}
+                    />
                     <SecretWarning
                         body={body}
                         findings={secrets.findings}
@@ -595,6 +602,7 @@ export function CommitComposer({
     );
     const [poll, setPoll] = useState<PollDraft | null>(null);
     const secrets = useSecretWarning(body);
+    const commitRules = useCommitRules();
     const isPosting = useRef(false);
 
     const hasImages = attachments.images.length > 0;
@@ -670,6 +678,7 @@ export function CommitComposer({
                 !isPosting.current &&
                 !attachments.isReading() &&
                 issue.command === null &&
+                commitRules.beforeSubmit() &&
                 secrets.beforeSubmit()
             }
             onStart={() => {
@@ -680,6 +689,7 @@ export function CommitComposer({
             }}
             transform={(data) => ({
                 ...data,
+                commit_rules_accepted: commitRules.hasAccepted(),
                 ...(hasImages && {
                     images: attachments.images,
                     image_descriptions: attachments.descriptions,
@@ -724,6 +734,7 @@ export function CommitComposer({
                         poll={poll}
                         setPoll={setPoll}
                         secrets={secrets}
+                        commitRules={commitRules}
                         isSubmittable={isSubmittable}
                         processing={processing}
                         issue={issue}

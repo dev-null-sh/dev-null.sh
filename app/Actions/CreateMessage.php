@@ -23,6 +23,7 @@ final readonly class CreateMessage
     public function __construct(
         private EmojiShortcodes $emojiShortcodes,
         private CreateCommitImageFiles $createCommitImageFiles,
+        private CreateMessageVoiceFile $createMessageVoiceFile,
         private MentionedUsersQuery $mentionedUsers,
         private Urls $urls,
         private CreateLinkPreviewJob $createLinkPreviewJob,
@@ -45,8 +46,9 @@ final readonly class CreateMessage
     /**
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
+     * @param  list<int>  $voiceWaveform
      */
-    public function handle(User $sender, Conversation $conversation, string $body, string $clientId, ?Message $replyTo = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true): Message
+    public function handle(User $sender, Conversation $conversation, string $body, string $clientId, ?Message $replyTo = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?UploadedFile $voice = null, array $voiceWaveform = []): Message
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -54,7 +56,7 @@ final readonly class CreateMessage
             default => $linkPreview,
         };
 
-        $message = DB::transaction(function () use ($sender, $conversation, $body, $clientId, $replyTo, $images, $imageDescriptions, $url): Message {
+        $message = DB::transaction(function () use ($sender, $conversation, $body, $clientId, $replyTo, $images, $imageDescriptions, $url, $voice, $voiceWaveform): Message {
             $linkPreview = $url === null ? null : LinkPreview::query()->firstOrCreate(['url_hash' => hash('sha256', $url)], ['url' => $url]);
 
             $message = Message::query()->createOrFirst(
@@ -73,6 +75,10 @@ final readonly class CreateMessage
             }
 
             $message->images()->createMany($this->createCommitImageFiles->handle($images, $imageDescriptions, 'message-images'));
+
+            if ($voice instanceof UploadedFile) {
+                $message->voice()->create($this->createMessageVoiceFile->handle($voice, $voiceWaveform));
+            }
 
             self::advance($conversation, $message, unstash: true);
 

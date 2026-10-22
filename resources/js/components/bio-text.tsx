@@ -1,9 +1,7 @@
 import type { ReactNode } from 'react';
 import { mentionPattern } from '@/lib/mentions';
 
-// Like a shortened URL, the "@" stays in the text, so cop
-
-// ying the bio keeps the mention.
+// Like a shortened URL, the "@" stays in the text, so copying the bio keeps the mention.
 function GitHubMention({ username }: { username: string }) {
     const href = `https://github.com/${username}`;
 
@@ -14,11 +12,11 @@ function GitHubMention({ username }: { username: string }) {
             rel="noopener noreferrer nofollow ugc"
             title={href}
             aria-label={`@${username} on GitHub`}
-            className="inline-flex h-[1.55em] items-center gap-[0.3em] rounded-full border bg-muted pr-[0.55em] pl-[0.15em] align-[-0.3em] text-[0.93em] font-medium whitespace-nowrap text-foreground transition-colors hover:border-primary/45 hover:bg-primary-soft hover:text-primary-hover"
+            className="inline-flex h-[1.55em] items-center gap-[0.3em] rounded-md border bg-muted pr-[0.55em] pl-[calc(0.2em-1px)] align-[-0.3em] text-[0.93em] font-medium whitespace-nowrap text-foreground transition-colors hover:border-primary/45 hover:bg-primary-soft hover:text-primary-hover"
             data-test="bio-mention"
         >
-            {/* A handle GitHub doesn't know has no avatar, so the broken image leaves just this circle. */}
-            <span className="size-[1.15em] shrink-0 overflow-hidden rounded-full bg-border">
+            {/* A handle GitHub doesn't know has no avatar, so the broken image leaves just this placeholder. */}
+            <span className="size-[1.15em] shrink-0 overflow-hidden rounded-[calc(var(--radius-md)-0.2em)] bg-border">
                 <img
                     src={`${href}.png?size=40`}
                     alt=""
@@ -37,7 +35,7 @@ function GitHubMention({ username }: { username: string }) {
 }
 
 /**
- * A bio or company synced from GitHub, with each tagged user or organization as a pill that opens it on GitHub.
+ * A bio or company synced from GitHub, with each tagged user or organization as a badge that opens it on GitHub.
  */
 export function BioText({ bio }: { bio: string }) {
     const parts: ReactNode[] = [];

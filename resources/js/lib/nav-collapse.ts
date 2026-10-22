@@ -170,13 +170,19 @@ function lineBreaks(element: HTMLElement): string {
 
 let pin: { anchor: HTMLElement; top: number; until: number } | null = null;
 
-function commitNearestCenter(content: Element): HTMLElement | null {
+function rowNearestCenter(content: Element): HTMLElement | null {
     const center = window.innerHeight / 2;
     let nearest: HTMLElement | null = null;
     let nearestDistance = Infinity;
 
-    content.querySelectorAll<HTMLElement>('[data-commit]').forEach((commit) => {
-        const { top, bottom } = commit.getBoundingClientRect();
+    const selector = '[data-commit], [data-notification-group]';
+
+    content.querySelectorAll<HTMLElement>(selector).forEach((row) => {
+        if (row.parentElement?.closest(selector)) {
+            return;
+        }
+
+        const { top, bottom } = row.getBoundingClientRect();
 
         if (bottom < 0 || top > window.innerHeight) {
             return;
@@ -188,7 +194,7 @@ function commitNearestCenter(content: Element): HTMLElement | null {
                 : Math.min(Math.abs(top - center), Math.abs(bottom - center));
 
         if (distance < nearestDistance) {
-            nearest = commit;
+            nearest = row;
             nearestDistance = distance;
         }
     });
@@ -197,8 +203,8 @@ function commitNearestCenter(content: Element): HTMLElement | null {
 }
 
 /**
- * Keeps the commit nearest the middle of the screen where it is while everything around it changes size. Quick
- * clicks extend the hold and keep the same commit, so a burst of them can't walk the page away.
+ * Keeps the row nearest the middle of the screen where it is while everything around it changes size. Quick
+ * clicks extend the hold and keep the same row, so a burst of them can't walk the page away.
  */
 function pinScroll(content: Element, duration: number): void {
     const until = performance.now() + duration;
@@ -209,9 +215,9 @@ function pinScroll(content: Element, duration: number): void {
         return;
     }
 
-    // At the top, the page stays at the top: what's above can only shrink into it, so holding a commit would walk
+    // At the top, the page stays at the top: what's above can only shrink into it, so holding a row would walk
     // the page down a little with every expand.
-    const anchor = window.scrollY < 1 ? null : commitNearestCenter(content);
+    const anchor = window.scrollY < 1 ? null : rowNearestCenter(content);
 
     if (anchor === null) {
         return;

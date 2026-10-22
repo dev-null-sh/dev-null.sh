@@ -79,7 +79,7 @@ export default function Index({ query }: { query: string }) {
                         type="button"
                         onClick={clear}
                         aria-label="Clear search"
-                        className="absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-[color,opacity] hover:text-foreground disabled:pointer-events-none disabled:opacity-0"
+                        className="absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-[color,opacity] hover:text-foreground disabled:pointer-events-none disabled:opacity-0"
                         disabled={draft === ''}
                     >
                         <X className="size-4" />

@@ -30,6 +30,8 @@ export default defineConfig({
             'tests/Unit/ComposerDraft.test.tsx',
             'tests/Unit/QuoteDraft.test.tsx',
             'tests/Unit/EmojiSearch.test.tsx',
+            'tests/Unit/ReactionTray.test.tsx',
+            'tests/Unit/NotificationFilters.test.tsx',
             'tests/Unit/EmojiShortcodes.test.tsx',
             'tests/Unit/QuoteReply.test.tsx',
             'tests/Unit/SearchDialogComposition.test.tsx',
@@ -41,6 +43,8 @@ export default defineConfig({
             'tests/Unit/ComposerPreview.test.tsx',
             'tests/Unit/UseNow.test.tsx',
             'tests/Unit/LinkEmbedHeight.test.tsx',
+            'tests/Unit/CommitRules.test.tsx',
+            'tests/Unit/TimeoutRefusals.test.tsx',
         ],
     },
 });

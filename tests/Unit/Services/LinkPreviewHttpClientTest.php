@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Dto\LinkPreviewRequest;
 use App\Services\LinkPreviewHttpClient;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Symfony\Component\Process\Process;
 use Uri\WhatWg\Url;
@@ -43,6 +44,6 @@ it('recovers a bounded response when a server ignores the requested GIF range', 
             ->and(file_get_contents($requestLog))->toContain("Range: bytes=0-31\r\n");
     } finally {
         $server->stop();
-        unlink($requestLog);
+        File::delete($requestLog);
     }
 });
