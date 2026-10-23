@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\OrgMessageController;
 use App\Http\Controllers\Api\OrgMuteController;
 use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\OrgTypingController;
+use App\Http\Controllers\Api\RelatedCommitController;
 use App\Http\Controllers\Api\RemoteCandidateController;
 use App\Http\Controllers\Api\StarredCommitController;
 use App\Http\Controllers\Api\UserBlockController;
@@ -78,6 +79,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-user-following.index');
         Route::get('commits/{commit}', [ApiCommitController::class, 'show'])
             ->name('api-commit.show');
+        Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index'])
+            ->name('api-related-commit.index');
     });
 
     // Signing in: the app redeems the code it got on the web, signed with a key that isn't approved yet...
