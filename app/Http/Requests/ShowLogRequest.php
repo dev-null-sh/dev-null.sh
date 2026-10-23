@@ -26,7 +26,7 @@ final class ShowLogRequest extends FormRequest
     }
 
     /**
-     * Keep the loaded range when a follow changes who belongs in the log.
+     * Keep the loaded range when a follow changes who belongs in the log, or new commits arrive on top of it.
      */
     public function through(): ?Commit
     {

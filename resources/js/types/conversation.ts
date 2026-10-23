@@ -97,11 +97,14 @@ export type ConversationSummary = {
     partner: User | null;
     members: { user: User; role: OrgRole | null }[] | null;
     last_message: Message | null;
+    last_incoming_message_id: number | null;
+    last_incoming_sender: string | null;
     last_message_at: string | null;
     ahead: number;
     partner_read_through_id: number;
     partner_read_at: string | null;
     is_archived: boolean;
+    muted_until_at: string | null;
 };
 
 export type Thread = {
@@ -114,6 +117,7 @@ export type Thread = {
     partner_read_at: string | null;
     partner_typing: boolean;
     is_archived: boolean;
+    muted_until_at: string | null;
     access: PushAccess;
 };
 
@@ -126,6 +130,7 @@ export type OrgThread = {
     members: OrgMember[];
     typing: string[];
     is_archived: boolean;
+    muted_until_at: string | null;
     role: OrgRole | null;
     access: PushAccess;
 };

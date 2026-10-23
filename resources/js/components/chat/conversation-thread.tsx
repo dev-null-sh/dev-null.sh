@@ -1,3 +1,4 @@
+import { Link } from '@inertiajs/react';
 import { ArrowDown, Mic, X } from 'lucide-react';
 import type {
     ClipboardEvent,
@@ -52,6 +53,7 @@ import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
 import { useVoiceNote } from '@/hooks/use-voice-note';
 import {
     settleRequest,
+    loadMessage,
     loadOlderMessages,
     markThreadRead,
     pingTyping,
@@ -75,6 +77,7 @@ import {
     laneColor,
     localDayKey,
 } from '@/lib/utils';
+import { show } from '@/routes/user';
 import type {
     Message,
     MessageReply,
@@ -161,6 +164,9 @@ export function ConversationThread({
     const isReplyResizing = useRef(false);
     const seenLatest = useRef(0);
     const [unseen, setUnseen] = useState(0);
+    const [isBrowsingHistory, setIsBrowsingHistory] = useState(false);
+    const [isJumping, setIsJumping] = useState(false);
+    const jumpRequest = useRef<AbortController | null>(null);
 
     const messages = thread?.messages ?? noMessages;
     const pending = thread?.pending ?? noPending;
@@ -240,19 +246,62 @@ export function ConversationThread({
         [user, current, members, messages],
     );
 
-    const jumpTo = useCallback((id: number) => {
-        const bubble = scroller.current?.querySelector<HTMLElement>(
-            `[data-message-id="${id}"]`,
-        );
+    useEffect(() => () => jumpRequest.current?.abort(), []);
 
-        if (!bubble) {
-            return;
-        }
+    const jumpTo = useCallback(
+        async (id: number) => {
+            jumpRequest.current?.abort();
+            const request = new AbortController();
+            jumpRequest.current = request;
+            anchor.current = null;
+            restoredScrollTop.current = null;
+            isPinned.current = false;
+            setIsBrowsingHistory(true);
 
-        bubble.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        bubble.dataset.flash = '';
-        window.setTimeout(() => delete bubble.dataset.flash, 1200);
-    }, []);
+            let bubble = scroller.current?.querySelector<HTMLElement>(
+                `[data-message-id="${id}"]`,
+            );
+
+            if (!bubble) {
+                setIsJumping(true);
+                const found = await loadMessage(target, id, request.signal);
+
+                if (request.signal.aborted) {
+                    return;
+                }
+
+                // Let the store's last page render before locating the original bubble.
+                if (found) {
+                    await new Promise<void>((resolve) => {
+                        requestAnimationFrame(() => resolve());
+                    });
+                }
+
+                if (request.signal.aborted) {
+                    return;
+                }
+
+                bubble = scroller.current?.querySelector<HTMLElement>(
+                    `[data-message-id="${id}"]`,
+                );
+            }
+
+            jumpRequest.current = null;
+            setIsJumping(false);
+
+            if (!bubble) {
+                toast.error('Could not load this message. Try again.');
+                return;
+            }
+
+            anchor.current = null;
+            restoredScrollTop.current = null;
+            bubble.scrollIntoView({ block: 'center', behavior: 'instant' });
+            bubble.dataset.flash = '';
+            window.setTimeout(() => delete bubble.dataset.flash, 1200);
+        },
+        [target],
+    );
 
     const replyTo = useCallback(
         (reply: MessageReply) => {
@@ -286,9 +335,20 @@ export function ConversationThread({
     );
 
     useEffect(() => {
-        if (isVisible && thread?.isLoaded && isPinned.current) {
-            markThreadRead(target);
-        }
+        const markRead = () => {
+            if (isVisible && thread?.isLoaded && isPinned.current) {
+                markThreadRead(target);
+            }
+        };
+
+        markRead();
+        window.addEventListener('focus', markRead);
+        document.addEventListener('visibilitychange', markRead);
+
+        return () => {
+            window.removeEventListener('focus', markRead);
+            document.removeEventListener('visibilitychange', markRead);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isVisible, latestId, thread?.isLoaded, targetKey(target)]);
 
@@ -335,6 +395,9 @@ export function ConversationThread({
     const releaseScrollAnchor = useCallback(() => {
         // Let deliberate input own the viewport until the fold settles, including delayed automatic scroll events.
         anchor.current = null;
+        jumpRequest.current?.abort();
+        jumpRequest.current = null;
+        setIsJumping(false);
     }, []);
 
     // A row below the visible ones can still change height, as reactions or a link card arrive, and the scroller itself
@@ -435,9 +498,16 @@ export function ConversationThread({
     };
 
     const jumpToLatest = () => {
+        jumpRequest.current?.abort();
+        jumpRequest.current = null;
+        setIsJumping(false);
+        setIsBrowsingHistory(false);
+        anchor.current = null;
+        restoredScrollTop.current = null;
+        isPinned.current = true;
         const element = scroller.current;
 
-        element?.scrollTo({ top: 0, behavior: 'smooth' });
+        element?.scrollTo({ top: 0, behavior: 'instant' });
     };
 
     return (
@@ -455,6 +525,15 @@ export function ConversationThread({
             <div
                 ref={scroller}
                 onScroll={onScroll}
+                onScrollEnd={() => {
+                    if (
+                        scroller.current !== null &&
+                        isAtLatest(scroller.current) &&
+                        jumpRequest.current === null
+                    ) {
+                        setIsBrowsingHistory(false);
+                    }
+                }}
                 onKeyDown={(event) => {
                     if (
                         !event.defaultPrevented &&
@@ -529,14 +608,26 @@ export function ConversationThread({
                 )}
             </div>
 
-            {unseen > 0 && (
+            {(isBrowsingHistory || unseen > 0) && (
                 <button
                     type="button"
                     onClick={jumpToLatest}
-                    className="absolute bottom-[calc(var(--composer-height,4rem)+2.5rem)] left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-mono text-xs font-medium text-primary-foreground tabular-nums shadow-lg"
+                    aria-label={
+                        isBrowsingHistory ? 'Back to present' : undefined
+                    }
+                    className="absolute bottom-[calc(var(--composer-height,4rem)+2.5rem)] left-1/2 flex min-h-9 -translate-x-1/2 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium whitespace-nowrap text-primary-foreground shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
-                    <ArrowDown aria-hidden className="size-3.5" />
-                    {unseen} new
+                    {isJumping ? (
+                        <Spinner aria-hidden className="size-3.5" />
+                    ) : (
+                        <ArrowDown aria-hidden className="size-3.5" />
+                    )}
+                    {isBrowsingHistory ? 'Back to present' : `${unseen} new`}
+                    {isJumping && (
+                        <span className="sr-only" role="status">
+                            Loading original message
+                        </span>
+                    )}
                 </button>
             )}
 
@@ -556,6 +647,10 @@ export function ConversationThread({
                             : authorOf(replyingTo.user_id)
                     }
                     onSend={() => {
+                        jumpRequest.current?.abort();
+                        jumpRequest.current = null;
+                        setIsJumping(false);
+                        setIsBrowsingHistory(false);
                         isPinned.current = true;
                     }}
                     onReplySettled={settleReplyPreview}
@@ -753,8 +848,9 @@ const ThreadItem = memo(function ThreadItem({
             })}
         >
             {item.author !== null && (
-                <span
-                    className="flex max-w-full min-w-0 items-center gap-1.5 px-1.5 pb-0.5 text-xs text-muted-foreground"
+                <Link
+                    href={show(item.author)}
+                    className="group flex max-w-full min-w-0 items-center gap-1.5 rounded-sm px-1.5 pb-0.5 text-xs text-muted-foreground"
                     title={item.author.name}
                 >
                     <UserAvatar
@@ -766,10 +862,10 @@ const ThreadItem = memo(function ThreadItem({
                             } as React.CSSProperties
                         }
                     />
-                    <span className="truncate font-medium text-foreground">
+                    <span className="truncate font-medium text-foreground group-hover:underline">
                         {item.author.name}
                     </span>
-                </span>
+                </Link>
             )}
             {item.bubbles.map((bubble, index) => {
                 const key =
@@ -1390,6 +1486,7 @@ function Composer({
         });
         voiceNote.discard();
         showError(null);
+        attachments.clearError();
     };
 
     const submit = (event?: FormEvent) => {
@@ -1418,6 +1515,7 @@ function Composer({
         stash.drop();
         linkCard.reset();
         showError(null);
+        attachments.clearError();
         input.current?.focus();
     };
 
@@ -1610,13 +1708,8 @@ function Composer({
                                     maxLength={maxLength}
                                     onValueChange={(value) => {
                                         stash.updateBody(value);
-
-                                        if (
-                                            error !== null &&
-                                            characterCount(value) < maxLength
-                                        ) {
-                                            showError(null);
-                                        }
+                                        showError(null);
+                                        attachments.clearError();
 
                                         if (value.trim() !== '') {
                                             pingTyping(target);
