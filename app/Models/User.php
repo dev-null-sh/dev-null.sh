@@ -187,7 +187,7 @@ final class User extends Authenticatable
             'timezone' => 'string',
             'show_local_time' => 'boolean',
             'translation_language' => 'encrypted',
-            'automatic_translation' => 'encrypted:json',
+            'automatic_translation' => 'boolean',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',

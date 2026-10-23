@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 
-it('saves an encrypted automatic translation preference only for the signed-in user', function (bool $enabled): void {
+it('saves a boolean automatic translation preference only for the signed-in user', function (bool $enabled): void {
     $user = User::factory()->create(['automatic_translation' => ! $enabled]);
     $other = User::factory()->create(['automatic_translation' => ! $enabled]);
 
@@ -14,7 +14,7 @@ it('saves an encrypted automatic translation preference only for the signed-in u
         ->assertInertiaFlash('toast', ['type' => 'success', 'message' => 'Automatic translation preference saved.']);
 
     expect($user->refresh()->automatic_translation)->toBe($enabled)
-        ->and($user->getRawOriginal('automatic_translation'))->toBeString()->not->toBe($enabled ? 'true' : 'false')
+        ->and($user->getRawOriginal('automatic_translation'))->toBe($enabled)
         ->and($user->toArray())->not->toHaveKey('automatic_translation')
         ->and($other->refresh()->automatic_translation)->toBe(! $enabled);
 
