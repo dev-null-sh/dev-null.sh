@@ -32,7 +32,13 @@ import {
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
-import { agendaProgress, eventFormat, eventStateAt } from '@/lib/event';
+import {
+    agendaProgress,
+    eventFormat,
+    eventPlace,
+    eventStateAt,
+    timeZoneLabel,
+} from '@/lib/event';
 import { formatEventTime, formatEventWhen } from '@/lib/event-dates';
 import { cn, formatRelativeTime, shortHash } from '@/lib/utils';
 import type {
@@ -50,6 +56,7 @@ export default function Show({
     host,
     response,
     attendees,
+    attendeesLimit,
     commit,
     replies,
 }: {
@@ -57,12 +64,14 @@ export default function Show({
     host: User | null;
     response: EventResponse | null;
     attendees: User[];
+    attendeesLimit: number;
     commit: Commit;
     replies: CursorPaginated<ThreadCommit>;
 }) {
     const { auth } = usePage().props;
     const now = useNow();
     const timeZone = auth.user?.timezone ?? undefined;
+    const place = eventPlace(event);
     const state = eventStateAt(event, now);
     const isHost = auth.user !== null && host?.id === auth.user.id;
     const isOpen = state === 'upcoming' || state === 'live';
@@ -135,7 +144,6 @@ export default function Show({
 
                 <div className="mt-4 flex flex-wrap items-center gap-2">
                     <EventResponseButton
-                        key={response ?? 'none'}
                         eventId={event.id}
                         response={response}
                         goingCount={event.going_count}
@@ -149,18 +157,19 @@ export default function Show({
             <dl className="divide-y border-b text-sm">
                 <Detail icon={CalendarDays} term="When">
                     <span className="font-mono text-[13px]">
-                        {formatEventWhen(event, timeZone)}
+                        {formatEventWhen(event, timeZone)} ·{' '}
+                        {timeZoneLabel(new Date(event.starts_at), timeZone)}
                     </span>
                 </Detail>
-                {event.location !== null && (
+                {place !== null && (
                     <Detail icon={MapPin} term="Where">
                         <a
-                            href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(event.location)}`}
+                            href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(place)}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="wrap-break-word text-primary hover:underline"
                         >
-                            {event.location}
+                            {place}
                         </a>
                     </Detail>
                 )}
@@ -198,26 +207,25 @@ export default function Show({
                     </span>
                 </Detail>
                 <Detail icon={Users} term="Going" id="going">
-                    {attendees.length === 0 && host === null ? (
+                    {attendees.length === 0 ? (
                         <span className="text-muted-foreground">
                             No one yet
                         </span>
                     ) : (
                         <ul className="flex flex-wrap items-center gap-1">
-                            {host && (
-                                <AttendeeAvatar user={host} label="host" />
-                            )}
                             {attendees.map((attendee) => (
                                 <AttendeeAvatar
                                     key={attendee.id}
                                     user={attendee}
                                 />
                             ))}
-                            {event.going_count > attendees.length && (
-                                <li className="ml-1 font-mono text-[13px] text-muted-foreground">
-                                    +{event.going_count - attendees.length}
-                                </li>
-                            )}
+                            {/* Only once the avatars are full, so it never stands for someone left out across a block. */}
+                            {attendees.length >= attendeesLimit &&
+                                event.going_count > attendees.length && (
+                                    <li className="ml-1 font-mono text-[13px] text-muted-foreground">
+                                        +{event.going_count - attendees.length}
+                                    </li>
+                                )}
                         </ul>
                     )}
                 </Detail>
@@ -264,12 +272,12 @@ function Detail({
     );
 }
 
-function AttendeeAvatar({ user, label }: { user: User; label?: string }) {
+function AttendeeAvatar({ user }: { user: User }) {
     return (
         <li>
             <Link
                 href={userShow(user)}
-                title={`@${user.username}${label ? ` (${label})` : ''}`}
+                title={`@${user.username}`}
                 className="block rounded-full"
             >
                 <UserAvatar user={user} className="size-7" pixels={56} />

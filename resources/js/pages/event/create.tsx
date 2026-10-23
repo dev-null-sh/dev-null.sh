@@ -1,4 +1,4 @@
-import { Head, Link, useForm } from '@inertiajs/react';
+import { Head, Link, useForm, usePage } from '@inertiajs/react';
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import type { FormEvent } from 'react';
 import EventController from '@/actions/App/Http/Controllers/EventController';
@@ -6,28 +6,22 @@ import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
+import { timeZoneLabel, wallTimeToInstant } from '@/lib/event';
 import { characterCount, cn } from '@/lib/utils';
 
 const inputClass =
     'flex h-9 w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm dark:bg-input/30';
 
-const maxBodyLength = 4000;
-
 type AgendaDraft = { label: string; starts_at: string };
-
-/**
- * A datetime-local value is in the browser's time zone, so it is sent as an instant the server can't misread.
- */
-function toInstant(value: string): string {
-    return value === '' ? '' : new Date(value).toISOString();
-}
 
 export default function Create({
     limits,
 }: {
     limits: {
         title: number;
+        body: number;
         location: number;
         url: number;
         agendaItems: number;
@@ -35,6 +29,13 @@ export default function Create({
         durationDays: number;
     };
 }) {
+    const { auth } = usePage().props;
+    const now = useNow();
+    // Times are entered on the clock the event pages show them on: the profile's time zone, else the browser's.
+    const timeZone = auth.user?.timezone ?? undefined;
+    const zoneName =
+        timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const toInstant = (value: string) => wallTimeToInstant(value, timeZone);
     const form = useForm({
         title: '',
         body: '',
@@ -123,7 +124,7 @@ export default function Create({
                             Replies to it become the event's discussion.
                         </span>
                         <span className="font-mono text-xs tabular-nums">
-                            {maxBodyLength - characterCount(data.body)}
+                            {limits.body - characterCount(data.body)}
                         </span>
                     </div>
                     <InputError message={errors.body} />
@@ -161,6 +162,13 @@ export default function Create({
                         />
                         <InputError message={errors.ends_at} />
                     </div>
+                    <p
+                        className="text-xs text-muted-foreground sm:col-span-2"
+                        data-test="event-time-zone"
+                    >
+                        Times are in {zoneName} ({timeZoneLabel(now, timeZone)}
+                        ).
+                    </p>
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">

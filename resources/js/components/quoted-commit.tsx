@@ -1,4 +1,5 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
+import { CalendarDays } from 'lucide-react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
@@ -8,6 +9,7 @@ import { CommitStatusBadge } from '@/components/commit-status-badge';
 import { LinkPreview } from '@/components/link-preview';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
+import { formatEventWhen } from '@/lib/event-dates';
 import {
     cn,
     formatFullDateTime,
@@ -24,6 +26,7 @@ export function QuotedCommit({
     isPreview?: boolean;
 }) {
     const now = useNow();
+    const { auth } = usePage().props;
     if (commit === null || isDeleted(commit)) {
         return (
             <p
@@ -70,6 +73,21 @@ export function QuotedCommit({
                 previewSegments={commit.preview_segments}
                 className="mt-1 max-h-60"
             />
+            {commit.event && (
+                // The quote links to the commit already, so the event it announces is named rather than linked.
+                <span className="mt-1.5 flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
+                    <CalendarDays className="size-3.5 shrink-0" />
+                    <span className="truncate font-medium text-foreground">
+                        {commit.event.title}
+                    </span>
+                    <span className="shrink-0 font-mono">
+                        {formatEventWhen(
+                            commit.event,
+                            auth.user?.timezone ?? undefined,
+                        )}
+                    </span>
+                </span>
+            )}
             {commit.images && <CommitImages images={commit.images} />}
             {commit.poll && (
                 <CommitPoll commit={commit} poll={commit.poll} isStatic />
