@@ -21,6 +21,7 @@ import { LaneOptions, LanePreview } from '@/components/lane-picker';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { SuggestedUserRow } from '@/components/who-to-follow';
+import { WordmarkText } from '@/components/wordmark-text';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useUser } from '@/hooks/use-user';
 import { useKeyLabels } from '@/lib/keyboard';
@@ -287,7 +288,13 @@ export default function Show({
                 <StepContent
                     headingRef={headingRef}
                     title="This is you, according to GitHub."
-                    description="/dev/null copies your GitHub profile every time you sign in, so there's nothing to fill in. To change any of it, change it on GitHub, then sync it here."
+                    description={
+                        <WordmarkText>
+                            /dev/null copies your GitHub profile every time you
+                            sign in, so there's nothing to fill in. To change
+                            any of it, change it on GitHub, then sync it here.
+                        </WordmarkText>
+                    }
                     actions={
                         <>
                             <Button onClick={next}>Looks right</Button>

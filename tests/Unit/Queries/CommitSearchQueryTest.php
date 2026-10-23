@@ -13,7 +13,7 @@ use Laravel\Ai\Exceptions\EmbeddingsCountMismatchException;
 use Laravel\Ai\Prompts\EmbeddingsPrompt;
 
 beforeEach(function (): void {
-    config(['services.openai.key' => 'sk-test', 'ai.providers.openai.key' => 'sk-test']);
+    config(['ai.providers.openai.key' => 'sk-test']);
 });
 
 it('returns the commits nearest in meaning, closest first', function (): void {

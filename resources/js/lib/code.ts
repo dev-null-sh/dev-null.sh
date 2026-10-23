@@ -3,7 +3,7 @@ import type { BodySegment } from '@/types';
 // Keep in sync with app/Services/CodeSpans.php: a fenced code block, from a line starting with ``` or more (and maybe
 // a language) to a line that is only ``` or more, or inline code between two backticks on one line.
 const committedCode = String.raw`(?<![^\n])\`{3,}[^\`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?\`{3,}[ \t]*(?![^\r\n])|\`[^\`\r\n]+\``;
-const codePattern = new RegExp(`(${committedCode})`);
+export const codePattern = new RegExp(`(${committedCode})`);
 // While typing, a block or inline code that isn't closed yet also runs to the end of the text.
 const typedCodePattern = new RegExp(
     `(${committedCode}|${String.raw`(?<![^\n])\`\`\`[\s\S]*$|\`[^\`\r\n]*$`})`,
@@ -97,6 +97,53 @@ export function bodySegments(text: string): BodySegment[] {
 
 export function hasCodeBlock(segments: BodySegment[]): boolean {
     return segments.some((segment) => segment.type === 'block');
+}
+
+/**
+ * Groups quoted prose lines without interpreting markers inside code or changing the stored segments.
+ */
+export function bodyBlocks(
+    segments: BodySegment[],
+): { quoted: boolean; segments: BodySegment[] }[] {
+    const blocks: { quoted: boolean; segments: BodySegment[] }[] = [];
+    let atLineStart = true;
+    let quoted = false;
+
+    for (const segment of segments.flatMap((segment): BodySegment[] =>
+        segment.type === 'text'
+            ? segment.text
+                  .split(/(?<=\n)/)
+                  .map((text) => ({ type: 'text', text }))
+            : [segment],
+    )) {
+        if (atLineStart || segment.type === 'block') {
+            quoted = segment.type === 'text' && segment.text.startsWith('>');
+        }
+
+        const content =
+            atLineStart && quoted && segment.type === 'text'
+                ? { ...segment, text: segment.text.replace(/^> ?/, '') }
+                : segment;
+        const previous = blocks.at(-1);
+
+        if (previous?.quoted === quoted) {
+            previous.segments.push(content);
+        } else {
+            const last = previous?.segments.at(-1);
+
+            if (last?.type === 'text') {
+                last.text = last.text.replace(/\r?\n$/, '');
+            }
+
+            blocks.push({ quoted, segments: [content] });
+        }
+
+        atLineStart =
+            segment.type === 'block' ||
+            (segment.type === 'text' && segment.text.endsWith('\n'));
+    }
+
+    return blocks;
 }
 
 /**

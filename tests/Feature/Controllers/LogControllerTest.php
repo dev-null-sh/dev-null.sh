@@ -6,12 +6,15 @@ use App\Actions\UpdateCommitHotScores;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Services\Features;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 it('renders own commits and commits of followed users newest first', function (): void {
@@ -524,6 +527,8 @@ it('includes the images and link previews of quoted commits', function (Log $log
 })->with(Log::cases());
 
 it('loads the quoted commits of a log without a query per commit', function (Log $log): void {
+    Queue::fake([DetectCommitLanguage::class]);
+    resolve(Features::class)->all();
     $user = User::factory()->create(['log' => $log, 'last_seen_at' => today()]);
 
     $queries = function () use ($user, $log): int {
@@ -564,7 +569,9 @@ it('defers suggested users to follow', function (): void {
                 ->where('suggestedUsers.0.bio', $suggested->bio)
                 ->missing('suggestedUsers.0.email')));
 
-    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers');
+    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers')
+        ->and($response->viewData('page')['mergeProps'] ?? [])->toContain('suggestedUsers')
+        ->and($response->viewData('page')['matchPropsOn'] ?? [])->toContain('suggestedUsers.id');
 });
 
 it('keeps the suggested users the client already loaded when navigating', function (): void {
@@ -716,6 +723,41 @@ it('retains the loaded Following range when a follow request supplies its bounda
         ->assertJsonCount(25, 'props.commits.data')
         ->assertJsonPath('props.commits.data.24.id', $loaded[24]->id)
         ->assertJsonPath('scrollProps.commits.reset', true);
+});
+
+it('retains the loaded Latest range when new commits arrive on top of it', function (): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->for($viewer)->count(30)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subHour()->subMinutes($sequence->index)],
+    )->create();
+    $arrived = Commit::factory()->count(3)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+
+    $this->actingAs($viewer)->get(route('log.show', Log::Latest), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'commits',
+        'X-Inertia-Reset' => 'commits',
+        'X-Log-Through' => $loaded[24]->id,
+    ])->assertOk()
+        ->assertJsonCount(28, 'props.commits.data')
+        ->assertJsonPath('props.commits.data.0.id', $arrived[0]->id)
+        ->assertJsonPath('props.commits.data.27.id', $loaded[24]->id);
+});
+
+it('does not hold a ranked log to a loaded range', function (): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->for($viewer)->count(30)->create();
+
+    $this->actingAs($viewer)->get(route('log.show', Log::Trending), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'commits',
+        'X-Log-Through' => $loaded[24]->id,
+    ])->assertOk()->assertJsonCount(20, 'props.commits.data');
 });
 
 it('ignores a missing or inaccessible range boundary', function (string $boundary): void {

@@ -11,6 +11,7 @@ import {
     DialogFooter,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { WordmarkText } from '@/components/wordmark-text';
 
 const rules = [
     [
@@ -87,8 +88,11 @@ export function CommitRulesDialog({
             >
                 <DialogTitle>Before your first commit</DialogTitle>
                 <DialogDescription>
-                    Welcome! /dev/null is for developers talking to developers,
-                    so here's a quick heads-up on what doesn't fit here.
+                    <WordmarkText>
+                        {
+                            "Welcome! /dev/null is for developers talking to developers, so here's a quick heads-up on what doesn't fit here."
+                        }
+                    </WordmarkText>
                 </DialogDescription>
 
                 <ul className="grid gap-3 border-y py-4">

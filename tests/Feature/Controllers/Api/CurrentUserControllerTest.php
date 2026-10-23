@@ -60,6 +60,13 @@ it('returns the signed-in user with their unread notifications and their pastéi
                 'automatic_lane' => $user->automaticLane(),
                 'sponsors_url' => null,
                 'github_synced_at' => null,
+                'remotes' => [
+                    'from' => 'following',
+                    'pull_receipts' => true,
+                    'requests' => false,
+                    'everyone' => false,
+                    'unread_count' => 0,
+                ],
             ],
             'unread_notifications_count' => 1,
         ]);
@@ -110,6 +117,34 @@ it('counts unread notifications in groups, like the web', function (): void {
 
     $response->assertOk()
         ->assertJsonPath('unread_notifications_count', 1);
+});
+
+it('counts unread messages and requests the way the nav on the web does', function (): void {
+    config(['remotes.requests' => true]);
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $followed = User::factory()->create();
+    $stranger = User::factory()->create();
+
+    $user->following()->attach($followed);
+    sendChatMessage($followed, $user);
+    sendChatMessage($followed, $user, 'still there?');
+    sendChatMessage($stranger, $user);
+
+    signedApiRequest($keyPair, 'GET', route('api-current-user.show'))
+        ->assertOk()
+        ->assertJsonPath('data.remotes.requests', true)
+        ->assertJsonPath('data.remotes.unread_count', 3);
+});
+
+it('says nothing about Remotes while the user has them off', function (): void {
+    $user = User::factory()->create(['remotes_enabled' => false]);
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'GET', route('api-current-user.show'))
+        ->assertOk()
+        ->assertJsonPath('data.remotes', null);
 });
 
 it('rejects requests that are not signed', function (): void {

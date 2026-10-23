@@ -8,6 +8,7 @@ import { MessageStatusGlyph } from '@/components/chat/message-status';
 import { eventText, MemberStack, orgTitle } from '@/components/chat/org';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
+import { WordmarkText } from '@/components/wordmark-text';
 import { useNow } from '@/hooks/use-now';
 import { summaryKey, targetOf } from '@/lib/chat';
 import type { ChatTarget } from '@/lib/chat';
@@ -91,17 +92,23 @@ function ConversationRow({
             ? orgTitle(conversation, conversation.members, user)
             : `@${partner.username}`;
     const isMine = lastMessage?.user_id === user.id && !lastMessage.event;
-    const lastBody = lastMessage?.body || 'sent an image';
+    const lastBody =
+        lastMessage?.body ||
+        (lastMessage?.voice ? 'sent a voice note' : 'sent an image');
+    const prefix =
+        lastMessage === null || lastMessage.event
+            ? ''
+            : isMine
+              ? 'you: '
+              : partner === null
+                ? `${lastMessage.user?.name.split(' ')[0] ?? 'someone'}: `
+                : '';
     const preview =
         lastMessage === null
             ? ''
             : lastMessage.event
               ? eventText(lastMessage, user)
-              : isMine
-                ? `you: ${lastBody}`
-                : partner === null
-                  ? `${lastMessage.user?.name.split(' ')[0] ?? 'someone'}: ${lastBody}`
-                  : lastBody;
+              : lastBody;
     const className = cn(
         'relative grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 text-left transition-colors hover:bg-accent focus-visible:-outline-offset-2',
         isCompact ? 'px-3.5 py-2.5' : 'px-4 py-3',
@@ -135,18 +142,27 @@ function ConversationRow({
             )}
             <span className="min-w-0">
                 {partner === null ? (
-                    <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="flex min-w-0 items-baseline">
                         <span
                             className={cn(
-                                'truncate font-semibold',
+                                'min-w-0 flex-1 truncate font-semibold',
                                 isCompact ? 'text-sm' : 'text-[15px]',
                             )}
                             title={title}
                         >
                             {title}
                         </span>
-                        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                            org · {others.length + 1}
+                        <span
+                            className={cn(
+                                'grid shrink-0 grid-cols-[1fr] font-mono text-xs text-muted-foreground tabular-nums group-focus-within:grid-cols-[0fr] group-focus-within:opacity-0 group-data-[menu=open]:grid-cols-[0fr] group-data-[menu=open]:opacity-0 motion-safe:transition-[grid-template-columns,opacity] motion-safe:duration-200 motion-safe:ease-out [@media(hover:hover)]:group-hover:grid-cols-[0fr] [@media(hover:hover)]:group-hover:opacity-0',
+                                { 'grid-cols-[0fr] opacity-0': isActive },
+                            )}
+                        >
+                            <span className="min-w-0 overflow-hidden text-right">
+                                <span className="pl-1.5 whitespace-nowrap">
+                                    org · {others.length + 1}
+                                </span>
+                            </span>
                         </span>
                     </span>
                 ) : (
@@ -190,9 +206,10 @@ function ConversationRow({
                         className={cn('truncate', {
                             'font-mono text-xs': lastMessage?.event,
                         })}
-                        title={preview}
+                        title={`${prefix}${preview}`}
                     >
-                        {preview}
+                        {prefix}
+                        <WordmarkText>{preview}</WordmarkText>
                     </span>
                 </span>
             </span>
@@ -262,9 +279,10 @@ function ConversationRow({
                     title={title}
                     user={user}
                     isArchived={conversation.is_archived}
+                    conversation={conversation}
                     onLeave={isActive ? onLeaveActive : undefined}
                     onBlocked={isActive ? onLeaveActive : onBlocked}
-                    onOpenChange={setIsMenuOpen}
+                    onPresenceChange={setIsMenuOpen}
                 />
             </div>
         </li>

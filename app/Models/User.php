@@ -44,8 +44,10 @@ use Illuminate\Support\Facades\DB;
  * @property-read int $pasteis_given_today
  * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
+ * @property-read bool|null $automatic_translation
  * @property-read string|null $translation_language
  * @property-read string|null $timezone
+ * @property-read bool $show_local_time
  * @property-read LivePlatform|null $live_platform
  * @property-read string|null $live_url
  * @property-read CarbonInterface|null $live_ends_at
@@ -82,6 +84,7 @@ use Illuminate\Support\Facades\DB;
     'github_id',
     'remember_token',
     'translation_language',
+    'automatic_translation',
     'preferred_lane',
     'lane_color',
     'pasteis_mode',
@@ -128,6 +131,7 @@ final class User extends Authenticatable
     protected $attributes = [
         'log' => Log::Following->value,
         'translation_language' => null,
+        'show_local_time' => false,
         'pasteis_mode' => false,
         'remotes_enabled' => true,
         'remotes_from' => RemotesFrom::Following->value,
@@ -178,7 +182,9 @@ final class User extends Authenticatable
             'pasteis_given_on' => 'date',
             'pinned_commit_id' => 'string',
             'timezone' => 'string',
+            'show_local_time' => 'boolean',
             'translation_language' => 'encrypted',
+            'automatic_translation' => 'boolean',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',
@@ -309,6 +315,14 @@ final class User extends Authenticatable
     public function muting(): BelongsToMany
     {
         return $this->belongsToMany(self::class, 'mutes', 'muter_id', 'muted_id')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function dismissedSuggestions(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'suggestion_dismissals', 'user_id', 'dismissed_id')->withTimestamps();
     }
 
     /**

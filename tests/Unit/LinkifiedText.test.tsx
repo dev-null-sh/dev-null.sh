@@ -5,12 +5,17 @@ import type { ComponentProps, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vite-plus/test';
 import { BodyCounter } from '../../resources/js/components/body-counter';
+import { ConversationList } from '../../resources/js/components/chat/conversation-list';
+import { MessageText } from '../../resources/js/components/chat/message-parts';
 import { CommitBody } from '../../resources/js/components/commit-body';
 import {
     LinkifiedText,
     typedLinks,
 } from '../../resources/js/components/linkified-text';
+import { WordmarkText } from '../../resources/js/components/wordmark-text';
+import { bodySegments } from '../../resources/js/lib/code';
 import { bodyCharacterCount } from '../../resources/js/lib/commit';
+import type { User } from '../../resources/js/types';
 
 test('counts each prose URL once per occurrence, without discounting code or oversized links', () => {
     const cases: [string, number][] = [
@@ -147,6 +152,74 @@ test('keeps captured mention identities in regular bodies alongside highlighted 
 });
 
 const url = 'https://www.example.com/a-long-path-to-the-release-notes';
+
+for (const surface of ['commit', 'remote', 'optimistic remote', 'excerpt']) {
+    test(`formats consecutive quote lines with inline content in a ${surface}`, () => {
+        const body =
+            '> First `code`\r\n> @original https://example.com :smile:\r\nNormal > text\n>Last';
+        const mentions = { original: '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b' };
+        const segments = bodySegments(body);
+        const html = renderPage(
+            surface.includes('remote') ? (
+                <MessageText
+                    message={{
+                        body,
+                        mentions,
+                        body_segments:
+                            surface === 'remote' ? segments : undefined,
+                    }}
+                    isMine={surface === 'optimistic remote'}
+                />
+            ) : (
+                <CommitBody
+                    segments={segments}
+                    mentions={mentions}
+                    isStatic={surface === 'excerpt'}
+                />
+            ),
+        );
+
+        const quotes = [
+            ...html.matchAll(/<blockquote[^>]*>(.*?)<\/blockquote>/gs),
+        ];
+        assert.equal(quotes.length, 2);
+        assert.equal(
+            quotes[0][1].replace(/<[^>]+>/g, ''),
+            'First code\r\n@original https://example.com 😄',
+        );
+        assert.match(quotes[0][1], /<code[^>]*>code<\/code>/);
+        assert.equal(quotes[1][1], 'Last');
+        assert.match(html, /<\/blockquote>Normal &gt; text<blockquote/);
+        if (surface === 'excerpt') {
+            assert.ok(!html.includes('<a'));
+        } else {
+            assert.ok(
+                quotes[0][1].includes(`href="/mentions/${mentions.original}"`),
+            );
+            assert.ok(quotes[0][1].includes('href="https://example.com"'));
+        }
+    });
+}
+
+test('only treats prose at a line start as a quote and escapes quoted HTML', () => {
+    const html = renderPage(
+        <CommitBody
+            segments={bodySegments(
+                '`code`> literal\n```text\n> fenced\n```\n> <script>alert(1)</script>\n>\n> `> inline`\n\nAfter',
+            )}
+            mentions={null}
+        />,
+    );
+
+    assert.equal(html.match(/<blockquote/g)?.length, 1);
+    assert.match(html, /<\/code>&gt; literal/);
+    assert.match(html, /<pre[^>]*>&gt; fenced<\/pre>/);
+    assert.match(
+        html,
+        /&lt;script&gt;alert\(1\)&lt;\/script&gt;\n\n<code[^>]*>&gt; inline<\/code><\/blockquote>\nAfter/,
+    );
+    assert.ok(!html.includes('<script>'));
+});
 
 test('finds the full preview URL outside inline and fenced code', () => {
     const body = [
@@ -341,8 +414,8 @@ for (const [link, href] of [
         'HTTPS://GitHub.com/laravel/framework',
     ],
     [
-        'http://github.com/nunomaduro/dev-null.sh',
-        'http://github.com/nunomaduro/dev-null.sh',
+        'http://github.com/dev-null-sh/dev-null.sh',
+        'http://github.com/dev-null-sh/dev-null.sh',
     ],
 ]) {
     test(`shows GitHub repository links however they are written: ${link}`, () => {
@@ -438,4 +511,100 @@ for (const link of [
         assert.ok(!markup.includes('aria-label'));
         assert.ok(markup.includes(`href="${link}"`));
     });
+}
+
+test('styles every standalone brand mention in UI copy without changing its text', () => {
+    const text = 'Welcome to /dev/null. /dev/null was updated.';
+    const html = renderToStaticMarkup(<WordmarkText>{text}</WordmarkText>);
+
+    assert.equal(html.replace(/<[^>]*>/g, ''), text);
+    assert.equal(html.match(/-webkit-text-stroke/g)?.length, 2);
+    assert.equal(html.match(/whitespace-nowrap/g)?.length, 2);
+});
+
+test('leaves paths, URLs, and longer names unchanged in UI copy', () => {
+    const text =
+        'https://example.com/dev/null /dev/nullish /dev/null/file x/dev/null /dev/null-é';
+
+    assert.equal(
+        renderToStaticMarkup(<WordmarkText>{text}</WordmarkText>),
+        text,
+    );
+});
+
+test('leaves literal code plain while styling surrounding brand mentions', () => {
+    const text =
+        '/dev/null tip: Use `cat > /dev/null` for output.\n```sh\ncat > /dev/null\n```\nBack to /dev/null.';
+    const html = renderToStaticMarkup(<WordmarkText>{text}</WordmarkText>);
+
+    assert.equal(html.match(/-webkit-text-stroke/g)?.length, 2);
+    assert.ok(html.includes('`cat &gt; /dev/null`'));
+    assert.ok(html.includes('```sh\ncat &gt; /dev/null\n```'));
+});
+
+for (const kind of ['direct', 'org'] as const) {
+    for (const outgoing of [false, true]) {
+        test(`keeps fenced code plain in ${outgoing ? 'outgoing' : 'incoming'} ${kind} previews`, () => {
+            const user: User = {
+                id: 'viewer',
+                name: 'Alex Morgan',
+                username: 'alex',
+                avatar_url: null,
+                bio: null,
+                company: null,
+                location: null,
+                website: null,
+                lane: 0,
+                timezone: null,
+                show_local_time: false,
+                has_sponsors_listing: false,
+                has_github_account: true,
+                created_at: '2026-10-23T10:00:00Z',
+                updated_at: '2026-10-23T10:00:00Z',
+            };
+            const partner = {
+                ...user,
+                id: 'sender',
+                name: 'Sam Rivera',
+                username: 'sam',
+            };
+            const sender = outgoing ? user : partner;
+            const body = '```sh\ncat > /dev/null\n```\nBack to /dev/null.';
+            const prefix = outgoing ? 'you: ' : kind === 'org' ? 'Sam: ' : '';
+            const html = renderPage(
+                <ConversationList
+                    user={user}
+                    empty={null}
+                    conversations={[
+                        {
+                            id: 'conversation',
+                            kind,
+                            name: 'Developers',
+                            partner: kind === 'direct' ? partner : null,
+                            members: [{ user: partner, role: null }],
+                            last_message: {
+                                id: 1,
+                                user_id: sender.id,
+                                user: sender,
+                                client_id: 'message',
+                                body,
+                                created_at: user.created_at,
+                            },
+                            last_message_at: null,
+                            ahead: 0,
+                            partner_read_through_id: 0,
+                            partner_read_at: null,
+                            is_archived: false,
+                        },
+                    ]}
+                />,
+            );
+
+            assert.equal(html.match(/-webkit-text-stroke/g)?.length, 1);
+            assert.ok(html.includes('cat &gt; /dev/null\n```'));
+            assert.ok(
+                html.includes(`title="${prefix}${body.replace('>', '&gt;')}"`),
+            );
+        });
+    }
 }

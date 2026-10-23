@@ -45,7 +45,7 @@ test('summarizes the activity with its own noun', () => {
             { scale: 'year', buckets: [{ date: '2026-10-15', count: 1500 }] },
             ['commit', 'commits'],
         ),
-        '1.5k commits in the last year',
+        '1,500 commits in the last year',
     );
 });
 

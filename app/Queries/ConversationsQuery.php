@@ -16,6 +16,24 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Support\Collection;
 
+/**
+ * @phpstan-type ConversationSummary array{
+ *     id: string,
+ *     kind: ConversationKind,
+ *     name: string|null,
+ *     partner: User|null,
+ *     members: Collection<int, array{user: User, role: OrgRole|null}>|null,
+ *     last_message: Message|null,
+ *     last_message_at: string|null,
+ *     ahead: int,
+ *     last_incoming_message_id: int|null,
+ *     last_incoming_sender: string|null,
+ *     partner_read_through_id: int,
+ *     partner_read_at: string|null,
+ *     is_archived: bool,
+ *     muted_until_at: string|null
+ * }
+ */
 final readonly class ConversationsQuery
 {
     public const int PAGE = 30;
@@ -24,7 +42,7 @@ final readonly class ConversationsQuery
      * One page of a tab, newest first, continuing before a conversation when scrolling down. The term matches the
      * partner's name or handle, already lowercased and without a leading @.
      *
-     * @return array{conversations: Collection<int, array{id: string, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}>, has_more: bool}
+     * @return array{conversations: Collection<int, ConversationSummary>, has_more: bool}
      */
     public function get(User $user, InboxTab $tab = InboxTab::Open, string $term = '', ?string $before = null): array
     {
@@ -69,6 +87,7 @@ final readonly class ConversationsQuery
                 'theirs.read_at as partner_read_at',
                 'mine.last_message_at as last_message_at',
                 'mine.archived_at as archived_at',
+                'mine.muted_until_at as muted_until_at',
             ])
             ->selectSub(
                 Message::query()
@@ -79,7 +98,16 @@ final readonly class ConversationsQuery
                     ->whereNull('messages.event'),
                 'ahead',
             )
-            ->with(['lastMessage.user', 'lastMessage.subject', 'partner', 'participants.user'])
+            ->selectSub(
+                Message::query()
+                    ->selectRaw('max(messages.id)')
+                    ->whereColumn('messages.conversation_id', 'conversations.id')
+                    ->whereColumn('messages.id', '>', 'mine.visible_from_id')
+                    ->where('messages.user_id', '!=', $user->id)
+                    ->whereNull('messages.event'),
+                'last_incoming_message_id',
+            )
+            ->with(['lastMessage.user', 'lastMessage.subject', 'lastMessage.voice', 'lastIncomingMessage:id,user_id', 'lastIncomingMessage.user:id,name', 'partner', 'participants.user'])
             ->orderByDesc('mine.last_message_at')
             ->orderByDesc('conversations.id')
             ->limit(self::PAGE + 1)
@@ -92,6 +120,32 @@ final readonly class ConversationsQuery
                 ->toBase(),
             'has_more' => $conversations->count() > self::PAGE,
         ];
+    }
+
+    /**
+     * Initial notification baselines across open, stashed and fetched conversations, regardless of read position.
+     *
+     * @return array<string, int>
+     */
+    public function notificationBaseline(User $user): array
+    {
+        return Conversation::query()
+            ->join('conversation_participants as mine', fn (JoinClause $join): JoinClause => $join
+                ->on('mine.conversation_id', '=', 'conversations.id')
+                ->where('mine.user_id', $user->id))
+            ->leftJoin('conversation_participants as theirs', fn (JoinClause $join): JoinClause => $join
+                ->on('theirs.conversation_id', '=', 'conversations.id')
+                ->where('theirs.user_id', '!=', $user->id)
+                ->where('conversations.kind', ConversationKind::Direct))
+            ->whereIn('mine.status', config('remotes.requests') ? [RemoteStatus::Open, RemoteStatus::Fetched] : [RemoteStatus::Open])
+            ->where(fn (Builder $query): Builder => $query
+                ->where('conversations.kind', ConversationKind::Org)
+                ->orWhereNotIn('theirs.user_id', $user->idsAcrossBlocks()))
+            ->select('conversations.id')
+            ->selectRaw('CASE WHEN conversations.last_message_id > mine.visible_from_id THEN conversations.last_message_id ELSE 0 END AS last_message_id')
+            ->get()
+            ->mapWithKeys(fn (Conversation $conversation): array => [$conversation->id => (int) $conversation->last_message_id])
+            ->all();
     }
 
     /**
@@ -133,7 +187,7 @@ final readonly class ConversationsQuery
     }
 
     /**
-     * @return array{id: string, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool}
+     * @return ConversationSummary
      */
     private function summary(User $user, Conversation $conversation): array
     {
@@ -153,9 +207,12 @@ final readonly class ConversationsQuery
             'last_message' => $conversation->lastMessage,
             'last_message_at' => $conversation->last_message_at?->toJSON(),
             'ahead' => $conversation->ahead,
+            'last_incoming_message_id' => $conversation->last_incoming_message_id,
+            'last_incoming_sender' => $conversation->lastIncomingMessage?->user->name,
             'partner_read_through_id' => $sharesReads ? $conversation->partner_read_through_id : 0,
             'partner_read_at' => $sharesReads ? $conversation->partner_read_at?->toJSON() : null,
             'is_archived' => $conversation->archived_at !== null,
+            'muted_until_at' => $conversation->muted_until_at?->isFuture() ? $conversation->muted_until_at->toJSON() : null,
         ];
     }
 
