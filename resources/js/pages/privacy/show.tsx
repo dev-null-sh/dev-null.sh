@@ -49,7 +49,13 @@ export default function Show() {
                                 company, location, website, the email address
                                 GitHub shares, whether you have a Sponsors
                                 listing, your public SSH key fingerprints, and
-                                who you follow and who follows you.
+                                who you follow and who follows you. When you
+                                sign up, the <code>composer.json</code> and{' '}
+                                <code>package.json</code> of your recently
+                                pushed public repositories, and the repositories
+                                you starred most recently, are read to suggest
+                                the people behind what you use, and only who to
+                                suggest is kept, for a week.
                             </>,
                             <>
                                 <strong>

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\Log;
 use App\Jobs\ImportGitHubFollowsJob;
+use App\Jobs\SuggestDependencyContributorsJob;
 use App\Jobs\SyncGitHubSshKeysJob;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
@@ -198,6 +199,35 @@ it('queues an import of the github follows of the user on login, notifying only 
     'new user' => [false, true],
     'existing user' => [true, false],
 ]);
+
+it('queues suggestions from the stack of a new user', function (): void {
+    fakeGitHubSponsorsListing();
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    $this->get(route('login.store'));
+
+    $user = User::query()->where('github_id', '583231')->sole();
+
+    Queue::assertPushed(SuggestDependencyContributorsJob::class, fn (SuggestDependencyContributorsJob $job): bool => $job->user->is($user));
+});
+
+it('does not queue suggestions from the stack of an existing user', function (): void {
+    fakeGitHubSponsorsListing();
+    User::factory()->create(['github_id' => '583231']);
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+    ]));
+
+    $this->get(route('login.store'));
+
+    Queue::assertNotPushed(SuggestDependencyContributorsJob::class);
+});
 
 it('redirects to the intended url after login', function (): void {
     fakeGitHubSponsorsListing();

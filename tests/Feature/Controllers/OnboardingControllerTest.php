@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateStackSuggestions;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 it('renders the onboarding for a new user', function (): void {
@@ -70,6 +72,22 @@ it('leaves the suggestions out of partial reloads that do not ask for them', fun
         ->assertJsonMissingPath('props.suggestions');
 
     expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'as "followed_by_following_count"')))->toBeEmpty();
+});
+
+it('suggests the people behind the stack of the user when asked for the suggestions again', function (): void {
+    $user = User::factory()->notOnboarded()->create();
+    $contributor = User::factory()->has(Commit::factory())->create();
+
+    Cache::put(CreateStackSuggestions::key($user), [$contributor->id], 60);
+
+    $this->actingAs($user)->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'onboarding/show',
+        'X-Inertia-Partial-Data' => 'suggestions',
+    ])->get(route('onboarding.show'))->assertOk()
+        ->assertJsonPath('props.suggestions.0.id', $contributor->id)
+        ->assertJsonPath('props.suggestions.0.behind_your_stack', true);
 });
 
 it('is not found once the user has onboarded', function (): void {

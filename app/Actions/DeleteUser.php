@@ -69,6 +69,8 @@ final readonly class DeleteUser
                 Cache::forget($key);
             }
 
+            Cache::forget(CreateStackSuggestions::key($user));
+
             return $imagePaths;
         });
 

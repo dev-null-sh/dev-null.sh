@@ -32,6 +32,10 @@ import { show } from '@/routes/user';
 import type { SuggestedUser } from '@/types';
 
 function reasonFor(user: SuggestedUser, format = formatCount): string | null {
+    if (user.behind_your_stack) {
+        return 'Behind your stack';
+    }
+
     if (user.followed_by_following_count > 0) {
         return `Followed by ${format(user.followed_by_following_count)} you follow`;
     }
