@@ -17,6 +17,7 @@ export function LogTabs({
         <PageTabs
             label="Logs"
             prefetch={false}
+            isScrollable
             tabs={[
                 {
                     title: 'Following',

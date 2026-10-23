@@ -10,8 +10,11 @@ export function PageTabs({
     prefetch = true,
     only,
     reset,
+    isScrollable = false,
 }: {
     label: string;
+    // Scrolls sideways once the tabs don't fit, instead of cutting their titles: for tabs people add themselves.
+    isScrollable?: boolean;
     preserveScroll?: boolean;
     prefetch?: boolean;
     only?: InertiaLinkProps['only'];
@@ -29,7 +32,7 @@ export function PageTabs({
 
     // Tabs share the width while they fit and scroll sideways once they don't, so the active one is brought into view.
     useLayoutEffect(() => {
-        const nav = navRef.current;
+        const nav = isScrollable ? navRef.current : null;
         const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
 
         if (!nav || !active || nav.scrollWidth <= nav.clientWidth) {
@@ -38,13 +41,15 @@ export function PageTabs({
 
         nav.scrollLeft =
             active.offsetLeft - (nav.clientWidth - active.offsetWidth) / 2;
-    }, [activeTab?.key, activeTab?.title]);
+    }, [isScrollable, activeTab?.key, activeTab?.title]);
 
     return (
         <nav
             ref={navRef}
             aria-label={label}
-            className="flex [scrollbar-width:none] overflow-x-auto border-b"
+            className={cn('flex border-b', {
+                '[scrollbar-width:none] overflow-x-auto': isScrollable,
+            })}
         >
             {tabs.map((tab) => (
                 <Link
@@ -62,11 +67,16 @@ export function PageTabs({
                     }
                     aria-current={tab.isActive ? 'page' : undefined}
                     className={cn(
-                        'relative flex min-w-max flex-1 justify-center px-4 text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                        'relative flex flex-1 justify-center text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                        isScrollable ? 'min-w-max px-4' : 'min-w-0 px-2',
                         { 'text-foreground': tab.isActive },
                     )}
                 >
-                    <span className="max-w-40 truncate py-3.5">
+                    <span
+                        className={cn('truncate py-3.5', {
+                            'max-w-40': isScrollable,
+                        })}
+                    >
                         {tab.title}
                     </span>
                     {tab.isActive && (
