@@ -13,7 +13,7 @@ return new class extends Migration
         Schema::create('user_lists', function (Blueprint $table): void {
             $table->uuid('id')->primary();
             $table->foreignUuid('user_id')->constrained()->cascadeOnDelete();
-            $table->string('name', 40);
+            $table->text('name');
             $table->timestamp('pinned_at')->nullable();
             $table->timestamps();
 

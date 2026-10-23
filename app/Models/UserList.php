@@ -54,7 +54,8 @@ final class UserList extends Model
         return [
             'id' => 'string',
             'user_id' => 'string',
-            'name' => 'string',
+            // Only its owner ever reads a list's name.
+            'name' => 'encrypted',
             'pinned_at' => 'immutable_datetime',
             'members_count' => 'integer',
             'created_at' => 'datetime',
