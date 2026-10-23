@@ -343,7 +343,11 @@ function OrgAvatar({
     );
 }
 
-function ConversationListSkeleton({ isCompact }: { isCompact: boolean }) {
+export function ConversationListSkeleton({
+    isCompact,
+}: {
+    isCompact: boolean;
+}) {
     return (
         <div
             aria-hidden
