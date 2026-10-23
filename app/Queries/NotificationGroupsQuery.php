@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Queries;
 
 use App\Enums\NotificationType;
+use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\Profile;
 use App\Models\User;
@@ -38,8 +39,7 @@ final readonly class NotificationGroupsQuery
             ->with([
                 'actor.user' => fn (HasOne $query): HasOne => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
-                // The actor's reply, mention or quote can be starred from the inbox.
-                'commit' => fn (BelongsTo $query): BelongsTo => $query->withStarsFor($user),
+                'commit',
                 'organization',
             ])
             ->latest()->latest('id');
@@ -71,6 +71,39 @@ final readonly class NotificationGroupsQuery
             'commit.quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->whereIn('author_id', $authorIds)
                 ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($user)),
         ]);
+
+        return $groups;
+    }
+
+    /**
+     * The actor's reply, mention or quote can be starred from the inbox, so it says how starred it is and whether the
+     * recipient starred it.
+     *
+     * @param  CursorPaginator<int, Notification>  $groups
+     * @return CursorPaginator<int, Notification>
+     */
+    public function withCommitStars(User $user, CursorPaginator $groups): CursorPaginator
+    {
+        $commits = new Collection($groups->items())
+            ->whereIn('type', [NotificationType::Replied, NotificationType::Mentioned, NotificationType::Quoted])
+            ->map(fn (Notification $notification): ?Commit => $notification->commit)
+            ->filter();
+
+        $stars = Commit::query()
+            ->whereKey($commits->pluck('id')->all())
+            ->select('commits.id')
+            ->withStarsFor($user)
+            ->get()
+            ->keyBy('id');
+
+        foreach ($commits as $commit) {
+            $counted = $stars->get($commit->id);
+
+            $commit->forceFill([
+                'stars_count' => $counted instanceof Commit ? $counted->stars_count : 0,
+                'starred' => $counted instanceof Commit && (bool) $counted->starred,
+            ]);
+        }
 
         return $groups;
     }
