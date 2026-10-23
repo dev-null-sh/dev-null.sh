@@ -12,6 +12,7 @@ import {
     shortenUrl,
     urlPattern,
     withoutTrailingPunctuation,
+    withRef,
 } from '@/lib/urls';
 import { shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
@@ -377,7 +378,7 @@ export function LinkifiedText({
             ) : (
                 <a
                     key={match.index}
-                    href={href}
+                    href={withRef(href)}
                     target="_blank"
                     rel="noopener noreferrer nofollow ugc"
                     title={href}

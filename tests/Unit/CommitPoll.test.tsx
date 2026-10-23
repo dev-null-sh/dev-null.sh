@@ -65,7 +65,7 @@ for (const results of [false, true]) {
         );
 
         assert.ok(markup.includes('Bun 🚀'));
-        assert.ok(markup.includes('href="https://bun.sh"'));
+        assert.ok(markup.includes('href="https://bun.sh/?ref=dev-null.sh"'));
         assert.ok(markup.includes('aria-label="laravel/framework on GitHub"'));
         assert.ok(markup.includes('title="/dev/null"'));
         assert.match(markup, /<code[^>]*>rm -rf<\/code>/);

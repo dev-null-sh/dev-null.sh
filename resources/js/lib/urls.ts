@@ -119,3 +119,28 @@ export function sizedAvatarUrl(url: string, pixels: number): string {
         return url;
     }
 }
+
+/**
+ * Outbound links send no Referer (rel="noreferrer"), so a ref parameter tells the destination where the visit came from.
+ * It names only the site: never who clicked or which page the link was on.
+ */
+export function withRef(url: string): string {
+    try {
+        const outbound = new URL(url);
+
+        if (
+            !/^https?:$/.test(outbound.protocol) ||
+            /(^|\.)(dev-null\.sh|github\.com)$/.test(outbound.hostname) ||
+            outbound.searchParams.has('ref') ||
+            outbound.searchParams.has('utm_source')
+        ) {
+            return url;
+        }
+
+        outbound.searchParams.set('ref', 'dev-null.sh');
+
+        return outbound.toString();
+    } catch {
+        return url;
+    }
+}

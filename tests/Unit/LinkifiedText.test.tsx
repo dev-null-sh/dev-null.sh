@@ -13,6 +13,7 @@ import {
 } from '../../resources/js/components/linkified-text';
 import { bodySegments } from '../../resources/js/lib/code';
 import { bodyCharacterCount } from '../../resources/js/lib/commit';
+import { withRef } from '../../resources/js/lib/urls';
 
 test('counts each prose URL once per occurrence, without discounting code or oversized links', () => {
     const cases: [string, number][] = [
@@ -106,7 +107,7 @@ test('keeps stable mention links alongside shortened URLs and their full copyabl
     assert.ok(html.includes(`href="/mentions/${id}"`));
     assert.ok(html.includes('>@ORIGINAL</a>'));
     assert.equal(html.match(/data-test="mention"/g)?.length, 1);
-    assert.ok(html.includes(`href="${url}"`));
+    assert.ok(html.includes(`href="${withRef(url)}"`));
     assert.ok(html.includes(`title="${url}"`));
     assert.ok(html.includes('aria-hidden="true"'));
     assert.equal(html.replace(/<[^>]*>/g, '').replace('…', ''), text);
@@ -193,7 +194,7 @@ for (const surface of ['commit', 'remote', 'optimistic remote', 'excerpt']) {
             assert.ok(
                 quotes[0][1].includes(`href="/mentions/${mentions.original}"`),
             );
-            assert.ok(quotes[0][1].includes('href="https://example.com"'));
+            assert.ok(quotes[0][1].includes('href="https://example.com/?ref=dev-null.sh"'));
         }
     });
 }
@@ -236,7 +237,7 @@ test('shortens the displayed preview link while retaining the full URL', () => {
         <LinkifiedText text={url} mentions={null} />,
     );
 
-    assert.ok(markup.includes(`href="${url}"`));
+    assert.ok(markup.includes(`href="${withRef(url)}"`));
     assert.ok(markup.includes(`title="${url}"`));
     assert.ok(markup.includes('example.com/a-long-path-to-the'));
     assert.ok(markup.includes('…'));
@@ -260,7 +261,7 @@ for (const [text, trailing] of [
         );
 
         assert.deepEqual(typedLinks(text), ['https://example.com/launch']);
-        assert.ok(markup.includes('href="https://example.com/launch"'));
+        assert.ok(markup.includes('href="https://example.com/launch?ref=dev-null.sh"'));
         assert.ok(markup.endsWith(`</a>${trailing}`));
     });
 }
@@ -357,7 +358,7 @@ for (const link of [
         );
 
         assert.ok(!markup.includes('aria-label'));
-        assert.ok(markup.includes(`href="${link}"`));
+        assert.ok(markup.includes(`href="${withRef(link)}"`));
     });
 }
 
@@ -506,6 +507,6 @@ for (const link of [
         );
 
         assert.ok(!markup.includes('aria-label'));
-        assert.ok(markup.includes(`href="${link}"`));
+        assert.ok(markup.includes(`href="${withRef(link)}"`));
     });
 }

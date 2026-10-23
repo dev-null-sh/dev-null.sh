@@ -1,6 +1,7 @@
 import { AudioLines, Code2, Play } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { withRef } from '@/lib/urls';
 import { cn } from '@/lib/utils';
 import type { Embed, LinkPreview } from '@/types';
 
@@ -234,7 +235,7 @@ export function LinkEmbed({
                         </span>
                     ) : (
                         <a
-                            href={preview.url}
+                            href={withRef(preview.url)}
                             target="_blank"
                             rel="noopener noreferrer nofollow ugc"
                             className="flex border-t px-3 py-2 transition-colors hover:bg-accent focus-visible:bg-accent"
