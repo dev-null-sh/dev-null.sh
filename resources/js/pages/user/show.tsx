@@ -262,8 +262,10 @@ export default function Show({
                     </p>
                 )}
 
-                {/* Columns as wide as their longest item, so each column's icons line up without stretching the row. */}
-                <ul className="mt-3 grid grid-cols-[repeat(2,minmax(0,max-content))] gap-x-4 gap-y-1.5 text-sm text-muted-foreground sm:grid-cols-[repeat(3,minmax(0,max-content))]">
+                {/* Columns as wide as their longest item, so each column's icons line up. Once every column has an item,
+                    the columns spread to the full width like the counts below; fewer, and an empty column would push the
+                    last item into the middle. */}
+                <ul className="mt-3 grid grid-cols-[repeat(2,minmax(0,max-content))] gap-x-4 gap-y-1.5 text-sm text-muted-foreground has-[>:nth-child(3)]:justify-between sm:grid-cols-[repeat(3,minmax(0,max-content))]">
                     {user.company && (
                         <li className="flex min-w-0 items-center gap-1.5">
                             <Building2 className="size-4 shrink-0" />
