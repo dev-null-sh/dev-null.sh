@@ -529,3 +529,13 @@ test('leaves paths, URLs, and longer names unchanged in UI copy', () => {
         text,
     );
 });
+
+test('leaves literal code plain while styling surrounding brand mentions', () => {
+    const text =
+        '/dev/null tip: Use `cat > /dev/null` for output.\n```sh\ncat > /dev/null\n```\nBack to /dev/null.';
+    const html = renderToStaticMarkup(<WordmarkText>{text}</WordmarkText>);
+
+    assert.equal(html.match(/-webkit-text-stroke/g)?.length, 2);
+    assert.ok(html.includes('`cat &gt; /dev/null`'));
+    assert.ok(html.includes('```sh\ncat &gt; /dev/null\n```'));
+});
