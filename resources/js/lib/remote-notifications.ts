@@ -194,8 +194,7 @@ export function createRemoteAlerts(
                         !isSuppressed(item) &&
                         !(
                             Number(readingUntil) > now &&
-                            (readingUrls.includes('*') ||
-                                readingUrls.includes(urlOf(item)))
+                            readingUrls.includes(urlOf(item))
                         ),
                 );
                 for (const item of arrivals) {

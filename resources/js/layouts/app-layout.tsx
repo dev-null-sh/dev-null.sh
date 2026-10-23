@@ -72,7 +72,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
     return (
         <>
-            <NotificationTitle />
             {!isMessages && <ProductHuntBanner />}
             <div
                 data-nav={isLayoutOpen ? 'expanded' : 'collapsed'}
@@ -148,19 +147,23 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
                 {isGuest && <LocalSignInDialog />}
             </div>
+            <NotificationTitle />
         </>
     );
 }
 
 function NotificationTitle() {
-    const { auth } = usePage().props;
+    const {
+        url,
+        props: { auth },
+    } = usePage();
     const { notificationTitle } = useChat();
     const unread = useUnreadMessages() + auth.unreadNotificationsCount;
 
     // A fresh provider takes precedence over the page's title; removing it restores that title after the alert.
     return (
         <Head
-            key={JSON.stringify([unread, notificationTitle])}
+            key={JSON.stringify([url, unread, notificationTitle])}
             title={notificationTitle ?? undefined}
         />
     );
