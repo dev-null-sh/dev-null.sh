@@ -431,7 +431,10 @@ export function useThread(
     });
 
     const onInitialChanged = useEffectEvent(() => {
-        if (initial !== undefined && (replies?.length ?? 0) > repliesPerPage) {
+        if (
+            replies !== null &&
+            (initial === undefined || replies.length > repliesPerPage)
+        ) {
             reload();
         }
     });

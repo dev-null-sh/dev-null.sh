@@ -366,3 +366,60 @@ test('keeps the posted quote when an older pagination response finishes later', 
     );
     assert.equal(saved.nextCursor, null);
 });
+
+for (const isOpen of [true, false]) {
+    for (const size of [1, 4]) {
+        test(`refreshes ${size} loaded replies of an ${isOpen ? 'expanded' : 'collapsed'} continuation thread after a quote`, async () => {
+            const original = Array.from({ length: size }, (_, index) =>
+                reply(String(index)),
+            );
+            const refreshed = [...original, reply('posted-quote')];
+            saved = { replies: original, nextCursor: null, isOpen };
+            const fetch = vi.fn().mockImplementation(async (url: string) => {
+                const query = new URL(url, 'http://localhost').searchParams;
+                assert.equal(query.get('except'), 'author-continuation');
+                const last = query.has('cursor') || refreshed.length <= 3;
+                return {
+                    ok: true,
+                    json: async () => ({
+                        data: query.has('cursor')
+                            ? refreshed.slice(3)
+                            : refreshed.slice(0, 3),
+                        next_cursor: last ? null : 'next',
+                        prev_cursor: null,
+                    }),
+                };
+            });
+            vi.stubGlobal('fetch', fetch);
+            function Probe() {
+                const [posted, setPosted] = React.useState(false);
+                useThread(
+                    {
+                        ...reply(`continuation-quote-${isOpen}-${size}`),
+                        replies_count: size + (posted ? 2 : 1),
+                    },
+                    undefined,
+                    false,
+                    'author-continuation',
+                );
+                if (!posted) {
+                    setPosted(true);
+                }
+                return null;
+            }
+
+            renderToString(<Probe />);
+            for (const effect of effects.splice(0)) effect();
+            await vi.waitFor(() =>
+                assert.deepEqual(
+                    saved.replies?.map((row) => row.id),
+                    refreshed.map((row) => row.id),
+                ),
+            );
+
+            assert.equal(saved.isOpen, isOpen);
+            assert.equal(saved.nextCursor, null);
+            assert.equal(fetch.mock.calls.length, size > 3 ? 2 : 1);
+        });
+    }
+}
