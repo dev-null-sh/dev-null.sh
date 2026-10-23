@@ -28,6 +28,7 @@ export function CommitFeed({
     isRanked = false,
     isFolded = true,
     interlude,
+    lead,
     isBelowComposer = false,
 }: {
     commits: CursorPaginated<Commit>;
@@ -41,6 +42,8 @@ export function CommitFeed({
     isRanked?: boolean;
     isFolded?: boolean;
     interlude?: (lane: string, isDimmed: boolean) => ReactNode;
+    /** Shown above the first commit, on the rail that hangs from the composer when there is one. */
+    lead?: (stagedLane?: string) => ReactNode;
     isBelowComposer?: boolean;
 }) {
     const now = useNow();
@@ -193,6 +196,8 @@ export function CommitFeed({
 
     const lastCommit = listed.at(-1) ?? pinnedCommit;
     const interludeIndex = Math.min(interludeAfter, listed.length) - 1;
+    const stagedLaneOnTop =
+        isBelowComposer && !pinnedCommit ? 'var(--rail)' : undefined;
 
     // Feed commits are unrelated to each other, so each one stands on its own with its author's avatar, even when the
     // same author committed several in a row.
@@ -245,6 +250,7 @@ export function CommitFeed({
                     />
                 </section>
             )}
+            {lead?.(stagedLaneOnTop)}
             <InfiniteScroll
                 data="commits"
                 onlyNext
@@ -264,9 +270,7 @@ export function CommitFeed({
                             localDayKey(previous.created_at) !==
                                 localDayKey(commit.created_at));
                     const stagedLane =
-                        isBelowComposer && index === 0 && !pinnedCommit
-                            ? 'var(--rail)'
-                            : undefined;
+                        index === 0 ? stagedLaneOnTop : undefined;
 
                     return (
                         <Fragment key={commit.id}>

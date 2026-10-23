@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Models\Commit;
+use Carbon\CarbonInterface;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Date;
 
 final class ShowLogRequest extends FormRequest
 {
@@ -43,6 +45,16 @@ final class ShowLogRequest extends FormRequest
         return $this->filled('since')
             ? Commit::query()->withTrashed()->find($this->string('since')->value())
             : null;
+    }
+
+    /**
+     * When the newest commit the user saw in their Following log was committed, as their browser remembers it.
+     */
+    public function followingSeenAt(): ?CarbonInterface
+    {
+        $seenAt = $this->cookie('following_seen_at');
+
+        return is_string($seenAt) ? rescue(fn (): CarbonInterface => Date::createFromFormat('Y-m-d\TH:i:s.uP', $seenAt), report: false) : null;
     }
 
     public function prepareForValidation(): void

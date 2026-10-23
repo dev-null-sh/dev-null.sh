@@ -746,3 +746,171 @@ it('rejects an invalid range boundary', function (): void {
         ->getJson(route('log.show', Log::Following))
         ->assertUnprocessable()->assertJsonValidationErrors('through');
 });
+
+it('catches up on the most starred commits from followed people after some time away', function (): void {
+    $this->freezeTime();
+    $user = User::factory()->create();
+    [$first, $second, $third] = User::factory()->count(3)->create();
+    $user->following()->attach([$first->id, $second->id, $third->id]);
+    $seenAt = now()->subDays(3);
+
+    $starred = Commit::factory()->for($first)->create(['created_at' => now()->subDays(2)]);
+    $mostStarred = Commit::factory()->for($second)->create(['created_at' => now()->subDays(2)]);
+    $newest = Commit::factory()->for($first)->create(['created_at' => now()->subDay()]);
+    $unstarred = Commit::factory()->for($third)->create(['created_at' => now()->subDays(2)]);
+    $starred->stars()->attach(User::factory()->create());
+    $mostStarred->stars()->attach(User::factory()->count(2)->create());
+    $newest->stars()->attach(User::factory()->create());
+
+    Commit::factory()->for($first)->create(['created_at' => now()->subDays(4)]);
+    Commit::factory()->for($user)->create(['created_at' => now()->subDay()]);
+    Commit::factory()->for($second)->create(['parent_id' => $mostStarred->id, 'root_id' => $mostStarred->id, 'created_at' => now()->subDay()]);
+    Commit::factory()->create(['created_at' => now()->subDay()]);
+
+    $this->actingAs($user)
+        ->withUnencryptedCookie('following_seen_at', $seenAt->toJSON())
+        ->get(route('log.show', Log::Following))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('catchUp.commits_count', 4)
+            ->where('catchUp.authors_count', 3)
+            ->where('catchUp.since', $seenAt->toJSON())
+            ->where('catchUp.commits.0.id', $mostStarred->id)
+            ->where('catchUp.commits.0.stars_count', 2)
+            ->where('catchUp.commits.1.id', $newest->id)
+            ->where('catchUp.commits.2.id', $starred->id)
+            ->where('catchUp.commits.3.id', $unstarred->id)
+            ->where('catchUp.commits.0.user.id', $second->id)
+            ->has('catchUp.commits', 4));
+});
+
+it('lists a few more of the most starred to catch up on, not every commit', function (): void {
+    $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $user->following()->attach($followed);
+    Commit::factory()->for($followed)->count(8)->create(['created_at' => now()->subDay()]);
+
+    $this->actingAs($user)
+        ->withUnencryptedCookie('following_seen_at', now()->subDays(3)->toJSON())
+        ->get(route('log.show', Log::Following))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('catchUp.commits_count', 8)
+            ->has('catchUp.commits', 6));
+});
+
+it('does not catch up without some time away', function (?string $seenAt): void {
+    $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $user->following()->attach($followed);
+    Commit::factory()->for($followed)->count(4)->create(['created_at' => now()->subHour()]);
+
+    $request = $seenAt === null ? $this->actingAs($user) : $this->actingAs($user)->withUnencryptedCookie('following_seen_at', $seenAt);
+
+    $request->get(route('log.show', Log::Following))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('catchUp', null));
+})->with([
+    'never seen' => null,
+    'seen a day ago' => fn (): string => now()->subDay()->toJSON(),
+    'relative' => '-3 days',
+    'unreadable' => 'not-a-date',
+]);
+
+it('catches up after exactly two days away', function (): void {
+    $this->freezeTime();
+    $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $user->following()->attach($followed);
+    Commit::factory()->for($followed)->count(4)->create(['created_at' => now()->subDay()]);
+
+    $this->actingAs($user)
+        ->withUnencryptedCookie('following_seen_at', now()->subDays(2)->toJSON())
+        ->get(route('log.show', Log::Following))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('catchUp.commits_count', 4));
+});
+
+it('leaves the catch up out of the poll for new commits', function (): void {
+    $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $user->following()->attach($followed);
+    $commits = Commit::factory()->for($followed)->count(4)->create(['created_at' => now()->subDay()]);
+
+    $this->actingAs($user)
+        ->withUnencryptedCookie('following_seen_at', now()->subDays(3)->toJSON())
+        ->get(route('log.show', [Log::Following, 'since' => $commits->first()->id]), [
+            'X-Inertia' => 'true',
+            'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+            'X-Inertia-Partial-Component' => 'log/show',
+            'X-Inertia-Partial-Data' => 'newCommitsCount',
+        ])->assertOk()
+        ->assertJsonMissingPath('props.catchUp');
+});
+
+it('does not catch up when the log shows no more than the few it would list', function (): void {
+    $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $user->following()->attach($followed);
+    Commit::factory()->for($followed)->count(3)->create(['created_at' => now()->subDay()]);
+
+    $this->actingAs($user)
+        ->withUnencryptedCookie('following_seen_at', now()->subDays(3)->toJSON())
+        ->get(route('log.show', Log::Following))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('catchUp', null));
+});
+
+it('catches up on a week at most', function (): void {
+    $this->freezeTime();
+    $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $user->following()->attach($followed);
+    Commit::factory()->for($followed)->count(4)->create(['created_at' => now()->subDays(2)]);
+    Commit::factory()->for($followed)->count(2)->create(['created_at' => now()->subDays(9)]);
+
+    $this->actingAs($user)
+        ->withUnencryptedCookie('following_seen_at', now()->subDays(10)->toJSON())
+        ->get(route('log.show', Log::Following))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('catchUp.commits_count', 4)
+            ->where('catchUp.since', now()->subWeek()->toJSON()));
+});
+
+it('leaves muted, blocked and pending commits out of the catch up', function (): void {
+    $user = User::factory()->create();
+    [$followed, $muted, $blocked, $blocker] = User::factory()->count(4)->create();
+    $user->following()->attach([$followed->id, $muted->id, $blocked->id, $blocker->id]);
+    $user->muting()->attach($muted);
+    $user->blocking()->attach($blocked);
+    $blocker->blocking()->attach($user);
+
+    Commit::factory()->for($followed)->count(4)->create(['created_at' => now()->subDay()]);
+    Commit::factory()->for($followed)->pending()->create(['created_at' => now()->subDay()]);
+    Commit::factory()->for($muted)->create(['created_at' => now()->subDay()]);
+    Commit::factory()->for($blocked)->create(['created_at' => now()->subDay()]);
+    Commit::factory()->for($blocker)->create(['created_at' => now()->subDay()]);
+
+    $this->actingAs($user)
+        ->withUnencryptedCookie('following_seen_at', now()->subDays(3)->toJSON())
+        ->get(route('log.show', Log::Following))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('catchUp.commits_count', 4)
+            ->where('catchUp.authors_count', 1));
+});
+
+it('only catches up on the following log', function (bool $signedIn): void {
+    $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $user->following()->attach($followed);
+    Commit::factory()->for($followed)->count(4)->create(['created_at' => now()->subDay()]);
+
+    $request = $signedIn ? $this->actingAs($user) : $this;
+
+    $request->withUnencryptedCookie('following_seen_at', now()->subDays(3)->toJSON())
+        ->get(route('log.show', Log::Latest))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('catchUp', null));
+})->with(['guest' => false, 'signed in' => true]);
