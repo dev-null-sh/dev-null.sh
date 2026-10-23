@@ -47,6 +47,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read string|null $pinned_commit_id
  * @property-read bool|null $automatic_translation
  * @property-read string|null $translation_language
+ * @property-read list<string>|null $known_languages
  * @property-read string|null $timezone
  * @property-read bool $show_local_time
  * @property-read LivePlatform|null $live_platform
@@ -87,6 +88,7 @@ use Illuminate\Support\Facades\DB;
     'remember_token',
     'translation_language',
     'automatic_translation',
+    'known_languages',
     'preferred_lane',
     'lane_color',
     'pasteis_mode',
@@ -133,6 +135,7 @@ final class User extends Authenticatable
     protected $attributes = [
         'log' => Log::Following->value,
         'translation_language' => null,
+        'known_languages' => null,
         'show_local_time' => false,
         'pasteis_mode' => false,
         'remotes_enabled' => true,
@@ -188,6 +191,7 @@ final class User extends Authenticatable
             'show_local_time' => 'boolean',
             'translation_language' => 'encrypted',
             'automatic_translation' => 'boolean',
+            'known_languages' => 'encrypted:array',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',

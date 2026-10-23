@@ -19,6 +19,7 @@ final readonly class UserProfileController
     {
         return Inertia::render('user-profile/edit', [
             'translationLanguage' => $user->translation_language,
+            'knownLanguages' => $user->known_languages ?? [],
             'translationLanguages' => collect($translations->languages())->map(fn (string $code): array => [
                 'code' => $code,
                 'name' => Locale::getDisplayLanguage($code, 'en'),

@@ -185,7 +185,7 @@ Livestream history: the team settled on calling posts **commits** and their list
 
 ### Translating commits
 
-Public commits and replies offer **Translate** when their detected language differs from the reader's translation language. Choose a translation language in **Settings → Profile**, searching by its English or native name (for example, Hungarian or magyar), independently of the device language, or leave **Browser language (automatic)** selected to follow the browser. This private preference is saved to the account, included in the data export, and erased with the account. Regional variants share a language, such as English for `en-US` and `en-GB`. Language detection runs in the background for posts being read; undetermined posts initially offer Translate rather than guessing. Code-only or indeterminate text is not offered once detected. Generating translations requires sign-in and is limited to ten requests per minute.
+Public commits and replies offer **Translate** when their detected language differs from the reader's translation language. Choose a translation language in **Settings → Profile**, searching by its English or native name (for example, Hungarian or magyar), independently of the device language, or leave **Browser language (automatic)** selected to follow the browser. This private preference is saved to the account, included in the data export, and erased with the account. Regional variants share a language, such as English for `en-US` and `en-GB`. Under **Languages you read**, also in **Settings → Profile**, list up to ten languages you understand: commits and replies in those languages are never offered for translation, and existing translations stay hidden for you. This preference is private too, included in the data export, and erased with the account. Language detection runs in the background for posts being read; undetermined posts initially offer Translate rather than guessing. Code-only or indeterminate text is not offered once detected. Generating translations requires sign-in and is limited to ten requests per minute.
 
 Pending commits are not offered for translation, even to their author.
 
@@ -490,7 +490,7 @@ Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue v
 
 Choose **Download JSON** in Settings → Profile to export your account data. The export includes:
 
-- profile details and preferences, including live-stream details, translation language, the last day you used /dev/null, and when you accepted the commit rules;
+- profile details and preferences, including live-stream details, translation language, languages you read, the last day you used /dev/null, and when you accepted the commit rules;
 - your commits and replies (including pending, rejected, and deleted entries still stored), their cached translations, polls, and your votes;
 - stars, followers and people you follow, mutes, blocks, and dismissed **Not interested** suggestions;
 - messages you sent, including links to your voice notes, and notifications;

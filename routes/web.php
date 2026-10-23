@@ -98,6 +98,7 @@ use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
+use App\Http\Controllers\UserKnownLanguagesController;
 use App\Http\Controllers\UserLaneController;
 use App\Http\Controllers\UserLiveController;
 use App\Http\Controllers\UserMuteController;
@@ -431,6 +432,8 @@ Route::middleware('auth')->group(function (): void {
 
     Route::put('settings/automatic-translation', [UserAutomaticTranslationController::class, 'update'])->name('user-automatic-translation.update');
     Route::put('settings/translation-language', [UserTranslationLanguageController::class, 'update'])->name('user-translation-language.update');
+
+    Route::put('settings/known-languages', [UserKnownLanguagesController::class, 'update'])->name('user-known-languages.update');
 
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
 
