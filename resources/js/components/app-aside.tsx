@@ -27,7 +27,10 @@ export function AppAside({
     onShowShortcuts: () => void;
     onSearch: () => void;
 }) {
-    const { user } = usePage().props.auth;
+    const {
+        auth: { user },
+        repository,
+    } = usePage().props;
     const keys = useKeyLabels();
     const [commitsCount] = useSharedState(
         commitStateKey('commits_count', user?.id ?? ''),
@@ -169,7 +172,7 @@ export function AppAside({
             <LiveFollowing />
             <WhoToFollow />
 
-            <div className="-mt-4 flex gap-4 border-t pt-4 text-sm text-muted-foreground">
+            <div className="-mt-4 flex flex-wrap gap-x-4 gap-y-1 border-t pt-4 text-sm text-muted-foreground">
                 <Link
                     href={AboutController.show()}
                     className="transition-colors hover:text-foreground"
@@ -196,6 +199,14 @@ export function AppAside({
                 >
                     Changelog
                 </Link>
+                <a
+                    href={`https://github.com/${repository}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="transition-colors hover:text-foreground"
+                >
+                    GitHub
+                </a>
             </div>
 
             <button
