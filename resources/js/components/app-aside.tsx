@@ -12,6 +12,7 @@ import { LiveFollowing } from '@/components/live-following';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
+import { WordmarkText } from '@/components/wordmark-text';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { commitStateKey } from '@/lib/commit-state';
 import { useKeyLabels } from '@/lib/keyboard';
@@ -55,7 +56,7 @@ export function AppAside({
                     className="rounded-lg border bg-card p-4"
                 >
                     <h2 id="aside-sign-in" className="font-semibold">
-                        New to /dev/null?
+                        <WordmarkText>New to /dev/null?</WordmarkText>
                     </h2>
                     <p className="mt-1 text-sm text-pretty text-muted-foreground">
                         Sign in with GitHub to follow developers, star commits,

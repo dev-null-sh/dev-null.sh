@@ -24,6 +24,9 @@
         "Unit/VoiceSpeed.test.tsx",
         "Unit/VoiceNoteSpeed.test.tsx",
         "Unit/OrgMentionSuggestions.test.tsx",
+        "Unit/RemoteNotifications.test.tsx",
+        "Unit/RemotePreferences.test.tsx",
+        "Unit/ChatNavigation.test.tsx",
         "../resources/js/types/*.d.ts",
         "draft-images.config.ts"
     ]

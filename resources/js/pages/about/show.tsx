@@ -13,6 +13,7 @@ import {
     DocumentPage,
     DocumentSection,
 } from '@/components/document-page';
+import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import type {
     StoryCommit,
@@ -202,7 +203,7 @@ function Timeline({ lane, events }: { lane: Lane; events: StoryEvent[] }) {
                             </p>
                             {event.body && (
                                 <p className="mt-1 text-muted-foreground">
-                                    {event.body}
+                                    <WordmarkText>{event.body}</WordmarkText>
                                 </p>
                             )}
                             {event.commit && (
@@ -310,12 +311,13 @@ export default function Show() {
             <DocumentPage title="About">
                 <section className="space-y-3 px-4 py-6 text-[15px] text-pretty sm:px-6">
                     <p>
-                        /dev/null started as a stream, live from the JetBrains
-                        office. On October 15, 2026, Nuno Maduro, Brent Roose,
-                        Matthieu Napoli, and Pauline Vos opened an empty
-                        repository and built a full social network for
-                        developers in 48 hours, in the open. GitHub is the only
-                        way in, posts are commits, and the timeline is a log.
+                        <WordmarkText>/dev/null</WordmarkText> started as a
+                        stream, live from the JetBrains office. On October 15,
+                        2026, Nuno Maduro, Brent Roose, Matthieu Napoli, and
+                        Pauline Vos opened an empty repository and built a full
+                        social network for developers in 48 hours, in the open.
+                        GitHub is the only way in, posts are commits, and the
+                        timeline is a log.
                     </p>
                     <p>
                         Everything was written from scratch with{' '}

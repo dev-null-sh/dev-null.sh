@@ -5,6 +5,7 @@ import {
     DocumentPage,
     DocumentSection,
 } from '@/components/document-page';
+import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import {
     COMPANY_NAME,
@@ -33,10 +34,11 @@ export default function Show() {
                 <DocumentSection id="who" title="Who we are">
                     <p>
                         {COMPANY_NAME}, a company registered in Portugal ("we",
-                        "us"), operates /dev/null and everything we offer under
-                        that name or any other, now or in the future (the
-                        "service"), and is the controller of the personal data
-                        processed in it. Contact: <Mail />.
+                        "us"), operates <WordmarkText>/dev/null</WordmarkText>{' '}
+                        and everything we offer under that name or any other,
+                        now or in the future (the "service"), and is the
+                        controller of the personal data processed in it.
+                        Contact: <Mail />.
                     </p>
                 </DocumentSection>
 

@@ -114,6 +114,15 @@ export type Funnel = {
     changes: Record<FunnelRate, number | null>;
 };
 
+export type ActiveUserCount = {
+    date: string;
+    count: number;
+    returning: number;
+    activated: number;
+    not_activated: number;
+    pending: number;
+};
+
 export type ActiveUsers = {
     daily: number;
     weekly: number;
