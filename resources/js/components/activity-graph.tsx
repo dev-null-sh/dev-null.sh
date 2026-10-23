@@ -1,5 +1,6 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import { useRef, useState } from 'react';
+import { ActivityData } from '@/components/activity-data';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import type { Activity, ActivityBucket, ActivityScale } from '@/types';
@@ -202,6 +203,8 @@ export function ActivityGraph({
                 noun={commits}
                 onPeriodHover={onPeriodHover}
             />
+
+            <ActivityData activity={activity} />
         </section>
     );
 }
