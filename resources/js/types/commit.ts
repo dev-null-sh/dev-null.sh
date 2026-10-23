@@ -140,6 +140,7 @@ export type QuotedCommit = Pick<
     | 'poll'
     | 'link_preview'
     | 'images'
+    | 'event'
 >;
 
 export type DeletedCommit = {

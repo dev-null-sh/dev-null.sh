@@ -48,14 +48,89 @@ export function agendaProgress(
 }
 
 /**
+ * The event's place, unless it only says it is online.
+ */
+export function eventPlace(event: Pick<Event, 'location'>): string | null {
+    return event.location === null ||
+        event.location.trim().toLowerCase() === 'online'
+        ? null
+        : event.location;
+}
+
+/**
  * A place, a link, or both, as GitHub would label it.
  */
 export function eventFormat(
     event: Pick<Event, 'location' | 'url'>,
 ): 'In person' | 'Online' | 'Hybrid' {
-    if (event.location !== null && event.url !== null) {
+    if (eventPlace(event) !== null && event.url !== null) {
         return 'Hybrid';
     }
 
     return event.url !== null ? 'Online' : 'In person';
+}
+
+/**
+ * The zone's short name at that moment, like "GMT+1" or "CET", so times say which clock they follow.
+ */
+export function timeZoneLabel(date: Date, timeZone?: string): string {
+    return (
+        new Intl.DateTimeFormat(undefined, {
+            timeZone,
+            timeZoneName: 'short',
+        })
+            .formatToParts(date)
+            .find((part) => part.type === 'timeZoneName')?.value ?? ''
+    );
+}
+
+/**
+ * How far the zone's clock is ahead of UTC at that moment, in milliseconds.
+ */
+function zoneOffset(date: Date, timeZone?: string): number {
+    const parts = Object.fromEntries(
+        new Intl.DateTimeFormat('en-US', {
+            timeZone,
+            hourCycle: 'h23',
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            second: 'numeric',
+        })
+            .formatToParts(date)
+            .map((part) => [part.type, Number(part.value)]),
+    );
+
+    return (
+        Date.UTC(
+            parts.year,
+            parts.month - 1,
+            parts.day,
+            parts.hour,
+            parts.minute,
+            parts.second,
+        ) -
+        Math.floor(date.getTime() / 1000) * 1000
+    );
+}
+
+/**
+ * Reads a datetime-local value on the zone's clock rather than the browser's, so an event is entered in the same zone
+ * its pages show it in.
+ */
+export function wallTimeToInstant(value: string, timeZone?: string): string {
+    if (value === '') {
+        return '';
+    }
+
+    const [date, time] = value.split('T');
+    const [year, month, day] = date.split('-').map(Number);
+    const [hour, minute] = time.split(':').map(Number);
+    const wall = Date.UTC(year, month - 1, day, hour, minute);
+    const guess = wall - zoneOffset(new Date(wall), timeZone);
+
+    // Around a clock change the offset at the guess can differ from the one at the result, so it is taken again.
+    return new Date(wall - zoneOffset(new Date(guess), timeZone)).toISOString();
 }

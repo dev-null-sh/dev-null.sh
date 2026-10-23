@@ -206,7 +206,7 @@ final class CommitBuilder extends Builder
             'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withTrashed()
                 ->where(fn (self $query): self => $query->visibleTo($viewer))
-                ->with(['author', 'linkPreview', 'images'])
+                ->with(['author', 'linkPreview', 'images', 'event'])
                 ->withPollFor($viewer),
         ]);
     }

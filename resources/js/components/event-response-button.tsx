@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { CalendarCheck, Check, ChevronDown, Star, X } from 'lucide-react';
+import { CalendarCheck, ChevronDown, Star, X } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import EventAttendanceController from '@/actions/App/Http/Controllers/EventAttendanceController';
@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
     DropdownMenuContent,
-    DropdownMenuItem,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
@@ -21,7 +22,7 @@ const choices: {
     value: Choice;
     label: string;
     description: string;
-    icon: typeof Check;
+    icon: typeof X;
 }[] = [
     {
         value: null,
@@ -131,30 +132,35 @@ export function EventResponseButton({
                 <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
                     <DropdownMenuContent align="start" className="w-72">
-                        {choices.map((choice) => (
-                            <DropdownMenuItem
-                                key={choice.label}
-                                onSelect={() => choose(choice.value)}
-                                className="items-start gap-2 py-2"
-                                data-test={`event-response-${choice.value ?? 'none'}`}
-                            >
-                                <Check
-                                    className={cn(
-                                        'mt-0.5 size-4',
-                                        choice.value !== response &&
-                                            'invisible',
-                                    )}
-                                />
-                                <span>
-                                    <span className="block font-medium">
-                                        {choice.label}
+                        {/* Radio items, so the current choice is announced as checked rather than only drawn. */}
+                        <DropdownMenuRadioGroup
+                            value={response ?? 'none'}
+                            onValueChange={(value) =>
+                                choose(
+                                    value === 'none'
+                                        ? null
+                                        : (value as EventResponse),
+                                )
+                            }
+                        >
+                            {choices.map((choice) => (
+                                <DropdownMenuRadioItem
+                                    key={choice.label}
+                                    value={choice.value ?? 'none'}
+                                    className="items-start py-2"
+                                    data-test={`event-response-${choice.value ?? 'none'}`}
+                                >
+                                    <span>
+                                        <span className="block font-medium">
+                                            {choice.label}
+                                        </span>
+                                        <span className="block text-xs text-muted-foreground">
+                                            {choice.description}
+                                        </span>
                                     </span>
-                                    <span className="block text-xs text-muted-foreground">
-                                        {choice.description}
-                                    </span>
-                                </span>
-                            </DropdownMenuItem>
-                        ))}
+                                </DropdownMenuRadioItem>
+                            ))}
+                        </DropdownMenuRadioGroup>
                     </DropdownMenuContent>
                 </DropdownMenu>
             )}

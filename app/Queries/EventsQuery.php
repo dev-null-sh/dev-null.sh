@@ -62,7 +62,7 @@ final readonly class EventsQuery
     {
         return Event::query()
             ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
-            ->with('commit.user')
+            ->with('host')
             ->withCount(['attendees as going_count' => fn (Builder $query): Builder => $query->where('response', EventResponse::Going)]);
     }
 }

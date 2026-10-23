@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 
 /**
  * @property-read string $id
@@ -29,10 +30,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read CarbonInterface $updated_at
  * @property-read int|null $going_count
  * @property-read Commit|null $commit
+ * @property-read User|null $host
  * @property-read Collection<int, EventAgendaItem> $agendaItems
  * @property-read Collection<int, EventAttendee> $attendees
  */
-#[Visible(['id', 'commit_id', 'title', 'starts_at', 'ends_at', 'location', 'url', 'cancelled_at', 'going_count', 'agendaItems', 'commit'])]
+#[Visible(['id', 'commit_id', 'title', 'starts_at', 'ends_at', 'location', 'url', 'cancelled_at', 'going_count', 'agendaItems', 'commit', 'host'])]
 final class Event extends Model
 {
     /** @use HasFactory<EventFactory> */
@@ -89,6 +91,16 @@ final class Event extends Model
     public function commit(): BelongsTo
     {
         return $this->belongsTo(Commit::class);
+    }
+
+    /**
+     * Whoever posted the announcement, for lists that show only who hosts rather than the whole commit.
+     *
+     * @return HasOneThrough<User, Commit, $this>
+     */
+    public function host(): HasOneThrough
+    {
+        return $this->hasOneThrough(User::class, Commit::class, 'id', 'id', 'commit_id', 'user_id');
     }
 
     /**
