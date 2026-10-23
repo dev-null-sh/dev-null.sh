@@ -401,7 +401,7 @@ Sources: [group creation](app/Http/Requests/CreateOrgRequest.php), [invitation e
 
 **Mute** someone to remove their commits and replies from your logs, threads, search, and suggestions and stop their notifications. Muting is silent, leaves follows intact, and still lets you visit their profile, which shows a **Muted** badge. Commits you starred stay in Starred.
 
-**Block** someone to stop messaging and interactions such as following, replies, stars, pastéis, and Tom's replies between the two accounts, and hide each other's commits while signed in. Their profile and follower lists become unavailable to you. Blocking removes follows in both directions. Unblocking does not restore those follows. Manage and reverse either choice in Settings → Safety. Blocking is an account-level interaction control, not a way to make public posts inaccessible to signed-out visitors.
+**Block** someone to stop messaging and interactions such as following, replies, stars, pastéis, and Tom's replies between the two accounts, and hide each other's commits while signed in. Their profile and follower lists become unavailable to you. Blocking removes follows and stars in both directions, with the notifications for those stars. Unblocking does not restore them. Manage and reverse either choice in Settings → Safety. Blocking is an account-level interaction control, not a way to make public posts inaccessible to signed-out visitors.
 
 Sources: [safety settings](resources/js/pages/safety/edit.tsx), [mute action](app/Actions/CreateUserMute.php), [block action](app/Actions/CreateUserBlock.php), [public routes](routes/web.php).
 

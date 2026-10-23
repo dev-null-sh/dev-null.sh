@@ -69,12 +69,13 @@ it('removes the stars on deleted commits too', function (): void {
     $blocked = User::factory()->create();
     $commit = Commit::factory()->for($user)->create();
 
-    $blocked->starredCommits()->attach($commit);
+    resolve(CreateCommitStar::class)->handle($blocked, $commit);
     $commit->delete();
 
     resolve(CreateUserBlock::class)->handle($user, $blocked);
 
-    expect($blocked->starredCommits()->withTrashed()->count())->toBe(0);
+    expect($blocked->starredCommits()->withTrashed()->count())->toBe(0)
+        ->and($user->notifications()->count())->toBe(0);
 });
 
 it('lowers the commits that lost a star back', function (): void {
