@@ -36,7 +36,8 @@ final readonly class NotificationGroupsQuery
             ->with([
                 'actor' => fn (BelongsTo $query): BelongsTo => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
-                'commit',
+                // The actor's reply, mention or quote can be starred from the inbox.
+                'commit' => fn (BelongsTo $query): BelongsTo => $query->withStarsFor($user),
             ])
             ->latest()->latest('id');
         $perPage = $through instanceof CarbonImmutable
