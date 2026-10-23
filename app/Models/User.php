@@ -58,6 +58,8 @@ use Illuminate\Support\Facades\DB;
  * @property-read CarbonInterface|null $github_synced_at
  * @property-read CarbonInterface|null $last_seen_at
  * @property-read CarbonInterface|null $banned_at
+ * @property-read CarbonInterface|null $terms_accepted_at
+ * @property-read string|null $terms_version
  * @property-read CarbonInterface|null $commit_rules_accepted_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -105,6 +107,8 @@ use Illuminate\Support\Facades\DB;
     'last_seen_at',
     'banned_at',
     'commit_rules_accepted_at',
+    'terms_accepted_at',
+    'terms_version',
 ])]
 final class User extends Authenticatable
 {
@@ -145,6 +149,8 @@ final class User extends Authenticatable
         'last_seen_at' => null,
         'banned_at' => null,
         'commit_rules_accepted_at' => null,
+        'terms_accepted_at' => null,
+        'terms_version' => null,
     ];
 
     /**
@@ -196,6 +202,7 @@ final class User extends Authenticatable
             'last_seen_at' => 'date',
             'banned_at' => 'datetime',
             'commit_rules_accepted_at' => 'datetime',
+            'terms_accepted_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -363,6 +370,14 @@ final class User extends Authenticatable
     public function getAuthPassword(): string
     {
         return '';
+    }
+
+    /**
+     * Whether they have accepted the terms and privacy policy as they stand now.
+     */
+    public function hasAcceptedCurrentTerms(): bool
+    {
+        return $this->terms_accepted_at !== null && $this->terms_version === config('legal.terms_version');
     }
 
     public function isOnboarded(): bool
