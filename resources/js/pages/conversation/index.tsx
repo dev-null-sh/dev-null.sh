@@ -5,7 +5,7 @@ import {
     SquarePen,
     UsersRound,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import { ConversationActions } from '@/components/chat/conversation-actions';
@@ -24,7 +24,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useChat, useInbox } from '@/hooks/use-chat';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
-import { seedInbox, seedThread, targetKey, watchRemotesPage } from '@/lib/chat';
+import { seedInbox, seedThread, targetKey } from '@/lib/chat';
 import type { ChatTarget } from '@/lib/chat';
 import { setChatDocked, useChatDock } from '@/lib/chat-dock';
 import { cn, laneColor } from '@/lib/utils';
@@ -64,7 +64,6 @@ export default function Index({
     }
 
     useInbox();
-    useEffect(watchRemotesPage, []);
 
     // Keeps the inbox's tab and search while moving between conversations.
     const visit = (href: Parameters<typeof router.visit>[0]) =>

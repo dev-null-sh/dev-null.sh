@@ -22,7 +22,11 @@ import UserBlockController from '@/actions/App/Http/Controllers/UserBlockControl
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import type { ReactionUsage } from '@/lib/reactions';
 import { withReactionUse } from '@/lib/reactions';
-import { createRemoteAlerts, isRemoteMuted } from '@/lib/remote-notifications';
+import {
+    createRemoteAlerts,
+    isRemoteMuted,
+    remoteAlertsEnabled,
+} from '@/lib/remote-notifications';
 import type { VoiceDraft } from '@/lib/voice-notes';
 import type {
     ConversationSummary,
@@ -118,6 +122,7 @@ export type ChatState = {
     unread: number | null;
     requests: number | null;
     isPollingInbox: boolean;
+    notificationTitle: string | null;
     threads: Record<string, ThreadState>;
     mutePreferences: Record<string, { until: string | null; version: number }>;
     /**
@@ -150,6 +155,7 @@ let state: ChatState = {
     unread: null,
     requests: null,
     isPollingInbox: false,
+    notificationTitle: null,
     threads: {},
     mutePreferences: {},
     reactionUsage: null,
@@ -166,7 +172,6 @@ let isLoadingReactionUsage = false;
 let remoteAlerts: ReturnType<typeof createRemoteAlerts> | null = null;
 let isFetchingInbox = false;
 let muteVersion = 0;
-let remotesPageWatchers = 0;
 
 export function targetKey(target: ChatTarget): string {
     return target.kind === 'direct'
@@ -649,7 +654,6 @@ async function pollInbox(): Promise<void> {
                         state.mutePreferences[summaryKey(conversation)].until,
                 })),
                 (conversation) =>
-                    isViewingRemotes() ||
                     isReading(conversation) ||
                     isRemoteMuted(
                         state.mutePreferences[summaryKey(conversation)].until,
@@ -685,39 +689,111 @@ async function pollInbox(): Promise<void> {
 }
 
 export function watchRemoteAlerts(userId: string): () => void {
+    let titleTimer: number | undefined;
+    let pendingAlert: { key: string; title: string } | null = null;
+    const channel =
+        'BroadcastChannel' in window
+            ? new BroadcastChannel(`remote-titles:${userId}`)
+            : null;
+    const clearTitle = () => {
+        window.clearInterval(titleTimer);
+        pendingAlert = null;
+        update({ notificationTitle: null });
+    };
+    const acknowledgeTitle = () => {
+        if (
+            pendingAlert === null ||
+            document.hidden ||
+            !document.hasFocus() ||
+            !isWatching(pendingAlert.key)
+        )
+            return;
+
+        const key = pendingAlert.key;
+        clearTitle();
+        channel?.postMessage({ key, title: null });
+    };
+    const showTitle = (alert: { key: string; title: string }) => {
+        if (!remoteAlertsEnabled(userId)) return;
+
+        const alreadyPending = pendingAlert !== null;
+        pendingAlert = alert;
+        acknowledgeTitle();
+        if (pendingAlert === null) return;
+
+        if (alreadyPending) {
+            if (state.notificationTitle !== null) {
+                update({ notificationTitle: pendingAlert.title });
+            }
+            return;
+        }
+
+        update({ notificationTitle: pendingAlert.title });
+        let switches = 0;
+        titleTimer = window.setInterval(() => {
+            switches++;
+            update({
+                notificationTitle:
+                    switches % 2 === 0 ? (pendingAlert?.title ?? null) : null,
+            });
+            if (switches === 6) window.clearInterval(titleTimer);
+        }, 1_000);
+    };
+    channel?.addEventListener('message', (event: MessageEvent<unknown>) => {
+        const alert = event.data;
+        if (
+            typeof alert !== 'object' ||
+            alert === null ||
+            !('key' in alert) ||
+            typeof alert.key !== 'string' ||
+            !('title' in alert)
+        )
+            return;
+        if (alert.title === null && pendingAlert?.key === alert.key)
+            clearTitle();
+        else if (typeof alert.title === 'string')
+            showTitle({ key: alert.key, title: alert.title });
+    });
+    window.addEventListener('focus', acknowledgeTitle);
+    document.addEventListener('visibilitychange', acknowledgeTitle);
+    const unsubscribe = subscribeToChat(acknowledgeTitle);
+
     const alerts = createRemoteAlerts(
         userId,
         (conversation) => urls(targetOf(conversation)).show,
         () =>
-            isViewingRemotes()
-                ? ['*']
-                : !document.hidden && document.hasFocus()
-                  ? [...threadWatchers.keys()].map(
-                        (key) => urls(state.threads[key].target).show,
-                    )
-                  : [],
+            !document.hidden && document.hasFocus()
+                ? [...threadWatchers.keys()].map(
+                      (key) => urls(state.threads[key].target).show,
+                  )
+                : [],
+        (conversation) => {
+            const sender = conversation.last_incoming_sender ?? 'Someone';
+            const remote =
+                conversation.kind === 'org'
+                    ? ` in ${conversation.name || 'an unnamed org'}`
+                    : '';
+            const title = `${sender}${remote} sent you a message`;
+            const alert = { key: summaryKey(conversation), title };
+            channel?.postMessage(alert);
+            showTitle(alert);
+        },
     );
     remoteAlerts = alerts;
     const unwatch = watchInbox();
 
     return () => {
         alerts.stop();
-        if (remoteAlerts === alerts) remoteAlerts = null;
+        window.clearInterval(titleTimer);
+        window.removeEventListener('focus', acknowledgeTitle);
+        document.removeEventListener('visibilitychange', acknowledgeTitle);
+        channel?.close();
+        unsubscribe();
+        if (remoteAlerts === alerts) {
+            remoteAlerts = null;
+            update({ notificationTitle: null });
+        }
         unwatch();
-    };
-}
-
-function isViewingRemotes(): boolean {
-    return remotesPageWatchers > 0 && !document.hidden && document.hasFocus();
-}
-
-export function watchRemotesPage(): () => void {
-    remotesPageWatchers++;
-    remoteAlerts?.updateReading();
-
-    return () => {
-        remotesPageWatchers--;
-        remoteAlerts?.updateReading();
     };
 }
 
@@ -957,6 +1033,7 @@ function touchInbox(target: ChatTarget, message: Message): void {
         members: existing?.members ?? null,
         last_message: message,
         last_incoming_message_id: existing?.last_incoming_message_id ?? null,
+        last_incoming_sender: existing?.last_incoming_sender ?? null,
         last_message_at: message.created_at,
         ahead: existing?.ahead ?? 0,
         partner_read_through_id: existing?.partner_read_through_id ?? 0,
@@ -1257,8 +1334,16 @@ export function pingTyping(target: ChatTarget): void {
     void request(urls(target).typing, 'PUT').catch(() => undefined);
 }
 
+const olderLoads = new Map<string, Promise<void>>();
+
 export async function loadOlderMessages(target: ChatTarget): Promise<void> {
     const key = targetKey(target);
+    const loading = olderLoads.get(key);
+
+    if (loading !== undefined) {
+        return loading;
+    }
+
     const thread = state.threads[key];
     const oldest = thread?.messages[0]?.id;
 
@@ -1273,19 +1358,60 @@ export async function loadOlderMessages(target: ChatTarget): Promise<void> {
 
     updateThread(key, () => ({ isLoadingOlder: true }));
 
-    try {
-        const older = await request<Thread | OrgThread>(
-            urls(target).index({ before: oldest }),
-        );
+    const load = (async () => {
+        try {
+            const older = await request<Thread | OrgThread>(
+                urls(target).index({ before: oldest }),
+            );
 
-        updateThread(key, (current) => ({
-            messages: mergeMessages(current.messages, older.messages),
-            has_older: older.has_older,
-            isLoadingOlder: false,
-        }));
-    } catch {
-        updateThread(key, () => ({ isLoadingOlder: false }));
+            updateThread(key, (current) => ({
+                messages: mergeMessages(current.messages, older.messages),
+                has_older: older.has_older,
+                isLoadingOlder: false,
+            }));
+        } catch {
+            updateThread(key, () => ({ isLoadingOlder: false }));
+        }
+    })();
+    olderLoads.set(key, load);
+
+    try {
+        await load;
+    } finally {
+        olderLoads.delete(key);
     }
+}
+
+/**
+ * Keep the history continuous when following a reply, sharing pages with ordinary scrolling.
+ */
+export async function loadMessage(
+    target: ChatTarget,
+    id: number,
+    signal: AbortSignal,
+): Promise<boolean> {
+    const key = targetKey(target);
+
+    while (!signal.aborted) {
+        const thread = state.threads[key];
+        const oldest = thread?.messages[0]?.id;
+
+        if (thread?.messages.some((message) => message.id === id)) {
+            return true;
+        }
+
+        if (oldest === undefined || oldest <= id || !thread.has_older) {
+            return false;
+        }
+
+        await loadOlderMessages(target);
+
+        if (state.threads[key]?.messages[0]?.id === oldest) {
+            return false;
+        }
+    }
+
+    return false;
 }
 
 /**

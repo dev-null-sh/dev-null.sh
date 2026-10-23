@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 it('may delete a user', function (): void {
-    $user = User::factory()->create(['translation_language' => 'ja']);
+    $user = User::factory()->create(['translation_language' => 'ja', 'automatic_translation' => false]);
 
     $action = resolve(DeleteUser::class);
 

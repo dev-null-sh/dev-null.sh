@@ -48,6 +48,7 @@ export default defineConfig({
             'tests/Unit/OrgMentionSuggestions.test.tsx',
             'tests/Unit/RemoteNotifications.test.tsx',
             'tests/Unit/RemotePreferences.test.tsx',
+            'tests/Unit/ChatNavigation.test.tsx',
         ],
     },
 });

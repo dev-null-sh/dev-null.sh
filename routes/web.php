@@ -7,6 +7,7 @@ use App\Http\Controllers\AboutController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\BulkActivityController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
@@ -84,6 +85,7 @@ use App\Http\Controllers\SuggestionDismissalController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\TrafficController;
 use App\Http\Controllers\UserActivityGraphController;
+use App\Http\Controllers\UserAutomaticTranslationController;
 use App\Http\Controllers\UserBanController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
@@ -373,6 +375,7 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-rejection.store');
     Route::put('moderation', [ModerationController::class, 'update'])->name('moderation.update');
     Route::get('moderation/people', [ModeratedUserController::class, 'index'])->name('moderated-user.index');
+    Route::get('moderation/bulk', [BulkActivityController::class, 'index'])->name('bulk-activity.index');
     Route::delete('moderation/bans/{ban}', [BanController::class, 'destroy'])->whereUuid('ban')->name('ban.destroy');
 
     // Operations...
@@ -415,6 +418,7 @@ Route::middleware('auth')->group(function (): void {
     // User Timezone...
     Route::put('settings/timezone', [UserTimezoneController::class, 'update'])->name('user-timezone.update');
 
+    Route::put('settings/automatic-translation', [UserAutomaticTranslationController::class, 'update'])->name('user-automatic-translation.update');
     Route::put('settings/translation-language', [UserTranslationLanguageController::class, 'update'])->name('user-translation-language.update');
 
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');

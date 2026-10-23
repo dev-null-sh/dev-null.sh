@@ -28,6 +28,7 @@ const target = { kind: 'org' as const, org };
 const orgSummary: ConversationSummary = {
     id: org.id, kind: 'org', name: org.name, partner: null, members: [],
     last_message: null, last_message_at: null, last_incoming_message_id: null,
+    last_incoming_sender: null,
     ahead: 0, partner_read_through_id: 0, partner_read_at: null, is_archived: true, muted_until_at: null,
 };
 const thread: OrgThread & { org: typeof org } = {
@@ -123,7 +124,7 @@ test('fresh thread mute changes beat a stashed summary and older in-flight inbox
     assert.equal(muteItem(props).label, 'Unmute');
 });
 
-test.each(['default', 'denied', 'unsupported', 'granted'] as const)('banner-only polling requires permission: %s', async (permission) => {
+test.each(['default', 'denied', 'unsupported', 'granted'] as const)('tab-title notifications keep polling independently of banner permission: %s', async (permission) => {
     if (permission === 'unsupported') Reflect.deleteProperty(window, 'Notification');
     else vi.stubGlobal('Notification', { permission });
     await setRemoteAlerts('viewer', false, 'sound');
@@ -132,7 +133,7 @@ test.each(['default', 'denied', 'unsupported', 'granted'] as const)('banner-only
 
     useRemoteAlerts('viewer');
     await vi.advanceTimersByTimeAsync(15_000);
-    assert.equal(fetch.mock.calls.length, permission === 'granted' ? 2 : 0);
+    assert.equal(fetch.mock.calls.length, 2);
 });
 
 test('sound-only polling works without notification permission', async () => {

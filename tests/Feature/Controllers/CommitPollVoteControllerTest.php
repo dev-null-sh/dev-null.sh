@@ -80,18 +80,25 @@ it('explains why a vote is refused', function (Closure $scenario, string $messag
     'closed poll' => [fn (): array => [User::factory()->create(), Poll::factory()->withOptions('Tabs', 'Spaces')->closed()->create()], 'This poll has closed.'],
 ]);
 
-it('refuses a second vote', function (): void {
+it('returns the existing vote and results after a duplicate web vote', function (int $option): void {
     $user = User::factory()->create();
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
     PollVote::factory()->for($poll->options[0], 'option')->for($user)->create();
+    PollVote::factory()->for($poll->options[1], 'option')->create();
 
     $this->actingAs($user)
-        ->postJson(route('commit-poll-vote.store', $poll->commit), ['option' => $poll->options[1]->id])
-        ->assertUnprocessable()
-        ->assertJsonValidationErrors(['option' => 'You have already voted on this poll.']);
+        ->postJson(route('commit-poll-vote.store', $poll->commit), ['option' => $poll->options[$option]->id])
+        ->assertOk()
+        ->assertJsonPath('poll.has_voted', true)
+        ->assertJsonPath('poll.total_votes', 2)
+        ->assertJsonPath('poll.options.0.votes_count', 1)
+        ->assertJsonPath('poll.options.0.voted', true)
+        ->assertJsonPath('poll.options.1.votes_count', 1)
+        ->assertJsonPath('poll.options.1.voted', false);
 
-    expect($user->pollVotes()->sole()->poll_option_id)->toBe($poll->options[0]->id);
-});
+    expect($user->pollVotes()->sole()->poll_option_id)->toBe($poll->options[0]->id)
+        ->and(PollVote::query()->where('poll_id', $poll->id)->count())->toBe(2);
+})->with([0, 1]);
 
 it('may not vote on a poll that is not visible', function (string $state): void {
     $poll = Poll::factory()->for(Commit::factory()->{$state}())->withOptions('Tabs', 'Spaces')->create();
