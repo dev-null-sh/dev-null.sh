@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
-use App\Enums\CommitStatus;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 /**
+ * @phpstan-import-type ActivationDay from ActivationByDayQuery
+ *
  * @phpstan-type AcquisitionDay array{date: string, signups: int, visitors: int|null, converted: int|null, complete: bool}
- * @phpstan-type ActivationDay array{date: string, activated: int, eligible: int}
  * @phpstan-type FunnelRates array{conversion: float|null, activation: float|null, retention: float|null}
  * @phpstan-type ProductFunnel array{
  *     visitors: int|null,
@@ -40,7 +40,7 @@ final readonly class ProductFunnelQuery
 
     private const string SIGNUP_EVENT = 'signup';
 
-    public function __construct(private FathomTrafficQuery $traffic)
+    public function __construct(private FathomTrafficQuery $traffic, private ActivationByDayQuery $activationByDay)
     {
         //
     }
@@ -66,7 +66,7 @@ final readonly class ProductFunnelQuery
         $retention = $this->retention($from, $to, $trackedSince);
 
         $visitors = $this->traffic->eventVisitors($from, $to, self::GUEST_VISIT_EVENT);
-        $activationByDay = $this->activationByDay($from, $to);
+        $activationByDay = $this->activationByDay->get($from, $to);
         $activation = $this->activationTotal($activationByDay);
 
         $rates = [
@@ -81,7 +81,7 @@ final readonly class ProductFunnelQuery
 
         // All time, retention compares the signups whose day N is in each period, a range compares its own signups...
         $ratesBetween = function (CarbonImmutable $from, CarbonImmutable $to) use ($isAllTime, $trackedSince): array {
-            $activation = $this->activationTotal($this->activationByDay($from, $to));
+            $activation = $this->activationTotal($this->activationByDay->get($from, $to));
             $retention = $this->retention(
                 $isAllTime ? $from->subDays(self::RETENTION_DAY) : $from,
                 $isAllTime ? $to->subDays(self::RETENTION_DAY) : $to,
@@ -173,61 +173,6 @@ final readonly class ProductFunnelQuery
             'converted' => $converted === null ? null : $converted[$date] ?? 0,
             'complete' => $date < CarbonImmutable::today()->toDateString(),
         ], $dates);
-    }
-
-    /**
-     * Activated, for each signup day that has eligible signups, oldest first: within 12 hours of signing up, someone
-     * starred commits by 3 or more other people, or posted and got a reply, a quote or a star from someone
-     * else. Only the signups at least 12 hours old are eligible.
-     *
-     * @return list<ActivationDay>
-     */
-    private function activationByDay(CarbonImmutable $from, CarbonImmutable $to): array
-    {
-        $approved = CommitStatus::Approved->value;
-
-        /** @var list<object{date: string, activated: int, eligible: int}> $rows */
-        $rows = DB::select(<<<SQL
-            with humans as not materialized (
-                select id, created_at from users where github_id <> all(?::text[])
-            ), newcomers as (
-                select id, created_at, created_at + interval '12 hours' as until from humans
-                where created_at >= ? and created_at < ? and created_at <= ?
-            )
-            select n.created_at::date as date, count(*) filter (where (
-                select count(distinct c.user_id) from commits c
-                join humans a on a.id = c.user_id
-                where c.user_id <> n.id and c.id in (
-                    select s.commit_id from stars s where s.user_id = n.id and s.created_at <= n.until
-                )
-            ) >= 3 or exists (
-                select 1 from commits p
-                where p.user_id = n.id and p.created_at <= n.until and (
-                    exists (
-                        select 1 from stars s join humans h on h.id = s.user_id
-                        where s.commit_id = p.id and s.user_id <> n.id and s.created_at <= n.until
-                    ) or exists (
-                        select 1 from commits r join humans h on h.id = r.user_id
-                        where (r.parent_id = p.id or r.quoted_commit_id = p.id) and r.user_id <> n.id
-                        and r.status = '{$approved}' and r.created_at <= n.until
-                    )
-                )
-            )) as activated, count(*) as eligible
-            from newcomers n
-            group by 1
-            order by 1
-            SQL, [
-            User::botGitHubIdsArray(),
-            $from->startOfDay(),
-            $to->addDay()->startOfDay(),
-            now()->subHours(12),
-        ]);
-
-        return array_map(fn (object $row): array => [
-            'date' => $row->date,
-            'activated' => (int) $row->activated,
-            'eligible' => (int) $row->eligible,
-        ], $rows);
     }
 
     /**

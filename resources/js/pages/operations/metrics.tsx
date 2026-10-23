@@ -19,8 +19,8 @@ import { cn, formatZonedDate } from '@/lib/utils';
 import type {
     AcquisitionDay,
     ActivationDay,
+    ActiveUserCount,
     ActiveUsers,
-    ActivityBucket,
     CommitResponses,
     Funnel,
     FunnelRate,
@@ -290,17 +290,25 @@ function FunnelSkeleton() {
     );
 }
 
+type DailySegment = {
+    value: number;
+    className: string;
+};
+
 type DailyBar = {
     date: string;
     value: number;
     isPartial: boolean;
     label: string;
+    details?: string[];
+    segments?: DailySegment[];
 };
 
 /**
  * One slot per day of the range, so charts of the same range line up, with a bar on the days that have one, as tall as
  * its value against the tallest, and a line at the average of the range, to tell the days above it from the days below.
- * A partial day, still counting, is lighter. Tooltips of the bars near an edge align with it, so they stay on screen.
+ * A partial day, still counting, is lighter, unless the bar is stacked from segments, the first at the bottom, whose
+ * own colors carry the meaning. Tooltips of the bars near an edge align with it, so they stay on screen.
  */
 function DailyBars({
     range,
@@ -367,17 +375,43 @@ function DailyBars({
                         >
                             {bar && (
                                 <>
-                                    <div
-                                        className={cn(
-                                            'w-full rounded-t',
-                                            bar.isPartial
-                                                ? 'bg-primary/40'
-                                                : 'bg-primary',
-                                        )}
-                                        style={{
-                                            height: `${(bar.value / top) * 100}%`,
-                                        }}
-                                    />
+                                    {bar.segments ? (
+                                        <div
+                                            className="flex w-full flex-col-reverse gap-0.5 overflow-hidden rounded-t"
+                                            style={{
+                                                height: `${(bar.value / top) * 100}%`,
+                                            }}
+                                        >
+                                            {bar.segments
+                                                .filter(
+                                                    (segment) =>
+                                                        segment.value > 0,
+                                                )
+                                                .map((segment) => (
+                                                    <div
+                                                        key={segment.className}
+                                                        className={
+                                                            segment.className
+                                                        }
+                                                        style={{
+                                                            flex: `${segment.value} 1 0`,
+                                                        }}
+                                                    />
+                                                ))}
+                                        </div>
+                                    ) : (
+                                        <div
+                                            className={cn(
+                                                'w-full rounded-t',
+                                                bar.isPartial
+                                                    ? 'bg-primary/40'
+                                                    : 'bg-primary',
+                                            )}
+                                            style={{
+                                                height: `${(bar.value / top) * 100}%`,
+                                            }}
+                                        />
+                                    )}
                                     <div
                                         className={cn(
                                             'pointer-events-none absolute bottom-full z-10 mb-2 hidden rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block',
@@ -396,6 +430,14 @@ function DailyBars({
                                         <p className="font-medium tabular-nums">
                                             {bar.label}
                                         </p>
+                                        {bar.details?.map((detail) => (
+                                            <p
+                                                key={detail}
+                                                className="text-muted-foreground tabular-nums"
+                                            >
+                                                {detail}
+                                            </p>
+                                        ))}
                                     </div>
                                 </>
                             )}
@@ -420,7 +462,11 @@ function DailyBars({
                         {bars.map((bar) => (
                             <tr key={bar.date}>
                                 <th scope="row">{bar.date}</th>
-                                <td>{bar.label}</td>
+                                <td>
+                                    {[bar.label, ...(bar.details ?? [])].join(
+                                        ', ',
+                                    )}
+                                </td>
                             </tr>
                         ))}
                     </tbody>
@@ -552,38 +598,95 @@ function ActivationByDay({
     );
 }
 
+/**
+ * The parts of a day's active users, from the bottom of the bar: one hue, darker for the people who stayed, so the
+ * funnel reads from top to bottom. Signups too young to tell are hatched, as they are not settled yet.
+ */
+const ACTIVE_USER_PARTS = [
+    { key: 'returning', label: 'returning', className: 'bg-primary' },
+    {
+        key: 'activated',
+        label: 'new, activated',
+        className: 'bg-primary/55',
+    },
+    {
+        key: 'not_activated',
+        label: 'new, not activated',
+        className: 'bg-primary/20',
+    },
+    {
+        key: 'pending',
+        label: 'new, under 12h',
+        className:
+            'bg-[image:repeating-linear-gradient(135deg,color-mix(in_oklab,var(--primary)_55%,transparent)_0_2px,transparent_2px_5px)]',
+    },
+] as const;
+
 function ActiveUserCounts({
     range,
     counts,
 }: {
     range: TrafficRange;
-    counts: ActivityBucket[];
+    counts: ActiveUserCount[];
 }) {
     const today = utcDate();
     const complete = counts.filter((day) => day.date !== today);
 
     return (
-        <DailyBars
-            range={range}
-            average={
-                complete.length === 0
-                    ? null
-                    : Math.round(
-                          complete.reduce((sum, day) => sum + day.count, 0) /
-                              complete.length,
-                      )
-            }
-            bars={counts.map((day) => ({
-                date: day.date,
-                value: day.count,
-                isPartial: day.date === today,
-                label: `${formatCount(day.count)} active`,
-            }))}
-            caption="Daily active users"
-            column="Active users"
-            format={formatCount}
-            empty="nothing yet: days are counted from the day tracking started"
-        />
+        <>
+            <ul className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
+                {ACTIVE_USER_PARTS.map((part) => (
+                    <li key={part.key} className="flex items-center gap-1.5">
+                        <span
+                            aria-hidden
+                            className={cn(
+                                'size-2.5 rounded-sm',
+                                part.className,
+                            )}
+                        />
+                        {part.label}
+                    </li>
+                ))}
+            </ul>
+            <DailyBars
+                range={range}
+                average={
+                    complete.length === 0
+                        ? null
+                        : Math.round(
+                              complete.reduce(
+                                  (sum, day) => sum + day.count,
+                                  0,
+                              ) / complete.length,
+                          )
+                }
+                bars={counts.map((day) => ({
+                    date: day.date,
+                    value: ACTIVE_USER_PARTS.reduce(
+                        (sum, part) => sum + day[part.key],
+                        0,
+                    ),
+                    isPartial: day.date === today,
+                    label: `${formatCount(day.count)} active`,
+                    details: ACTIVE_USER_PARTS.filter(
+                        (part) => day[part.key] > 0,
+                    )
+                        .toReversed()
+                        .map(
+                            (part) =>
+                                `${formatCount(day[part.key])} ${part.label}`,
+                        ),
+                    segments: ACTIVE_USER_PARTS.map((part) => ({
+                        value: day[part.key],
+                        className: part.className,
+                    })),
+                }))}
+                caption="Daily active users"
+                column="Active users"
+                format={formatCount}
+                empty="nothing yet: days are counted from the day tracking started"
+            />
+        </>
     );
 }
 
@@ -600,7 +703,7 @@ export default function Show({
     activeUsers: ActiveUsers;
     responses: CommitResponses;
     newcomerFollows: NewcomerFollows;
-    activeUserCounts: ActivityBucket[];
+    activeUserCounts: ActiveUserCount[];
 }) {
     const days =
         Math.round(

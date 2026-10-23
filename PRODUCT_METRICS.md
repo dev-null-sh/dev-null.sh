@@ -87,7 +87,7 @@ The funnel follows the people who **signed up in the selected range** (all time 
 | First posts answered | The same, for commits that were their author's first post of any kind. |
 | Follows, first 24h | Median number of people a newcomer followed themselves in their first 24 hours. Follows imported from GitHub are left out: they are created in the transaction that records the import, so follows made in the 10 seconds before either side's import are taken for imported ones. |
 | Followed back | Share of those follows that were followed back since. |
-| Daily active users | A chart of the people seen each day of the range, from `active_user_counts`. Today's bar is still counting; a dashed line marks the average of the other days. |
+| Daily active users | A chart of the people seen each day of the range, from `active_user_counts`, each bar stacked from the bottom: returning people, then that day's signups who activated, didn't, or are under 12 hours old, too young to tell. It reads the funnel day by day: what makes the audience grow or shrink. Returning is the day's count minus its signups, as every signup is seen on the page it lands on, so it can't be split further, and it is not the retention rate: it grows on its own the day after a spike of signups. An account deleted since still counts in its day but no longer in the signups, so returning reads slightly high. Today's bar is still counting; a dashed line marks the average of the other days. |
 
 ## Benchmarks
 
