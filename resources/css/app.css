@@ -8,6 +8,26 @@
 @custom-variant dark (&:is(.dark *));
 @custom-variant in-place (&:is(:root[data-view-transition] *));
 
+/* Keep the fingerprint's wrapping, selection and accessible text while revealing its tiny secret. */
+.certificate-hash {
+    position: relative;
+}
+
+@media (hover: hover) {
+    .certificate-hash:hover > span {
+        opacity: 0;
+    }
+
+    .certificate-hash:hover::after {
+        content: '4' / '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+        user-select: none;
+    }
+}
+
 /* Hovering or focusing a reply only reveals that reply's own controls, not those of the commits it sits inside. */
 @custom-variant commit-hover {
     @media (hover: hover) {
