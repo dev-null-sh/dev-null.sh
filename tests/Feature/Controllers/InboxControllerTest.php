@@ -31,10 +31,13 @@ it('lists conversations by latest message with what is unread', function (array 
         ->and($response->json('conversations.0.ahead'))->toBe(2)
         ->and($response->json('conversations.0.last_message.body'))->toBe('ship it')
         ->and($response->json('conversations.0.last_incoming_message_id'))->toBe($latest->id)
+        ->and($response->json('conversations.0.last_incoming_sender'))->toBe($nuno->name)
         ->and($response->json('conversations.1.partner.username'))->toBe('taylorotwell')
         ->and($response->json('conversations.1.ahead'))->toBe(0)
         ->and($response->json('conversations.1.last_message.user_id'))->toBe($mark->id)
         ->and($response->json('conversations.1.last_incoming_message_id'))->toBeNull();
+
+    $response->assertJsonPath('conversations.1.last_incoming_sender', null);
 })->with([
     'not requested' => [[]],
     'explicitly disabled' => [['notification_baseline' => 0]],
@@ -156,7 +159,8 @@ it("keeps the newest incoming org message past later events and the viewer's own
     $this->actingAs($nuno)->getJson(route('inbox.index', ['notification_baseline' => 1]))
         ->assertJsonPath('notification_baseline', [$org => Conversation::query()->findOrFail($org)->last_message_id])
         ->assertJsonPath('conversations.0.last_message.event', 'created')
-        ->assertJsonPath('conversations.0.last_incoming_message_id', null);
+        ->assertJsonPath('conversations.0.last_incoming_message_id', null)
+        ->assertJsonPath('conversations.0.last_incoming_sender', null);
 
     $shipIt = pushToOrg($mark, $org, 'ship it');
     $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$jess->username], 'share_history' => true])->assertNoContent();
@@ -166,20 +170,23 @@ it("keeps the newest incoming org message past later events and the viewer's own
         ->assertJsonPath('notification_baseline', [$org => Conversation::query()->findOrFail($org)->last_message_id])
         ->assertJsonPath('conversations.0.last_message.event', 'added')
         ->assertJsonPath('conversations.0.ahead', 1)
-        ->assertJsonPath('conversations.0.last_incoming_message_id', $shipIt->id);
+        ->assertJsonPath('conversations.0.last_incoming_message_id', $shipIt->id)
+        ->assertJsonPath('conversations.0.last_incoming_sender', $mark->name);
 
     $this->actingAs($mark)->getJson(route('inbox.index', ['notification_baseline' => 1]))
         ->assertJsonPath('unread', 0)
         ->assertJsonPath('notification_baseline', [$org => Conversation::query()->findOrFail($org)->last_message_id])
         ->assertJsonPath('conversations.0.ahead', 0)
-        ->assertJsonPath('conversations.0.last_incoming_message_id', null);
+        ->assertJsonPath('conversations.0.last_incoming_message_id', null)
+        ->assertJsonPath('conversations.0.last_incoming_sender', null);
 
     $this->actingAs($nuno)->putJson(route('org-read.update', $org), ['through' => $shipIt->id])->assertNoContent();
 
     $this->getJson(route('inbox.index'))
         ->assertJsonPath('unread', 0)
         ->assertJsonPath('conversations.0.ahead', 0)
-        ->assertJsonPath('conversations.0.last_incoming_message_id', $shipIt->id);
+        ->assertJsonPath('conversations.0.last_incoming_message_id', $shipIt->id)
+        ->assertJsonPath('conversations.0.last_incoming_sender', $mark->name);
 
     $reply = pushToOrg($nuno, $org, 'on it');
 
@@ -187,13 +194,15 @@ it("keeps the newest incoming org message past later events and the viewer's own
         ->assertJsonPath('unread', 0)
         ->assertJsonPath('notification_baseline', [$org => $reply->id])
         ->assertJsonPath('conversations.0.last_message.id', $reply->id)
-        ->assertJsonPath('conversations.0.last_incoming_message_id', $shipIt->id);
+        ->assertJsonPath('conversations.0.last_incoming_message_id', $shipIt->id)
+        ->assertJsonPath('conversations.0.last_incoming_sender', $mark->name);
 
     $this->actingAs($mark)->getJson(route('inbox.index', ['notification_baseline' => 1]))
         ->assertJsonPath('unread', 1)
         ->assertJsonPath('notification_baseline', [$org => $reply->id])
         ->assertJsonPath('conversations.0.ahead', 1)
-        ->assertJsonPath('conversations.0.last_incoming_message_id', $reply->id);
+        ->assertJsonPath('conversations.0.last_incoming_message_id', $reply->id)
+        ->assertJsonPath('conversations.0.last_incoming_sender', $nuno->name);
 });
 
 it('only exposes incoming org message ids from the history shared with a new member', function (bool $sharesHistory): void {
@@ -211,14 +220,16 @@ it('only exposes incoming org message ids from the history shared with a new mem
         ->assertOk()
         ->assertJsonPath('notification_baseline', [$org => Conversation::query()->findOrFail($org)->last_message_id])
         ->assertJsonPath('conversations.0.id', $org)
-        ->assertJsonPath('conversations.0.last_incoming_message_id', $sharesHistory ? $beforeJoining->id : null);
+        ->assertJsonPath('conversations.0.last_incoming_message_id', $sharesHistory ? $beforeJoining->id : null)
+        ->assertJsonPath('conversations.0.last_incoming_sender', $sharesHistory ? $mark->name : null);
 
     $afterJoining = pushToOrg($mark, $org, 'after joining');
 
     $this->actingAs($jess)->getJson(route('inbox.index', ['notification_baseline' => 1]))
         ->assertOk()
         ->assertJsonPath('notification_baseline', [$org => $afterJoining->id])
-        ->assertJsonPath('conversations.0.last_incoming_message_id', $afterJoining->id);
+        ->assertJsonPath('conversations.0.last_incoming_message_id', $afterJoining->id)
+        ->assertJsonPath('conversations.0.last_incoming_sender', $mark->name);
 })->with([false, true]);
 
 it('leaves out conversations across a block', function (bool $blockedByPartner): void {

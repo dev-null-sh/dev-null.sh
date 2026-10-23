@@ -118,6 +118,7 @@ export type ChatState = {
     unread: number | null;
     requests: number | null;
     isPollingInbox: boolean;
+    notificationTitle: string | null;
     threads: Record<string, ThreadState>;
     mutePreferences: Record<string, { until: string | null; version: number }>;
     /**
@@ -150,6 +151,7 @@ let state: ChatState = {
     unread: null,
     requests: null,
     isPollingInbox: false,
+    notificationTitle: null,
     threads: {},
     mutePreferences: {},
     reactionUsage: null,
@@ -689,6 +691,7 @@ async function pollInbox(): Promise<void> {
 }
 
 export function watchRemoteAlerts(userId: string): () => void {
+    let titleTimer: number | undefined;
     const alerts = createRemoteAlerts(
         userId,
         (conversation) => urls(targetOf(conversation)).show,
@@ -700,13 +703,32 @@ export function watchRemoteAlerts(userId: string): () => void {
                         (key) => urls(state.threads[key].target).show,
                     )
                   : [],
+        (conversation) => {
+            const sender = conversation.last_incoming_sender ?? 'Someone';
+            const remote =
+                conversation.kind === 'org'
+                    ? ` in ${conversation.name || 'an unnamed org'}`
+                    : '';
+            update({
+                notificationTitle: `${sender}${remote} sent you a message`,
+            });
+            window.clearTimeout(titleTimer);
+            titleTimer = window.setTimeout(
+                () => update({ notificationTitle: null }),
+                5_000,
+            );
+        },
     );
     remoteAlerts = alerts;
     const unwatch = watchInbox();
 
     return () => {
         alerts.stop();
-        if (remoteAlerts === alerts) remoteAlerts = null;
+        window.clearTimeout(titleTimer);
+        if (remoteAlerts === alerts) {
+            remoteAlerts = null;
+            update({ notificationTitle: null });
+        }
         unwatch();
     };
 }
@@ -961,6 +983,7 @@ function touchInbox(target: ChatTarget, message: Message): void {
         members: existing?.members ?? null,
         last_message: message,
         last_incoming_message_id: existing?.last_incoming_message_id ?? null,
+        last_incoming_sender: existing?.last_incoming_sender ?? null,
         last_message_at: message.created_at,
         ahead: existing?.ahead ?? 0,
         partner_read_through_id: existing?.partner_read_through_id ?? 0,

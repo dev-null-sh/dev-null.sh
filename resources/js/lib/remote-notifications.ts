@@ -57,14 +57,14 @@ export async function setRemoteAlerts(
     enabled: boolean,
     channel: RemoteAlertChannel = 'notifications',
 ): Promise<boolean> {
-    if (enabled && channel === 'notifications') {
-        if (!('Notification' in window) || !window.isSecureContext) {
-            return false;
-        }
-
-        if ((await Notification.requestPermission()) !== 'granted') {
-            return false;
-        }
+    if (
+        enabled &&
+        channel === 'notifications' &&
+        'Notification' in window &&
+        window.isSecureContext
+    ) {
+        // Tab titles need no permission, even when the browser declines or cannot show banners.
+        await Notification.requestPermission().catch(() => undefined);
     }
 
     writeStorage(preferenceKey(userId, channel), enabled ? 'on' : 'off');
@@ -87,6 +87,7 @@ export function createRemoteAlerts(
     userId: string,
     urlOf: (conversation: ConversationSummary) => string,
     reading: () => string[],
+    onIncoming: (conversation: ConversationSummary) => void,
 ) {
     let latest: Record<string, number> | null = null;
     let stopped = false;
@@ -222,8 +223,12 @@ export function createRemoteAlerts(
                     remoteAlertsEnabled(userId) && remoteNotificationsAllowed();
                 const playSound = remoteAlertsEnabled(userId, 'sound');
 
-                if (incoming === undefined || !(showBanner || playSound)) {
+                if (incoming === undefined) {
                     return;
+                }
+
+                if (remoteAlertsEnabled(userId)) {
+                    onIncoming(incoming);
                 }
 
                 if (playSound && now - previousSoundAt >= 10_000) {

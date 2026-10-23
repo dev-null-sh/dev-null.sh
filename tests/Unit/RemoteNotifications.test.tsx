@@ -8,6 +8,7 @@ import type { ConversationSummary } from '../../resources/js/types';
 
 const storage = new Map<string, string>();
 const shown: FakeNotification[] = [];
+const announced: ConversationSummary[] = [];
 const play = vi.fn(async () => {});
 const assign = vi.fn();
 let permission: NotificationPermission = 'granted';
@@ -30,7 +31,7 @@ class FakeNotification {
 }
 
 function reader(reading: () => string[] = () => []) {
-    const alerts = createRemoteAlerts('me', (item) => `/remotes/${item.id}`, reading);
+    const alerts = createRemoteAlerts('me', (item) => `/remotes/${item.id}`, reading, (item) => announced.push(item));
     readers.push(alerts);
     return alerts;
 }
@@ -40,6 +41,7 @@ function conversation(id: number, changes: Partial<ConversationSummary> = {}): C
         id: 'remote-one', kind: 'direct', name: null, partner: null, members: null,
         last_message: { id, user_id: 'other', client_id: '', body: 'private message', created_at: new Date(time).toISOString() },
         last_incoming_message_id: id,
+        last_incoming_sender: 'Alice',
         last_message_at: new Date(time).toISOString(), ahead: 1,
         partner_read_through_id: 0, partner_read_at: null, is_archived: false, muted_until_at: null,
         ...changes,
@@ -51,6 +53,7 @@ beforeEach(() => {
     permission = 'granted';
     storage.clear();
     shown.length = 0;
+    announced.length = 0;
     play.mockClear();
     assign.mockClear();
     vi.spyOn(Date, 'now').mockImplementation(() => time);
@@ -101,6 +104,7 @@ test('ignores backlog, own messages, org events, read conversations and active m
     time += 20_000;
     await alerts.receive([conversation(15)], away);
     assert.equal(shown.length, 0);
+    assert.equal(announced.length, 0);
     assert.equal(play.mock.calls.length, 0);
 
     await alerts.receive([conversation(16, { muted_until_at: new Date(time).toISOString() })], away);
@@ -131,6 +135,7 @@ test('only sound has a ten-second cooldown across remotes and tabs, while banner
     time += 10_000;
     await first.receive([conversation(22)], () => false);
     assert.equal(shown.length, 3);
+    assert.equal(announced.length, 3);
     assert.equal(play.mock.calls.length, 2);
 });
 
@@ -239,8 +244,8 @@ test('alerts default on, preserve an explicit opt-out per account, and banners s
     assert.equal(remoteAlertsEnabled('me', 'sound'), true);
     assert.equal(remoteAlertsEnabled('someone-else'), true);
     permission = 'denied';
-    assert.equal(await setRemoteAlerts('me', true), false);
-    assert.equal(remoteAlertsEnabled('me'), false);
+    assert.equal(await setRemoteAlerts('me', true), true);
+    assert.equal(remoteAlertsEnabled('me'), true);
     permission = 'granted';
     assert.equal(await setRemoteAlerts('me', true), true);
     const alerts = reader();
@@ -283,6 +288,7 @@ test.each([
     await alerts.receive([conversation(1)], () => false);
 
     assert.equal(shown.length, Number(notifications));
+    assert.equal(announced.length, Number(notifications));
     assert.equal(play.mock.calls.length, Number(sound));
 });
 
@@ -297,6 +303,8 @@ test.each(['denied', 'unavailable', 'broken'] as const)('sound works when browse
             constructor() { super('', {}); shown.pop(); throw new Error('Notifications blocked'); }
         });
     }
+    await setRemoteAlerts('me', false);
+    assert.equal(await setRemoteAlerts('me', true), true);
     const alerts = reader();
     await alerts.receive([], () => false);
     await alerts.receive([conversation(1)], () => false);
@@ -304,6 +312,7 @@ test.each(['denied', 'unavailable', 'broken'] as const)('sound works when browse
     await alerts.receive([conversation(2)], () => false);
 
     assert.equal(shown.length, 0);
+    assert.equal(announced.length, 2);
     assert.equal(play.mock.calls.length, 1);
 });
 
@@ -387,6 +396,51 @@ test.each([true, false])('background inbox polling alerts without consuming unre
     assert.equal(pageTitle('Settings', page), '(8) Settings - /dev/null');
     page.props.auth.user = null;
     assert.equal(pageTitle('Settings', page), 'Settings - /dev/null');
+});
+
+test('temporary tab titles identify arrivals without banner permission, replace bursts, expire, and clear on teardown', async () => {
+    vi.useFakeTimers();
+    Object.assign(window, { setTimeout, clearTimeout });
+    const events = new EventTarget();
+    vi.stubGlobal('document', {
+        hidden: false, hasFocus: () => false, cookie: '',
+        addEventListener: events.addEventListener.bind(events),
+        removeEventListener: events.removeEventListener.bind(events),
+    });
+    permission = 'denied';
+    await setRemoteAlerts('me', false, 'sound');
+    let messages: ConversationSummary[] = [];
+    vi.stubGlobal('fetch', async () => Response.json({ conversations: messages, has_more: false, unread: 1, requests: 0, notification_baseline: {} }));
+    const stop = watchRemoteAlerts('me');
+
+    try {
+        await vi.advanceTimersByTimeAsync(0);
+        messages = [conversation(101, { kind: 'org', name: 'Design & <code>' })];
+        events.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(0);
+        assert.equal(chatSnapshot().notificationTitle, 'Alice in Design & <code> sent you a message');
+
+        await vi.advanceTimersByTimeAsync(4_000);
+        messages = [conversation(102, { last_incoming_sender: 'Bob' })];
+        events.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(1_000);
+        assert.equal(chatSnapshot().notificationTitle, 'Bob sent you a message');
+        await vi.advanceTimersByTimeAsync(3_999);
+        assert.equal(chatSnapshot().notificationTitle, 'Bob sent you a message');
+        await vi.advanceTimersByTimeAsync(1);
+        assert.equal(chatSnapshot().notificationTitle, null);
+        assert.equal(shown.length, 0);
+        assert.equal(play.mock.calls.length, 0);
+
+        messages = [conversation(103, { kind: 'org', name: null })];
+        events.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(0);
+        assert.equal(chatSnapshot().notificationTitle, 'Alice in an unnamed org sent you a message');
+    } finally {
+        stop();
+        vi.useRealTimers();
+    }
+    assert.equal(chatSnapshot().notificationTitle, null);
 });
 
 test('restarting alerts during an inbox request waits for its own baseline without replaying old messages', async () => {
@@ -588,7 +642,7 @@ test('opening and closing a remote publishes reading state even while its reques
     Object.assign(window, { setTimeout, clearTimeout });
     Object.assign(document, { hidden: false, hasFocus: () => true, cookie: '' });
     vi.stubGlobal('fetch', async () => new Response(null, { status: 503 }));
-    const background = createRemoteAlerts('me', (item) => `/remotes/orgs/${item.id}`, () => []);
+    const background = createRemoteAlerts('me', (item) => `/remotes/orgs/${item.id}`, () => [], (item) => announced.push(item));
     readers.push(background);
     await background.receive([], () => false);
     const stopAlerts = watchRemoteAlerts('me');

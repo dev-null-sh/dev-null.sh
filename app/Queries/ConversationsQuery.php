@@ -27,6 +27,7 @@ use Illuminate\Support\Collection;
  *     last_message_at: string|null,
  *     ahead: int,
  *     last_incoming_message_id: int|null,
+ *     last_incoming_sender: string|null,
  *     partner_read_through_id: int,
  *     partner_read_at: string|null,
  *     is_archived: bool,
@@ -106,7 +107,7 @@ final readonly class ConversationsQuery
                     ->whereNull('messages.event'),
                 'last_incoming_message_id',
             )
-            ->with(['lastMessage.user', 'lastMessage.subject', 'lastMessage.voice', 'partner', 'participants.user'])
+            ->with(['lastMessage.user', 'lastMessage.subject', 'lastMessage.voice', 'lastIncomingMessage:id,user_id', 'lastIncomingMessage.user:id,name', 'partner', 'participants.user'])
             ->orderByDesc('mine.last_message_at')
             ->orderByDesc('conversations.id')
             ->limit(self::PAGE + 1)
@@ -207,6 +208,7 @@ final readonly class ConversationsQuery
             'last_message_at' => $conversation->last_message_at?->toJSON(),
             'ahead' => $conversation->ahead,
             'last_incoming_message_id' => $conversation->last_incoming_message_id,
+            'last_incoming_sender' => $conversation->lastIncomingMessage?->user->name,
             'partner_read_through_id' => $sharesReads ? $conversation->partner_read_through_id : 0,
             'partner_read_at' => $sharesReads ? $conversation->partner_read_at?->toJSON() : null,
             'is_archived' => $conversation->archived_at !== null,
