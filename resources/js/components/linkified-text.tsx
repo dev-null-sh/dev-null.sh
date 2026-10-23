@@ -168,19 +168,70 @@ function shortRef(ref: string): string {
     return gitHubShaPattern.test(ref) ? ref.slice(0, 7) : ref;
 }
 
-function gitHubItem(path: string[]): GitHubItem | null {
+const gitHubThreads: Record<string, string> = {
+    issues: 'issue',
+    pull: 'pull request',
+    discussions: 'discussion',
+};
+
+// The anchors GitHub gives a comment or a review in an issue, a pull request or a discussion.
+const gitHubThreadAnchors: Record<string, [RegExp, string][]> = {
+    issues: [[/^#issuecomment-[1-9][0-9]*$/, 'comment']],
+    pull: [
+        [/^#(?:issuecomment-|discussion_r)[1-9][0-9]*$/, 'comment'],
+        [/^#pullrequestreview-[1-9][0-9]*$/, 'review'],
+    ],
+    discussions: [[/^#discussioncomment-[1-9][0-9]*$/, 'comment']],
+};
+
+/**
+ * An issue, a pull request or a discussion, or one of their comments or reviews, as GitHub writes it: "#42", or
+ * "#42 (comment)".
+ */
+function gitHubThread(
+    kind: string,
+    rest: string[],
+    hash: string,
+): GitHubItem | null {
+    const thread = gitHubThreads[kind];
+
+    if (
+        thread === undefined ||
+        rest.length !== 1 ||
+        !gitHubNumberPattern.test(rest[0])
+    ) {
+        return null;
+    }
+
+    const reference = `${thread} #${rest[0]}`;
+
+    if (hash === '') {
+        return { suffix: `#${rest[0]}`, description: reference };
+    }
+
+    const anchor = gitHubThreadAnchors[kind].find(([pattern]) =>
+        pattern.test(hash),
+    )?.[1];
+
+    return anchor
+        ? {
+              suffix: `#${rest[0]} (${anchor})`,
+              description: `${anchor} on ${reference}`,
+          }
+        : null;
+}
+
+function gitHubItem(path: string[], hash: string): GitHubItem | null {
     const [first, ...rest] = path;
     const kind = first.toLowerCase();
 
-    if (
-        (kind === 'issues' || kind === 'pull') &&
-        rest.length === 1 &&
-        gitHubNumberPattern.test(rest[0])
-    ) {
-        return {
-            suffix: `#${rest[0]}`,
-            description: `${kind === 'pull' ? 'pull request' : 'issue'} #${rest[0]}`,
-        };
+    // Own keys only: a path segment like "constructor" names no thread.
+    if (Object.hasOwn(gitHubThreads, kind)) {
+        return gitHubThread(kind, rest, hash);
+    }
+
+    if (hash !== '') {
+        return null;
     }
 
     if (
@@ -218,8 +269,8 @@ function gitHubItem(path: string[]): GitHubItem | null {
 }
 
 /**
- * A link to a GitHub repository, or to an issue, a pull request, a commit, a comparison or a release in it, nothing
- * after them, so it can show as GitHub writes it.
+ * A link to a GitHub repository, or to an issue, a pull request, a discussion, a commit, a comparison or a release in
+ * it, nothing after them but a comment's anchor, so it can show as GitHub writes it.
  */
 function gitHubLinkTo(href: string): GitHubTarget | null {
     let url: URL;
@@ -238,7 +289,6 @@ function gitHubLinkTo(href: string): GitHubTarget | null {
         url.password !== '' ||
         url.port !== '' ||
         url.search !== '' ||
-        url.hash !== '' ||
         !gitHubOwnerPattern.test(owner) ||
         gitHubReservedPaths.has(owner.toLowerCase()) ||
         repository === undefined ||
@@ -248,10 +298,10 @@ function gitHubLinkTo(href: string): GitHubTarget | null {
     }
 
     if (path.length === 0) {
-        return { owner, repository, item: null };
+        return url.hash === '' ? { owner, repository, item: null } : null;
     }
 
-    const item = gitHubItem(path);
+    const item = gitHubItem(path, url.hash);
 
     return item ? { owner, repository, item } : null;
 }

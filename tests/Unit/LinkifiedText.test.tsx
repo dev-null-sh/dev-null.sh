@@ -520,6 +520,31 @@ for (const [url, label, description] of [
         'laravel/framework@packages/queue-1.0',
         'laravel/framework release packages/queue-1.0',
     ],
+    [
+        'https://github.com/laravel/framework/discussions/42',
+        'laravel/framework#42',
+        'laravel/framework discussion #42',
+    ],
+    [
+        'https://github.com/laravel/framework/issues/42#issuecomment-1',
+        'laravel/framework#42 (comment)',
+        'laravel/framework comment on issue #42',
+    ],
+    [
+        'https://github.com/laravel/framework/pull/42#discussion_r123',
+        'laravel/framework#42 (comment)',
+        'laravel/framework comment on pull request #42',
+    ],
+    [
+        'https://github.com/laravel/framework/pull/42#pullrequestreview-7',
+        'laravel/framework#42 (review)',
+        'laravel/framework review on pull request #42',
+    ],
+    [
+        'https://github.com/laravel/framework/discussions/42#discussioncomment-9',
+        'laravel/framework#42 (comment)',
+        'laravel/framework comment on discussion #42',
+    ],
 ]) {
     test(`shows a GitHub link as GitHub writes it: ${url}`, () => {
         const text = `see ${url}.`;
@@ -565,9 +590,15 @@ for (const link of [
     'https://github.com/laravel/framework/issues/0',
     'https://github.com/laravel/framework/issues/042',
     'https://github.com/laravel/framework/issues',
-    'https://github.com/laravel/framework/issues/42#issuecomment-1',
+    'https://github.com/laravel/framework/issues/42#top',
+    'https://github.com/laravel/framework/issues/42#issuecomment-',
     'https://github.com/laravel/framework/issues/42?page=2',
-    'https://github.com/laravel/framework/discussions/42',
+    'https://github.com/laravel/framework/discussions/0',
+    'https://github.com/laravel/framework/discussions',
+    'https://github.com/laravel/framework/constructor/42',
+    'https://github.com/laravel/framework/constructor/42#x',
+    'https://github.com/laravel/framework/__proto__/42#x',
+    'https://github.com/laravel/framework/toString/42',
     'https://github.com/laravel/framework?tab=readme',
     'https://github.com/laravel/framework#readme',
     'https://github.com/features/actions',
