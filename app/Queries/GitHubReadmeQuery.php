@@ -18,6 +18,13 @@ final readonly class GitHubReadmeQuery
      */
     private const int MaxLength = 200_000;
 
+    /**
+     * Images uploaded to GitHub are served from links signed for five minutes.
+     */
+    private const int SignedImagesTtl = 240;
+
+    private const int FailureTtl = 300;
+
     public function __construct(private GitHub $github)
     {
         //
@@ -25,30 +32,54 @@ final readonly class GitHubReadmeQuery
 
     /**
      * The README of the developer's GitHub profile repository, the one named after them, as GitHub renders it. Its
-     * images already go through GitHub's image proxy, so readers never reach the hosts they come from. Cached for a
-     * day, a missing README included. Null when there is none, or when GitHub didn't answer, which is not cached.
+     * images come from GitHub's own hosts, so readers never reach the hosts they come from. Cached for a day, a missing
+     * README included, but only for a few minutes when it holds uploaded images, whose signed links expire after five.
+     * Null when there is none, false when GitHub didn't answer, which is remembered for a few minutes so an outage
+     * doesn't call GitHub again on every view.
      */
-    public function get(User $user): ?string
+    public function get(User $user): string|false|null
     {
-        try {
-            $html = Cache::remember("github-readme:{$user->github_id}", 86400, function () use ($user): string {
-                $login = $this->github->login($user->github_id);
+        $key = "github-readme:{$user->github_id}";
+        $failedKey = "github-readme-failed:{$user->github_id}";
 
-                if ($login === null) {
-                    return '';
-                }
+        /** @var string|null $html */
+        $html = Cache::get($key);
 
-                $response = $this->github->request()
-                    ->accept('application/vnd.github.html+json')
-                    ->get("repos/{$login}/{$login}/readme");
+        if ($html === null) {
+            if (Cache::has($failedKey)) {
+                return false;
+            }
 
-                return $response->notFound() ? '' : $this->sanitize($response->throw()->body());
-            });
-        } catch (HttpClientException) {
-            return null;
+            try {
+                $html = $this->fetch($user);
+            } catch (HttpClientException) {
+                Cache::put($failedKey, true, self::FailureTtl);
+
+                return false;
+            }
+
+            Cache::put($key, $html, str_contains($html, 'private-user-images.githubusercontent.com') ? self::SignedImagesTtl : 86400);
         }
 
         return $html === '' ? null : $html;
+    }
+
+    /**
+     * @throws HttpClientException
+     */
+    private function fetch(User $user): string
+    {
+        $login = $this->github->login($user->github_id);
+
+        if ($login === null) {
+            return '';
+        }
+
+        $response = $this->github->request()
+            ->accept('application/vnd.github.html+json')
+            ->get("repos/{$login}/{$login}/readme");
+
+        return $response->notFound() ? '' : $this->sanitize($response->throw()->body());
     }
 
     /**
@@ -58,15 +89,32 @@ final readonly class GitHubReadmeQuery
     private function sanitize(string $html): string
     {
         $config = new HtmlSanitizerConfig()
-            ->allowSafeElements()
-            // GitHub wraps tables and theme-aware images in its own elements: those go, what they hold stays.
+            // Only what a README is written with: a fixed list, so attributes like srcset or name, and elements like
+            // dialog, never come along with the browser's idea of what is safe.
+            ->allowElement('a', ['href', 'title'])
+            ->allowElement('img', ['src', 'alt', 'title', 'width', 'height', 'align'])
+            ->allowElement('p', ['align'])
+            ->allowElement('div', ['align'])
+            ->allowElement('h1', ['align'])
+            ->allowElement('h2', ['align'])
+            ->allowElement('h3', ['align'])
+            ->allowElement('h4', ['align'])
+            ->allowElement('h5', ['align'])
+            ->allowElement('h6', ['align'])
+            ->allowElement('th', ['align', 'colspan', 'rowspan'])
+            ->allowElement('td', ['align', 'colspan', 'rowspan'])
+            ->allowElement('ol', ['start'])
+            ->allowElement('details', ['open']);
+
+        foreach (['article', 'span', 'ul', 'li', 'table', 'thead', 'tbody', 'tr', 'pre', 'code', 'blockquote', 'summary', 'picture', 'br', 'hr', 'b', 'strong', 'i', 'em', 'sub', 'sup', 'del', 's', 'kbd'] as $element) {
+            $config = $config->allowElement($element);
+        }
+
+        $config = $config
+            // GitHub wraps tables, theme-aware images and emoji in its own elements: those go, what they hold stays.
             ->blockElement('markdown-accessiblity-table')
             ->blockElement('themed-picture')
-            // A source's srcset is not checked against the allowed hosts, so pictures fall back to their image.
-            ->dropElement('source')
-            ->dropAttribute('class', '*')
-            ->dropAttribute('id', '*')
-            ->dropAttribute('style', '*')
+            ->blockElement('g-emoji')
             ->allowLinkSchemes(['https', 'http', 'mailto'])
             ->allowRelativeLinks(false)
             ->allowMediaSchemes(['https'])

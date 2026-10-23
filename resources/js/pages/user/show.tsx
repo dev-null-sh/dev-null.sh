@@ -87,7 +87,7 @@ export default function Show({
     commits: CursorPaginated<Commit>;
     tab: 'commits' | 'replies' | 'readme';
     pinnedCommit: Commit | null;
-    readme: string | null;
+    readme: string | false | null;
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user?.id === user.id;
