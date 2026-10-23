@@ -1,4 +1,5 @@
 import { readStorage, writeStorage } from '@/lib/storage';
+import { randomUuid } from '@/lib/utils';
 import type { ConversationSummary } from '@/types';
 
 export type RemoteAlertChannel = 'notifications' | 'sound';
@@ -96,7 +97,7 @@ export function createRemoteAlerts(
     const notifications = new Set<Notification>();
     const cooldownKey = `remote-alert-cooldown:${userId}`;
     const readingKey = `remote-alert-reading:${userId}`;
-    const tabId = crypto.randomUUID();
+    const tabId = randomUuid();
 
     const releaseReading = () => {
         if (readStorage(readingKey).split('\n')[0] === tabId) {
