@@ -130,6 +130,7 @@ function QuoteComposer({
         stashKey,
     );
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
     const commitRules = useCommitRules();
     const keys = useKeyLabels();
 
@@ -152,14 +153,20 @@ function QuoteComposer({
     return (
         <DialogContent
             onEscapeKeyDown={(event) => {
-                if (document.querySelector('[data-mention-suggestions]')) {
+                if (
+                    document.querySelector(
+                        '[data-mention-suggestions], [data-slash-suggestions], [data-emoji-suggestions]',
+                    )
+                ) {
                     event.preventDefault();
                 }
             }}
             onInteractOutside={(event) => {
                 if (
                     event.target instanceof Element &&
-                    event.target.closest('[data-mention-suggestions]')
+                    event.target.closest(
+                        '[data-mention-suggestions], [data-slash-suggestions], [data-emoji-suggestions]',
+                    )
                 ) {
                     event.preventDefault();
                 }
@@ -234,6 +241,14 @@ function QuoteComposer({
                                 value={body}
                                 onValueChange={updateBody}
                                 onKeyDown={submitOnModEnter}
+                                onImage={() => imageInputRef.current?.click()}
+                                commandContext={{
+                                    surface: 'quote',
+                                    hasPoll: false,
+                                    imageCount: images.length,
+                                    isScheduling: false,
+                                    processing,
+                                }}
                                 onPaste={attachments.onPaste}
                                 onFocus={
                                     isRestored ? moveCaretToEnd : undefined
@@ -281,6 +296,7 @@ function QuoteComposer({
                                         disabled={processing}
                                         reading={attachments.reading}
                                         onPick={attachments.pick}
+                                        inputRef={imageInputRef}
                                         className="size-8"
                                     />
                                     {isRestored && (

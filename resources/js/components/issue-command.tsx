@@ -10,11 +10,9 @@ import type { IssueCommand, IssueKind } from '@/lib/issue-commands';
 import {
     hintedCommand,
     issueCommands,
-    suggestedCommands,
     typedCommand,
 } from '@/lib/issue-commands';
 import { hasModKey } from '@/lib/keyboard';
-import { cn } from '@/lib/utils';
 
 const hintDismissedKey = 'issue-command-hint-dismissed';
 
@@ -41,9 +39,6 @@ export function useIssueCommand({
     onCreated: () => void;
 }) {
     const [kind, setKind] = useState<IssueKind | null>(null);
-    const [selected, setSelected] = useState(0);
-    const [dismissed, setDismissed] = useState(false);
-    const [focused, setFocused] = useState(false);
     const [hintDismissed, setHintDismissed] = useState(isHintDismissed);
     const request = useHttp<
         { command: string; body: string; environment?: IssueEnvironment },
@@ -51,22 +46,15 @@ export function useIssueCommand({
     >({ command: '', body: '' });
     const command =
         issueCommands.find((candidate) => candidate.kind === kind) ?? null;
-    // A draft restored from the stash can be a lone slash: the menu only opens while the user is typing in it.
-    const suggestions =
-        enabled && kind === null && !dismissed && focused
-            ? suggestedCommands(body)
-            : [];
     const hint =
         enabled && kind === null && !hintDismissed ? hintedCommand(body) : null;
 
     const start = (next: IssueKind, rest: string) => {
         setKind(next);
-        setSelected(0);
         updateBody(rest);
     };
 
     const change = (value: string) => {
-        setDismissed(false);
         const typed = enabled && kind === null ? typedCommand(value) : null;
 
         if (typed) {
@@ -133,37 +121,6 @@ export function useIssueCommand({
             return false;
         }
 
-        if (suggestions.length > 0) {
-            if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                event.preventDefault();
-                setSelected(
-                    (index) =>
-                        (index +
-                            (event.key === 'ArrowDown' ? 1 : -1) +
-                            suggestions.length) %
-                        suggestions.length,
-                );
-                return true;
-            }
-
-            if (
-                (event.key === 'Tab' || event.key === 'Enter') &&
-                !event.shiftKey &&
-                !hasModKey(event)
-            ) {
-                event.preventDefault();
-                start(suggestions[selected % suggestions.length].kind, '');
-                return true;
-            }
-
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                event.stopPropagation();
-                setDismissed(true);
-                return true;
-            }
-        }
-
         if (command === null) {
             return false;
         }
@@ -189,7 +146,6 @@ export function useIssueCommand({
 
     return {
         command,
-        suggestions,
         hint,
         dismissHint: () => {
             setHintDismissed(true);
@@ -199,11 +155,8 @@ export function useIssueCommand({
                 // Without storage, the hint stays dismissed until the page reloads.
             }
         },
-        selected: selected % Math.max(suggestions.length, 1),
         processing: request.processing,
         change,
-        focus: () => setFocused(true),
-        blur: () => setFocused(false),
         start,
         exit: () => setKind(null),
         submit,
@@ -243,59 +196,6 @@ export function IssueCommandBadge({
                 Public issue on {repository}, crediting you, with your browser
                 and screen details
             </span>
-        </div>
-    );
-}
-
-export function IssueCommandSuggestions({
-    suggestions,
-    selected,
-    onPick,
-}: {
-    suggestions: IssueCommand[];
-    selected: number;
-    onPick: (kind: IssueKind) => void;
-}) {
-    return (
-        <div
-            data-command-suggestions
-            role="listbox"
-            aria-label="Commands"
-            className="mt-1 w-full max-w-sm rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
-        >
-            {suggestions.map((command, index) => {
-                const Icon = icons[command.kind];
-
-                return (
-                    <button
-                        key={command.kind}
-                        type="button"
-                        role="option"
-                        aria-selected={selected === index}
-                        tabIndex={-1}
-                        onMouseDown={(event) => event.preventDefault()}
-                        onClick={() => onPick(command.kind)}
-                        className={cn(
-                            'flex w-full items-center gap-3 rounded-sm px-2 py-1.5 text-left text-sm',
-                            selected === index && 'bg-accent',
-                        )}
-                    >
-                        <Icon
-                            className="size-4 shrink-0 text-muted-foreground"
-                            aria-hidden="true"
-                        />
-                        <span className="w-20 shrink-0 font-mono">
-                            {command.name}
-                        </span>
-                        <span className="min-w-0 truncate text-muted-foreground">
-                            {command.description}
-                        </span>
-                    </button>
-                );
-            })}
-            <p className="px-2 pt-1 pb-0.5 font-mono text-xs text-muted-foreground">
-                ↑↓ select · Tab or Enter pick · Esc dismiss
-            </p>
         </div>
     );
 }

@@ -71,7 +71,7 @@ export function CommitComposerDialog({
                     onEscapeKeyDown={(event) => {
                         if (
                             document.querySelector(
-                                '[data-mention-suggestions], [data-command-suggestions]',
+                                '[data-mention-suggestions], [data-slash-suggestions], [data-emoji-suggestions]',
                             )
                         ) {
                             event.preventDefault();
@@ -81,7 +81,7 @@ export function CommitComposerDialog({
                         if (
                             event.target instanceof Element &&
                             event.target.closest(
-                                '[data-mention-suggestions], [data-command-suggestions]',
+                                '[data-mention-suggestions], [data-slash-suggestions], [data-emoji-suggestions]',
                             )
                         ) {
                             event.preventDefault();

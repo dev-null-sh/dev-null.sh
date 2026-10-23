@@ -1,25 +1,38 @@
 import { usePage } from '@inertiajs/react';
 import type { ComponentProps, KeyboardEvent, Ref, SyntheticEvent } from 'react';
 import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { index as issueSuggestions } from '@/actions/App/Http/Controllers/IssueSuggestionController';
 import MentionSuggestionController from '@/actions/App/Http/Controllers/MentionSuggestionController';
+import {
+    CaretMenuList,
+    CaretMenuPortal,
+    handleCaretMenuKeydown,
+} from '@/components/caret-menu';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
+import { caretMenuPosition } from '@/lib/caret-position';
+import type { CaretMenuPosition } from '@/lib/caret-position';
+import { caretToken } from '@/lib/caret-token';
+import type { CaretToken } from '@/lib/caret-token';
 import { typedProse } from '@/lib/code';
-import type { EmojiSuggestion } from '@/lib/emoji';
 import { emojifyInput, searchEmoji } from '@/lib/emoji';
+import type { EmojiSuggestion } from '@/lib/emoji';
 import { issueReferenceBeforeCaret } from '@/lib/issue-reference';
-import { suggestionPosition } from '@/lib/suggestion-position';
+import {
+    availableCommands,
+    codeFenceInsertion,
+    consumeSlashToken,
+    filterCommands,
+    matchCommand,
+} from '@/lib/slash-commands';
+import type { ComposerSurface, SlashOption } from '@/lib/slash-commands';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
 import type { OrgMember, User } from '@/types';
 
-type Trigger = {
-    kind: 'mention' | 'emoji' | 'issue';
-    start: number;
-    query: string;
-    complete?: boolean;
+type Suggestions = {
+    key: string;
+    users: User[];
 };
 
 type IssueSuggestion = {
@@ -28,146 +41,11 @@ type IssueSuggestion = {
     url: string;
 };
 
-type Suggestions = {
-    key: string;
-    users: User[];
-};
-
-type Position = ReturnType<typeof suggestionPosition>;
-
 const debounce = 120;
 const cache = new Map<string, User[]>();
 
 export function clearMentionSuggestionsCache(): void {
     cache.clear();
-}
-
-// The "@handle" being typed right before the caret. Keep the rules in sync with app/Services/Mentions.php.
-const mentionBeforeCaretPattern =
-    /(?:^|[^\p{L}\p{N}_./@-])@([A-Za-z0-9][A-Za-z0-9-]{0,38}|)$/u;
-
-// The ":shortcode" being typed in prose right before the caret, from two characters on so times like 10:30 stay quiet.
-const emojiBeforeCaretPattern =
-    /(?:^|[^\p{L}\p{N}_:])(:([A-Za-z0-9_+-]{2,}))$/u;
-
-// Every style that changes where text wraps, so the mirror below wraps exactly like the textarea.
-const mirroredProperties = [
-    'box-sizing',
-    'width',
-    'border-top-width',
-    'border-right-width',
-    'border-bottom-width',
-    'border-left-width',
-    'padding-top',
-    'padding-right',
-    'padding-bottom',
-    'padding-left',
-    'font-family',
-    'font-size',
-    'font-weight',
-    'font-style',
-    'font-stretch',
-    'font-feature-settings',
-    'font-variant',
-    'line-height',
-    'letter-spacing',
-    'word-spacing',
-    'text-transform',
-    'text-indent',
-    'tab-size',
-];
-
-function triggerAt(
-    textarea: HTMLTextAreaElement,
-    suggestsMentions: boolean,
-    suggestsIssues: boolean,
-): Trigger | null {
-    if (textarea.selectionStart !== textarea.selectionEnd) {
-        return null;
-    }
-
-    const caret = textarea.selectionStart;
-    const before = textarea.value.slice(0, caret);
-    const mention = suggestsMentions
-        ? before.match(mentionBeforeCaretPattern)
-        : null;
-
-    if (mention) {
-        return {
-            kind: 'mention',
-            start: caret - mention[1].length - 1,
-            query: mention[1],
-        };
-    }
-
-    const emoji = (typedProse(before).at(-1) ?? '').match(
-        emojiBeforeCaretPattern,
-    );
-
-    if (emoji) {
-        return {
-            kind: 'emoji',
-            start: caret - emoji[1].length,
-            query: emoji[2],
-        };
-    }
-
-    const issue = suggestsIssues
-        ? issueReferenceBeforeCaret(textarea.value, caret)
-        : null;
-
-    return issue ? { kind: 'issue', ...issue } : null;
-}
-
-/**
- * Where a character of the textarea is drawn, measured on a hidden copy of it that wraps the same way.
- */
-function characterRect(textarea: HTMLTextAreaElement, index: number) {
-    const style = window.getComputedStyle(textarea);
-    const mirror = document.createElement('div');
-    const marker = document.createElement('span');
-
-    mirroredProperties.forEach((property) =>
-        mirror.style.setProperty(property, style.getPropertyValue(property)),
-    );
-    mirror.style.position = 'absolute';
-    mirror.style.visibility = 'hidden';
-    mirror.style.top = '0';
-    mirror.style.left = '-9999px';
-    mirror.style.whiteSpace = 'pre-wrap';
-    mirror.style.overflowWrap = 'break-word';
-
-    mirror.textContent = textarea.value.slice(0, index);
-    marker.textContent = textarea.value.slice(index) || '.';
-    mirror.appendChild(marker);
-    document.body.appendChild(mirror);
-
-    const rect = textarea.getBoundingClientRect();
-    const lineHeight =
-        Number.parseFloat(style.lineHeight) ||
-        Number.parseFloat(style.fontSize) * 1.4;
-    const top = rect.top + marker.offsetTop - textarea.scrollTop;
-    const left = rect.left + marker.offsetLeft - textarea.scrollLeft;
-
-    mirror.remove();
-
-    return { top, left, bottom: top + lineHeight };
-}
-
-function positionFor(textarea: HTMLTextAreaElement, index: number): Position {
-    const character = characterRect(textarea, index);
-    const viewport = window.visualViewport;
-
-    return suggestionPosition(
-        character,
-        {
-            left: viewport?.offsetLeft ?? 0,
-            top: viewport?.offsetTop ?? 0,
-            width: viewport?.width ?? window.innerWidth,
-            height: viewport?.height ?? window.innerHeight,
-        },
-        window.innerHeight,
-    );
 }
 
 async function fetchSuggestions(
@@ -243,9 +121,9 @@ function Highlighted({ text, query }: { text: string; query: string }) {
 }
 
 /**
- * A textarea that suggests developers to mention as soon as "@" is typed, right under the "@", unless it doesn't
- * suggest mentions, suggests emoji for the ":shortcode" being typed, and turns emoji shortcodes into emoji as they
- * are typed. Within an org, it only suggests the org's members.
+ * A textarea that suggests developers to mention as soon as "@" is typed, right under the "@", suggests emoji for the
+ * ":shortcode" being typed, suggests slash commands as soon as "/" is typed, and turns emoji shortcodes into emoji as
+ * they are typed. Within an org, it only suggests the org's members.
  */
 export function MentionTextarea({
     ref,
@@ -254,18 +132,26 @@ export function MentionTextarea({
     onKeyDown,
     onSelect,
     onBlur,
-    maxLength,
+    onImage,
+    onPoll,
+    onIssue,
+    commandContext,
     suggestsMentions = true,
     suggestsIssues = suggestsMentions,
     org,
     members,
     reply,
     quote,
+    maxLength,
     ...props
 }: Omit<ComponentProps<'textarea'>, 'value' | 'onChange'> & {
     ref?: Ref<HTMLTextAreaElement>;
     value: string;
     onValueChange: (value: string) => void;
+    onImage?: () => void;
+    onPoll?: () => void;
+    onIssue?: (kind: 'bug' | 'feature', rest: string) => void;
+    commandContext?: ComposerSurface;
     suggestsMentions?: boolean;
     suggestsIssues?: boolean;
     org?: string;
@@ -276,21 +162,24 @@ export function MentionTextarea({
     const { repository } = usePage().props;
     const id = useId();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const listRef = useRef<HTMLUListElement>(null);
     const dismissedIssue = useRef<string | null>(null);
-    const [trigger, setTrigger] = useState<Trigger | null>(null);
-    const [position, setPosition] = useState<Position | null>(null);
+    const [token, setToken] = useState<CaretToken | null>(null);
+    const [position, setPosition] = useState<CaretMenuPosition | null>(null);
     const [results, setResults] = useState<Suggestions | null>(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const [issueResult, setIssueResult] = useState<IssueSuggestion | null>(
         null,
     );
-    const issueQuery = trigger?.kind === 'issue' ? trigger.query : null;
+    const [dismissedStart, setDismissedStart] = useState<number | null>(null);
+
+    const mention = token?.kind === 'mention' ? token : null;
+    const slash = token?.kind === 'slash' ? token : null;
+    const emoji = token?.kind === 'emoji' ? token : null;
+    const issueToken = token?.kind === 'issue' ? token : null;
+    const issueQuery = issueToken?.query ?? null;
     const issue =
         issueQuery === String(issueResult?.number) ? issueResult : null;
-
-    const query =
-        trigger?.kind === 'mention' ? trigger.query.toLowerCase() : null;
+    const query = mention?.query.toLowerCase() ?? null;
     const key =
         query === null
             ? null
@@ -307,12 +196,29 @@ export function MentionTextarea({
     };
 
     const close = () => {
-        setTrigger(null);
+        setToken(null);
         setPosition(null);
     };
 
+    const closeSlash = () => {
+        if (slash !== null) {
+            setDismissedStart(slash.start);
+        }
+
+        close();
+    };
+
     const track = (textarea: HTMLTextAreaElement) => {
-        const next = triggerAt(textarea, suggestsMentions, suggestsIssues);
+        const caret = textarea.selectionStart;
+        const issue = suggestsIssues
+            ? issueReferenceBeforeCaret(textarea.value, caret)
+            : null;
+        const next =
+            caretToken(
+                textarea,
+                typedProse(textarea.value.slice(0, caret)).at(-1) ?? '',
+                suggestsMentions,
+            ) ?? (issue ? { kind: 'issue' as const, ...issue } : null);
 
         if (
             next?.kind === 'issue' &&
@@ -325,22 +231,36 @@ export function MentionTextarea({
 
         dismissedIssue.current = null;
 
-        if (!next) {
+        if (next === null) {
+            setDismissedStart(null);
             close();
 
             return;
         }
 
         if (
-            next.kind !== trigger?.kind ||
-            next.start !== trigger.start ||
-            next.query !== trigger.query
+            next.kind !== token?.kind ||
+            next.start !== token?.start ||
+            next.query !== token.query
         ) {
             setActiveIndex(0);
         }
 
-        setTrigger(next);
-        setPosition(positionFor(textarea, next.start));
+        if (next.kind === 'slash') {
+            if (commandContext === undefined || next.start === dismissedStart) {
+                close();
+
+                return;
+            }
+
+            setToken(next);
+            setPosition(caretMenuPosition(textarea, next.start));
+
+            return;
+        }
+
+        setToken(next);
+        setPosition(caretMenuPosition(textarea, next.start));
     };
 
     useEffect(() => {
@@ -367,6 +287,13 @@ export function MentionTextarea({
             controller.abort();
         };
     }, [key, query, org, reply, quote, members]);
+
+    useEffect(() => {
+        if (dismissedStart !== null && value[dismissedStart] !== '/') {
+            // oxlint-disable-next-line react/set-state-in-effect
+            setDismissedStart(null);
+        }
+    }, [value, dismissedStart]);
 
     useEffect(() => {
         if (issueQuery === null) {
@@ -402,13 +329,15 @@ export function MentionTextarea({
     }, [issueQuery]);
 
     useEffect(() => {
-        if (!trigger) {
+        if (token === null) {
             return;
         }
 
         const reposition = () => {
             if (textareaRef.current) {
-                setPosition(positionFor(textareaRef.current, trigger.start));
+                setPosition(
+                    caretMenuPosition(textareaRef.current, token.start),
+                );
             }
         };
 
@@ -417,25 +346,14 @@ export function MentionTextarea({
             passive: true,
         });
         window.addEventListener('resize', reposition);
-        const viewport = window.visualViewport;
-        viewport?.addEventListener('resize', reposition);
-        viewport?.addEventListener('scroll', reposition);
 
         return () => {
             window.removeEventListener('scroll', reposition, {
                 capture: true,
             });
             window.removeEventListener('resize', reposition);
-            viewport?.removeEventListener('resize', reposition);
-            viewport?.removeEventListener('scroll', reposition);
         };
-    }, [trigger]);
-
-    useEffect(() => {
-        listRef.current
-            ?.querySelector('[aria-selected="true"]')
-            ?.scrollIntoView({ block: 'nearest' });
-    }, [activeIndex, members]);
+    }, [token]);
 
     const cached = key === null ? undefined : cache.get(key);
     const local =
@@ -479,39 +397,67 @@ export function MentionTextarea({
               : results;
     const suggestions =
         key !== null && current?.key === key ? current.users : [];
-    const emojiQuery =
-        trigger?.kind === 'emoji' ? trigger.query.toLowerCase() : '';
-    const emojis = emojiQuery === '' ? [] : searchEmoji(emojiQuery);
-    const optionCount =
-        trigger?.kind === 'issue'
-            ? issue
-                ? 1
-                : 0
-            : trigger?.kind === 'emoji'
-              ? emojis.length
-              : suggestions.length;
-    const selectedIndex = Math.min(activeIndex, Math.max(0, optionCount - 1));
     const isOpen =
-        trigger !== null &&
+        mention !== null &&
         position !== null &&
-        (trigger.kind === 'issue'
-            ? issue !== null && !trigger.complete
-            : trigger.kind === 'emoji'
-              ? emojis.length > 0
-              : suggestions.length > 0 || query !== '');
+        (suggestions.length > 0 || query !== '');
+    const slashOptions =
+        slash !== null && commandContext !== undefined
+            ? filterCommands(
+                  availableCommands(commandContext),
+                  slash.query,
+              ).filter((option) => {
+                  const id = option.command.id;
+
+                  if (id === 'image') {
+                      return onImage !== undefined;
+                  }
+
+                  if (id === 'poll') {
+                      return onPoll !== undefined;
+                  }
+
+                  if (id === 'bug' || id === 'feature') {
+                      return onIssue !== undefined;
+                  }
+
+                  return true;
+              })
+            : [];
+    const isSlashOpen =
+        slash !== null && position !== null && slashOptions.length > 0;
+    const slashIndex =
+        slashOptions.length > 0
+            ? Math.min(activeIndex, slashOptions.length - 1)
+            : 0;
+    const emojiQuery = emoji?.query.toLowerCase() ?? '';
+    const emojis = emoji === null ? [] : searchEmoji(emojiQuery);
+    const isEmojiOpen =
+        emoji !== null && position !== null && emojis.length > 0;
+    const mentionIndex =
+        suggestions.length > 0
+            ? Math.min(activeIndex, suggestions.length - 1)
+            : 0;
+    const emojiIndex =
+        emojis.length > 0 ? Math.min(activeIndex, emojis.length - 1) : 0;
+    const isIssueOpen =
+        issueToken !== null &&
+        position !== null &&
+        issue !== null &&
+        !issueToken.complete;
 
     const insert = (text: string, separator: string) => {
         const textarea = textareaRef.current;
 
-        if (!textarea || !trigger) {
+        if (!textarea || token === null) {
             return;
         }
 
-        const caret = trigger.start + 1 + trigger.query.length;
+        const caret = token.start + 1 + token.query.length;
 
         if (
-            trigger.kind === 'issue' &&
-            value.slice(trigger.start, caret) !== `#${trigger.query}`
+            token.kind === 'issue' &&
+            value.slice(token.start, caret) !== `#${token.query}`
         ) {
             close();
 
@@ -520,10 +466,10 @@ export function MentionTextarea({
 
         const after = value.slice(caret);
         const spacing = /^\s/u.test(after) ? '' : separator;
-        let next = `${value.slice(0, trigger.start)}${text}${spacing}${after}`;
+        let next = `${value.slice(0, token.start)}${text}${spacing}${after}`;
 
         if (maxLength !== undefined && characterCount(next) > maxLength) {
-            next = `${value.slice(0, trigger.start)}${text}${after}`;
+            next = `${value.slice(0, token.start)}${text}${after}`;
         }
 
         if (maxLength !== undefined && characterCount(next) > maxLength) {
@@ -533,9 +479,9 @@ export function MentionTextarea({
         }
 
         const nextCaret =
-            trigger.kind === 'issue'
+            token.kind === 'issue'
                 ? textarea.selectionStart + next.length - value.length
-                : trigger.start + text.length + separator.length;
+                : token.start + text.length + separator.length;
 
         onValueChange(next);
         close();
@@ -551,10 +497,11 @@ export function MentionTextarea({
 
     const select = (user: User) => insert(`@${user.username}`, ' ');
 
-    const selectEmoji = (emoji: EmojiSuggestion) => insert(emoji.emoji, '');
+    const selectEmoji = (suggestion: EmojiSuggestion) =>
+        insert(suggestion.emoji, '');
 
     const autoLinkIssue = useEffectEvent(() => {
-        if (trigger?.kind === 'issue' && trigger.complete && issue) {
+        if (issueToken?.complete && issue) {
             insert(issue.url, '');
         }
     });
@@ -563,78 +510,208 @@ export function MentionTextarea({
         const frame = requestAnimationFrame(autoLinkIssue);
 
         return () => cancelAnimationFrame(frame);
-    }, [trigger, issue]);
+    }, [issueToken, issue]);
+
+    const runSlash = (option: SlashOption): boolean => {
+        if (slash === null || !option.enabled) {
+            return false;
+        }
+
+        if (option.command.id === 'code') {
+            const insertion = codeFenceInsertion(
+                value,
+                slash.start,
+                slash.start + slash.query.length + 1,
+            );
+
+            if (
+                maxLength !== undefined &&
+                characterCount(insertion.value) > maxLength
+            ) {
+                return false;
+            }
+
+            onValueChange(insertion.value);
+            close();
+
+            requestAnimationFrame(() => {
+                const textarea = textareaRef.current;
+
+                if (textarea) {
+                    textarea.focus();
+                    textarea.setSelectionRange(
+                        insertion.caret,
+                        insertion.caret,
+                    );
+                }
+            });
+
+            return true;
+        }
+
+        if (option.command.id === 'bug' || option.command.id === 'feature') {
+            const rest = consumeSlashToken(value, slash.start, slash.query);
+
+            close();
+            requestAnimationFrame(() => textareaRef.current?.focus());
+            onIssue?.(option.command.id, rest);
+
+            return true;
+        }
+
+        onValueChange(consumeSlashToken(value, slash.start, slash.query));
+        close();
+
+        requestAnimationFrame(() => textareaRef.current?.focus());
+
+        if (option.command.id === 'image') {
+            onImage?.();
+        }
+
+        if (option.command.id === 'poll') {
+            onPoll?.();
+        }
+
+        return true;
+    };
+
+    const slashOptionFits = (index: number) => {
+        const option = slashOptions[index];
+
+        if (
+            option === undefined ||
+            option.command.id !== 'code' ||
+            maxLength === undefined ||
+            slash === null
+        ) {
+            return true;
+        }
+
+        const insertion = codeFenceInsertion(
+            value,
+            slash.start,
+            slash.start + slash.query.length + 1,
+        );
+
+        return characterCount(insertion.value) <= maxLength;
+    };
 
     const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-        if (isOpen && !event.nativeEvent.isComposing) {
-            const hasModifier = event.metaKey || event.ctrlKey || event.altKey;
+        if (
+            isSlashOpen &&
+            handleCaretMenuKeydown(event, {
+                count: slashOptions.length,
+                activeIndex: slashIndex,
+                setActiveIndex,
+                canSelect: slashOptionFits,
+                onSelect: (index) => {
+                    const option = slashOptions[index];
 
-            if (
-                (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
-                optionCount > 0
-            ) {
+                    if (option) {
+                        runSlash(option);
+                    }
+                },
+                onClose: closeSlash,
+            })
+        ) {
+            return;
+        }
+
+        if (
+            slash !== null &&
+            event.key === ' ' &&
+            !event.nativeEvent.isComposing
+        ) {
+            const exact = matchCommand(slash.query);
+            const option = exact
+                ? slashOptions.find(
+                      (candidate) => candidate.command.id === exact.id,
+                  )
+                : undefined;
+
+            if (option?.enabled && runSlash(option)) {
                 event.preventDefault();
-                const step = event.key === 'ArrowDown' ? 1 : -1;
-                setActiveIndex(
-                    (selectedIndex + step + optionCount) % optionCount,
-                );
-
-                return;
-            }
-
-            if (
-                (event.key === 'Enter' || event.key === 'Tab') &&
-                !hasModifier &&
-                !event.shiftKey &&
-                selectedIndex < optionCount
-            ) {
-                event.preventDefault();
-
-                if (trigger?.kind === 'issue' && issue) {
-                    insert(issue.url, ' ');
-                } else if (trigger?.kind === 'emoji') {
-                    selectEmoji(emojis[selectedIndex]);
-                } else {
-                    select(suggestions[selectedIndex]);
-                }
-
-                return;
-            }
-
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                event.stopPropagation();
-
-                if (trigger?.kind === 'issue') {
-                    dismissedIssue.current = `${trigger.start}:${trigger.query}`;
-                }
-
-                close();
 
                 return;
             }
         }
 
+        if (
+            isIssueOpen &&
+            handleCaretMenuKeydown(event, {
+                count: 1,
+                activeIndex: 0,
+                setActiveIndex,
+                onSelect: () => {
+                    if (issue) {
+                        insert(issue.url, ' ');
+                    }
+                },
+                onClose: () => {
+                    if (issueToken !== null) {
+                        dismissedIssue.current = `${issueToken.start}:${issueToken.query}`;
+                    }
+
+                    close();
+                },
+            })
+        ) {
+            return;
+        }
+
+        if (
+            isOpen &&
+            handleCaretMenuKeydown(event, {
+                count: suggestions.length,
+                activeIndex: mentionIndex,
+                setActiveIndex,
+                onSelect: (index) => {
+                    const user = suggestions[index];
+
+                    if (user) {
+                        select(user);
+                    }
+                },
+                onClose: close,
+            })
+        ) {
+            return;
+        }
+
+        if (
+            isEmojiOpen &&
+            handleCaretMenuKeydown(event, {
+                count: emojis.length,
+                activeIndex: emojiIndex,
+                setActiveIndex,
+                onSelect: (index) => {
+                    const suggestion = emojis[index];
+
+                    if (suggestion) {
+                        selectEmoji(suggestion);
+                    }
+                },
+                onClose: close,
+            })
+        ) {
+            return;
+        }
+
         onKeyDown?.(event);
     };
 
-    const activeId = !isOpen
-        ? undefined
-        : trigger?.kind === 'issue'
-          ? `${id}-issue-${issue?.number}`
-          : trigger?.kind === 'emoji'
-            ? emojis[selectedIndex] &&
-              `${id}-emoji-${emojis[selectedIndex].name}`
-            : suggestions[selectedIndex] &&
-              `${id}-mention-${suggestions[selectedIndex].id}`;
+    const activeId = isIssueOpen
+        ? `${id}-issue-${issue?.number}`
+        : isOpen
+          ? suggestions[mentionIndex] &&
+            `${id}-mention-${suggestions[mentionIndex].id}`
+          : isSlashOpen && slashOptions[slashIndex]
+            ? `${id}-slash-${slashOptions[slashIndex].command.id}`
+            : isEmojiOpen && emojis[emojiIndex]
+              ? `${id}-emoji-${emojis[emojiIndex].name}`
+              : undefined;
 
     const isSearching = current?.key !== key;
-    const listId =
-        trigger?.kind === 'issue'
-            ? `${id}-issues`
-            : trigger?.kind === 'emoji'
-              ? `${id}-emojis`
-              : `${id}-mentions`;
 
     return (
         <>
@@ -684,210 +761,275 @@ export function MentionTextarea({
                 }}
                 onKeyDown={handleKeyDown}
                 aria-autocomplete="list"
-                aria-controls={isOpen ? listId : undefined}
+                aria-controls={
+                    isIssueOpen
+                        ? `${id}-issues`
+                        : isOpen
+                          ? `${id}-mentions`
+                          : isSlashOpen
+                            ? `${id}-slash`
+                            : isEmojiOpen
+                              ? `${id}-emojis`
+                              : undefined
+                }
                 aria-activedescendant={activeId}
             />
 
-            {isOpen &&
-                createPortal(
-                    <div
-                        className="pointer-events-auto fixed z-50 flex flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
-                        style={position}
-                        onMouseDown={(event) => event.preventDefault()}
-                        data-mention-suggestions
-                        data-test="mention-suggestions"
+            {isIssueOpen && position && issue && (
+                <CaretMenuPortal
+                    marker="issue"
+                    position={position}
+                    testId="issue-suggestions"
+                >
+                    <CaretMenuList
+                        id={`${id}-issues`}
+                        label="Link an issue or pull request"
+                        activeIndex={0}
                     >
-                        {trigger?.kind === 'issue' && issue ? (
-                            <ul
-                                ref={listRef}
-                                id={listId}
-                                role="listbox"
-                                aria-label="Link an issue or pull request"
-                                className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
+                        <li
+                            id={`${id}-issue-${issue.number}`}
+                            role="option"
+                            aria-selected
+                            onClick={() => insert(issue.url, ' ')}
+                            className="cursor-pointer rounded-lg bg-accent px-2.5 py-2"
+                            data-test="issue-suggestion"
+                        >
+                            <span
+                                className="block truncate text-sm font-semibold"
+                                title={issue.title}
                             >
-                                <li
-                                    id={`${id}-issue-${issue.number}`}
-                                    role="option"
-                                    aria-selected
-                                    onClick={() => insert(issue.url, ' ')}
-                                    className="cursor-pointer rounded-sm bg-accent px-2.5 py-2"
-                                >
-                                    <span
-                                        className="block truncate text-sm font-semibold"
-                                        title={issue.title}
-                                    >
-                                        {issue.title}
-                                    </span>
-                                    <span
-                                        className="block truncate font-mono text-xs text-muted-foreground"
-                                        title={`${repository}#${issue.number}`}
-                                    >
-                                        {repository}#{issue.number}
-                                    </span>
-                                </li>
-                            </ul>
-                        ) : trigger?.kind === 'emoji' ? (
-                            <ul
-                                ref={listRef}
-                                id={listId}
-                                role="listbox"
-                                aria-label="Insert an emoji"
-                                className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
+                                {issue.title}
+                            </span>
+                            <span
+                                className="block truncate font-mono text-xs text-muted-foreground"
+                                title={`${repository}#${issue.number}`}
                             >
-                                {emojis.map((emoji, index) => (
+                                {repository}#{issue.number}
+                            </span>
+                        </li>
+                    </CaretMenuList>
+                </CaretMenuPortal>
+            )}
+
+            {isOpen && position && (
+                <CaretMenuPortal
+                    marker="mention"
+                    position={position}
+                    testId="mention-suggestions"
+                >
+                    {suggestions.length > 0 ? (
+                        <CaretMenuList
+                            id={`${id}-mentions`}
+                            label="Mention a developer"
+                            activeIndex={mentionIndex}
+                        >
+                            {query === '' &&
+                                !reply &&
+                                !quote &&
+                                current?.key === key && (
                                     <li
-                                        key={emoji.name}
-                                        id={`${id}-emoji-${emoji.name}`}
-                                        role="option"
-                                        aria-selected={index === selectedIndex}
-                                        onMouseMove={() =>
-                                            setActiveIndex(index)
-                                        }
-                                        onClick={() => selectEmoji(emoji)}
-                                        className={cn(
-                                            'flex cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-1.5',
-                                            {
-                                                'bg-accent':
-                                                    index === selectedIndex,
-                                            },
-                                        )}
-                                        data-test="emoji-suggestion"
+                                        role="presentation"
+                                        className="px-2.5 pt-1 pb-1.5 text-xs text-muted-foreground"
                                     >
-                                        <span
-                                            aria-hidden
-                                            className="w-6 shrink-0 text-center text-lg leading-none"
-                                        >
-                                            {emoji.emoji}
-                                        </span>
-                                        <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-muted-foreground">
-                                            :
-                                            <Highlighted
-                                                text={emoji.name}
-                                                query={emojiQuery}
-                                            />
-                                            :
-                                        </span>
-                                        <kbd
-                                            aria-hidden
-                                            className={cn(
-                                                'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
-                                                {
-                                                    'opacity-100':
-                                                        index === selectedIndex,
-                                                },
-                                            )}
-                                        >
-                                            ↵
-                                        </kbd>
+                                        {org ? 'Members' : 'People you follow'}
                                     </li>
-                                ))}
-                            </ul>
-                        ) : suggestions.length > 0 ? (
-                            <ul
-                                ref={listRef}
-                                id={listId}
-                                role="listbox"
-                                aria-label="Mention a developer"
-                                className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
-                            >
-                                {query === '' &&
-                                    !reply &&
-                                    !quote &&
-                                    current?.key === key && (
-                                        <li
-                                            role="presentation"
-                                            className="px-2.5 pt-1 pb-1.5 text-xs text-muted-foreground"
-                                        >
-                                            {org
-                                                ? 'Members'
-                                                : 'People you follow'}
-                                        </li>
+                                )}
+                            {suggestions.map((user, index) => (
+                                <li
+                                    key={user.id}
+                                    id={`${id}-mention-${user.id}`}
+                                    role="option"
+                                    aria-selected={index === mentionIndex}
+                                    onMouseMove={() => setActiveIndex(index)}
+                                    onClick={() => select(user)}
+                                    className={cn(
+                                        'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2',
+                                        {
+                                            'bg-accent': index === mentionIndex,
+                                        },
                                     )}
-                                {suggestions.map((user, index) => (
-                                    <li
-                                        key={user.id}
-                                        id={`${id}-mention-${user.id}`}
-                                        role="option"
-                                        aria-selected={index === selectedIndex}
-                                        onMouseMove={() =>
-                                            setActiveIndex(index)
-                                        }
-                                        onClick={() => select(user)}
-                                        className={cn(
-                                            'flex cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-2',
-                                            {
-                                                'bg-accent':
-                                                    index === selectedIndex,
-                                            },
-                                        )}
-                                        data-test="mention-suggestion"
-                                    >
-                                        <UserAvatar
-                                            user={user}
-                                            className="size-8 shrink-0"
-                                        />
-                                        <span className="min-w-0 flex-1">
-                                            <span className="block truncate text-sm font-semibold">
+                                    data-test="mention-suggestion"
+                                >
+                                    <UserAvatar
+                                        user={user}
+                                        className="size-8 shrink-0"
+                                    />
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-semibold">
+                                            <Highlighted
+                                                text={user.name}
+                                                query={query ?? ''}
+                                            />
+                                        </span>
+                                        <span className="flex items-center gap-1 font-mono text-xs text-muted-foreground">
+                                            <span
+                                                aria-hidden
+                                                className="size-1.5 shrink-0 rounded-full"
+                                                style={{
+                                                    background: laneColor(
+                                                        user.lane,
+                                                    ),
+                                                }}
+                                            />
+                                            <span className="truncate">
+                                                @
                                                 <Highlighted
-                                                    text={user.name}
+                                                    text={user.username}
                                                     query={query ?? ''}
                                                 />
                                             </span>
-                                            <span className="flex items-center gap-1 font-mono text-xs text-muted-foreground">
-                                                <span
-                                                    aria-hidden
-                                                    className="size-1.5 shrink-0 rounded-full"
-                                                    style={{
-                                                        background: laneColor(
-                                                            user.lane,
-                                                        ),
-                                                    }}
-                                                />
-                                                <span className="truncate">
-                                                    @
-                                                    <Highlighted
-                                                        text={user.username}
-                                                        query={query ?? ''}
-                                                    />
-                                                </span>
-                                            </span>
                                         </span>
-                                        <kbd
-                                            aria-hidden
-                                            className={cn(
-                                                'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
-                                                {
-                                                    'opacity-100':
-                                                        index === selectedIndex,
-                                                },
-                                            )}
-                                        >
-                                            ↵
-                                        </kbd>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <div
-                                role="status"
-                                className="px-4 py-3 text-sm text-muted-foreground"
-                            >
-                                {isSearching ? (
-                                    <span className="flex items-center gap-2">
-                                        <Spinner className="size-3.5" />
-                                        Searching…
                                     </span>
-                                ) : (
-                                    <span className="font-mono text-[13px]">
-                                        fatal: no developers match '
-                                        {trigger?.query}'
+                                    <kbd
+                                        aria-hidden
+                                        className={cn(
+                                            'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
+                                            {
+                                                'opacity-100':
+                                                    index === mentionIndex,
+                                            },
+                                        )}
+                                    >
+                                        ↵
+                                    </kbd>
+                                </li>
+                            ))}
+                        </CaretMenuList>
+                    ) : (
+                        <div
+                            role="status"
+                            className="px-4 py-3 text-sm text-muted-foreground"
+                        >
+                            {isSearching ? (
+                                <span className="flex items-center gap-2">
+                                    <Spinner className="size-3.5" />
+                                    Searching…
+                                </span>
+                            ) : (
+                                <span className="font-mono text-[13px]">
+                                    fatal: no developers match '{mention?.query}
+                                    '
+                                </span>
+                            )}
+                        </div>
+                    )}
+                </CaretMenuPortal>
+            )}
+
+            {isSlashOpen && position && (
+                <CaretMenuPortal
+                    marker="slash"
+                    position={position}
+                    testId="slash-suggestions"
+                >
+                    <CaretMenuList
+                        id={`${id}-slash`}
+                        label="Slash commands"
+                        activeIndex={slashIndex}
+                    >
+                        {slashOptions.map((option, index) => {
+                            const Icon = option.command.icon;
+
+                            return (
+                                <li
+                                    key={option.command.id}
+                                    id={`${id}-slash-${option.command.id}`}
+                                    role="option"
+                                    aria-selected={index === slashIndex}
+                                    aria-disabled={
+                                        option.enabled ? undefined : true
+                                    }
+                                    onMouseMove={() => setActiveIndex(index)}
+                                    onClick={() => runSlash(option)}
+                                    className={cn(
+                                        'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2',
+                                        {
+                                            'bg-accent':
+                                                index === slashIndex &&
+                                                option.enabled,
+                                            'cursor-not-allowed opacity-60':
+                                                !option.enabled,
+                                        },
+                                    )}
+                                    data-test="slash-command"
+                                >
+                                    <Icon
+                                        aria-hidden
+                                        className="size-4 shrink-0 text-muted-foreground"
+                                    />
+                                    <span className="min-w-0 flex-1">
+                                        <span className="block truncate text-sm font-semibold">
+                                            {`/${option.command.id}`}
+                                        </span>
+                                        <span className="block truncate text-xs text-muted-foreground">
+                                            {option.reason ??
+                                                option.command.description}
+                                        </span>
                                     </span>
+                                </li>
+                            );
+                        })}
+                    </CaretMenuList>
+                </CaretMenuPortal>
+            )}
+
+            {isEmojiOpen && position && (
+                <CaretMenuPortal
+                    marker="emoji"
+                    position={position}
+                    testId="emoji-suggestions"
+                >
+                    <CaretMenuList
+                        id={`${id}-emojis`}
+                        label="Insert an emoji"
+                        activeIndex={emojiIndex}
+                    >
+                        {emojis.map((suggestion, index) => (
+                            <li
+                                key={suggestion.name}
+                                id={`${id}-emoji-${suggestion.name}`}
+                                role="option"
+                                aria-selected={index === emojiIndex}
+                                onMouseMove={() => setActiveIndex(index)}
+                                onClick={() => selectEmoji(suggestion)}
+                                className={cn(
+                                    'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5',
+                                    {
+                                        'bg-accent': index === emojiIndex,
+                                    },
                                 )}
-                            </div>
-                        )}
-                    </div>,
-                    document.body,
-                )}
+                                data-test="emoji-suggestion"
+                            >
+                                <span
+                                    aria-hidden
+                                    className="w-6 shrink-0 text-center text-lg leading-none"
+                                >
+                                    {suggestion.emoji}
+                                </span>
+                                <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-muted-foreground">
+                                    :
+                                    <Highlighted
+                                        text={suggestion.name}
+                                        query={emojiQuery}
+                                    />
+                                    :
+                                </span>
+                                <kbd
+                                    aria-hidden
+                                    className={cn(
+                                        'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
+                                        {
+                                            'opacity-100': index === emojiIndex,
+                                        },
+                                    )}
+                                >
+                                    ↵
+                                </kbd>
+                            </li>
+                        ))}
+                    </CaretMenuList>
+                </CaretMenuPortal>
+            )}
         </>
     );
 }
