@@ -8,6 +8,7 @@ import type { Message, User } from '../../resources/js/types';
 let slots: unknown[] = [];
 let cursor = 0;
 let layouts: (() => unknown)[] = [];
+let effects: (() => unknown)[] = [];
 let thread: Record<string, unknown>;
 vi.doMock('react', () => ({
     ...React,
@@ -27,7 +28,9 @@ vi.doMock('react', () => ({
     },
     useMemo: (compute: () => unknown) => compute(),
     useCallback: (callback: unknown) => callback,
-    useEffect: () => {},
+    useEffect: (effect: () => unknown) => {
+        effects.push(effect);
+    },
     useLayoutEffect: (effect: () => unknown, dependencies: unknown[]) => {
         const index = cursor++;
         const previous = slots[index] as unknown[] | undefined;
@@ -79,8 +82,27 @@ function setup(reducedMotion = false) {
         ],
         pending: [],
     };
-    vi.stubGlobal('window', { matchMedia: () => ({ matches: reducedMotion }) });
-    vi.stubGlobal('document', { hidden: true });
+    vi.stubGlobal('window', {
+        matchMedia: () => ({ matches: reducedMotion }),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+    });
+    vi.stubGlobal('document', {
+        hidden: true,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+    });
+    let onResize = () => {};
+    vi.stubGlobal(
+        'ResizeObserver',
+        class {
+            constructor(callback: () => void) {
+                onResize = callback;
+            }
+            observe() {}
+            disconnect() {}
+        },
+    );
     vi.stubGlobal('CSS', { escape: (value: string) => value });
     let scrollTop = 0;
     let rowTop = 100;
@@ -105,6 +127,8 @@ function setup(reducedMotion = false) {
         querySelectorAll: () => [row],
         querySelector: () => row,
         scrollTo,
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
     };
     const user = { id: 'me' } as User;
     const target: ChatTarget = {
@@ -114,6 +138,7 @@ function setup(reducedMotion = false) {
     const render = () => {
         cursor = 0;
         layouts = [];
+        effects = [];
         const nodes = elements(
             ConversationThread({ target, user, header: null }),
         );
@@ -121,7 +146,12 @@ function setup(reducedMotion = false) {
             (node) => node.props['data-test'] === 'conversation-messages',
         )!;
         (scroll.props.ref as React.RefObject<unknown>).current = scroller;
+        (
+            nodes.find((node) => node.type === 'ol')!.props
+                .ref as React.RefObject<unknown>
+        ).current = {};
         for (const effect of layouts) effect();
+        for (const effect of effects) effect();
         return {
             scroll,
             reply: nodes.find(
@@ -145,7 +175,18 @@ function setup(reducedMotion = false) {
         ];
         render();
     };
-    return { render, send, scroller, scrollTo, writes, reply: initial.reply };
+    return {
+        render,
+        send,
+        scroller,
+        scrollTo,
+        writes,
+        reply: initial.reply,
+        resize: () => {
+            rowTop += 150;
+            onResize();
+        },
+    };
 }
 
 test('reveals a sent reply from the current reading position instead of snapping to the bottom', () => {
@@ -199,4 +240,15 @@ test('keeps following the latest messages while a reply is open at the bottom', 
     chat.render();
     assert.equal(chat.scroller.scrollTop, 0);
     assert.deepEqual(chat.writes, [0]);
+});
+
+test('resizing during a send does not replace the smooth reveal with a reading-anchor correction', () => {
+    const chat = setup();
+    chat.send();
+    chat.scroller.scrollTop = -90;
+    (chat.render().scroll.props.onScroll as () => void)();
+    const writes = chat.writes.length;
+    chat.resize();
+    assert.equal(chat.writes.length, writes);
+    assert.equal(chat.scrollTo.mock.calls.length, 1);
 });

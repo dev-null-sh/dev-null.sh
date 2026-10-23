@@ -435,7 +435,11 @@ export function ConversationThread({
         }
 
         const observer = new ResizeObserver(() => {
-            if (!isPinned.current && anchor.current !== null) {
+            if (
+                !isPinned.current &&
+                !isFollowingSend.current &&
+                anchor.current !== null
+            ) {
                 restoreScrollAnchor(element, anchor.current);
                 restoredScrollTop.current = element.scrollTop;
             }
