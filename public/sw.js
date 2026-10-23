@@ -19,6 +19,24 @@ const assetCache = `assets-${version}`;
 const offlineUrl = '/offline.html';
 const offlineFiles = [offlineUrl, '/favicon.ico', '/favicon.svg'];
 
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const url = new URL(event.notification.data?.url ?? '/', self.location.origin);
+
+    if (url.origin !== self.location.origin) return;
+
+    event.waitUntil(self.clients.matchAll({ type: 'window' }).then(async (clients) => {
+        const client = clients[0];
+
+        if (client) {
+            await client.navigate(url.href);
+            await client.focus();
+        } else {
+            await self.clients.openWindow(url.href);
+        }
+    }));
+});
+
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches

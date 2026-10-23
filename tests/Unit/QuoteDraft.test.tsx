@@ -44,6 +44,15 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
     useHasStash: () => true,
     moveCaretToEnd: vi.fn(),
 }));
+vi.doMock('../../resources/js/components/composer-preview', async () => ({
+    ...(await vi.importActual(
+        '../../resources/js/components/composer-preview',
+    )),
+    useComposerPreview: () => ({
+        isPreviewing: false,
+        handleShortcut: () => false,
+    }),
+}));
 
 const { Form } = await import('@inertiajs/react');
 const { CommitQuoteButton } =
@@ -175,6 +184,55 @@ test('quotes submit restored images and clear the complete draft only on success
         (stash.props.onDrop as () => void)();
         assert.deepEqual(updateImages.mock.lastCall, [[], []]);
         assert.equal(drop.mock.calls.length, 2);
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});
+
+test('escape in the preview returns to writing without closing the quote', () => {
+    const commit = {
+        id: 'quoted',
+        user_id: 'author',
+        user: { username: 'author' },
+        status: 'approved',
+    } as Commit;
+    const button = CommitQuoteButton({ commit })!;
+    const dialog = React.Children.toArray(
+        button.props.children,
+    )[1] as ReactElement<{
+        children: ReactElement<{ commit: Commit; onClose: () => void }>;
+    }>;
+    const composer = dialog.props.children;
+    const renderComposer = composer.type as (
+        props: typeof composer.props,
+    ) => ReactElement<{ onEscapeKeyDown: (event: unknown) => void }>;
+    const { onEscapeKeyDown } = renderComposer(composer.props).props;
+
+    class FakeElement {
+        constructor(private readonly isInPreview: boolean) {}
+
+        closest(selector: string) {
+            return this.isInPreview && selector === '[data-composer-preview]'
+                ? this
+                : null;
+        }
+    }
+
+    vi.stubGlobal('Element', FakeElement);
+    vi.stubGlobal('document', { querySelector: () => null });
+    try {
+        const escapeFrom = (isInPreview: boolean) => {
+            const preventDefault = vi.fn();
+            onEscapeKeyDown({
+                target: new FakeElement(isInPreview),
+                preventDefault,
+            });
+
+            return preventDefault.mock.calls.length;
+        };
+
+        assert.equal(escapeFrom(true), 1);
+        assert.equal(escapeFrom(false), 0);
     } finally {
         vi.unstubAllGlobals();
     }

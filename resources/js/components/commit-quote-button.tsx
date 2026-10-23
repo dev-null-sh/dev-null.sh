@@ -12,7 +12,13 @@ import {
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
+import {
+    ComposerPreviewBody,
+    PreviewToggle,
+    useComposerPreview,
+} from '@/components/composer-preview';
 import InputError from '@/components/input-error';
+import { typedLinks } from '@/components/linkified-text';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { StashLabel } from '@/components/stash-label';
@@ -136,8 +142,17 @@ function QuoteComposer({
     const isQuotable =
         (images.length > 0 || characterCount(body.trim()) >= minBodyLength) &&
         bodyCharacterCount(body) <= maxBodyLength;
+    const preview = useComposerPreview({
+        body,
+        textareaRef,
+        isSubmittable: isQuotable,
+    });
 
     const submitOnModEnter = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (preview.handleShortcut(event)) {
+            return;
+        }
+
         if (
             event.key === 'Enter' &&
             hasModKey(event) &&
@@ -155,13 +170,17 @@ function QuoteComposer({
                 if (
                     document.querySelector(
                         '[data-mention-suggestions], [role="dialog"].yarl__root',
-                    )
+                    ) ||
+                    (typeof Element !== 'undefined' &&
+                        event.target instanceof Element &&
+                        event.target.closest('[data-composer-preview]'))
                 ) {
                     event.preventDefault();
                 }
             }}
             onInteractOutside={(event) => {
                 if (
+                    typeof Element !== 'undefined' &&
                     event.target instanceof Element &&
                     event.target.closest(
                         '[data-mention-suggestions], [role="dialog"].yarl__root',
@@ -230,31 +249,45 @@ function QuoteComposer({
                             <label htmlFor={id} className="sr-only">
                                 Your commit
                             </label>
-                            <MentionTextarea
-                                ref={textareaRef}
-                                id={id}
-                                quote={commit.id}
-                                name="body"
-                                rows={1}
-                                autoFocus
-                                value={body}
-                                onValueChange={updateBody}
-                                onKeyDown={submitOnModEnter}
-                                onPaste={attachments.onPaste}
-                                onFocus={
-                                    isRestored ? moveCaretToEnd : undefined
-                                }
-                                maxLength={maxRawBodyLength}
-                                placeholder="Add your take"
-                                autoComplete="off"
-                                aria-invalid={
-                                    errors.body || errors.quoted_commit_id
-                                        ? true
-                                        : undefined
-                                }
-                                aria-describedby={`${id}-count`}
-                                className="block field-sizing-content max-h-[40dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none"
-                            />
+                            <div className="grid">
+                                <MentionTextarea
+                                    ref={textareaRef}
+                                    id={id}
+                                    quote={commit.id}
+                                    name="body"
+                                    rows={1}
+                                    autoFocus
+                                    value={body}
+                                    onValueChange={updateBody}
+                                    onKeyDown={submitOnModEnter}
+                                    onPaste={attachments.onPaste}
+                                    onFocus={
+                                        isRestored ? moveCaretToEnd : undefined
+                                    }
+                                    maxLength={maxRawBodyLength}
+                                    placeholder="Add your take"
+                                    autoComplete="off"
+                                    aria-invalid={
+                                        errors.body || errors.quoted_commit_id
+                                            ? true
+                                            : undefined
+                                    }
+                                    aria-describedby={`${id}-count`}
+                                    className={cn(
+                                        'col-start-1 row-start-1 block field-sizing-content max-h-[40dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
+                                        { invisible: preview.isPreviewing },
+                                    )}
+                                />
+                                {preview.isPreviewing && (
+                                    <ComposerPreviewBody
+                                        preview={preview}
+                                        url={typedLinks(body)[0] ?? null}
+                                        images={attachments.images}
+                                        descriptions={attachments.descriptions}
+                                        className="col-start-1 row-start-1 py-1.5"
+                                    />
+                                )}
+                            </div>
 
                             <InputError
                                 message={errors.body ?? errors.quoted_commit_id}
@@ -265,12 +298,14 @@ function QuoteComposer({
                                 textarea={textareaRef}
                             />
 
-                            <ImagePickerPreviews
-                                images={images}
-                                descriptions={descriptions}
-                                onDescribe={attachments.describe}
-                                onRemove={attachments.remove}
-                            />
+                            {!preview.isPreviewing && (
+                                <ImagePickerPreviews
+                                    images={images}
+                                    descriptions={descriptions}
+                                    onDescribe={attachments.describe}
+                                    onRemove={attachments.remove}
+                                />
+                            )}
                             <InputError
                                 message={
                                     attachments.error ?? imageErrorFrom(errors)
@@ -288,6 +323,10 @@ function QuoteComposer({
                                         reading={attachments.reading}
                                         onPick={attachments.pick}
                                         className="size-8"
+                                    />
+                                    <PreviewToggle
+                                        preview={preview}
+                                        className="-ml-2 size-8"
                                     />
                                     {isRestored && (
                                         <StashLabel

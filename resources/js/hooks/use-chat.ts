@@ -5,9 +5,46 @@ import {
     subscribeToChat,
     targetKey,
     watchInbox,
+    watchRemoteAlerts,
     watchThread,
 } from '@/lib/chat';
 import type { ChatState, ChatTarget, ThreadState } from '@/lib/chat';
+import type { RemoteAlertChannel } from '@/lib/remote-notifications';
+import {
+    remoteAlertsEnabled,
+    remoteNotificationsAllowed,
+    subscribeRemoteAlerts,
+} from '@/lib/remote-notifications';
+
+export function useRemoteAlertsEnabled(
+    userId: string | null,
+    channel: RemoteAlertChannel = 'notifications',
+): boolean {
+    return useSyncExternalStore(
+        subscribeRemoteAlerts,
+        () => userId !== null && remoteAlertsEnabled(userId, channel),
+        () => false,
+    );
+}
+
+export function useRemoteNotificationPermission(): boolean {
+    return useSyncExternalStore(
+        subscribeRemoteAlerts,
+        remoteNotificationsAllowed,
+        () => false,
+    );
+}
+
+export function useRemoteAlerts(userId: string | null): void {
+    const notifications = useRemoteAlertsEnabled(userId);
+    const sound = useRemoteAlertsEnabled(userId, 'sound');
+    const enabled = notifications || sound;
+    useEffect(
+        () =>
+            enabled && userId !== null ? watchRemoteAlerts(userId) : undefined,
+        [enabled, userId],
+    );
+}
 
 export function useChat(): ChatState {
     return useSyncExternalStore(subscribeToChat, chatSnapshot, chatSnapshot);

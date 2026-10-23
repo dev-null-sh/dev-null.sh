@@ -162,6 +162,7 @@ final readonly class SignedRequests
         $fields = json_decode($payload, true);
 
         $request->request->replace($fields);
+        resolve(NullBytes::class)->strip($request);
 
         foreach ([TrimStrings::class, ConvertEmptyStringsToNull::class] as $middleware) {
             resolve($middleware)->handle($request, fn (Request $request): Request => $request);

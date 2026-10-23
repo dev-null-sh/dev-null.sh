@@ -30,7 +30,7 @@ final class CreateCommitPollVoteRequest extends FormRequest
                 'required',
                 'uuid',
                 Rule::exists(PollOption::class, 'id')->where('poll_id', $this->commit()->poll?->id),
-                new OpenPoll($this->commit(), $this->voter()),
+                new OpenPoll($this->commit(), $this->voter(), allowExistingVote: true),
             ],
         ];
     }

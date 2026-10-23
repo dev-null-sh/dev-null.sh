@@ -11,7 +11,9 @@ use App\Services\OpenAI;
 use App\Services\SignedCommits;
 use App\Services\SignedRequests;
 use Carbon\CarbonInterface;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -131,6 +133,28 @@ function fakeGitHubAccount(User $user, array $account = []): void
     ]);
 
     fakeGitHubSshKeys(User::factory()->make(['github_id' => $user->github_id, 'username' => $account['login']]));
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function gitHubContributor(string $login, int $commits, string $type = 'User'): array
+{
+    return ['login' => $login, 'contributions' => $commits, 'type' => $type];
+}
+
+/**
+ * Serves the contributors of the repository like GitHub does: most commits first, a page at a time.
+ *
+ * @param  list<array<string, mixed>>  $contributors
+ */
+function fakeGitHubContributors(array $contributors): void
+{
+    Http::fake(['api.github.com/repos/'.config()->string('services.github.repository').'/contributors*' => function (Request $request) use ($contributors): PromiseInterface {
+        $perPage = (int) $request['per_page'];
+
+        return Http::response(array_slice($contributors, ((int) $request['page'] - 1) * $perPage, $perPage));
+    }]);
 }
 
 /**
