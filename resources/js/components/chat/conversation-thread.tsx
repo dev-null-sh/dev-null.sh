@@ -1,3 +1,4 @@
+import { Link } from '@inertiajs/react';
 import { ArrowDown, Mic, X } from 'lucide-react';
 import type {
     ClipboardEvent,
@@ -45,6 +46,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserPreview } from '@/components/user-preview';
 import { useChat, useThread } from '@/hooks/use-chat';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
@@ -75,6 +77,7 @@ import {
     laneColor,
     localDayKey,
 } from '@/lib/utils';
+import { show } from '@/routes/user';
 import type {
     Message,
     MessageReply,
@@ -753,23 +756,28 @@ const ThreadItem = memo(function ThreadItem({
             })}
         >
             {item.author !== null && (
-                <span
-                    className="flex max-w-full min-w-0 items-center gap-1.5 px-1.5 pb-0.5 text-xs text-muted-foreground"
-                    title={item.author.name}
+                <UserPreview
+                    user={item.author}
+                    className="flex max-w-full min-w-0 px-1.5 pb-0.5"
                 >
-                    <UserAvatar
-                        user={item.author}
-                        className="size-4 ring-1 ring-(--lane)"
-                        style={
-                            {
-                                '--lane': laneColor(item.author.lane),
-                            } as React.CSSProperties
-                        }
-                    />
-                    <span className="truncate font-medium text-foreground">
-                        {item.author.name}
-                    </span>
-                </span>
+                    <Link
+                        href={show(item.author)}
+                        className="flex min-w-0 items-center gap-1.5 rounded-sm text-xs text-muted-foreground"
+                    >
+                        <UserAvatar
+                            user={item.author}
+                            className="size-4 ring-1 ring-(--lane)"
+                            style={
+                                {
+                                    '--lane': laneColor(item.author.lane),
+                                } as React.CSSProperties
+                            }
+                        />
+                        <span className="truncate font-medium text-foreground hover:underline">
+                            {item.author.name}
+                        </span>
+                    </Link>
+                </UserPreview>
             )}
             {item.bubbles.map((bubble, index) => {
                 const key =
