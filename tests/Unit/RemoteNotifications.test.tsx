@@ -348,6 +348,17 @@ test('mobile notification fallback works and rejected audio does not reject mess
     assert.equal(play.mock.calls.length, 1);
 });
 
+test.each([
+    [49, 50, '(99) Remotes - /dev/null'],
+    [50, 50, '(99+) Remotes - /dev/null'],
+    [1000, 0, '(99+) Remotes - /dev/null'],
+    [0, 1000, '(99+) Remotes - /dev/null'],
+] as const)('tab titles cap the combined unread total with %s notifications and %s messages', (notifications, messages, expected) => {
+    const page = { props: { auth: { user: { id: 'me' }, unreadNotificationsCount: notifications, unreadMessagesCount: messages } } } as Page<SharedPageProps>;
+
+    assert.equal(pageTitle('Remotes', page), expected);
+});
+
 test.each([true, false])('background inbox polling alerts without consuming unread state, with banners=%s', async (banners) => {
     vi.useFakeTimers();
     Object.assign(window, { setTimeout, clearTimeout });
@@ -382,6 +393,14 @@ test.each([true, false])('background inbox polling alerts without consuming unre
         assert.equal(pageTitle('Settings', page), '(6) Settings - /dev/null');
         assert.equal(shown.length, 2 * Number(banners));
         assert.equal(play.mock.calls.length, 2);
+
+        unread = 97;
+        await vi.advanceTimersByTimeAsync(15_000);
+        assert.equal(pageTitle('Settings', page), '(99) Settings - /dev/null');
+
+        unread = 98;
+        await vi.advanceTimersByTimeAsync(15_000);
+        assert.equal(pageTitle('', page), '(99+) /dev/null');
 
         unread = 0;
         messages = [conversation(32, { kind: 'org', ahead: 0 })];
