@@ -257,7 +257,10 @@ export default function Show({
                 {moderation && <UserModerationStatus moderation={moderation} />}
 
                 {user.bio && (
-                    <p className="mt-3 max-w-prose text-[15px] leading-relaxed wrap-break-word whitespace-pre-wrap">
+                    <p
+                        dir="auto"
+                        className="mt-3 max-w-prose text-[15px] leading-relaxed wrap-break-word whitespace-pre-wrap"
+                    >
                         <BioText bio={user.bio} />
                     </p>
                 )}

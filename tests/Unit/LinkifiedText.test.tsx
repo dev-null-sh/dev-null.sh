@@ -117,7 +117,29 @@ test('leaves mentions without captured identities as plain text', () => {
         <LinkifiedText text="Thanks @original!" mentions={null} />,
     );
 
-    assert.equal(html, 'Thanks @original!');
+    assert.equal(html, 'Thanks <span dir="ltr">@original</span>!');
+});
+
+test('reads Arabic and Hebrew bodies right to left while mentions, links, code and the wordmark stay left to right', () => {
+    const id = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';
+    const html = renderPage(
+        <CommitBody
+            segments={[
+                {
+                    type: 'text',
+                    text: 'שלום @original! ראו https://example.com/docs ב /dev/null ',
+                },
+                { type: 'code', code: 'php artisan' },
+            ]}
+            mentions={{ original: id }}
+        />,
+    );
+
+    assert.match(html, /^<div data-commit-body="true" dir="auto"/);
+    assert.ok(html.includes('<a dir="ltr" class="font-medium'));
+    assert.ok(html.includes('dir="ltr" title="https://example.com/docs"'));
+    assert.ok(html.includes('dir="ltr" title="/dev/null"'));
+    assert.ok(html.includes('<code dir="ltr"'));
 });
 
 test('keeps captured mention identities in regular bodies alongside highlighted code', () => {
@@ -140,7 +162,7 @@ test('keeps captured mention identities in regular bodies alongside highlighted 
     assert.ok(html.includes(`href="/mentions/${id}"`));
     assert.ok(html.includes('>@ORIGINAL</a>'));
     assert.equal(html.match(/data-test="mention"/g)?.length, 1);
-    assert.ok(html.includes('and @unknown!'));
+    assert.ok(html.includes('and <span dir="ltr">@unknown</span>!'));
     assert.match(html, /<code[^>]*>@ORIGINAL<\/code>/);
     assert.match(
         html,

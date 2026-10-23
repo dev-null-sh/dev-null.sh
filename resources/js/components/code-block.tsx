@@ -48,7 +48,7 @@ export function CodeBlock({
     };
 
     return (
-        <div className="my-2 rounded-md border bg-muted/60">
+        <div dir="ltr" className="my-2 rounded-md border bg-muted/60">
             {(language || isCopyable) && (
                 <div className="flex h-8 items-center justify-between gap-2 border-b pr-1 pl-3">
                     <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground select-none">

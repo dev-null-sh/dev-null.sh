@@ -75,6 +75,10 @@ const mirroredProperties = [
     'text-transform',
     'text-indent',
     'tab-size',
+    // `dir="auto"` lays a Hebrew or Arabic draft out right to left, so the mirror has to as well.
+    'direction',
+    'text-align',
+    'unicode-bidi',
 ];
 
 function triggerAt(
@@ -639,6 +643,7 @@ export function MentionTextarea({
     return (
         <>
             <textarea
+                dir="auto"
                 {...props}
                 ref={setRefs}
                 value={value}

@@ -126,7 +126,7 @@ function CommitLink({
 
     if (isStatic) {
         return (
-            <span title={url} className="text-primary">
+            <span dir="ltr" title={url} className="text-primary">
                 {label}
             </span>
         );
@@ -135,6 +135,7 @@ function CommitLink({
     return (
         <Link
             href={CommitController.show({ user: username, commit })}
+            dir="ltr"
             title={url}
             aria-label={`@${username}’s commit ${hash}`}
             className="text-primary hover:underline"
@@ -209,7 +210,7 @@ function GitHubLink({
 
     if (isStatic) {
         return (
-            <span title={href} className="text-primary">
+            <span dir="ltr" title={href} className="text-primary">
                 {label}
             </span>
         );
@@ -220,6 +221,7 @@ function GitHubLink({
             href={href}
             target="_blank"
             rel="noopener noreferrer nofollow ugc"
+            dir="ltr"
             title={href}
             aria-label={`${owner}/${repository}${item ? ` ${item.kind} #${item.number}` : ''} on GitHub`}
             className="text-primary hover:underline"
@@ -266,6 +268,7 @@ function withWordmarks(text: string, pasteisMode: boolean): ReactNode[] {
             ) : (
                 <span
                     key={`wordmark-${index}`}
+                    dir="ltr"
                     title={part}
                     className="font-semibold tracking-tight whitespace-nowrap"
                 >
@@ -295,7 +298,9 @@ function withMentions(
         parts.push(
             ...withWordmarks(text.slice(position, match.index), pasteisMode),
             isStatic || !userId ? (
-                match[0]
+                <span key={`mention-${offset + match.index}`} dir="ltr">
+                    {match[0]}
+                </span>
             ) : (
                 <UserPreview
                     key={`mention-${offset + match.index}`}
@@ -304,6 +309,7 @@ function withMentions(
                 >
                     <Link
                         href={show(userId)}
+                        dir="ltr"
                         className="font-medium text-primary hover:underline"
                         data-test="mention"
                     >
@@ -373,13 +379,16 @@ export function LinkifiedText({
                     isStatic={isStatic}
                 />
             ) : isStatic ? (
-                linkText
+                <span key={match.index} dir="ltr">
+                    {linkText}
+                </span>
             ) : (
                 <a
                     key={match.index}
                     href={href}
                     target="_blank"
                     rel="noopener noreferrer nofollow ugc"
+                    dir="ltr"
                     title={href}
                     className="wrap-anywhere text-primary hover:underline"
                 >
