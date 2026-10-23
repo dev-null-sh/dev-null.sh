@@ -154,18 +154,27 @@ function ConversationRow({
             )}
             <span className="min-w-0">
                 {partner === null ? (
-                    <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="flex min-w-0 items-baseline">
                         <span
                             className={cn(
-                                'truncate font-semibold',
+                                'min-w-0 flex-1 truncate font-semibold',
                                 isCompact ? 'text-sm' : 'text-[15px]',
                             )}
                             title={title}
                         >
                             {title}
                         </span>
-                        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                            org · {others.length + 1}
+                        <span
+                            className={cn(
+                                'grid shrink-0 grid-cols-[1fr] font-mono text-xs text-muted-foreground tabular-nums group-focus-within:grid-cols-[0fr] group-focus-within:opacity-0 group-data-[menu=open]:grid-cols-[0fr] group-data-[menu=open]:opacity-0 motion-safe:transition-[grid-template-columns,opacity] motion-safe:duration-200 motion-safe:ease-out [@media(hover:hover)]:group-hover:grid-cols-[0fr] [@media(hover:hover)]:group-hover:opacity-0',
+                                { 'grid-cols-[0fr] opacity-0': isActive },
+                            )}
+                        >
+                            <span className="min-w-0 overflow-hidden text-right">
+                                <span className="pl-1.5 whitespace-nowrap">
+                                    org · {others.length + 1}
+                                </span>
+                            </span>
                         </span>
                     </span>
                 ) : (
@@ -291,7 +300,7 @@ function ConversationRow({
                     conversation={conversation}
                     onLeave={isActive ? onLeaveActive : undefined}
                     onBlocked={isActive ? onLeaveActive : onBlocked}
-                    onOpenChange={setIsMenuOpen}
+                    onPresenceChange={setIsMenuOpen}
                 />
             </div>
         </li>

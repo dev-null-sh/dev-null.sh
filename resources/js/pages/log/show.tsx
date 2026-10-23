@@ -115,7 +115,7 @@ export default function Show({
                     ]);
 
                     // Someone reading further down keeps their place, while someone at the top watches the commits arrive.
-                    if (window.scrollY < 40) {
+                    if (window.scrollY <= 0) {
                         return;
                     }
                 }
@@ -170,17 +170,14 @@ export default function Show({
             (row, index) => {
                 row.dataset.fresh = '';
 
-                if (!reduced) {
-                    const height = row.getBoundingClientRect().height;
+                if (!reduced && window.scrollY <= 0) {
                     row.animate(
                         [
                             {
-                                height: '0px',
                                 opacity: 0,
                                 transform: 'translateY(-12px)',
                             },
                             {
-                                height: `${height}px`,
                                 opacity: 1,
                                 transform: 'none',
                             },
@@ -322,7 +319,7 @@ export default function Show({
 
     // Back at the top, the new commits are right there, so the pill has nothing left to ask for.
     useEffect(() => {
-        if (!isAway && loaded === 'shown') {
+        if (!isAway && loaded === 'shown' && window.scrollY <= 0) {
             seenFresh.current();
         }
     }, [isAway, loaded]);

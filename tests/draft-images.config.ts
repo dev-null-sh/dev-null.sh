@@ -35,6 +35,7 @@ export default defineConfig({
             'tests/Unit/CommitPoll.test.tsx',
             'tests/Unit/GraphCanvas.test.tsx',
             'tests/Unit/RailEntrance.test.tsx',
+            'tests/Unit/LogInsertion.test.tsx',
             'tests/Unit/StagedRail.test.tsx',
             'tests/Unit/ComposerPreview.test.tsx',
             'tests/Unit/UseNow.test.tsx',

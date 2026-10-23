@@ -16,7 +16,7 @@ vi.doMock('react', () => ({
     },
 }));
 
-const { chatSnapshot, loadTab, searchConversations, seedThread, setConversationMute, watchThread } = await import('../../resources/js/lib/chat');
+const { chatSnapshot, loadTab, searchConversations, seedInbox, seedThread, setConversationMute, watchThread } = await import('../../resources/js/lib/chat');
 const { useRemoteAlerts } = await import('../../resources/js/hooks/use-chat');
 const { ConversationActions } = await import('../../resources/js/components/chat/conversation-actions');
 const { remoteNotificationsAllowed, setRemoteAlerts, subscribeRemoteAlerts } = await import('../../resources/js/lib/remote-notifications');
@@ -38,12 +38,13 @@ const thread: OrgThread & { org: typeof org } = {
     role: 'contributor', access: 'open',
 };
 
+function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
+    if (!React.isValidElement(node)) return [];
+    const element = node as ReactElement<Record<string, unknown>>;
+    return [element, ...React.Children.toArray(element.props.children as ReactNode).flatMap(elements)];
+}
+
 function muteItem(props: Parameters<typeof ConversationActions>[0]) {
-    const elements = (node: ReactNode): ReactElement<Record<string, unknown>>[] => {
-        if (!React.isValidElement(node)) return [];
-        const element = node as ReactElement<Record<string, unknown>>;
-        return [element, ...React.Children.toArray(element.props.children as ReactNode).flatMap(elements)];
-    };
     const item = elements(ConversationActions(props)).find((element) =>
         React.Children.toArray(element.props.children as ReactNode).some((child) => child === 'Mute' || child === 'Unmute'),
     );
@@ -76,6 +77,43 @@ afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+});
+
+test.each([false, true])('dismissal releases menu presence before saving a pin change from %s', async (pinned) => {
+    const events: string[] = [];
+    const conversation = { ...orgSummary, id: `dismissal-${pinned}`, is_archived: false, pinned_at: pinned ? forever : null };
+    seedInbox({ conversations: [conversation], has_more: false });
+    const fetch = vi.fn(async (_input: string, options?: RequestInit) => {
+        events.push('save');
+        assert.equal(options?.method, 'PUT');
+        assert.deepEqual(JSON.parse(options.body as string), { pinned: !pinned });
+        return Response.json({ pinned_at: pinned ? null : forever });
+    });
+    vi.stubGlobal('fetch', fetch);
+    const tree = elements(ConversationActions({
+        target: { kind: 'org', org: { id: conversation.id, name: org.name } },
+        title: org.name, user, isArchived: false, conversation,
+        onPresenceChange: (present) => events.push(present ? 'present' : 'dismissed'),
+    }));
+    const changeOpen = tree.find((element) => element.props.modal === false)!.props.onOpenChange as (open: boolean) => void;
+    const close = tree.find((element) => typeof element.props.onCloseAutoFocus === 'function')!.props.onCloseAutoFocus as () => void;
+    const item = tree.find((element) => React.Children.toArray(element.props.children as ReactNode).includes(pinned ? 'Unpin' : 'Pin'))!;
+
+    changeOpen(true);
+    changeOpen(false);
+    assert.deepEqual(events, ['present']);
+    close();
+    assert.deepEqual(events, ['present', 'dismissed']);
+    assert.equal(fetch.mock.calls.length, 0);
+    changeOpen(true);
+    (item.props.onSelect as () => void)();
+    changeOpen(false);
+    assert.equal(fetch.mock.calls.length, 0);
+    close();
+    await vi.advanceTimersByTimeAsync(0);
+
+    assert.deepEqual(events, ['present', 'dismissed', 'present', 'dismissed', 'save']);
+    assert.equal(fetch.mock.calls.length, 1);
 });
 
 test('a search-only direct remote can be muted and unmuted without opening its thread', async () => {
