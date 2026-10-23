@@ -38,8 +38,7 @@ export function useRemoteNotificationPermission(): boolean {
 export function useRemoteAlerts(userId: string | null): void {
     const notifications = useRemoteAlertsEnabled(userId);
     const sound = useRemoteAlertsEnabled(userId, 'sound');
-    const permitted = useRemoteNotificationPermission();
-    const enabled = (notifications && permitted) || sound;
+    const enabled = notifications || sound;
     useEffect(
         () =>
             enabled && userId !== null ? watchRemoteAlerts(userId) : undefined,

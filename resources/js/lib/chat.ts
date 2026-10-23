@@ -22,7 +22,11 @@ import UserBlockController from '@/actions/App/Http/Controllers/UserBlockControl
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import type { ReactionUsage } from '@/lib/reactions';
 import { withReactionUse } from '@/lib/reactions';
-import { createRemoteAlerts, isRemoteMuted } from '@/lib/remote-notifications';
+import {
+    createRemoteAlerts,
+    isRemoteMuted,
+    remoteAlertsEnabled,
+} from '@/lib/remote-notifications';
 import type { VoiceDraft } from '@/lib/voice-notes';
 import type {
     ConversationSummary,
@@ -118,6 +122,7 @@ export type ChatState = {
     unread: number | null;
     requests: number | null;
     isPollingInbox: boolean;
+    notificationTitle: string | null;
     threads: Record<string, ThreadState>;
     mutePreferences: Record<string, { until: string | null; version: number }>;
     /**
@@ -150,6 +155,7 @@ let state: ChatState = {
     unread: null,
     requests: null,
     isPollingInbox: false,
+    notificationTitle: null,
     threads: {},
     mutePreferences: {},
     reactionUsage: null,
@@ -689,6 +695,57 @@ async function pollInbox(): Promise<void> {
 }
 
 export function watchRemoteAlerts(userId: string): () => void {
+    let titleTimer: number | undefined;
+    let pendingTitle: string | null = null;
+    const channel =
+        'BroadcastChannel' in window
+            ? new BroadcastChannel(`remote-titles:${userId}`)
+            : null;
+    const clearTitle = () => {
+        window.clearInterval(titleTimer);
+        pendingTitle = null;
+        update({ notificationTitle: null });
+    };
+    const acknowledgeTitle = () => {
+        if (document.hidden || !document.hasFocus()) return;
+
+        clearTitle();
+        channel?.postMessage(null);
+    };
+    const showTitle = (title: string) => {
+        if (!remoteAlertsEnabled(userId)) return;
+        if (!document.hidden && document.hasFocus()) {
+            acknowledgeTitle();
+            return;
+        }
+
+        const alreadyPending = pendingTitle !== null;
+        pendingTitle = title;
+        if (alreadyPending) {
+            if (state.notificationTitle !== null) {
+                update({ notificationTitle: pendingTitle });
+            }
+            return;
+        }
+
+        update({ notificationTitle: pendingTitle });
+        let switches = 0;
+        titleTimer = window.setInterval(() => {
+            switches++;
+            update({
+                notificationTitle: switches % 2 === 0 ? pendingTitle : null,
+            });
+            if (switches === 6) window.clearInterval(titleTimer);
+        }, 1_000);
+    };
+    channel?.addEventListener('message', (event: MessageEvent<unknown>) => {
+        if (event.data === null) clearTitle();
+        else if (typeof event.data === 'string') showTitle(event.data);
+    });
+    window.addEventListener('focus', acknowledgeTitle);
+    document.addEventListener('visibilitychange', acknowledgeTitle);
+    acknowledgeTitle();
+
     const alerts = createRemoteAlerts(
         userId,
         (conversation) => urls(targetOf(conversation)).show,
@@ -700,13 +757,30 @@ export function watchRemoteAlerts(userId: string): () => void {
                         (key) => urls(state.threads[key].target).show,
                     )
                   : [],
+        (conversation) => {
+            const sender = conversation.last_incoming_sender ?? 'Someone';
+            const remote =
+                conversation.kind === 'org'
+                    ? ` in ${conversation.name || 'an unnamed org'}`
+                    : '';
+            const title = `${sender}${remote} sent you a message`;
+            channel?.postMessage(title);
+            showTitle(title);
+        },
     );
     remoteAlerts = alerts;
     const unwatch = watchInbox();
 
     return () => {
         alerts.stop();
-        if (remoteAlerts === alerts) remoteAlerts = null;
+        window.clearInterval(titleTimer);
+        window.removeEventListener('focus', acknowledgeTitle);
+        document.removeEventListener('visibilitychange', acknowledgeTitle);
+        channel?.close();
+        if (remoteAlerts === alerts) {
+            remoteAlerts = null;
+            update({ notificationTitle: null });
+        }
         unwatch();
     };
 }
@@ -961,6 +1035,7 @@ function touchInbox(target: ChatTarget, message: Message): void {
         members: existing?.members ?? null,
         last_message: message,
         last_incoming_message_id: existing?.last_incoming_message_id ?? null,
+        last_incoming_sender: existing?.last_incoming_sender ?? null,
         last_message_at: message.created_at,
         ahead: existing?.ahead ?? 0,
         partner_read_through_id: existing?.partner_read_through_id ?? 0,

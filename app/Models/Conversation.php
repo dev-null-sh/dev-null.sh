@@ -28,6 +28,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read Collection<int, ConversationParticipant> $participants
  * @property-read Collection<int, Message> $messages
  * @property-read Message|null $lastMessage
+ * @property-read Message|null $lastIncomingMessage
  * @property-read User|null $partner
  * @property-read string $partner_id
  * @property-read int $ahead
@@ -148,5 +149,13 @@ final class Conversation extends Model
     public function lastMessage(): BelongsTo
     {
         return $this->belongsTo(Message::class, 'last_message_id');
+    }
+
+    /**
+     * @return BelongsTo<Message, $this>
+     */
+    public function lastIncomingMessage(): BelongsTo
+    {
+        return $this->belongsTo(Message::class, 'last_incoming_message_id');
     }
 }
