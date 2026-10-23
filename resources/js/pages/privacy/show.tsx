@@ -52,9 +52,10 @@ export default function Show() {
                                 who you follow and who follows you. When you
                                 sign up, the <code>composer.json</code> and{' '}
                                 <code>package.json</code> of your recently
-                                pushed public repositories are read to suggest
-                                the people behind the packages you use, and only
-                                who to suggest is kept, for a week.
+                                pushed public repositories, and the repositories
+                                you starred most recently, are read to suggest
+                                the people behind what you use, and only who to
+                                suggest is kept, for a week.
                             </>,
                             <>
                                 <strong>

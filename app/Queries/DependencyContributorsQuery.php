@@ -21,7 +21,8 @@ final readonly class DependencyContributorsQuery
     private const int Repositories = 10;
 
     /**
-     * The packages looked up, the ones the most repositories depend on first.
+     * The packages looked up, the ones the most repositories depend on first, and the most repositories whose
+     * contributors are asked about.
      */
     private const int Packages = 20;
 
@@ -50,6 +51,7 @@ final readonly class DependencyContributorsQuery
     /**
      * The GitHub IDs of the people behind a user's stack: the top contributors to the repositories of the Composer and
      * npm packages their own public repositories depend on, read from the composer.json and package.json at their root.
+     * When that finds fewer repositories than it may ask about, the ones they starred most recently fill the rest.
      *
      * @return array<int, string>
      */
@@ -58,7 +60,7 @@ final readonly class DependencyContributorsQuery
         $deadline = now()->addSeconds(self::Seconds);
         $inTime = fn (): bool => now()->isBefore($deadline);
 
-        return $this->github->request()
+        $repositories = $this->github->request()
             ->get("users/{$login}/repos", ['type' => 'owner', 'sort' => 'pushed', 'per_page' => self::Repositories])
             ->throw()
             ->collect()
@@ -71,6 +73,12 @@ final readonly class DependencyContributorsQuery
             ->keys()
             ->map(fn (string $package): ?string => $inTime() ? $this->repository($package) : null)
             ->filter()
+            ->unique();
+
+        return $repositories
+            ->concat($repositories->count() < self::Packages && $inTime() ? $this->starred($login) : [])
+            ->unique()
+            ->take(self::Packages)
             ->flatMap(fn (string $repository): array => $inTime() ? $this->contributors($repository) : [])
             ->unique()
             ->values()
@@ -168,8 +176,28 @@ final readonly class DependencyContributorsQuery
     }
 
     /**
+     * The repositories a user starred most recently, other than their own. They speak for people whose own repositories
+     * say little about what they use: when their work lives in an organization's repositories, or outside Composer and npm.
+     *
+     * @return array<int, string>
+     */
+    private function starred(string $login): array
+    {
+        return $this->github->request()
+            ->get("users/{$login}/starred", ['per_page' => self::Packages])
+            ->throw()
+            ->collect()
+            ->mapInto(Fluent::class)
+            ->reject(fn (Fluent $repository): bool => strcasecmp($repository->string('owner.login')->value(), $login) === 0)
+            ->map(fn (Fluent $repository): string => $repository->string('full_name')->value())
+            ->values()
+            ->all();
+    }
+
+    /**
      * The GitHub IDs of the people among a repository's top contributors, remembered for a day so that everyone whose
-     * packages come from it shares one request. A repository GitHub no longer has, or one without history, has none.
+     * packages come from it shares one request. A repository GitHub no longer has, one without history, or one whose
+     * history GitHub finds too large to list has none.
      *
      * @return array<int, string>
      */
@@ -179,7 +207,7 @@ final readonly class DependencyContributorsQuery
             return Cache::remember("dependency-contributors:{$repository}", 86400, function () use ($repository): array {
                 $response = $this->github->request()->get("repos/{$repository}/contributors", ['per_page' => self::Contributors]);
 
-                if ($response->notFound() || $response->noContent()) {
+                if ($response->notFound() || $response->noContent() || $response->fluent()->string('message')->contains('too large')) {
                     return [];
                 }
 

@@ -13,6 +13,7 @@ it('remembers who is behind the stack of the user for a week', function (): void
 
     Http::fake([
         'api.github.com/users/jess/repos*' => Http::response([['full_name' => 'jess/blog', 'fork' => false]]),
+        'api.github.com/users/jess/starred*' => Http::response([]),
         'raw.githubusercontent.com/jess/blog/HEAD/composer.json' => Http::response(['require' => ['laravel/framework' => '^13.0']]),
         'raw.githubusercontent.com/jess/blog/HEAD/package.json' => Http::response('404: Not Found', 404),
         'repo.packagist.org/p2/laravel/framework.json' => Http::response([

@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Http;
 it('suggests who is behind the stack of the user', function (): void {
     $user = User::factory()->create(['username' => 'jess']);
 
-    Http::fake(['api.github.com/users/jess/repos*' => Http::response([])]);
+    Http::fake(['api.github.com/users/jess/*' => Http::response([])]);
 
     dispatch_sync(new SuggestDependencyContributorsJob($user));
 
