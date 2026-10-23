@@ -28,6 +28,7 @@ export default defineConfig({
             'tests/Unit/NotificationFilters.test.tsx',
             'tests/Unit/EmojiShortcodes.test.tsx',
             'tests/Unit/QuoteReply.test.tsx',
+            'tests/Unit/CommitThread.test.tsx',
             'tests/Unit/SearchDialogComposition.test.tsx',
             'tests/Unit/TabSlide.test.tsx',
             'tests/Unit/ReportResolution.test.tsx',
