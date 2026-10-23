@@ -286,9 +286,20 @@ export function ConversationThread({
     );
 
     useEffect(() => {
-        if (isVisible && thread?.isLoaded && isPinned.current) {
-            markThreadRead(target);
-        }
+        const markRead = () => {
+            if (isVisible && thread?.isLoaded && isPinned.current) {
+                markThreadRead(target);
+            }
+        };
+
+        markRead();
+        window.addEventListener('focus', markRead);
+        document.addEventListener('visibilitychange', markRead);
+
+        return () => {
+            window.removeEventListener('focus', markRead);
+            document.removeEventListener('visibilitychange', markRead);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isVisible, latestId, thread?.isLoaded, targetKey(target)]);
 
@@ -1390,6 +1401,7 @@ function Composer({
         });
         voiceNote.discard();
         showError(null);
+        attachments.clearError();
     };
 
     const submit = (event?: FormEvent) => {
@@ -1418,6 +1430,7 @@ function Composer({
         stash.drop();
         linkCard.reset();
         showError(null);
+        attachments.clearError();
         input.current?.focus();
     };
 
@@ -1610,13 +1623,8 @@ function Composer({
                                     maxLength={maxLength}
                                     onValueChange={(value) => {
                                         stash.updateBody(value);
-
-                                        if (
-                                            error !== null &&
-                                            characterCount(value) < maxLength
-                                        ) {
-                                            showError(null);
-                                        }
+                                        showError(null);
+                                        attachments.clearError();
 
                                         if (value.trim() !== '') {
                                             pingTyping(target);

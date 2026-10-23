@@ -1,5 +1,5 @@
 import { Deferred, Head, router } from '@inertiajs/react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useId, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import ProductMetricsController from '@/actions/App/Http/Controllers/ProductMetricsController';
 import { PresetButton } from '@/components/operations/preset-button';
@@ -302,13 +302,24 @@ type DailyBar = {
     label: string;
     details?: string[];
     segments?: DailySegment[];
+    shadow?: number;
 };
+
+/**
+ * A shadow's outline in a 100 by 100 box stretched over the gap between two bars: from the top of the bar before, at
+ * `from`, curving down (or up) to `to` on the next one.
+ */
+function shadowPath(from: number, to: number): string {
+    return `M0 ${from} C55 ${from} 45 ${to} 100 ${to} L100 100 L0 100 Z`;
+}
 
 /**
  * One slot per day of the range, so charts of the same range line up, with a bar on the days that have one, as tall as
  * its value against the tallest, and a line at the average of the range, to tell the days above it from the days below.
  * A partial day, still counting, is lighter, unless the bar is stacked from segments, the first at the bottom, whose
- * own colors carry the meaning. Tooltips of the bars near an edge align with it, so they stay on screen.
+ * own colors carry the meaning. A bar with a shadow is narrower, and the bar of the day before casts a shadow onto it,
+ * curving from its top down to the shadow's value. Tooltips of the bars near an edge align with it, so they stay on
+ * screen.
  */
 function DailyBars({
     range,
@@ -327,6 +338,8 @@ function DailyBars({
     empty: string;
     format: (value: number) => string;
 }) {
+    const shadowId = useId().replaceAll(/[^\w-]/g, '');
+
     if (bars.length === 0) {
         return (
             <p className="rounded-lg border px-4 py-2.5 font-mono text-[13px] text-muted-foreground">
@@ -342,6 +355,7 @@ function DailyBars({
     );
     const label = (date: string) => formatZonedDate(date, 'UTC');
     const byDate = new Map(bars.map((bar) => [bar.date, bar]));
+    const hasShadows = bars.some((bar) => bar.shadow !== undefined);
     const dates: string[] = [];
 
     for (
@@ -354,7 +368,7 @@ function DailyBars({
 
     return (
         <figure className="pt-5">
-            <div className="relative flex h-48 items-end gap-1 border-b border-rail sm:gap-2">
+            <div className="relative flex h-48 items-end gap-(--bar-gap) border-b border-rail [--bar-gap:0.25rem] sm:[--bar-gap:0.5rem]">
                 {average !== null && (
                     <div
                         className="pointer-events-none absolute inset-x-0 z-[1] border-t border-dashed border-foreground/50"
@@ -367,17 +381,61 @@ function DailyBars({
                 )}
                 {dates.map((date, index) => {
                     const bar = byDate.get(date);
+                    const before = byDate.get(dates[index - 1]);
 
                     return (
                         <div
                             key={date}
-                            className="group relative flex h-full flex-1 items-end"
+                            className="group relative flex h-full flex-1 items-end justify-center"
                         >
                             {bar && (
                                 <>
+                                    {bar.shadow !== undefined && before && (
+                                        <svg
+                                            aria-hidden
+                                            viewBox="0 0 100 100"
+                                            preserveAspectRatio="none"
+                                            className="absolute bottom-0 h-full text-muted-foreground"
+                                            style={{
+                                                left: 'calc(-20% - var(--bar-gap))',
+                                                width: 'calc(40% + var(--bar-gap))',
+                                            }}
+                                        >
+                                            <defs>
+                                                <linearGradient
+                                                    id={`${shadowId}-${date}`}
+                                                >
+                                                    <stop
+                                                        offset="0"
+                                                        stopColor="currentColor"
+                                                        stopOpacity={0.32}
+                                                    />
+                                                    <stop
+                                                        offset="1"
+                                                        stopColor="currentColor"
+                                                        stopOpacity={0.08}
+                                                    />
+                                                </linearGradient>
+                                            </defs>
+                                            <path
+                                                d={shadowPath(
+                                                    100 -
+                                                        (before.value / top) *
+                                                            100,
+                                                    100 -
+                                                        (bar.shadow / top) *
+                                                            100,
+                                                )}
+                                                fill={`url(#${shadowId}-${date})`}
+                                            />
+                                        </svg>
+                                    )}
                                     {bar.segments ? (
                                         <div
-                                            className="flex w-full flex-col-reverse gap-0.5 overflow-hidden rounded-t"
+                                            className={cn(
+                                                'relative flex flex-col-reverse gap-0.5 overflow-hidden rounded-t',
+                                                hasShadows ? 'w-3/5' : 'w-full',
+                                            )}
                                             style={{
                                                 height: `${(bar.value / top) * 100}%`,
                                             }}
@@ -599,29 +657,41 @@ function ActivationByDay({
 }
 
 /**
- * The parts of a day's active users, from the bottom of the bar: one hue, darker for the people who stayed, so the
- * funnel reads from top to bottom. Signups too young to tell are hatched, as they are not settled yet.
+ * The parts of a day's active users, from the bottom of the bar: returning users in blue, then the day's signups in
+ * amber, darker when they activated. Signups too young to tell are hatched, as they are not settled yet. The colors are
+ * this chart's own, so they live on its wrapper, not in the theme.
  */
 const ACTIVE_USER_PARTS = [
-    { key: 'returning', label: 'returning', className: 'bg-primary' },
+    { key: 'returning', label: 'returning users', className: 'bg-primary' },
     {
         key: 'activated',
         label: 'new, activated',
-        className: 'bg-primary/55',
+        className: 'bg-(--new)',
     },
     {
         key: 'not_activated',
         label: 'new, not activated',
-        className: 'bg-primary/20',
+        className: 'bg-(--new-soft)',
     },
     {
         key: 'pending',
         label: 'new, under 12h',
         className:
-            'bg-[image:repeating-linear-gradient(135deg,color-mix(in_oklab,var(--primary)_55%,transparent)_0_2px,transparent_2px_5px)]',
+            'bg-[image:repeating-linear-gradient(135deg,var(--new)_0_2px,transparent_2px_5px)]',
     },
 ] as const;
 
+const NEW_USER_PARTS = [
+    { key: 'activated', label: 'activated' },
+    { key: 'not_activated', label: 'not' },
+    { key: 'pending', label: 'under 12h' },
+] as const;
+
+/**
+ * Each bar after the first is shadowed by the day before's, from its total down to the day's returning users. They may
+ * have been there the day before or come back after a longer gap, so the drop is a net change: the people who stopped
+ * coming, minus the people back after a break. Today, still counting, gets no shadow.
+ */
 function ActiveUserCounts({
     range,
     counts,
@@ -633,7 +703,7 @@ function ActiveUserCounts({
     const complete = counts.filter((day) => day.date !== today);
 
     return (
-        <>
+        <div className="[--new-soft:#f0c48c] [--new:#c96f12] dark:[--new-soft:#6b4a26] dark:[--new:#e0893a]">
             <ul className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
                 {ACTIVE_USER_PARTS.map((part) => (
                     <li key={part.key} className="flex items-center gap-1.5">
@@ -647,6 +717,21 @@ function ActiveUserCounts({
                         {part.label}
                     </li>
                 ))}
+                <li className="flex items-center gap-1.5">
+                    <svg
+                        aria-hidden
+                        viewBox="0 0 100 100"
+                        preserveAspectRatio="none"
+                        className="h-2.5 w-4 text-muted-foreground"
+                    >
+                        <path
+                            d={shadowPath(0, 60)}
+                            fill="currentColor"
+                            fillOpacity={0.3}
+                        />
+                    </svg>
+                    change since the day before, net
+                </li>
             </ul>
             <DailyBars
                 range={range}
@@ -660,33 +745,60 @@ function ActiveUserCounts({
                               ) / complete.length,
                           )
                 }
-                bars={counts.map((day) => ({
-                    date: day.date,
-                    value: ACTIVE_USER_PARTS.reduce(
-                        (sum, part) => sum + day[part.key],
-                        0,
-                    ),
-                    isPartial: day.date === today,
-                    label: `${formatCount(day.count)} active`,
-                    details: ACTIVE_USER_PARTS.filter(
+                bars={counts.map((day, index) => {
+                    const before = counts[index - 1];
+                    const isPartial = day.date === today;
+                    const isShadowed =
+                        !isPartial &&
+                        before !== undefined &&
+                        Date.parse(day.date) - Date.parse(before.date) ===
+                            86_400_000;
+                    const change = isShadowed
+                        ? before.count - day.returning
+                        : 0;
+                    const fresh = NEW_USER_PARTS.filter(
                         (part) => day[part.key] > 0,
-                    )
-                        .toReversed()
-                        .map(
-                            (part) =>
-                                `${formatCount(day[part.key])} ${part.label}`,
+                    );
+
+                    return {
+                        date: day.date,
+                        value: ACTIVE_USER_PARTS.reduce(
+                            (sum, part) => sum + day[part.key],
+                            0,
                         ),
-                    segments: ACTIVE_USER_PARTS.map((part) => ({
-                        value: day[part.key],
-                        className: part.className,
-                    })),
-                }))}
+                        isPartial,
+                        label: `${formatCount(day.count)} active`,
+                        details: [
+                            `${formatCount(day.returning)} returning users, back after any gap`,
+                            ...(isShadowed
+                                ? [
+                                      `${formatCount(Math.abs(change))} ${change >= 0 ? 'fewer' : 'more'} than the ${formatCount(before.count)} of ${formatZonedDate(before.date, 'UTC')}, net`,
+                                  ]
+                                : []),
+                            ...(fresh.length > 0
+                                ? [
+                                      `${formatCount(fresh.reduce((sum, part) => sum + day[part.key], 0))} new: ${fresh.map((part) => `${formatCount(day[part.key])} ${part.label}`).join(', ')}`,
+                                  ]
+                                : []),
+                        ],
+                        segments: ACTIVE_USER_PARTS.map((part) => ({
+                            value: day[part.key],
+                            className: part.className,
+                        })),
+                        shadow: isShadowed ? day.returning : undefined,
+                    };
+                })}
                 caption="Daily active users"
                 column="Active users"
                 format={formatCount}
                 empty="nothing yet: days are counted from the day tracking started"
             />
-        </>
+            <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
+                Each shadow runs from a day's total down to the next day's
+                returning users, whether they came the day before or after a
+                longer gap: its drop is the net change. Today is still counting.
+            </p>
+        </div>
     );
 }
 

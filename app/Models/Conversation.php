@@ -31,11 +31,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read User|null $partner
  * @property-read string $partner_id
  * @property-read int $ahead
+ * @property-read int|null $last_incoming_message_id
  * @property-read CarbonInterface|null $last_message_at
  * @property-read RemoteStatus $partner_status
  * @property-read int $partner_read_through_id
  * @property-read CarbonInterface|null $partner_read_at
  * @property-read CarbonInterface|null $archived_at
+ * @property-read CarbonInterface|null $muted_until_at
  */
 final class Conversation extends Model
 {
@@ -104,11 +106,13 @@ final class Conversation extends Model
             'updated_at' => 'datetime',
             'partner_id' => 'string',
             'ahead' => 'integer',
+            'last_incoming_message_id' => 'integer',
             'last_message_at' => 'datetime',
             'partner_status' => RemoteStatus::class,
             'partner_read_through_id' => 'integer',
             'partner_read_at' => 'datetime',
             'archived_at' => 'datetime',
+            'muted_until_at' => 'datetime',
         ];
     }
 
