@@ -11,9 +11,10 @@ use Illuminate\Support\Collection;
 final readonly class RelatedCommitsQuery
 {
     /**
-     * Cosine distance up to which two text-embedding-3-small vectors say about the same thing.
+     * Cosine distance up to which two text-embedding-3-small vectors say about the same thing. Measured on 281 real
+     * posts: pairs under 0.45 are near duplicates, 0.45 to 0.60 share a topic, and past 0.60 the pairs come apart.
      */
-    public const float MAX_DISTANCE = 0.45;
+    public const float MAX_DISTANCE = 0.60;
 
     /**
      * Far under the HNSW index's default ef_search of 40, so filtering its candidates by visibility rarely starves the rail.
