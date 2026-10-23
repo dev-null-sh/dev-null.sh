@@ -73,6 +73,8 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
     moveCaretToEnd: vi.fn(),
     discardSeriesStash: vi.fn(),
 }));
+const posting = { rememberPosting: vi.fn(), forgetPosting: vi.fn() };
+vi.doMock('../../resources/js/lib/posting-draft', () => posting);
 
 const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
@@ -785,4 +787,32 @@ test('ignores further submits while a commit is being posted', () => {
     assert.equal(form.props.onBefore(), false);
     form.props.onFinish();
     assert.equal(form.props.onBefore(), true);
+});
+
+test('remembers a scheduled draft while it is posted, as it is flashed without its body', () => {
+    const find = (key: string, value: unknown) =>
+        render().fields.find((element) => element.props[key] === value);
+
+    render().form.props.onStart();
+    assert.equal(posting.rememberPosting.mock.calls.length, 0);
+
+    (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();
+    (
+        find('id', 'body-scheduled-at')!.props.onChange as (
+            value: string,
+        ) => void
+    )('2026-10-17T10:30');
+    const { form } = render();
+    form.props.onStart();
+    assert.deepEqual(posting.rememberPosting.mock.calls, [[draft.key]]);
+
+    form.props.onError({ scheduled_at: 'The scheduled at field is required.' });
+    form.props.onSuccess({
+        flash: { toast: { type: 'error', message: 'Too many commits.' } },
+    });
+    assert.deepEqual(posting.forgetPosting.mock.calls, [
+        [draft.key],
+        [draft.key],
+    ]);
+    assert.equal(draft.drop.mock.calls.length, 0);
 });

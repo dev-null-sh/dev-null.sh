@@ -12,6 +12,7 @@ import { trackCommitPhotoPage } from '@/lib/commit-photo';
 import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
 import { trackFollowRequests } from '@/lib/follow-requests';
+import { dropPostedDraft } from '@/lib/posting-draft';
 import { registerServiceWorker } from '@/lib/service-worker';
 import { trackVisualViewport } from '@/lib/visual-viewport';
 import '../css/app.css';
@@ -33,6 +34,7 @@ void createInertiaApp({
     setup({ el, App, props }) {
         trackFollowRequests(props.initialPage);
         registerServiceWorker(props.initialPage.version);
+        dropPostedDraft(props.initialPage.flash);
 
         const root = createRoot(el);
 

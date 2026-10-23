@@ -56,6 +56,7 @@ import {
     minBodyLength,
 } from '@/lib/commit';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
+import { forgetPosting, rememberPosting } from '@/lib/posting-draft';
 import {
     characterCount,
     cn,
@@ -664,6 +665,11 @@ export function CommitComposer({
             }
             onStart={() => {
                 isPosting.current = true;
+
+                // A scheduled commit is flashed without its body, so the reloaded page can't match the draft to it.
+                if (isScheduling) {
+                    rememberPosting(stash.key);
+                }
             }}
             onFinish={() => {
                 isPosting.current = false;
@@ -682,7 +688,10 @@ export function CommitComposer({
                 }),
             })}
             options={{ preserveScroll: true }}
+            onError={() => forgetPosting(stash.key)}
             onSuccess={(page) => {
+                forgetPosting(stash.key);
+
                 if (isRejectedSubmission(page.flash)) {
                     return;
                 }
