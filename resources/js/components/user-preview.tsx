@@ -27,13 +27,14 @@ import { cn, laneColor } from '@/lib/utils';
 import { preview } from '@/routes/mention';
 import { show } from '@/routes/user';
 import { show as userPreview } from '@/routes/user-preview';
-import type { Commit, CursorPaginated, Profile, User } from '@/types';
+import type { Commit, CursorPaginated, MaintainedOrg, Profile, User } from '@/types';
 
 type PreviewData = {
     isFollowing: boolean;
     followsYou: boolean;
     isMuting: boolean;
     isBlocking: boolean;
+    orgs: MaintainedOrg[];
 } & (
     | { isUnavailable: false; user: Profile }
     | { isUnavailable: true; user: User }
@@ -415,8 +416,22 @@ function UserPreviewContent({
                                     user={user}
                                     isMuting={data.isMuting}
                                     isBlocking={data.isBlocking}
+                                    orgs={data.orgs}
                                     className="size-8"
                                     onOpenChange={onMenuOpenChange}
+                                    onOrgAdded={(added) =>
+                                        onChange({
+                                            ...data,
+                                            orgs: data.orgs.map((org) =>
+                                                org.id === added.id
+                                                    ? {
+                                                          ...org,
+                                                          reason: 'already in the org',
+                                                      }
+                                                    : org,
+                                            ),
+                                        })
+                                    }
                                 />
                             )}
                             {!data.isUnavailable && (

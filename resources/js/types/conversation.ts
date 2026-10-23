@@ -82,6 +82,14 @@ export type OrgEvent =
 
 export type OrgRef = { id: string; name: string | null };
 
+/**
+ * An org the user maintains, offered on someone's profile with the reason they can't be added to it, if there is one.
+ */
+export type MaintainedOrg = OrgRef & {
+    members: { user: User }[];
+    reason: string | null;
+};
+
 export type OrgMember = {
     suggests_mentions: boolean;
     is_followed: boolean;

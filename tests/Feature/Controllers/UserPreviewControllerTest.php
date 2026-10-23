@@ -104,6 +104,61 @@ it('shows a neutral unavailable preview to someone the user blocked', function (
         ->assertJsonMissingPath('user.followers_count');
 });
 
+it('offers the orgs the viewer maintains, newest first, with why the user cannot join each', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create(['username' => 'octocat']);
+    [$nuno] = followersOf($viewer, 1);
+    $user->following()->attach($viewer);
+    $viewer->following()->attach($nuno);
+
+    $joined = createOrg($viewer, [$nuno, $user], name: null);
+    $open = createOrg($viewer, [$nuno]);
+    createOrg($nuno, [$viewer], 'not yours');
+
+    $this->actingAs($viewer)->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonCount(2, 'orgs')
+        ->assertJsonPath('orgs.0.id', $open)
+        ->assertJsonPath('orgs.0.name', 'dev/null core')
+        ->assertJsonPath('orgs.0.reason', null)
+        ->assertJsonPath('orgs.1.id', $joined)
+        ->assertJsonPath('orgs.1.name', null)
+        ->assertJsonPath('orgs.1.members.0.user.username', $nuno->username)
+        ->assertJsonPath('orgs.1.reason', 'already in the org')
+        ->assertJsonMissingPath('orgs.1.members.0.user.email');
+});
+
+it('offers no orgs when either of them has remotes off, they do not follow the viewer, across a block, or on their own preview', function (string $case): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create(['username' => 'octocat']);
+    $user->following()->attach($viewer);
+    createOrg($viewer, followersOf($viewer, 1));
+
+    match ($case) {
+        'you have remotes off' => $viewer->update(['remotes_enabled' => false]),
+        'they have remotes off' => $user->update(['remotes_enabled' => false]),
+        'they do not follow you' => $user->following()->detach($viewer),
+        'blocked' => $user->blocking()->attach($viewer),
+        default => null,
+    };
+
+    $this->actingAs($viewer)->getJson($case === 'own preview' ? "/@{$viewer->username}/preview" : '/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('orgs', []);
+})->with(['you have remotes off', 'they have remotes off', 'they do not follow you', 'blocked', 'own preview']);
+
+it('offers a site admin their orgs for someone who does not follow them', function (): void {
+    $admin = User::factory()->create(['username' => 'admin']);
+    User::factory()->create(['username' => 'octocat']);
+    $org = createOrg($admin, followersOf($admin, 1));
+    config(['app.admins' => ['admin']]);
+
+    $this->actingAs($admin)->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('orgs.0.id', $org)
+        ->assertJsonPath('orgs.0.reason', null);
+});
+
 it('returns not found for unknown usernames', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->getJson('/@missing/preview');
@@ -124,7 +179,8 @@ it('returns guests a summary of the user with only approved commits counted', fu
         ->assertJsonPath('followsYou', false)
         ->assertJsonPath('isMuting', false)
         ->assertJsonPath('isBlocking', false)
-        ->assertJsonPath('isUnavailable', false);
+        ->assertJsonPath('isUnavailable', false)
+        ->assertJsonPath('orgs', []);
 });
 
 it('previews the captured mention recipient after a rename and handle reuse', function (bool $authenticated): void {
