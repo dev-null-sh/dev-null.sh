@@ -117,7 +117,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 )}
 
                 <MobileNav>
-                    {!isMessages && (
+                    {/* The new event form is a composer of its own, so the button would only cover its fields. */}
+                    {!isMessages && component !== 'event/create' && (
                         <MobileCommitButton
                             isHidden={hasComposer && isComposerInView}
                             onCompose={compose}
