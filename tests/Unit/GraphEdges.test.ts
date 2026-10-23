@@ -124,6 +124,26 @@ void test('branches every reply off its parent, each one from where the reply ab
     assert.equal(edges[1].drop, 140);
 });
 
+void test("starts each branch's dashes where the column above left them, so the column reads as one line", () => {
+    const edges = graphEdges([
+        node({ id: 'parent', y: 40 }),
+        node({ id: 'first', x: 100, y: 160, parent: 'parent' }),
+        node({ id: 'second', x: 100, y: 300, parent: 'parent' }),
+        node({ id: 'more', y: 380, parent: 'parent' }),
+        node({ id: 'next', y: 500, after: 'more' }),
+    ]);
+
+    assert.deepEqual(
+        edges.map((edge) => [edge.id, edge.dashOffset]),
+        [
+            ['parent->first', 0],
+            ['parent->second', 108],
+            ['parent->more', 248],
+            ['more->next', 0],
+        ],
+    );
+});
+
 void test('runs straight down to a node on the parent itself, like a "more replies" dot', () => {
     const edges = graphEdges([
         node({ id: 'parent', y: 40 }),

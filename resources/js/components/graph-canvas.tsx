@@ -611,6 +611,11 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                         strokeDasharray={
                                             edge.dashed ? dash : undefined
                                         }
+                                        strokeDashoffset={
+                                            edge.dashed && edge.dashOffset !== 0
+                                                ? edge.dashOffset
+                                                : undefined
+                                        }
                                         mask={
                                             entering.has(edge.id)
                                                 ? `url(#${id}-${index}-draw)`

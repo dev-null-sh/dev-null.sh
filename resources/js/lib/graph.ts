@@ -27,6 +27,8 @@ export type GraphEdge = {
     /** The lane of the node the line leaves, which it keeps to the end. */
     lane: string;
     dashed: boolean;
+    /** How far into its dashes the line starts: a branch picks them up where the column above it left them. */
+    dashOffset: number;
     dimmed: boolean;
 };
 
@@ -214,6 +216,7 @@ function trunk(from: GraphNode, to: GraphNode): GraphEdge {
         drop: from.x === to.x ? Math.max(0, to.y - from.y) : 0,
         lane: from.lane,
         dashed: to.dashed ?? from.dashed ?? false,
+        dashOffset: 0,
         dimmed: isDimmed(from, to),
     };
 }
@@ -259,6 +262,7 @@ function branch(
         drop: Math.max(0, (to.x === from.x ? to.y : corner) - start.y),
         lane: from.lane,
         dashed: true,
+        dashOffset: start.y - from.y,
         dimmed: isDimmed(from, to),
     };
 }
