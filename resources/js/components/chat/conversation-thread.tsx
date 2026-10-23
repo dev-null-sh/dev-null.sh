@@ -1,3 +1,4 @@
+import { Link } from '@inertiajs/react';
 import { ArrowDown, Mic, X } from 'lucide-react';
 import type {
     ClipboardEvent,
@@ -75,6 +76,7 @@ import {
     laneColor,
     localDayKey,
 } from '@/lib/utils';
+import { show } from '@/routes/user';
 import type {
     Message,
     MessageReply,
@@ -764,8 +766,9 @@ const ThreadItem = memo(function ThreadItem({
             })}
         >
             {item.author !== null && (
-                <span
-                    className="flex max-w-full min-w-0 items-center gap-1.5 px-1.5 pb-0.5 text-xs text-muted-foreground"
+                <Link
+                    href={show(item.author)}
+                    className="group flex max-w-full min-w-0 items-center gap-1.5 rounded-sm px-1.5 pb-0.5 text-xs text-muted-foreground"
                     title={item.author.name}
                 >
                     <UserAvatar
@@ -777,10 +780,10 @@ const ThreadItem = memo(function ThreadItem({
                             } as React.CSSProperties
                         }
                     />
-                    <span className="truncate font-medium text-foreground">
+                    <span className="truncate font-medium text-foreground group-hover:underline">
                         {item.author.name}
                     </span>
-                </span>
+                </Link>
             )}
             {item.bubbles.map((bubble, index) => {
                 const key =
