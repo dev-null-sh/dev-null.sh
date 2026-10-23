@@ -68,7 +68,7 @@ it('remembers that there is no readme', function (): void {
     Http::assertSentCount(2);
 });
 
-it('does not cache a failed read', function (): void {
+it('remembers a failed read for a few minutes only', function (): void {
     $user = User::factory()->create();
 
     Http::fake([
@@ -76,8 +76,50 @@ it('does not cache a failed read', function (): void {
         'api.github.com/repos/octocat/octocat/readme' => Http::sequence()->pushStatus(502)->push('<p>Hi</p>'),
     ]);
 
-    expect(resolve(GitHubReadmeQuery::class)->get($user))->toBeNull()
-        ->and(resolve(GitHubReadmeQuery::class)->get($user))->toBe('<p>Hi</p>');
+    expect(resolve(GitHubReadmeQuery::class)->get($user))->toBeFalse()
+        ->and(resolve(GitHubReadmeQuery::class)->get($user))->toBeFalse();
+    Http::assertSentCount(2);
+
+    $this->travel(5)->minutes();
+
+    expect(resolve(GitHubReadmeQuery::class)->get($user))->toBe('<p>Hi</p>');
+});
+
+it('keeps a readme with uploaded images for a few minutes, as their links expire', function (string $html, int $minutes, bool $isFetchedAgain): void {
+    $user = User::factory()->create();
+
+    fakeGitHubReadme($user, Http::response($html));
+
+    resolve(GitHubReadmeQuery::class)->get($user);
+    $this->travel($minutes)->minutes();
+    resolve(GitHubReadmeQuery::class)->get($user);
+
+    Http::assertSentCount($isFetchedAgain ? 4 : 2);
+})->with([
+    'uploaded image, after 4 minutes' => ['<img src="https://private-user-images.githubusercontent.com/1/a.png?jwt=x">', 4, true],
+    'uploaded image, after 3 minutes' => ['<img src="https://private-user-images.githubusercontent.com/1/a.png?jwt=x">', 3, false],
+    'proxied image, after 4 minutes' => ['<img src="https://camo.githubusercontent.com/abc">', 4, false],
+]);
+
+it('keeps only the attributes a readme is written with', function (): void {
+    $user = User::factory()->create();
+
+    fakeGitHubReadme($user, Http::response(<<<'HTML'
+        <p align="center"><img src="https://camo.githubusercontent.com/a" srcset="https://tracker.example.com/1x.png 1x" name="getElementById" width="100" alt="badge"></p>
+        <dialog open>Sign in again</dialog>
+        <h3><g-emoji alias="wave">👋</g-emoji> Hi</h3>
+        <map name="m"><area href="https://example.com" coords="0,0,1,1"></map>
+        HTML));
+
+    expect(resolve(GitHubReadmeQuery::class)->get($user))
+        ->toContain('<p align="center"><img src="https://camo.githubusercontent.com/a" width="100" alt="badge" /></p>')
+        ->toContain('<h3>👋 Hi</h3>')
+        ->not->toContain('srcset')
+        ->not->toContain('tracker.example.com')
+        ->not->toContain('name=')
+        ->not->toContain('dialog')
+        ->not->toContain('Sign in again')
+        ->not->toContain('area');
 });
 
 it('shows no readme for a github account that no longer exists', function (): void {

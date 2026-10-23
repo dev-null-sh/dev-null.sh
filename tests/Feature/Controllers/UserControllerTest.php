@@ -703,8 +703,9 @@ it('offers guests and the profile owner no remote', function (): void {
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canPush', false));
 });
 
-it('shows the github profile readme on the readme tab', function (): void {
+it('shows the github profile readme on the readme tab, without looking for commits', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
+    Commit::factory()->for($user)->create();
 
     Http::fake([
         "api.github.com/user/{$user->github_id}" => Http::response(['login' => 'octocat']),
@@ -714,7 +715,17 @@ it('shows the github profile readme on the readme tab', function (): void {
     $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
         ->where('tab', 'readme')
         ->where('readme', '<div><article><h2>Hi there</h2></article></div>')
-        ->where('pinnedCommit', null));
+        ->where('pinnedCommit', null)
+        ->where('commits.data', []));
+});
+
+it('tells the readme tab when github did not answer', function (): void {
+    $user = User::factory()->create(['username' => 'octocat']);
+
+    Http::fake(["api.github.com/user/{$user->github_id}" => Http::response(status: 502)]);
+
+    $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('readme', false));
 });
 
 it('does not ask github for the readme on the other tabs', function (string $tab): void {

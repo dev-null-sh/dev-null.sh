@@ -21,6 +21,7 @@ use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -66,10 +67,13 @@ final readonly class UserController
             'moderation' => fn (): ?array => $currentUser?->isAdmin() === true && ! $user->isAdmin() ? $moderation->get([$user])[$user->id] : null,
             'tab' => $request->tab(...),
             'pinnedCommit' => fn (): ?Commit => $request->tab() === 'commits' ? $pinned->get($user, $currentUser) : null,
-            'readme' => fn (): ?string => $request->tab() === 'readme' ? $readme->get($user) : null,
-            'commits' => Inertia::scroll(fn () => $commits->builder($user, $currentUser, $request->tab() === 'replies')
-                ->cursorPaginate(20)
-                ->appends(['tab' => $request->tab()])),
+            'readme' => fn (): string|false|null => $request->tab() === 'readme' ? $readme->get($user) : null,
+            // The README tab shows no commits, so it doesn't look for any.
+            'commits' => Inertia::scroll(fn () => $request->tab() === 'readme'
+                ? new CursorPaginator([], 20)
+                : $commits->builder($user, $currentUser, $request->tab() === 'replies')
+                    ->cursorPaginate(20)
+                    ->appends(['tab' => $request->tab()])),
         ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->user($getCountedUser())]);
     }
 
