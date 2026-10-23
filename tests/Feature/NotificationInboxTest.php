@@ -61,6 +61,24 @@ it('filters the menu count using the current users saved notification types', fu
     'partially invalid saved filter' => ['replies,invalid', 4],
 ]);
 
+it('marks only what the filter shows as read, so the rest is still new under another filter', function (): void {
+    $user = User::factory()->create();
+    $reply = Notification::factory()->for($user, 'recipient')->replied()->create();
+    $follow = Notification::factory()->for($user, 'recipient')->create();
+
+    $this->actingAs($user)->get(route('notification.index', ['type' => 'replies']))->assertOk();
+
+    expect($reply->refresh()->read_at)->not->toBeNull()
+        ->and($follow->refresh()->read_at)->toBeNull();
+
+    $this->travel(1)->minute();
+
+    $this->get(route('notification.index', ['type' => 'all']))->assertOk()
+        ->assertInertia(fn ($page) => $page->where('readAt', $follow->refresh()->read_at?->toJSON()));
+
+    expect($reply->refresh()->read_at)->toBeLessThan($follow->read_at);
+});
+
 it('refreshes the entire loaded inbox window without losing older pages', function (): void {
     $user = User::factory()->create();
     $notices = collect();
@@ -131,7 +149,7 @@ it('polls fresh filtered groups and excludes activity that is no longer relevant
         ->assertJsonPath('props.auth.unreadNotificationsCount', 0);
 
     expect($latest->refresh()->read_at)->not->toBeNull()
-        ->and($follow->refresh()->read_at)->not->toBeNull()
+        ->and($follow->refresh()->read_at)->toBeNull()
         ->and($other->refresh()->read_at)->toBeNull();
 });
 
@@ -355,7 +373,7 @@ it('preserves the first read timestamp when reopening the inbox', function (): v
     expect($one->refresh()->read_at->equalTo($readAt))->toBeTrue();
 });
 
-it('marks all relevant activity read beyond the first page and selected type', function (): void {
+it('marks all relevant activity of the selected type read beyond the first page', function (): void {
     $user = User::factory()->create();
     $root = Commit::factory()->create();
     $events = collect();
@@ -375,8 +393,8 @@ it('marks all relevant activity read beyond the first page and selected type', f
     $this->actingAs($user)->get(route('notification.index', ['type' => 'replies']))
         ->assertOk()->assertInertia(fn ($page) => $page->has('notifications.data', 20)
         ->where('auth.unreadNotificationsCount', 0));
-    expect($user->notifications()->relevant()->unread()->count())->toBe(0)
-        ->and($follow->refresh()->read_at)->not->toBeNull()
+    expect($user->notifications()->relevant()->unread()->ofType('replies')->count())->toBe(0)
+        ->and($follow->refresh()->read_at)->toBeNull()
         ->and($events->last()->refresh()->read_at)->not->toBeNull()
         ->and($hidden->refresh()->read_at)->toBeNull()
         ->and($other->refresh()->read_at)->toBeNull();
@@ -393,6 +411,9 @@ it('leaves later arrivals unread until the inbox is visited again', function ():
         ->where('auth.unreadNotificationsCount', 1));
     expect($latest->refresh()->read_at)->toBeNull();
     $this->get(route('notification.index', ['type' => 'follows']))->assertInertia(fn ($page) => $page
+        ->where('auth.unreadNotificationsCount', 0));
+    expect($latest->refresh()->read_at)->toBeNull();
+    $this->get(route('notification.index', ['type' => 'all']))->assertInertia(fn ($page) => $page
         ->where('auth.unreadNotificationsCount', 0));
     expect($latest->refresh()->read_at)->not->toBeNull();
 });

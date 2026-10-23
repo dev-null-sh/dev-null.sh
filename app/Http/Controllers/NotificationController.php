@@ -17,8 +17,8 @@ final readonly class NotificationController
 {
     public function index(ListNotificationsRequest $request, #[CurrentUser] User $user, NotificationGroupsQuery $query, UpdateNotificationsReadAt $action): Response
     {
-        $readAt = $action->handle($user);
         $type = $request->type($user);
+        $readAt = $action->handle($user, $type);
 
         return Inertia::render('notification/index', [
             'notifications' => Inertia::scroll(fn (): CursorPaginator => $query->withStarredCommitImages($query->withQuotedCommits($user, $query->paginate($user, $type, $request->through()))))->matchOn('data.group_id'),
