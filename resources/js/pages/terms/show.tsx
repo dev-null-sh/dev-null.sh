@@ -5,6 +5,7 @@ import {
     DocumentPage,
     DocumentSection,
 } from '@/components/document-page';
+import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import { COMPANY_NAME, CONTACT_EMAIL, TERMS_EFFECTIVE_DATE } from '@/lib/legal';
 
@@ -28,10 +29,11 @@ export default function Show() {
                 <DocumentSection id="agreement" title="Agreement">
                     <p>
                         These terms are an agreement between you and{' '}
-                        {COMPANY_NAME} ("we", "us"). The "service" means
-                        /dev/null and everything we offer under that name or any
-                        other, now or in the future, including dev-null.sh, its
-                        apps, APIs, feeds, tools, and features.
+                        {COMPANY_NAME} ("we", "us"). The "service" means{' '}
+                        <WordmarkText>/dev/null</WordmarkText> and everything we
+                        offer under that name or any other, now or in the
+                        future, including dev-null.sh, its apps, APIs, feeds,
+                        tools, and features.
                     </p>
                     <p>
                         By using the service, you accept these terms and our{' '}
@@ -167,8 +169,9 @@ export default function Show() {
                         you rely on them at your own risk.
                     </p>
                     <p>
-                        /dev/null is not affiliated with or endorsed by GitHub,
-                        Inc. GitHub is a trademark of GitHub, Inc.
+                        <WordmarkText>/dev/null</WordmarkText> is not affiliated
+                        with or endorsed by GitHub, Inc. GitHub is a trademark
+                        of GitHub, Inc.
                     </p>
                 </DocumentSection>
 
