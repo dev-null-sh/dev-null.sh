@@ -1336,8 +1336,16 @@ export function pingTyping(target: ChatTarget): void {
     void request(urls(target).typing, 'PUT').catch(() => undefined);
 }
 
+const olderLoads = new Map<string, Promise<void>>();
+
 export async function loadOlderMessages(target: ChatTarget): Promise<void> {
     const key = targetKey(target);
+    const loading = olderLoads.get(key);
+
+    if (loading !== undefined) {
+        return loading;
+    }
+
     const thread = state.threads[key];
     const oldest = thread?.messages[0]?.id;
 
@@ -1352,19 +1360,60 @@ export async function loadOlderMessages(target: ChatTarget): Promise<void> {
 
     updateThread(key, () => ({ isLoadingOlder: true }));
 
-    try {
-        const older = await request<Thread | OrgThread>(
-            urls(target).index({ before: oldest }),
-        );
+    const load = (async () => {
+        try {
+            const older = await request<Thread | OrgThread>(
+                urls(target).index({ before: oldest }),
+            );
 
-        updateThread(key, (current) => ({
-            messages: mergeMessages(current.messages, older.messages),
-            has_older: older.has_older,
-            isLoadingOlder: false,
-        }));
-    } catch {
-        updateThread(key, () => ({ isLoadingOlder: false }));
+            updateThread(key, (current) => ({
+                messages: mergeMessages(current.messages, older.messages),
+                has_older: older.has_older,
+                isLoadingOlder: false,
+            }));
+        } catch {
+            updateThread(key, () => ({ isLoadingOlder: false }));
+        }
+    })();
+    olderLoads.set(key, load);
+
+    try {
+        await load;
+    } finally {
+        olderLoads.delete(key);
     }
+}
+
+/**
+ * Keep the history continuous when following a reply, sharing pages with ordinary scrolling.
+ */
+export async function loadMessage(
+    target: ChatTarget,
+    id: number,
+    signal: AbortSignal,
+): Promise<boolean> {
+    const key = targetKey(target);
+
+    while (!signal.aborted) {
+        const thread = state.threads[key];
+        const oldest = thread?.messages[0]?.id;
+
+        if (thread?.messages.some((message) => message.id === id)) {
+            return true;
+        }
+
+        if (oldest === undefined || oldest <= id || !thread.has_older) {
+            return false;
+        }
+
+        await loadOlderMessages(target);
+
+        if (state.threads[key]?.messages[0]?.id === oldest) {
+            return false;
+        }
+    }
+
+    return false;
 }
 
 /**
