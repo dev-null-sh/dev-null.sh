@@ -16,7 +16,7 @@ import { registerServiceWorker } from '@/lib/service-worker';
 import { trackVisualViewport } from '@/lib/visual-viewport';
 import '../css/app.css';
 
-const appName = import.meta.env.VITE_APP_NAME || '/dev/null';
+const appName = '/dev/null';
 
 trackCurrentPage();
 trackCommitPhotoPage();
