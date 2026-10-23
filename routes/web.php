@@ -78,6 +78,7 @@ use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StarredCommitController;
+use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\SuggestionDismissalController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\TrafficController;
@@ -149,6 +150,9 @@ Route::get('brand', [BrandController::class, 'show'])->name('brand.show');
 
 // What was merged into production, readable by everyone...
 Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.index');
+
+// Community statistics, readable by everyone...
+Route::get('statistics', [StatisticsController::class, 'show'])->name('statistics.show');
 
 // Public pages, readable by guests and crawlers...
 Route::middleware(RememberIntendedUrl::class)->group(function (): void {
