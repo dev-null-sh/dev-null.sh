@@ -24,11 +24,18 @@ test('finds loaded conversations by a partner or member handle or name, or an or
     assert.deepEqual(conversationsMatching('nobody', loaded), []);
 });
 
-test('keeps the first copy of a conversation found in several lists', () => {
+test('keeps the first matching copy of a conversation found in several lists', () => {
     const fresh = direct(ana, { ahead: 2 });
+    const renamed = org('core', 'Core', [ben]);
 
-    assert.deepEqual(conversationsMatching('ana', [fresh], [direct(ana, { ahead: 0 }), org('core', 'Core', [ana])]), [
+    assert.deepEqual(conversationsMatching('ana', [fresh, renamed, direct(ana, { ahead: 0 }), org('core', 'Ana fans', [ben])]), [
         fresh,
-        org('core', 'Core', [ana]),
+        org('core', 'Ana fans', [ben]),
     ]);
+});
+
+test('keeps every conversation the server found for the term, ahead of stale copies on hand', () => {
+    const found = [org('core', 'Review Renamed Team', [ben]), direct(ana)];
+
+    assert.deepEqual(conversationsMatching('review', [org('core', 'Core', [ben])], found), [...found]);
 });

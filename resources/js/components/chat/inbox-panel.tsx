@@ -73,7 +73,7 @@ export function InboxPanel({
     const end = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState('');
     const [found, setFound] = useState<Found | null>(null);
-    const term = query.trim().replace(/^@/u, '');
+    const term = query.trim().replace(/^@+/u, '');
 
     useEffect(() => {
         if (term === '') {
@@ -149,8 +149,8 @@ export function InboxPanel({
             ? loaded
             : conversationsMatching(
                   term,
-                  loaded ?? [],
-                  earlier?.conversations ?? [],
+                  [...(loaded ?? []), ...(earlier?.conversations ?? [])],
+                  results?.conversations,
               );
     const developers = (results?.developers ?? []).filter(
         (developer) =>
