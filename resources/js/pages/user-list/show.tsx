@@ -128,26 +128,28 @@ export default function Show({
                         <span className="mr-auto">
                             Delete this list? This can't be undone.
                         </span>
-                        <Button
-                            variant="ghost"
-                            size="sm"
-                            autoFocus
-                            onClick={() => setIsConfirmingDelete(false)}
-                        >
-                            Cancel
-                        </Button>
-                        <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() =>
-                                router.visit(
-                                    UserListController.destroy(list.id),
-                                )
-                            }
-                            data-test="confirm-delete-list-button"
-                        >
-                            Delete
-                        </Button>
+                        <span className="flex shrink-0 gap-2">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                autoFocus
+                                onClick={() => setIsConfirmingDelete(false)}
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() =>
+                                    router.visit(
+                                        UserListController.destroy(list.id),
+                                    )
+                                }
+                                data-test="confirm-delete-list-button"
+                            >
+                                Delete
+                            </Button>
+                        </span>
                     </div>
                 )}
 
