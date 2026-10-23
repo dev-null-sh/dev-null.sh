@@ -27,7 +27,7 @@ export function withFaviconBadge(svg: string, count: number): string {
     return svg.replace('</svg>', `${badge}</svg>`);
 }
 
-let original: { href: string; svg: Promise<string> } | null = null;
+let original: { href: string; svg: Promise<string | null> } | null = null;
 let latest = 0;
 
 /**
@@ -45,7 +45,14 @@ export async function showFaviconBadge(count: number): Promise<void> {
     latest = count;
     original ??= {
         href: link.href,
-        svg: fetch(link.href).then((response) => response.text()),
+        // A failed fetch is forgotten, so the next count tries again.
+        svg: fetch(link.href)
+            .then((response) => response.text())
+            .catch(() => {
+                original = null;
+
+                return null;
+            }),
     };
 
     if (faviconBadgeLabel(count) === null) {
@@ -54,7 +61,7 @@ export async function showFaviconBadge(count: number): Promise<void> {
         return;
     }
 
-    const svg = await original.svg.catch(() => null);
+    const svg = await original.svg;
 
     // Counts can change while the icon loads; only the newest one is drawn.
     if (svg === null || count !== latest) {

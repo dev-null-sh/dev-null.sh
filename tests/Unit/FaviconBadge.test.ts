@@ -54,3 +54,29 @@ void test('puts the badge on the tab icon and takes it off once everything is re
     assert.equal(link.href, 'https://dev-null.sh/favicon.svg');
     assert.deepEqual(fetched, ['https://dev-null.sh/favicon.svg']);
 });
+
+void test('tries the tab icon again after its first fetch fails', async () => {
+    // A copy of the module of its own, since the icon fetched above stays cached in the shared one.
+    const fresh = '../../resources/js/lib/favicon-badge.ts?retry';
+    const { showFaviconBadge: show } = (await import(
+        fresh
+    )) as typeof import('../../resources/js/lib/favicon-badge.ts');
+    const link = { href: 'https://dev-null.sh/favicon.svg' };
+    let isOnline = false;
+
+    Object.assign(globalThis, {
+        document: { querySelector: () => link },
+        fetch: () =>
+            isOnline
+                ? Promise.resolve({ text: () => Promise.resolve(icon) })
+                : Promise.reject(new TypeError('Failed to fetch')),
+    });
+
+    await show(0);
+    await show(1);
+    assert.equal(link.href, 'https://dev-null.sh/favicon.svg');
+
+    isOnline = true;
+    await show(1);
+    assert.ok(decodeURIComponent(link.href).endsWith('>1</text></svg>'));
+});
