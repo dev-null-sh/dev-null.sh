@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteCommit;
+use App\Actions\DeleteCommitContent;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\RelatedCommitsQuery;
+use Illuminate\Support\Facades\Queue;
 
 /**
  * @return list<string>
@@ -68,4 +71,31 @@ it('caps the rail', function (): void {
     Commit::factory()->count(RelatedCommitsQuery::LIMIT + 1)->create(['embedding' => embeddingVector(0)]);
 
     expect(relatedCommitIds($source))->toHaveCount(RelatedCommitsQuery::LIMIT);
+});
+
+it('returns nothing for a commit without an embedding', function (): void {
+    $source = Commit::factory()->create(['embedding' => null]);
+    Commit::factory()->create(['embedding' => embeddingVector(0)]);
+
+    expect(relatedCommitIds($source))->toBeEmpty();
+});
+
+it("returns nothing after the commit's content was erased", function (): void {
+    Queue::fake();
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->create(['embedding' => embeddingVector(0)]);
+
+    resolve(DeleteCommit::class)->handle($source);
+    $this->travel(30)->seconds();
+    resolve(DeleteCommitContent::class)->handle($source);
+
+    expect(relatedCommitIds($source))->toBeEmpty();
+});
+
+it('skips candidates without an embedding', function (): void {
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $embedded = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->create(['embedding' => null]);
+
+    expect(relatedCommitIds($source))->toBe([$embedded->id]);
 });
