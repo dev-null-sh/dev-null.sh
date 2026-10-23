@@ -12,21 +12,30 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import {
+    bridgeDuration,
     entranceDelay,
     entranceDraw,
     graphEdges,
     isOnScreen,
     leavingOf,
     nodeIdentity,
+    nodeStartsIn,
     sameNodes,
     scopedNodeId,
 } from '@/lib/graph';
-import type { Draw, GraphEdge, GraphNode, LeavingRow } from '@/lib/graph';
+import type {
+    Draw,
+    GraphEdge,
+    GraphNode,
+    LeavingRow,
+    NodeAnimation,
+    Point,
+} from '@/lib/graph';
 import { cn } from '@/lib/utils';
 
 export type GraphNodeSpec = Pick<
     GraphNode,
-    'id' | 'lane' | 'after' | 'parent' | 'dashed' | 'dimmed'
+    'id' | 'lane' | 'after' | 'parent' | 'dashed' | 'dimmed' | 'isLeaving'
 > & {
     /** How far the node's ring reaches beyond its box, like a box-shadow ring. */
     ring?: number;
@@ -164,6 +173,18 @@ export function WithoutGraph({ children }: { children: ReactNode }) {
 }
 
 /**
+ * Whether what mounts now shows up after its canvas first drew, like a commit just posted to the feed, rather than
+ * being there when the page opens. Only then do fresh nodes and commits animate in, as their lines do.
+ */
+export function useShowsUpLive(): boolean {
+    const isInCanvas = useContext(GraphContext) !== null;
+    const isDrawing = useGraphOverlay();
+    const [showsUpLive] = useState(!isInCanvas || isDrawing);
+
+    return showsUpLive;
+}
+
+/**
  * A span that is a node of the surrounding graph canvas, when given a spec.
  *
  * A fresh node scales in only when it shows up after its canvas first drew, like a commit just posted to the feed:
@@ -178,9 +199,7 @@ export function GraphAnchor({
     spec: GraphNodeSpec | null;
     isFresh?: boolean;
 }) {
-    const isInCanvas = useContext(GraphContext) !== null;
-    const isDrawing = useGraphOverlay();
-    const [showsUpLive] = useState(!isInCanvas || isDrawing);
+    const showsUpLive = useShowsUpLive();
 
     return (
         <span
@@ -230,6 +249,85 @@ function leavingRow(
     };
 }
 
+/**
+ * Where a node's centre sits on screen once what scales it in is done, like the anchor of a grouped commit's dot, which
+ * the dot sits off the centre of. That anchor keeps its centre as it scales, and the node keeps its place within it in
+ * the layout: measuring the node as it shows mid-scale would cut its line out off its ring until the next measure.
+ */
+function layoutCentre(element: HTMLElement, container: Element): Point {
+    for (
+        let scaler = element.parentElement;
+        scaler !== null && scaler !== container;
+        scaler = scaler.parentElement
+    ) {
+        const isScaling = scaler
+            .getAnimations()
+            .some(
+                (animation) =>
+                    animation instanceof CSSAnimation &&
+                    animation.animationName === 'node-in' &&
+                    animation.playState !== 'finished',
+            );
+
+        if (!isScaling) {
+            continue;
+        }
+
+        let x = element.offsetWidth / 2;
+        let y = element.offsetHeight / 2;
+        let current: Element | null = element;
+
+        while (current instanceof HTMLElement && current !== scaler) {
+            x += current.offsetLeft;
+            y += current.offsetTop;
+            current = current.offsetParent;
+        }
+
+        if (current !== scaler) {
+            break;
+        }
+
+        // Offsets leave out translations, like the one shifting a grouped commit's dot up.
+        for (
+            let shifted: HTMLElement | null = element;
+            shifted !== null && shifted !== scaler;
+            shifted = shifted.parentElement
+        ) {
+            const shift = translationOf(shifted);
+            x += shift.x;
+            y += shift.y;
+        }
+
+        const rect = scaler.getBoundingClientRect();
+
+        return {
+            x: rect.left + rect.width / 2 - scaler.offsetWidth / 2 + x,
+            y: rect.top + rect.height / 2 - scaler.offsetHeight / 2 + y,
+        };
+    }
+
+    const rect = element.getBoundingClientRect();
+
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+}
+
+/** How far an element's `translate` moves it, in px: a percentage is of its own size. */
+function translationOf(element: HTMLElement): Point {
+    const translate = getComputedStyle(element).translate;
+
+    if (translate === 'none') {
+        return { x: 0, y: 0 };
+    }
+
+    const [x = '0px', y = '0px'] = translate.split(' ');
+    const px = (value: string, size: number) =>
+        value.endsWith('%')
+            ? (Number.parseFloat(value) / 100) * size
+            : Number.parseFloat(value);
+
+    return { x: px(x, element.offsetWidth), y: px(y, element.offsetHeight) };
+}
+
 function snap(value: number): number {
     const ratio = window.devicePixelRatio || 1;
 
@@ -242,9 +340,8 @@ function snap(value: number): number {
 function runningAnimations(
     element: Element,
     container: Element | null,
-): { name: string; remaining: number; isWaiting: boolean }[] {
-    const running: { name: string; remaining: number; isWaiting: boolean }[] =
-        [];
+): NodeAnimation[] {
+    const running: NodeAnimation[] = [];
 
     for (
         let current: Element | null = element;
@@ -254,15 +351,18 @@ function runningAnimations(
         for (const animation of current.getAnimations()) {
             if (animation instanceof CSSAnimation) {
                 const currentTime = Number(animation.currentTime);
+                const delay = Number(animation.effect?.getTiming().delay ?? 0);
 
                 running.push({
                     name: animation.animationName,
                     remaining:
                         Number(animation.effect?.getComputedTiming().endTime) -
                         currentTime,
-                    isWaiting:
-                        currentTime <
-                        Number(animation.effect?.getTiming().delay ?? 0),
+                    isWaiting: currentTime < delay,
+                    startsIn: delay - currentTime,
+                    trails:
+                        current instanceof HTMLElement &&
+                        current.dataset.graphTrails !== undefined,
                 });
             }
         }
@@ -316,7 +416,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
         const measured = [...entries.current.values()]
             .filter(({ element }) => element.isConnected)
             .map(({ element, spec }) => {
-                const rect = element.getBoundingClientRect();
+                const centre = layoutCentre(element, container);
                 rows.find((row) => row.element.contains(element))?.row.ids.add(
                     spec.id,
                 );
@@ -327,9 +427,10 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                     after: spec.after,
                     parent: spec.parent,
                     dashed: spec.dashed,
+                    isLeaving: spec.isLeaving,
                     dimmed: dims.current.get(spec.id) ?? false,
-                    x: snap(rect.left - box.left + rect.width / 2),
-                    y: snap(rect.top - box.top + rect.height / 2),
+                    x: snap(centre.x - box.left),
+                    y: snap(centre.y - box.top),
                     // The layout width, as a node scaling in would otherwise keep the radius it had mid-animation.
                     radius: element.offsetWidth / 2 + (spec.ring ?? 0),
                 };
@@ -499,24 +600,34 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     }, [clip, measure, measureNow, read]);
 
     const edges = useMemo(() => graphEdges(nodes), [nodes]);
-    const delayOf = useCallback(
-        (edge: GraphEdge) =>
-            entranceDelay(
-                [edge.from, edge.to].flatMap((nodeId) => {
-                    const entry = entries.current.get(nodeId);
+    const timingOf = useCallback((edge: GraphEdge): Timing => {
+        const animationsOf = (nodeId: string) => {
+            const entry = entries.current.get(nodeId);
 
-                    return entry
-                        ? runningAnimations(entry.element, containerRef.current)
-                        : [];
-                }),
-            ),
-        [],
-    );
+            return entry
+                ? runningAnimations(entry.element, containerRef.current)
+                : [];
+        };
+        const atEnd = animationsOf(edge.to);
+
+        return {
+            delay: entranceDelay([...animationsOf(edge.from), ...atEnd]),
+            startsIn: nodeStartsIn(atEnd),
+        };
+    }, []);
     const canvasTop = useCallback(
         () => containerRef.current?.getBoundingClientRect().top ?? 0,
         [],
     );
-    const { entering, onDrawn } = useEnteringEdges(edges, delayOf, canvasTop);
+    const { entering, onDrawn } = useEnteringEdges(edges, timingOf, canvasTop);
+    // The same lines, where a trunk still drawing itself in leaves the replies it goes on below their dashed column.
+    const drawn = useMemo(
+        () =>
+            entering.size === 0
+                ? edges
+                : graphEdges(nodes, new Set(entering.keys())),
+        [edges, nodes, entering],
+    );
     const clipOf = (row: number) =>
         row === -1 ? undefined : `url(#${id}-leaving-${row})`;
 
@@ -555,6 +666,22 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                         cy={node.y}
                                         r={node.radius}
                                         fill="black"
+                                        // A node on its way out scales out, and so does its cut-out, so the line
+                                        // running on through it shows as it goes.
+                                        className={
+                                            node.isLeaving
+                                                ? 'motion-safe:animate-node-out'
+                                                : undefined
+                                        }
+                                        style={
+                                            node.isLeaving
+                                                ? {
+                                                      transformBox: 'fill-box',
+                                                      transformOrigin: 'center',
+                                                      animationDuration: `${bridgeDuration}ms`,
+                                                  }
+                                                : undefined
+                                        }
                                         clipPath={clipOf(
                                             leaving.findIndex((row) =>
                                                 row.ids.has(node.id),
@@ -576,7 +703,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                     />
                                 </clipPath>
                             ))}
-                            {edges.map((edge, index) => (
+                            {drawn.map((edge, index) => (
                                 <EdgeDefs
                                     key={edge.id}
                                     id={`${id}-${index}`}
@@ -587,7 +714,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                             ))}
                         </defs>
                         <g mask={`url(#${id}-nodes)`}>
-                            {edges.map((edge, index) => {
+                            {drawn.map((edge, index) => {
                                 const left = leavingOf(edge, leaving);
 
                                 return (
@@ -680,8 +807,11 @@ function EdgeDefs({
                 strokeDasharray="1 1"
                 style={{
                     animationDelay: `${draw.delay}ms`,
-                    // Still an animation, so its end takes the mask off.
-                    animationDuration: draw.isInstant ? '1ms' : undefined,
+                    // A bridge runs at an even pace, so it lands on its node right as it ends.
+                    ...(draw.duration !== null && {
+                        animationDuration: `${draw.duration}ms`,
+                        animationTimingFunction: 'linear',
+                    }),
                 }}
                 className="motion-safe:animate-graph-draw"
                 onAnimationEnd={() => onDrawn(edge.id)}
@@ -694,9 +824,15 @@ function EdgeDefs({
  * Edges that show up on screen after the first measure draw themselves in, like a reply that was just loaded. Those
  * already there when the page renders stay still, and so do those showing up off screen.
  */
+/**
+ * When a new line can draw itself in, after the nodes at its ends scale in, and how long until the node at its end
+ * starts scaling in, when it waits to.
+ */
+type Timing = { delay: number; startsIn: number };
+
 function useEnteringEdges(
     edges: GraphEdge[],
-    delayOf: (edge: GraphEdge) => number,
+    timingOf: (edge: GraphEdge) => Timing,
     canvasTop: () => number,
 ): { entering: Map<string, Draw>; onDrawn: (edgeId: string) => void } {
     const known = useRef<GraphEdge[] | null>(null);
@@ -741,13 +877,14 @@ function useEnteringEdges(
 
             return new Map([
                 ...kept,
-                ...drawing.map((edge): [string, Draw] => [
-                    edge.id,
-                    entranceDraw(edge, gone, delayOf(edge)),
-                ]),
+                ...drawing.map((edge): [string, Draw] => {
+                    const { delay, startsIn } = timingOf(edge);
+
+                    return [edge.id, entranceDraw(edge, gone, delay, startsIn)];
+                }),
             ]);
         });
-    }, [edges, delayOf, canvasTop]);
+    }, [edges, timingOf, canvasTop]);
 
     // A line done drawing drops its mask, which would otherwise cost a mask on every paint.
     const onDrawn = useCallback((edgeId: string) => {

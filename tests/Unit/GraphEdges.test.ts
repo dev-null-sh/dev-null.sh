@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+    bridgeDuration,
     drawnStretch,
     entranceDelay,
     entranceDraw,
@@ -8,6 +9,7 @@ import {
     isOnScreen,
     leavingOf,
     nodeIdentity,
+    nodeStartsIn,
     sameNodes,
     scopedNodeId,
 } from '../../resources/js/lib/graph.ts';
@@ -172,6 +174,27 @@ void test('branches each reply off the trunk at its own corner when the trunk go
     );
 });
 
+void test('keeps the replies their dashed column while the trunk going on below them still draws itself in', () => {
+    const edges = graphEdges(
+        [
+            node({ id: 'parent', y: 40 }),
+            node({ id: 'first', x: 100, y: 160, parent: 'parent' }),
+            node({ id: 'second', x: 100, y: 300, parent: 'parent' }),
+            node({ id: 'next', y: 500, after: 'parent' }),
+        ],
+        new Set(['parent->next']),
+    );
+
+    assert.deepEqual(
+        edges.filter((edge) => edge.to !== 'next').map((edge) => edge.d),
+        [
+            'M 32 40 V 148 Q 32 160 44 160 H 100',
+            'M 32 148 V 288 Q 32 300 44 300 H 100',
+        ],
+    );
+    assert.ok(edges.some((edge) => edge.id === 'parent->next'));
+});
+
 void test('keeps the full elbow when the trunk below ends before the reply', () => {
     const edges = graphEdges([
         node({ id: 'parent', y: 40 }),
@@ -281,11 +304,18 @@ void test('waits for the nodes of a line to finish scaling in before drawing it'
     assert.equal(
         entranceDelay([
             { name: 'node-in', remaining: 400 },
-            { name: 'node-in', remaining: 1900, isWaiting: true },
+            { name: 'node-in', remaining: 1900, isWaiting: true, trails: true },
         ]),
         400,
     );
     assert.equal(entranceDelay([]), 0);
+});
+
+void test('waits for a node still waiting to scale in, like a chained commit waiting for the trunk to reach it', () => {
+    assert.equal(
+        entranceDelay([{ name: 'node-in', remaining: 1050, isWaiting: true }]),
+        1050,
+    );
 });
 
 void test('tells whether a line shows in the viewport, from where its canvas sits', () => {
@@ -324,6 +354,23 @@ void test('keeps a node the same while only its dimming changes, and tells it ap
     assert.notEqual(
         nodeIdentity({ ...spec, dashed: true }),
         nodeIdentity(spec),
+    );
+    assert.notEqual(
+        nodeIdentity({ ...spec, isLeaving: true }),
+        nodeIdentity(spec),
+    );
+});
+
+void test('links nothing to a node on its way out, which only keeps its cut-out', () => {
+    const edges = graphEdges([
+        node({ id: 'commit', y: 40 }),
+        node({ id: 'commit:end', y: 180, isLeaving: true }),
+        node({ id: 'next', y: 300, after: 'commit' }),
+    ]);
+
+    assert.deepEqual(
+        edges.map((edge) => edge.id),
+        ['commit->next'],
     );
 });
 
@@ -429,7 +476,7 @@ void test('keeps the stretch of the column a "more replies" dot ran down, once t
     assert.equal(drawnStretch(toNext, [toDot]), 92);
 });
 
-void test('shows the rest of a line taking over a painted stretch at once, so its node scales in on it, like a reply chained under the last commit', () => {
+void test('bridges a line taking over a painted stretch to its node right away, as the node waits for it, like a reply chained under the last commit', () => {
     const [toEnd] = graphEdges([
         node({ id: 'commit', y: 40 }),
         node({ id: 'commit:end', y: 180, after: 'commit' }),
@@ -439,11 +486,39 @@ void test('shows the rest of a line taking over a painted stretch at once, so it
         node({ id: 'reply', y: 220, after: 'commit' }),
     ]);
 
-    assert.deepEqual(entranceDraw(toReply, [toEnd], 700), {
+    assert.deepEqual(entranceDraw(toReply, [toEnd], 700, 260), {
         delay: 0,
         from: 140,
-        isInstant: true,
+        duration: 260,
     });
+    assert.deepEqual(entranceDraw(toReply, [toEnd], 700, 0), {
+        delay: 0,
+        from: 140,
+        duration: bridgeDuration,
+    });
+});
+
+void test('tells how long until a node waiting to scale in starts, like a chained commit waiting for the trunk to reach it', () => {
+    assert.equal(
+        nodeStartsIn([
+            { name: 'node-in', remaining: 960, isWaiting: true, startsIn: 260 },
+            {
+                name: 'node-in',
+                remaining: 1860,
+                isWaiting: true,
+                startsIn: 1160,
+                trails: true,
+            },
+            {
+                name: 'star-pop',
+                remaining: 900,
+                isWaiting: true,
+                startsIn: 500,
+            },
+        ]),
+        260,
+    );
+    assert.equal(nodeStartsIn([{ name: 'node-in', remaining: 400 }]), 0);
 });
 
 void test('draws in the rest of a line it takes over right away, and a new line in full once its nodes have scaled in', () => {
@@ -456,15 +531,15 @@ void test('draws in the rest of a line it takes over right away, and a new line 
         node({ id: 'next', y: 140, after: 'reply' }),
     ]);
 
-    assert.deepEqual(entranceDraw(toNext, [toDot], 0), {
+    assert.deepEqual(entranceDraw(toNext, [toDot], 0, 0), {
         delay: 0,
         from: 80,
-        isInstant: false,
+        duration: null,
     });
-    assert.deepEqual(entranceDraw(toNext, [], 700), {
+    assert.deepEqual(entranceDraw(toNext, [], 700, 0), {
         delay: 700,
         from: 0,
-        isInstant: false,
+        duration: null,
     });
 });
 

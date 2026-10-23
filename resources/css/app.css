@@ -227,8 +227,12 @@
     );
 
     --animate-node-in: node-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    /* The scale-in backwards: its steps in reverse, its easing mirrored. A name of its own, so it starts on a node that
+       already scaled in. */
+    --animate-node-out: node-out 700ms cubic-bezier(0.7, 0, 0.84, 0) both;
     --animate-rail-draw: rail-draw 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-graph-draw: graph-draw 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    --animate-commit-in: commit-in 300ms linear both;
     --animate-star-pop: star-pop 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275)
         both;
 
@@ -259,6 +263,26 @@
         }
         to {
             stroke-dashoffset: 0;
+        }
+    }
+
+    @keyframes node-out {
+        0% {
+            transform: scale(1);
+        }
+        55% {
+            transform: scale(1.25);
+            box-shadow: 0 0 0 6px transparent;
+        }
+        100% {
+            transform: scale(0);
+            box-shadow: 0 0 0 0 var(--lane);
+        }
+    }
+
+    @keyframes commit-in {
+        from {
+            opacity: 0;
         }
     }
 
