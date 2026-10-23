@@ -477,13 +477,76 @@ for (const [kind, path] of [
     });
 }
 
+const sha = '4fa008fe2c9b1d3e5f7a9b0c1d2e3f4a5b6c7d8e';
+
+for (const [url, label, description] of [
+    [
+        'https://github.com/laravel/framework/commit/4fa008f',
+        'laravel/framework@4fa008f',
+        'laravel/framework commit 4fa008f',
+    ],
+    [
+        `https://github.com/laravel/framework/commit/${sha}`,
+        'laravel/framework@4fa008f',
+        'laravel/framework commit 4fa008f',
+    ],
+    [
+        'https://github.com/laravel/framework/compare/v12.0.0...v12.1.0',
+        'laravel/framework@v12.0.0...v12.1.0',
+        'laravel/framework comparison v12.0.0...v12.1.0',
+    ],
+    [
+        `https://github.com/laravel/framework/compare/12.x..${sha}`,
+        'laravel/framework@12.x..4fa008f',
+        'laravel/framework comparison 12.x..4fa008f',
+    ],
+    [
+        'https://github.com/laravel/framework/Pull/42',
+        'laravel/framework#42',
+        'laravel/framework pull request #42',
+    ],
+    [
+        'https://github.com/laravel/framework/COMMIT/4fa008f',
+        'laravel/framework@4fa008f',
+        'laravel/framework commit 4fa008f',
+    ],
+]) {
+    test(`shows a GitHub link as GitHub writes it: ${url}`, () => {
+        const text = `see ${url}.`;
+        const markup = renderToStaticMarkup(
+            <LinkifiedText text={text} mentions={null} />,
+        );
+
+        assert.ok(markup.includes(`href="${url}"`));
+        assert.ok(markup.includes(`title="${url}"`));
+        assert.ok(markup.includes(`aria-label="${description} on GitHub"`));
+        assert.equal(markup.replace(/<[^>]+>/g, ''), `see ${url}${label}.`);
+        assert.equal(
+            markup
+                .replace(/<span aria-hidden="true"[^>]*>.*?<\/span><\/a>/g, '')
+                .replace(/<[^>]+>/g, ''),
+            text,
+        );
+    });
+}
+
 for (const link of [
     'https://github.com/laravel',
     'https://github.com/laravel/framework/',
     'https://github.com/laravel/framework/blob/12.x/README.md',
     'https://github.com/laravel/framework/tree/12.x',
     'https://github.com/laravel/framework/releases',
-    'https://github.com/laravel/framework/commit/4fa008f',
+    'https://github.com/laravel/framework/commit/4fa00',
+    'https://github.com/laravel/framework/commit/4fa008g',
+    'https://github.com/laravel/framework/commit/4fa008f/',
+    `https://github.com/laravel/framework/commit/${sha}0`,
+    'https://github.com/laravel/framework/commit/4fa008f#diff-1',
+    'https://github.com/laravel/framework/compare/12.x',
+    'https://github.com/laravel/framework/compare/a...b...c',
+    'https://github.com/laravel/framework/compare/...b',
+    'https://user:secret@github.com/laravel/framework',
+    'https://user@github.com/laravel/framework/issues/42',
+    'https://github.com:8443/laravel/framework',
     'https://github.com/laravel/framework/pull/42/files',
     'https://github.com/laravel/framework/pull/42/',
     'https://github.com/laravel/framework/issues/0',
