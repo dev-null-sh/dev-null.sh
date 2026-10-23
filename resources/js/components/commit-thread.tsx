@@ -301,14 +301,16 @@ export function useThread(
     const replyRequest = useRef(0);
     const [isReplying, setIsReplying] = useState(false);
 
-    const [previousPreview, setPreviousPreview] = useState(preview);
-    if (preview !== previousPreview) {
-        setPreviousPreview(preview);
-        if (preview !== undefined && (replies?.length ?? 0) <= repliesPerPage) {
+    const [previousInitial, setPreviousInitial] = useState(initial);
+    if (initial !== previousInitial) {
+        setPreviousInitial(initial);
+        if (initial !== undefined && (replies?.length ?? 0) <= repliesPerPage) {
+            ++replyRequest.current;
+            setIsLoading(false);
             setThread((current) => ({
                 ...current,
-                replies: preview.data,
-                nextCursor: preview.next_cursor,
+                replies: initial.data,
+                nextCursor: initial.next_cursor,
             }));
         }
     }
@@ -427,6 +429,19 @@ export function useThread(
             reload();
         }
     });
+
+    const onInitialChanged = useEffectEvent(() => {
+        if (initial !== undefined && (replies?.length ?? 0) > repliesPerPage) {
+            reload();
+        }
+    });
+    const loadedInitial = useRef(initial);
+    useEffect(() => {
+        if (loadedInitial.current !== initial) {
+            loadedInitial.current = initial;
+            onInitialChanged();
+        }
+    }, [initial]);
 
     const loadedExcept = useRef(except);
     useEffect(() => {
