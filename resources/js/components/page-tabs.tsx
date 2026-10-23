@@ -72,13 +72,13 @@ export function PageTabs({
                     aria-current={tab.isActive ? 'page' : undefined}
                     className={cn(
                         'relative flex flex-1 justify-center text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
-                        isScrollable ? 'min-w-max px-4' : 'min-w-0 px-2',
+                        { 'min-w-max px-4': isScrollable },
                         { 'text-foreground': tab.isActive },
                     )}
                 >
                     <span
-                        className={cn('truncate py-3.5', {
-                            'max-w-40': isScrollable,
+                        className={cn('py-3.5', {
+                            'max-w-40 truncate': isScrollable,
                         })}
                     >
                         {tab.shortTitle ? (
