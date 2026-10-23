@@ -37,4 +37,16 @@ final class ListBulkActivityRequest extends FormRequest
     {
         return $this->enum('scale', ActivityScale::class) ?? ActivityScale::Week;
     }
+
+    /**
+     * The days the window spans, which the thresholds scale with.
+     */
+    public function days(): int
+    {
+        return match ($this->scale()) {
+            ActivityScale::Day => 1,
+            ActivityScale::Week => 7,
+            default => 30,
+        };
+    }
 }

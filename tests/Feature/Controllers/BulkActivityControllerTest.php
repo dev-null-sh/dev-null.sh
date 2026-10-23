@@ -11,39 +11,40 @@ beforeEach(function (): void {
     config(['app.admins' => ['admin']]);
 });
 
-it('lists the accounts acting in bulk in the last 7 days, with what moderators can do about each', function (): void {
+it('lists the accounts acting in bulk, with the thresholds and what moderators can do about each', function (): void {
     $admin = User::factory()->create(['username' => 'admin']);
     $poster = User::factory()->create(['username' => 'poster']);
     UserTimeout::factory()->for($poster)->create(['reason' => ModerationReason::Spam, 'ends_at' => now()->addHour()]);
-    Commit::factory()->for($poster)->count(2)->create();
-    Commit::factory()->for($admin)->create();
-    Commit::factory()->for($poster)->create(['created_at' => now()->subDays(8)]);
+    Commit::factory()->for($poster)->count(15)->create();
+    Commit::factory()->for($admin)->count(15)->create();
+    Commit::factory()->for(User::factory()->create())->count(14)->create();
 
     $this->actingAs($admin)
-        ->get(route('bulk-activity.index'))
+        ->get(route('bulk-activity.index', ['scale' => 'day']))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('moderation/bulk')
-            ->where('scale', 'week')
+            ->where('scale', 'day')
             ->has('activity.posts', 2)
-            ->where('activity.posts.0.user.username', 'poster')
-            ->where('activity.posts.0.count', 2)
-            ->where('activity.posts.1.user.username', 'admin')
+            ->where('activity.posts.0.count', 15)
             ->where('activity.follows', [])
+            ->where('thresholds.posts', ['perDay' => 15, 'total' => 15])
             ->where("moderation.{$poster->id}.timeoutsCount", 1)
             ->where("moderation.{$poster->id}.timeout.reason", 'Spam or self-promotion')
             ->missing("moderation.{$admin->id}"));
 });
 
-it('counts over the window asked for', function (): void {
-    Commit::factory()->for(User::factory()->create())->create(['created_at' => now()->subDays(20)]);
-
+it('scales the thresholds with the window, the last 7 days by default', function (): void {
     $this->actingAs(User::factory()->create(['username' => 'admin']))
-        ->get(route('bulk-activity.index', ['scale' => 'month']))
-        ->assertOk()
+        ->get(route('bulk-activity.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('scale', 'week')
+            ->where('thresholds.follows', ['perDay' => 50, 'total' => 350]));
+
+    $this->get(route('bulk-activity.index', ['scale' => 'month']))
         ->assertInertia(fn ($page) => $page
             ->where('scale', 'month')
-            ->has('activity.posts', 1));
+            ->where('thresholds.follows', ['perDay' => 50, 'total' => 1500]));
 });
 
 it('only counts over a day, a week or a month', function (): void {

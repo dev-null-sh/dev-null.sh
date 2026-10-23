@@ -8,7 +8,6 @@ use App\Http\Requests\ListBulkActivityRequest;
 use App\Models\User;
 use App\Queries\BulkActivityQuery;
 use App\Queries\UserModerationQuery;
-use Carbon\CarbonImmutable;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -21,7 +20,7 @@ final readonly class BulkActivityController
      */
     public function index(ListBulkActivityRequest $request, BulkActivityQuery $query, UserModerationQuery $moderation): Response
     {
-        $activity = $query->get($request->scale()->rollingStart(CarbonImmutable::now()));
+        $activity = $query->get($request->days());
         $users = collect($activity)
             ->flatMap(fn (array $accounts): array => array_column($accounts, 'user'))
             ->unique('id')
@@ -30,6 +29,7 @@ final readonly class BulkActivityController
         return Inertia::render('moderation/bulk', [
             'scale' => $request->scale(),
             'activity' => $activity,
+            'thresholds' => $query->thresholds($request->days()),
             'moderation' => $moderation->get($users),
         ]);
     }

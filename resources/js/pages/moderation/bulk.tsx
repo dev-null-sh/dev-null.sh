@@ -10,6 +10,7 @@ import { UserModerationMenu } from '@/components/user-moderation-menu';
 import type { UserModeration } from '@/components/user-moderation-menu';
 import AppLayout from '@/layouts/app-layout';
 import { formatCount } from '@/lib/numbers';
+import { formatFullDateTime } from '@/lib/utils';
 import type { ActivityScale, User } from '@/types';
 
 type BulkAccount = {
@@ -19,10 +20,11 @@ type BulkAccount = {
     newcomers: number | null;
 };
 
-type BulkActivity = Record<
-    'follows' | 'stars' | 'replies' | 'posts',
-    BulkAccount[]
->;
+type BulkList = 'follows' | 'stars' | 'replies' | 'posts';
+
+type BulkActivity = Record<BulkList, BulkAccount[]>;
+
+type BulkThresholds = Record<BulkList, { perDay: number; total: number }>;
 
 const SCALES: { label: string; scale: ActivityScale }[] = [
     { label: '24h', scale: 'day' },
@@ -31,34 +33,46 @@ const SCALES: { label: string; scale: ActivityScale }[] = [
 ];
 
 /**
- * What each list counts, in the words of a row: the count, then whom it reached and how many of them are newcomers.
+ * What each list counts, in the words of a row: whom it reached, how many of them are newcomers, and the threshold an
+ * account has to reach to be listed, a day and over the window.
  */
 const CATEGORIES: {
-    key: keyof BulkActivity;
+    key: BulkList;
     title: string;
+    rule: (perDay: string) => string;
+    empty: (total: string, window: string) => string;
     details: (account: BulkAccount) => string;
 }[] = [
     {
         key: 'follows',
         title: 'Follows',
+        rule: (perDay) => `${perDay}+ people followed a day`,
+        empty: (total, window) => `Nobody followed ${total}+ people ${window}.`,
         details: (account) =>
-            `${formatCount(account.count)} followed · ${formatCount(account.newcomers ?? 0)} newcomers`,
+            `followed ${formatCount(account.count)} people · ${formatCount(account.newcomers ?? 0)} newcomers`,
     },
     {
         key: 'stars',
         title: 'Stars',
+        rule: (perDay) => `${perDay}+ people starred a day`,
+        empty: (total, window) => `Nobody starred ${total}+ people ${window}.`,
         details: (account) =>
-            `${formatCount(account.count)} stars to ${formatCount(account.reach ?? 0)} people · ${formatCount(account.newcomers ?? 0)} newcomers`,
+            `starred ${formatCount(account.reach ?? 0)} people · ${formatCount(account.count)} stars · ${formatCount(account.newcomers ?? 0)} newcomers`,
     },
     {
         key: 'replies',
         title: 'Replies',
+        rule: (perDay) => `${perDay}+ people replied to a day`,
+        empty: (total, window) =>
+            `Nobody replied to ${total}+ people ${window}.`,
         details: (account) =>
-            `${formatCount(account.count)} replies to ${formatCount(account.reach ?? 0)} people · ${formatCount(account.newcomers ?? 0)} newcomers`,
+            `replied to ${formatCount(account.reach ?? 0)} people · ${formatCount(account.count)} replies · ${formatCount(account.newcomers ?? 0)} newcomers`,
     },
     {
         key: 'posts',
         title: 'Posts',
+        rule: (perDay) => `${perDay}+ posts a day`,
+        empty: (total, window) => `Nobody posted ${total}+ times ${window}.`,
         details: (account) => `${formatCount(account.count)} posts`,
     },
 ];
@@ -66,10 +80,12 @@ const CATEGORIES: {
 export default function Bulk({
     scale,
     activity,
+    thresholds,
     moderation,
 }: {
     scale: ActivityScale;
     activity: BulkActivity;
+    thresholds: BulkThresholds;
     moderation: Record<string, UserModeration>;
 }) {
     return (
@@ -84,9 +100,10 @@ export default function Bulk({
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-3">
                 <p className="flex-1 text-xs text-muted-foreground">
-                    The accounts that followed, starred, replied and posted the
-                    most {activityWindows[scale]}. Newcomers signed up in that
-                    time too. GitHub imports and bots are left out.
+                    The accounts that followed, starred or replied to more
+                    people, or posted more, {activityWindows[scale]} than normal
+                    use does. Newcomers signed up in that time too. GitHub
+                    imports and bots are left out.
                 </p>
                 <div
                     role="group"
@@ -111,12 +128,20 @@ export default function Bulk({
                 <Section
                     key={category.key}
                     title={category.title}
+                    rule={category.rule(
+                        formatCount(thresholds[category.key].perDay),
+                    )}
+                    empty={category.empty(
+                        formatCount(thresholds[category.key].total),
+                        activityWindows[scale],
+                    )}
                     count={activity[category.key].length}
                 >
                     {activity[category.key].map((account) => (
                         <Row
                             key={account.user.id}
                             user={account.user}
+                            moderation={moderation[account.user.id]}
                             details={category.details(account)}
                             action={
                                 moderation[account.user.id] && (
@@ -138,21 +163,28 @@ Bulk.layout = AppLayout;
 
 function Section({
     title,
+    rule,
+    empty,
     count,
     children,
 }: {
     title: string;
+    rule: string;
+    empty: string;
     count: number;
     children: ReactNode;
 }) {
     return (
         <section className="border-b">
-            <h2 className="border-b px-4 py-3 text-sm font-medium">{title}</h2>
+            <h2 className="flex items-baseline justify-between gap-2 border-b px-4 py-3 text-sm font-medium">
+                {title}
+                <span className="font-mono text-xs font-normal text-muted-foreground">
+                    {rule}
+                </span>
+            </h2>
             {count === 0 ? (
                 <div className="px-6 py-10 text-center">
-                    <EmptyFeed command="nothing in bulk">
-                        Nobody did any of this in these days.
-                    </EmptyFeed>
+                    <EmptyFeed command="nothing in bulk">{empty}</EmptyFeed>
                 </div>
             ) : (
                 <ol className="divide-y">{children}</ol>
@@ -163,10 +195,12 @@ function Section({
 
 function Row({
     user,
+    moderation,
     details,
     action,
 }: {
     user: User;
+    moderation?: UserModeration;
     details: string;
     action: ReactNode;
 }) {
@@ -178,12 +212,28 @@ function Row({
             >
                 <UserAvatar user={user} className="size-9 shrink-0" />
                 <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                        {user.name}{' '}
-                        <span className="font-mono text-[13px] font-normal text-muted-foreground">
-                            @{user.username}
-                        </span>
-                    </p>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <p className="max-w-full truncate text-sm font-medium">
+                            {user.name}{' '}
+                            <span className="font-mono text-[13px] font-normal text-muted-foreground">
+                                @{user.username}
+                            </span>
+                        </p>
+                        {moderation?.ban ? (
+                            <span className="rounded bg-destructive/10 px-1.5 py-0.5 font-mono text-[11px] whitespace-nowrap text-destructive">
+                                banned
+                            </span>
+                        ) : (
+                            moderation?.timeout && (
+                                <span className="rounded bg-amber-500/10 px-1.5 py-0.5 font-mono text-[11px] whitespace-nowrap text-amber-700 dark:text-amber-400">
+                                    timeout until{' '}
+                                    {formatFullDateTime(
+                                        moderation.timeout.endsAt,
+                                    )}
+                                </span>
+                            )
+                        )}
+                    </div>
                     <p className="font-mono text-xs text-muted-foreground tabular-nums">
                         {details}
                     </p>
