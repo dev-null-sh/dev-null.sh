@@ -43,6 +43,7 @@ import {
     remoteAlertsEnabled,
 } from '@/lib/remote-notifications';
 import { remotePushEnabled } from '@/lib/remote-push';
+import { randomUuid } from '@/lib/utils';
 import type { VoiceDraft } from '@/lib/voice-notes';
 import type {
     ConversationSummary,
@@ -1503,7 +1504,7 @@ export function sendMessage(target: ChatTarget, draft: MessageDraft): void {
     rememberTarget(target);
 
     const pending: PendingMessage = {
-        client_id: crypto.randomUUID(),
+        client_id: randomUuid(),
         body: draft.body,
         reply_to: draft.replyTo,
         images: draft.images,
