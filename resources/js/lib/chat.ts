@@ -6,6 +6,7 @@ import ConversationDropController from '@/actions/App/Http/Controllers/Conversat
 import ConversationMergeController from '@/actions/App/Http/Controllers/ConversationMergeController';
 import ConversationMessageController from '@/actions/App/Http/Controllers/ConversationMessageController';
 import ConversationMuteController from '@/actions/App/Http/Controllers/ConversationMuteController';
+import ConversationPinController from '@/actions/App/Http/Controllers/ConversationPinController';
 import ConversationReadController from '@/actions/App/Http/Controllers/ConversationReadController';
 import ConversationTypingController from '@/actions/App/Http/Controllers/ConversationTypingController';
 import InboxController from '@/actions/App/Http/Controllers/InboxController';
@@ -15,6 +16,7 @@ import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import OrgMemberController from '@/actions/App/Http/Controllers/OrgMemberController';
 import OrgMessageController from '@/actions/App/Http/Controllers/OrgMessageController';
 import OrgMuteController from '@/actions/App/Http/Controllers/OrgMuteController';
+import OrgPinController from '@/actions/App/Http/Controllers/OrgPinController';
 import OrgReadController from '@/actions/App/Http/Controllers/OrgReadController';
 import OrgTypingController from '@/actions/App/Http/Controllers/OrgTypingController';
 import RemoteCandidateController from '@/actions/App/Http/Controllers/RemoteCandidateController';
@@ -89,6 +91,7 @@ export type ThreadState = {
     typing: string[];
     role: OrgRole | null;
     is_archived: boolean;
+    pinned_at: string | null;
     muted_until_at: string | null;
     access: PushAccess;
     pending: PendingMessage[];
@@ -125,6 +128,7 @@ export type ChatState = {
     notificationTitle: string | null;
     threads: Record<string, ThreadState>;
     mutePreferences: Record<string, { until: string | null; version: number }>;
+    pinPreferences: Record<string, { at: string | null; version: number }>;
     /**
      * The emoji the user reacts with, most used first, loaded once something shows a conversation.
      */
@@ -158,6 +162,7 @@ let state: ChatState = {
     notificationTitle: null,
     threads: {},
     mutePreferences: {},
+    pinPreferences: {},
     reactionUsage: null,
 };
 const listeners = new Set<() => void>();
@@ -172,6 +177,7 @@ let isLoadingReactionUsage = false;
 let remoteAlerts: ReturnType<typeof createRemoteAlerts> | null = null;
 let isFetchingInbox = false;
 let muteVersion = 0;
+let pinVersion = 0;
 
 export function targetKey(target: ChatTarget): string {
     return target.kind === 'direct'
@@ -208,6 +214,7 @@ function urls(target: ChatTarget) {
             stash: ConversationArchiveController.store.url(partner),
             pop: ConversationArchiveController.destroy.url(partner),
             mute: ConversationMuteController.update.url(partner),
+            pin: ConversationPinController.update.url(partner),
         };
     }
 
@@ -223,6 +230,7 @@ function urls(target: ChatTarget) {
         stash: OrgArchiveController.store.url(org),
         pop: OrgArchiveController.destroy.url(org),
         mute: OrgMuteController.update.url(org),
+        pin: OrgPinController.update.url(org),
     };
 }
 
@@ -263,6 +271,43 @@ function withMutePreferences(
         }
     }
     return next;
+}
+
+function withPinPreferences(
+    preferences: [string, string | null][],
+    version = ++pinVersion,
+): ChatState['pinPreferences'] {
+    const next = { ...state.pinPreferences };
+    for (const [key, at] of preferences) {
+        if (version >= (next[key]?.version ?? 0)) {
+            next[key] = { at, version };
+        }
+    }
+    return next;
+}
+
+export function compareConversations(
+    a: ConversationSummary,
+    b: ConversationSummary,
+): number {
+    return (
+        Number(b.pinned_at != null) - Number(a.pinned_at != null) ||
+        (b.last_message_at ?? '').localeCompare(a.last_message_at ?? '') ||
+        b.id.localeCompare(a.id)
+    );
+}
+
+function withConversationPins(
+    items: ConversationSummary[],
+): ConversationSummary[] {
+    return items
+        .map((item) => {
+            const preference = state.pinPreferences[summaryKey(item)];
+            return preference === undefined
+                ? item
+                : { ...item, pinned_at: preference.at };
+        })
+        .sort(compareConversations);
 }
 
 function updateThread(
@@ -409,15 +454,17 @@ function withoutKey(
     );
 }
 
-function byLatest(conversations: ConversationSummary[]): ConversationSummary[] {
-    return [...conversations].sort((a, b) =>
-        (b.last_message_at ?? '').localeCompare(a.last_message_at ?? ''),
-    );
-}
-
 export function seedInbox(inbox: InboxPage): void {
     updateDuringRender({
-        conversations: inbox.conversations,
+        pinPreferences: withPinPreferences(
+            inbox.conversations.map((item) => [
+                summaryKey(item),
+                item.pinned_at,
+            ]),
+        ),
+    });
+    updateDuringRender({
+        conversations: withConversationPins(inbox.conversations),
         mutePreferences: withMutePreferences(
             inbox.conversations.map((item) => [
                 summaryKey(item),
@@ -437,35 +484,40 @@ function withFirstPage(
     firstPage: ConversationSummary[],
 ): ConversationSummary[] {
     const fresh = new Set(firstPage.map(summaryKey));
-    const oldest = firstPage.at(-1)?.last_message_at ?? '';
+    const oldest = firstPage.at(-1);
 
-    return [
+    return withConversationPins([
         ...firstPage,
-        ...(current ?? []).filter(
+        ...withConversationPins(current ?? []).filter(
             (item) =>
                 !fresh.has(summaryKey(item)) &&
-                (item.last_message_at ?? '') <= oldest,
+                oldest !== undefined &&
+                compareConversations(item, oldest) >= 0,
         ),
-    ];
+    ]);
 }
 
 async function fetchInbox(
     tab: InboxTab,
     before?: string,
     notificationBaseline = false,
+    notificationConversations = false,
 ): Promise<
     InboxPage & {
         unread: number;
         requests: number;
         notification_baseline?: Record<string, number>;
+        notification_conversations?: ConversationSummary[];
     }
 > {
     const version = ++muteVersion;
+    const pinsVersion = ++pinVersion;
     const page = await request<
         InboxPage & {
             unread: number;
             requests: number;
             notification_baseline?: Record<string, number>;
+            notification_conversations?: ConversationSummary[];
         }
     >(
         InboxController.index.url({
@@ -473,19 +525,29 @@ async function fetchInbox(
                 tab,
                 ...(before === undefined ? {} : { before }),
                 ...(notificationBaseline ? { notification_baseline: 1 } : {}),
+                ...(notificationConversations
+                    ? { notification_conversations: 1 }
+                    : {}),
             },
         }),
     );
     update({
-        mutePreferences: withMutePreferences(
+        pinPreferences: withPinPreferences(
             page.conversations.map((item) => [
                 summaryKey(item),
-                item.muted_until_at,
+                item.pinned_at,
             ]),
+            pinsVersion,
+        ),
+        mutePreferences: withMutePreferences(
+            [
+                ...page.conversations,
+                ...(page.notification_conversations ?? []),
+            ].map((item) => [summaryKey(item), item.muted_until_at]),
             version,
         ),
     });
-    return page;
+    return { ...page, conversations: withConversationPins(page.conversations) };
 }
 
 /**
@@ -549,6 +611,7 @@ function emptyThread(target: ChatTarget): ThreadState {
         typing: [],
         role: null,
         is_archived: false,
+        pinned_at: null,
         muted_until_at: null,
         access: 'open',
         pending: [],
@@ -568,6 +631,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
               typing: thread.typing,
               role: thread.role,
               is_archived: thread.is_archived,
+              pinned_at: thread.pinned_at,
               muted_until_at: thread.muted_until_at,
               access: thread.access,
           }
@@ -576,6 +640,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
               partner_read_at: thread.partner_read_at,
               partner_typing: thread.partner_typing,
               is_archived: thread.is_archived,
+              pinned_at: thread.pinned_at,
               muted_until_at: thread.muted_until_at,
               access: thread.access,
           };
@@ -592,6 +657,7 @@ export function seedThread(
     const current = state.threads[key] ?? emptyThread(target);
 
     updateDuringRender({
+        pinPreferences: withPinPreferences([[key, thread.pinned_at]]),
         mutePreferences: withMutePreferences([[key, thread.muted_until_at]]),
         threads: {
             ...state.threads,
@@ -636,8 +702,19 @@ async function pollInbox(): Promise<void> {
 
     try {
         const alerts = remoteAlerts;
-        const { conversations, unread, requests, notification_baseline } =
-            await fetchInbox('open', undefined, alerts?.needsBaseline());
+        const {
+            conversations,
+            unread,
+            requests,
+            notification_baseline,
+            notification_conversations,
+        } = await fetchInbox(
+            'open',
+            undefined,
+            alerts?.needsBaseline(),
+            alerts !== null,
+        );
+        const notifications = notification_conversations ?? conversations;
         const isReading = (conversation: ConversationSummary) =>
             !document.hidden &&
             document.hasFocus() &&
@@ -647,7 +724,7 @@ async function pollInbox(): Promise<void> {
             (!alerts?.needsBaseline() || notification_baseline !== undefined)
         ) {
             void alerts?.receive(
-                conversations.map((conversation) => ({
+                notifications.map((conversation) => ({
                     ...conversation,
                     muted_until_at:
                         state.mutePreferences[summaryKey(conversation)].until,
@@ -857,6 +934,7 @@ async function pollThread(target: ChatTarget): Promise<void> {
         after === null ? null : (thread?.reactions_version ?? null);
     const polledAt = performance.now();
     const version = ++muteVersion;
+    const pinsVersion = ++pinVersion;
 
     const fresh = await request<
         (Thread & { partner: User }) | (OrgThread & { org: OrgRef })
@@ -882,6 +960,10 @@ async function pollThread(target: ChatTarget): Promise<void> {
     }
 
     update({
+        pinPreferences: withPinPreferences(
+            [[key, fresh.pinned_at]],
+            pinsVersion,
+        ),
         mutePreferences: withMutePreferences(
             [[key, fresh.muted_until_at]],
             version,
@@ -1043,11 +1125,15 @@ function touchInbox(target: ChatTarget, message: Message): void {
         partner_read_through_id: existing?.partner_read_through_id ?? 0,
         partner_read_at: existing?.partner_read_at ?? null,
         is_archived: false,
+        pinned_at: state.pinPreferences[key]?.at ?? existing?.pinned_at ?? null,
         muted_until_at: existing?.muted_until_at ?? null,
     };
 
     update({
-        conversations: [summary, ...(withoutKey(conversations, key) ?? [])],
+        conversations: withConversationPins([
+            summary,
+            ...(withoutKey(conversations, key) ?? []),
+        ]),
         archived: withoutKey(state.archived, key),
     });
     updateThread(key, () => ({ is_archived: false }));
@@ -1428,6 +1514,7 @@ export async function searchConversations(
     signal: AbortSignal,
 ): Promise<ConversationSummary[]> {
     const version = ++muteVersion;
+    const pinsVersion = ++pinVersion;
     const response = await fetch(
         InboxController.index.url({ query: { q: term, tab } }),
         { headers: { Accept: 'application/json' }, cache: 'no-store', signal },
@@ -1439,6 +1526,10 @@ export async function searchConversations(
 
     const { conversations } = (await response.json()) as InboxPage;
     update({
+        pinPreferences: withPinPreferences(
+            conversations.map((item) => [summaryKey(item), item.pinned_at]),
+            pinsVersion,
+        ),
         mutePreferences: withMutePreferences(
             conversations.map((item) => [
                 summaryKey(item),
@@ -1447,7 +1538,7 @@ export async function searchConversations(
             version,
         ),
     });
-    return conversations;
+    return withConversationPins(conversations);
 }
 
 /**
@@ -1507,7 +1598,7 @@ export async function settleRequest(
         unread: Math.max(0, (state.unread ?? 1) - 1),
         ...(isMerging && fetchedRequest
             ? {
-                  conversations: byLatest([
+                  conversations: withConversationPins([
                       ...(withoutKey(state.conversations, key) ?? []),
                       { ...fetchedRequest, ahead: 0 },
                   ]),
@@ -1541,13 +1632,16 @@ export async function setConversationArchived(
         const moved = { ...conversation, is_archived: isArchived };
         const conversations = isArchived
             ? withoutKey(state.conversations, key)
-            : byLatest([
+            : withConversationPins([
                   ...(withoutKey(state.conversations, key) ?? []),
                   moved,
               ]);
         const archived = isArchived
             ? state.archived &&
-              byLatest([...(withoutKey(state.archived, key) ?? []), moved])
+              withConversationPins([
+                  ...(withoutKey(state.archived, key) ?? []),
+                  moved,
+              ])
             : withoutKey(state.archived, key);
 
         update({
@@ -1576,6 +1670,28 @@ export async function setConversationArchived(
 
         return false;
     }
+}
+
+export async function setConversationPinned(
+    target: ChatTarget,
+    pinned: boolean,
+): Promise<void> {
+    const preference = await request<{ pinned_at: string | null }>(
+        urls(target).pin,
+        'PUT',
+        { pinned },
+    );
+    const key = targetKey(target);
+    update({
+        pinPreferences: withPinPreferences([[key, preference.pinned_at]]),
+    });
+    update({
+        conversations:
+            state.conversations && withConversationPins(state.conversations),
+        fetched: state.fetched && withConversationPins(state.fetched),
+        archived: state.archived && withConversationPins(state.archived),
+    });
+    updateThread(key, () => preference);
 }
 
 export type MuteDuration = 'hour' | 'tomorrow' | 'week' | 'forever' | 'off';

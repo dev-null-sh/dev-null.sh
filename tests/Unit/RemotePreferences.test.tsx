@@ -7,6 +7,7 @@ import type { ConversationSummary, OrgThread, User } from '../../resources/js/ty
 const cleanups: (() => void)[] = [];
 vi.doMock('react', () => ({
     ...React,
+    useRef: (value: unknown) => ({ current: value }),
     useState: (value: unknown) => [value, () => {}],
     useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) => snapshot(),
     useEffect: (effect: () => (() => void) | undefined) => {
@@ -29,11 +30,11 @@ const orgSummary: ConversationSummary = {
     id: org.id, kind: 'org', name: org.name, partner: null, members: [],
     last_message: null, last_message_at: null, last_incoming_message_id: null,
     last_incoming_sender: null,
-    ahead: 0, partner_read_through_id: 0, partner_read_at: null, is_archived: true, muted_until_at: null,
+    ahead: 0, partner_read_through_id: 0, partner_read_at: null, is_archived: true, pinned_at: null, muted_until_at: null,
 };
 const thread: OrgThread & { org: typeof org } = {
     org, messages: [], has_older: false, reactions_version: 0, reaction_changes: [],
-    read_through_id: 0, members: [], typing: [], is_archived: true, muted_until_at: null,
+    read_through_id: 0, members: [], typing: [], is_archived: true, pinned_at: null, muted_until_at: null,
     role: 'contributor', access: 'open',
 };
 

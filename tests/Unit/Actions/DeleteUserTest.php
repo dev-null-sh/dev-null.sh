@@ -333,8 +333,12 @@ it('erases the orgs a deleted user was the last one in, with the images and voic
     $this->actingAs($user)->putJson(route('org-mute.update', $kept), ['duration' => 'forever'])->assertOk();
     $this->actingAs($former)->putJson(route('org-mute.update', $kept), ['duration' => 'week'])->assertOk();
 
+    $this->actingAs($user)->putJson(route('org-pin.update', $kept), ['pinned' => true])->assertOk();
+    $this->actingAs($former)->putJson(route('org-pin.update', $kept), ['pinned' => true])->assertOk();
+
     resolve(DeleteUser::class)->handle($user);
 
+    expect(ConversationParticipant::query()->whereNotNull('pinned_at')->pluck('user_id')->all())->toBe([$former->id]);
     expect(Conversation::query()->pluck('id')->all())->toBe([$kept])
         ->and(Storage::disk()->allFiles())->toBe([$other->path])
         ->and(ConversationParticipant::query()->whereNotNull('muted_until_at')->pluck('user_id')->all())->toBe([$former->id]);
