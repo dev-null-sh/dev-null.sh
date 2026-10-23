@@ -8,19 +8,19 @@ use Illuminate\Support\Facades\DB;
 
 it('lists the people a user follows who follow them back', function (): void {
     $user = User::factory()->create();
-    $friend = User::factory()->create();
-    $user->following()->attach([$friend->id, User::factory()->create()->id]);
-    $user->followers()->attach([$friend->id, User::factory()->create()->id]);
+    $mutual = User::factory()->create();
+    $user->following()->attach([$mutual->id, User::factory()->create()->id]);
+    $user->followers()->attach([$mutual->id, User::factory()->create()->id]);
 
     $response = $this->actingAs(User::factory()->create())
-        ->get(route('user-friendships.index', $user));
+        ->get(route('user-mutuals.index', $user));
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('user/connections')
-            ->where('type', 'friendships')
+            ->where('type', 'mutuals')
             ->has('users.data', 1)
-            ->where('users.data.0.id', $friend->id)
+            ->where('users.data.0.id', $mutual->id)
             ->missing('users.data.0.email'));
 });
 
@@ -33,7 +33,7 @@ it('lists the newest follow first', function (): void {
     $user->followers()->attach([$earlier->id, $later->id]);
 
     $response = $this->actingAs(User::factory()->create())
-        ->get(route('user-friendships.index', $user));
+        ->get(route('user-mutuals.index', $user));
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -51,7 +51,7 @@ it('marks the users the viewer follows', function (): void {
     $viewer->following()->attach($followed);
 
     $response = $this->actingAs($viewer)
-        ->get(route('user-friendships.index', $user));
+        ->get(route('user-mutuals.index', $user));
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -66,18 +66,18 @@ it('looks missing to people across a block', function (bool $viewerBlocks): void
     $viewerBlocks ? $viewer->blocking()->attach($user) : $user->blocking()->attach($viewer);
 
     $response = $this->actingAs($viewer)
-        ->get(route('user-friendships.index', $user));
+        ->get(route('user-mutuals.index', $user));
 
     $response->assertNotFound();
 })->with([true, false]);
 
 it('lists them to guests, without anyone marked as followed', function (): void {
     $user = User::factory()->create();
-    $friend = User::factory()->create();
-    $user->following()->attach($friend);
-    $user->followers()->attach($friend);
+    $mutual = User::factory()->create();
+    $user->following()->attach($mutual);
+    $user->followers()->attach($mutual);
 
-    $response = $this->get(route('user-friendships.index', $user));
+    $response = $this->get(route('user-mutuals.index', $user));
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -89,22 +89,22 @@ it('lists them to guests, without anyone marked as followed', function (): void 
 it('previews the list to guests without letting search engines index it', function (): void {
     $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
 
-    $this->get(route('user-friendships.index', $user))
+    $this->get(route('user-mutuals.index', $user))
         ->assertOk()
-        ->assertSee('<title>Friendships of The Octocat (@octocat) on /dev/null</title>', false)
+        ->assertSee('<title>Mutuals of The Octocat (@octocat) on /dev/null</title>', false)
         ->assertSee('<meta name="robots" content="noindex, follow">', false)
-        ->assertSee('<link rel="canonical" href="'.route('user-friendships.index', $user).'">', false);
+        ->assertSee('<link rel="canonical" href="'.route('user-mutuals.index', $user).'">', false);
 });
 
 it('does not count the user for guests loading more of the list', function (): void {
     $user = User::factory()->create();
-    $friend = User::factory()->create();
-    $user->following()->attach($friend);
-    $user->followers()->attach($friend);
+    $mutual = User::factory()->create();
+    $user->following()->attach($mutual);
+    $user->followers()->attach($mutual);
 
     DB::enableQueryLog();
 
-    $this->get(route('user-friendships.index', $user), [
+    $this->get(route('user-mutuals.index', $user), [
         'X-Inertia' => 'true',
         'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
         'X-Inertia-Partial-Component' => 'user/connections',

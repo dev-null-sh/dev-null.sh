@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\ListUserFriendshipsRequest;
+use App\Http\Requests\ListUserMutualsRequest;
 use App\Models\User;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -13,12 +13,12 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
 use Inertia\Inertia;
 use Inertia\Response;
 
-final readonly class UserFriendshipsController
+final readonly class UserMutualsController
 {
     /**
      * The people a user follows who follow them back.
      */
-    public function index(ListUserFriendshipsRequest $request, #[CurrentUser] ?User $currentUser, User $user, PageMetadata $metadata): Response
+    public function index(ListUserMutualsRequest $request, #[CurrentUser] ?User $currentUser, User $user, PageMetadata $metadata): Response
     {
         $countedUser = null;
         $getCountedUser = function () use (&$countedUser, $user): User {
@@ -27,7 +27,7 @@ final readonly class UserFriendshipsController
 
         return Inertia::render('user/connections', [
             'user' => fn (): User => $currentUser instanceof User ? $user : $getCountedUser(),
-            'type' => 'friendships',
+            'type' => 'mutuals',
             'users' => Inertia::scroll(fn () => $user->following()
                 ->whereExists(fn (QueryBuilder $query): QueryBuilder => $query->from('follows', 'follows_back')
                     ->whereColumn('follows_back.follower_id', 'users.id')
@@ -36,6 +36,6 @@ final readonly class UserFriendshipsController
                 ->latest('follows.created_at')
                 ->latest('users.id')
                 ->cursorPaginate(30)),
-        ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->connections($getCountedUser(), 'friendships')]);
+        ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->connections($getCountedUser(), 'mutuals')]);
     }
 }

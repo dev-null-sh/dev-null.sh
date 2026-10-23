@@ -8,7 +8,7 @@ use App\Models\User;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 
-final class ListUserFriendshipsRequest extends FormRequest
+final class ListUserMutualsRequest extends FormRequest
 {
     /**
      * A block hides each one's connections from the other, like the rest of their profile.

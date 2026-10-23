@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
-import UserFriendshipsController from '@/actions/App/Http/Controllers/UserFriendshipsController';
+import UserMutualsController from '@/actions/App/Http/Controllers/UserMutualsController';
 import { EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { PageTabs } from '@/components/page-tabs';
@@ -16,12 +16,12 @@ import type { CursorPaginated, User } from '@/types';
 
 type Connection = User & { is_followed: boolean };
 
-type ConnectionType = 'followers' | 'following' | 'friendships';
+type ConnectionType = 'followers' | 'following' | 'mutuals';
 
 const titles: Record<ConnectionType, string> = {
     followers: 'Followers',
     following: 'Following',
-    friendships: 'Friendships',
+    mutuals: 'Mutuals',
 };
 
 function ConnectionFollowButton({ person }: { person: Connection }) {
@@ -52,7 +52,7 @@ export default function Connections({
     const emptyMessages: Record<ConnectionType, string> = {
         followers: `Nobody is following @${user.username} yet.`,
         following: `@${user.username} isn't following anyone yet.`,
-        friendships: `@${user.username} has no friendships yet.`,
+        mutuals: `@${user.username} has no mutuals yet.`,
     };
 
     return (
@@ -89,9 +89,9 @@ export default function Connections({
                             isActive: type === 'following',
                         },
                         {
-                            title: 'Friendships',
-                            href: UserFriendshipsController.index(user),
-                            isActive: type === 'friendships',
+                            title: 'Mutuals',
+                            href: UserMutualsController.index(user),
+                            isActive: type === 'mutuals',
                         },
                     ]}
                 />

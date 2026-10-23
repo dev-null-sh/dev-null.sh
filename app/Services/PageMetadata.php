@@ -248,7 +248,7 @@ final readonly class PageMetadata
     /**
      * The link preview of who follows a profile, who it follows, or who of those follow it back. The lists are thin pages, so they are not indexed, though their links are followed.
      *
-     * @param  'followers'|'following'|'friendships'  $type
+     * @param  'followers'|'following'|'mutuals'  $type
      * @return ConnectionsMetadata
      */
     public function connections(User $user, string $type): array
@@ -256,7 +256,7 @@ final readonly class PageMetadata
         $title = match ($type) {
             'followers' => "People following {$user->nameWithHandle()} on /dev/null",
             'following' => "People followed by {$user->nameWithHandle()} on /dev/null",
-            'friendships' => "Friendships of {$user->nameWithHandle()} on /dev/null",
+            'mutuals' => "Mutuals of {$user->nameWithHandle()} on /dev/null",
         };
 
         return [
@@ -265,7 +265,7 @@ final readonly class PageMetadata
             'description' => match ($type) {
                 'followers' => "See who follows {$user->mention()} on /dev/null, a social network for developers.",
                 'following' => "See who {$user->mention()} follows on /dev/null, a social network for developers.",
-                'friendships' => "See who follows {$user->mention()} back on /dev/null, a social network for developers.",
+                'mutuals' => "See who follows {$user->mention()} back on /dev/null, a social network for developers.",
             },
             'url' => route("user-{$type}.index", $user),
             'robots' => self::NOT_INDEXABLE,
