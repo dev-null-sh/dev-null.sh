@@ -8,7 +8,10 @@ let state: unknown[] = [];
 let cursor = 0;
 let effects: EffectCallback[] = [];
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+});
 
 vi.doMock('react', () => ({
     ...React,
@@ -32,7 +35,7 @@ vi.doMock('react', () => ({
     },
 }));
 
-const { ReactionTray, ReactionChips, EmojiPicker } =
+const { ReactionTray, ReactionChips, EmojiPicker, useTouchReactions } =
     await import('../../resources/js/components/chat/message-reactions');
 
 type Element = ReactElement<Record<string, unknown>>;
@@ -289,4 +292,104 @@ test('updates a remaining reaction instead of retaining a chip that was removed'
     assert.equal(chips.length, 1);
     assert.equal(chips[0].props['aria-pressed'], false);
     assert.ok((chips[0].props['aria-label'] as string).includes('from Alex'));
+});
+
+function touchReactions() {
+    state = [];
+    cursor = 0;
+    vi.useFakeTimers();
+    vi.stubGlobal('window', globalThis);
+    vi.stubGlobal('navigator', { vibrate: vi.fn() });
+    const onLongPress = vi.fn();
+    const onDoubleTap = vi.fn();
+    const handlers = useTouchReactions({ onLongPress, onDoubleTap });
+    const message = { closest: () => null };
+    const viewer = { closest: () => null };
+    const row = { contains: (target: unknown) => target === message };
+    const pointer = (
+        overrides: Partial<React.PointerEvent> = {},
+    ): React.PointerEvent =>
+        ({
+            pointerType: 'touch',
+            isPrimary: true,
+            clientX: 10,
+            clientY: 20,
+            timeStamp: 100,
+            currentTarget: row,
+            target: message,
+            ...overrides,
+        }) as unknown as React.PointerEvent;
+
+    return { handlers, pointer, viewer, onLongPress, onDoubleTap };
+}
+
+test('opens reactions when a single finger holds the message', () => {
+    const touch = touchReactions();
+
+    touch.handlers.onPointerDown?.(touch.pointer());
+    vi.advanceTimersByTime(500);
+
+    assert.equal(touch.onLongPress.mock.calls.length, 1);
+});
+
+test('ignores a hold bubbling through the message from a portaled image viewer', () => {
+    const touch = touchReactions();
+
+    touch.handlers.onPointerDown?.(
+        touch.pointer({ target: touch.viewer as unknown as EventTarget }),
+    );
+    vi.advanceTimersByTime(500);
+
+    assert.equal(touch.onLongPress.mock.calls.length, 0);
+});
+
+test('a second finger cancels the pending message hold before a pinch', () => {
+    const touch = touchReactions();
+
+    touch.handlers.onPointerDown?.(touch.pointer());
+    vi.advanceTimersByTime(200);
+    touch.handlers.onPointerDown?.(touch.pointer({ isPrimary: false }));
+    vi.advanceTimersByTime(500);
+
+    assert.equal(touch.onLongPress.mock.calls.length, 0);
+});
+
+test('a touch in the image viewer cancels a pending hold on its message', () => {
+    const touch = touchReactions();
+
+    touch.handlers.onPointerDown?.(touch.pointer());
+    vi.advanceTimersByTime(200);
+    touch.handlers.onPointerDown?.(
+        touch.pointer({ target: touch.viewer as unknown as EventTarget }),
+    );
+    vi.advanceTimersByTime(500);
+
+    assert.equal(touch.onLongPress.mock.calls.length, 0);
+});
+
+test('double tapping the message still reacts', () => {
+    const touch = touchReactions();
+
+    for (const timeStamp of [100, 300]) {
+        const event = touch.pointer({ timeStamp });
+        touch.handlers.onPointerDown?.(event);
+        touch.handlers.onPointerUp?.(event);
+    }
+
+    assert.equal(touch.onDoubleTap.mock.calls.length, 1);
+});
+
+test('double tapping a portaled viewer never reacts to its message', () => {
+    const touch = touchReactions();
+
+    for (const timeStamp of [100, 300]) {
+        const event = touch.pointer({
+            timeStamp,
+            target: touch.viewer as unknown as EventTarget,
+        });
+        touch.handlers.onPointerDown?.(event);
+        touch.handlers.onPointerUp?.(event);
+    }
+
+    assert.equal(touch.onDoubleTap.mock.calls.length, 0);
 });

@@ -18,6 +18,33 @@ use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
+/**
+ * @phpstan-type ReactionChange array{id: int, reactions: EloquentCollection<int, MessageReaction>}
+ * @phpstan-type DirectThread array{
+ *     messages: Collection<int, Message>,
+ *     has_older: bool,
+ *     reactions_version: int,
+ *     reaction_changes: Collection<int, ReactionChange>,
+ *     read_through_id: int,
+ *     partner_read_through_id: int,
+ *     partner_read_at: string|null,
+ *     partner_typing: bool,
+ *     is_archived: bool,
+ *     access: PushAccess
+ * }
+ * @phpstan-type OrgThread array{
+ *     messages: Collection<int, Message>,
+ *     has_older: bool,
+ *     reactions_version: int,
+ *     reaction_changes: Collection<int, ReactionChange>,
+ *     read_through_id: int,
+ *     members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int, suggests_mentions: bool, is_followed: bool}>,
+ *     typing: array<int, string>,
+ *     is_archived: bool,
+ *     role: OrgRole|null,
+ *     access: PushAccess
+ * }
+ */
 final readonly class ConversationThreadQuery
 {
     public const int PAGE = 50;
@@ -26,7 +53,7 @@ final readonly class ConversationThreadQuery
      * A one-to-one conversation. Reads only show as pulled when both people share them, and only once the partner
      * has merged the conversation.
      *
-     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, partner_read_through_id: int, partner_read_at: string|null, partner_typing: bool, is_archived: bool, access: PushAccess}
+     * @return DirectThread
      */
     public function get(User $user, User $partner, ?int $after = null, ?int $before = null, ?int $reactionsAfter = null): array
     {
@@ -58,7 +85,7 @@ final readonly class ConversationThreadQuery
     /**
      * An org the user is in, from where their history starts. Each member's reads show only when both share pulls.
      *
-     * @return array{messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int, suggests_mentions: bool, is_followed: bool}>, typing: array<int, string>, is_archived: bool, role: OrgRole|null, access: PushAccess}
+     * @return OrgThread
      */
     public function org(User $user, Conversation $org, ?int $after = null, ?int $before = null, ?int $reactionsAfter = null): array
     {
@@ -108,7 +135,7 @@ final readonly class ConversationThreadQuery
      * is in the thread. The version is read with the conversation, before this, so a change landing in between is
      * handed over again next time rather than skipped.
      *
-     * @return Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>
+     * @return Collection<int, ReactionChange>
      */
     private function reactionChanges(?Conversation $conversation, int $visibleFrom, ?int $since): Collection
     {

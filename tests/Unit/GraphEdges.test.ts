@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+    drawnStretch,
     entranceDelay,
     graphEdges,
     isOnScreen,
@@ -278,4 +279,59 @@ void test('fades a line between two leaving rows like the fainter one, clipped t
         ]),
         { opacity: 0.2 },
     );
+});
+
+void test('keeps the stretch a line takes over from the one its node showed before, like a "more replies" dot giving way to the replies', () => {
+    const [toDot] = graphEdges([
+        node({ id: 'reply', y: 40 }),
+        node({ id: 'more', y: 120, after: 'reply' }),
+    ]);
+    const [toNext] = graphEdges([
+        node({ id: 'reply', y: 40 }),
+        node({ id: 'next', y: 140, after: 'reply' }),
+    ]);
+    const [toCloser] = graphEdges([
+        node({ id: 'reply', y: 40 }),
+        node({ id: 'next', y: 100, after: 'reply' }),
+    ]);
+
+    assert.equal(drawnStretch(toNext, [toDot]), 80);
+    assert.equal(drawnStretch(toCloser, [toDot]), 60);
+});
+
+void test('keeps the straight stretch a branch shares with the branch it takes over', () => {
+    const [toDot] = graphEdges([
+        node({ id: 'root', y: 40 }),
+        node({ id: 'more', x: 100, y: 120, parent: 'root' }),
+    ]);
+    const [toReply] = graphEdges([
+        node({ id: 'root', y: 40 }),
+        node({ id: 'reply', x: 100, y: 160, parent: 'root' }),
+    ]);
+
+    assert.equal(drawnStretch(toReply, [toDot]), 68);
+});
+
+void test('keeps nothing of a line from another node, from where its node stood before, or that turns away at once', () => {
+    const [fromOther] = graphEdges([
+        node({ id: 'other', y: 40 }),
+        node({ id: 'more', y: 120, after: 'other' }),
+    ]);
+    const [fromAbove] = graphEdges([
+        node({ id: 'reply', y: 20 }),
+        node({ id: 'more', y: 120, after: 'reply' }),
+    ]);
+    const [aside] = graphEdges([
+        node({ id: 'reply', y: 40 }),
+        node({ id: 'more', x: 60, y: 120, after: 'reply' }),
+    ]);
+    const [toNext] = graphEdges([
+        node({ id: 'reply', y: 40 }),
+        node({ id: 'next', y: 140, after: 'reply' }),
+    ]);
+
+    assert.equal(drawnStretch(toNext, [fromOther]), 0);
+    assert.equal(drawnStretch(toNext, [fromAbove]), 0);
+    assert.equal(drawnStretch(toNext, [aside]), 0);
+    assert.equal(drawnStretch(toNext, []), 0);
 });

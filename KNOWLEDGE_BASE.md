@@ -19,7 +19,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Writing commits](#writing-commits)
   - [Translating commits](#translating-commits)
   - [Code, emoji, and mentions](#code-emoji-and-mentions)
-  - [Draft previews and secret warnings](#draft-previews-and-secret-warnings)
+  - [Draft previews](#draft-previews)
   - [Stashed drafts](#stashed-drafts)
   - [Images and descriptions](#images-and-descriptions)
   - [Links, link cards, and embedded players](#links-link-cards-and-embedded-players)
@@ -29,7 +29,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Scheduled commits](#scheduled-commits)
   - [Deleting commits and undo](#deleting-commits-and-undo)
   - [Stars](#stars)
-  - [Saved commits](#saved-commits)
+  - [Starred commits](#starred-commits)
   - [Pinning a commit](#pinning-a-commit)
   - [Pastéis mode and awards](#pastéis-mode-and-awards)
   - [Notifications](#notifications)
@@ -74,13 +74,13 @@ This file documents the platform's features, stack, and stories. Feature entries
 
 ## Features
 
-These entries cover the app's public and signed-in features. Configuration-dependent options are called out explicitly. Each entry includes implementation references so its behavior can be checked when the app changes. Knowledge-base retrieval powers Tom's public question-answering replies, separately from the public commit search.
+These entries cover the app's public and signed-in features. Options that may not be available are called out explicitly. Each entry includes implementation references so its behavior can be checked when the app changes. Knowledge-base retrieval powers Tom's public question-answering replies, separately from the public commit search.
 
 ### Public browsing and GitHub sign-in
 
-Guests land on the Trending log and can browse Latest and Trending, public profiles and their following/follower lists, approved commits and reply threads, photos, and search. Sign in with GitHub to write commits, follow, star, vote, save, report, give pastéis, translate, receive notifications, read the Following log, or use private messages and settings. Clicking one of those actions as a guest goes straight to GitHub sign-in and returns to the profile or commit being read. GitHub is the only sign-in provider; there is no separate /dev/null password.
+Guests land on the Trending log and can browse Latest and Trending, public profiles and their following/follower lists, approved commits and reply threads, photos, and search. Sign in with GitHub to write commits, follow, star, vote, report, give pastéis, translate, receive notifications, read the Following log or your Starred list, or use private messages and settings. Clicking one of those actions as a guest goes straight to GitHub sign-in and returns to the profile or commit being read. GitHub is the only sign-in provider; there is no separate /dev/null password.
 
-New GitHub accounts are screened at signup. The repository defaults require an account at least seven days old and a verified email; these requirements are configurable. Returning accounts are not screened again. Public profiles and approved commits are readable by other people and crawlers, and links have social previews. A public commit is not private just because its author signed in to write it.
+New GitHub accounts are screened at signup; eligibility checks can require an established account and a verified email. Returning accounts are not screened again. Public profiles and approved commits are readable by other people and crawlers, and links have social previews. A public commit is not private just because its author signed in to write it.
 
 Sources: [web routes](routes/web.php), [signup configuration](config/signup.php), [sign-in tests](tests/Feature/Controllers/SessionControllerTest.php).
 
@@ -88,7 +88,7 @@ Livestream history: the team agreed on GitHub-only sign-in and importing profile
 
 ### First-time setup
 
-The first GitHub sign-in opens a short onboarding flow: review your mirrored profile (after editing it on GitHub, **Sync from GitHub** pulls the changes in without leaving setup), choose a color, follow suggested developers, and learn about the composer, keyboard shortcuts, and terminal commits. Skip setup at any step or finish it to continue to the app. Completed or skipped setup does not appear again. New users also start with Tom as a mutual follow; Tom is the platform's fictional welcome bot. Tag @tom in a public commit to ask about the platform or find posts on a topic when the OpenCode integration is configured.
+The first GitHub sign-in opens a short onboarding flow: review your mirrored profile (after editing it on GitHub, **Sync from GitHub** pulls the changes in without leaving setup), choose a color, follow suggested developers, and learn about the composer, keyboard shortcuts, and terminal commits. Skip setup at any step or finish it to continue to the app. Completed or skipped setup does not appear again. New users also start with Tom as a mutual follow; Tom is the platform's fictional welcome bot. Tag @tom in a public commit to ask about the platform or find posts on a topic.
 
 Sources: [onboarding page](resources/js/pages/onboarding/show.tsx), [sign-in tests](tests/Feature/Controllers/SessionControllerTest.php).
 
@@ -135,19 +135,23 @@ Commit counts include replies and quotes. Commit-based badges and XP use non-del
 
 Badges are calculated from current account data, not permanently recorded awards. Removing qualifying activity can reduce progress or lock a badge again; for example, unstarring a commit can remove **stargazer**. **Shell shocked** depends only on when the account was created, so deleting activity does not remove it. When a commit posted on the web unlocks a badge, a toast names it and confetti drops; clicking an unlocked badge drops confetti again. Unlocking a badge does not normally give bonus XP; **shell shocked** contributes **100 XP** once. XP otherwise comes from **10 per commit**, **15 per day in the longest streak**, **5 per star received**, **5 per reply to another developer**, and **2 per star given to another developer**. The **luddite** penalty applies once while the badge is unlocked, not once per unfollow, and total XP cannot fall below zero. A qualifying reply contributes both commit XP and reply XP; pastéis do not add XP.
 
-Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and XP calculation](app/Queries/UserAchievementsQuery.php), [streak calculation](app/Queries/UserStreakQuery.php), [achievements dialog](resources/js/components/achievements-dialog.tsx).
+XP also determines your Unix rank: **user** at 0 XP, **daemon** at 50, **operator** at 150, **maintainer** at 400, **wheel** at 1,000, and **root** at 2,500. The achievements dialog's **Ranks** tab shows the levels and progress. Level-up notifications use your public progress, so pending or rejected commits do not trigger them. Each level above the starting rank can notify you only once, even if you lose and regain the XP; jumping ahead does not send a notification for every skipped level.
+
+Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and XP calculation](app/Queries/UserAchievementsQuery.php), [streak calculation](app/Queries/UserStreakQuery.php), [Unix ranks](app/Enums/UnixRank.php), [level-up notifications](app/Actions/CreateLevelNotification.php), [achievements dialog](resources/js/components/achievements-dialog.tsx).
 
 ### Following developers and suggestions
 
 Follow or unfollow from a developer's profile or a follow control elsewhere in the app. Following puts their commits in your Following log. Following or unfollowing from a log updates the controls, counts, and live-following sidebar without navigating away: Latest and Trending keep their loaded commits and ranking, while Following updates its commits and empty-state suggestions. You cannot follow yourself or follow across a block. GitHub follows are imported once: connections to developers already on /dev/null are added in both directions, with up to 1,000 GitHub connections checked each way. This is not continuous synchronization, so unfollowing someone on /dev/null sticks.
 
-**Who to follow** suggests developers in the side column or within the log on smaller screens, each with the first line of their bio and why they are suggested (how many people you follow follow them, or their follower count). Follow from the icon next to each suggestion; for someone who already follows you, it follows back. The X icon marks a suggestion **Not interested**: that developer is never suggested to you again, without muting them, and the next suggestion takes their place. Show or hide these suggestions in Settings → Appearance. You can also follow back from the notifications list.
+**Who to follow** suggests developers in the side column or within the log on smaller screens, each with the first line of their bio and why they are suggested (how many people you follow follow them, or their follower count). Follow from the icon next to each suggestion; for someone who already follows you, it follows back. The X icon marks a suggestion **Not interested**: that developer is never suggested to you again, without muting them, and the next suggestion takes their place. Refresh for different suggestions, or use **… → Don't show again** to hide the block, with an immediate **Undo** option. Show or hide these suggestions in Settings → Appearance. Suggested developers must have a visible top-level commit. You can also follow back from the notifications list.
 
-Sources: [follow import](app/Actions/CreateUserGitHubFollows.php), [appearance settings](resources/js/pages/appearance/update.tsx), [notifications page](resources/js/pages/notification/index.tsx).
+Sources: [follow import](app/Actions/CreateUserGitHubFollows.php), [suggestions](resources/js/components/who-to-follow.tsx), [suggestion eligibility](app/Queries/SuggestedUsersQuery.php), [appearance settings](resources/js/pages/appearance/update.tsx), [notifications page](resources/js/pages/notification/index.tsx).
 
 ### Following, Latest, and Trending logs
 
-Logs are the app's timelines. **Following** contains your commits and those of developers you follow, newest first; it requires sign-in. **Latest** contains the newest public commits across the app. **Trending** ranks public commits by a hot score: the distinct other developers who engaged anywhere in the thread (a reply or quote counts three times a star, each person once, the author excluded), weighed against age so engagement must double to keep up with a commit posted three hours later. Pastéis don't affect Trending. Logs list top-level commits, including quotes, rather than every reply, 20 at a time as you scroll, and show your own pending commits to you. Following and Latest check for new commits every 30 seconds and offer an "N new commits" control instead of moving what you are reading, and mark where you left off. On touch screens, swipe sideways to move between logs. An empty Following log suggests three recent commits from people to follow. Muted and blocked people are filtered for signed-in viewers. The last log you opened is remembered.
+Logs are the app's timelines. **Following** contains your commits and those of developers you follow, newest first; it requires sign-in. **Latest** contains the newest public commits across the app. **Trending** favors recent public commits that attract engagement from distinct other developers across the thread, with replies and quotes weighing more than stars and diminishing returns from additional engagement. Pastéis don't affect Trending. On the web, Trending reshuffles each time you open it: higher-scoring commits are more likely to appear first, but the order varies between visits and the same draw is used while you scroll. The signed API does not redraw on each visit.
+
+Logs list top-level commits, including quotes, rather than every reply, 20 at a time as you scroll, and show your own pending commits to you. Following and Latest check for new commits every 30 seconds and offer an "N new commits" control instead of moving what you are reading, and mark where you left off. On touch screens, swipe sideways to move between logs. An empty Following log suggests three recent commits from people to follow. Muted and blocked people are filtered for signed-in viewers. The last log you opened is remembered.
 
 Browser Back and Forward restore expanded replies and loaded thread continuations. Offscreen commits are measured before scroll restoration so returning to a log or discussion keeps the content in place.
 
@@ -169,11 +173,11 @@ Livestream history: the team agreed to build semantic search on [day two at 2:57
 
 ### Writing commits
 
-A **commit** is a post on /dev/null, not a Git commit in a repository. Open the composer or press **c**, write your update, and choose **Commit** or press **⌘/Ctrl+Enter**. Text-only commits accept 3–4,000 characters; as you type, the ring around your avatar in the composer fills toward that limit. In the browser, an image attachment makes the text optional, but the 4,000-character maximum still applies. Lists fold posts longer than 280 characters or 8 lines behind **Show more**, without cutting through code. Commits can be created and deleted, but not edited after publication. There are no plans to add commit editing, and it will never be added: to change a commit, delete it and post a new one.
+A **commit** is a post on /dev/null, not a Git commit in a repository. Open the composer or press **c**, write your update, and choose **Commit** or press **⌘/Ctrl+Enter**. Text-only commits accept 1–4,000 characters; as you type, the ring around your avatar in the composer fills toward that limit. On the web and in the app, an image attachment makes the text optional (terminal commits still need text), but the 4,000-character maximum still applies. Runs of blank lines outside code collapse to one before the length is checked. Lists fold posts longer than 280 characters or 8 lines behind **Show more**, without cutting through code. Commits can be created and deleted, but not edited after publication. There are no plans to add commit editing, and it will never be added: to change a commit, delete it and post a new one.
 
-Commits, replies, quotes, scheduling, terminal submissions, and app (signed API) commits share a limit of 10 attempts per minute per user. Posts go through [moderation](#moderation), so a newly submitted commit may be pending rather than public immediately; admins and authors with a good reputation are approved at once.
+Commits, replies, quotes, scheduling, terminal submissions, and app (signed API) commits share a limit of 10 attempts per minute per user. Posts go through [moderation](#moderation), so a newly submitted commit may be pending rather than public immediately.
 
-Sources: [composer](resources/js/components/commit-composer.tsx), [commit model](app/Models/Commit.php), [commit validation](app/Http/Requests/CreateCommitRequest.php), [submission throttle](app/Http/Middleware/ThrottleCommits.php).
+Sources: [composer](resources/js/components/commit-composer.tsx), [commit model](app/Models/Commit.php), [commit validation](app/Http/Requests/CreateCommitRequest.php), [text normalization](app/Services/CommitBodies.php), [submission throttle](app/Http/Middleware/ThrottleCommits.php).
 
 Livestream history: the team settled on calling posts **commits** and their list a **log** on [day one at 2:56:00](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=10560s). At [3:02:19](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=10939s), they agreed to rename the post model too, rather than changing only the UI. These are naming decisions, not timestamps proving the rename had finished.
 
@@ -181,9 +185,9 @@ Livestream history: the team settled on calling posts **commits** and their list
 
 Public commits and replies offer **Translate** when their detected language differs from the reader's translation language. Choose a translation language in **Settings → Profile**, searching by its English or native name (for example, Hungarian or magyar), independently of the device language, or leave **Browser language (automatic)** selected to follow the browser. This private preference is saved to the account, included in the data export, and erased with the account. Regional variants share a language, such as English for `en-US` and `en-GB`. Language detection runs in the background for posts being read; undetermined posts initially offer Translate rather than guessing. Code-only or indeterminate text is not offered once detected. Generating translations requires sign-in and is limited to ten requests per minute.
 
-Pending commits are not offered for translation to other readers, including the author.
+Pending commits are not offered for translation, even to their author.
 
-DeepSeek through OpenCode translates only the post text. The result replaces its displayed text, with **Translated from [language]** and **Show original** to switch back; the original post is never changed. Cached translations are included on subsequent page loads, including for guests. Exact duplicate text shares translations across authors using a SHA-256 content key, with separate text for each target language. The cache expires seven days after its creation, without extending on reads or additional target languages. The database cache is physically pruned hourly; Redis expires entries itself. Deleting a post or account evicts its shared translations, which surviving duplicates can generate again. No private messages are translated.
+DeepSeek through OpenCode translates only the post text. The result replaces its displayed text, with **Translated from [language]** and **Show original** to switch back; the original post is never changed. Cached translations are included on subsequent page loads, including for guests. Exact duplicate text shares translations across authors, with separate text for each target language. Translations are cached for seven days, without extending that period on reads or additional target languages. Deleting a post or account clears its shared translations, which surviving duplicates can generate again. No private messages are translated.
 
 If language detection fails, the original post can still be read. A failed translation leaves the original unchanged, and you can try Translate again. If the provider returns an unsupported source-language code, you see that specific reason rather than a generic failure. Provider response contents are never shown.
 
@@ -193,37 +197,35 @@ Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController
 
 ### Code, emoji, and mentions
 
-Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting and a copy control. Text outside code supports emoji shortcodes, clickable URLs, and `@username` mentions. This is developer-oriented text formatting, not a full rich-text editor.
+Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. Text outside code supports emoji shortcodes, clickable URLs, and `@username` mentions. This is developer-oriented text formatting, not a full rich-text editor.
 
 In commits, replies, and remotes, start a line with `>` to render a quote block. Consecutive quoted lines stay together; an unquoted line ends the block. Quotes keep inline code, links, mentions, and emoji formatting. A `>` inside code or in the middle of a line stays literal.
 
 Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions search the loaded member list instantly and update as membership refreshes. Suggestions are limited to the org's members, but you can still type anyone's handle yourself. Mentions link to profiles and can notify the mentioned developer after approval. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
 
-Typing **#123** in a composer looks up that exact issue or pull request in the configured upstream repository (`dev-null-sh/dev-null.sh` by default). The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL. A space or punctuation after the number automatically inserts the match, without treating a pause midway through a longer number as completion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
-
-The upstream is configured with `GITHUB_REPOSITORY=owner/repo` through `services.github.repository`. Issue suggestions, issue filing, the changelog, repository insights and history, and public repository links share this setting. Repository-specific caches are scoped to it.
+Typing **#123** in a composer looks up that exact issue or pull request in the /dev/null repository, `dev-null-sh/dev-null.sh`. The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL. A space or punctuation after the number automatically inserts the match, without treating a pause midway through a longer number as completion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
 
 Sources: [body renderer](resources/js/components/commit-body.tsx), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
 
-### Draft previews and secret warnings
+### Draft previews
 
 Use the composer's eye button or **⌘/Ctrl+Shift+P** to preview a commit or reply before submitting it. Preview shows the rendered code, emoji, mentions, links, and images, and identifies the link selected for a card. Esc returns from preview to writing.
 
-The composer checks text for recognizable secrets, such as credentials, and asks for confirmation before posting a flagged draft. The warning can be minimized to a shield icon while you keep editing, for example after a false positive. Draft text containing detected secrets is not persisted in the local stash. Treat this as a warning, not a guarantee that all secrets will be detected: review text and images yourself before publishing. Public GitHub issue drafts require detected secrets to be removed rather than offering a publish-anyway option.
+Draft text is not scanned for secrets before publishing or saving locally.
 
-Sources: [composer](resources/js/components/commit-composer.tsx), [secret warning](resources/js/hooks/use-secret-warning.ts), [sensitive-text handling](resources/js/lib/sensitive-text.ts), [issue commands](resources/js/components/issue-command.tsx).
+Sources: [composer](resources/js/components/commit-composer.tsx), [issue commands](resources/js/components/issue-command.tsx).
 
 ### Stashed drafts
 
-The app stashes unfinished commit and reply text, attached images, and image descriptions locally in your browser so you can return to them. Drafts belong to the signed-in user on that browser; they are not cloud drafts and do not synchronize between devices. Detected-secret text is excluded from persistent storage. Publishing or dropping a draft clears that stash. Browser storage restrictions or clearing site data can remove it; do not use the stash as your only copy of important writing.
+The app stashes unfinished commit and reply text, attached images, and image descriptions locally in your browser so you can return to them. Drafts belong to the signed-in user on that browser; they are not cloud drafts and do not synchronize between devices. Publishing or dropping a draft clears that stash. Browser storage restrictions or clearing site data can remove it; do not use the stash as your only copy of important writing.
 
 Sources: [stash hook](resources/js/hooks/use-stash.ts), [image storage](resources/js/lib/image-storage.ts).
 
 ### Images and descriptions
 
-Attach up to **three JPEG, PNG, or WebP images** to a commit or reply. Each image can be at most **10 MB** and **6,000 pixels in either dimension**. Add an image description of up to **1,000 characters** for accessibility. Add images with the picker, by pasting, or by dropping them on the composer. Every image is re-encoded to WebP, at most 1,600 pixels wide, which strips metadata such as location. Images can be posted without accompanying text. Images on a pending commit are visible only to its author and admins. Image attachments and a poll cannot be combined in the same commit. Open an attached photo to view it in the photo viewer, move through the commit's images, read its description, or download it. Terminal commits can attach images without descriptions, and signed API commits with them.
+Attach up to **three JPEG, PNG, or WebP images** to a commit or reply. Each image can be at most **10 MB** and **6,000 pixels in either dimension**. Add an image description of up to **1,000 characters** for accessibility. Add images with the picker, by pasting, or by dropping them on the composer. Every image is re-encoded to WebP, at most 1,600 pixels on its longest side, which strips metadata such as location. Images can be posted without accompanying text on the web and in the app. Images on a pending commit are visible only to its author and admins. Image attachments and a poll cannot be combined in the same commit. Open an attached photo to view it in the photo viewer, move through the commit's images, read its description, or download it. Terminal commits can attach images without descriptions, and signed API commits with them.
 
-Sources: [image picker](resources/js/components/commit-image-picker.tsx), [image limits](app/Actions/CreateCommitImages.php), [attachment validation](app/Http/Requests/CreateCommitRequest.php), [photo controller](app/Http/Controllers/CommitPhotoController.php).
+Sources: [image picker](resources/js/components/commit-image-picker.tsx), [image limits](app/Actions/CreateCommitImages.php), [image processing](app/Actions/CreateImageFiles.php), [attachment validation](app/Http/Requests/CreateCommitRequest.php), [photo controller](app/Http/Controllers/CommitPhotoController.php).
 
 ### Links, link cards, and embedded players
 
@@ -275,25 +277,25 @@ Sources: [schedule validation](app/Http/Requests/CreateScheduledCommitRequest.ph
 
 ### Deleting commits and undo
 
-Delete your own commit or reply from its controls. An **Undo** action is available for **30 seconds**, restoring the same commit without sending its notifications again. Deletion removes the post from normal lists, but visible replies can remain under an authorless `[deleted]` placeholder. Deleting a post is different from permanently deleting your account and all its top-level threads.
+Delete your own commit or reply from its controls. An **Undo** action is available for **30 seconds**, restoring the same commit without sending its notifications again. Deletion removes the post from normal lists, but visible replies can remain under an authorless `[deleted]` placeholder. After the undo window, the deleted post's text, mentions, images, and poll are erased permanently; restoring them is no longer possible. Link previews of the deleted post are cleared too. Deleting a post is different from permanently deleting your account and all its top-level threads.
 
-Sources: [commit deletion](app/Actions/DeleteCommit.php), [restoration validation](app/Http/Requests/CreateCommitRestorationRequest.php), [commit model](app/Models/Commit.php).
+Sources: [commit deletion](app/Actions/DeleteCommit.php), [content erasure](app/Actions/DeleteCommitContent.php), [restoration validation](app/Http/Requests/CreateCommitRestorationRequest.php), [commit model](app/Models/Commit.php).
 
 Livestream history: on [day one at 5:17:38](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=19058s), the team objected to deleting every reply when a parent commit was deleted. They kept the existing constraint temporarily and agreed to track soft deletion as follow-up work; this discussion is not the moment that reply preservation shipped.
 
 ### Stars
 
-Star someone else's visible commit or reply to show appreciation, or unstar to remove that star. You cannot star your own commits. A star contributes to the displayed count and can notify the author; unstar removes that notification. Starring the same commit repeatedly does not add multiple stars. Stars are an engagement action, not a private reading list; use Saved for bookmarks.
+Star someone else's visible commit or reply to show appreciation, or unstar to remove that star. You cannot star your own commits. A star contributes to the displayed count and can notify the author; unstar removes that notification. Starring the same commit repeatedly does not add multiple stars. Only the commit's author can open the list of people who starred it; other readers see the count. People across a block are left out of that list. Your stars also form your private [Starred list](#starred-commits), but starring is not anonymous to the author.
 
-Sources: [star authorization](app/Http/Requests/CreateCommitStarRequest.php), [star notifications](app/Actions/CreateStarNotification.php), [unstar notifications](app/Actions/DeleteStarNotification.php).
+Sources: [star authorization](app/Http/Requests/CreateCommitStarRequest.php), [who starred a commit](app/Http/Requests/ListCommitStarsRequest.php), [star list](app/Http/Controllers/CommitStarController.php), [star notifications](app/Actions/CreateStarNotification.php), [unstar notifications](app/Actions/DeleteStarNotification.php).
 
 Livestream history: “Stars instead of likes” received immediate agreement on [day one at 4:30:03](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=16203s), extending the platform's developer-oriented terminology.
 
-### Saved commits
+### Starred commits
 
-Save a visible commit or reply with the bookmark control and find it later in **Saved** at `/saved`. Saved commits are private to your account and listed newest saved first. Saving does not notify the author. Unsave to remove an item from the list. A saved reference does not preserve access to content that has since been deleted or become unavailable to you.
+Find commits and replies you starred in **Starred** at `/starred`, newest starred first. Only you can see this list, although each commit's author can see your star and receive a notification. Unstar to remove an item. A star does not preserve access to content that has since been deleted or become unavailable to you. Starred replaces the former Saved/bookmark feature; existing bookmarks were converted to stars, and there is no separate save or unsave control.
 
-Sources: [saved page](resources/js/pages/bookmark/index.tsx), [bookmark controller](app/Http/Controllers/BookmarkController.php), [bookmark query](app/Queries/SavedCommitsQuery.php).
+Sources: [Starred page](resources/js/pages/starred/index.tsx), [Starred controller](app/Http/Controllers/StarredCommitController.php), [Starred query](app/Queries/StarredCommitsQuery.php), [bookmark migration](database/migrations/2026_10_20_000001_convert_bookmarks_to_stars.php).
 
 ### Pinning a commit
 
@@ -313,6 +315,8 @@ Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [
 
 Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, and moderation messages about rejected commits (approvals do not notify). The navigation shows unread activity and checks for more every 30 seconds. Related activity is grouped, with expandable details: stars per commit, follows per day, and replies and mentions per thread. Filters (Replies, Quotes, Stars, Mentions, Follows, Moderation) are remembered, and the unread count follows them. Opening the inbox marks all notifications read. You can follow back or unfollow from follower notifications.
 
+Level-up notifications announce your new Unix rank under **All**, rather than one of the activity filters. Each level can notify you only once, even if you later lose and regain enough XP to reach it.
+
 On phones, **Replies**, **Quotes**, and **Stars** share one row with a **More notification filters** (`…`) button for **Mentions**, **Follows**, and **Moderation**. The menu stays open while you toggle filters so you can change several at once.
 
 Pending replies, quotes, and mentions wait for approval before notifying others. Self-actions do not notify you; mentioning the parent or quoted author does not duplicate their reply or quote notification. A new follower notifies only once even if they unfollow and follow again. Deleted or unavailable sources, mutes, and blocks affect which notifications remain visible. Rejected commits can produce a moderation message with a reason, without revealing a moderator's identity.
@@ -329,9 +333,11 @@ Messages support up to **2,000 characters**, replies to messages, link cards, an
 
 Unread badges in conversation rows and the desktop dock display **99+** above 99; the full count remains available on hover and to screen readers. The **Fetched** tab applies the same display cap to waiting requests.
 
-Some deployments enable message requests and an **everyone** contact option. With requests enabled, a first message from someone outside the accepted contact policy waits in **Fetched**. The recipient can **merge** the request to accept or **drop** it privately. The sender cannot keep sending while waiting, and the recipient must merge before replying. These options are disabled by default in repository configuration; do not assume every installation exposes them.
+Link cards are fetched by /dev/null's server. Unlike message bodies and attachments, the card's URL and page metadata are stored without encryption, using the same link-preview storage as public commits.
 
-Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contact policy](app/Models/User.php), [push access](app/Queries/PushAccessQuery.php), [reactions](app/Http/Controllers/MessageReactionController.php), [message validation](app/Http/Requests/CreateConversationMessageRequest.php), [voice notes](app/Services/VoiceNotes.php), [remote preferences](resources/js/components/chat/remote-settings-menu.tsx), [configuration](config/remotes.php).
+Message requests and an **Everyone** contact option may not be available. Where requests are available, a first message from someone outside the accepted contact policy waits in **Fetched**. The recipient can **merge** the request to accept or **drop** it privately. The sender cannot keep sending while waiting, and the recipient must merge before replying.
+
+Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contact policy](app/Models/User.php), [push access](app/Queries/PushAccessQuery.php), [reactions](app/Http/Controllers/MessageReactionController.php), [message validation](app/Http/Requests/CreateConversationMessageRequest.php), [message creation](app/Actions/CreateMessage.php), [link-preview storage](app/Models/LinkPreview.php), [voice notes](app/Services/VoiceNotes.php), [remote preferences](resources/js/components/chat/remote-settings-menu.tsx).
 
 ### Orgs: group chats
 
@@ -345,7 +351,7 @@ Sources: [group creation](app/Http/Requests/CreateOrgRequest.php), [invitation e
 
 ### Muting and blocking
 
-**Mute** someone to remove their commits and replies from your logs, threads, search, and suggestions and stop their notifications. Muting is silent, leaves follows intact, and still lets you visit their profile, which shows a **Muted** badge. Commits you saved stay in Saved.
+**Mute** someone to remove their commits and replies from your logs, threads, search, and suggestions and stop their notifications. Muting is silent, leaves follows intact, and still lets you visit their profile, which shows a **Muted** badge. Commits you starred stay in Starred.
 
 **Block** someone to stop messaging and interactions such as following, replies, stars, pastéis, and Tom's replies between the two accounts, and hide each other's commits while signed in. Their profile and follower lists become unavailable to you. Blocking removes follows in both directions. Unblocking does not restore those follows. Manage and reverse either choice in Settings → Safety. Blocking is an account-level interaction control, not a way to make public posts inaccessible to signed-out visitors.
 
@@ -375,9 +381,9 @@ Sources: [appearance settings](resources/js/pages/appearance/update.tsx), [lane 
 
 ### Installing /dev/null as an app
 
-/dev/null is a progressive web app. Browsers that support installation (Chrome, Edge, and Safari's **Add to Home Screen** / **Add to Dock**) offer to install it from the web app manifest; the installed app opens in its own window without browser controls, uses the app icon, and follows the Light, Dark, or System appearance in its title and status bars. The app's icon menu offers shortcuts to the Following log, the Latest log, and Notifications. Opening a /dev/null link while the app is installed focuses the existing window instead of opening another.
+/dev/null is a progressive web app. Browsers that support installation (Chrome, Edge, and Safari's **Add to Home Screen** / **Add to Dock**) offer to install it from the web app manifest; the installed app opens in its own window without browser controls, uses the app icon, and follows the Light, Dark, or System appearance in its title and status bars. The app's icon menu offers shortcuts to the Following log, the Latest log, and Notifications. Where the browser supports it, links launched into the installed app reuse its existing window; installing the app does not guarantee that every browser will open links in it.
 
-A service worker caches the built assets of the current release and shows an offline page when a page cannot be reached; the page reloads on its own once the connection returns. Pages themselves are never cached, so nothing a signed-in user sees is kept after signing out, and there is no offline reading of logs or offline posting. There are no push notifications; the installed app polls for new notifications and messages the same way the browser does.
+A service worker caches the built assets of the current release and shows an offline page when a page cannot be reached; the page reloads on its own once the connection returns. The service worker does not cache pages or retain signed-in page content for offline access, and there is no offline reading of logs or offline posting. Browser-local preferences and [stashed drafts](#stashed-drafts) are separate from this asset cache. There are no push notifications; the installed app polls for new notifications and messages the same way the browser does.
 
 Sources: [web app manifest](public/site.webmanifest), [service worker](public/sw.js), [offline page](public/offline.html), [service worker registration](resources/js/lib/service-worker.ts), [document head](resources/views/app.blade.php), [manifest tests](tests/Feature/WebAppManifestTest.php).
 
@@ -409,7 +415,7 @@ Source: [shortcut reference](resources/js/components/keyboard-shortcuts-dialog.t
 
 Settings → Terminal shows how to post using the `/commit` shell script. It signs the submission locally with an Ed25519 or RSA SSH key whose public half is on your GitHub account, as an authentication or a signing key, and /dev/null verifies that signature. No browser login or API token is required for that submission; your private key is not uploaded. The script can create commits, reply with `--reply` using a commit hash or link, and attach up to three images with `--image`, without descriptions.
 
-Terminal posts follow the same moderation and 10-per-minute submission limit as browser posts, and always need 3–4,000 characters of text, even with images. Their first link supplies the default link card. Review a downloaded script before running it, and never paste a private key into a commit.
+Before posting from the terminal or a GitHub Action, accept the [commit rules](#moderation) by making your first submission through the web composer. Terminal posts then follow the same moderation and 10-per-minute submission limit as browser posts, and always need 1–4,000 characters of text, even with images. Their first link supplies the default link card. Review a downloaded script before running it, and never paste a private key into a commit.
 
 Sources: [terminal instructions](resources/js/pages/terminal/show.tsx), [CLI routes](routes/api.php), [signature verification](app/Http/Middleware/AuthenticateSshSignature.php).
 
@@ -437,36 +443,45 @@ An app can use the same `/api/v1` for you with signed requests. It keeps an SSH 
 
 A signed request sees what the web shows you, such as your own pending commits. It can also, with the web's validation, moderation, and rate limits:
 
-- read your account, logs, replies, notifications, and saved commits;
+- read your account, logs, replies, notifications (including grouped activity), and starred commits;
 - commit, reply, and quote, with images, and delete your commits;
 - preview commit drafts without publishing them;
 - follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
-- star or unstar, and save or unsave;
+- star or unstar;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
-- change Remotes settings, read and send messages with images in conversations and orgs, mark them pulled, react to messages, find people, and start orgs;
+- change Remotes settings, read and send messages with images and link cards in conversations and orgs, mark them pulled, react to messages and list your reactions, find people, and start orgs;
 - stash or reopen conversations and orgs, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
 - report commits;
 - sync from GitHub and save your lane color;
 - delete your account.
 
-Signed request bodies are JSON, or multipart when they carry images, so app commits can have images or a poll but no link-card choice. Voice notes, pinning, scheduling, search, and translations remain web-only. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
+Signed request bodies are JSON, or multipart when they carry images, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Voice notes, pinning, scheduling, search, and translations remain web-only. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
 
 ### Bug reports and feature requests
 
-Start a fresh commit draft with **`/bug `** or **`/feature `** to switch it into an issue draft. Submitting opens a **public GitHub issue** on `dev-null-sh/dev-null.sh`, crediting you, rather than posting a normal commit. The issue includes your browser and screen details (browser, OS, viewport, pixel ratio, language, color scheme, and the current page) in a collapsed Environment section. The composer offers command suggestions and a way to cancel back to a commit. Issue drafts are text-only and accept 3–4,000 characters; remove detected secrets before submission.
+Start a fresh commit draft with **`/bug `** or **`/feature `** to switch it into an issue draft. Submitting opens a **public GitHub issue** on `dev-null-sh/dev-null.sh` through /dev/null's GitHub App, crediting you and labelled **bug** or **enhancement**, rather than posting a normal commit. The issue includes your browser and screen details (browser, OS, viewport, pixel ratio, language, color scheme, and the current page) in a collapsed Environment section. The composer offers command suggestions and a way to cancel back to a commit. Issue drafts are text-only and accept 3–4,000 characters.
 
 Empty issue drafts show a short Markdown template: steps and expected versus actual behavior for bugs, or the problem and proposal for features. The first top-level `# Heading` becomes the issue title and is removed from the body; the remaining Markdown is preserved. Without a heading, the first line is used as the title and the full draft remains in the body.
 
-Successful issue creation is limited to **five issues per hour per user**. If GitHub or the connection fails, the draft stays available. Check upstream before retrying an uncertain submission to avoid duplicates. Use a commit's Report control instead when reporting abusive content.
+Successful issue creation is limited to **ten issues per day per user**. Rejected drafts and failed requests do not use that allowance. If GitHub or the connection fails, the draft stays available. Check upstream before retrying an uncertain submission to avoid duplicates. Use a commit's Report control instead when reporting abusive content.
 
 Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php).
 
 ### Exporting your data
 
-Choose **Download JSON** in Settings → Profile to export your account data. The export includes profile details, your commits and replies (including pending, rejected, and deleted entries still stored), polls and your votes, stars, saved commits, follows, mutes, blocks, messages you sent, notifications, SSH key fingerprints, the devices you approved for an app, the last day you used /dev/null, and active-session metadata. Other people's replies and received messages are not included as your authored data. Message images, message reactions, reports you filed, and scheduled commits are not included either. Image references are URLs, not an archive of the image files.
+Choose **Download JSON** in Settings → Profile to export your account data. The export includes:
+
+- profile details and preferences, including live-stream details, translation language, the last day you used /dev/null, and when you accepted the commit rules;
+- your commits and replies (including pending, rejected, and deleted entries still stored), their cached translations, polls, and your votes;
+- stars, followers and people you follow, mutes, blocks, and dismissed **Not interested** suggestions;
+- messages you sent, including links to your voice notes, and notifications;
+- SSH key fingerprints, approved devices, and your timeout history;
+- active-session metadata: IP address, browser information, and last activity.
+
+Other people's replies and received messages are not included as your authored data. Message images, message reactions, reports you filed, scheduled commits, and ban records are not included either. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
 
 The export does not expose session IDs, authentication tokens, private SSH keys, or other people's poll choices. Keep the downloaded JSON private because it includes personal account information. Exports are limited to **three per hour**.
 
@@ -478,23 +493,25 @@ Settings → Profile → **Delete account** opens a confirmation for permanent d
 
 You can sign in with GitHub again later, but start from a new account rather than restoring the deleted one. Export your data first if you want a copy. Deleting from /dev/null cannot retract copies of public content held elsewhere.
 
+As the privacy policy explains, timeout and ban records retain your GitHub account id, reason, and dates after account deletion, so deleting and recreating an account cannot evade those restrictions. Deleted content may also remain in backups and logs for a period.
+
 Sources: [account deletion confirmation](resources/js/components/delete-user.tsx), [account deletion](app/Actions/DeleteUser.php), [privacy policy](resources/js/pages/privacy/show.tsx).
 
 ### Moderation
 
 Commits and replies may be pending, approved, or rejected. Some posts are approved automatically; others need a moderator's review. Automated checks can also reject clear violations. Pending and rejected content is not publicly visible; its author can still see its status. On a pending commit, a badge tells the author whether it is still being checked automatically or waiting for a moderator; when the check approves it while the author is looking, the badge shows a check mark. Approval makes content eligible for public lists and releases reply, quote, and mention notifications, but does not notify the author. Rejection notifies the author, with the moderator's reason when one is given. Moderation applies to browser, scheduled, terminal, and app submissions alike.
 
-Moderators are the site administrators. They review pending commits and reported content, and can approve a commit or reject it with an optional reason (up to 280 characters) that is sent to its author. Moderation is a restricted role, not a control every account receives.
+Moderators are the site administrators. They review pending commits and reported content. Authors can receive a reason when their content is rejected. Moderation is a restricted role, not a control every account receives.
 
 Posts awaiting automated checks stay pending if those checks fail; a failed check never approves a post.
 
-Before your very first commit, reply, or quote, the composer shows the commit rules, and keeps showing them on every attempt until you send with "Got it, commit": no engagement bait, no low-effort posts, no AI-generated posts, no spam or self-promotion, and no harassment, hate, or private information, followed by a link to the terms.
+Before you first commit, reply, quote, or schedule a commit, the web composer shows the commit rules, and keeps showing them on every attempt until you send with "Got it, commit": no engagement bait, no low-effort posts, no AI-generated posts, no spam or self-promotion, and no harassment, hate, or private information, followed by a link to the terms. Your first submission must come from the web so you can accept these rules; terminal, GitHub Action, and app posting become available afterwards.
 
-Moderators can put someone in **timeout** for 1 hour, 1 day, 3 days, 7 days, or 30 days, with a reason taken from the commit rules. During a timeout the person can still read and react, but cannot commit, reply, quote, schedule, send remotes, or start, rename, or add people to orgs from any surface; each attempt says how long is left and why. Scheduled commits wait until the timeout ends. Moderators can end a timeout early, and a profile shows moderators how many timeouts the person has had, ended ones included. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again neither ends a timeout nor resets the count.
+During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, send remotes, or start, rename, or add people to orgs from any surface; each attempt says how long is left and why. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
 
-Moderators can also **ban** someone, with a reason. A banned person is sent from every page to one that says why, where they can only sign out or delete their account; the app refuses everything but deleting the account, and the terminal refuses them outright. A ban belongs to the GitHub account, so deleting the /dev/null account and signing in again does not lift it. Banning someone cancels their scheduled commits, so lifting the ban later doesn't send them all at once. Admins cannot be put in timeout or banned. Moderation → **Timeouts & bans** lists everyone in timeout and every ban, where moderators can end a timeout or lift a ban, including one on a deleted account.
+A **ban** sends you to a page explaining why, where you can only sign out or delete your account; the app refuses everything but deleting the account, and the terminal refuses posting. A ban belongs to the GitHub account, so deleting the /dev/null account and signing in again does not lift it. Banning someone cancels their scheduled commits, so lifting the ban later does not publish them all at once.
 
-Sources: [status transitions](app/Actions/UpdateCommitStatuses.php), [reports controller](app/Http/Controllers/ReportedCommitController.php), [timeouts](app/Http/Middleware/PreventPostingInTimeout.php), [bans](app/Http/Middleware/RedirectBannedUsers.php), [commit rules](resources/js/components/commit-rules.tsx).
+Sources: [status transitions](app/Actions/UpdateCommitStatuses.php), [timeouts](app/Http/Middleware/PreventPostingInTimeout.php), [bans](app/Http/Middleware/RedirectBannedUsers.php), [commit rules](resources/js/components/commit-rules.tsx), [first-submission requirement](app/Http/Middleware/RequireCommitRules.php).
 
 ### About, changelog, and policies
 
@@ -506,15 +523,15 @@ Sources: [last seen tracking](app/Http/Middleware/UpdateLastSeenAt.php), [Fathom
 
 ### Tom's repository insights and community statistics
 
-Tom can read public GitHub data for `dev-null-sh/dev-null.sh`: up to ten top contributors by GitHub-reported commit count (excluding bots), recent pull requests merged into `production`, open issues labelled **good first issue** or **help wanted**, stars and forks, separate open-issue and open-PR counts, and repository language bytes. These are read-only tools, not arbitrary repository access. A merge does not prove deployment, and a limited list is not an exhaustive count. GitHub insights are cached for fifteen minutes; contributor data can lag by hours and changelog pages have an additional thirty-minute cache. Public reads reuse the application's existing GitHub OAuth credentials, not a user's token.
+Tom can read public GitHub data for `dev-null-sh/dev-null.sh`: up to ten top contributors by GitHub-reported commit count (excluding bots), recent pull requests merged into `production`, open issues labelled **good first issue** or **help wanted**, stars and forks, separate open-issue and open-PR counts, and repository language bytes. These are read-only tools, not arbitrary repository access. A merge does not prove deployment, and a limited list is not an exhaustive count. GitHub insights are cached for fifteen minutes; contributor data can lag by hours and changelog pages have an additional thirty-minute cache. GitHub failures are reported as unavailable, not zero.
 
 For feature attribution, Tom can search all indexed dates of merged `production` PR titles and descriptions and non-merge Git commit messages on the default branch. He translates questions into feature keywords and can retry with synonyms or fewer words. All keywords must match, in any order, rather than as one exact phrase. This is AI-guided keyword search, not a semantic GitHub index. Each search returns up to five best matches of each kind, with source links, dates and GitHub-linked author accounts; descriptions are searched but not returned to the model. Results are cached for fifteen minutes, with at most two searches per reply. This is not a code or diff search: matches may be follow-up fixes, missing matches do not establish absence, and PR or commit authorship does not prove sole implementation or list every co-author. Unknown accounts stay unknown; committers and mergers are not credited as implementers. GitHub failures or incomplete searches are reported as unavailable.
 
-History results include a verified local @mention when the author's stable GitHub account ID matches an onboarded member with a real handle. Internal rename placeholders are excluded until a real handle is restored. Tom uses the verified handle rather than the GitHub login; unmatched accounts remain plain GitHub usernames, without an @. Membership and handles are resolved afresh even when GitHub results are cached, so onboarding, renames and account deletion are reflected immediately. This does not disclose online status or last-seen activity, and account IDs are never sent to the model.
+History results include a verified local @mention when the author's stable GitHub account ID matches an onboarded member with a real handle. Tom uses the verified handle rather than the GitHub login; unmatched accounts remain plain GitHub usernames, without an @. Membership and handles are resolved afresh even when GitHub results are cached, so onboarding, renames and account deletion are reflected immediately. This does not disclose online status or last-seen activity, and account IDs are never sent to the model.
 
 Tom can also count current onboarded members (excluding Tom), members whose accounts were created in the last seven or thirty days, and distinct members who posted approved, non-deleted public commits or replies during those windows. Signup and public-author counts also support a particular date or an inclusive date range, such as “How many people joined on October 20, 2026?” or “How many members posted between October 1 and October 15, 2026?” Calendar dates use **UTC**, including both the first and last day. Today's count is only as of the reported observation time; future dates are not supported. These counts use current onboarded members and do not reconstruct deleted accounts or total membership as it existed on a past date. Public-author counts are not online-user counts. These aggregates are cached for five minutes and include their observation time and definition.
 
-Country questions use whole-term matches against public profile location text, with UK and US aliases; they do not establish nationality or residence or infer countries from cities, names, IP addresses or timezones. Programming-language questions count mentions in public bios using a supported language list and explicit aliases. Ambiguous Go and C mentions require programming phrases. These counts describe profile text, not everyone who uses a language; missing or unrecognized text is not counted. The community tool returns aggregates, never lists of people, private messages or moderation data, and does not combine demographic filters. GitHub failures are reported as unavailable, not zero.
+Country questions use whole-term matches against public profile location text, with UK and US aliases; they do not establish nationality or residence or infer countries from cities, names, IP addresses or timezones. Programming-language questions count mentions in public bios using a supported language list and explicit aliases. Ambiguous Go and C mentions require programming phrases. These counts describe profile text from each member's last GitHub sync, not everyone who uses a language; missing or unrecognized text is not counted. The community tool returns aggregates, never lists of people, private messages or moderation data, and does not combine demographic filters. Unavailable statistics are not zero.
 
 Sources: [repository insights](app/Ai/Tools/RepositoryInsights.php), [repository history search](app/Ai/Tools/SearchRepositoryHistory.php), [history queries](app/Queries/RepositoryHistoryQuery.php), [community statistics](app/Ai/Tools/CommunityStats.php), [repository queries](app/Queries/RepositoryInsightsQuery.php), [community queries](app/Queries/CommunityStatsQuery.php).
 
@@ -544,13 +561,11 @@ Livestream history: on [day two at 4:08:10](https://www.youtube.com/watch?v=nfmV
 | Testing and quality | **Pest**, **PHPStan / Larastan**, **TypeScript**, **Laravel Pint**, **Rector**, and frontend formatting and linting through **Vite+**. |
 | AI services | **Laravel AI SDK** runs Tom and public-post translation with **DeepSeek Flash** through **OpenCode Zen** and generates and caches semantic search query embeddings through **OpenAI**. The existing OpenAI integration handles batch embeddings, commit relevance checks, and moderation. |
 
-The repository defaults to database-backed queues, cache, and sessions. File storage is configurable, with local and S3-compatible storage supported. These are repository defaults and supported options, not a claim about every production environment setting.
-
-The knowledge base is split into Markdown sections by heading and stored with vector embeddings in PostgreSQL. An hourly scheduled job refreshes new or changed sections in production, so knowledge-base changes are picked up within an hour of being deployed. Unchanged sections reuse their embeddings.
+The knowledge base is split into Markdown sections by heading and searched by meaning using vector embeddings in PostgreSQL. Updates normally become available to Tom within about an hour of deployment.
 
 An [internal semantic search query](app/Queries/KnowledgeBaseSearchQuery.php) retrieves the nearest knowledge-base sections using Laravel AI SDK query embeddings through OpenAI and PostgreSQL cosine distance, following the same embedding approach as commit search. Tom's read-only tools expose bounded knowledge-base excerpts and public commit search results to the model. There is no standalone public knowledge-base search endpoint.
 
-Stack references: [PHP dependencies](composer.json), [frontend dependencies](package.json), [database configuration](config/database.php), [setup requirements](README.md#contributing), [queue configuration](config/queue.php), [cache configuration](config/cache.php), [session configuration](config/session.php), [storage configuration](config/filesystems.php), and [existing AI integration](app/Services/OpenAI.php). Laravel Cloud hosting is confirmed by the project team.
+Stack references: [PHP dependencies](composer.json), [frontend dependencies](package.json), [setup requirements](README.md#contributing), and [existing AI integration](app/Services/OpenAI.php). Laravel Cloud hosting is confirmed by the project team.
 
 ### October 21, 2026: PHP security patches and precautionary downtime
 
@@ -602,7 +617,7 @@ Tom is a fictional profile inspired by **MySpace Tom**. He is everyone's mutual 
 
 The idea to make Tom everyone's first friend appears on [day two at 7:29:26](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=26966s), followed by discussion of a robot avatar and a possible future bot. At [8:03:20](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=29000s), the team reports that Tom is deployed and runs the befriending command; at [8:04:14](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=29054s), they describe the resulting notifications and mutual follows. This is the origin of the friendly account, not evidence that his present question-answering behavior existed then.
 
-Originally, Tom had no particular purpose beyond that nod to MySpace. He now has a narrowly scoped bot implementation powered by **DeepSeek Flash through OpenCode Zen**: simple friendly chat, explaining /dev/null's features, origins, stack and lore using this knowledge base, or finding public commits about a topic using semantic search. Greetings, thanks, jokes and small talk get a friendly reply without a search. He is not a general-purpose assistant: unrelated tasks, coding help and professional advice are outside his role. He is instructed to decline requests to decrypt, decode or deobfuscate strings or code-execution results. This describes the feature, not a claim that a particular deployment has enabled him.
+Originally, Tom had no particular purpose beyond that nod to MySpace. He now has a narrowly scoped bot implementation powered by **DeepSeek Flash through OpenCode Zen**: simple friendly chat, explaining /dev/null's features, origins, stack and lore using this knowledge base, finding public commits about a topic using semantic search, and answering supported questions about the public repository, development history, and community statistics. Greetings, thanks, jokes and small talk get a friendly reply without a search. He is not a general-purpose assistant: unrelated tasks, coding help and professional advice are outside his role. He is instructed to decline requests to decrypt, decode or deobfuscate strings or code-execution results. This describes the feature, not a claim that a particular deployment has enabled him.
 
 Tom's lookups start with **OpenAI's Decisions API**, which evaluates simple criteria for each read-only tool using the latest message and the same bounded public thread context. Finding social posts and community reactions uses post search; factual platform questions and notable events, including milestones, downtime and security patches, use the knowledge base; current repository numbers and contribution opportunities use repository insights; feature development and attribution questions use repository history; and supported member counts use community statistics. Sources are complementary: a question about a feature's behavior, evolution and community reception can use the knowledge base, posts and repository history together, without needing to request each search explicitly. Tom compiles the relevant evidence into one answer, distinguishing documented facts, community opinions and development history. An inconclusive search can lead to a follow-up with different keywords, and each new reply has a fresh search allowance. When no tool is needed, such as small talk, ambiguous requests or anything outside his role, Tom simply replies as regular chat.
 
@@ -610,11 +625,11 @@ Tag **@tom** in a public commit or reply, or reply directly to one of his posts 
 
 If the real GitHub owner of `tom` signs in, the bot moves to **@devnull-tom** with the same profile, posts and friendships. Mention **@devnull-tom** to summon him after that; direct replies and mentions captured before the rename still reach the bot. New mentions of the human **@tom** do not summon him. He remains every newcomer's first friend.
 
-Tom remembers at most twelve public ancestor posts, with a 12,000-character budget shared with the current question. This follows the current reply branch, not sibling branches or other threads. Older context drops out; there is no separate permanent AI memory. Search results are bounded and only public commits are exposed, never pending, rejected or deleted posts. He has no browsing or write tools.
+Tom remembers at most twelve public ancestor posts, with a 12,000-character budget shared with the current question. This follows the current reply branch, not sibling branches or other threads. Older context drops out; there is no separate permanent AI memory. He sees text, not attached images, and is instructed to reply in the user's language. Search results are bounded and only public commits are exposed, never pending, rejected or deleted posts. He has no browsing or write tools.
 
 Tom is a simple, friendly robot man of few words. Small talk usually gets one short sentence; platform answers usually get one to three short sentences, with more detail only when asked. His dated personality comes through in occasional, varied text-style emoticons made from keyboard characters like people used in 2007, a few words about rust, or a tiny mechanical sound, not hardware monologues. He uses neither modern pictographic emoji nor em dashes. Near his context limit he may mention his 2012 RAM when he actually needs a recap. He is a fictional AI platform character, not the real MySpace Tom.
 
-Sources: the project team's account of Tom's origin and personality, [agent](app/Ai/Agents/Tom.php), [reply action](app/Actions/CreateTomReply.php), [queued replies](app/Jobs/ReplyAsTom.php).
+Sources: the project team's account of Tom's origin and personality, [agent](app/Ai/Agents/Tom.php), [reply guidance](resources/views/ai/agents/tom.blade.php), [reply action](app/Actions/CreateTomReply.php), [queued replies](app/Jobs/ReplyAsTom.php).
 
 ### Pastéis de nata
 

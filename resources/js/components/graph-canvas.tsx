@@ -1,3 +1,4 @@
+import { router } from '@inertiajs/react';
 import type { ComponentProps, ReactNode } from 'react';
 import {
     createContext,
@@ -11,6 +12,7 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import {
+    drawnStretch,
     entranceDelay,
     graphEdges,
     isOnScreen,
@@ -280,6 +282,16 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     const [leaving, setLeaving] = useState(noLeaving);
     const [isDrawing, setIsDrawing] = useState(false);
 
+    const clip = useCallback(() => {
+        const box = containerRef.current?.getBoundingClientRect();
+        const canvas = canvasRef.current;
+
+        if (box && canvas) {
+            // Large offscreen SVGs distort in Gecko's view-transition captures. Keep their painted area in the viewport.
+            canvas.style.clipPath = `inset(${Math.max(0, -box.top)}px 0 ${Math.max(0, box.bottom - window.innerHeight)}px 0)`;
+        }
+    }, []);
+
     const read = useCallback(() => {
         const container = containerRef.current;
 
@@ -288,6 +300,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
         }
 
         const box = container.getBoundingClientRect();
+        clip();
         const rows = [
             ...container.querySelectorAll('[data-graph-leaving]'),
         ].map((element) => ({
@@ -330,7 +343,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
         setNodes((current) =>
             sameNodes(current, measured) ? current : measured,
         );
-    }, []);
+    }, [clip]);
 
     const measure = useCallback(() => {
         cancelAnimationFrame(frame.current);
@@ -382,7 +395,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     );
 
     useLayoutEffect(() => {
-        // An observer reports each element once when it starts watching it, as a page mounts: the registration has
+        // An observer reports each element once when it starts watching it, as a page mounts: the layout effect has
         // measured already, and rendering then would run the new page's effects inside the observer's callback. Only
         // real resizes measure on the spot.
         const sizes = new WeakMap<Element, string>();
@@ -407,6 +420,9 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
         if (containerRef.current) {
             resize.observe(containerRef.current);
         }
+
+        // The composer can move the canvas without resizing it.
+        resize.observe(document.body);
 
         for (const { element } of entries.current.values()) {
             resize.observe(element);
@@ -452,8 +468,16 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
         const container = containerRef.current;
 
         window.addEventListener('resize', measure);
+        window.addEventListener('scroll', clip, {
+            capture: true,
+            passive: true,
+        });
+        // Inertia resets or restores scroll after React's layout effects; success also covers replace visits.
+        const stopSuccess = router.on('success', clip);
+        const stopNavigate = router.on('navigate', clip);
         void document.fonts?.ready.then(measure);
-        measure();
+        // A view transition captures the new page before the next animation frame, so its graph must already be drawn.
+        read();
 
         return () => {
             resize.disconnect();
@@ -461,9 +485,12 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             container?.removeEventListener('animationend', settle);
             observer.current = null;
             window.removeEventListener('resize', measure);
+            window.removeEventListener('scroll', clip, true);
+            stopSuccess();
+            stopNavigate();
             cancelAnimationFrame(frame.current);
         };
-    }, [measure, measureNow]);
+    }, [clip, measure, measureNow, read]);
 
     const edges = useMemo(() => graphEdges(nodes), [nodes]);
     const delayOf = useCallback(
@@ -548,7 +575,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                     key={edge.id}
                                     id={`${id}-${index}`}
                                     edge={edge}
-                                    drawDelay={entering.get(edge.id)}
+                                    draw={entering.get(edge.id)}
                                     onDrawn={onDrawn}
                                 />
                             ))}
@@ -599,31 +626,48 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     );
 }
 
+/** How a line draws itself in: after how long, and from how far along, in px, as the stretch before is already painted. */
+type Draw = { delay: number; from: number };
+
 function EdgeDefs({
     id,
     edge,
-    drawDelay,
+    draw,
     onDrawn,
 }: {
     id: string;
     edge: GraphEdge;
     /** Set while the line draws itself in, after its nodes have scaled in. */
-    drawDelay?: number;
+    draw?: Draw;
     onDrawn: (edgeId: string) => void;
 }) {
-    if (drawDelay === undefined) {
+    const from = draw?.from ?? 0;
+    const startAt = useCallback(
+        (path: SVGPathElement | null) => {
+            const length = path?.getTotalLength() ?? 0;
+
+            path?.style.setProperty(
+                '--graph-draw-from',
+                String(length > 0 ? Math.max(0, 1 - from / length) : 1),
+            );
+        },
+        [from],
+    );
+
+    if (draw === undefined) {
         return null;
     }
 
     return (
         <mask id={`${id}-draw`} maskUnits="userSpaceOnUse">
             <path
+                ref={startAt}
                 d={edge.d}
                 stroke="white"
                 strokeWidth={strokeWidth * 4}
                 pathLength={1}
                 strokeDasharray="1 1"
-                style={{ animationDelay: `${drawDelay}ms` }}
+                style={{ animationDelay: `${draw.delay}ms` }}
                 className="motion-safe:animate-graph-draw"
                 onAnimationEnd={() => onDrawn(edge.id)}
             />
@@ -639,9 +683,9 @@ function useEnteringEdges(
     edges: GraphEdge[],
     delayOf: (edge: GraphEdge) => number,
     canvasTop: () => number,
-): { entering: Map<string, number>; onDrawn: (edgeId: string) => void } {
-    const known = useRef<Set<string> | null>(null);
-    const [entering, setEntering] = useState<Map<string, number>>(new Map());
+): { entering: Map<string, Draw>; onDrawn: (edgeId: string) => void } {
+    const known = useRef<GraphEdge[] | null>(null);
+    const [entering, setEntering] = useState<Map<string, Draw>>(new Map());
 
     // Before the browser paints, so a new line never shows in full for a frame before its mask hides it.
     useLayoutEffect(() => {
@@ -649,14 +693,16 @@ function useEnteringEdges(
 
         if (known.current === null) {
             if (edges.length > 0) {
-                known.current = ids;
+                known.current = edges;
             }
 
             return;
         }
 
-        const fresh = [...ids].filter((edgeId) => !known.current?.has(edgeId));
-        known.current = ids;
+        const before = new Set(known.current.map((edge) => edge.id));
+        const fresh = [...ids].filter((edgeId) => !before.has(edgeId));
+        const gone = known.current.filter((edge) => !ids.has(edge.id));
+        known.current = edges;
         const top = canvasTop();
         // Without motion, no draw would ever end to take its mask off.
         const isStill = window.matchMedia(
@@ -680,10 +726,19 @@ function useEnteringEdges(
 
             return new Map([
                 ...kept,
-                ...drawing.map((edge): [string, number] => [
-                    edge.id,
-                    delayOf(edge),
-                ]),
+                ...drawing.map((edge): [string, Draw] => {
+                    const delay = delayOf(edge);
+
+                    // A line waiting for a node to scale in, like a reply just posted, draws in full once it has, so
+                    // no stretch of it runs over the node as it overshoots.
+                    return [
+                        edge.id,
+                        {
+                            delay,
+                            from: delay > 0 ? 0 : drawnStretch(edge, gone),
+                        },
+                    ];
+                }),
             ]);
         });
     }, [edges, delayOf, canvasTop]);

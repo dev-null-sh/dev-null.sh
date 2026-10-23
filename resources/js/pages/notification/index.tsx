@@ -522,7 +522,7 @@ function NotificationGroupItem({
     return (
         <article
             data-notification-group={notification.group_id}
-            className="transition-colors has-[[data-notification-link]:focus-visible]:bg-accent/50 has-[[data-notification-link]:hover]:bg-accent/40"
+            className="isolate transition-colors has-[[data-notification-link]:focus-visible]:bg-accent/50 has-[[data-notification-link]:hover]:bg-accent/40"
         >
             <NotificationContent
                 notification={notification}

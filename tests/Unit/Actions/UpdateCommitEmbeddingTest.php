@@ -8,7 +8,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
-    config(['services.openai.key' => 'sk-test']);
+    config(['ai.providers.openai.key' => 'sk-test']);
 });
 
 it('embeds the body of a commit', function (): void {

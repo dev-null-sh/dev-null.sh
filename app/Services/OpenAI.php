@@ -4,9 +4,14 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
+use Laravel\Ai\Enums\Lab;
+use Laravel\Ai\Files\Image;
 use UnexpectedValueException;
+
+use function Laravel\Ai\agent;
 
 final readonly class OpenAI
 {
@@ -70,8 +75,8 @@ final readonly class OpenAI
 
     public function request(): PendingRequest
     {
-        return Http::baseUrl('https://api.openai.com/v1')
-            ->withToken(config()->string('services.openai.key'))
+        return Http::baseUrl(config()->string('ai.providers.openai.url'))
+            ->withToken(config()->string('ai.providers.openai.key'))
             ->acceptJson()
             ->connectTimeout(3)
             ->timeout(15);
@@ -205,10 +210,7 @@ final readonly class OpenAI
      */
     public function showsMinors(array $imageDataUrls): bool
     {
-        return $this->ask('minors', self::MINORS_INSTRUCTIONS, array_map(
-            fn (string $imageDataUrl): array => ['type' => 'input_image', 'image_url' => $imageDataUrl],
-            $imageDataUrls,
-        ));
+        return $this->ask('minors', self::MINORS_INSTRUCTIONS, 'Review these images.', $imageDataUrls);
     }
 
     /**
@@ -217,52 +219,29 @@ final readonly class OpenAI
      */
     public function isHarmful(string $text): bool
     {
-        return $this->ask('harmful', self::HARMFUL_INSTRUCTIONS, [['type' => 'input_text', 'text' => $text]]);
+        return $this->ask('harmful', self::HARMFUL_INSTRUCTIONS, $text);
     }
 
     /**
      * Asks the reasoning model a yes or no question about the content. Anything but a clear no, such as a refusal or an
      * answer that can't be read, counts as a yes.
      *
-     * @param  list<array<string, string>>  $content
+     * @param  list<string>  $imageDataUrls
      */
-    private function ask(string $question, string $instructions, array $content): bool
+    private function ask(string $question, string $instructions, string $text, array $imageDataUrls = []): bool
     {
-        /** @var list<array{type: string, content?: list<array{type: string, text?: string}>}> $output */
-        $output = $this->request()
-            ->timeout(60)
-            ->post('responses', [
-                'model' => self::REVIEW_MODEL,
-                'input' => [
-                    ['role' => 'system', 'content' => $instructions],
-                    ['role' => 'user', 'content' => $content],
-                ],
-                'text' => ['format' => [
-                    'type' => 'json_schema',
-                    'name' => $question,
-                    'strict' => true,
-                    'schema' => [
-                        'type' => 'object',
-                        'properties' => [$question => ['type' => 'boolean']],
-                        'required' => [$question],
-                        'additionalProperties' => false,
-                    ],
-                ]],
-            ])
-            ->throw()
-            ->json('output', []);
+        $answer = agent(
+            instructions: $instructions,
+            schema: fn (JsonSchema $schema): array => [$question => $schema->boolean()->required()],
+        )->prompt(
+            $text,
+            attachments: array_map(Image::fromUrl(...), $imageDataUrls),
+            provider: Lab::OpenAI,
+            model: self::REVIEW_MODEL,
+            timeout: 60,
+        );
 
-        foreach ($output as $item) {
-            foreach ($item['content'] ?? [] as $part) {
-                if ($part['type'] === 'output_text') {
-                    $answer = json_decode($part['text'] ?? '', true);
-
-                    return ! is_array($answer) || ($answer[$question] ?? null) !== false;
-                }
-            }
-        }
-
-        return true;
+        return ($answer[$question] ?? null) !== false;
     }
 
     /**

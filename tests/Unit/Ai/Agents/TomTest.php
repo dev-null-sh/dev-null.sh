@@ -35,7 +35,7 @@ it('uses the reserved bot handle in its instructions after the real tom joins', 
 });
 
 it('forces the selected tools before Tom answers and supports a bounded follow-up search', function (): void {
-    config(['ai.providers.openai.key' => 'test-openai', 'ai.providers.opencode.key' => 'test-opencode', 'services.openai.key' => 'test']);
+    config(['ai.providers.openai.key' => 'test-openai', 'ai.providers.opencode.key' => 'test-opencode']);
     Queue::fake([EmbedCommit::class, ModerateCommit::class, ReplyAsTom::class]);
     resolve(Features::class)->update(Feature::Translations, false);
     Embeddings::fake([[embeddingVector(0)], [embeddingVector(0)]]);

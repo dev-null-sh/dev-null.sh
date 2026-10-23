@@ -6,13 +6,16 @@ use App\Actions\UpdateCommitHotScores;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Services\Features;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 it('renders own commits and commits of followed users newest first', function (): void {
@@ -547,6 +550,8 @@ it('includes the images and link previews of quoted commits', function (Log $log
 })->with(Log::cases());
 
 it('loads the quoted commits of a log without a query per commit', function (Log $log): void {
+    Queue::fake([DetectCommitLanguage::class]);
+    resolve(Features::class)->all();
     $user = User::factory()->create(['log' => $log, 'last_seen_at' => today()]);
 
     $queries = function () use ($user, $log): int {

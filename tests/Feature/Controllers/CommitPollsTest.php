@@ -9,11 +9,13 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Enums\NotificationType;
 use App\Enums\PollDuration;
+use App\Jobs\DetectCommitLanguage;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\User;
+use App\Services\Features;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -313,6 +315,8 @@ it('shows the poll of a pending commit to moderators', function (): void {
 });
 
 it('loads the polls of the log with a bounded number of queries', function (): void {
+    Queue::fake([DetectCommitLanguage::class]);
+    resolve(Features::class)->all();
     $user = User::factory()->create(['log' => Log::Trending, 'last_seen_at' => today()]);
     Poll::factory()->withOptions('Tabs', 'Spaces')->create();
     $this->actingAs($user);
