@@ -1,5 +1,9 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { GraphAnchor, WithoutGraph } from '@/components/graph-canvas';
+import {
+    GraphAnchor,
+    WithoutGraph,
+    graphDash,
+} from '@/components/graph-canvas';
 import { LiveAvatarMarker } from '@/components/live-stream-card';
 import { UserAvatar } from '@/components/user-avatar';
 import { cn, laneStrokeStyle } from '@/lib/utils';
@@ -134,7 +138,7 @@ export function GraphRail({
                 {hasReplyTail && (
                     <span
                         className={cn(
-                            'absolute top-8 bottom-0 left-1/2 -translate-x-1/2 border-l border-dashed border-(--lane)',
+                            'absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2',
                             dimmable,
                             {
                                 'opacity-60': isDimmed,
@@ -144,6 +148,9 @@ export function GraphRail({
                                     endsWithDot || nodePosition === 'bottom',
                             },
                         )}
+                        style={laneStrokeStyle('var(--lane)', {
+                            dash: graphDash,
+                        })}
                         data-test="commit-reply-spine"
                     />
                 )}

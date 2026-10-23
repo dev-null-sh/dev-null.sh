@@ -40,6 +40,8 @@ import {
     useComposerPreview,
 } from '@/components/composer-preview';
 import {
+    graphDash,
+    graphStrokeWidth,
     useGraphDimmed,
     useGraphNode,
     useGraphNodeId,
@@ -687,17 +689,18 @@ export function ThreadSpine({
         <span
             aria-hidden
             className={cn(
-                'absolute bottom-0 left-1/2 w-px -translate-x-1/2',
+                'absolute bottom-0 left-1/2 w-0.5 -translate-x-1/2',
                 className,
             )}
-            style={laneStrokeStyle(laneOf(thread.commit))}
+            style={laneStrokeStyle(laneOf(thread.commit), { dash: graphDash })}
             data-test="thread-spine"
         />
     );
 }
 
+// Centred on the reply avatars, as the graph canvas draws its lines.
 const replyLink =
-    'absolute left-[calc(var(--indent)+12px)] w-px sm:left-[calc(var(--indent)+14px)]';
+    'absolute left-[calc(var(--indent)+11px)] w-0.5 sm:left-[calc(var(--indent)+13px)]';
 
 function ReplyLinks({
     previousLane,
@@ -715,7 +718,7 @@ function ReplyLinks({
             ) : (
                 <span
                     className={cn(replyLink, 'top-0 h-1.5')}
-                    style={laneStrokeStyle(previousLane)}
+                    style={laneStrokeStyle(previousLane, { dash: graphDash })}
                     data-test="reply-link"
                 />
             )}
@@ -725,7 +728,7 @@ function ReplyLinks({
                         replyLink,
                         'top-[38px] bottom-0 sm:top-[42px]',
                     )}
-                    style={laneStrokeStyle(lane)}
+                    style={laneStrokeStyle(lane, { dash: graphDash })}
                     data-test="reply-tail"
                 />
             )}
@@ -747,8 +750,8 @@ function ThreadElbow() {
             <path
                 d="M 0 0 L 0 12 Q 0 23.5 12 23.5 L 32 23.5"
                 stroke="var(--lane)"
-                strokeWidth="1"
-                strokeDasharray="2 2"
+                strokeWidth={graphStrokeWidth}
+                strokeDasharray={`${graphDash} ${graphDash}`}
                 vectorEffect="non-scaling-stroke"
             />
         </svg>
@@ -850,6 +853,7 @@ export function ThreadReplies({
                                                     thread.replies.length - 1
                                                 ],
                                             ),
+                                            { dash: graphDash },
                                         )}
                                     />
                                 )}

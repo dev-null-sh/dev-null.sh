@@ -47,9 +47,15 @@ const GraphContext = createContext<Registry | null>(null);
  */
 const GraphDrawingContext = createContext(false);
 
-const strokeWidth = 2;
+/** The width of every line, which the rail pieces share so the canvas takes over from them unseen. */
+export const graphStrokeWidth = 2;
 
-const dash = '4 4';
+/** The length of each dash and of each gap of a dashed line, shared with the rail pieces too. */
+export const graphDash = 4;
+
+const strokeWidth = graphStrokeWidth;
+
+const dash = `${graphDash} ${graphDash}`;
 
 /**
  * Whether the lines around a node are drawn by a graph canvas, in which case the node's own rail pieces stay out.
