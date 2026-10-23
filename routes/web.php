@@ -232,7 +232,7 @@ Route::get('search/commits', [CommitSearchController::class, 'index'])
 
 Route::middleware('auth')->group(function (): void {
     Route::post('issues', [IssueController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])
         ->name('issue.store');
 
     // Session...
