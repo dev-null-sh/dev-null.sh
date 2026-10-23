@@ -46,6 +46,8 @@ export default defineConfig({
             'tests/Unit/VoiceSpeed.test.tsx',
             'tests/Unit/VoiceNoteSpeed.test.tsx',
             'tests/Unit/OrgMentionSuggestions.test.tsx',
+            'tests/Unit/SegmentedControl.test.tsx',
+            'tests/Unit/WhoToFollowTabs.test.tsx',
         ],
     },
 });
