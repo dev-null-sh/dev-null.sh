@@ -256,9 +256,9 @@ function FunnelValue({ funnel }: { funnel: Funnel }) {
                 value={formatCount(funnel.activated)}
             />
             <Definition title="Activation">
-                Got something from the network in their first 12 hours: starred
-                by 3+ people, or someone replied to, quoted or starred their
-                post. Activation rate = activated ÷ the{' '}
+                Got going in their first 12 hours: starred posts by 2+ people,
+                followed 10+ people, or someone replied to, quoted or starred
+                their post. Activation rate = activated ÷ the{' '}
                 {formatCount(funnel.activation_eligible)} sign-ups at least 12
                 hours old.
             </Definition>
