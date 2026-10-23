@@ -11,6 +11,7 @@ import {
     LinkifiedText,
     typedLinks,
 } from '../../resources/js/components/linkified-text';
+import { WordmarkText } from '../../resources/js/components/wordmark-text';
 import { bodySegments } from '../../resources/js/lib/code';
 import { bodyCharacterCount } from '../../resources/js/lib/commit';
 
@@ -509,3 +510,22 @@ for (const link of [
         assert.ok(markup.includes(`href="${link}"`));
     });
 }
+
+test('styles every standalone brand mention in UI copy without changing its text', () => {
+    const text = 'Welcome to /dev/null. /dev/null was updated.';
+    const html = renderToStaticMarkup(<WordmarkText>{text}</WordmarkText>);
+
+    assert.equal(html.replace(/<[^>]*>/g, ''), text);
+    assert.equal(html.match(/-webkit-text-stroke/g)?.length, 2);
+    assert.equal(html.match(/whitespace-nowrap/g)?.length, 2);
+});
+
+test('leaves paths, URLs, and longer names unchanged in UI copy', () => {
+    const text =
+        'https://example.com/dev/null /dev/nullish /dev/null/file x/dev/null /dev/null-é';
+
+    assert.equal(
+        renderToStaticMarkup(<WordmarkText>{text}</WordmarkText>),
+        text,
+    );
+});

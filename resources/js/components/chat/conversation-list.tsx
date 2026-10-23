@@ -8,6 +8,7 @@ import { MessageStatusGlyph } from '@/components/chat/message-status';
 import { eventText, MemberStack, orgTitle } from '@/components/chat/org';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
+import { WordmarkText } from '@/components/wordmark-text';
 import { useNow } from '@/hooks/use-now';
 import { summaryKey, targetOf } from '@/lib/chat';
 import type { ChatTarget } from '@/lib/chat';
@@ -194,7 +195,7 @@ function ConversationRow({
                         })}
                         title={preview}
                     >
-                        {preview}
+                        <WordmarkText>{preview}</WordmarkText>
                     </span>
                 </span>
             </span>

@@ -28,6 +28,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { WordmarkText } from '@/components/wordmark-text';
 import { dropConfetti } from '@/lib/confetti';
 import { formatCount, formatExactCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
@@ -368,7 +369,9 @@ export function AchievementsShelf({
                                                 : `(${badge.progress}/${badge.target})`}
                                         </p>
                                         <p className="mt-0.5 font-sans text-muted-foreground">
-                                            {badge.description}
+                                            <WordmarkText>
+                                                {badge.description}
+                                            </WordmarkText>
                                         </p>
                                     </TooltipContent>
                                 </Tooltip>
