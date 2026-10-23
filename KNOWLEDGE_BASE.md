@@ -468,7 +468,7 @@ Empty issue drafts show a short Markdown template: steps and expected versus act
 
 Successful issue creation is limited to **ten issues per day per user**. Rejected drafts and failed requests do not use that allowance. If GitHub or the connection fails, the draft stays available. Check upstream before retrying an uncertain submission to avoid duplicates. Use a commit's Report control instead when reporting abusive content.
 
-Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php).
+Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php), [issue limit](app/Http/Middleware/ThrottleIssues.php).
 
 ### Exporting your data
 

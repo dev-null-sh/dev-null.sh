@@ -107,6 +107,7 @@ use App\Http\Middleware\PreventPostingInTimeout;
 use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -232,7 +233,7 @@ Route::get('search/commits', [CommitSearchController::class, 'index'])
 
 Route::middleware('auth')->group(function (): void {
     Route::post('issues', [IssueController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware(['throttle:10,1', ThrottleIssues::class])
         ->name('issue.store');
 
     // Session...
