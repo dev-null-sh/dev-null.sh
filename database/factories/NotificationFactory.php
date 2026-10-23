@@ -7,6 +7,7 @@ namespace Database\Factories;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
+use App\Models\Poll;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -120,6 +121,20 @@ final class NotificationFactory extends Factory
                 ->for(User::query()->whereKey($attributes['actor_id'])->sole())
                 ->create(['body' => 'Thanks @'.User::query()->whereKey($attributes['recipient_id'])->sole()->username])
                 ->id,
+        ]);
+    }
+
+    /**
+     * A closed poll on one of the actor's approved commits.
+     */
+    public function pollClosed(): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'type' => NotificationType::PollClosed,
+            'commit_id' => fn (array $attributes): string => Poll::factory()->closed()
+                ->for(Commit::factory()->for(User::query()->whereKey($attributes['actor_id'])->sole()))
+                ->create()
+                ->commit_id,
         ]);
     }
 

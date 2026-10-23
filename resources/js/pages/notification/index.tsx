@@ -3,6 +3,7 @@ import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
 import {
     ArrowUp,
     AtSign,
+    ChartNoAxesColumn,
     Check,
     ChevronDown,
     ChevronsUp,
@@ -70,7 +71,7 @@ const filterOptions: {
     {
         type: 'all',
         label: 'All',
-        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, level-ups, and moderation updates for your commits will show up here.',
+        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, level-ups, closed polls, and moderation updates for your commits will show up here.',
     },
     {
         type: 'replies',
@@ -745,7 +746,10 @@ export function NotificationContent({
             ('event_count' in notification && notification.event_count > 1));
     const moderation =
         notification.type === 'approved' || notification.type === 'rejected';
-    const isOwnCommit = notification.type === 'starred' || moderation;
+    const pollClosed = notification.type === 'poll_closed';
+    const isOwnPoll = pollClosed && actor.id === user.id;
+    const isOwnCommit =
+        notification.type === 'starred' || moderation || isOwnPoll;
     const starredImages =
         notification.type === 'starred'
             ? (notification.commit.images ?? [])
@@ -767,6 +771,7 @@ export function NotificationContent({
         mentioned: AtSign,
         approved: Check,
         rejected: X,
+        poll_closed: ChartNoAxesColumn,
     }[notification.type];
     const icon = (
         <Icon
@@ -807,6 +812,9 @@ export function NotificationContent({
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
         leveled_up: level && `You reached level ${level.level}: ${level.rank}`,
+        poll_closed: isOwnPoll
+            ? 'Your poll has ended'
+            : 'A poll you voted in has ended',
     }[notification.type];
     const excerpt =
         notification.type === 'followed' ||
@@ -1059,7 +1067,7 @@ export function NotificationContent({
                                         >
                                             Lv. {level.level} · {level.rank}
                                         </span>
-                                    ) : moderation ? (
+                                    ) : moderation || isOwnPoll ? (
                                         <span
                                             className={cn(
                                                 'rounded-sm px-2 py-0.5 font-mono text-xs',
@@ -1068,7 +1076,9 @@ export function NotificationContent({
                                                     : 'bg-muted text-muted-foreground',
                                             )}
                                         >
-                                            {notification.type}
+                                            {isOwnPoll
+                                                ? 'poll'
+                                                : notification.type}
                                         </span>
                                     ) : !grouped ? (
                                         <span className="relative z-10 flex">
@@ -1127,6 +1137,7 @@ export function NotificationContent({
                                         )}
                                         {!moderation &&
                                             !level &&
+                                            !pollClosed &&
                                             (grouped ? (
                                                 <>
                                                     <Link
@@ -1172,7 +1183,8 @@ export function NotificationContent({
                                                 </>
                                             ))}
                                         {rowLink}
-                                        {(moderation || level) && '.'}
+                                        {(moderation || level || pollClosed) &&
+                                            '.'}
                                     </p>
                                     {starredImages[0] && (
                                         <img

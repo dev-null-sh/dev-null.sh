@@ -368,3 +368,37 @@ void test('says which level and rank a level-up reached, linking to the profile'
     assert.match(body, /Member of the trusted wheel administrative group/);
     assert.match(body, /<a[^>]*href="\/@mnapoli"/);
 });
+
+const pollClosed = {
+    ...notification,
+    id: 'poll',
+    group_id: 'poll',
+    type: 'poll_closed',
+    commit_id: 'poll',
+    subject_id: null,
+    commit: { ...notification.commit, id: 'poll' },
+} as NotificationGroup;
+
+void test('says a poll the user voted in has ended, linking to the author’s commit', async () => {
+    const body = await render([pollClosed]);
+
+    assert.match(body, /A poll you voted in has ended<\/a>\./);
+    assert.match(body, /<a[^>]*href="\/@mnapoli\/commits\/poll"/);
+    assert.doesNotMatch(body, /Your poll has ended/);
+});
+
+void test('says the user’s own poll has ended, linking to their commit', async () => {
+    const recipient = {
+        ...actor,
+        id: 'recipient',
+        name: 'Nuno Maduro',
+        username: 'nunomaduro',
+    } as User;
+    const body = await render([
+        { ...pollClosed, actor: recipient, actors: [recipient] },
+    ]);
+
+    assert.match(body, />poll<\/span>/);
+    assert.match(body, /Your poll has ended<\/a>\./);
+    assert.match(body, /<a[^>]*href="\/@nunomaduro\/commits\/poll"/);
+});

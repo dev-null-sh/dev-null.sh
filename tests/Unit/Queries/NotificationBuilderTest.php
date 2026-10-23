@@ -149,6 +149,20 @@ it('deletes stars along with the starred commit', function (): void {
     expect($notification->fresh())->toBeNull();
 });
 
+it('keeps closed polls on approved commits', function (): void {
+    $notification = Notification::factory()->pollClosed()->create();
+
+    expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
+});
+
+it('hides closed polls once the commit is rejected', function (): void {
+    $notification = Notification::factory()->pollClosed()->create();
+
+    resolve(UpdateCommitStatus::class)->handle($notification->commit, CommitStatus::Rejected);
+
+    expect(Notification::query()->whereKey($notification->id)->relevant()->exists())->toBeFalse();
+});
+
 it('deletes notifications along with the actor', function (Notification $notification): void {
     resolve(DeleteUser::class)->handle($notification->actor);
 
@@ -181,9 +195,10 @@ it('hides notifications from muted actors until they are unmuted', function (Not
     'replied' => fn (): Notification => Notification::factory()->replied()->create(),
     'mentioned' => fn (): Notification => Notification::factory()->mentioned()->create(),
     'starred' => fn (): Notification => Notification::factory()->starred()->create(),
+    'poll closed' => fn (): Notification => Notification::factory()->pollClosed()->create(),
 ]);
 
-it('hides replies, mentions and stars across a block in either direction', function (string $state, bool $recipientBlocks): void {
+it('hides replies, mentions, stars and closed polls across a block in either direction', function (string $state, bool $recipientBlocks): void {
     $notification = Notification::factory()->{$state}()->create();
 
     $recipientBlocks
@@ -191,4 +206,4 @@ it('hides replies, mentions and stars across a block in either direction', funct
         : $notification->actor->blocking()->attach($notification->recipient_id);
 
     expect(Notification::query()->relevant()->exists())->toBeFalse();
-})->with(['replied', 'mentioned', 'starred'])->with([true, false]);
+})->with(['replied', 'mentioned', 'starred', 'pollClosed'])->with([true, false]);

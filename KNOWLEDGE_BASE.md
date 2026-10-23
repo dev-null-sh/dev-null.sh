@@ -265,7 +265,9 @@ Add a poll to a top-level commit with **two to four distinct options**, each up 
 
 Signed-in readers can choose one option and vote once while an approved, visible poll is open; a vote cannot be changed or withdrawn. The author cannot vote in their own poll. Results are visible to the author and people who have voted, and to everyone once the poll closes. Other people's individual votes are not revealed.
 
-Sources: [poll editor](resources/js/components/poll-editor.tsx), [poll results](app/Models/Poll.php), [voting rules](app/Rules/OpenPoll.php), [approval and poll opening](app/Actions/UpdateCommitStatuses.php).
+When a poll closes, its author and everyone who voted get a notification that the results are final, within about a minute. Nobody hears about a poll whose commit was rejected or deleted, or about one by someone they mute or are across a block from.
+
+Sources: [poll editor](resources/js/components/poll-editor.tsx), [poll results](app/Models/Poll.php), [voting rules](app/Rules/OpenPoll.php), [approval and poll opening](app/Actions/UpdateCommitStatuses.php), [closed poll notifications](app/Actions/CreatePollClosedNotifications.php).
 
 ### Scheduled commits
 
@@ -313,7 +315,7 @@ Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [
 
 ### Notifications
 
-Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, and moderation messages about rejected commits (approvals do not notify). The navigation shows unread activity and checks for more every 30 seconds. Related activity is grouped, with expandable details: stars per commit, follows per day, and replies and mentions per thread. Filters (Replies, Quotes, Stars, Mentions, Follows, Moderation) are remembered, and the unread count follows them. Opening the inbox marks all notifications read. You can follow back or unfollow from follower notifications.
+Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, closed polls you created or voted in, and moderation messages about rejected commits (approvals do not notify). The navigation shows unread activity and checks for more every 30 seconds. Related activity is grouped, with expandable details: stars per commit, follows per day, and replies and mentions per thread. Filters (Replies, Quotes, Stars, Mentions, Follows, Moderation) are remembered, and the unread count follows them. Opening the inbox marks all notifications read. You can follow back or unfollow from follower notifications.
 
 Level-up notifications announce your new Unix rank under **All**, rather than one of the activity filters. Each level can notify you only once, even if you later lose and regain enough XP to reach it.
 

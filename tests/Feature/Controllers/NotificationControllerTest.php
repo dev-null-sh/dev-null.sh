@@ -162,6 +162,18 @@ it('shows the level reached with its rank, in all notifications only', function 
         ->assertInertia(fn ($page) => $page->where('notifications.data', []));
 });
 
+it('shows a closed poll with the commit it closed on, by its author', function (): void {
+    $user = User::factory()->create();
+    $notification = Notification::factory()->for($user, 'recipient')->pollClosed()->create();
+
+    $this->actingAs($user)->get(route('notification.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('notifications.data.0.type', 'poll_closed')
+            ->where('notifications.data.0.actor.id', $notification->actor_id)
+            ->where('notifications.data.0.commit.id', $notification->commit_id));
+});
+
 it('says whether the user follows each new follower back', function (): void {
     $user = User::factory()->create();
     $followedBack = Notification::factory()->for($user, 'recipient')->create(['created_at' => now()->subMinute()]);
