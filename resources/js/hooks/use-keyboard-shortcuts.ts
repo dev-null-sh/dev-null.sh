@@ -55,6 +55,15 @@ function focusedCommitAction(key: string): HTMLButtonElement | null {
     return action && !action.closest('[inert]') ? action : null;
 }
 
+/**
+ * A log announces new commits with a button that scrolls back up to them; the shortcut presses it from anywhere on the page.
+ */
+function scrollToNewCommits(): void {
+    document
+        .querySelector<HTMLButtonElement>('button[aria-keyshortcuts="."]')
+        ?.click();
+}
+
 function openFocusedCommit(): boolean {
     const commit = document.activeElement;
 
@@ -149,6 +158,7 @@ export function useKeyboardShortcuts(
                 j: () => moveCommitFocus(1),
                 k: () => moveCommitFocus(-1),
                 c: onCompose,
+                '.': scrollToNewCommits,
                 '/': onSearch,
                 '?': onShowHelp,
                 g: () => {

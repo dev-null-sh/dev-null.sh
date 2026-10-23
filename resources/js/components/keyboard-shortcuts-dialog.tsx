@@ -18,6 +18,7 @@ const shortcuts = (keys: KeyLabels): Shortcut[] => [
     { keys: ['q'], label: 'Quote commit' },
     { keys: ['o'], label: 'Show or hide replies' },
     { keys: ['c'], label: 'Write a commit' },
+    { keys: ['.'], label: 'Scroll to the new commits' },
     { keys: [keys.mod, 'K'], label: 'Search developers and commits' },
     { keys: ['/'], label: 'Search developers and commits' },
     { keys: [keys.mod, '↵'], label: 'Commit (in the composer)' },
