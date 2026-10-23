@@ -38,6 +38,10 @@ final class CommitFactory extends Factory
                 $commit->forceFill(['root_id' => Commit::query()->withTrashed()->findOrFail($commit->parent_id)->threadRootId()]);
             }
 
+            if ($commit->status === CommitStatus::Approved && $commit->approved_at === null) {
+                $commit->forceFill(['approved_at' => $commit->created_at ?? now()]);
+            }
+
             if ($commit->getAttribute('hot_score') === null) {
                 $commit->forceFill(['hot_score' => resolve(TheAlgorithm::class)->score($commit->created_at ?? now(), 0, 0)]);
             }

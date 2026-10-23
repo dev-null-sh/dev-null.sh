@@ -75,6 +75,7 @@ export type Commit = {
     translation?: CommitTranslation | null;
     status: CommitStatus;
     is_checking?: boolean;
+    approved_at?: string | null;
     created_at: string;
     updated_at: string;
     deleted_at?: null;

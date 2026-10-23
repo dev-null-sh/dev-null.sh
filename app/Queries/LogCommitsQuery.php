@@ -29,13 +29,16 @@ final readonly class LogCommitsQuery
             ->get();
         $perPage = max(20, $retained->count());
         $older = $query
-            ->whereRowValues(['commits.created_at', 'commits.id'], '<', [$through->created_at, $through->id])
+            ->whereRaw(
+                '(coalesce(commits.approved_at, commits.created_at), commits.id) < (?, ?)',
+                [$through->approved_at ?? $through->created_at, $through->id],
+            )
             ->limit($perPage - $retained->count() + 1)
             ->get();
 
         return new CursorPaginator($retained->concat($older), $perPage, options: [
             'path' => Paginator::resolveCurrentPath(),
-            'parameters' => ['created_at', 'id'],
+            'parameters' => ['feed_at', 'id'],
         ]);
     }
 }

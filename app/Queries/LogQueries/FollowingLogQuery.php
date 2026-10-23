@@ -30,7 +30,6 @@ final readonly class FollowingLogQuery implements LogQuery
             ->withVisibleReplyCount($user)
             ->withReplyPreviews($user)
             ->withCardDataFor($user)
-            ->latest()
-            ->latest('id');
+            ->newestInFeed();
     }
 }

@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateCommitStatus;
+use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\LogQueries\FollowingLogQuery;
@@ -46,6 +48,23 @@ it('orders commits by creation date rather than insertion order', function (): v
     $commits = resolve(FollowingLogQuery::class)->builder($user)->get();
 
     expect($commits->modelKeys())->toBe([$newer->id, $older->id]);
+});
+
+it('orders followed commits by first approval while keeping own pending commits', function (): void {
+    $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $user->following()->attach($followed);
+
+    $delayed = Commit::factory()->for($followed)->pending()->create(['created_at' => now()->subHours(2)]);
+    $recent = Commit::factory()->for($followed)->create(['created_at' => now()->subMinutes(2)]);
+    $ownPending = Commit::factory()->for($user)->pending()->create(['created_at' => now()->subMinute()]);
+
+    $this->travel(1)->minute();
+    resolve(UpdateCommitStatus::class)->handle($delayed, CommitStatus::Approved);
+
+    $commits = resolve(FollowingLogQuery::class)->builder($user)->get();
+
+    expect($commits->modelKeys())->toBe([$delayed->id, $ownPending->id, $recent->id]);
 });
 
 it('resolves followed users in a subquery instead of loading their ids', function (): void {

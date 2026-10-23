@@ -39,6 +39,8 @@ export default function Show({
     const commitDialogClosedCount = useCommitDialogClosedCount();
     const viewerId = user?.id ?? 'guest';
     const newestId = isRanked ? undefined : commits.data[0]?.id;
+    const newestAt =
+        commits.data[0]?.approved_at ?? commits.data[0]?.created_at;
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
     const feedRef = useRef<HTMLDivElement>(null);
@@ -119,7 +121,7 @@ export default function Show({
         30_000,
         backgroundPollOptions(() => ({
             only: ['newCommitsCount'],
-            data: { since: newestId },
+            data: { since: newestId, since_at: newestAt },
             preserveUrl: true,
         })),
         { autoStart: newestId !== undefined },

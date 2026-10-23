@@ -36,7 +36,7 @@ export function updateQuotedCommits(
 export function restoreFeedCommit(
     rows: Commit[],
     restored: Commit,
-    order: 'latest' | 'ranked' | 'starred',
+    order: 'latest' | 'created' | 'ranked' | 'starred',
 ): Commit[] {
     const updated = updateQuotedCommits(rows, restored).filter(
         (commit) => commit.id !== restored.id,
@@ -51,8 +51,14 @@ export function restoreFeedCommit(
         if (order === 'ranked') {
             return b.hot_score - a.hot_score || b.id.localeCompare(a.id);
         }
+
+        const timestamp = (commit: Commit) =>
+            order === 'latest'
+                ? (commit.approved_at ?? commit.created_at)
+                : commit.created_at;
+
         return (
-            b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id)
+            timestamp(b).localeCompare(timestamp(a)) || b.id.localeCompare(a.id)
         );
     };
     const index = updated.findIndex((commit) => compare(restored, commit) < 0);

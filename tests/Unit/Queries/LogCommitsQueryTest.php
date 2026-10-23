@@ -28,6 +28,25 @@ it('keeps every loaded Following commit when a newly followed author adds commit
         ->and($page->nextCursor()?->parameter('id'))->toBe($through->id);
 });
 
+it('keeps approval-ordered commits in a retained Following range without duplicates', function (): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->for($viewer)->count(25)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+    $through = $loaded[19];
+    $promoted = $loaded[24];
+    $promoted->update(['approved_at' => now()->addMinute()]);
+
+    $page = resolve(LogCommitsQuery::class)->paginate(Log::Following, $viewer, $through);
+    $ids = $page->getCollection()->modelKeys();
+
+    expect($ids)->toHaveCount(21)
+        ->and($ids[0])->toBe($promoted->id)
+        ->and($ids)->toEqual(array_values(array_unique($ids)))
+        ->and($page->nextCursor()?->parameter('id'))->toBe($through->id)
+        ->and($page->nextCursor()?->parameter('feed_at'))->not->toBeNull();
+});
+
 it('keeps unrelated loaded rows and the cursor when unfollowing the author of the range boundary', function (): void {
     $viewer = User::factory()->create();
     $followed = User::factory()->create();

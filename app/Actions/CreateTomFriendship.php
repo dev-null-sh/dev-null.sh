@@ -64,6 +64,7 @@ final readonly class CreateTomFriendship
             $tom->commits()->create([
                 'body' => 'Welcome to dev/null!',
                 'status' => CommitStatus::Approved,
+                'approved_at' => now(),
             ]);
 
             return $tom;
