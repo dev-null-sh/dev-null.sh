@@ -59,7 +59,11 @@ export function UserListMenu({
                     <ListPlus />
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent
+                align="end"
+                collisionPadding={16}
+                className="w-56"
+            >
                 <DropdownMenuLabel>Lists</DropdownMenuLabel>
                 {lists === undefined ? (
                     <DropdownMenuItem disabled>Loading…</DropdownMenuItem>
