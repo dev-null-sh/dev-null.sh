@@ -547,6 +547,31 @@ for (const [url, label, description] of [
     ],
     ['https://github.com/taylorotwell', 'taylorotwell', 'taylorotwell'],
     ['https://github.com/orgs/laravel', 'laravel', 'laravel'],
+    [
+        'https://github.com/dev-null-sh/dev-null.sh/blob/production/app/Services/TheAlgorithm.php',
+        'dev-null-sh/dev-null.sh:TheAlgorithm.php',
+        'dev-null-sh/dev-null.sh file app/Services/TheAlgorithm.php',
+    ],
+    [
+        'https://github.com/laravel/framework/blob/12.x/README.md#L10',
+        'laravel/framework:README.md:10',
+        'laravel/framework file README.md, line 10',
+    ],
+    [
+        `https://github.com/laravel/framework/blob/${sha}/src/Illuminate/Support/Str.php#L10-L20`,
+        'laravel/framework:Str.php:10-20',
+        'laravel/framework file src/Illuminate/Support/Str.php, lines 10 to 20',
+    ],
+    [
+        'https://github.com/laravel/framework/blob/12.x/docs/read%20me.md',
+        'laravel/framework:read me.md',
+        'laravel/framework file docs/read me.md',
+    ],
+    [
+        'https://github.com/laravel/framework/tree/12.x/src/Illuminate',
+        'laravel/framework:Illuminate/',
+        'laravel/framework folder src/Illuminate',
+    ],
 ]) {
     test(`shows a GitHub link as GitHub writes it: ${url}`, () => {
         const text = `see ${url}.`;
@@ -576,8 +601,12 @@ for (const link of [
     'https://github.com/orgs/laravel/people',
     'https://github.com/orgs/-laravel',
     'https://github.com/laravel/framework/',
-    'https://github.com/laravel/framework/blob/12.x/README.md',
+    'https://github.com/laravel/framework/blob/12.x',
+    'https://github.com/laravel/framework/blob/12.x/README.md/',
+    'https://github.com/laravel/framework/blob/12.x/README.md#readme',
+    'https://github.com/laravel/framework/blob/12.x/README.md#L0',
     'https://github.com/laravel/framework/tree/12.x',
+    'https://github.com/laravel/framework/tree/12.x/src#L10',
     'https://github.com/laravel/framework/releases',
     'https://github.com/laravel/framework/releases/tag',
     'https://github.com/laravel/framework/releases/tag/v12.1.0/',

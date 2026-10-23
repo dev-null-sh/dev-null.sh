@@ -223,6 +223,57 @@ function gitHubThread(
         : null;
 }
 
+const gitHubLinesPattern = /^#L([1-9][0-9]*)(?:-L([1-9][0-9]*))?$/;
+
+/**
+ * A file, maybe some of its lines, or a folder, by its last name only so it stays short: "TheAlgorithm.php",
+ * "TheAlgorithm.php:10-20" or "Services/". The branch or commit it was read at only stays in the URL.
+ */
+function gitHubFile(
+    kind: 'blob' | 'tree',
+    path: string[],
+    hash: string,
+): GitHubItem | null {
+    let names: string[];
+
+    try {
+        names = path.map((segment) => decodeURIComponent(segment));
+    } catch {
+        return null;
+    }
+
+    const name = names[names.length - 1];
+    const full = names.join('/');
+
+    if (kind === 'tree') {
+        return hash === ''
+            ? { suffix: `:${name}/`, description: `folder ${full}` }
+            : null;
+    }
+
+    if (hash === '') {
+        return { suffix: `:${name}`, description: `file ${full}` };
+    }
+
+    const lines = gitHubLinesPattern.exec(hash);
+
+    if (!lines) {
+        return null;
+    }
+
+    const [, first, last = first] = lines;
+
+    return last === first
+        ? {
+              suffix: `:${name}:${first}`,
+              description: `file ${full}, line ${first}`,
+          }
+        : {
+              suffix: `:${name}:${first}-${last}`,
+              description: `file ${full}, lines ${first} to ${last}`,
+          };
+}
+
 function gitHubItem(path: string[], hash: string): GitHubItem | null {
     const [first, ...rest] = path;
     const kind = first.toLowerCase();
@@ -230,6 +281,15 @@ function gitHubItem(path: string[], hash: string): GitHubItem | null {
     // Own keys only: a path segment like "constructor" names no thread.
     if (Object.hasOwn(gitHubThreads, kind)) {
         return gitHubThread(kind, rest, hash);
+    }
+
+    // After the branch or commit, the path, every segment named.
+    if (
+        (kind === 'blob' || kind === 'tree') &&
+        rest.length >= 2 &&
+        rest.every((segment) => segment !== '')
+    ) {
+        return gitHubFile(kind, rest.slice(1), hash);
     }
 
     if (hash !== '') {
@@ -272,7 +332,8 @@ function gitHubItem(path: string[], hash: string): GitHubItem | null {
 
 /**
  * A link to a GitHub profile or organization, to a repository, or to an issue, a pull request, a discussion, a commit,
- * a comparison or a release in it, nothing after them but a comment's anchor, so it can show as GitHub writes it.
+ * a comparison, a release, a file or a folder in it, nothing after them but a comment's or some lines' anchor, so it
+ * can show as GitHub writes it.
  */
 function gitHubLinkTo(href: string): GitHubTarget | null {
     let url: URL;
