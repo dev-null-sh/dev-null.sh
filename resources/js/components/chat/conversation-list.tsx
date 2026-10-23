@@ -282,7 +282,7 @@ function ConversationRow({
                     conversation={conversation}
                     onLeave={isActive ? onLeaveActive : undefined}
                     onBlocked={isActive ? onLeaveActive : onBlocked}
-                    onOpenChange={setIsMenuOpen}
+                    onPresenceChange={setIsMenuOpen}
                 />
             </div>
         </li>

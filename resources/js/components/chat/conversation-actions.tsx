@@ -55,7 +55,7 @@ export function ConversationActions({
     conversation,
     onLeave,
     onBlocked,
-    onOpenChange,
+    onPresenceChange,
     className,
 }: {
     target: ChatTarget;
@@ -75,7 +75,7 @@ export function ConversationActions({
      * Inertia visit, which brings the server's confirmation toast.
      */
     onBlocked?: () => void;
-    onOpenChange?: (isOpen: boolean) => void;
+    onPresenceChange?: (isPresent: boolean) => void;
     className?: string;
 }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -97,8 +97,13 @@ export function ConversationActions({
         setIsMenuOpen(menu);
         setIsConfirmingBlock(dialog);
         setIsChoosingMute(mute);
-        onOpenChange?.(menu || dialog || mute);
+        if (menu || dialog || mute) {
+            onPresenceChange?.(true);
+        }
     };
+
+    const closeAutoFocus = () =>
+        onPresenceChange?.(isMenuOpen || isConfirmingBlock || isChoosingMute);
 
     const mute = async (duration: MuteDuration) => {
         setIsSavingMute(true);
@@ -193,6 +198,7 @@ export function ConversationActions({
                     align="end"
                     className="w-56"
                     onClick={(event) => event.stopPropagation()}
+                    onCloseAutoFocus={closeAutoFocus}
                 >
                     {target.kind === 'direct' && (
                         <DropdownMenuItem asChild>
@@ -246,6 +252,7 @@ export function ConversationActions({
                 <DialogContent
                     className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-sm"
                     onClick={(event) => event.stopPropagation()}
+                    onCloseAutoFocus={closeAutoFocus}
                 >
                     <DialogTitle className="truncate" title={title}>
                         Mute {title}
@@ -280,7 +287,10 @@ export function ConversationActions({
                 open={isConfirmingBlock}
                 onOpenChange={(open) => changeOpen(false, open)}
             >
-                <DialogContent onClick={(event) => event.stopPropagation()}>
+                <DialogContent
+                    onClick={(event) => event.stopPropagation()}
+                    onCloseAutoFocus={closeAutoFocus}
+                >
                     <DialogTitle className="truncate" title={title}>
                         {target.kind === 'org' ? 'Leave' : 'Block'} {title}?
                     </DialogTitle>
