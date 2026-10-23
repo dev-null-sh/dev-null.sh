@@ -23,6 +23,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { WordmarkText } from '@/components/wordmark-text';
 import { dropConfetti } from '@/lib/confetti';
 import { formatCount, formatExactCount } from '@/lib/numbers';
 import { cn, laneTint } from '@/lib/utils';
@@ -206,7 +207,9 @@ export function AchievementsDialog({
                                             </span>
                                         </div>
                                         <p className="mt-1.5 font-sans text-xs leading-normal text-muted-foreground">
-                                            {badge.description}
+                                            <WordmarkText>
+                                                {badge.description}
+                                            </WordmarkText>
                                         </p>
                                     </div>
 

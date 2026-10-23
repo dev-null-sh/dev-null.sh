@@ -3,6 +3,8 @@ import {
     Archive,
     ArchiveRestore,
     Ban,
+    Bell,
+    BellOff,
     Ellipsis,
     LogOut,
     UserRound,
@@ -26,15 +28,20 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { useChat } from '@/hooks/use-chat';
+import { useNow } from '@/hooks/use-now';
 import {
     blockPartner,
     removeOrgMember,
     setConversationArchived,
+    setConversationMute,
+    targetKey,
 } from '@/lib/chat';
-import type { ChatTarget } from '@/lib/chat';
+import type { ChatTarget, MuteDuration } from '@/lib/chat';
+import { isRemoteMuted } from '@/lib/remote-notifications';
 import { cn } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { User } from '@/types';
+import type { ConversationSummary, User } from '@/types';
 
 /**
  * Stash (archive), pop (unarchive), and block or leave, from the conversation's own header or from its row in the
@@ -45,9 +52,10 @@ export function ConversationActions({
     title,
     user,
     isArchived,
+    conversation,
     onLeave,
     onBlocked,
-    onOpenChange,
+    onPresenceChange,
     className,
 }: {
     target: ChatTarget;
@@ -57,6 +65,7 @@ export function ConversationActions({
     title: string;
     user: User;
     isArchived: boolean;
+    conversation?: ConversationSummary;
     /**
      * Called once the conversation leaves the list being shown, so an open thread can step back to the inbox.
      */
@@ -66,17 +75,49 @@ export function ConversationActions({
      * Inertia visit, which brings the server's confirmation toast.
      */
     onBlocked?: () => void;
-    onOpenChange?: (isOpen: boolean) => void;
+    onPresenceChange?: (isPresent: boolean) => void;
     className?: string;
 }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isConfirmingBlock, setIsConfirmingBlock] = useState(false);
     const [isBlocking, setIsBlocking] = useState(false);
+    const [isChoosingMute, setIsChoosingMute] = useState(false);
+    const [isSavingMute, setIsSavingMute] = useState(false);
+    const chat = useChat();
+    const now = useNow();
+    const key = targetKey(target);
+    const preference = chat.mutePreferences[key];
+    const until =
+        preference !== undefined
+            ? preference.until
+            : (conversation?.muted_until_at ?? null);
+    const isMuted = isRemoteMuted(until, now.getTime());
 
-    const changeOpen = (menu: boolean, dialog: boolean) => {
+    const changeOpen = (menu: boolean, dialog: boolean, mute = false) => {
         setIsMenuOpen(menu);
         setIsConfirmingBlock(dialog);
-        onOpenChange?.(menu || dialog);
+        setIsChoosingMute(mute);
+        if (menu || dialog || mute) {
+            onPresenceChange?.(true);
+        }
+    };
+
+    const closeAutoFocus = () =>
+        onPresenceChange?.(isMenuOpen || isConfirmingBlock || isChoosingMute);
+
+    const mute = async (duration: MuteDuration) => {
+        setIsSavingMute(true);
+        try {
+            await setConversationMute(target, duration);
+            changeOpen(false, false);
+            toast.success(
+                duration === 'off' ? `Unmuted ${title}.` : `Muted ${title}.`,
+            );
+        } catch {
+            toast.error('Could not update the mute. Try again.');
+        } finally {
+            setIsSavingMute(false);
+        }
     };
 
     const archive = async () => {
@@ -135,7 +176,9 @@ export function ConversationActions({
             <DropdownMenu
                 modal={false}
                 open={isMenuOpen}
-                onOpenChange={(open) => changeOpen(open, isConfirmingBlock)}
+                onOpenChange={(open) =>
+                    changeOpen(open, isConfirmingBlock, isChoosingMute)
+                }
             >
                 <DropdownMenuTrigger asChild>
                     <button
@@ -155,6 +198,7 @@ export function ConversationActions({
                     align="end"
                     className="w-56"
                     onClick={(event) => event.stopPropagation()}
+                    onCloseAutoFocus={closeAutoFocus}
                 >
                     {target.kind === 'direct' && (
                         <DropdownMenuItem asChild>
@@ -167,6 +211,25 @@ export function ConversationActions({
                     <DropdownMenuItem onSelect={() => void archive()}>
                         {isArchived ? <ArchiveRestore /> : <Archive />}
                         {isArchived ? 'Pop' : 'Stash'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        disabled={
+                            isSavingMute ||
+                            (target.kind === 'direct' &&
+                                conversation === undefined &&
+                                !chat.threads[key]?.messages.length)
+                        }
+                        onSelect={(event) => {
+                            event.preventDefault();
+                            if (isMuted) {
+                                void mute('off');
+                            } else {
+                                changeOpen(false, false, true);
+                            }
+                        }}
+                    >
+                        {isMuted ? <Bell /> : <BellOff />}
+                        {isMuted ? 'Unmute' : 'Mute'}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
@@ -183,10 +246,51 @@ export function ConversationActions({
             </DropdownMenu>
 
             <Dialog
+                open={isChoosingMute}
+                onOpenChange={(open) => changeOpen(false, false, open)}
+            >
+                <DialogContent
+                    className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-sm"
+                    onClick={(event) => event.stopPropagation()}
+                    onCloseAutoFocus={closeAutoFocus}
+                >
+                    <DialogTitle className="truncate" title={title}>
+                        Mute {title}
+                    </DialogTitle>
+                    <DialogDescription>
+                        Silence browser notifications and sound on all your
+                        devices. Messages and unread counts stay visible.
+                    </DialogDescription>
+                    <div className="grid gap-2">
+                        {(
+                            [
+                                ['hour', 'For one hour'],
+                                ['tomorrow', 'Until tomorrow'],
+                                ['week', 'For one week'],
+                                ['forever', 'Forever'],
+                            ] as const
+                        ).map(([duration, label]) => (
+                            <Button
+                                key={duration}
+                                variant="outline"
+                                disabled={isSavingMute}
+                                onClick={() => void mute(duration)}
+                            >
+                                {label}
+                            </Button>
+                        ))}
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
                 open={isConfirmingBlock}
                 onOpenChange={(open) => changeOpen(false, open)}
             >
-                <DialogContent onClick={(event) => event.stopPropagation()}>
+                <DialogContent
+                    onClick={(event) => event.stopPropagation()}
+                    onCloseAutoFocus={closeAutoFocus}
+                >
                     <DialogTitle className="truncate" title={title}>
                         {target.kind === 'org' ? 'Leave' : 'Block'} {title}?
                     </DialogTitle>

@@ -47,16 +47,18 @@ The funnel follows the people who **signed up in the selected range** (all time 
 
 ### Activation
 
-- **Activated**: within **12 hours** of signing up, the person got something from the network, as a reader or as an author:
-  - **Reader**: starred  written by **3 or more different people** (not themselves, not bots).
+- **Activated**: within **12 hours** of signing up, the person did one of the things that best told the people who came back from the others (see "How activation is defined" below):
+  - **Reader**: starred posts written by **2 or more different people** (not themselves, not bots).
+  - **Follower**: followed **10 or more people** themselves (not bots). Follows imported from GitHub don't count, the same way as for "follows, first 24h".
   - **Author**: posted (a commit or a reply), and someone else (not a bot) replied to it, quoted it or starred it, all within the 12 hours.
 - **Activation rate** = activated ÷ signups at least 12 hours old.
 - **Activation by signup day**: a chart of the activation rate of each day's signups, to see whether a change to the product moves it. It is computed from existing data, so it goes back to the launch. A day's bar stays lighter until its last signups are 12 hours old, and a dashed line marks the activation rate of the whole range. It is not an A/B test: a launch or a viral post also changes who signs up, so read a trend over several days, not one bar.
 - Why these choices:
-  - Activation means *receiving* value. Posting is giving value; for an author, the value is the reaction. Someone who posts into the void is the most likely to leave, so posting alone does not count.
+  - Activation is an early signal of retention: it is measured within the first visit, so a change to onboarding shows the same day, where a return can only be seen the day after, too late to act on.
+  - Posting alone does not count: for an author, the value is the reaction. Posting into the void brings 40% of people back, a reaction 63%.
   - A star is cheap: counting distinct authors instead of stars means the feed showed several interesting people, not one friend.
   - 12 hours approximates the first visit. Returning the next day is retention, not activation, and the two must not overlap.
-- Caveat: it is a hypothesis. It is right if activated people are retained more than the others; check it once cohorts reach day 14 (see "Validating activation" below).
+- Caveat: the thresholds were measured on the first week of cohorts. Measure them again as cohorts grow (see "How activation is defined" below).
 
 ### Retention
 
@@ -87,7 +89,7 @@ The funnel follows the people who **signed up in the selected range** (all time 
 | First posts answered | The same, for commits that were their author's first post of any kind. |
 | Follows, first 24h | Median number of people a newcomer followed themselves in their first 24 hours. Follows imported from GitHub are left out: they are created in the transaction that records the import, so follows made in the 10 seconds before either side's import are taken for imported ones. |
 | Followed back | Share of those follows that were followed back since. |
-| Daily active users | A chart of the people seen each day of the range, from `active_user_counts`. Today's bar is still counting; a dashed line marks the average of the other days. |
+| Daily active users | A chart of the people seen each day of the range, from `active_user_counts`, each bar stacked from the bottom: returning users, then that day's signups who activated, didn't, or are under 12 hours old, too young to tell. Each day casts a shadow onto the next, from its total down to the next day's returning users: the drop is the net change, people who stopped coming minus people back after a break, since returning users may have been away for any number of days. It reads the funnel day by day: what makes the audience grow or shrink. Returning is the day's count minus its signups, as every signup is seen on the page it lands on, so it can't be split further, and it is not the retention rate: it grows on its own the day after a spike of signups. An account deleted since still counts in its day but no longer in the signups, so returning reads slightly high. Today's bar is still counting; a dashed line marks the average of the other days. |
 
 ## Benchmarks
 
@@ -106,9 +108,42 @@ For reference, with how comparable each one is. None of them was validated for a
 
 Starting targets, as hypotheses until /dev/null has its own baseline: activation rate at least 34%, DAU/MAU at least 25%. No target for retention or conversion until there is data. After about 4 weeks, replace these with the average of the first cohorts.
 
-## Validating activation
+## How activation is defined
 
-Activation is right if it predicts retention. Once cohorts reach day 14, compare the retention of activated and non-activated signups, and of each path (reader, author). Then compare the distribution of follows in the first 24 hours between retained and gone people, to find /dev/null's own "7 friends in 10 days" threshold (Facebook's, from Chamath; Twitter's was following about 30 accounts, a third to two thirds of them following back, per [Josh Elman](https://mattermark.com/putting-it-all-together-how-josh-elman-identified-a-growth-driver-at-twitter/)). Adjust the definition, the window or the threshold of 3 authors if another one predicts better.
+Activation is whatever, done in the first 12 hours, best tells the people who come back from the others. It is chosen from the data, not by taste:
+
+1. **List candidate behaviors** of the first 12 hours: starring posts by 1, 2, 3 or 5 authors, following 1, 5 or 10 people, posting, getting an answer, voting, sending a message.
+2. **For each one, compare who came back** from day 1: the share of signups who did it and came back, against the share of those who didn't. The wider the gap, the better the behavior predicts retention.
+3. **Weigh it against how many people it covers.** A behavior only 2% of people do can't be the definition, however well they come back.
+4. **Combine the best ones** into a few definitions and compare them the same way: activation rate, came back if activated, came back otherwise, and the ratio of the two.
+5. **Pick the definition with the widest gap** that still covers a meaningful share, and prefer the simpler one when two are within a point or two: a week of cohorts can't tell them apart.
+6. **Measure again** every few weeks, and once cohorts reach day 7 and day 14.
+
+Facebook found "7 friends in 10 days" this way (Chamath Palihapitiya), and Twitter following about 30 accounts, a third to two thirds of them following back ([Josh Elman](https://mattermark.com/putting-it-all-together-how-josh-elman-identified-a-growth-driver-at-twitter/)).
+
+Measured on 2026-10-23, over the 5,868 signups since 2026-10-19 whose day 1 was over (came back from day 1):
+
+| Behavior in the first 12 hours | Share of signups | Came back if done | Came back if not |
+|---|---|---|---|
+| Starred posts by 5+ authors | 2.8% | 92.8% | 32.9% |
+| Starred posts by 3+ authors | 5.0% | 85.4% | 31.9% |
+| Starred posts by 2+ authors | 8.2% | 78.3% | 30.6% |
+| Followed 10+ people themselves | 4.9% | 73.9% | 32.6% |
+| Voted in a poll | 5.8% | 67.4% | 32.6% |
+| Starred posts by 1+ author | 16.9% | 63.8% | 28.6% |
+| Posted and got an answer | 24.6% | 60.5% | 26.1% |
+| Posted | 30.7% | 56.8% | 24.8% |
+| Followed 5+ people themselves | 16.9% | 54.7% | 30.5% |
+| Imported follows from GitHub | 94.4% | 34.1% | 42.9% |
+| Did none of these | 31.7% | 19.3% | 41.7% |
+
+| Definition | Activation rate | Came back if activated | Otherwise | Ratio |
+|---|---|---|---|---|
+| Starred 3+ authors, or got an answer (before) | 25.1% | 60.4% | 25.9% | 2.33× |
+| **Starred 2+ authors, or got an answer, or followed 10+ (now)** | 27.6% | 60.0% | 24.9% | 2.41× |
+| Starred 1+ author, or got an answer, or followed 5+ | 35.0% | 53.3% | 24.5% | 2.18× |
+
+A handful of accounts star or follow every newcomer. Leaving out the 5 that reached 500+ newcomers changed the ratio by less than a tenth, so they are kept: the people they answer come back 49% of the time, less than with a regular answer but more than with none.
 
 ## Not yet
 
@@ -132,6 +167,7 @@ Taken on 2026-10-19, when /dev/null was a few days old, had about 6,000 people a
 
 - Retention matters more than growth: active users level off at daily signups × average active lifetime, and the loops that bring people in run on the people who stay.
 - Activation counts value received within 12 hours, as a reader or as an author; posting alone is not activation.
+- On 2026-10-23, activation was measured against day-1 returns for the first time (see "How activation is defined"). It moved from 3 starred authors to 2, and gained following 10+ people: a wider definition with the same power to tell who comes back.
 - Retention is unbounded, from `last_seen_at`, headline day 14, with a fallback to day 7 and day 1 meanwhile.
 - On 2026-10-20, retention was set to day 1 alone, without the fallback: /dev/null was days old and changed day by day, so the next day is what mattered. Moving to day 14 means bringing back the fallback to day 7 and day 1, from the history of `ProductFunnelQuery`.
 - No per-person referrer or source: Fathom covers acquisition, anonymously.
