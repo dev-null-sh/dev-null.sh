@@ -35,6 +35,7 @@ export default function Create({
     const timeZone = auth.user?.timezone ?? undefined;
     const zoneName =
         timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const zoneLabel = timeZoneLabel(now, timeZone);
     const toInstant = (value: string) => wallTimeToInstant(value, timeZone);
     const form = useForm({
         title: '',
@@ -166,8 +167,8 @@ export default function Create({
                         className="text-xs text-muted-foreground sm:col-span-2"
                         data-test="event-time-zone"
                     >
-                        Times are in {zoneName} ({timeZoneLabel(now, timeZone)}
-                        ).
+                        Times are in {zoneName}
+                        {zoneLabel === zoneName ? '' : ` (${zoneLabel})`}.
                     </p>
                 </div>
 
