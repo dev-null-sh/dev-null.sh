@@ -43,15 +43,23 @@ final readonly class ConversationsQuery
      * One page of a tab, pinned first then newest first, continuing before a conversation when scrolling down. The term matches the
      * partner's name or handle, already lowercased and without a leading @.
      *
-     * @return array{conversations: Collection<int, ConversationSummary>, has_more: bool}
+     * @return array{conversations: Collection<int, ConversationSummary>, has_more: bool, pins: array<string, string|null>}
      */
     public function get(User $user, InboxTab $tab = InboxTab::Open, string $term = '', ?string $before = null, bool $pinnedFirst = true): array
     {
         $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
-        $cursor = $before === null ? null : ConversationParticipant::query()
+        // Freeze pins and the cursor together so later pin changes cannot mix ordering and response state.
+        $snapshot = ConversationParticipant::query()
             ->where('user_id', $user->id)
-            ->where('conversation_id', $before)
-            ->first();
+            ->where(fn (Builder $query): Builder => $query->whereNotNull('pinned_at')
+                ->when($before !== null, fn (Builder $query): Builder => $query->orWhere('conversation_id', $before)))
+            ->get(['conversation_id', 'pinned_at', 'last_message_at']);
+        $cursor = $snapshot->firstWhere('conversation_id', $before);
+        $pins = $snapshot->whereNotNull('pinned_at')
+            ->mapWithKeys(fn (ConversationParticipant $participant): array => [$participant->conversation_id => $participant->pinned_at?->toJSON()])
+            ->all();
+        $pinIds = '{'.implode(',', array_keys($pins)).'}';
+        $pinned = 'CASE WHEN conversations.id = ANY(?::uuid[]) THEN 1 ELSE 0 END';
 
         $conversations = Conversation::query()
             ->join('conversation_participants as mine', fn (JoinClause $join): JoinClause => $join
@@ -77,8 +85,8 @@ final readonly class ConversationsQuery
                         ->select('conversation_id')
                         ->whereIn('user_id', $this->matching($escaped))))))
             ->when($cursor, fn (Builder $query, ConversationParticipant $cursor): Builder => $query->whereRaw(
-                '(CASE WHEN mine.pinned_at IS NULL THEN 0 ELSE 1 END, mine.last_message_at, conversations.id) < (?, ?, ?)',
-                [$cursor->pinned_at === null ? 0 : 1, $cursor->last_message_at, $cursor->conversation_id],
+                "($pinned, mine.last_message_at, conversations.id) < (?, ?, ?)",
+                [$pinIds, $cursor->pinned_at === null ? 0 : 1, $cursor->last_message_at, $cursor->conversation_id],
             ))
             ->select('conversations.*')
             ->addSelect([
@@ -88,7 +96,6 @@ final readonly class ConversationsQuery
                 'theirs.read_at as partner_read_at',
                 'mine.last_message_at as last_message_at',
                 'mine.archived_at as archived_at',
-                'mine.pinned_at as pinned_at',
                 'mine.muted_until_at as muted_until_at',
             ])
             ->selectSub(
@@ -110,7 +117,7 @@ final readonly class ConversationsQuery
                 'last_incoming_message_id',
             )
             ->with(['lastMessage.user', 'lastMessage.subject', 'lastMessage.voice', 'lastIncomingMessage:id,user_id', 'lastIncomingMessage.user:id,name', 'partner', 'participants.user'])
-            ->when($pinnedFirst, fn (Builder $query): Builder => $query->orderByRaw('CASE WHEN mine.pinned_at IS NULL THEN 0 ELSE 1 END DESC'))
+            ->when($pinnedFirst, fn (Builder $query): Builder => $query->orderByRaw($pinned.' DESC', [$pinIds]))
             ->orderByDesc('mine.last_message_at')
             ->orderByDesc('conversations.id')
             ->limit(self::PAGE + 1)
@@ -119,23 +126,11 @@ final readonly class ConversationsQuery
         return [
             'conversations' => $conversations
                 ->take(self::PAGE)
-                ->map(fn (Conversation $conversation): array => $this->summary($user, $conversation))
+                ->map(fn (Conversation $conversation): array => $this->summary($user, $conversation, $pins))
                 ->toBase(),
             'has_more' => $conversations->count() > self::PAGE,
+            'pins' => $pins,
         ];
-    }
-
-    /**
-     * @return array<string, string|null>
-     */
-    public function pins(User $user): array
-    {
-        return ConversationParticipant::query()
-            ->where('user_id', $user->id)
-            ->whereNotNull('pinned_at')
-            ->get(['conversation_id', 'pinned_at'])
-            ->mapWithKeys(fn (ConversationParticipant $participant): array => [$participant->conversation_id => $participant->pinned_at?->toJSON()])
-            ->all();
     }
 
     /**
@@ -203,9 +198,10 @@ final readonly class ConversationsQuery
     }
 
     /**
+     * @param  array<string, string|null>  $pins
      * @return ConversationSummary
      */
-    private function summary(User $user, Conversation $conversation): array
+    private function summary(User $user, Conversation $conversation, array $pins): array
     {
         $partner = $conversation->partner;
         $sharesReads = $partner instanceof User && $user->pull_receipts && $partner->pull_receipts && $conversation->partner_status === RemoteStatus::Open;
@@ -228,7 +224,7 @@ final readonly class ConversationsQuery
             'partner_read_through_id' => $sharesReads ? $conversation->partner_read_through_id : 0,
             'partner_read_at' => $sharesReads ? $conversation->partner_read_at?->toJSON() : null,
             'is_archived' => $conversation->archived_at !== null,
-            'pinned_at' => $conversation->pinned_at?->toJSON(),
+            'pinned_at' => $pins[$conversation->id] ?? null,
             'muted_until_at' => $conversation->muted_until_at?->isFuture() ? $conversation->muted_until_at->toJSON() : null,
         ];
     }

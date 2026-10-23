@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
+use App\Models\Message;
 use App\Models\User;
+use Illuminate\Support\Facades\Event;
 
 beforeEach(function (): void {
     config(['remotes.requests' => true, 'remotes.everyone' => true]);
@@ -153,3 +155,55 @@ it('returns the owners complete pin snapshot independently of the visible page',
     $this->actingAs($user)->putJson(route('conversation-pin.update', $partner), ['pinned' => false])->assertOk();
     $this->getJson(route('inbox.index'))->assertJsonPath('pins', []);
 });
+
+it('uses one pin snapshot for the page, its cursor and the response despite concurrent changes', function (string $stage): void {
+    $this->freezeSecond();
+    $user = User::factory()->withRemotes()->create();
+    $ids = [];
+    foreach (User::factory()->withRemotes()->count(65)->create() as $index => $partner) {
+        $conversation = Conversation::factory()->create(['pair' => Conversation::pairOf($user, $partner)]);
+        $time = now()->parse($index < 30 ? '2026-10-01' : '2026-10-23')->addMinutes(65 - $index);
+        $message = Message::factory()->create(['conversation_id' => $conversation->id, 'user_id' => $partner->id, 'created_at' => $time]);
+        $conversation->update(['last_message_id' => $message->id]);
+        $ids[] = $conversation->id;
+        ConversationParticipant::factory()->create([
+            'conversation_id' => $conversation->id,
+            'user_id' => $user->id,
+            'pinned_at' => $index < 30 ? now() : null,
+            'last_message_at' => $time,
+        ]);
+        ConversationParticipant::factory()->create(['conversation_id' => $conversation->id, 'user_id' => $partner->id, 'last_message_at' => $time]);
+    }
+
+    ConversationParticipant::query()->where('user_id', $user->id)->where('conversation_id', $ids[0])->update(['pinned_at' => null]);
+    $injected = false;
+    $event = 'eloquent.retrieved: '.($stage === 'page' ? Conversation::class : ConversationParticipant::class);
+    Event::listen($event, function () use (&$injected, $stage, $user, $ids): void {
+        if ($injected) {
+            return;
+        }
+
+        $injected = true;
+        ConversationParticipant::query()->where('user_id', $user->id)
+            ->whereIn('conversation_id', $stage === 'cursor' ? [$ids[28], $ids[29]] : [$ids[29]])
+            ->update(['pinned_at' => null]);
+    });
+
+    try {
+        $response = $this->actingAs($user)->getJson(route('inbox.index', $stage === 'cursor' ? ['before' => $ids[28]] : []));
+    } finally {
+        Event::forget($event);
+    }
+
+    $response->assertOk()->assertJsonPath('has_more', true)
+        ->assertJsonPath('pins.'.$ids[29], now()->toJSON());
+    $expected = $stage === 'cursor' ? [$ids[29], ...array_slice($ids, 30, 29)] : [...array_slice($ids, 1, 29), $ids[30]];
+    expect($injected)->toBeTrue()
+        ->and(array_column($response->json('conversations'), 'id'))->toBe($expected);
+    foreach ($response->json('conversations') as $conversation) {
+        expect($conversation['pinned_at'])->toBe($response->json('pins.'.$conversation['id']));
+    }
+
+    $this->assertDatabaseHas('conversation_participants', ['user_id' => $user->id, 'conversation_id' => $ids[29], 'pinned_at' => null]);
+    $this->getJson(route('inbox.index'))->assertOk()->assertJsonMissingPath('pins.'.$ids[29]);
+})->with(['page', 'snapshot', 'cursor']);
