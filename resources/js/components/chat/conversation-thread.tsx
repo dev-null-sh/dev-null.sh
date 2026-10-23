@@ -709,7 +709,7 @@ export function ConversationThread({
                         setIsJumping(false);
                         setIsBrowsingHistory(false);
                         sentAnchor.current =
-                            scroller.current === null
+                            scroller.current === null || isPinned.current
                                 ? null
                                 : scrollAnchorOf(scroller.current);
                         isPinned.current = true;

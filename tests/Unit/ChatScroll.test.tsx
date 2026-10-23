@@ -68,7 +68,7 @@ function elements(node: ReactNode): Element[] {
 }
 afterEach(() => vi.unstubAllGlobals());
 
-function setup(reducedMotion = false) {
+function setup(reducedMotion = false, initialScrollTop = 0) {
     slots = [];
     thread = {
         isLoaded: true,
@@ -104,7 +104,7 @@ function setup(reducedMotion = false) {
         },
     );
     vi.stubGlobal('CSS', { escape: (value: string) => value });
-    let scrollTop = 0;
+    let scrollTop = initialScrollTop;
     let rowTop = 100;
     const writes: number[] = [];
     const scrollTo = vi.fn();
@@ -190,16 +190,16 @@ function setup(reducedMotion = false) {
 }
 
 test('reveals a sent reply from the current reading position instead of snapping to the bottom', () => {
-    const chat = setup();
+    const chat = setup(false, -150);
     chat.send();
-    assert.equal(chat.scroller.scrollTop, -120);
+    assert.equal(chat.scroller.scrollTop, -270);
     assert.deepEqual(chat.scrollTo.mock.calls, [
         [{ top: 0, behavior: 'smooth' }],
     ]);
 });
 
 test('respects reduced motion when revealing a sent reply', () => {
-    const chat = setup(true);
+    const chat = setup(true, -150);
     chat.send();
     assert.deepEqual(chat.scrollTo.mock.calls, [
         [{ top: 0, behavior: 'instant' }],
@@ -207,7 +207,7 @@ test('respects reduced motion when revealing a sent reply', () => {
 });
 
 test('server confirmation does not cut an ongoing send scroll short', () => {
-    const chat = setup();
+    const chat = setup(false, -150);
     chat.send();
     chat.scroller.scrollTop = -30;
     (chat.render().scroll.props.onScroll as () => void)();
@@ -243,7 +243,7 @@ test('keeps following the latest messages while a reply is open at the bottom', 
 });
 
 test('resizing during a send does not replace the smooth reveal with a reading-anchor correction', () => {
-    const chat = setup();
+    const chat = setup(false, -150);
     chat.send();
     chat.scroller.scrollTop = -90;
     (chat.render().scroll.props.onScroll as () => void)();
@@ -251,4 +251,32 @@ test('resizing during a send does not replace the smooth reveal with a reading-a
     chat.resize();
     assert.equal(chat.writes.length, writes);
     assert.equal(chat.scrollTo.mock.calls.length, 1);
+});
+
+test('keeps a sent message at the bottom without animating the thread', () => {
+    const chat = setup();
+    chat.send();
+    assert.equal(chat.scroller.scrollTop, 0);
+    assert.equal(chat.scrollTo.mock.calls.length, 0);
+    const writes = chat.writes.length;
+    thread.pending = [];
+    thread.messages = [
+        {
+            id: 2,
+            client_id: 'sent',
+            user_id: 'me',
+            created_at: new Date().toISOString(),
+        } as Message,
+    ];
+    chat.render();
+    assert.equal(chat.scroller.scrollTop, 0);
+    assert.deepEqual(chat.writes.slice(writes), [0]);
+    assert.equal(chat.scrollTo.mock.calls.length, 0);
+});
+
+test('settles a send near the latest message without a scroll animation', () => {
+    const chat = setup(false, -20);
+    chat.send();
+    assert.equal(chat.scroller.scrollTop, 0);
+    assert.equal(chat.scrollTo.mock.calls.length, 0);
 });
