@@ -1,12 +1,17 @@
 import { useHttp, usePage } from '@inertiajs/react';
-import { Bug, Lightbulb, X } from 'lucide-react';
+import { Bug, ImagePlay, Lightbulb, X } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { store } from '@/actions/App/Http/Controllers/IssueController';
 import { collectEnvironment } from '@/lib/environment';
 import type { IssueEnvironment } from '@/lib/environment';
-import type { IssueCommand, IssueKind } from '@/lib/issue-commands';
+import type {
+    IssueCommand,
+    IssueKind,
+    SlashCommand,
+    SlashCommandKind,
+} from '@/lib/issue-commands';
 import {
     hintedCommand,
     issueCommands,
@@ -33,11 +38,15 @@ export function useIssueCommand({
     body,
     updateBody,
     enabled,
+    canAttachGif = false,
+    onAttachGif,
     onCreated,
 }: {
     body: string;
     updateBody: (body: string) => void;
     enabled: boolean;
+    canAttachGif?: boolean;
+    onAttachGif?: () => void;
     onCreated: () => void;
 }) {
     const [kind, setKind] = useState<IssueKind | null>(null);
@@ -54,20 +63,30 @@ export function useIssueCommand({
     // A draft restored from the stash can be a lone slash: the menu only opens while the user is typing in it.
     const suggestions =
         enabled && kind === null && !dismissed && focused
-            ? suggestedCommands(body)
+            ? suggestedCommands(body, { canAttachGif })
             : [];
     const hint =
         enabled && kind === null && !hintDismissed ? hintedCommand(body) : null;
 
-    const start = (next: IssueKind, rest: string) => {
-        setKind(next);
+    const start = (next: SlashCommandKind, rest: string) => {
         setSelected(0);
+
+        if (next === 'gif') {
+            onAttachGif?.();
+            updateBody('');
+            return;
+        }
+
+        setKind(next);
         updateBody(rest);
     };
 
     const change = (value: string) => {
         setDismissed(false);
-        const typed = enabled && kind === null ? typedCommand(value) : null;
+        const typed =
+            enabled && kind === null
+                ? typedCommand(value, { canAttachGif })
+                : null;
 
         if (typed) {
             start(typed.kind, typed.body);
@@ -213,7 +232,7 @@ export function useIssueCommand({
 
 export type UseIssueCommandReturn = ReturnType<typeof useIssueCommand>;
 
-const icons = { feature: Lightbulb, bug: Bug };
+const icons = { feature: Lightbulb, bug: Bug, gif: ImagePlay };
 
 export function IssueCommandBadge({
     command,
@@ -252,9 +271,9 @@ export function IssueCommandSuggestions({
     selected,
     onPick,
 }: {
-    suggestions: IssueCommand[];
+    suggestions: SlashCommand[];
     selected: number;
-    onPick: (kind: IssueKind) => void;
+    onPick: (kind: SlashCommandKind) => void;
 }) {
     return (
         <div

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Enums\GifProvider;
 use App\Enums\NotificationType;
 use App\Exceptions\CommitProcessingFailed;
 use App\Jobs\ModerateCommit;
@@ -415,6 +416,42 @@ it('throws when the ai is unavailable, so the job is retried', function (): void
             ->and($exception->getCode())->toBe(503)
             ->and($exception->getPrevious())->toBeNull();
     })->and($commit->refresh())->ai_decision->toBeNull()->status->toBe(CommitStatus::Pending);
+});
+
+it('moderates an attached gif by its giphy url', function (): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $commit = Commit::factory()->pending()->withGif()->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'moderations')
+        && str_contains($request->body(), 'media2.giphy.com'));
+
+    // The minors check runs because the commit has an image URL (the gif):
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'responses')
+        && str_contains($request->body(), 'media2.giphy.com'));
+});
+
+it('moderates an attached klipy gif by its url', function (): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $commit = Commit::factory()->pending()->withGif(GifProvider::Klipy)->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'moderations')
+        && str_contains($request->body(), 'static.klipy.com'));
+
+    // The minors check runs because the commit has an image URL (the gif):
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'responses')
+        && str_contains($request->body(), 'static.klipy.com'));
 });
 
 it('keeps unavailable moderation pending and recovers on a later queued attempt', function (bool $recovers): void {

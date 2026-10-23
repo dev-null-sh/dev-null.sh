@@ -43,7 +43,7 @@ export function pickImages(
 }
 
 /**
- * The first validation error the server gave for the images, whichever image it was about.
+ * The first validation error the server gave for the attachments, whichever one it was about.
  */
 export function imageErrorFrom(
     errors: Record<string, string | undefined>,
@@ -52,7 +52,8 @@ export function imageErrorFrom(
         (name) =>
             name === 'images' ||
             name.startsWith('images.') ||
-            name.startsWith('image_descriptions'),
+            name.startsWith('image_descriptions') ||
+            name.startsWith('gif_'),
     );
 
     return key ? errors[key] : undefined;

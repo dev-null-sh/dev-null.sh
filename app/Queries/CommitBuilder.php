@@ -30,6 +30,13 @@ final class CommitBuilder extends Builder
         'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count',
     ];
 
+    public function __construct(QueryBuilder $query)
+    {
+        parent::__construct($query);
+
+        $this->with('gif');
+    }
+
     /**
      * Embeddings are only ever compared within the database, so commits are loaded without theirs rather than carry
      * kilobytes of numbers each that nothing reads.
@@ -52,6 +59,28 @@ final class CommitBuilder extends Builder
             return parent::getModels();
         } finally {
             $this->query->columns = $selected;
+        }
+    }
+
+    /**
+     * Only a commit with its id can be serialized, which is the only time the gif is read.
+     *
+     * @param  array<array-key, Commit>  $models
+     * @return array<int, Commit>
+     */
+    public function eagerLoadRelations(array $models): array
+    {
+        $eagerLoads = $this->getEagerLoads();
+        $first = array_first($models);
+
+        if ($first instanceof Commit && ! $this->hasEveryColumn($first)) {
+            $this->without('gif');
+        }
+
+        try {
+            return parent::eagerLoadRelations(array_values($models));
+        } finally {
+            $this->setEagerLoads($eagerLoads);
         }
     }
 
@@ -292,6 +321,13 @@ final class CommitBuilder extends Builder
     /**
      * A bare * only stands for the commit's columns when no other table is joined in.
      */
+    private function hasEveryColumn(Commit $commit): bool
+    {
+        $attributes = $commit->getAttributes();
+
+        return array_all(self::COLUMNS_BUT_EMBEDDING, fn (string $column): bool => array_key_exists($column, $attributes));
+    }
+
     private function isEveryColumn(Expression|string $column): bool
     {
         return $this->query->from === $this->getModel()->getTable()

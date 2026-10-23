@@ -65,6 +65,7 @@ final class CommitResource extends JsonResource
             'images' => $this->whenLoaded('images', fn (): mixed => $this->status === CommitStatus::Approved || ! $this->imagesAreVisibleTo($request->user())
                 ? $this->images
                 : $this->images->map(fn (CommitImage $image): array => [...$image->toArray(), 'url' => $image->temporaryUrl()])),
+            'gif' => $this->gif?->toPayload(),
             'author' => UserResource::make($this->user),
         ];
 

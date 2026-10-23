@@ -162,15 +162,15 @@ final readonly class OpenAI
      * scoring above our own, stricter thresholds. The text, if any, goes along with the first image, and every other
      * image is checked on its own, as a single request is only documented to take one image.
      *
-     * @param  list<string>  $imageDataUrls
+     * @param  list<string>  $imageUrls  data URLs or remote https URLs
      * @return array<string, float>
      */
-    public function moderate(string $text, array $imageDataUrls = []): array
+    public function moderate(string $text, array $imageUrls = []): array
     {
         $inputs = $text === '' ? [] : [[['type' => 'text', 'text' => $text]]];
 
-        foreach ($imageDataUrls as $index => $imageDataUrl) {
-            $image = ['type' => 'image_url', 'image_url' => ['url' => $imageDataUrl]];
+        foreach ($imageUrls as $index => $imageUrl) {
+            $image = ['type' => 'image_url', 'image_url' => ['url' => $imageUrl]];
 
             if ($index === 0 && $inputs !== []) {
                 $inputs[0][] = $image;

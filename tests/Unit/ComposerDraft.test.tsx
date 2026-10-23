@@ -3,8 +3,23 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { beforeEach, test, vi } from 'vite-plus/test';
+import { cancelImageReads } from '../../resources/js/lib/draft-image-reads';
+import type { GifAttachment } from '../../resources/js/lib/gif-providers/types';
+import type { GifProviderKey } from '../../resources/js/lib/gif-provider-key';
 
 const image = new File(['restored'], 'draft.png', { type: 'image/png' });
+const gif: GifAttachment = {
+    provider: 'giphy',
+    id: 'xT9IgzoKnwFNmISR8I',
+    url: 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc',
+    pageUrl: 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+    title: 'Deal With It GIF',
+    username: 'giphy',
+    width: 480,
+    height: 270,
+    previewUrl:
+        'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/100.gif?cid=abc',
+};
 let state: unknown[] = [];
 let cursor = 0;
 const draft = {
@@ -12,11 +27,15 @@ const draft = {
     body: 'A restored draft https://example.com',
     images: [] as File[],
     descriptions: [] as string[],
+    gif: null as GifAttachment | null,
     isRestored: true,
     updateBody: vi.fn(),
     updateImages: vi.fn((images: File[], descriptions: string[]) => {
         draft.images = images;
         draft.descriptions = descriptions;
+    }),
+    updateGif: vi.fn((picked: GifAttachment | null) => {
+        draft.gif = picked;
     }),
     drop: vi.fn(),
 };
@@ -62,7 +81,13 @@ vi.doMock('react', () => ({
 }));
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { user, isAdmin: false } }, flash }),
+    usePage: () => ({
+        props: {
+            auth: { user, isAdmin: false },
+            gif: { provider: 'giphy', key: 'test' },
+        },
+        flash,
+    }),
     useHttp: () => http,
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
@@ -73,13 +98,21 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
     moveCaretToEnd: vi.fn(),
     discardSeriesStash: vi.fn(),
 }));
+let gifKey: GifProviderKey | null = null;
+vi.doMock('../../resources/js/hooks/use-gif-provider-key', () => ({
+    useGifProviderKey: () => gifKey,
+}));
 
 const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
+const { default: InputError } =
+    await import('../../resources/js/components/input-error');
 const { IssueCommandBadge, IssueCommandHint, IssueCommandSuggestions } =
     await import('../../resources/js/components/issue-command');
 const { ImageDropOverlay, ImagePickerButton, ImagePickerPreviews } =
     await import('../../resources/js/components/commit-image-picker');
+const { ComposerMediaButton } =
+    await import('../../resources/js/components/composer-media-button');
 const { ComposerPreviewBody, PreviewToggle } =
     await import('../../resources/js/components/composer-preview');
 const { MentionTextarea } =
@@ -110,23 +143,24 @@ function elements(node: ReactNode): Element[] {
     ];
 }
 
-function render() {
+function render(errors: Record<string, string> = {}) {
     cursor = 0;
     const form = CommitComposer({});
-    const fields = elements(
-        form.props.children({ processing: false, errors: {} }),
-    );
+    const fields = elements(form.props.children({ processing: false, errors }));
     return { form, fields };
 }
 
 beforeEach(() => {
     vi.clearAllMocks();
+    cancelImageReads('');
     state = [];
     flash = {};
     effects = [];
     draft.body = 'A restored draft https://example.com';
     draft.images = [];
     draft.descriptions = [];
+    draft.gif = null;
+    gifKey = null;
 });
 
 test('preserves restored images and link cards and allows scheduling them', () => {
@@ -148,7 +182,7 @@ test('preserves restored images and link cards and allows scheduling them', () =
     )!;
     assert.deepEqual(preview.props.images, [image]);
     const picker = fields.find(
-        (element) => element.type === ImagePickerButton,
+        (element) => element.type === ComposerMediaButton,
     )!;
     assert.equal(picker.props.count, 1);
     const schedule = fields.find(
@@ -179,6 +213,27 @@ test('preserves restored images and link cards and allows scheduling them', () =
     } finally {
         vi.unstubAllGlobals();
     }
+});
+
+test('surfaces gif validation errors and ignores unrelated ones', () => {
+    const gifError = render({ gif_url: 'The GIF could not be attached.' });
+    assert.ok(
+        gifError.fields.some(
+            (element) =>
+                element.type === InputError &&
+                element.props.message === 'The GIF could not be attached.',
+        ),
+    );
+
+    const unrelated = render({ unrelated_field: 'Not an attachment error.' });
+    assert.equal(
+        unrelated.fields.some(
+            (element) =>
+                element.type === InputError &&
+                element.props.message === 'Not an attachment error.',
+        ),
+        false,
+    );
 });
 
 test('drops a restored draft that the reloaded page says was already committed', () => {
@@ -231,7 +286,7 @@ test('removing restored images enables polls and successful posting resets the p
             )!;
         assert.equal(submit().props.disabled, true);
         assert.equal(
-            view.fields.find((element) => element.type === ImagePickerButton)!
+            view.fields.find((element) => element.type === ComposerMediaButton)!
                 .props.disabled,
             true,
         );
@@ -356,7 +411,7 @@ test('schedules in UTC with pasted images and the chosen link card', () => {
         scheduled_at: scheduledAt,
     });
     assert.equal(
-        view.fields.some((element) => element.type === ImagePickerButton),
+        view.fields.some((element) => element.type === ComposerMediaButton),
         true,
     );
     assert.equal(
@@ -448,6 +503,135 @@ test('previews restored images and descriptions while keeping them attached when
     });
 });
 
+test('picking a gif clears attached images and any poll and submits the gif fields', () => {
+    draft.images = [image];
+    draft.descriptions = ['A restored screenshot'];
+    let view = render();
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        (
+            view.fields.find(
+                (element) => element.props['data-test'] === 'add-poll-button',
+            )!.props.onClick as () => void
+        )();
+        view = render();
+        assert.equal(
+            view.fields.some((element) => element.type === PollEditor),
+            true,
+        );
+        const gifButton = view.fields.find(
+            (element) => element.type === ComposerMediaButton,
+        )!;
+        (gifButton.props.onPickGif as (picked: GifAttachment) => void)(gif);
+        assert.deepEqual(draft.images, []);
+        assert.deepEqual(draft.descriptions, []);
+        assert.equal(draft.gif, gif);
+        view = render();
+        assert.equal(
+            view.fields.some((element) => element.type === PollEditor),
+            false,
+        );
+        assert.deepEqual(view.form.props.transform({ body: draft.body }), {
+            body: draft.body,
+            commit_rules_accepted: true,
+            gif_provider: 'giphy',
+            gif_id: 'xT9IgzoKnwFNmISR8I',
+            gif_url:
+                'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc',
+            gif_page_url:
+                'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+            gif_title: 'Deal With It GIF',
+            gif_username: 'giphy',
+            gif_width: 480,
+            gif_height: 270,
+        });
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});
+
+test('attaching images while a gif is stashed clears the gif and submits the images instead', () => {
+    draft.updateGif(gif);
+    let view = render();
+    const schedule = view.fields.find(
+        (element) => element.props['aria-controls'] === 'body-schedule',
+    )!;
+    assert.equal(schedule.props.disabled, true);
+    assert.equal(
+        view.fields.some(
+            (element) =>
+                element.props.label ===
+                "A commit with a GIF can't be scheduled yet",
+        ),
+        true,
+    );
+    const picked = (
+        view.fields.find((element) => element.type === ComposerMediaButton)!
+            .props.onPickImages as (files: File[]) => Promise<void>
+    )([image]);
+    picked.catch(() => undefined);
+    assert.equal(draft.gif, null);
+
+    // The provider finishes reading the picked file asynchronously.
+    cancelImageReads('');
+    draft.images = [image];
+    draft.descriptions = [''];
+    view = render();
+    assert.deepEqual(view.form.props.transform({ body: draft.body }), {
+        body: draft.body,
+            commit_rules_accepted: true,
+        images: [image],
+        image_descriptions: [''],
+    });
+});
+
+test('a stashed gif never survives alongside restored images', () => {
+    draft.images = [image];
+    draft.descriptions = ['A restored screenshot'];
+    draft.updateGif(gif);
+    const view = render();
+    effects.forEach((effect) => effect());
+    assert.deepEqual(draft.updateGif.mock.lastCall, [null]);
+    assert.equal(draft.gif, null);
+    assert.deepEqual(view.form.props.transform({ body: draft.body }), {
+        body: draft.body,
+            commit_rules_accepted: true,
+        images: [image],
+        image_descriptions: ['A restored screenshot'],
+    });
+});
+
+test('a gif stashed while scheduling blocks submit and never reaches the transform', () => {
+    let view = render();
+    (
+        view.fields.find(
+            (element) => element.props['aria-controls'] === 'body-schedule',
+        )!.props.onClick as () => void
+    )();
+    view = render();
+    const date = '2026-10-17T10:30';
+    (
+        view.fields.find((element) => element.props.id === 'body-scheduled-at')!
+            .props.onChange as (value: string) => void
+    )(date);
+    view = render();
+    draft.updateGif(gif);
+    view = render();
+    assert.equal(
+        view.fields.find(
+            (element) => element.props['data-test'] === 'create-commit-button',
+        )!.props.disabled,
+        true,
+    );
+    assert.deepEqual(view.form.props.transform({ body: draft.body }), {
+        body: draft.body,
+            commit_rules_accepted: true,
+        scheduled_at: new Date(date)
+            .toISOString()
+            .replace(/\.\d{3}Z$/, '+00:00'),
+    });
+});
+
 function keyDown(
     view: ReturnType<typeof render>,
     key: string,
@@ -531,7 +715,7 @@ test('typing a command and a space turns the draft into an issue, and backspace 
     assert.ok(find('data-test', 'open-issue-button'));
     assert.equal(find('data-test', 'create-commit-button'), undefined);
     assert.equal(
-        view.fields.some((element) => element.type === ImagePickerButton),
+        view.fields.some((element) => element.type === ComposerMediaButton),
         false,
     );
     assert.equal(find('data-test', 'add-poll-button'), undefined);
@@ -549,6 +733,57 @@ test('typing a command and a space turns the draft into an issue, and backspace 
         ),
     );
     assert.equal(view.form.props.onBefore(), true);
+});
+
+test('a lone /gif opens the GIF picker without becoming an issue draft', () => {
+    gifKey = { provider: 'giphy', key: 'test-key' };
+    draft.body = '/';
+    focus(render());
+    const view = render();
+    const suggestions = view.fields.find(
+        (element) => element.type === IssueCommandSuggestions,
+    )!;
+    assert.deepEqual(
+        (suggestions.props.suggestions as { name: string }[]).map(
+            (command) => command.name,
+        ),
+        ['/feature', '/bug', '/gif'],
+    );
+
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    (textarea.props.onValueChange as (value: string) => void)('/gif ');
+
+    assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['']);
+
+    const next = render();
+    assert.equal(
+        next.fields.find((element) => element.type === ComposerMediaButton)!
+            .props.gifOpen,
+        true,
+    );
+    assert.equal(
+        next.fields.some((element) => element.type === IssueCommandBadge),
+        false,
+    );
+});
+
+test('a stashed gif removes /gif from the slash suggestions', () => {
+    gifKey = { provider: 'giphy', key: 'test-key' };
+    draft.gif = gif;
+    draft.body = '/';
+    focus(render());
+    const view = render();
+    const suggestions = view.fields.find(
+        (element) => element.type === IssueCommandSuggestions,
+    )!;
+    assert.deepEqual(
+        (suggestions.props.suggestions as { name: string }[]).map(
+            (command) => command.name,
+        ),
+        ['/feature', '/bug'],
+    );
 });
 
 test('picking a suggestion with Enter starts an empty issue, and the shortcut opens it instead of committing', () => {

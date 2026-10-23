@@ -1,17 +1,18 @@
 import { Form, usePage } from '@inertiajs/react';
 import { Quote } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { BodyCounter } from '@/components/body-counter';
 import {
     ImageDropOverlay,
-    ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
 import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
+import { ComposerMediaButton } from '@/components/composer-media-button';
+import { GifAttachmentPreview } from '@/components/gif-attachment-preview';
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { QuotedCommit } from '@/components/quoted-commit';
@@ -25,6 +26,7 @@ import {
 } from '@/components/ui/dialog';
 import { UserAvatar } from '@/components/user-avatar';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
+import { useGifProviderKey } from '@/hooks/use-gif-provider-key';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -35,6 +37,7 @@ import {
     maxRawBodyLength,
     minBodyLength,
 } from '@/lib/commit';
+import { gifFormFields } from '@/lib/gif-providers';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import { characterCount, cn, isRejectedSubmission } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -111,16 +114,20 @@ function QuoteComposer({
     onClose: () => void;
 }) {
     const { user } = useUser();
+    const gifKey = useGifProviderKey(user.id);
+    const [gifOpen, setGifOpen] = useState(false);
     const markCommitDeleted = useMarkCommitDeleted();
     const id = `quote-${commit.id}`;
     const {
         body,
         images,
         descriptions,
+        gif,
         isRestored,
         key: stashKey,
         updateBody,
         updateImages,
+        updateGif,
         drop,
     } = useStash(user.id, id);
     const attachments = useImageAttachments(
@@ -132,6 +139,12 @@ function QuoteComposer({
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const commitRules = useCommitRules();
     const keys = useKeyLabels();
+
+    useEffect(() => {
+        if (attachments.images.length > 0 && gif !== null) {
+            updateGif(null);
+        }
+    }, [attachments.images.length, gif, updateGif]);
 
     const isQuotable =
         (images.length > 0 || characterCount(body.trim()) >= minBodyLength) &&
@@ -187,10 +200,14 @@ function QuoteComposer({
                 transform={(data) => ({
                     ...data,
                     commit_rules_accepted: commitRules.hasAccepted(),
-                    ...(images.length > 0 && {
-                        images,
-                        image_descriptions: descriptions,
-                    }),
+                    ...(gif !== null
+                        ? gifFormFields(gif)
+                        : images.length > 0
+                          ? {
+                                images,
+                                image_descriptions: descriptions,
+                            }
+                          : {}),
                 })}
                 options={{ preserveScroll: true }}
                 onError={(errors) => {
@@ -265,6 +282,10 @@ function QuoteComposer({
                                 onDescribe={attachments.describe}
                                 onRemove={attachments.remove}
                             />
+                            <GifAttachmentPreview
+                                gif={gif}
+                                onRemove={() => updateGif(null)}
+                            />
                             <InputError
                                 message={
                                     attachments.error ?? imageErrorFrom(errors)
@@ -276,11 +297,22 @@ function QuoteComposer({
 
                             <div className="sticky -bottom-4 -mb-4 flex items-center justify-end gap-3 bg-background pt-3 pb-4 sm:-bottom-5 sm:-mb-5 sm:pb-5">
                                 <div className="mr-auto flex items-center gap-2">
-                                    <ImagePickerButton
+                                    <ComposerMediaButton
+                                        gifKey={gifKey}
+                                        gifOpen={gifOpen}
+                                        onGifOpenChange={setGifOpen}
+                                        hasGif={gif !== null}
                                         count={images.length}
                                         disabled={processing}
                                         reading={attachments.reading}
-                                        onPick={attachments.pick}
+                                        onPickImages={(files) => {
+                                            updateGif(null);
+                                            return attachments.pick(files);
+                                        }}
+                                        onPickGif={(picked) => {
+                                            attachments.clear();
+                                            updateGif(picked);
+                                        }}
                                         className="size-8"
                                     />
                                     {isRestored && (

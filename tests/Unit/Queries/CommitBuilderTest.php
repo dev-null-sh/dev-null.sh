@@ -66,7 +66,7 @@ it('loads the star count and whether the viewer starred', function (): void {
 
     $commits = Commit::query()->withStarsFor($viewer)->with('user')->get()->keyBy('id');
 
-    expect(DB::getQueryLog())->toHaveCount(2)
+    expect(DB::getQueryLog())->toHaveCount(3)
         ->and($commits[$starred->id]->stars_count)->toBe(2)
         ->and($commits[$starred->id]->starred)->toBeTrue()
         ->and($commits[$plain->id]->stars_count)->toBe(0)
@@ -206,4 +206,19 @@ it('has no next commit of a thread whose author the viewer muted', function (): 
 
     expect($commit->continuation_id)->toBeNull()
         ->and($commit->replies_count)->toBe(0);
+});
+
+it('eager loads gifs on a keyed commit collection', function (): void {
+    $commits = Commit::factory()->withGif()->count(3)->create();
+
+    $keyed = Commit::query()
+        ->whereIn('id', $commits->pluck('id'))
+        ->without('gif')
+        ->get()
+        ->keyBy('id');
+
+    $loaded = $keyed->load('user');
+
+    expect($loaded)->toHaveCount(3)
+        ->and($loaded->every(fn (Commit $commit): bool => $commit->relationLoaded('gif')))->toBeTrue();
 });

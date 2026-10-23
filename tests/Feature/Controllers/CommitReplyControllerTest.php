@@ -952,6 +952,141 @@ it('lists the newest reply with a cursor to older replies when requested', funct
     expect($second->json('data.*.id'))->toBe(array_slice($expected, 1));
 });
 
+it('may attach a giphy gif to a reply', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit-reply.store', $parent), [
+        'body' => 'Replying with a gif',
+        'gif_provider' => 'giphy',
+        'gif_id' => 'xT9IgzoKnwFNmISR8I',
+        'gif_url' => 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->gif?->provider_gif_id)->toBe('xT9IgzoKnwFNmISR8I');
+});
+
+it('accepts a klipy gif reply', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit-reply.store', $parent), [
+        'body' => 'Klipy time',
+        'gif_provider' => 'klipy',
+        'gif_id' => 'hello-hi-662',
+        'gif_url' => 'https://static.klipy.com/ii/935d7ab9/8GCrVAB7.gif',
+        'gif_page_url' => 'https://klipy.com/gifs/hello-hi-662',
+        'gif_width' => 498,
+        'gif_height' => 498,
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->gif?->provider->value)->toBe('klipy');
+});
+
+it('rejects invalid providers', function (array $payload): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $response = $this->actingAs($user)->postJson(route('commit-reply.store', $parent), $payload);
+
+    $response->assertUnprocessable()->assertJsonValidationErrors('gif_provider');
+})->with([
+    'missing provider' => [fn (): array => [
+        'body' => 'Reply without a provider',
+        'gif_id' => 'abc123',
+        'gif_url' => 'https://media2.giphy.com/media/abc123/giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/abc123',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ]],
+    'non-string provider' => [fn (): array => [
+        'body' => 'Reply with an array provider',
+        'gif_provider' => ['giphy'],
+        'gif_id' => 'abc123',
+        'gif_url' => 'https://media2.giphy.com/media/abc123/giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/abc123',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ]],
+    'unknown provider string' => [fn (): array => [
+        'body' => 'Reply with an unknown provider',
+        'gif_provider' => 'other',
+        'gif_id' => 'abc123',
+        'gif_url' => 'https://media2.giphy.com/media/abc123/giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/abc123',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ]],
+]);
+
+it('rejects a reply gif url from another provider', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $response = $this->actingAs($user)->postJson(route('commit-reply.store', $parent), [
+        'body' => 'Mismatch',
+        'gif_provider' => 'klipy',
+        'gif_id' => 'abc123',
+        'gif_url' => 'https://media2.giphy.com/media/abc123/giphy.gif',
+        'gif_page_url' => 'https://klipy.com/gifs/abc123',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ]);
+
+    $response->assertUnprocessable()->assertJsonValidationErrors('gif_url');
+});
+
+it('rejects a partial gif submission on a reply', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)->post(route('commit-reply.store', $parent), [
+        'body' => 'Half a gif',
+        'gif_provider' => 'giphy',
+        'gif_id' => 'xT9IgzoKnwFNmISR8I',
+    ])->assertSessionHasErrors(['gif_url', 'gif_page_url', 'gif_width', 'gif_height']);
+});
+
+it('rejects a reply gif alongside uploaded images', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)->post(route('commit-reply.store', $parent), [
+        'body' => 'Both at once',
+        'images' => [UploadedFile::fake()->image('cabin.jpg', 40, 30)],
+        'gif_provider' => 'giphy',
+        'gif_id' => 'xT9IgzoKnwFNmISR8I',
+        'gif_url' => 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ])->assertSessionHasErrors('gif_id');
+});
+
+it('rejects a bad gif media url on a reply', function (): void {
+    $user = User::factory()->create();
+    $parent = Commit::factory()->create();
+
+    $this->actingAs($user)->post(route('commit-reply.store', $parent), [
+        'body' => 'Nice try',
+        'gif_provider' => 'giphy',
+        'gif_id' => 'xT9IgzoKnwFNmISR8I',
+        'gif_url' => 'https://evil.example/media/xT9IgzoKnwFNmISR8I/giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ])->assertSessionHasErrors('gif_url');
+});
+
 it('lists replies in pages of any size up to 50', function (int $limit, int $status): void {
     $parent = Commit::factory()->create();
     Commit::factory()->for($parent, 'parent')->count(4)->create();

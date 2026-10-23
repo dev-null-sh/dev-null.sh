@@ -8,6 +8,9 @@
         "Unit/**/*.test.ts",
         "Unit/CommitPhoto.test.tsx",
         "Unit/DraftStash.test.tsx",
+        "Unit/CommitGif.test.tsx",
+        "Unit/GifPickerDialog.test.tsx",
+        "Unit/GifKeySetting.test.tsx",
         "Unit/ComposerDraft.test.tsx",
         "Unit/SearchDialogComposition.test.tsx",
         "Unit/ReactionTray.test.tsx",
@@ -28,6 +31,9 @@
         "Unit/RemotePreferences.test.tsx",
         "Unit/ChatNavigation.test.tsx",
         "../resources/js/types/*.d.ts",
-        "draft-images.config.ts"
+        "draft-images.config.ts",
+        "commit-gif.config.ts",
+        "gif-picker.config.ts",
+        "gif-key.config.ts"
     ]
 }
