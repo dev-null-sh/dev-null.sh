@@ -161,6 +161,8 @@ export function ConversationThread({
     const hasScrolledIn = useRef(false);
     const anchor = useRef<ScrollAnchor | null>(null);
     const restoredScrollTop = useRef<number | null>(null);
+    const sentAnchor = useRef<ScrollAnchor | null>(null);
+    const isFollowingSend = useRef(false);
     const isReplyResizing = useRef(false);
     const seenLatest = useRef(0);
     const [unseen, setUnseen] = useState(0);
@@ -254,6 +256,8 @@ export function ConversationThread({
             const request = new AbortController();
             jumpRequest.current = request;
             anchor.current = null;
+            sentAnchor.current = null;
+            isFollowingSend.current = false;
             restoredScrollTop.current = null;
             isPinned.current = false;
             setIsBrowsingHistory(true);
@@ -307,10 +311,11 @@ export function ConversationThread({
         (reply: MessageReply) => {
             if (scroller.current !== null) {
                 // Reuse the reading anchor across folds so rounded scroll positions cannot accumulate drift.
-                if (isPinned.current || anchor.current === null) {
+                if (isPinned.current) {
+                    anchor.current = null;
+                } else if (anchor.current === null) {
                     anchor.current = scrollAnchorOf(scroller.current);
                 }
-                isPinned.current = false;
             }
 
             setReplyingTo(target, reply);
@@ -369,7 +374,23 @@ export function ConversationThread({
             return;
         }
 
-        if (isPinned.current) {
+        if (sentAnchor.current !== null) {
+            restoreScrollAnchor(element, sentAnchor.current);
+            sentAnchor.current = null;
+            anchor.current = scrollAnchorOf(element);
+            isFollowingSend.current = element.scrollTop !== 0;
+            element.scrollTo({
+                top: 0,
+                behavior: window.matchMedia('(prefers-reduced-motion: reduce)')
+                    .matches
+                    ? 'instant'
+                    : 'smooth',
+            });
+            seenLatest.current = latestId;
+        } else if (isFollowingSend.current) {
+            // Confirming the same optimistic reply must not interrupt its scroll.
+            seenLatest.current = latestId;
+        } else if (isPinned.current) {
             element.scrollTop = 0;
             seenLatest.current = latestId;
         } else {
@@ -395,6 +416,8 @@ export function ConversationThread({
     const releaseScrollAnchor = useCallback(() => {
         // Let deliberate input own the viewport until the fold settles, including delayed automatic scroll events.
         anchor.current = null;
+        sentAnchor.current = null;
+        isFollowingSend.current = false;
         jumpRequest.current?.abort();
         jumpRequest.current = null;
         setIsJumping(false);
@@ -473,6 +496,9 @@ export function ConversationThread({
 
         restoredScrollTop.current = null;
         isPinned.current = isAtLatest(element);
+        if (element.scrollTop === 0) {
+            isFollowingSend.current = false;
+        }
         if (!isReplyResizing.current || anchor.current !== null) {
             anchor.current = scrollAnchorOf(element);
         }
@@ -503,6 +529,8 @@ export function ConversationThread({
         setIsJumping(false);
         setIsBrowsingHistory(false);
         anchor.current = null;
+        sentAnchor.current = null;
+        isFollowingSend.current = false;
         restoredScrollTop.current = null;
         isPinned.current = true;
         const element = scroller.current;
@@ -651,6 +679,10 @@ export function ConversationThread({
                         jumpRequest.current = null;
                         setIsJumping(false);
                         setIsBrowsingHistory(false);
+                        sentAnchor.current =
+                            scroller.current === null
+                                ? null
+                                : scrollAnchorOf(scroller.current);
                         isPinned.current = true;
                     }}
                     onReplySettled={settleReplyPreview}
