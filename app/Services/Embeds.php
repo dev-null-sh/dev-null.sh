@@ -11,12 +11,14 @@ use Uri\WhatWg\Url;
 
 final readonly class Embeds
 {
+    private const string GIF_PROVIDER = 'GIF';
+
     public function __construct(private Container $container)
     {
         //
     }
 
-    public function for(string $url): ?Embed
+    public function for(string $url, ?string $gifUrl = null): ?Embed
     {
         $parsed = Url::parse($url);
 
@@ -32,7 +34,13 @@ final readonly class Embeds
             }
         }
 
-        return null;
+        $only = config()->array('embeds.only');
+
+        if ($gifUrl === null || ($only !== [] && ! in_array('gif', $only, true))) {
+            return null;
+        }
+
+        return Embed::gif(self::GIF_PROVIDER, $gifUrl);
     }
 
     /**

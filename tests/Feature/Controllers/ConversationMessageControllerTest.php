@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateLinkPreview;
 use App\Jobs\UnfurlLink;
 use App\Models\Conversation;
+use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageVoice;
 use App\Models\User;
@@ -13,6 +15,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -225,6 +228,50 @@ it('unfurls the link the sender chose into a link card', function (array $payloa
     'another link' => [['link_preview_url' => 'https://github.com/laravel'], 'https://github.com/laravel'],
     'no card' => [['link_preview_url' => ''], null],
 ]);
+
+it('retries a failed draft preview when it is sent in a message', function (): void {
+    Queue::fake();
+    $url = 'https://93.184.216.34/retry';
+    Http::fake([$url => Http::response('<title>Back online</title>', 200, ['Content-Type' => 'text/html'])]);
+    $preview = LinkPreview::factory()->failed()->create(['url' => $url]);
+    $sender = User::factory()->withRemotes()->create();
+    $recipient = User::factory()->withRemotes()->create();
+
+    $this->actingAs($sender)->postJson(route('conversation-message.store', $recipient), [
+        'body' => 'Look at '.$url,
+        'client_id' => Str::uuid()->toString(),
+    ])->assertCreated()
+        ->assertJsonPath('message.link_preview.is_pending', true);
+
+    $messagePreview = LinkPreview::query()->findOrFail($preview->id);
+
+    expect($messagePreview)
+        ->id->toBe($preview->id)
+        ->fetched_at->toBeNull();
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($preview));
+
+    new UnfurlLink($messagePreview)->handle(resolve(UpdateLinkPreview::class));
+
+    expect($preview->refresh())
+        ->title->toBe('Back online')
+        ->fetched_at->not->toBeNull();
+});
+
+it('enqueues a draft preview that is already pending when it is sent in a message', function (): void {
+    Queue::fake();
+    $url = 'https://example.com/pending';
+    LinkPreview::factory()->create(['url' => $url]);
+    $sender = User::factory()->withRemotes()->create();
+    $recipient = User::factory()->withRemotes()->create();
+
+    $this->actingAs($sender)->postJson(route('conversation-message.store', $recipient), [
+        'body' => 'Look at '.$url,
+        'client_id' => Str::uuid()->toString(),
+    ])->assertCreated()
+        ->assertJsonPath('message.link_preview.is_pending', true);
+
+    Queue::assertPushed(UnfurlLink::class);
+});
 
 it('refuses a link card for a link that is not in the message', function (): void {
     $mark = User::factory()->withRemotes()->create();

@@ -1,5 +1,5 @@
 import { useHttp, usePage } from '@inertiajs/react';
-import { Eye, Link2 } from 'lucide-react';
+import { Eye } from 'lucide-react';
 import type { KeyboardEvent, RefObject } from 'react';
 import { useId, useState } from 'react';
 import CommitPreviewController from '@/actions/App/Http/Controllers/CommitPreviewController';
@@ -29,11 +29,6 @@ const isPreviewShortcut = (event: KeyboardEvent) =>
 
 export type ComposerPreview = ReturnType<typeof useComposerPreview>;
 
-/**
- * Switches a composer between writing and previewing its draft as the commit it becomes. The draft is rendered right
- * away, and its code blocks are highlighted and its mentions linked once the server, the only place code is
- * highlighted and usernames are looked up, sends them back.
- */
 export function useComposerPreview({
     body,
     textareaRef,
@@ -106,9 +101,7 @@ export function useComposerPreview({
         previewId,
         toggle: (moveFocus = false) => show(!isPreviewing, moveFocus),
         close: () => setIsPreviewing(false),
-        /**
-         * Handles ⌘/Ctrl + Shift + P in the textarea, and tells whether it did.
-         */
+
         handleShortcut: (event: KeyboardEvent<HTMLTextAreaElement>) => {
             if (!isPreviewShortcut(event)) {
                 return false;
@@ -172,13 +165,11 @@ export function ComposerPreviewBody({
     preview,
     images,
     descriptions = [],
-    url,
     className,
 }: {
     preview: ComposerPreview;
     images: File[];
     descriptions?: string[];
-    url: string | null;
     className?: string;
 }) {
     return (
@@ -210,34 +201,10 @@ export function ComposerPreviewBody({
                     description: descriptions[index]?.trim() || null,
                 }))}
             />
-
-            {url && (
-                <div
-                    className="mt-3 flex items-center gap-3 rounded-lg border border-dashed px-3 py-2"
-                    data-test="link-card-preview"
-                >
-                    <Link2
-                        aria-hidden
-                        className="size-4 shrink-0 text-muted-foreground"
-                    />
-                    <div className="min-w-0">
-                        <p className="truncate font-mono text-[13px]">
-                            {url.replace(/^https?:\/\//i, '')}
-                        </p>
-                        <p className="text-sm leading-snug text-muted-foreground">
-                            Unfurls into a link card after you commit.
-                        </p>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
 
-/**
- * Shows a poll draft as it reads once committed: open right away for admins, whose commits skip moderation, and
- * waiting for approval for everyone else.
- */
 export function ComposerPollPreview({
     poll,
     className,

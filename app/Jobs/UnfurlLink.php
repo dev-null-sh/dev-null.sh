@@ -6,41 +6,59 @@ namespace App\Jobs;
 
 use App\Actions\UpdateLinkPreview;
 use App\Models\LinkPreview;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Backoff;
 use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Queue\Attributes\Tries;
+use Illuminate\Support\Facades\DB;
 
 #[Backoff([60, 600])]
 #[Tries(3)]
 #[DeleteWhenMissingModels]
-final class UnfurlLink implements ShouldQueue
+final class UnfurlLink implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
+    // Allow foreign-key references while serializing workers.
+    private const string METADATA_LOCK = 'for no key update';
+
+    // Default supports older queued payloads.
+    public int $publicationUnfurlRetries = 0;
+
     public function __construct(public readonly LinkPreview $linkPreview)
     {
-        //
-    }
-
-    /**
-     * Commits that share a link may each queue this job before the first one runs, so only the first one fetches.
-     */
-    public function handle(UpdateLinkPreview $action): void
-    {
-        if ($this->linkPreview->fetched_at !== null) {
+        if ($linkPreview->publication_unfurl_retries === 0) {
             return;
         }
 
-        $action->handle($this->linkPreview);
+        $this->publicationUnfurlRetries = $linkPreview->publication_unfurl_retries;
     }
 
-    /**
-     * Once every attempt has failed, the link preview is marked as fetched without metadata, so it is not tried again.
-     */
+    public function uniqueId(): string
+    {
+        return $this->linkPreview->id;
+    }
+
+    public function handle(UpdateLinkPreview $action): void
+    {
+        DB::transaction(function () use ($action): void {
+            $linkPreview = LinkPreview::query()->lock(self::METADATA_LOCK)->find($this->linkPreview->id);
+
+            if (! $linkPreview instanceof LinkPreview
+                || $linkPreview->fetched_at !== null
+                || $linkPreview->publication_unfurl_retries !== $this->publicationUnfurlRetries
+            ) {
+                return;
+            }
+
+            $action->handle($linkPreview);
+        });
+    }
+
     public function failed(): void
     {
-        $this->linkPreview->update(['fetched_at' => now()]);
+        $this->linkPreview->markUnfurlAsTransientFailure($this->publicationUnfurlRetries);
     }
 }

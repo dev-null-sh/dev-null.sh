@@ -128,6 +128,26 @@ it('includes the embed of the link preview', function (): void {
         ]);
 });
 
+it('includes verified external GIF metadata in the public API', function (): void {
+    $preview = LinkPreview::factory()->fetched()->create([
+        'url' => 'https://example.com/cat.gif',
+        'gif_url' => 'https://cdn.example.com/cat.gif',
+    ]);
+    $commit = Commit::factory()->create(['link_preview_id' => $preview->id]);
+
+    $this->getJson(route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonMissingPath('data.link_preview.gif_url')
+        ->assertJsonPath('data.link_preview.embed', [
+            'provider' => 'GIF',
+            'kind' => 'gif',
+            'src' => 'https://cdn.example.com/cat.gif',
+            'aspect_ratio' => null,
+            'height' => null,
+            'poster' => null,
+        ]);
+});
+
 it('includes the images of the commit in order', function (): void {
     $commit = Commit::factory()->create();
     $second = CommitImage::factory()->for($commit)->create(['position' => 1, 'width' => 640, 'height' => 480]);

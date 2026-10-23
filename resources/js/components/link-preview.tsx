@@ -1,82 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useState, type ReactNode } from 'react';
+import { GifEmbed } from '@/components/gif-embed';
 import { LinkEmbed } from '@/components/link-embed';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useFetchedLinkPreview } from '@/hooks/use-fetched-link-preview';
+import { isGifUrl } from '@/lib/gifs';
 import { hostname } from '@/lib/urls';
 import type { LinkPreview as LinkPreviewData } from '@/types';
-
-const POLL_DELAYS = [1000, 2000, 3000, 5000, 8000, 13000];
-
-/**
- * A link is unfurled in the background after its commit or message is posted, so a pending preview is fetched again
- * from the refresh URL until the page behind it has been read, instead of only showing up after a reload.
- */
-function useFetchedLinkPreview(
-    refreshUrl: string,
-    preview: LinkPreviewData,
-): { preview: LinkPreviewData; isWaiting: boolean } {
-    const [fetched, setFetched] = useState<LinkPreviewData | null>(null);
-    const [hasGivenUp, setHasGivenUp] = useState(false);
-
-    useEffect(() => {
-        if (!preview.is_pending) {
-            return;
-        }
-
-        const controller = new AbortController();
-        let timeout = 0;
-
-        const poll = async (attempt: number) => {
-            try {
-                const response = await fetch(refreshUrl, {
-                    headers: { Accept: 'application/json' },
-                    cache: 'no-store',
-                    signal: controller.signal,
-                });
-
-                if (!response.ok) {
-                    setHasGivenUp(true);
-
-                    return;
-                }
-
-                const { link_preview } = (await response.json()) as {
-                    link_preview: LinkPreviewData | null;
-                };
-
-                if (link_preview && !link_preview.is_pending) {
-                    setFetched(link_preview);
-
-                    return;
-                }
-            } catch {
-                if (controller.signal.aborted) {
-                    return;
-                }
-            }
-
-            if (attempt + 1 < POLL_DELAYS.length) {
-                timeout = window.setTimeout(
-                    () => void poll(attempt + 1),
-                    POLL_DELAYS[attempt + 1],
-                );
-            } else {
-                setHasGivenUp(true);
-            }
-        };
-
-        timeout = window.setTimeout(() => void poll(0), POLL_DELAYS[0]);
-
-        return () => {
-            window.clearTimeout(timeout);
-            controller.abort();
-        };
-    }, [refreshUrl, preview.is_pending]);
-
-    const current =
-        preview.is_pending && fetched?.url === preview.url ? fetched : preview;
-
-    return { preview: current, isWaiting: current.is_pending && !hasGivenUp };
-}
 
 function LinkPreviewSkeleton() {
     return (
@@ -107,10 +36,12 @@ export function LinkPreview({
     refreshUrl,
     preview: initialPreview,
     isStatic = false,
+    emptyState = null,
 }: {
     refreshUrl: string;
     preview: LinkPreviewData;
     isStatic?: boolean;
+    emptyState?: ReactNode;
 }) {
     const { preview, isWaiting } = useFetchedLinkPreview(
         refreshUrl,
@@ -129,12 +60,18 @@ export function LinkPreview({
         );
     }
 
+    if (isGifUrl(preview.url)) {
+        return (
+            <GifEmbed key={preview.url} preview={preview} isStatic={isStatic} />
+        );
+    }
+
     if (isWaiting) {
         return <LinkPreviewSkeleton />;
     }
 
     if (!preview.title) {
-        return null;
+        return emptyState;
     }
 
     const content = (

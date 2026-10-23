@@ -1,11 +1,20 @@
 {
     "extends": "../tsconfig.json",
     "compilerOptions": {
-        "types": ["node"],
+        "types": [
+            "node"
+        ],
         "allowImportingTsExtensions": true
     },
     "include": [
         "Unit/**/*.test.ts",
+        "Unit/GifEmbed.test.tsx",
+        "Unit/GifEmbedPlayback.test.tsx",
+        "Unit/GifPlaybackHook.test.tsx",
+        "Unit/ComposerPreview.test.tsx",
+        "Unit/DraftLinkPreview.test.tsx",
+        "Unit/DraftLinkPreviewRequest.test.tsx",
+        "Unit/LinkPreviewRequest.test.tsx",
         "Unit/CommitPhoto.test.tsx",
         "Unit/DraftStash.test.tsx",
         "Unit/ComposerDraft.test.tsx",
@@ -27,6 +36,7 @@
         "Unit/RemoteNotifications.test.tsx",
         "Unit/RemotePreferences.test.tsx",
         "../resources/js/types/*.d.ts",
-        "draft-images.config.ts"
+        "draft-images.config.ts",
+        "Mutation/**/*.ts"
     ]
 }

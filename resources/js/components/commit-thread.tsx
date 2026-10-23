@@ -39,6 +39,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { DraftLinkPreview } from '@/components/draft-link-preview';
 import {
     useGraphDimmed,
     useGraphNode,
@@ -1501,7 +1502,6 @@ function ReplyComposer({
                 {preview.isPreviewing && (
                     <ComposerPreviewBody
                         preview={preview}
-                        url={linkCard.link}
                         images={attachments.images}
                         descriptions={attachments.descriptions}
                         className="col-start-1 row-start-1 px-1"
@@ -1512,6 +1512,7 @@ function ReplyComposer({
                 message={errors.body ?? errors.link_preview_url}
                 className="px-1"
             />
+            <DraftLinkPreview url={linkCard.link} />
             {!preview.isPreviewing && (
                 <ImagePickerPreviews
                     images={attachments.images}

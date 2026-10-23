@@ -19,6 +19,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { DraftLinkPreview } from '@/components/draft-link-preview';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import type { UseIssueCommandReturn } from '@/components/issue-command';
@@ -285,13 +286,14 @@ function CommitComposerBody({
                         {preview.isPreviewing && (
                             <ComposerPreviewBody
                                 preview={preview}
-                                url={linkCard.link}
                                 images={attachments.images}
                                 descriptions={attachments.descriptions}
                                 className="col-start-1 row-start-1 py-1.5"
                             />
                         )}
                     </div>
+
+                    <DraftLinkPreview url={isIssue ? null : linkCard.link} />
 
                     {issue.hint && (
                         <IssueCommandHint

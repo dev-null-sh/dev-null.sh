@@ -1,6 +1,7 @@
 import { AudioLines, Code2, Play } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { GifEmbed } from '@/components/gif-embed';
 import { cn } from '@/lib/utils';
 import type { Embed, LinkPreview } from '@/types';
 
@@ -179,6 +180,18 @@ export function LinkEmbed({
     isStatic?: boolean;
 }) {
     const [isPlaying, setIsPlaying] = useState(false);
+
+    if (embed.kind === 'gif') {
+        return (
+            <GifEmbed
+                key={preview.url}
+                preview={preview}
+                embed={embed}
+                isStatic={isStatic}
+            />
+        );
+    }
+
     const Icon = icons[embed.kind];
     const label = `Play ${preview.title ?? preview.url} from ${embed.provider}`;
     const isVideo = embed.aspect_ratio !== null;

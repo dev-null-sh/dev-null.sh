@@ -50,6 +50,7 @@ final class LinkPreviewFactory extends Factory
     {
         return $this->state(fn (array $attributes): array => [
             'fetched_at' => now(),
+            'unfurl_failed_at' => now(),
         ]);
     }
 }

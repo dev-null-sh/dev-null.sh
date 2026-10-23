@@ -209,7 +209,7 @@ Sources: [body renderer](resources/js/components/commit-body.tsx), [code blocks]
 
 ### Draft previews
 
-Use the composer's eye button or **⌘/Ctrl+Shift+P** to preview a commit or reply before submitting it. Preview shows the rendered code, emoji, mentions, links, and images, and identifies the link selected for a card. Esc returns from preview to writing.
+Use the composer's eye button or **⌘/Ctrl+Shift+P** to preview a commit or reply. The selected link card also loads while writing; direct GIFs appear after verification. Selected URLs and metadata share the posted-link cache, even if the draft is never published. Uncached links load in the background. Esc returns to writing.
 
 Draft text is not scanned for secrets before publishing or saving locally.
 
@@ -234,6 +234,8 @@ Each link in a commit or reply counts as at most **23 characters** toward the 4,
 URLs and bare domains in commits and replies become clickable links. Long URLs are shortened visually; hover reveals the full destination. GitHub repository links show as `owner/repo`, and issue or pull request links as `owner/repo#123`, with the GitHub mark. Links to /dev/null commits show as the author's username and a short hash. Code keeps its literal text. The first link normally gets a preview card with available title, description, and image. In the commit and reply composers, choose another link from the body or choose no card; quotes, terminal commits, and app commits always use the first link. Missing site metadata may leave a link without a rich preview.
 
 Supported links can also show click-to-play embedded players: YouTube, Vimeo, Loom, Twitch, Spotify, SoundCloud, Apple Music, Suno, CodePen, and asciinema. Only the link that gets the card can show a player, so choosing no card means no player. Embeds depend on server configuration and the linked URL being supported. Third-party player content loads only after you press play; those providers have their own privacy policies. This is embedding a link, not uploading a video or audio file to /dev/null.
+
+Giphy share links and verified public HTTPS `.gif` links play inline from their external host. Verified GIFs autoplay while visible and unload offscreen; reduced-motion users press **Play**. **Stop** unloads the animation, and failed GIFs offer two manual retries. No uploads or provider keys are required. Enable with `EMBEDS_PROVIDERS=giphy,gif`. Previously cached direct GIF links require refetching.
 
 Sources: [link rendering](resources/js/components/linkified-text.tsx), [link-card selection](app/Http/Requests/CreateCommitRequest.php), [embed configuration](config/embeds.php), [embedded player](resources/js/components/link-embed.tsx).
 

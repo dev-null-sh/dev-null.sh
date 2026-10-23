@@ -10,7 +10,6 @@ use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\ReplyAsTom;
-use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
@@ -30,6 +29,7 @@ final readonly class CreateCommit
         private CreateMentionNotifications $createMentionNotifications,
         private CreateCommitImages $createCommitImages,
         private CreateWorldReply $createWorldReply,
+        private CreateLinkPreviewJob $createLinkPreviewJob,
         private UpdateCommitHotScores $updateCommitHotScores,
         private TheAlgorithm $theAlgorithm,
         private EmojiShortcodes $emojiShortcodes,
@@ -41,8 +41,6 @@ final readonly class CreateCommit
     }
 
     /**
-     * The link preview is of the first URL in the body when true, of the given URL when a string, or none when false.
-     *
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
      */
@@ -85,8 +83,10 @@ final readonly class CreateCommit
             $this->createQuoteNotifications->handle($commit);
             $this->createMentionNotifications->handle($commit);
 
-            if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
-                dispatch(new UnfurlLink($linkPreview));
+            if ($linkPreview instanceof LinkPreview && $linkPreview->prepareUnfurlForPublication()) {
+                DB::afterCommit(function () use ($linkPreview): void {
+                    $this->createLinkPreviewJob->handle($linkPreview);
+                });
             }
 
             $this->createWorldReply->handle($commit);
@@ -117,9 +117,6 @@ final readonly class CreateCommit
         });
     }
 
-    /**
-     * A poll opens with its commit's approval, so polls of pending commits wait for moderation.
-     */
     private function createPoll(Commit $commit, NewPoll $newPoll): void
     {
         $poll = $commit->poll()->create([
@@ -134,9 +131,6 @@ final readonly class CreateCommit
         ));
     }
 
-    /**
-     * Commits that link to the same URL share one preview, so a page is fetched once however often it is linked.
-     */
     private function linkPreviewFor(?string $url): ?LinkPreview
     {
         if ($url === null) {

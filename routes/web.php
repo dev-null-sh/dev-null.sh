@@ -39,6 +39,7 @@ use App\Http\Controllers\ConversationMuteController;
 use App\Http\Controllers\ConversationReadController;
 use App\Http\Controllers\ConversationTypingController;
 use App\Http\Controllers\DeviceController;
+use App\Http\Controllers\DraftLinkPreviewController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
@@ -263,6 +264,9 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit.store');
     Route::post('commits/preview', [CommitPreviewController::class, 'store'])
         ->name('commit-preview.store');
+    Route::get('draft-link-preview', [DraftLinkPreviewController::class, 'show'])
+        ->middleware('throttle:'.DraftLinkPreviewController::READS_PER_MINUTE.',1,draft-link-preview-reads:')
+        ->name('draft-link-preview.show');
     Route::post('commits/{commit}/translation', [CommitTranslationController::class, 'store'])
         ->middleware('throttle:10,1,translations:')
         ->name('commit-translation.store');
