@@ -9,6 +9,7 @@ use App\Enums\Log;
 use App\Http\Requests\ShowLogRequest;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\CatchUpQuery;
 use App\Queries\LatestLogCommitsQuery;
 use App\Queries\LogCommitsQuery;
 use App\Queries\SuggestedCommitsQuery;
@@ -25,9 +26,9 @@ final readonly class LogController
     /**
      * Guests land straight on the Trending log, with the home page's link preview.
      */
-    public function index(ShowLogRequest $request, SuggestedCommitsQuery $suggested, LatestLogCommitsQuery $latest, LogCommitsQuery $commits, UpdateUserLog $action, PageMetadata $metadata): Response|SymfonyResponse
+    public function index(ShowLogRequest $request, SuggestedCommitsQuery $suggested, LatestLogCommitsQuery $latest, LogCommitsQuery $commits, CatchUpQuery $catchUp, UpdateUserLog $action, PageMetadata $metadata): Response|SymfonyResponse
     {
-        $response = $this->show($request, null, Log::Trending, $suggested, $latest, $commits, $action);
+        $response = $this->show($request, null, Log::Trending, $suggested, $latest, $commits, $catchUp, $action);
 
         return $response instanceof Response ? $response->withViewData(['preview' => $metadata->home()]) : $response;
     }
@@ -35,7 +36,7 @@ final readonly class LogController
     /**
      * Guests read Trending and Latest, while Following takes them to sign in with GitHub.
      */
-    public function show(ShowLogRequest $request, #[CurrentUser] ?User $user, Log $log, SuggestedCommitsQuery $suggested, LatestLogCommitsQuery $latest, LogCommitsQuery $commits, UpdateUserLog $action): Response|SymfonyResponse
+    public function show(ShowLogRequest $request, #[CurrentUser] ?User $user, Log $log, SuggestedCommitsQuery $suggested, LatestLogCommitsQuery $latest, LogCommitsQuery $commits, CatchUpQuery $catchUp, UpdateUserLog $action): Response|SymfonyResponse
     {
         if (! $user instanceof User) {
             if ($log === Log::Following) {
@@ -57,6 +58,9 @@ final readonly class LogController
             'suggestions' => fn (): Collection => $user instanceof User && $log === Log::Following && ! $user->following()->exists()
                 ? $suggested->get($user)
                 : new Collection(),
+            'catchUp' => fn (): ?array => $user instanceof User && $log === Log::Following
+                ? $catchUp->get($user, $request->followingSeenAt())
+                : null,
         ]);
     }
 }

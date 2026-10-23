@@ -1,7 +1,15 @@
-import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
+import {
+    Head,
+    Link,
+    router,
+    usePage,
+    usePoll,
+    useRemember,
+} from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
+import { CatchUp } from '@/components/catch-up';
 import { CommitComposer } from '@/components/commit-composer';
 import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
@@ -11,13 +19,19 @@ import { PageTabs } from '@/components/page-tabs';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
+import { setCookie } from '@/hooks/use-appearance';
 import { useComposerVisibility } from '@/hooks/use-composer-visibility';
 import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
-import type { Commit, CursorPaginated, Log } from '@/types';
+import type {
+    CatchUp as CatchUpData,
+    Commit,
+    CursorPaginated,
+    Log,
+} from '@/types';
 
 export default function Show({
     log,
@@ -25,12 +39,14 @@ export default function Show({
     isRanked,
     newCommitsCount = 0,
     suggestions,
+    catchUp,
 }: {
     log: Log;
     commits: CursorPaginated<Commit>;
     isRanked: boolean;
     newCommitsCount?: number;
     suggestions: Commit[];
+    catchUp: CatchUpData | null;
 }) {
     const {
         props: { auth },
@@ -114,6 +130,16 @@ export default function Show({
     }, [commits]);
 
     const firstSeenId = useLastVisit(viewerId, log, commits.data);
+    const [isCaughtUp, setIsCaughtUp] = useRemember(false, 'caught-up');
+    const isCatchingUp = catchUp !== null && !isCaughtUp;
+    const newestAt = commits.data[0]?.created_at;
+
+    // The server catches the user up from the newest commit they saw here, which only moves on once they are caught up.
+    useEffect(() => {
+        if (log === 'following' && !isCatchingUp && newestAt !== undefined) {
+            setCookie('following_seen_at', newestAt);
+        }
+    }, [log, isCatchingUp, newestAt]);
 
     const { stop: stopPolling } = usePoll(
         30_000,
@@ -215,6 +241,16 @@ export default function Show({
                     isBelowComposer={user !== null}
                     end="That's the root commit. There's nothing before it."
                     interlude={() => <WhoToFollowInLog />}
+                    lead={(stagedLane) =>
+                        catchUp !== null && (
+                            <CatchUp
+                                catchUp={catchUp}
+                                stagedLane={stagedLane}
+                                isCaughtUp={isCaughtUp}
+                                onCaughtUp={setIsCaughtUp}
+                            />
+                        )
+                    }
                     empty={
                         log === 'following' ? (
                             <EmptyFeed command="fatal: your log does not have any commits yet">

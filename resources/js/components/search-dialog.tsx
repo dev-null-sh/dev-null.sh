@@ -700,7 +700,7 @@ function DeveloperResult({
     );
 }
 
-function CommitResult({ commit }: { commit: Commit }) {
+export function CommitResult({ commit }: { commit: Commit }) {
     const now = useNow();
 
     return (
