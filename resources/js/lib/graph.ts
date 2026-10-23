@@ -140,6 +140,30 @@ export function drawnStretch(edge: GraphEdge, gone: GraphEdge[]): number {
 }
 
 /**
+ * How a line draws itself in: after how long, from how far along, in px, as the stretch before is already painted, and
+ * whether the rest shows at once instead of drawing.
+ */
+export type Draw = { delay: number; from: number; isInstant: boolean };
+
+/**
+ * How a new line draws itself in. A new line waits for the nodes at its ends to scale in, so it doesn't run over them
+ * as they overshoot, and a line taking over the stretch a line that just left painted draws on from it. One doing both,
+ * like the line to a reply chained under the last commit of a thread, shows in full at once: its node then scales in
+ * on it, instead of standing apart from the thread while the line waits or catches up.
+ */
+export function entranceDraw(
+    edge: GraphEdge,
+    gone: GraphEdge[],
+    delay: number,
+): Draw {
+    const from = drawnStretch(edge, gone);
+
+    return from > 0 && delay > 0
+        ? { delay: 0, from, isInstant: true }
+        : { delay, from, isInstant: false };
+}
+
+/**
  * What places a node in the graph, so it has to be registered and measured again when it changes. Dimming only
  * changes how its lines look.
  */

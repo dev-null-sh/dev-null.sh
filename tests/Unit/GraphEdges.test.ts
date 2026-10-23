@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import {
     drawnStretch,
     entranceDelay,
+    entranceDraw,
     graphEdges,
     isOnScreen,
     leavingOf,
@@ -403,6 +404,45 @@ void test('keeps the stretch of the column a "more replies" dot ran down, once t
 
     assert.ok(toDot && toNext);
     assert.equal(drawnStretch(toNext, [toDot]), 92);
+});
+
+void test('shows the rest of a line taking over a painted stretch at once, so its node scales in on it, like a reply chained under the last commit', () => {
+    const [toEnd] = graphEdges([
+        node({ id: 'commit', y: 40 }),
+        node({ id: 'commit:end', y: 180, after: 'commit' }),
+    ]);
+    const [toReply] = graphEdges([
+        node({ id: 'commit', y: 40 }),
+        node({ id: 'reply', y: 220, after: 'commit' }),
+    ]);
+
+    assert.deepEqual(entranceDraw(toReply, [toEnd], 700), {
+        delay: 0,
+        from: 140,
+        isInstant: true,
+    });
+});
+
+void test('draws in the rest of a line it takes over right away, and a new line in full once its nodes have scaled in', () => {
+    const [toDot] = graphEdges([
+        node({ id: 'reply', y: 40 }),
+        node({ id: 'more', y: 120, after: 'reply' }),
+    ]);
+    const [toNext] = graphEdges([
+        node({ id: 'reply', y: 40 }),
+        node({ id: 'next', y: 140, after: 'reply' }),
+    ]);
+
+    assert.deepEqual(entranceDraw(toNext, [toDot], 0), {
+        delay: 0,
+        from: 80,
+        isInstant: false,
+    });
+    assert.deepEqual(entranceDraw(toNext, [], 700), {
+        delay: 700,
+        from: 0,
+        isInstant: false,
+    });
 });
 
 void test('keeps nothing of a line from another node, from where its node stood before, or that turns away at once', () => {

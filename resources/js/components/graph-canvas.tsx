@@ -12,8 +12,8 @@ import {
 } from 'react';
 import { flushSync } from 'react-dom';
 import {
-    drawnStretch,
     entranceDelay,
+    entranceDraw,
     graphEdges,
     isOnScreen,
     leavingOf,
@@ -21,7 +21,7 @@ import {
     sameNodes,
     scopedNodeId,
 } from '@/lib/graph';
-import type { GraphEdge, GraphNode, LeavingRow } from '@/lib/graph';
+import type { Draw, GraphEdge, GraphNode, LeavingRow } from '@/lib/graph';
 import { cn } from '@/lib/utils';
 
 export type GraphNodeSpec = Pick<
@@ -637,9 +637,6 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     );
 }
 
-/** How a line draws itself in: after how long, and from how far along, in px, as the stretch before is already painted. */
-type Draw = { delay: number; from: number };
-
 function EdgeDefs({
     id,
     edge,
@@ -653,6 +650,8 @@ function EdgeDefs({
     onDrawn: (edgeId: string) => void;
 }) {
     const from = draw?.from ?? 0;
+    // Again when the line moves, like a card still collapsing above a reply waiting to scale in: the stretch kept is
+    // in px, the mask's in a share of the line.
     const startAt = useCallback(
         (path: SVGPathElement | null) => {
             const length = path?.getTotalLength() ?? 0;
@@ -662,7 +661,8 @@ function EdgeDefs({
                 String(length > 0 ? Math.max(0, 1 - from / length) : 1),
             );
         },
-        [from],
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [from, edge.d],
     );
 
     if (draw === undefined) {
@@ -678,7 +678,11 @@ function EdgeDefs({
                 strokeWidth={strokeWidth * 4}
                 pathLength={1}
                 strokeDasharray="1 1"
-                style={{ animationDelay: `${draw.delay}ms` }}
+                style={{
+                    animationDelay: `${draw.delay}ms`,
+                    // Still an animation, so its end takes the mask off.
+                    animationDuration: draw.isInstant ? '1ms' : undefined,
+                }}
                 className="motion-safe:animate-graph-draw"
                 onAnimationEnd={() => onDrawn(edge.id)}
             />
@@ -737,19 +741,10 @@ function useEnteringEdges(
 
             return new Map([
                 ...kept,
-                ...drawing.map((edge): [string, Draw] => {
-                    const delay = delayOf(edge);
-
-                    // A line waiting for a node to scale in, like a reply just posted, draws in full once it has, so
-                    // no stretch of it runs over the node as it overshoots.
-                    return [
-                        edge.id,
-                        {
-                            delay,
-                            from: delay > 0 ? 0 : drawnStretch(edge, gone),
-                        },
-                    ];
-                }),
+                ...drawing.map((edge): [string, Draw] => [
+                    edge.id,
+                    entranceDraw(edge, gone, delayOf(edge)),
+                ]),
             ]);
         });
     }, [edges, delayOf, canvasTop]);
