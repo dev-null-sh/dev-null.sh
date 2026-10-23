@@ -22,7 +22,11 @@ import UserBlockController from '@/actions/App/Http/Controllers/UserBlockControl
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import type { ReactionUsage } from '@/lib/reactions';
 import { withReactionUse } from '@/lib/reactions';
-import { createRemoteAlerts, isRemoteMuted } from '@/lib/remote-notifications';
+import {
+    createRemoteAlerts,
+    isRemoteMuted,
+    remoteAlertsEnabled,
+} from '@/lib/remote-notifications';
 import type { VoiceDraft } from '@/lib/voice-notes';
 import type {
     ConversationSummary,
@@ -692,6 +696,56 @@ async function pollInbox(): Promise<void> {
 
 export function watchRemoteAlerts(userId: string): () => void {
     let titleTimer: number | undefined;
+    let pendingTitle: string | null = null;
+    const channel =
+        'BroadcastChannel' in window
+            ? new BroadcastChannel(`remote-titles:${userId}`)
+            : null;
+    const clearTitle = () => {
+        window.clearInterval(titleTimer);
+        pendingTitle = null;
+        update({ notificationTitle: null });
+    };
+    const acknowledgeTitle = () => {
+        if (document.hidden || !document.hasFocus()) return;
+
+        clearTitle();
+        channel?.postMessage(null);
+    };
+    const showTitle = (title: string) => {
+        if (!remoteAlertsEnabled(userId)) return;
+        if (!document.hidden && document.hasFocus()) {
+            acknowledgeTitle();
+            return;
+        }
+
+        const alreadyPending = pendingTitle !== null;
+        pendingTitle = title;
+        if (alreadyPending) {
+            if (state.notificationTitle !== null) {
+                update({ notificationTitle: pendingTitle });
+            }
+            return;
+        }
+
+        update({ notificationTitle: pendingTitle });
+        let switches = 0;
+        titleTimer = window.setInterval(() => {
+            switches++;
+            update({
+                notificationTitle: switches % 2 === 0 ? pendingTitle : null,
+            });
+            if (switches === 6) window.clearInterval(titleTimer);
+        }, 1_000);
+    };
+    channel?.addEventListener('message', (event: MessageEvent<unknown>) => {
+        if (event.data === null) clearTitle();
+        else if (typeof event.data === 'string') showTitle(event.data);
+    });
+    window.addEventListener('focus', acknowledgeTitle);
+    document.addEventListener('visibilitychange', acknowledgeTitle);
+    acknowledgeTitle();
+
     const alerts = createRemoteAlerts(
         userId,
         (conversation) => urls(targetOf(conversation)).show,
@@ -709,14 +763,9 @@ export function watchRemoteAlerts(userId: string): () => void {
                 conversation.kind === 'org'
                     ? ` in ${conversation.name || 'an unnamed org'}`
                     : '';
-            update({
-                notificationTitle: `${sender}${remote} sent you a message`,
-            });
-            window.clearTimeout(titleTimer);
-            titleTimer = window.setTimeout(
-                () => update({ notificationTitle: null }),
-                5_000,
-            );
+            const title = `${sender}${remote} sent you a message`;
+            channel?.postMessage(title);
+            showTitle(title);
         },
     );
     remoteAlerts = alerts;
@@ -724,7 +773,10 @@ export function watchRemoteAlerts(userId: string): () => void {
 
     return () => {
         alerts.stop();
-        window.clearTimeout(titleTimer);
+        window.clearInterval(titleTimer);
+        window.removeEventListener('focus', acknowledgeTitle);
+        document.removeEventListener('visibilitychange', acknowledgeTitle);
+        channel?.close();
         if (remoteAlerts === alerts) {
             remoteAlerts = null;
             update({ notificationTitle: null });

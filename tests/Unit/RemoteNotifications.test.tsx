@@ -398,12 +398,13 @@ test.each([true, false])('background inbox polling alerts without consuming unre
     assert.equal(pageTitle('Settings', page), 'Settings - /dev/null');
 });
 
-test('temporary tab titles identify arrivals without banner permission, replace bursts, expire, and clear on teardown', async () => {
+test('tab titles blink three times, update bursts without restarting, and stay until the tab is visible and focused', async () => {
     vi.useFakeTimers();
-    Object.assign(window, { setTimeout, clearTimeout });
+    Object.assign(window, { setTimeout, clearTimeout, setInterval, clearInterval });
     const events = new EventTarget();
+    let focused = false;
     vi.stubGlobal('document', {
-        hidden: false, hasFocus: () => false, cookie: '',
+        hidden: false, hasFocus: () => focused, cookie: '',
         addEventListener: events.addEventListener.bind(events),
         removeEventListener: events.removeEventListener.bind(events),
     });
@@ -420,27 +421,100 @@ test('temporary tab titles identify arrivals without banner permission, replace 
         await vi.advanceTimersByTimeAsync(0);
         assert.equal(chatSnapshot().notificationTitle, 'Alice in Design & <code> sent you a message');
 
-        await vi.advanceTimersByTimeAsync(4_000);
+        await vi.advanceTimersByTimeAsync(999);
+        assert.equal(chatSnapshot().notificationTitle, 'Alice in Design & <code> sent you a message');
+        await vi.advanceTimersByTimeAsync(1);
+        assert.equal(chatSnapshot().notificationTitle, null);
         messages = [conversation(102, { last_incoming_sender: 'Bob' })];
         events.dispatchEvent(new Event('visibilitychange'));
-        await vi.advanceTimersByTimeAsync(1_000);
+        await vi.advanceTimersByTimeAsync(0);
+        assert.equal(chatSnapshot().notificationTitle, null);
+        for (const title of ['Bob sent you a message', null, 'Bob sent you a message', null, 'Bob sent you a message']) {
+            await vi.advanceTimersByTimeAsync(1_000);
+            assert.equal(chatSnapshot().notificationTitle, title);
+        }
+        await vi.advanceTimersByTimeAsync(10_000);
         assert.equal(chatSnapshot().notificationTitle, 'Bob sent you a message');
-        await vi.advanceTimersByTimeAsync(3_999);
+        focused = true;
+        Object.assign(document, { hidden: true });
+        window.dispatchEvent(new Event('focus'));
         assert.equal(chatSnapshot().notificationTitle, 'Bob sent you a message');
-        await vi.advanceTimersByTimeAsync(1);
+        focused = false;
+        Object.assign(document, { hidden: false });
+        events.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(0);
+        assert.equal(chatSnapshot().notificationTitle, 'Bob sent you a message');
+        focused = true;
+        window.dispatchEvent(new Event('focus'));
         assert.equal(chatSnapshot().notificationTitle, null);
         assert.equal(shown.length, 0);
         assert.equal(play.mock.calls.length, 0);
 
+        focused = false;
         messages = [conversation(103, { kind: 'org', name: null })];
         events.dispatchEvent(new Event('visibilitychange'));
         await vi.advanceTimersByTimeAsync(0);
         assert.equal(chatSnapshot().notificationTitle, 'Alice in an unnamed org sent you a message');
+        focused = true;
+        window.dispatchEvent(new Event('focus'));
+        await vi.advanceTimersByTimeAsync(7_000);
+        assert.equal(chatSnapshot().notificationTitle, null);
+
+        messages = [conversation(104)];
+        events.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(0);
+        assert.equal(chatSnapshot().notificationTitle, null);
+        focused = false;
+        messages = [conversation(105)];
+        events.dispatchEvent(new Event('visibilitychange'));
+        await vi.advanceTimersByTimeAsync(0);
+        assert.equal(chatSnapshot().notificationTitle, 'Alice sent you a message');
     } finally {
         stop();
         vi.useRealTimers();
     }
     assert.equal(chatSnapshot().notificationTitle, null);
+});
+
+test('native broadcasts share the latest title and opening any tab acknowledges it without extra sound or banners', async () => {
+    vi.useFakeTimers();
+    Object.assign(window, { BroadcastChannel, setTimeout, clearTimeout, setInterval, clearInterval });
+    let focused = false;
+    Object.assign(document, { hidden: false, hasFocus: () => focused, cookie: '' });
+    vi.stubGlobal('fetch', async () => Response.json({ conversations: [], has_more: false, unread: 0, requests: 0, notification_baseline: {} }));
+    const otherTab = new BroadcastChannel('remote-titles:me');
+    const acknowledged: unknown[] = [];
+    otherTab.addEventListener('message', (event) => acknowledged.push(event.data));
+    const stop = watchRemoteAlerts('me');
+
+    try {
+        otherTab.postMessage('Alice in Core sent you a message');
+        await vi.waitFor(() => assert.equal(chatSnapshot().notificationTitle, 'Alice in Core sent you a message'));
+        await vi.advanceTimersByTimeAsync(6_000);
+        otherTab.postMessage('Bob sent you a message');
+        await vi.waitFor(() => assert.equal(chatSnapshot().notificationTitle, 'Bob sent you a message'));
+        await vi.advanceTimersByTimeAsync(10_000);
+        assert.equal(chatSnapshot().notificationTitle, 'Bob sent you a message');
+
+        otherTab.postMessage(null);
+        await vi.waitFor(() => assert.equal(chatSnapshot().notificationTitle, null));
+        otherTab.postMessage('Alice sent you a message');
+        await vi.waitFor(() => assert.equal(chatSnapshot().notificationTitle, 'Alice sent you a message'));
+        focused = true;
+        window.dispatchEvent(new Event('focus'));
+        await vi.waitFor(() => assert.deepEqual(acknowledged, [null]));
+        assert.equal(chatSnapshot().notificationTitle, null);
+
+        otherTab.postMessage('Carol sent you a message');
+        await vi.waitFor(() => assert.deepEqual(acknowledged, [null, null]));
+        assert.equal(chatSnapshot().notificationTitle, null);
+        assert.equal(shown.length, 0);
+        assert.equal(play.mock.calls.length, 0);
+    } finally {
+        stop();
+        otherTab.close();
+        vi.useRealTimers();
+    }
 });
 
 test('restarting alerts during an inbox request waits for its own baseline without replaying old messages', async () => {
