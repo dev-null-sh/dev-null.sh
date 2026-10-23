@@ -10,6 +10,11 @@ import {
     PopoverTrigger,
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { emojiName, searchEmojiByUse } from '@/lib/emoji';
 import { formatCount, formatExactCount } from '@/lib/numbers';
 import type { ReactionUsage, Tap } from '@/lib/reactions';
@@ -154,40 +159,50 @@ export function ReactionChips({
 
                             return (
                                 <li key={summary.emoji}>
-                                    <button
-                                        type="button"
-                                        disabled={
-                                            onToggle === null || !hasReactions
-                                        }
-                                        aria-pressed={summary.isMine}
-                                        aria-label={`${shortcodeOf(summary.emoji)} ${formatExactCount(summary.count)}, from ${names}`}
-                                        title={`${names} reacted with ${shortcodeOf(summary.emoji)}`}
-                                        onClick={() =>
-                                            onToggle?.(summary.emoji)
-                                        }
-                                        className={cn(
-                                            'inline-flex h-6 items-center gap-1 rounded-md border bg-card pr-2 pl-1.5 text-[13px] leading-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none enabled:hover:border-foreground/25',
-                                            {
-                                                'border-primary/45 bg-primary-soft enabled:hover:border-primary':
-                                                    summary.isMine,
-                                            },
-                                        )}
-                                        data-test="reaction-chip"
-                                    >
-                                        <span aria-hidden>{summary.emoji}</span>
-                                        <span
-                                            aria-hidden
-                                            className={cn(
-                                                'min-w-[1ch] font-mono text-[11px] font-medium text-muted-foreground tabular-nums',
-                                                {
-                                                    'text-primary':
-                                                        summary.isMine,
-                                                },
-                                            )}
-                                        >
-                                            {formatCount(summary.count)}
-                                        </span>
-                                    </button>
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <button
+                                                type="button"
+                                                disabled={
+                                                    onToggle === null ||
+                                                    !hasReactions
+                                                }
+                                                aria-pressed={summary.isMine}
+                                                aria-label={`${shortcodeOf(summary.emoji)} ${formatExactCount(summary.count)}, from ${names}`}
+                                                onClick={() =>
+                                                    onToggle?.(summary.emoji)
+                                                }
+                                                className={cn(
+                                                    'inline-flex h-6 items-center gap-1 rounded-md border bg-card pr-2 pl-1.5 text-[13px] leading-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none enabled:hover:border-foreground/25',
+                                                    {
+                                                        'border-primary/45 bg-primary-soft enabled:hover:border-primary':
+                                                            summary.isMine,
+                                                    },
+                                                )}
+                                                data-test="reaction-chip"
+                                            >
+                                                <span aria-hidden>
+                                                    {summary.emoji}
+                                                </span>
+                                                <span
+                                                    aria-hidden
+                                                    className={cn(
+                                                        'min-w-[1ch] font-mono text-[11px] font-medium text-muted-foreground tabular-nums',
+                                                        {
+                                                            'text-primary':
+                                                                summary.isMine,
+                                                        },
+                                                    )}
+                                                >
+                                                    {formatCount(summary.count)}
+                                                </span>
+                                            </button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            {names} reacted with{' '}
+                                            {shortcodeOf(summary.emoji)}
+                                        </TooltipContent>
+                                    </Tooltip>
                                 </li>
                             );
                         })}

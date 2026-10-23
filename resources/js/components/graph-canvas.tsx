@@ -1,3 +1,4 @@
+import { router } from '@inertiajs/react';
 import type { ComponentProps, ReactNode } from 'react';
 import {
     createContext,
@@ -281,6 +282,16 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     const [leaving, setLeaving] = useState(noLeaving);
     const [isDrawing, setIsDrawing] = useState(false);
 
+    const clip = useCallback(() => {
+        const box = containerRef.current?.getBoundingClientRect();
+        const canvas = canvasRef.current;
+
+        if (box && canvas) {
+            // Large offscreen SVGs distort in Gecko's view-transition captures. Keep their painted area in the viewport.
+            canvas.style.clipPath = `inset(${Math.max(0, -box.top)}px 0 ${Math.max(0, box.bottom - window.innerHeight)}px 0)`;
+        }
+    }, []);
+
     const read = useCallback(() => {
         const container = containerRef.current;
 
@@ -289,6 +300,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
         }
 
         const box = container.getBoundingClientRect();
+        clip();
         const rows = [
             ...container.querySelectorAll('[data-graph-leaving]'),
         ].map((element) => ({
@@ -331,7 +343,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
         setNodes((current) =>
             sameNodes(current, measured) ? current : measured,
         );
-    }, []);
+    }, [clip]);
 
     const measure = useCallback(() => {
         cancelAnimationFrame(frame.current);
@@ -383,7 +395,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     );
 
     useLayoutEffect(() => {
-        // An observer reports each element once when it starts watching it, as a page mounts: the registration has
+        // An observer reports each element once when it starts watching it, as a page mounts: the layout effect has
         // measured already, and rendering then would run the new page's effects inside the observer's callback. Only
         // real resizes measure on the spot.
         const sizes = new WeakMap<Element, string>();
@@ -408,6 +420,9 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
         if (containerRef.current) {
             resize.observe(containerRef.current);
         }
+
+        // The composer can move the canvas without resizing it.
+        resize.observe(document.body);
 
         for (const { element } of entries.current.values()) {
             resize.observe(element);
@@ -453,8 +468,16 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
         const container = containerRef.current;
 
         window.addEventListener('resize', measure);
+        window.addEventListener('scroll', clip, {
+            capture: true,
+            passive: true,
+        });
+        // Inertia resets or restores scroll after React's layout effects; success also covers replace visits.
+        const stopSuccess = router.on('success', clip);
+        const stopNavigate = router.on('navigate', clip);
         void document.fonts?.ready.then(measure);
-        measure();
+        // A view transition captures the new page before the next animation frame, so its graph must already be drawn.
+        read();
 
         return () => {
             resize.disconnect();
@@ -462,9 +485,12 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             container?.removeEventListener('animationend', settle);
             observer.current = null;
             window.removeEventListener('resize', measure);
+            window.removeEventListener('scroll', clip, true);
+            stopSuccess();
+            stopNavigate();
             cancelAnimationFrame(frame.current);
         };
-    }, [measure, measureNow]);
+    }, [clip, measure, measureNow, read]);
 
     const edges = useMemo(() => graphEdges(nodes), [nodes]);
     const delayOf = useCallback(

@@ -1,4 +1,4 @@
-import { usePage, usePoll } from '@inertiajs/react';
+import { Head, usePage, usePoll } from '@inertiajs/react';
 import { useCallback, useState } from 'react';
 import { AppAside } from '@/components/app-aside';
 import {
@@ -19,6 +19,7 @@ import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
 import { SearchDialog } from '@/components/search-dialog';
+import { useChat, useRemoteAlerts, useUnreadMessages } from '@/hooks/use-chat';
 import { useIsComposerInView } from '@/hooks/use-composer-visibility';
 import { usePageDeletion } from '@/hooks/use-deleted-resources';
 import { useFixedPage } from '@/hooks/use-fixed-page';
@@ -67,6 +68,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     );
     useTabSlide();
     useFixedPage(isMessages);
+    useRemoteAlerts(auth.remotes !== null ? (auth.user?.id ?? null) : null);
 
     return (
         <>
@@ -145,7 +147,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
                 {isGuest && <LocalSignInDialog />}
             </div>
+            <NotificationTitle />
         </>
+    );
+}
+
+function NotificationTitle() {
+    const {
+        url,
+        props: { auth },
+    } = usePage();
+    const { notificationTitle } = useChat();
+    const unread = useUnreadMessages() + auth.unreadNotificationsCount;
+
+    // A fresh provider takes precedence over the page's title; removing it restores that title after the alert.
+    return (
+        <Head
+            key={JSON.stringify([url, unread, notificationTitle])}
+            title={notificationTitle ?? undefined}
+        />
     );
 }
 

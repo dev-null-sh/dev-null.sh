@@ -725,6 +725,41 @@ it('retains the loaded Following range when a follow request supplies its bounda
         ->assertJsonPath('scrollProps.commits.reset', true);
 });
 
+it('retains the loaded Latest range when new commits arrive on top of it', function (): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->for($viewer)->count(30)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subHour()->subMinutes($sequence->index)],
+    )->create();
+    $arrived = Commit::factory()->count(3)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+
+    $this->actingAs($viewer)->get(route('log.show', Log::Latest), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'commits',
+        'X-Inertia-Reset' => 'commits',
+        'X-Log-Through' => $loaded[24]->id,
+    ])->assertOk()
+        ->assertJsonCount(28, 'props.commits.data')
+        ->assertJsonPath('props.commits.data.0.id', $arrived[0]->id)
+        ->assertJsonPath('props.commits.data.27.id', $loaded[24]->id);
+});
+
+it('does not hold a ranked log to a loaded range', function (): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->for($viewer)->count(30)->create();
+
+    $this->actingAs($viewer)->get(route('log.show', Log::Trending), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'commits',
+        'X-Log-Through' => $loaded[24]->id,
+    ])->assertOk()->assertJsonCount(20, 'props.commits.data');
+});
+
 it('ignores a missing or inaccessible range boundary', function (string $boundary): void {
     $viewer = User::factory()->create();
     $loaded = Commit::factory()->for($viewer)->count(25)->create();
