@@ -126,6 +126,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'blocking' => [],
         'dismissed_suggestions' => [],
         'messages' => [],
+        'remote_mutes' => [],
         'notifications' => [],
         'ssh_keys' => [],
         'devices' => [],
@@ -158,6 +159,27 @@ it('exports when the user accepted the commit rules and their timeouts, without 
                 'created_at' => $second->created_at->toIso8601String(),
             ],
         ]);
+});
+
+it('exports the remotes the user muted, without the mutes of others', function (): void {
+    config(['remotes.requests' => true, 'remotes.everyone' => true]);
+    $user = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $taylor = User::factory()->withRemotes()->create();
+    sendChatMessage($nuno, $user);
+    sendChatMessage($taylor, $user);
+    $org = createOrg($user, followersOf($user, 1), 'dev/null core');
+    $this->actingAs($user)->putJson(route('conversation-mute.update', $nuno), ['duration' => 'week'])->assertOk();
+    $this->putJson(route('org-mute.update', $org), ['duration' => 'forever'])->assertOk();
+    $this->actingAs($taylor)->putJson(route('conversation-mute.update', $user), ['duration' => 'forever'])->assertOk();
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['remote_mutes'])->toBe([
+        ['to' => 'nunomaduro', 'muted_until_at' => now()->startOfSecond()->addWeek()->toIso8601String()],
+        ['to' => 'org: dev/null core', 'muted_until_at' => '9999-12-31T00:00:00+00:00'],
+    ]);
 });
 
 it('exports the pinned commit id', function (): void {

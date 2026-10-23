@@ -44,6 +44,7 @@ use stdClass;
  *     blocking: Generator<int, ExportUser>,
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     messages: Generator<int, ExportMessage>,
+ *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
  *     notifications: Generator<int, array<string, int|string|null>>,
  *     ssh_keys: array<mixed>,
  *     devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>,
@@ -105,6 +106,20 @@ final readonly class CreateExport
             'blocking' => $this->usernames($user->blocking()),
             'dismissed_suggestions' => $this->usernames($user->dismissedSuggestions()),
             'messages' => $this->messages($user),
+            'remote_mutes' => Conversation::query()
+                ->join('conversation_participants as mine', 'mine.conversation_id', '=', 'conversations.id')
+                ->where('mine.user_id', $user->id)
+                ->whereNotNull('mine.muted_until_at')
+                ->select('conversations.*')
+                ->addSelect('mine.muted_until_at as muted_until_at')
+                ->with('participants.user')
+                ->oldest('mine.id')
+                ->get()
+                ->map(fn (Conversation $conversation): array => [
+                    'to' => $this->recipient($user, $conversation),
+                    'muted_until_at' => $conversation->muted_until_at?->toIso8601String(),
+                ])
+                ->all(),
             'notifications' => $this->notifications($user),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
             'devices' => $user->devices()->oldest('approved_at')->get()->map(fn (Device $device): array => [
@@ -217,10 +232,7 @@ final readonly class CreateExport
             ->whereIn('id', ConversationParticipant::query()->select('conversation_id')->where('user_id', $user->id))
             ->with('participants.user')
             ->get()
-            ->mapWithKeys(fn (Conversation $conversation): array => [$conversation->id => $conversation->isOrg()
-                ? 'org: '.($conversation->name ?? $conversation->id)
-                : $conversation->participants->firstWhere('user_id', '!=', $user->id)?->user->username,
-            ]);
+            ->mapWithKeys(fn (Conversation $conversation): array => [$conversation->id => $this->recipient($user, $conversation)]);
 
         foreach (Message::query()->where('user_id', $user->id)->whereNull('event')->with('voice')->lazyById(500) as $message) {
             yield [
@@ -230,6 +242,16 @@ final readonly class CreateExport
                 'created_at' => $message->created_at->toIso8601String(),
             ];
         }
+    }
+
+    /**
+     * The other person in a conversation, or the org it is.
+     */
+    private function recipient(User $user, Conversation $conversation): ?string
+    {
+        return $conversation->isOrg()
+            ? 'org: '.($conversation->name ?? $conversation->id)
+            : $conversation->participants->firstWhere('user_id', '!=', $user->id)?->user->username;
     }
 
     /**
