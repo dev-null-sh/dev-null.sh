@@ -29,6 +29,8 @@ const gitHubShaPattern = /^[0-9a-f]{7,40}$/i;
 // Two refs compared, "base...head" or "base..head", each a branch, a tag or a commit.
 const gitHubComparisonPattern =
     /^([A-Za-z0-9_][A-Za-z0-9._/-]*?)(\.{2,3})([A-Za-z0-9_][A-Za-z0-9._/-]*)$/;
+const gitHubTagPattern =
+    /^[A-Za-z0-9_][A-Za-z0-9._+-]*(?:\/[A-Za-z0-9._+-]+)*$/;
 // First path segments that are GitHub's own pages rather than an owner, like "github.com/features/actions".
 const gitHubReservedPaths = new Set(
     [
@@ -191,6 +193,16 @@ function gitHubItem(path: string[]): GitHubItem | null {
         return { suffix: `@${commit}`, description: `commit ${commit}` };
     }
 
+    const tag = rest.slice(1).join('/');
+
+    if (
+        kind === 'releases' &&
+        rest[0] === 'tag' &&
+        gitHubTagPattern.test(tag)
+    ) {
+        return { suffix: `@${tag}`, description: `release ${tag}` };
+    }
+
     const comparison =
         kind === 'compare'
             ? gitHubComparisonPattern.exec(rest.join('/'))
@@ -206,8 +218,8 @@ function gitHubItem(path: string[]): GitHubItem | null {
 }
 
 /**
- * A link to a GitHub repository, or to an issue, a pull request, a commit or a comparison in it, nothing after them,
- * so it can show as GitHub writes it.
+ * A link to a GitHub repository, or to an issue, a pull request, a commit, a comparison or a release in it, nothing
+ * after them, so it can show as GitHub writes it.
  */
 function gitHubLinkTo(href: string): GitHubTarget | null {
     let url: URL;

@@ -510,6 +510,16 @@ for (const [url, label, description] of [
         'laravel/framework@4fa008f',
         'laravel/framework commit 4fa008f',
     ],
+    [
+        'https://github.com/laravel/framework/releases/tag/v12.1.0',
+        'laravel/framework@v12.1.0',
+        'laravel/framework release v12.1.0',
+    ],
+    [
+        'https://github.com/laravel/framework/releases/tag/packages/queue-1.0',
+        'laravel/framework@packages/queue-1.0',
+        'laravel/framework release packages/queue-1.0',
+    ],
 ]) {
     test(`shows a GitHub link as GitHub writes it: ${url}`, () => {
         const text = `see ${url}.`;
@@ -536,6 +546,9 @@ for (const link of [
     'https://github.com/laravel/framework/blob/12.x/README.md',
     'https://github.com/laravel/framework/tree/12.x',
     'https://github.com/laravel/framework/releases',
+    'https://github.com/laravel/framework/releases/tag',
+    'https://github.com/laravel/framework/releases/tag/v12.1.0/',
+    'https://github.com/laravel/framework/releases/latest',
     'https://github.com/laravel/framework/commit/4fa00',
     'https://github.com/laravel/framework/commit/4fa008g',
     'https://github.com/laravel/framework/commit/4fa008f/',
