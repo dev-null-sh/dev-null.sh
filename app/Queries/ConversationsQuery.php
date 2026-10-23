@@ -110,7 +110,7 @@ final readonly class ConversationsQuery
     }
 
     /**
-     * Unread messages in open conversations plus fetched requests, for the nav badge.
+     * Open conversations with unread messages plus fetched requests, for the nav badge.
      */
     public function unreadCount(User $user): int
     {
@@ -124,7 +124,8 @@ final readonly class ConversationsQuery
             ->where('messages.user_id', '!=', $user->id)
             ->whereNull('messages.event')
             ->whereNotIn('messages.user_id', $user->idsAcrossBlocks())
-            ->count();
+            ->distinct()
+            ->count('messages.conversation_id');
 
         return $unread + $this->requestCount($user);
     }

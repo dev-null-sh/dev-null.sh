@@ -9,7 +9,7 @@ beforeEach(function (): void {
     config(['remotes.requests' => true, 'remotes.everyone' => true]);
 });
 
-it('lists conversations by latest message with what is unread', function (): void {
+it('lists conversations by latest message with how many of them are unread', function (): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
     $taylor = User::factory()->withRemotes()->create(['username' => 'taylorotwell']);
@@ -20,7 +20,7 @@ it('lists conversations by latest message with what is unread', function (): voi
     $response = $this->actingAs($mark)->getJson(route('inbox.index'))
         ->assertOk()
         ->assertHeader('Cache-Control', 'no-store, private')
-        ->assertJsonPath('unread', 2);
+        ->assertJsonPath('unread', 1);
 
     expect($response->json('conversations'))->toHaveCount(2)
         ->and($response->json('conversations.0.partner.username'))->toBe('nunomaduro')
