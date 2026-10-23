@@ -14,10 +14,10 @@ use Tempest\Highlight\Highlighter;
 final readonly class CodeSpans
 {
     /**
-     * A fenced code block, from a line starting with ``` or more (and maybe a language) to a line that is only ``` or
-     * more, or inline code between two backticks on one line. Keep in sync with resources/js/lib/code.ts.
+     * A fenced code block closed by at least as many backticks as it opens with, or inline code between two backticks
+     * on one line. Keep in sync with resources/js/lib/code.ts.
      */
-    private const string PATTERN = '/((?<![^\n])`{3,}[^`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?`{3,}[ \t]*(?![^\r\n])|`[^`\r\n]+`)/';
+    private const string PATTERN = '/(?<![^\n])(`{3,})[^`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?\1`*[ \t]*(?![^\r\n])|`[^`\r\n]+`/';
 
     public function __construct(private Highlighter $highlighter)
     {
@@ -35,7 +35,19 @@ final readonly class CodeSpans
             return [$text];
         }
 
-        return preg_split(self::PATTERN, $text, flags: PREG_SPLIT_DELIM_CAPTURE) ?: [$text];
+        preg_match_all(self::PATTERN, $text, $matches, PREG_OFFSET_CAPTURE);
+        $parts = [];
+        $offset = 0;
+
+        foreach ($matches[0] as [$code, $start]) {
+            $parts[] = mb_substr($text, $offset, $start - $offset, '8bit');
+            $parts[] = $code;
+            $offset = $start + mb_strlen($code, '8bit');
+        }
+
+        $parts[] = mb_substr($text, $offset, null, '8bit');
+
+        return $parts;
     }
 
     /**
