@@ -41,6 +41,14 @@ it('hashes its url', function (): void {
     expect($linkPreview->url_hash)->toBe(hash('sha256', 'https://example.com'));
 });
 
+it('needs fetching until it is fetched and again a week later', function (): void {
+    expect(LinkPreview::factory()->create()->needsFetching())->toBeTrue()
+        ->and(LinkPreview::factory()->fetched()->create()->needsFetching())->toBeFalse()
+        ->and(LinkPreview::factory()->fetched()->create(['fetched_at' => now()->subDays(7)->addMinute()])->needsFetching())->toBeFalse()
+        ->and(LinkPreview::factory()->fetched()->create(['fetched_at' => now()->subDays(7)->subMinute()])->needsFetching())->toBeTrue()
+        ->and(LinkPreview::factory()->failed()->create(['fetched_at' => now()->subDays(8)])->needsFetching())->toBeTrue();
+});
+
 it('casts the fetched at timestamp', function (): void {
     $linkPreview = LinkPreview::factory()->fetched()->create()->refresh();
 

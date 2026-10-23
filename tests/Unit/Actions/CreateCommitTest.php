@@ -259,6 +259,20 @@ it('attaches a link preview for the first url in the body', function (): void {
     Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
 });
 
+it('fetches a shared link preview again once it is a week old', function (): void {
+    Queue::fake();
+
+    $action = resolve(CreateCommit::class);
+    $fresh = LinkPreview::factory()->fetched()->create(['url' => 'https://example.com/fresh']);
+    $stale = LinkPreview::factory()->fetched()->create(['url' => 'https://example.com/stale', 'fetched_at' => now()->subDays(8)]);
+
+    $action->handle(User::factory()->create(), 'Still https://example.com/fresh');
+    $action->handle(User::factory()->create(), 'Still https://example.com/stale');
+
+    Queue::assertNotPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($fresh));
+    Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($stale));
+});
+
 it('attaches a link preview for the chosen url in the body', function (): void {
     Queue::fake();
 
@@ -329,7 +343,7 @@ it('reuses the link preview of a url that was linked before', function (): void 
         ->and($second->link_preview_id)->toBe($linkPreview->id);
 });
 
-it('only fetches link previews that were never fetched', function (): void {
+it('only fetches link previews that were not fetched recently', function (): void {
     Queue::fake();
 
     LinkPreview::factory()->fetched()->create(['url' => 'https://example.com']);

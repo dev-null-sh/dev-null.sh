@@ -26,10 +26,11 @@ final class UnfurlLink implements ShouldQueue
 
     /**
      * Commits that share a link may each queue this job before the first one runs, so only the first one fetches.
+     * A card that was fetched more than a week ago is fetched again, so the card follows the page.
      */
     public function handle(UpdateLinkPreview $action): void
     {
-        if ($this->linkPreview->fetched_at !== null) {
+        if (! $this->linkPreview->needsFetching()) {
             return;
         }
 

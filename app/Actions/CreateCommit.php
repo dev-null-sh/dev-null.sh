@@ -85,7 +85,7 @@ final readonly class CreateCommit
             $this->createQuoteNotifications->handle($commit);
             $this->createMentionNotifications->handle($commit);
 
-            if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
+            if ($linkPreview instanceof LinkPreview && $linkPreview->needsFetching()) {
                 dispatch(new UnfurlLink($linkPreview));
             }
 
