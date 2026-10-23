@@ -52,6 +52,8 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [About, changelog, and policies](#about-changelog-and-policies)
   - [Tom's repository insights and community statistics](#toms-repository-insights-and-community-statistics)
   - [Hello world replies](#hello-world-replies)
+- [Easter eggs](#easter-eggs)
+  - [eMudhra certificate fingerprints](#emudhra-certificate-fingerprints)
 - [Stack and hosting](#stack-and-hosting)
   - [October 21, 2026: PHP security patches and precautionary downtime](#october-21-2026-php-security-patches-and-precautionary-downtime)
 - [Lore](#lore)
@@ -313,7 +315,7 @@ Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [
 
 ### Notifications
 
-Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, and moderation messages about rejected commits (approvals do not notify). The navigation shows unread activity and checks for more every 30 seconds. Related activity is grouped, with expandable details: stars per commit, follows per day, and replies and mentions per thread. Filters (Replies, Quotes, Stars, Mentions, Follows, Moderation) are remembered, and the unread count follows them. Opening the inbox marks all notifications read. You can follow back or unfollow from follower notifications.
+Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, and moderation messages about rejected commits (approvals do not notify). The navigation shows unread activity and checks for more every 30 seconds. While you have unread notifications or messages, the browser tab's icon shows an orange dot; a tab in the background checks about every five minutes. Related activity is grouped, with expandable details: stars per commit, follows per day, and replies and mentions per thread. Filters (Replies, Quotes, Stars, Mentions, Follows, Moderation) are remembered, and the unread count follows them. Opening the inbox marks all notifications read. You can follow back or unfollow from follower notifications.
 
 Level-up notifications announce your new Unix rank under **All**, rather than one of the activity filters. Each level can notify you only once, even if you later lose and regain enough XP to reach it.
 
@@ -552,6 +554,18 @@ An approved commit or reply whose entire text is **hello world**, including vari
 Sources: [greeting matching](app/Services/HelloWorld.php), [world reply](app/Actions/CreateWorldReply.php).
 
 Livestream history: on [day two at 4:08:10](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=14890s), the Easter egg was announced as merged, and viewers were invited to post “hello world” without tagging anyone. The plan was to surprise Nuno with the moderation queue and automatic replies; viewers were told not to spoil it in chat.
+
+## Easter eggs
+
+/dev/null has a few developer in-jokes, including the [automatic hello world greeting](#hello-world-replies) and the certificate surprise below.
+
+### eMudhra certificate fingerprints
+
+Hovering any of the eight certificate SHA-256 fingerprints listed in [Cisco Talos's eMudhra incident report](https://blog.talosintelligence.com/compromised-intermediate-certificates/) reveals `4`, including in inline code and code blocks. Matching ignores letter case. The original fingerprint returns when the pointer leaves; copying and screen readers still get the original text, and the layout does not shrink.
+
+For example, hover `E7568FE6E12331F4FD7DE61DA4C7559D0F8EB192A218D4741A3BA75184333838` to see `4`. This is a visual joke about the incident's weak private keys, not a conversion of the fingerprint or a claim that every affected key was literally `4`.
+
+Sources: [fingerprint matching](resources/js/lib/certificate-hashes.ts), [text rendering](resources/js/components/certificate-text.tsx), [code blocks](resources/js/components/code-block.tsx).
 
 ## Stack and hosting
 
