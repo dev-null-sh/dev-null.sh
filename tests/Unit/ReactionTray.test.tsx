@@ -43,6 +43,14 @@ type Element = ReactElement<Record<string, unknown>>;
 function elements(node: ReactNode): Element[] {
     if (!React.isValidElement(node)) return [];
     const element = node as Element;
+    if (
+        typeof element.type === 'function' &&
+        element.type.name === 'ReactionChip'
+    ) {
+        return elements(
+            (element.type as (props: unknown) => ReactNode)(element.props),
+        );
+    }
     return [
         element,
         ...React.Children.toArray(element.props.children as ReactNode).flatMap(
@@ -216,13 +224,16 @@ test('an interrupted fold still applies its selected reaction once', async () =>
     assert.deepEqual(tray.onReact.mock.calls, [['😂']]);
 });
 
-function renderChips(reactions: { user_id: string; emoji: string }[]) {
+function renderChips(
+    reactions: { user_id: string; emoji: string }[],
+    onToggle: ((emoji: string) => void) | null = vi.fn(),
+) {
     const props = {
         reactions,
         userId: 'me',
         isMine: false,
         nameOf: (id: string) => (id === 'me' ? 'You' : 'Alex'),
-        onToggle: vi.fn(),
+        onToggle,
     };
     cursor = 0;
     ReactionChips(props);
@@ -392,4 +403,139 @@ test('double tapping a portaled viewer never reacts to its message', () => {
     }
 
     assert.equal(touch.onDoubleTap.mock.calls.length, 0);
+});
+
+function touchChips(onToggle: ((emoji: string) => void) | null = vi.fn()) {
+    state = [];
+    vi.useFakeTimers();
+    vi.stubGlobal('window', globalThis);
+    vi.stubGlobal('navigator', { vibrate: vi.fn() });
+    const render = () =>
+        renderChips([{ user_id: 'other', emoji: '❤️' }], onToggle);
+    const chip = () =>
+        render().find(
+            (element) => element.props['data-test'] === 'reaction-chip',
+        )!;
+    const target = { closest: () => target };
+    const pointer = (overrides: Partial<React.PointerEvent> = {}) =>
+        ({
+            pointerType: 'touch',
+            isPrimary: true,
+            clientX: 10,
+            clientY: 20,
+            currentTarget: { contains: () => true },
+            target,
+            stopPropagation: vi.fn(),
+            ...overrides,
+        }) as unknown as React.PointerEvent;
+    const fire = (handler: string, event: unknown = pointer()) =>
+        (chip().props[handler] as ((event: unknown) => void) | undefined)?.(
+            event,
+        );
+    const isOpen = () =>
+        render().some((element) => element.props.open === true);
+    return { render, chip, pointer, fire, isOpen };
+}
+
+test('holding a reaction chip reveals its authors without toggling the reaction on release', () => {
+    const onToggle = vi.fn();
+    const touch = touchChips(onToggle);
+    const pointer = touch.pointer();
+    touch.fire('onPointerDown', pointer);
+    vi.advanceTimersByTime(419);
+    assert.equal(touch.isOpen(), false);
+    vi.advanceTimersByTime(1);
+    assert.equal(touch.isOpen(), true);
+    assert.ok(
+        touch
+            .render()
+            .some(
+                (element) =>
+                    element.type === 'li' && element.props.children === 'Alex',
+            ),
+    );
+
+    touch.fire('onPointerUp', pointer);
+    const click = { preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    touch.fire('onClickCapture', click);
+    if (click.preventDefault.mock.calls.length === 0) touch.fire('onClick');
+    assert.equal(click.preventDefault.mock.calls.length, 1);
+    assert.equal(onToggle.mock.calls.length, 0);
+    assert.equal(touch.isOpen(), true);
+});
+
+test('a short tap still toggles the reaction instead of opening its authors', () => {
+    const onToggle = vi.fn();
+    const touch = touchChips(onToggle);
+    touch.fire('onPointerDown');
+    vi.advanceTimersByTime(100);
+    touch.fire('onPointerUp');
+    const click = { preventDefault: vi.fn(), stopPropagation: vi.fn() };
+    touch.fire('onClickCapture', click);
+    if (click.preventDefault.mock.calls.length === 0) touch.fire('onClick');
+    vi.advanceTimersByTime(500);
+    assert.equal(touch.isOpen(), false);
+    assert.deepEqual(onToggle.mock.calls, [['❤️']]);
+});
+
+for (const interruption of ['movement', 'cancel', 'second finger', 'mouse']) {
+    test(`${interruption} does not open reaction authors`, () => {
+        const touch = touchChips();
+        touch.fire(
+            'onPointerDown',
+            touch.pointer({
+                pointerType: interruption === 'mouse' ? 'mouse' : 'touch',
+            }),
+        );
+        vi.advanceTimersByTime(100);
+        if (interruption === 'movement')
+            touch.fire('onPointerMove', touch.pointer({ clientY: 40 }));
+        if (interruption === 'cancel') touch.fire('onPointerCancel');
+        if (interruption === 'second finger')
+            touch.fire('onPointerDown', touch.pointer({ isPrimary: false }));
+        vi.advanceTimersByTime(500);
+        assert.equal(touch.isOpen(), false);
+    });
+}
+
+test('reaction authors remain available when reacting is unavailable', () => {
+    const touch = touchChips(null);
+    assert.equal(touch.chip().props.disabled, false);
+    touch.fire('onPointerDown');
+    vi.advanceTimersByTime(500);
+    assert.equal(touch.isOpen(), true);
+});
+
+test('the keyboard context-menu shortcut opens authors and dismissal closes them', () => {
+    const touch = touchChips();
+    touch.fire('onKeyDown', {
+        key: 'F10',
+        shiftKey: true,
+        preventDefault: vi.fn(),
+    });
+    assert.equal(touch.isOpen(), true);
+    const popover = touch
+        .render()
+        .find((element) => element.props.open === true)!;
+    (popover.props.onOpenChange as (open: boolean) => void)(false);
+    assert.equal(touch.isOpen(), false);
+});
+
+test('focusing the chip as a hold ends keeps its authors open, while other focus may dismiss it', () => {
+    const touch = touchChips();
+    const chip = touch.chip();
+    const anchor = { contains: (target: unknown) => target === anchor };
+    (chip.props.ref as RefObject<unknown>).current = anchor;
+    const content = touch
+        .render()
+        .find((element) => element.props['data-test'] === 'reaction-authors')!;
+    const onFocusOutside = content.props.onFocusOutside as (
+        event: unknown,
+    ) => void;
+    const release = { target: anchor, preventDefault: vi.fn() };
+    onFocusOutside(release);
+    assert.equal(release.preventDefault.mock.calls.length, 1);
+    const elsewhere = { target: {}, preventDefault: vi.fn() };
+    onFocusOutside(elsewhere);
+    assert.equal(elsewhere.preventDefault.mock.calls.length, 0);
 });
