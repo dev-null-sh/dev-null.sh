@@ -1,3 +1,4 @@
+import { Link } from '@inertiajs/react';
 import { ArrowDown, Mic, X } from 'lucide-react';
 import type {
     ClipboardEvent,
@@ -75,6 +76,7 @@ import {
     laneColor,
     localDayKey,
 } from '@/lib/utils';
+import { show } from '@/routes/user';
 import type {
     Message,
     MessageReply,
@@ -752,25 +754,7 @@ const ThreadItem = memo(function ThreadItem({
                 'items-start': !item.isMine,
             })}
         >
-            {item.author !== null && (
-                <span
-                    className="flex max-w-full min-w-0 items-center gap-1.5 px-1.5 pb-0.5 text-xs text-muted-foreground"
-                    title={item.author.name}
-                >
-                    <UserAvatar
-                        user={item.author}
-                        className="size-4 ring-1 ring-(--lane)"
-                        style={
-                            {
-                                '--lane': laneColor(item.author.lane),
-                            } as React.CSSProperties
-                        }
-                    />
-                    <span className="truncate font-medium text-foreground">
-                        {item.author.name}
-                    </span>
-                </span>
-            )}
+            {item.author !== null && <GroupAuthor author={item.author} />}
             {item.bubbles.map((bubble, index) => {
                 const key =
                     bubble.kind === 'message'
@@ -800,6 +784,32 @@ const ThreadItem = memo(function ThreadItem({
         </li>
     );
 });
+
+/**
+ * Who sent a run of messages in an org, linking to their profile.
+ */
+export function GroupAuthor({ author }: { author: User }) {
+    return (
+        <Link
+            href={show(author)}
+            className="group flex max-w-full min-w-0 items-center gap-1.5 px-1.5 pb-0.5 text-xs text-muted-foreground"
+            title={author.name}
+        >
+            <UserAvatar
+                user={author}
+                className="size-4 ring-1 ring-(--lane)"
+                style={
+                    {
+                        '--lane': laneColor(author.lane),
+                    } as React.CSSProperties
+                }
+            />
+            <span className="truncate font-medium text-foreground group-hover:underline">
+                {author.name}
+            </span>
+        </Link>
+    );
+}
 
 function BubbleWithMeta({
     bubble,
