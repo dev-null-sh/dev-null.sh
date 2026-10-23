@@ -34,7 +34,11 @@ const reply = (id: string): Commit =>
         },
     }) as Commit;
 
-async function renderThread(count: number, repliesPerPage: number) {
+async function renderThread(
+    count: number,
+    repliesPerPage: number,
+    { isOnTrunk = false }: { isOnTrunk?: boolean } = {},
+) {
     const shown = Math.min(count, repliesPerPage);
     const commit = {
         ...reply('parent'),
@@ -51,7 +55,11 @@ async function renderThread(count: number, repliesPerPage: number) {
         return (
             <TooltipProvider>
                 <ThreadActions thread={thread} />
-                <ThreadReplies thread={thread} depth={0} />
+                <ThreadReplies
+                    thread={thread}
+                    depth={0}
+                    isOnTrunk={isOnTrunk}
+                />
             </TooltipProvider>
         );
     }
@@ -118,3 +126,34 @@ for (const [count, repliesPerPage, more, all] of [
         );
     });
 }
+
+const pieces = (html: string, name: string) =>
+    html.match(new RegExp(`<[^>]*data-test="${name}"[^>]*>`, 'g')) ?? [];
+
+void test('hangs every reply off the parent with an elbow of its own, as the graph canvas does', async () => {
+    const html = await renderThread(3, 3);
+
+    assert.equal(pieces(html, 'thread-elbow').length, 3);
+    assert.equal(pieces(html, 'reply-link').length, 0);
+});
+
+void test("runs the parent's column on from each elbow to the next one, down to the more replies dot", async () => {
+    assert.equal(pieces(await renderThread(3, 3), 'thread-column').length, 2);
+    assert.equal(pieces(await renderThread(5, 3), 'thread-column').length, 4);
+});
+
+void test("puts the more replies dot on the parent's column", async () => {
+    const [row] = pieces(await renderThread(5, 3), 'more-replies');
+
+    assert.ok(row);
+    assert.match(row, /ml-\[calc\(var\(--spine\)-12px\)\]/);
+});
+
+void test('branches the replies off a trunk that goes on below them, without a column of their own', async () => {
+    const html = await renderThread(5, 3, { isOnTrunk: true });
+
+    assert.equal(pieces(html, 'thread-column').length, 0);
+    assert.equal(pieces(html, 'thread-elbow').length, 4);
+    assert.doesNotMatch(pieces(html, 'more-replies')[0] ?? '', /--spine/);
+    assert.doesNotMatch(html, /d="M 0 0 /);
+});

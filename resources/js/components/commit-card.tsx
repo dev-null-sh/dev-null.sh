@@ -633,6 +633,9 @@ export function CommitCard({
                                                     ? graphEndId
                                                     : commit.id
                                             }
+                                            isOnTrunk={
+                                                hasRailTail && !endsWithDot
+                                            }
                                         />
                                     </GraphScope>
                                 </GraphDimmed>

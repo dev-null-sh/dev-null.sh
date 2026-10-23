@@ -3,8 +3,7 @@ export type Point = { x: number; y: number };
 /**
  * A node of the commit graph, measured where it is drawn: its centre and the radius of its outer ring.
  *
- * A node follows `after` on the same trunk (the thread rail, or the previous reply at the same depth), and branches
- * off `parent` when it is the first reply to it.
+ * A node follows `after` on the same trunk, like the thread rail, and branches off `parent` when it is a reply to it.
  */
 export type GraphNode = Point & {
     id: string;
@@ -56,8 +55,29 @@ export function graphEdges(nodes: GraphNode[]): GraphEdge[] {
             const continues = nodes.some(
                 (other) => other.after === parent.id && other.y > node.y,
             );
+            const above = nodes
+                .filter(
+                    (other) => other.parent === parent.id && other.y < node.y,
+                )
+                .reduce<GraphNode | undefined>(
+                    (closest, other) =>
+                        closest === undefined || other.y > closest.y
+                            ? other
+                            : closest,
+                    undefined,
+                );
 
-            edges.push(branch(parent, node, continues));
+            edges.push(
+                branch(
+                    parent,
+                    node,
+                    continues
+                        ? undefined
+                        : above === undefined
+                          ? parent.y
+                          : cornerOf(parent, above),
+                ),
+            );
         }
     }
 
@@ -198,31 +218,45 @@ function trunk(from: GraphNode, to: GraphNode): GraphEdge {
     };
 }
 
+function cornerRadiusOf(from: GraphNode, to: GraphNode): number {
+    return Math.max(0, Math.min(cornerRadius, to.x - from.x, to.y - from.y));
+}
+
+/** Where the branch to a reply leaves its parent's column and turns toward the reply. */
+function cornerOf(from: GraphNode, to: GraphNode): number {
+    return to.y - cornerRadiusOf(from, to);
+}
+
 /**
- * The first reply hangs off its parent with a rounded corner. When the parent's trunk goes on below the reply, the
- * branch only starts at the corner, so it doesn't draw a second line over the trunk.
+ * Every reply hangs off its parent's column with a rounded corner, the column running down from where the reply
+ * above turned (from the parent for the first one), so the branches share it without overlapping. When the parent's
+ * trunk goes on below the reply, the branch only starts at its corner, so it doesn't draw a second line over the
+ * trunk. A node on the column itself, like a "more replies" dot, takes a straight line.
  */
-function branch(from: GraphNode, to: GraphNode, continues: boolean): GraphEdge {
-    const radius = Math.max(
-        0,
-        Math.min(cornerRadius, to.x - from.x, to.y - from.y),
-    );
+function branch(
+    from: GraphNode,
+    to: GraphNode,
+    top: number | undefined,
+): GraphEdge {
+    const radius = cornerRadiusOf(from, to);
     const corner = to.y - radius;
-    const start = continues
-        ? { x: from.x, y: corner }
-        : { x: from.x, y: from.y };
-    const head = continues
-        ? `M ${from.x} ${corner}`
-        : `M ${from.x} ${from.y} V ${corner}`;
+    const start = { x: from.x, y: top ?? corner };
+    const turn = `Q ${from.x} ${to.y} ${from.x + radius} ${to.y} H ${to.x}`;
+    const d =
+        to.x === from.x
+            ? `M ${from.x} ${start.y} V ${to.y}`
+            : top === undefined
+              ? `M ${from.x} ${corner} ${turn}`
+              : `M ${from.x} ${top} V ${corner} ${turn}`;
 
     return {
         id: `${from.id}->${to.id}`,
         from: from.id,
         to: to.id,
-        d: `${head} Q ${from.x} ${to.y} ${from.x + radius} ${to.y} H ${to.x}`,
+        d,
         start,
         end: { x: to.x, y: to.y },
-        drop: Math.max(0, corner - start.y),
+        drop: Math.max(0, (to.x === from.x ? to.y : corner) - start.y),
         lane: from.lane,
         dashed: true,
         dimmed: isDimmed(from, to),

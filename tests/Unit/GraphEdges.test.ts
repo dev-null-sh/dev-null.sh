@@ -49,8 +49,15 @@ void test('draws a line in the lane of the node it leaves, end to end, as the ra
             id: 'sibling',
             x: 100,
             y: 300,
-            after: 'reply',
+            parent: 'root',
             lane: 'var(--lane-3)',
+        }),
+        node({
+            id: 'nested',
+            x: 160,
+            y: 400,
+            parent: 'sibling',
+            lane: 'var(--lane-4)',
         }),
     ]);
 
@@ -58,7 +65,8 @@ void test('draws a line in the lane of the node it leaves, end to end, as the ra
         edges.map((edge) => [edge.id, edge.lane]),
         [
             ['root->reply', 'var(--lane-1)'],
-            ['reply->sibling', 'var(--lane-2)'],
+            ['root->sibling', 'var(--lane-1)'],
+            ['sibling->nested', 'var(--lane-3)'],
         ],
     );
     assert.ok(edges.every((edge) => !('toLane' in edge)));
@@ -94,6 +102,53 @@ void test('branches off the trunk at the reply instead of doubling it when the t
 
     assert.ok(branch);
     assert.equal(branch.d, 'M 32 148 Q 32 160 44 160 H 100');
+});
+
+void test('branches every reply off its parent, each one from where the reply above it turns', () => {
+    const edges = graphEdges([
+        node({ id: 'parent', y: 40 }),
+        node({ id: 'first', x: 100, y: 160, parent: 'parent' }),
+        node({ id: 'second', x: 100, y: 300, parent: 'parent' }),
+        node({ id: 'third', x: 100, y: 420, parent: 'parent' }),
+    ]);
+
+    assert.deepEqual(
+        edges.map((edge) => [edge.id, edge.d]),
+        [
+            ['parent->first', 'M 32 40 V 148 Q 32 160 44 160 H 100'],
+            ['parent->second', 'M 32 148 V 288 Q 32 300 44 300 H 100'],
+            ['parent->third', 'M 32 288 V 408 Q 32 420 44 420 H 100'],
+        ],
+    );
+    assert.deepEqual(edges[1].start, { x: 32, y: 148 });
+    assert.equal(edges[1].drop, 140);
+});
+
+void test('runs straight down to a node on the parent itself, like a "more replies" dot', () => {
+    const edges = graphEdges([
+        node({ id: 'parent', y: 40 }),
+        node({ id: 'reply', x: 100, y: 160, parent: 'parent' }),
+        node({ id: 'more', y: 240, parent: 'parent' }),
+    ]);
+    const toDot = edges.find((edge) => edge.id === 'parent->more');
+
+    assert.ok(toDot);
+    assert.equal(toDot.d, 'M 32 148 V 240');
+    assert.equal(toDot.drop, 92);
+});
+
+void test('branches each reply off the trunk at its own corner when the trunk goes on below them all', () => {
+    const edges = graphEdges([
+        node({ id: 'parent', y: 40 }),
+        node({ id: 'first', x: 100, y: 160, parent: 'parent' }),
+        node({ id: 'second', x: 100, y: 300, parent: 'parent' }),
+        node({ id: 'next', y: 500, after: 'parent' }),
+    ]);
+
+    assert.deepEqual(
+        edges.filter((edge) => edge.to !== 'next').map((edge) => edge.d),
+        ['M 32 148 Q 32 160 44 160 H 100', 'M 32 288 Q 32 300 44 300 H 100'],
+    );
 });
 
 void test('keeps the full elbow when the trunk below ends before the reply', () => {
@@ -310,6 +365,24 @@ void test('keeps the straight stretch a branch shares with the branch it takes o
     ]);
 
     assert.equal(drawnStretch(toReply, [toDot]), 68);
+});
+
+void test('keeps the stretch of the column a "more replies" dot ran down, once the reply below takes its place', () => {
+    const replies = [
+        node({ id: 'root', y: 40 }),
+        node({ id: 'reply', x: 100, y: 160, parent: 'root' }),
+    ];
+    const toDot = graphEdges([
+        ...replies,
+        node({ id: 'more', y: 240, parent: 'root' }),
+    ]).find((edge) => edge.to === 'more');
+    const toNext = graphEdges([
+        ...replies,
+        node({ id: 'next', x: 100, y: 300, parent: 'root' }),
+    ]).find((edge) => edge.to === 'next');
+
+    assert.ok(toDot && toNext);
+    assert.equal(drawnStretch(toNext, [toDot]), 92);
 });
 
 void test('keeps nothing of a line from another node, from where its node stood before, or that turns away at once', () => {
