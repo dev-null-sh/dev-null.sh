@@ -154,6 +154,22 @@ it('keeps the draw of the trending log while it scrolls', function (): void {
         ->and($second->inertiaProps('commits.next_cursor'))->toBeNull();
 });
 
+it('keeps the draw of the trending log while it scrolls, even when another tab opens it', function (): void {
+    config(['trending.temperature' => 0.5]);
+    $user = User::factory()->create();
+    $commits = Commit::factory()->count(25)->sequence(
+        fn ($sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+
+    $first = $this->actingAs($user)->get('/log/trending');
+    $this->get('/log/trending')->assertOk();
+    $second = $this->get(route('log.show', [Log::Trending, 'cursor' => $first->inertiaProps('commits.next_cursor')]));
+
+    $ids = array_column([...$first->inertiaProps('commits.data'), ...$second->inertiaProps('commits.data')], 'id');
+
+    expect($ids)->toEqualCanonicalizing($commits->modelKeys());
+});
+
 it('does not count the authenticated user relations when reloading only commits', function (): void {
     $user = User::factory()->has(Commit::factory())->create();
 

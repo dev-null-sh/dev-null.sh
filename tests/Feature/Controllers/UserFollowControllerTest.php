@@ -104,7 +104,6 @@ it('follows from an unrelated log without replacing its loaded commits or rankin
         'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
     ];
     $this->actingAs($viewer)->get(route('log.show', $log), $headers)->assertOk();
-    $seed = session('trending_seed');
 
     $this->withHeaders([
         ...$headers,
@@ -117,8 +116,7 @@ it('follows from an unrelated log without replacing its loaded commits or rankin
         ->assertJsonMissingPath('props.commits')
         ->assertJsonMissingPath('props.suggestions');
 
-    expect($viewer->isFollowing($author))->toBeTrue()
-        ->and(session('trending_seed'))->toBe($seed);
+    expect($viewer->isFollowing($author))->toBeTrue();
 })->with([Log::Latest, Log::Trending]);
 
 it('replaces the empty Following log with commits after its first follow', function (): void {

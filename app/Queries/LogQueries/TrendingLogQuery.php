@@ -16,8 +16,6 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class TrendingLogQuery implements LogQuery
 {
-    private const string SEED = 'trending_seed';
-
     public function __construct(private Request $request)
     {
         //
@@ -35,12 +33,16 @@ final readonly class TrendingLogQuery implements LogQuery
         // with twice the engagement of another ranks above it 4 times out of 5, and at 0 the order is the hot score's.
         // u comes from hashing the id with the draw's seed, so every page of a draw sorts the same way, and the sum is
         // rounded so that it reads back exactly, which the cursor relies on. It is drawn in a joined subquery, so the
-        // cursor pages on a plain column rather than on an expression.
+        // cursor pages on a plain column rather than on an expression. The seed is a column too, ordered on first: it is
+        // the same on every row, so it changes nothing in the order, but it rides along in the cursor to the next page.
+        $seed = $this->seed();
+
         $draw = DB::table('commits')
             ->select('id as drawn_id')
+            ->selectRaw('?::bigint as trending_seed', [$seed])
             ->selectRaw(
                 'round((hot_score - ? * ln(-ln(((abs(hashtextextended(id::text, ?) % 1000000) + 0.5) / 1000000)::float8)))::numeric, 6) as trending_score',
-                [Config::float('trending.temperature') / M_LN2, $this->seed()],
+                [Config::float('trending.temperature') / M_LN2, $seed],
             );
 
         return Commit::query()
@@ -51,29 +53,26 @@ final readonly class TrendingLogQuery implements LogQuery
             ->withVisibleReplyCount($user)
             ->withReplyPreviews($user)
             ->withCardDataFor($user)
-            ->addSelect('draw.trending_score')
+            ->addSelect(['draw.trending_seed', 'draw.trending_score'])
+            ->orderByDesc('trending_seed')
             ->orderByDesc('trending_score')
             ->orderByDesc('id');
     }
 
     /**
-     * Opening the log draws a new seed, kept in the session for the pages that follow as it scrolls, so they do not
-     * overlap. Without a session, as over the API, the draw is always the same.
+     * Opening the log draws a new seed, and the pages that follow as it scrolls read it back from their cursor, so they
+     * do not overlap. Unlike the session, the cursor belongs to one tab, so opening the log in another draws a seed of
+     * its own without changing this one. Without a session, as over the API, the draw is always the same.
      */
     private function seed(): int
     {
-        if (! $this->request->hasSession()) {
-            return 0;
+        $cursor = CursorPaginator::resolveCurrentCursor();
+        $seed = $cursor instanceof Cursor ? $cursor->toArray()['trending_seed'] ?? null : null;
+
+        if (is_int($seed)) {
+            return $seed;
         }
 
-        $seed = $this->request->session()->get(self::SEED);
-
-        if (! is_int($seed) || ! CursorPaginator::resolveCurrentCursor() instanceof Cursor) {
-            $seed = random_int(0, PHP_INT_MAX);
-
-            $this->request->session()->put(self::SEED, $seed);
-        }
-
-        return $seed;
+        return $this->request->hasSession() ? random_int(0, PHP_INT_MAX) : 0;
     }
 }
