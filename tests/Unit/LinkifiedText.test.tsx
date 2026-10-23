@@ -545,6 +545,8 @@ for (const [url, label, description] of [
         'laravel/framework#42 (comment)',
         'laravel/framework comment on discussion #42',
     ],
+    ['https://github.com/taylorotwell', 'taylorotwell', 'taylorotwell'],
+    ['https://github.com/orgs/laravel', 'laravel', 'laravel'],
 ]) {
     test(`shows a GitHub link as GitHub writes it: ${url}`, () => {
         const text = `see ${url}.`;
@@ -566,7 +568,13 @@ for (const [url, label, description] of [
 }
 
 for (const link of [
-    'https://github.com/laravel',
+    'https://github.com/laravel/',
+    'https://github.com/laravel?tab=repositories',
+    'https://github.com/laravel#top',
+    'https://github.com/-laravel',
+    'https://github.com/orgs',
+    'https://github.com/orgs/laravel/people',
+    'https://github.com/orgs/-laravel',
     'https://github.com/laravel/framework/',
     'https://github.com/laravel/framework/blob/12.x/README.md',
     'https://github.com/laravel/framework/tree/12.x',
@@ -602,7 +610,15 @@ for (const link of [
     'https://github.com/laravel/framework?tab=readme',
     'https://github.com/laravel/framework#readme',
     'https://github.com/features/actions',
-    'https://github.com/orgs/laravel',
+    'https://github.com/features',
+    'https://github.com/dashboard',
+    'https://github.com/copilot',
+    'https://github.com/readme',
+    'https://github.com/signup',
+    'https://github.com/blog',
+    'https://github.com/education',
+    'https://github.com/enterprises',
+    'https://github.com/mobile',
     'https://github.com/settings/profile',
     'https://gist.github.com/laravel/framework',
     'https://notgithub.com/laravel/framework',

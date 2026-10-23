@@ -13,7 +13,7 @@ import {
     urlPattern,
     withoutTrailingPunctuation,
 } from '@/lib/urls';
-import { shortHash } from '@/lib/utils';
+import { cn, shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
 import type { BodySegment, Commit } from '@/types';
 
@@ -34,8 +34,10 @@ const gitHubTagPattern =
 // First path segments that are GitHub's own pages rather than an owner, like "github.com/features/actions".
 const gitHubReservedPaths = new Set(
     [
-        'about apps codespaces collections customer-stories enterprise events explore features issues login marketplace',
-        'new notifications orgs organizations pricing pulls search security settings site sponsors topics trending users',
+        'about account apps blog codespaces collections contact copilot customer-stories dashboard education enterprise',
+        'enterprises events explore features git-guides home issues join login logout marketplace mobile models new',
+        'notifications orgs organizations partners premium-support pricing pulls readme resources search security',
+        'settings signup site solutions sponsors stars team topics trending users watching',
     ]
         .join(' ')
         .split(' '),
@@ -159,7 +161,7 @@ type GitHubItem = { suffix: string; description: string };
 
 type GitHubTarget = {
     owner: string;
-    repository: string;
+    repository: string | null;
     item: GitHubItem | null;
 };
 
@@ -269,8 +271,8 @@ function gitHubItem(path: string[], hash: string): GitHubItem | null {
 }
 
 /**
- * A link to a GitHub repository, or to an issue, a pull request, a discussion, a commit, a comparison or a release in
- * it, nothing after them but a comment's anchor, so it can show as GitHub writes it.
+ * A link to a GitHub profile or organization, to a repository, or to an issue, a pull request, a discussion, a commit,
+ * a comparison or a release in it, nothing after them but a comment's anchor, so it can show as GitHub writes it.
  */
 function gitHubLinkTo(href: string): GitHubTarget | null {
     let url: URL;
@@ -281,19 +283,36 @@ function gitHubLinkTo(href: string): GitHubTarget | null {
         return null;
     }
 
-    const [owner, repository, ...path] = url.pathname.slice(1).split('/');
+    const segments = url.pathname.slice(1).split('/');
 
     if (
         !gitHubHostPattern.test(url.hostname) ||
         url.username !== '' ||
         url.password !== '' ||
         url.port !== '' ||
-        url.search !== '' ||
-        !gitHubOwnerPattern.test(owner) ||
-        gitHubReservedPaths.has(owner.toLowerCase()) ||
-        repository === undefined ||
-        !gitHubRepositoryPattern.test(repository)
+        url.search !== ''
     ) {
+        return null;
+    }
+
+    // An organization's own page names it like its profile does.
+    const [owner, repository, ...path] =
+        segments.length === 2 && segments[0].toLowerCase() === 'orgs'
+            ? segments.slice(1)
+            : segments;
+
+    if (
+        !gitHubOwnerPattern.test(owner) ||
+        gitHubReservedPaths.has(owner.toLowerCase())
+    ) {
+        return null;
+    }
+
+    if (repository === undefined) {
+        return url.hash === '' ? { owner, repository: null, item: null } : null;
+    }
+
+    if (!gitHubRepositoryPattern.test(repository)) {
         return null;
     }
 
@@ -318,10 +337,11 @@ function GitHubLink({
     url: string;
     href: string;
     owner: string;
-    repository: string;
+    repository: string | null;
     item: GitHubItem | null;
     isStatic: boolean;
 }) {
+    const name = repository === null ? owner : `${owner}/${repository}`;
     const label = (
         <>
             <span className="text-[0px]">{url}</span>
@@ -330,13 +350,25 @@ function GitHubLink({
                 className="font-mono text-[0.92em] wrap-anywhere select-none"
             >
                 {/* The mark never wraps onto a line of its own. */}
-                <span className="whitespace-nowrap text-muted-foreground">
+                <span
+                    className={cn('whitespace-nowrap', {
+                        'text-muted-foreground': repository !== null,
+                    })}
+                >
                     <GitHubIcon className="mr-[0.2em] inline-block size-[1.15em] align-[-0.25em] text-foreground" />
                     {owner.charAt(0)}
                 </span>
-                <span className="text-muted-foreground">{owner.slice(1)}/</span>
-                {repository}
-                {item?.suffix}
+                {repository === null ? (
+                    owner.slice(1)
+                ) : (
+                    <>
+                        <span className="text-muted-foreground">
+                            {owner.slice(1)}/
+                        </span>
+                        {repository}
+                        {item?.suffix}
+                    </>
+                )}
             </span>
         </>
     );
@@ -355,7 +387,7 @@ function GitHubLink({
             target="_blank"
             rel="noopener noreferrer nofollow ugc"
             title={href}
-            aria-label={`${owner}/${repository}${item ? ` ${item.description}` : ''} on GitHub`}
+            aria-label={`${name}${item ? ` ${item.description}` : ''} on GitHub`}
             className="text-primary hover:underline"
         >
             {label}
