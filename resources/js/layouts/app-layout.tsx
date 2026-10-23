@@ -1,5 +1,5 @@
 import { Head, usePage, usePoll } from '@inertiajs/react';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppAside } from '@/components/app-aside';
 import {
     AppNav,
@@ -28,6 +28,7 @@ import { useNavOpen } from '@/hooks/use-nav-open';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
 import { backgroundPollOptions } from '@/lib/background-poll';
+import { showFaviconBadge } from '@/lib/favicon-badge';
 import { cn } from '@/lib/utils';
 import type { AppLayoutProps } from '@/types';
 
@@ -156,6 +157,10 @@ function NotificationTitle() {
     const { auth } = usePage().props;
     const { notificationTitle } = useChat();
     const unread = useUnreadMessages() + auth.unreadNotificationsCount;
+
+    useEffect(() => {
+        void showFaviconBadge(unread);
+    }, [unread]);
 
     // A fresh provider takes precedence over the page's title; removing it restores that title after the alert.
     return (
