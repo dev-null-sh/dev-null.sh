@@ -643,3 +643,16 @@ html body[data-scroll-locked] {
         color: var(--destructive);
     }
 }
+
+/* Commits that just arrived on their own, until the reader moves on. */
+[data-commit] {
+    transition:
+        background-color 1.4s ease,
+        box-shadow 1.4s ease;
+}
+
+[data-commit][data-fresh] {
+    background-color: color-mix(in oklab, var(--primary) 7%, transparent);
+    box-shadow: inset 3px 0 0
+        color-mix(in oklab, var(--primary) 70%, transparent);
+}

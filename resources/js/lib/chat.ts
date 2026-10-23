@@ -172,7 +172,6 @@ let isLoadingReactionUsage = false;
 let remoteAlerts: ReturnType<typeof createRemoteAlerts> | null = null;
 let isFetchingInbox = false;
 let muteVersion = 0;
-let remotesPageWatchers = 0;
 
 export function targetKey(target: ChatTarget): string {
     return target.kind === 'direct'
@@ -654,7 +653,6 @@ async function pollInbox(): Promise<void> {
                         state.mutePreferences[summaryKey(conversation)].until,
                 })),
                 (conversation) =>
-                    isViewingRemotes() ||
                     isReading(conversation) ||
                     isRemoteMuted(
                         state.mutePreferences[summaryKey(conversation)].until,
@@ -696,67 +694,83 @@ async function pollInbox(): Promise<void> {
 
 export function watchRemoteAlerts(userId: string): () => void {
     let titleTimer: number | undefined;
-    let pendingTitle: string | null = null;
+    let pendingAlert: { key: string; title: string } | null = null;
     const channel =
         'BroadcastChannel' in window
             ? new BroadcastChannel(`remote-titles:${userId}`)
             : null;
     const clearTitle = () => {
         window.clearInterval(titleTimer);
-        pendingTitle = null;
+        pendingAlert = null;
         update({ notificationTitle: null });
     };
     const acknowledgeTitle = () => {
-        if (document.hidden || !document.hasFocus()) return;
-
-        clearTitle();
-        channel?.postMessage(null);
-    };
-    const showTitle = (title: string) => {
-        if (!remoteAlertsEnabled(userId)) return;
-        if (!document.hidden && document.hasFocus()) {
-            acknowledgeTitle();
+        if (
+            pendingAlert === null ||
+            document.hidden ||
+            !document.hasFocus() ||
+            !isWatching(pendingAlert.key)
+        )
             return;
-        }
 
-        const alreadyPending = pendingTitle !== null;
-        pendingTitle = title;
+        const key = pendingAlert.key;
+        clearTitle();
+        channel?.postMessage({ key, title: null });
+    };
+    const showTitle = (alert: { key: string; title: string }) => {
+        if (!remoteAlertsEnabled(userId)) return;
+
+        const alreadyPending = pendingAlert !== null;
+        pendingAlert = alert;
+        acknowledgeTitle();
+        if (pendingAlert === null) return;
+
         if (alreadyPending) {
             if (state.notificationTitle !== null) {
-                update({ notificationTitle: pendingTitle });
+                update({ notificationTitle: pendingAlert.title });
             }
             return;
         }
 
-        update({ notificationTitle: pendingTitle });
+        update({ notificationTitle: pendingAlert.title });
         let switches = 0;
         titleTimer = window.setInterval(() => {
             switches++;
             update({
-                notificationTitle: switches % 2 === 0 ? pendingTitle : null,
+                notificationTitle:
+                    switches % 2 === 0 ? (pendingAlert?.title ?? null) : null,
             });
             if (switches === 6) window.clearInterval(titleTimer);
         }, 1_000);
     };
     channel?.addEventListener('message', (event: MessageEvent<unknown>) => {
-        if (event.data === null) clearTitle();
-        else if (typeof event.data === 'string') showTitle(event.data);
+        const alert = event.data;
+        if (
+            typeof alert !== 'object' ||
+            alert === null ||
+            !('key' in alert) ||
+            typeof alert.key !== 'string' ||
+            !('title' in alert)
+        )
+            return;
+        if (alert.title === null && pendingAlert?.key === alert.key)
+            clearTitle();
+        else if (typeof alert.title === 'string')
+            showTitle({ key: alert.key, title: alert.title });
     });
     window.addEventListener('focus', acknowledgeTitle);
     document.addEventListener('visibilitychange', acknowledgeTitle);
-    acknowledgeTitle();
+    const unsubscribe = subscribeToChat(acknowledgeTitle);
 
     const alerts = createRemoteAlerts(
         userId,
         (conversation) => urls(targetOf(conversation)).show,
         () =>
-            isViewingRemotes()
-                ? ['*']
-                : !document.hidden && document.hasFocus()
-                  ? [...threadWatchers.keys()].map(
-                        (key) => urls(state.threads[key].target).show,
-                    )
-                  : [],
+            !document.hidden && document.hasFocus()
+                ? [...threadWatchers.keys()].map(
+                      (key) => urls(state.threads[key].target).show,
+                  )
+                : [],
         (conversation) => {
             const sender = conversation.last_incoming_sender ?? 'Someone';
             const remote =
@@ -764,8 +778,9 @@ export function watchRemoteAlerts(userId: string): () => void {
                     ? ` in ${conversation.name || 'an unnamed org'}`
                     : '';
             const title = `${sender}${remote} sent you a message`;
-            channel?.postMessage(title);
-            showTitle(title);
+            const alert = { key: summaryKey(conversation), title };
+            channel?.postMessage(alert);
+            showTitle(alert);
         },
     );
     remoteAlerts = alerts;
@@ -777,25 +792,12 @@ export function watchRemoteAlerts(userId: string): () => void {
         window.removeEventListener('focus', acknowledgeTitle);
         document.removeEventListener('visibilitychange', acknowledgeTitle);
         channel?.close();
+        unsubscribe();
         if (remoteAlerts === alerts) {
             remoteAlerts = null;
             update({ notificationTitle: null });
         }
         unwatch();
-    };
-}
-
-function isViewingRemotes(): boolean {
-    return remotesPageWatchers > 0 && !document.hidden && document.hasFocus();
-}
-
-export function watchRemotesPage(): () => void {
-    remotesPageWatchers++;
-    remoteAlerts?.updateReading();
-
-    return () => {
-        remotesPageWatchers--;
-        remoteAlerts?.updateReading();
     };
 }
 
@@ -1336,8 +1338,16 @@ export function pingTyping(target: ChatTarget): void {
     void request(urls(target).typing, 'PUT').catch(() => undefined);
 }
 
+const olderLoads = new Map<string, Promise<void>>();
+
 export async function loadOlderMessages(target: ChatTarget): Promise<void> {
     const key = targetKey(target);
+    const loading = olderLoads.get(key);
+
+    if (loading !== undefined) {
+        return loading;
+    }
+
     const thread = state.threads[key];
     const oldest = thread?.messages[0]?.id;
 
@@ -1352,19 +1362,60 @@ export async function loadOlderMessages(target: ChatTarget): Promise<void> {
 
     updateThread(key, () => ({ isLoadingOlder: true }));
 
-    try {
-        const older = await request<Thread | OrgThread>(
-            urls(target).index({ before: oldest }),
-        );
+    const load = (async () => {
+        try {
+            const older = await request<Thread | OrgThread>(
+                urls(target).index({ before: oldest }),
+            );
 
-        updateThread(key, (current) => ({
-            messages: mergeMessages(current.messages, older.messages),
-            has_older: older.has_older,
-            isLoadingOlder: false,
-        }));
-    } catch {
-        updateThread(key, () => ({ isLoadingOlder: false }));
+            updateThread(key, (current) => ({
+                messages: mergeMessages(current.messages, older.messages),
+                has_older: older.has_older,
+                isLoadingOlder: false,
+            }));
+        } catch {
+            updateThread(key, () => ({ isLoadingOlder: false }));
+        }
+    })();
+    olderLoads.set(key, load);
+
+    try {
+        await load;
+    } finally {
+        olderLoads.delete(key);
     }
+}
+
+/**
+ * Keep the history continuous when following a reply, sharing pages with ordinary scrolling.
+ */
+export async function loadMessage(
+    target: ChatTarget,
+    id: number,
+    signal: AbortSignal,
+): Promise<boolean> {
+    const key = targetKey(target);
+
+    while (!signal.aborted) {
+        const thread = state.threads[key];
+        const oldest = thread?.messages[0]?.id;
+
+        if (thread?.messages.some((message) => message.id === id)) {
+            return true;
+        }
+
+        if (oldest === undefined || oldest <= id || !thread.has_older) {
+            return false;
+        }
+
+        await loadOlderMessages(target);
+
+        if (state.threads[key]?.messages[0]?.id === oldest) {
+            return false;
+        }
+    }
+
+    return false;
 }
 
 /**

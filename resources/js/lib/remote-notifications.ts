@@ -92,7 +92,7 @@ export function createRemoteAlerts(
     let latest: Record<string, number> | null = null;
     let stopped = false;
     let lastSoundAt = 0;
-    const sound = new Audio('/sounds/remote.wav');
+    const sound = new Audio('/sounds/remote.mp3');
     const notifications = new Set<Notification>();
     const cooldownKey = `remote-alert-cooldown:${userId}`;
     const readingKey = `remote-alert-reading:${userId}`;
@@ -194,8 +194,7 @@ export function createRemoteAlerts(
                         !isSuppressed(item) &&
                         !(
                             Number(readingUntil) > now &&
-                            (readingUrls.includes('*') ||
-                                readingUrls.includes(urlOf(item)))
+                            readingUrls.includes(urlOf(item))
                         ),
                 );
                 for (const item of arrivals) {
