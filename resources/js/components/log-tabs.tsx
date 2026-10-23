@@ -1,7 +1,7 @@
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import UserListController from '@/actions/App/Http/Controllers/UserListController';
 import { PageTabs } from '@/components/page-tabs';
-import type { Log, PinnedList } from '@/types';
+import type { PinnedList } from '@/types';
 
 /**
  * The logs, with the viewer's pinned lists after them, where the active tab is a log or a list's id.
@@ -10,7 +10,7 @@ export function LogTabs({
     active,
     pinnedLists,
 }: {
-    active: Log | string;
+    active: string;
     pinnedLists: PinnedList[];
 }) {
     return (
