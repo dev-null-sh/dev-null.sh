@@ -791,7 +791,7 @@ test('an unfocused window does not mark incoming messages read before it can ale
         messages: [conversation(50).last_message!], has_older: false,
         reactions_version: 0, reaction_changes: [], read_through_id: 0,
         members: [], typing: [], is_archived: false, pinned_at: null, muted_until_at: null,
-        role: 'contributor', access: 'open',
+        role: 'contributor', access: 'open', pinned: [],
     });
 
     markThreadRead(target);

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Message;
 use App\Models\User;
 
 dataset('rate limits', [
@@ -18,6 +19,14 @@ dataset('rate limits', [
         fn (): array => [
             ['PUT', route('commit-pin.update', $commit = Commit::factory()->create())],
             ['DELETE', route('commit-pin.destroy', $commit)],
+        ],
+        20,
+        60,
+    ],
+    'message pins' => [
+        fn (): array => [
+            ['PUT', route('message-pin.update', $message = Message::factory()->create())],
+            ['DELETE', route('message-pin.destroy', $message)],
         ],
         20,
         60,

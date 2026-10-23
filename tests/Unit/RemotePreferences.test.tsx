@@ -35,7 +35,7 @@ const orgSummary: ConversationSummary = {
 const thread: OrgThread & { org: typeof org } = {
     org, messages: [], has_older: false, reactions_version: 0, reaction_changes: [],
     read_through_id: 0, members: [], typing: [], is_archived: true, pinned_at: null, muted_until_at: null,
-    role: 'contributor', access: 'open',
+    role: 'contributor', access: 'open', pinned: [],
 };
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
