@@ -353,7 +353,16 @@ export default function Show({
                             actions={
                                 <>
                                     {selectedLane === preferredLane ? (
-                                        <Button type="button" onClick={next}>
+                                        <Button
+                                            type="button"
+                                            onClick={() =>
+                                                // The people behind your stack are found after sign-in, so ask for the suggestions again, as saving a color does.
+                                                router.reload({
+                                                    only: ['suggestions'],
+                                                    onSuccess: next,
+                                                })
+                                            }
+                                        >
                                             Continue
                                         </Button>
                                     ) : (

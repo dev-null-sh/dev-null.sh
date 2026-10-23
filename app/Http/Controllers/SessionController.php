@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Actions\CreateTomFriendship;
 use App\Actions\UpdateOrCreateUser;
 use App\Jobs\ImportGitHubFollowsJob;
+use App\Jobs\SuggestDependencyContributorsJob;
 use App\Jobs\SyncGitHubSshKeysJob;
 use App\Services\GitHubAccountScreening;
 use Illuminate\Http\RedirectResponse;
@@ -56,6 +57,10 @@ final readonly class SessionController
 
         dispatch(new SyncGitHubSshKeysJob($user));
         dispatch(new ImportGitHubFollowsJob($user, notify: $user->wasRecentlyCreated));
+
+        if ($user->wasRecentlyCreated) {
+            dispatch(new SuggestDependencyContributorsJob($user));
+        }
 
         Auth::login($user, remember: true);
 

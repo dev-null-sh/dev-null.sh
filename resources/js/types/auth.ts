@@ -62,4 +62,5 @@ export type SuggestedUser = User & {
     followed_by_following_count: number;
     followers_count: number;
     follows_you: boolean;
+    behind_your_stack: boolean;
 };

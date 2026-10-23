@@ -4,20 +4,22 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Actions\CreateStackSuggestions;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Random\Engine\Mt19937;
 use Random\Randomizer;
 
 final readonly class SuggestedUsersQuery
 {
     /**
-     * People the user does not follow yet: a mix of people their follows already follow and a few
-     * popular people picked from the 20 most followed. Either side fills in when the other runs short.
+     * People the user does not follow yet: a mix of the people behind their stack and people their follows already
+     * follow, and a few popular people picked from the 20 most followed. Either side fills in when the other runs short.
      *
      * The day's candidates are split into pages of that mix, and each round shows the next page,
      * going back to the first one after the last.
@@ -46,6 +48,7 @@ final readonly class SuggestedUsersQuery
                 'users.id',
             )
             ->select(['users.*', 'network.followed_by_following_count'])
+            ->selectRaw('false as behind_your_stack')
             ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
             ->whereIn('users.id', $this->committers($user))
             ->orderByDesc('followed_by_following_count')
@@ -60,6 +63,7 @@ final readonly class SuggestedUsersQuery
                 ->whereNotExists($this->followedByFollowing($user, $following))
                 ->select('users.*')
                 ->selectRaw('0 as followed_by_following_count')
+                ->selectRaw('false as behind_your_stack')
                 ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
                 ->orderByDesc('followers_count')
                 ->latest('users.id'), 'users')
@@ -68,6 +72,10 @@ final readonly class SuggestedUsersQuery
             ->latest('users.id')
             ->limit(20)
             ->get();
+
+        $stack = $this->stack($user, $followingIds, $following);
+        $network = $stack->concat($network->whereNotIn('id', $stack->pluck('id')));
+        $popularPool = $popularPool->whereNotIn('id', $stack->pluck('id'));
 
         $pages = $this->pages($randomizer, $network, $popularPool, $limit);
         $current = max(0, $round) % count($pages);
@@ -112,6 +120,33 @@ final readonly class SuggestedUsersQuery
         }
 
         return array_map(fn (array $page): Collection => new Collection($page), $pages);
+    }
+
+    /**
+     * The people behind the packages the user's repositories depend on, looked up when they signed up. They come
+     * before the people the user might know, whom the people they follow already lead them to.
+     *
+     * @param  BelongsToMany<User, User>  $following
+     * @return Collection<int, User>
+     */
+    private function stack(User $user, QueryBuilder $followingIds, BelongsToMany $following): Collection
+    {
+        $ids = Cache::get(CreateStackSuggestions::key($user), []);
+
+        if ($ids === []) {
+            return new Collection;
+        }
+
+        return $this->candidates($user, $followingIds)
+            ->whereKey($ids)
+            ->whereIn('users.id', $this->committers($user))
+            ->select('users.*')
+            ->selectRaw('0 as followed_by_following_count')
+            ->selectRaw('true as behind_your_stack')
+            ->addSelect(['followers_count' => $this->followersCount($following), 'follows_you' => $this->followsUser($user)])
+            ->orderByDesc('followers_count')
+            ->latest('users.id')
+            ->get();
     }
 
     /**

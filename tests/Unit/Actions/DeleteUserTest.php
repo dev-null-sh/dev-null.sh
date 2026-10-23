@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitTranslation;
+use App\Actions\CreateStackSuggestions;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Ai\Agents\CommitTranslator;
@@ -298,6 +299,17 @@ it('erases cached translations of the user and replies in their deleted threads'
         ->and(Cache::has($unrelatedKey))->toBeTrue()
         ->and($bodyReads)->toHaveCount(2);
     $this->assertModelMissing($user);
+});
+
+it('erases who is suggested from the stack of a deleted user', function (): void {
+    [$user, $other, $contributor] = User::factory()->count(3)->create();
+    Cache::put(CreateStackSuggestions::key($user), [$contributor->id], 60);
+    Cache::put(CreateStackSuggestions::key($other), [$contributor->id], 60);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(Cache::has(CreateStackSuggestions::key($user)))->toBeFalse()
+        ->and(Cache::has(CreateStackSuggestions::key($other)))->toBeTrue();
 });
 
 it('erases the voice notes a deleted user sent in remotes, keeping the ones sent to them', function (): void {

@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateStackSuggestions;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @return Collection<int, User>
@@ -274,4 +277,52 @@ it('marks the people the user might know who follow the user', function (): void
     expect($suggestions)->toHaveCount(2)
         ->and($suggestions[$follower->id]->follows_you)->toBeTrue()
         ->and($suggestions[$stranger->id]->follows_you)->toBeFalse();
+});
+
+it('suggests the people behind the stack of the user before the people they might know', function (): void {
+    $user = User::factory()->create();
+    $stack = User::factory()->count(2)->has(Commit::factory())->create();
+    vouchedFor($user, 2);
+
+    Cache::put(CreateStackSuggestions::key($user), $stack->modelKeys(), 60);
+
+    expect(resolve(SuggestedUsersQuery::class)->get($user)->pluck('id'))->toContain(...$stack->modelKeys());
+});
+
+it('marks the people behind the stack of the user, even the ones they might know or who are popular', function (): void {
+    $user = User::factory()->create();
+    [$known, $stranger] = vouchedFor($user, 2);
+    [$popularInStack, $popular] = popularUsers(2);
+
+    Cache::put(CreateStackSuggestions::key($user), [$known->id, $popularInStack->id], 60);
+
+    $suggestions = resolve(SuggestedUsersQuery::class)->get($user, limit: 4)->keyBy('id');
+
+    expect($suggestions)->toHaveCount(4)
+        ->and($suggestions[$known->id]->behind_your_stack)->toBeTrue()
+        ->and($suggestions[$popularInStack->id]->behind_your_stack)->toBeTrue()
+        ->and($suggestions[$stranger->id]->behind_your_stack)->toBeFalse()
+        ->and($suggestions[$popular->id]->behind_your_stack)->toBeFalse();
+});
+
+it('does not suggest the people behind the stack of the user they follow or who have not committed', function (): void {
+    $user = User::factory()->create();
+    $followed = User::factory()->has(Commit::factory())->create();
+    $silent = User::factory()->create();
+
+    $user->following()->attach($followed);
+    Cache::put(CreateStackSuggestions::key($user), [$followed->id, $silent->id], 60);
+
+    expect(resolve(SuggestedUsersQuery::class)->get($user))->toBeEmpty();
+});
+
+it('does not look for the people behind the stack of a user who has none', function (): void {
+    $user = User::factory()->create();
+    popularUsers(1);
+
+    DB::enableQueryLog();
+
+    resolve(SuggestedUsersQuery::class)->get($user);
+
+    expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'true as behind_your_stack')))->toBeEmpty();
 });
