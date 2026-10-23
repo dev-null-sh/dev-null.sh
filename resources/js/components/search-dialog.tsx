@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import UserSearchController from '@/actions/App/Http/Controllers/UserSearchController';
+import { SearchError } from '@/components/search-error';
+import type { SearchFailure } from '@/components/search-error';
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
@@ -40,7 +42,12 @@ const commitDebounce = 350;
 
 const commitLimit = 5;
 
-type Found<T> = { term: string; items: T[]; throttled?: boolean };
+type Found<T> = {
+    term: string;
+    attempt: number;
+    items: T[];
+    error?: SearchFailure;
+};
 
 type Option =
     | { kind: 'developer'; id: string; user: User; reason?: string | null }
@@ -111,12 +118,16 @@ export function SearchDialog({
     const isEmpty = term === '';
     const isAwaitingDeveloperName =
         awaitsDeveloperName(term) || (isPicking && isEmpty);
-    const isThrottled =
-        developers.isThrottled(developerTerm) ||
-        commits.isThrottled(commitTerm);
+    const developerError = developers.errorFor(developerTerm);
+    const commitError = commits.errorFor(commitTerm);
+    const failure =
+        developerError === 'throttled' || commitError === 'throttled'
+            ? 'throttled'
+            : (developerError ?? commitError);
     const foundNothing =
         !isEmpty &&
         !isAwaitingDeveloperName &&
+        failure === null &&
         hasSearched &&
         !isLoading &&
         results.length === 0;
@@ -261,13 +272,22 @@ export function SearchDialog({
                         </kbd>
                     </div>
 
-                    {isThrottled ? (
-                        <p
-                            role="status"
-                            className="truncate px-5 pt-4 font-mono text-[13px] text-muted-foreground"
-                        >
-                            error: too many searches, give it a few seconds
-                        </p>
+                    {failure !== null ? (
+                        <SearchError
+                            reason={failure}
+                            onRetry={() => {
+                                if (developerError !== null) {
+                                    developers.retry();
+                                }
+
+                                if (commitError !== null) {
+                                    commits.retry();
+                                }
+
+                                input.current?.focus();
+                            }}
+                            className="px-5 pt-4 pb-2"
+                        />
                     ) : (
                         foundNothing && (
                             <p
@@ -331,16 +351,18 @@ export function SearchDialog({
                                 />
                             ))}
                         </ul>
-                    ) : (
+                    ) : failure === null ? (
                         <div
                             role="status"
                             className="px-5 py-8 text-center text-sm text-muted-foreground"
                         >
                             {isAwaitingDeveloperName
                                 ? 'Type a name or handle to find a developer'
-                                : 'Searching…'}
+                                : foundNothing
+                                  ? 'No developers found'
+                                  : 'Searching…'}
                         </div>
-                    )}
+                    ) : null}
 
                     <div className="hidden items-center gap-4 border-t bg-muted/40 px-4 py-2 text-xs text-muted-foreground sm:flex">
                         <span className="flex items-center gap-1.5">
@@ -378,8 +400,13 @@ function useDebouncedSearch<T>(
     debounce: number,
     search: (term: string, signal: AbortSignal) => Promise<T[]>,
 ) {
-    const [found, setFound] = useState<Found<T>>({ term: '', items: [] });
+    const [found, setFound] = useState<Found<T>>({
+        term: '',
+        attempt: 0,
+        items: [],
+    });
     const [isLoading, setIsLoading] = useState(false);
+    const [attempt, setAttempt] = useState(0);
 
     useEffect(() => {
         if (term === '') {
@@ -391,18 +418,25 @@ function useDebouncedSearch<T>(
             setIsLoading(true);
 
             search(term, controller.signal)
-                .then((items) => setFound({ term, items }))
+                .then((items) => {
+                    if (!controller.signal.aborted) {
+                        setFound({ term, attempt, items });
+                    }
+                })
                 .catch((error: unknown) => {
                     if (controller.signal.aborted) {
                         return;
                     }
 
-                    // A failed search counts as an empty one, so the dialog never waits on it forever.
-                    setFound({
+                    setFound((previous) => ({
                         term,
-                        items: [],
-                        throttled: error instanceof TooManySearches,
-                    });
+                        attempt,
+                        items: previous.term === term ? previous.items : [],
+                        error:
+                            error instanceof TooManySearches
+                                ? 'throttled'
+                                : 'failed',
+                    }));
                 })
                 .finally(() => {
                     if (!controller.signal.aborted) {
@@ -416,19 +450,23 @@ function useDebouncedSearch<T>(
             controller.abort();
             setIsLoading(false);
         };
-        // The search function is recreated every render; only the term should restart it.
+        // The search function is recreated every render; it must not restart the request.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [term, debounce]);
+    }, [term, debounce, attempt]);
 
     return {
         isLoading,
         resultsFor: (current: string) =>
             current !== '' && current === found.term ? found.items : [],
-        hasSearched: (current: string) => current === found.term,
-        isThrottled: (current: string) =>
+        hasSearched: (current: string) =>
+            current === found.term && found.attempt === attempt,
+        errorFor: (current: string) =>
             current !== '' &&
             current === found.term &&
-            found.throttled === true,
+            found.attempt === attempt
+                ? (found.error ?? null)
+                : null,
+        retry: () => setAttempt((current) => current + 1),
     };
 }
 
