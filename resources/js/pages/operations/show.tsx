@@ -11,12 +11,13 @@ import { Field, Section } from '@/components/operations/section';
 import { Status } from '@/components/operations/status';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import OperationsLayout, { TAB_PROPS } from '@/layouts/operations/layout';
 import { formatCount } from '@/lib/numbers';
 import { formatAge } from '@/lib/operations';
-import { cn, formatFullDateTime, formatRelativeTime } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type {
     Connectivity,
     FailedJob,
@@ -127,6 +128,7 @@ function FailedJobRow({
     failedJob: FailedJob;
     hasReplacement: boolean;
 }) {
+    const { formatFullDateTime, formatRelativeTime } = useDateTime();
     const now = useNow();
     const [state, setState] = useState<
         'idle' | 'confirming' | 'retrying' | 'forgetting'

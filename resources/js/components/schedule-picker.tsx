@@ -14,8 +14,9 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
-import { cn, dateLocale } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 export const maxScheduleDays = 30;
 
@@ -62,6 +63,7 @@ export function SchedulePicker({
     describedBy?: string;
 }) {
     const [isOpen, setIsOpen] = useState(false);
+    const dateTime = useDateTime();
     const now = useNow();
     const selected = value === '' ? undefined : new Date(value);
     const lastDay = new Date(
@@ -70,7 +72,6 @@ export function SchedulePicker({
         now.getDate() + maxScheduleDays,
     );
     const isToday = selected !== undefined && isSameDay(selected, now);
-    const hourFormat = new Intl.DateTimeFormat(undefined, { hour: 'numeric' });
 
     const change = (date: Date, hour: number, minute: number) =>
         onChange(
@@ -103,13 +104,7 @@ export function SchedulePicker({
                     <CalendarClock aria-hidden="true" />
                     {selected === undefined
                         ? 'Pick a date and time'
-                        : new Intl.DateTimeFormat(dateLocale, {
-                              weekday: 'short',
-                              month: 'short',
-                              day: 'numeric',
-                              hour: 'numeric',
-                              minute: '2-digit',
-                          }).format(selected)}
+                        : `${dateTime.formatDate(selected, { year: false, weekday: true })} · ${dateTime.formatTime(selected)}`}
                 </Button>
             </PopoverTrigger>
             <PopoverContent
@@ -172,7 +167,11 @@ export function SchedulePicker({
                         >
                             <SelectValue placeholder="Hour" />
                         </SelectTrigger>
-                        <SelectContent className="max-h-60">
+                        <SelectContent
+                            className="max-h-60"
+                            avoidCollisions
+                            collisionPadding={16}
+                        >
                             {hours.map((hour) => (
                                 <SelectItem
                                     key={hour}
@@ -180,9 +179,7 @@ export function SchedulePicker({
                                     disabled={isToday && hour < now.getHours()}
                                     className="tabular-nums"
                                 >
-                                    {hourFormat.format(
-                                        new Date(2000, 0, 1, hour),
-                                    )}
+                                    {dateTime.formatHour(hour)}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -212,7 +209,11 @@ export function SchedulePicker({
                         >
                             <SelectValue placeholder="Min" />
                         </SelectTrigger>
-                        <SelectContent className="max-h-60">
+                        <SelectContent
+                            className="max-h-60"
+                            avoidCollisions
+                            collisionPadding={16}
+                        >
                             {minutes.map((minute) => (
                                 <SelectItem
                                     key={minute}

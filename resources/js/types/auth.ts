@@ -43,6 +43,10 @@ export type Profile = User & {
  * Commits and profiles are public, so guests browse them too, without a user or a log.
  */
 export type Auth = {
+    dateTime: {
+        dateFormat: 'month_first' | 'day_first' | null;
+        timeFormat: '12h' | '24h' | null;
+    };
     user: Profile | null;
     isAdmin: boolean;
     automaticTranslation: boolean;

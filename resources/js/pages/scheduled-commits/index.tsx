@@ -5,11 +5,11 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { Button } from '@/components/ui/button';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
-import { dateLocale } from '@/lib/utils';
 import type { BodySegment } from '@/types';
 
 type ScheduledCommit = {
@@ -34,6 +34,7 @@ export default function Index({
     };
 }) {
     const now = useNow();
+    const { formatFullDateTime } = useDateTime();
     const [canceling, setCanceling] = useState<string | null>(null);
     usePoll(30_000, backgroundPollOptions({ only: ['scheduledCommits'] }));
 
@@ -108,12 +109,9 @@ export default function Index({
                                             dateTime={scheduled.scheduled_at}
                                             className="mt-1 block font-mono text-xs text-muted-foreground"
                                         >
-                                            {new Date(
+                                            {formatFullDateTime(
                                                 scheduled.scheduled_at,
-                                            ).toLocaleString(dateLocale, {
-                                                dateStyle: 'medium',
-                                                timeStyle: 'short',
-                                            })}
+                                            )}
                                         </time>
                                     </div>
                                     {scheduled.status === 'scheduled' && (
@@ -121,7 +119,7 @@ export default function Index({
                                             variant="outline"
                                             size="sm"
                                             disabled={canceling !== null}
-                                            aria-label={`Cancel the commit scheduled for ${new Date(scheduled.scheduled_at).toLocaleString(dateLocale, { dateStyle: 'medium', timeStyle: 'short' })}`}
+                                            aria-label={`Cancel the commit scheduled for ${formatFullDateTime(scheduled.scheduled_at)}`}
                                             onClick={() => {
                                                 setCanceling(scheduled.id);
                                                 router.delete(

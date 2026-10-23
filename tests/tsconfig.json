@@ -9,6 +9,7 @@
         "Unit/CommitPhoto.test.tsx",
         "Unit/DraftStash.test.tsx",
         "Unit/ComposerDraft.test.tsx",
+        "Unit/DateTimeDisplays.test.tsx",
         "Unit/SearchDialogComposition.test.tsx",
         "Unit/ReactionTray.test.tsx",
         "Unit/NotificationFilters.test.tsx",

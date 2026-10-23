@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useChangelog } from '@/hooks/use-changelog';
+import { useNow } from '@/hooks/use-now';
 import type { Changelog } from '@/lib/changelog';
 import { changelogDayHeading, changelogDays } from '@/lib/changelog';
 import { browserTimeZone } from '@/lib/utils';
@@ -28,6 +29,8 @@ function Summary({
     timeZone: string;
 }) {
     const [day] = changelogDays(changelog.pullRequests ?? [], timeZone);
+    const preferences = usePage().props.auth.dateTime;
+    const now = useNow();
 
     if (day === undefined) {
         return (
@@ -37,7 +40,7 @@ function Summary({
         );
     }
 
-    const heading = changelogDayHeading(day.date, timeZone);
+    const heading = changelogDayHeading(day.date, timeZone, now, preferences);
     const latest = (changelog.pullRequests ?? []).slice(0, latestCount);
 
     return (

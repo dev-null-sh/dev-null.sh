@@ -9,8 +9,8 @@ import { EmptyFeed } from '@/components/commit-feed';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { useDateTime } from '@/hooks/use-date-time';
 import AppLayout from '@/layouts/app-layout';
-import { formatFullDateTime } from '@/lib/utils';
 import type { User } from '@/types';
 
 type Timeout = {
@@ -36,6 +36,7 @@ export default function People({
     timeouts: Timeout[];
     bans: Ban[];
 }) {
+    const { formatFullDateTime } = useDateTime();
     const [busy, setBusy] = useState(false);
     const lift = (route: Parameters<typeof router.visit>[0]) =>
         router.visit(route, {

@@ -1,6 +1,7 @@
 import { Clock } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
-import { formatUtcOffset, formatZonedTime } from '@/lib/utils';
+import { useDateTime } from '@/hooks/use-date-time';
+import { formatUtcOffset } from '@/lib/utils';
 
 const MINUTE = 60_000;
 
@@ -22,6 +23,7 @@ function currentMinute(): number {
  * current time is not the reader's.
  */
 export function LocalTime({ timeZone }: { timeZone: string }) {
+    const { formatZonedTime } = useDateTime();
     const minute = useSyncExternalStore(subscribe, currentMinute, () => null);
 
     if (minute === null) {

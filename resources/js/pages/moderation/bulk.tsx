@@ -8,9 +8,9 @@ import { PresetButton } from '@/components/operations/preset-button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserModerationMenu } from '@/components/user-moderation-menu';
 import type { UserModeration } from '@/components/user-moderation-menu';
+import { useDateTime } from '@/hooks/use-date-time';
 import AppLayout from '@/layouts/app-layout';
 import { formatCount } from '@/lib/numbers';
-import { formatFullDateTime } from '@/lib/utils';
 import type { ActivityScale, User } from '@/types';
 
 type BulkAccount = {
@@ -204,6 +204,8 @@ function Row({
     details: string;
     action: ReactNode;
 }) {
+    const { formatFullDateTime } = useDateTime();
+
     return (
         <li className="flex items-center gap-3 px-4 py-3">
             <Link

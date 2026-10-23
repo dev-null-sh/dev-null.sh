@@ -2,13 +2,8 @@ import { usePage } from '@inertiajs/react';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import type { CSSProperties, ReactNode } from 'react';
 import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip';
-import {
-    browserTimeZone,
-    formatZonedDate,
-    formatZonedTime,
-    laneColor,
-    timeZoneCity,
-} from '@/lib/utils';
+import { useDateTime } from '@/hooks/use-date-time';
+import { browserTimeZone, laneColor, timeZoneCity } from '@/lib/utils';
 import type { User } from '@/types';
 
 export function TimestampTooltip({
@@ -37,6 +32,7 @@ export function TimestampTooltip({
 }
 
 function ZonedTimes({ date, author }: { date: string; author: User }) {
+    const { formatZonedDate, formatZonedTime } = useDateTime();
     const { auth } = usePage().props;
 
     const columns = [

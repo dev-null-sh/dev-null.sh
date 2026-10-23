@@ -12,10 +12,11 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useDateTime } from '@/hooks/use-date-time';
 import AppLayout from '@/layouts/app-layout';
 import OperationsLayout from '@/layouts/operations/layout';
 import { formatCount } from '@/lib/numbers';
-import { cn, formatZonedDate } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type {
     AcquisitionDay,
     ActivationDay,
@@ -338,6 +339,7 @@ function DailyBars({
     empty: string;
     format: (value: number) => string;
 }) {
+    const { formatZonedDate } = useDateTime();
     const shadowId = useId().replaceAll(/[^\w-]/g, '');
 
     if (bars.length === 0) {
@@ -519,7 +521,7 @@ function DailyBars({
                     <tbody>
                         {bars.map((bar) => (
                             <tr key={bar.date}>
-                                <th scope="row">{bar.date}</th>
+                                <th scope="row">{label(bar.date)}</th>
                                 <td>
                                     {[bar.label, ...(bar.details ?? [])].join(
                                         ', ',
@@ -699,6 +701,7 @@ function ActiveUserCounts({
     range: TrafficRange;
     counts: ActiveUserCount[];
 }) {
+    const { formatZonedDate } = useDateTime();
     const today = utcDate();
     const complete = counts.filter((day) => day.date !== today);
 

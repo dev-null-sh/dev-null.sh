@@ -1,5 +1,6 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import { useRef, useState } from 'react';
+import { useDateTime } from '@/hooks/use-date-time';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import type { Activity, ActivityBucket, ActivityScale } from '@/types';
@@ -54,21 +55,6 @@ function monthOf(date: string): number {
     return utcDay(date).getUTCMonth();
 }
 
-function formatDay(date: string, withYear: boolean): string {
-    const day = utcDay(date);
-    const monthDay = `${monthNames[day.getUTCMonth()]} ${day.getUTCDate()}`;
-
-    return withYear
-        ? `${monthDay}, ${day.getUTCFullYear()}`
-        : `${weekdayNames[day.getUTCDay()]}, ${monthDay}`;
-}
-
-function formatTime(time: Date): string {
-    return [time.getHours(), time.getMinutes()]
-        .map((part) => String(part).padStart(2, '0'))
-        .join(':');
-}
-
 function count(total: number, [singular, plural]: ActivityNoun): string {
     return `${formatCount(total)} ${total === 1 ? singular : plural}`;
 }
@@ -92,19 +78,20 @@ function describe(
     bucket: ActivityBucket,
     scale: ActivityScale,
     noun: ActivityNoun,
+    dateTime: ReturnType<typeof useDateTime>,
 ): string {
     const counted =
         bucket.count === 0 ? `No ${noun[1]}` : count(bucket.count, noun);
 
     if (scale !== 'day') {
-        return `${counted} on ${formatDay(bucket.date, scale === 'year')}`;
+        return `${counted} on ${dateTime.formatDate(utcDay(bucket.date), { timeZone: 'UTC', year: scale === 'year', weekday: scale !== 'year' })}`;
     }
 
     const start = new Date(bucket.date);
     const end = new Date(start.getTime() + 3_600_000);
     const isToday = start.toDateString() === new Date().toDateString();
 
-    return `${counted} between ${formatTime(start)} and ${formatTime(end)} ${isToday ? 'today' : 'yesterday'}`;
+    return `${counted} between ${dateTime.formatTime(start)} and ${dateTime.formatTime(end)} ${isToday ? 'today' : 'yesterday'}`;
 }
 
 function periodOf(bucket: ActivityBucket, scale: ActivityScale): string {
@@ -116,6 +103,7 @@ function stripLabel(
     scale: ActivityScale,
     index: number,
     length: number,
+    dateTime: ReturnType<typeof useDateTime>,
 ): string | null {
     if (scale === 'week') {
         const day = utcDay(bucket.date);
@@ -127,14 +115,14 @@ function stripLabel(
         const start = new Date(bucket.date);
 
         return start.getHours() % 6 === 0 && index < length - 2
-            ? formatTime(start)
+            ? dateTime.formatTime(start)
             : null;
     }
 
     const day = utcDay(bucket.date);
 
     return day.getUTCDay() === 1 && index < length - 3
-        ? `${monthNames[day.getUTCMonth()]} ${day.getUTCDate()}`
+        ? dateTime.formatDate(day, { timeZone: 'UTC', year: false })
         : null;
 }
 
@@ -222,6 +210,7 @@ export function ActivityCells({
     onPeriodHover?: (period: string | null) => void;
 }) {
     const containerRef = useRef<HTMLDivElement>(null);
+    const dateTime = useDateTime();
     const [hovered, setHovered] = useState<HoveredBucket | null>(null);
     const { scale, buckets } = activity;
 
@@ -300,7 +289,7 @@ export function ActivityCells({
                     data-tooltip
                     style={{ left: hovered.left, top: hovered.top - 6 }}
                 >
-                    {describe(hovered.bucket, scale, noun)}
+                    {describe(hovered.bucket, scale, noun, dateTime)}
                 </div>
             )}
 
@@ -330,6 +319,7 @@ function Strip({
     onEnter,
     onLeave,
 }: CellsProps & { scale: ActivityScale; summary: string }) {
+    const dateTime = useDateTime();
     const columns = {
         gridTemplateColumns: `repeat(${buckets.length}, minmax(0, 1fr))`,
     };
@@ -366,7 +356,13 @@ function Strip({
                         key={bucket.date}
                         className="overflow-visible whitespace-nowrap"
                     >
-                        {stripLabel(bucket, scale, index, buckets.length)}
+                        {stripLabel(
+                            bucket,
+                            scale,
+                            index,
+                            buckets.length,
+                            dateTime,
+                        )}
                     </span>
                 ))}
             </div>

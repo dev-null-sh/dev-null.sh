@@ -14,6 +14,7 @@ export default defineConfig({
             'tests/Unit/ThreadHistory.test.tsx',
             'tests/Unit/ThreadMutationHistory.test.tsx',
             'tests/Unit/ActivityCells.test.tsx',
+            'tests/Unit/DateTimeDisplays.test.tsx',
             'tests/Unit/AuthorHover.test.tsx',
             'tests/Unit/FollowState.test.tsx',
             'tests/Unit/FollowRequests.test.tsx',

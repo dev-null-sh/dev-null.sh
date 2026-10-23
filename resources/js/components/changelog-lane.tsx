@@ -2,14 +2,10 @@ import { Link } from '@inertiajs/react';
 import { ArrowUpRight } from 'lucide-react';
 import type { ReactNode, Ref } from 'react';
 import { UserPreview } from '@/components/user-preview';
+import { useDateTime } from '@/hooks/use-date-time';
 import type { ChangelogAuthor, ChangelogPullRequest } from '@/lib/changelog';
 import { authorLane } from '@/lib/changelog';
-import {
-    cn,
-    formatFullDateTime,
-    formatRelativeTime,
-    laneColor,
-} from '@/lib/utils';
+import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 
 export function changelogLaneColor(author: ChangelogAuthor): string {
@@ -144,6 +140,7 @@ export function ChangelogLane({
     timeZone?: string;
     onNavigate?: () => void;
 }) {
+    const { formatFullDateTime, formatRelativeTime } = useDateTime();
     return (
         <ol>
             {pullRequests.map((pullRequest, index) => {

@@ -39,11 +39,12 @@ import {
     UserModerationStatus,
 } from '@/components/user-moderation-menu';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
+import { useDateTime } from '@/hooks/use-date-time';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
-import { dateLocale, laneColor, laneTint } from '@/lib/utils';
+import { laneColor, laneTint } from '@/lib/utils';
 import type {
     Achievements,
     Activity,
@@ -87,6 +88,7 @@ export default function Show({
     pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
+    const { formatDate } = useDateTime();
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
@@ -322,10 +324,7 @@ export default function Show({
                     <li className="flex items-center gap-1.5">
                         <CalendarDays className="size-4" />
                         Joined{' '}
-                        {new Date(user.created_at).toLocaleDateString(
-                            dateLocale,
-                            { month: 'long', year: 'numeric' },
-                        )}
+                        {formatDate(user.created_at, { monthOnly: true })}
                     </li>
                 </ul>
 

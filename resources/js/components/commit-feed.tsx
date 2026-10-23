@@ -5,13 +5,14 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
 import {
     restoreFeedCommit,
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
 import { isDeliberateHover } from '@/lib/feed-hover';
-import { cn, formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
+import { cn, laneColor, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 const interludeAfter = 5;
@@ -43,6 +44,7 @@ export function CommitFeed({
     interlude?: (lane: string, isDimmed: boolean) => ReactNode;
     isBelowComposer?: boolean;
 }) {
+    const { formatDayLabel } = useDateTime();
     const now = useNow();
     const page = usePage();
     const { dimsLanes } = page.props;
