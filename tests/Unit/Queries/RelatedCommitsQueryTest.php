@@ -48,3 +48,24 @@ it('leaves replies out', function (): void {
 
     expect(relatedCommitIds($source))->toBeEmpty();
 });
+
+it('drops commits past the distance cutoff', function (): void {
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->create(['embedding' => embeddingAtDistance(RelatedCommitsQuery::MAX_DISTANCE + 0.01)]);
+
+    expect(relatedCommitIds($source))->toBeEmpty();
+});
+
+it('includes a commit right at the cutoff', function (): void {
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $atCutoff = Commit::factory()->create(['embedding' => embeddingAtDistance(RelatedCommitsQuery::MAX_DISTANCE)]);
+
+    expect(relatedCommitIds($source))->toBe([$atCutoff->id]);
+});
+
+it('caps the rail', function (): void {
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->count(RelatedCommitsQuery::LIMIT + 1)->create(['embedding' => embeddingVector(0)]);
+
+    expect(relatedCommitIds($source))->toHaveCount(RelatedCommitsQuery::LIMIT);
+});
