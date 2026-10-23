@@ -135,9 +135,7 @@ function DockedChat({ user }: { user: User }) {
                         title={`${unread} unread conversations`}
                         className="rounded-sm bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums"
                     >
-                        <span aria-hidden>
-                            {unread > 99 ? '99+' : unread} ahead
-                        </span>
+                        <span aria-hidden>{unread > 99 ? '99+' : unread}</span>
                         <span className="sr-only">
                             {unread} unread conversations
                         </span>
