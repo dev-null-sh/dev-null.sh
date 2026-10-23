@@ -47,6 +47,7 @@ export default defineConfig({
             'tests/Unit/VoiceNoteSpeed.test.tsx',
             'tests/Unit/OrgMentionSuggestions.test.tsx',
             'tests/Unit/RemoteNotifications.test.tsx',
+            'tests/Unit/RemotePins.test.tsx',
             'tests/Unit/RemotePreferences.test.tsx',
             'tests/Unit/ChatNavigation.test.tsx',
         ],
