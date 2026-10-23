@@ -68,8 +68,9 @@ final readonly class UserController
                 : null,
             'lists' => Inertia::optional(fn (): array => $currentUser instanceof User ? $currentUser->lists()
                 ->withExists(['members as has_member' => fn (Builder $query): Builder => $query->whereKey($user->id)])
-                ->orderBy('name')
                 ->get()
+                ->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)
+                ->values()
                 ->map(fn (UserList $list): array => ['id' => $list->id, 'name' => $list->name, 'has_member' => (bool) $list->getAttribute('has_member')])
                 ->all() : []),
             'canPush' => fn (): bool => $currentUser instanceof User

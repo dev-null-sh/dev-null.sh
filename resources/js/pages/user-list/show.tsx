@@ -1,5 +1,6 @@
 import { Head, Link, router } from '@inertiajs/react';
 import { Ellipsis, LockKeyhole, Pin, PinOff, Trash2, X } from 'lucide-react';
+import { useState } from 'react';
 import UserListController from '@/actions/App/Http/Controllers/UserListController';
 import UserListMemberController from '@/actions/App/Http/Controllers/UserListMemberController';
 import UserListPinController from '@/actions/App/Http/Controllers/UserListPinController';
@@ -36,6 +37,8 @@ export default function Show({
     commits: CursorPaginated<Commit>;
 }) {
     const isPinned = list.pinned_at !== null;
+    // Deleting a list can't be undone, so it asks first, like deleting a commit.
+    const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
     return (
         <>
@@ -102,11 +105,7 @@ export default function Show({
                             </DropdownMenuItem>
                             <DropdownMenuItem
                                 variant="destructive"
-                                onSelect={() =>
-                                    router.visit(
-                                        UserListController.destroy(list.id),
-                                    )
-                                }
+                                onSelect={() => setIsConfirmingDelete(true)}
                             >
                                 <Trash2 />
                                 Delete list
@@ -114,6 +113,43 @@ export default function Show({
                         </DropdownMenuContent>
                     </DropdownMenu>
                 </div>
+
+                {isConfirmingDelete && (
+                    <div
+                        role="group"
+                        aria-label="Confirm delete"
+                        onKeyDown={(event) => {
+                            if (event.key === 'Escape') {
+                                setIsConfirmingDelete(false);
+                            }
+                        }}
+                        className="mt-3 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
+                    >
+                        <span className="mr-auto">
+                            Delete this list? This can't be undone.
+                        </span>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            autoFocus
+                            onClick={() => setIsConfirmingDelete(false)}
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() =>
+                                router.visit(
+                                    UserListController.destroy(list.id),
+                                )
+                            }
+                            data-test="confirm-delete-list-button"
+                        >
+                            Delete
+                        </Button>
+                    </div>
+                )}
 
                 {members.length > 0 && (
                     <ul

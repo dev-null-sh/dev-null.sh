@@ -22,6 +22,7 @@ use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\SshKey;
 use App\Models\User;
+use App\Models\UserList;
 use App\Models\UserTimeout;
 use App\Services\CommitTranslations;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -138,6 +139,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'dismissed_suggestions' => [],
         'organizations' => [],
         'followed_organizations' => [],
+        'lists' => [],
         'messages' => [],
         'reports' => [],
         'remote_mutes' => [],
@@ -572,6 +574,26 @@ it('exports who the user mutes, blocks and dismissed, but never who mutes, block
         ->and($data['blocking'])->toBe([['handle' => 'blocked-developer']])
         ->and($data['dismissed_suggestions'])->toBe([['handle' => 'dismissed-developer']])
         ->and($response->streamedContent())->not->toContain('secret-muter', 'secret-blocker', 'secret-dismisser', $muted->id, $blocked->id, $dismissed->id);
+});
+
+it("exports the user's lists with their members, but never the lists others put them on", function (): void {
+    $user = User::factory()->create();
+    $list = UserList::factory()->for($user)->create(['name' => 'Laravel folks', 'pinned_at' => now()]);
+    $list->members()->attach([
+        User::factory()->create(['username' => 'zed'])->id,
+        User::factory()->create(['username' => 'ada'])->id,
+    ]);
+    UserList::factory()->create(['name' => 'Secret watchlist'])->members()->attach($user);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['lists'])->toBe([[
+        'name' => 'Laravel folks',
+        'pinned_at' => $list->pinned_at->toIso8601String(),
+        'created_at' => $list->created_at->toIso8601String(),
+        'members' => ['ada', 'zed'],
+    ]])->and($response->streamedContent())->not->toContain('Secret watchlist');
 });
 
 it('also limits exports to five a minute per user independently of the hourly budget', function (): void {
