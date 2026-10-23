@@ -5,8 +5,11 @@ declare(strict_types=1);
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteCommitContent;
 use App\Models\Commit;
+use App\Models\Poll;
 use App\Models\User;
 use App\Queries\RelatedCommitsQuery;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
 /**
@@ -159,4 +162,42 @@ it('gives guests approved commits only', function (): void {
     Commit::factory()->rejected()->create(['embedding' => embeddingVector(0)]);
 
     expect(relatedCommitIds($source))->toBe([$approved->id]);
+});
+
+it('loads the commits as the feeds do, so the card renders them', function (): void {
+    $viewer = User::factory()->create();
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $commit = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $viewer->starredCommits()->attach($commit);
+    Poll::factory()->for($commit)->withOptions('Tabs', 'Spaces')->create();
+
+    $result = resolve(RelatedCommitsQuery::class)->get($source, $viewer)->sole();
+
+    expect($result->user->is($commit->user))->toBeTrue()
+        ->and($result->stars_count)->toBe(1)
+        ->and($result->starred)->toBeTrue()
+        ->and($result->replies_count)->toBe(0)
+        ->and($result->relationLoaded('poll'))->toBeTrue()
+        ->and($result->poll->options)->toHaveCount(2)
+        ->and($result->getAttributes())->not->toHaveKey('embedding');
+});
+
+it('finds the candidates in one query', function (): void {
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->create(['embedding' => embeddingVector(0)]);
+
+    DB::enableQueryLog();
+    resolve(RelatedCommitsQuery::class)->get($source, null);
+
+    expect(collect(DB::getQueryLog())->pluck('query')->filter(fn (string $query): bool => str_contains($query, '<=>')))->toHaveCount(1);
+});
+
+it('asks no outside service anything', function (): void {
+    Http::fake();
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->create(['embedding' => embeddingVector(0)]);
+
+    relatedCommitIds($source);
+
+    Http::assertNothingSent();
 });
