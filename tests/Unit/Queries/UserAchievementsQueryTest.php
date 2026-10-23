@@ -10,6 +10,7 @@ use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
 use App\Queries\UserAchievementsQuery;
+use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 22)->setTime(12, 0));
@@ -28,7 +29,7 @@ it('calculates initial rank and zero progress for a new user without activity', 
         ->and($result['ranks'])->toHaveCount(6)
         ->and($result['xp_breakdown']['commits']['xp'])->toBe(0)
         ->and($result['xp_breakdown']['shell_shocked']['xp'])->toBe(0)
-        ->and($result['badges'])->toHaveCount(14);
+        ->and($result['badges'])->toHaveCount(15);
 
     foreach ($result['badges'] as $badge) {
         expect($badge['unlocked'])->toBeFalse()
@@ -64,6 +65,23 @@ it('unlocks authorized_keys badge when user has linked public ssh keys from gith
     expect($badge)->not->toBeNull()
         ->and($badge['unlocked'])->toBeTrue()
         ->and($badge['progress'])->toBe(1);
+});
+
+it('unlocks upstream badge for developers with a commit on /dev/null itself', function (): void {
+    $contributor = User::factory()->create(['github_id' => '123']);
+    $user = User::factory()->create(['github_id' => '456']);
+
+    Http::fake([
+        'api.github.com/repos/dev-null-sh/dev-null.sh/contributors*' => Http::response([['id' => 123, 'login' => 'octocat', 'type' => 'User']]),
+    ]);
+
+    $badge = fn (User $user): array => collect(resolve(UserAchievementsQuery::class)->get($user, $user)['badges'])
+        ->firstWhere('id', Achievement::Upstream->value);
+
+    expect($badge($contributor)['unlocked'])->toBeTrue()
+        ->and($badge($contributor)['icon'])->toBe('git-pull-request')
+        ->and($badge($user)['unlocked'])->toBeFalse()
+        ->and($badge($user)['progress'])->toBe(0);
 });
 
 it('tracks stars given to other developers and excludes self-starring', function (): void {

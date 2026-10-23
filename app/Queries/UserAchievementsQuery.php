@@ -35,7 +35,7 @@ use Illuminate\Support\Facades\DB;
  */
 final readonly class UserAchievementsQuery
 {
-    public function __construct(private UserStreakQuery $streaks)
+    public function __construct(private UserStreakQuery $streaks, private UpstreamContributorsQuery $upstream)
     {
         //
     }
@@ -183,6 +183,10 @@ final readonly class UserAchievementsQuery
             Achievement::ShellShocked->value => [
                 'progress' => $isShellShocked ? 1 : 0,
                 'target' => Achievement::ShellShocked->target(),
+            ],
+            Achievement::Upstream->value => [
+                'progress' => $this->upstream->includes($user) ? 1 : 0,
+                'target' => Achievement::Upstream->target(),
             ],
         ];
 
