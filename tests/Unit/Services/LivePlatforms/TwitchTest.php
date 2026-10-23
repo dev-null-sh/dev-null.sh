@@ -11,6 +11,7 @@ it('accepts links to a channel', function (string $url): void {
         ->and($twitch->stream($url)->toArray())->toBe([
             'url' => 'https://www.twitch.tv/theprimeagen',
             'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_theprimeagen-1280x720.jpg',
+            'embed_url' => null,
         ]);
 })->with([
     'channel' => 'https://www.twitch.tv/ThePrimeagen',
