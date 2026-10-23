@@ -262,24 +262,35 @@ export default function Show({
                     </p>
                 )}
 
-                <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
+                {/* Columns as wide as their longest item, so each column's icons line up without stretching the row. */}
+                <ul className="mt-3 grid grid-cols-[repeat(2,minmax(0,max-content))] gap-x-4 gap-y-1.5 text-sm text-muted-foreground sm:grid-cols-[repeat(3,minmax(0,max-content))]">
                     {user.company && (
-                        <li className="flex items-center gap-1.5">
-                            <Building2 className="size-4" />
-                            <span>
+                        <li className="flex min-w-0 items-center gap-1.5">
+                            <Building2 className="size-4 shrink-0" />
+                            <span className="truncate">
                                 <BioText bio={user.company} />
                             </span>
                         </li>
                     )}
                     {user.location && (
-                        <li className="flex items-center gap-1.5">
-                            <MapPin className="size-4" />
-                            {user.location}
+                        <li className="flex min-w-0 items-center gap-1.5">
+                            <MapPin className="size-4 shrink-0" />
+                            <span className="truncate">{user.location}</span>
                         </li>
                     )}
                     {user.show_local_time && user.timezone && (
                         <LocalTime timeZone={user.timezone} />
                     )}
+                    <li className="flex min-w-0 items-center gap-1.5">
+                        <CalendarDays className="size-4 shrink-0" />
+                        <span className="truncate">
+                            Joined{' '}
+                            {new Date(user.created_at).toLocaleDateString(
+                                dateLocale,
+                                { month: 'long', year: 'numeric' },
+                            )}
+                        </span>
+                    </li>
                     {user.website && (
                         <li className="flex min-w-0 items-center gap-1.5">
                             <Link2 className="size-4 shrink-0" />
@@ -287,6 +298,7 @@ export default function Show({
                                 href={user.website}
                                 target="_blank"
                                 rel="noopener noreferrer nofollow"
+                                title={user.website}
                                 className="truncate text-primary hover:underline"
                             >
                                 {user.website.replace(/^https?:\/\//u, '')}
@@ -294,42 +306,36 @@ export default function Show({
                         </li>
                     )}
                     {user.has_github_account && (
-                        <li className="flex items-center gap-1.5">
-                            <GitHubIcon className="size-4" />
+                        <li className="flex min-w-0 items-center gap-1.5">
+                            <GitHubIcon className="size-4 shrink-0" />
                             <a
                                 href={`https://github.com/${user.username}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-primary hover:underline"
+                                title={`https://github.com/${user.username}`}
+                                className="truncate text-primary hover:underline"
                             >
                                 github.com/{user.username}
                             </a>
                         </li>
                     )}
                     {user.has_sponsors_listing && (
-                        <li className="flex items-center gap-1.5">
-                            <Heart className="size-4" />
+                        <li className="flex min-w-0 items-center gap-1.5">
+                            <Heart className="size-4 shrink-0" />
                             <a
                                 href={`https://github.com/sponsors/${user.username}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-primary hover:underline"
+                                title={`https://github.com/sponsors/${user.username}`}
+                                className="truncate text-primary hover:underline"
                             >
                                 Sponsor on GitHub
                             </a>
                         </li>
                     )}
-                    <li className="flex items-center gap-1.5">
-                        <CalendarDays className="size-4" />
-                        Joined{' '}
-                        {new Date(user.created_at).toLocaleDateString(
-                            dateLocale,
-                            { month: 'long', year: 'numeric' },
-                        )}
-                    </li>
                 </ul>
 
-                <dl className="mt-4 flex gap-5 text-sm">
+                <dl className="mt-4 grid grid-cols-[repeat(2,max-content)] justify-between gap-x-5 gap-y-2 text-sm sm:flex">
                     {[
                         {
                             count: user.commits_count,
@@ -357,7 +363,7 @@ export default function Show({
                     ].map((stat) => (
                         <div
                             key={stat.label}
-                            className="group flex flex-row-reverse gap-1.5"
+                            className="group flex flex-row-reverse justify-end gap-1.5"
                         >
                             <dt className="text-muted-foreground">
                                 <Link
@@ -378,28 +384,31 @@ export default function Show({
                             </dd>
                         </div>
                     ))}
-                </dl>
-                {auth.pasteis && pasteisReceived !== null && (
-                    <p
-                        className="mt-3 flex items-center gap-1.5 text-sm text-muted-foreground"
-                        data-test="profile-pasteis-count"
-                    >
-                        <img
-                            src="/pastel-de-nata.svg"
-                            alt=""
-                            width={20}
-                            height={20}
-                            className="size-5 shrink-0 object-contain"
-                        />
-                        <span
-                            className="font-mono font-medium text-foreground tabular-nums"
-                            title={exactCountTitle(pasteisCount)}
+                    {auth.pasteis && pasteisReceived !== null && (
+                        <div
+                            className="flex flex-row-reverse items-center justify-end gap-1.5"
+                            data-test="profile-pasteis-count"
                         >
-                            {formatCount(pasteisCount)}
-                        </span>
-                        {pluralize(pasteisCount, 'pastel', 'pastéis')} received
-                    </p>
-                )}
+                            <dt className="text-muted-foreground">
+                                {pluralize(pasteisCount, 'pastel', 'pastéis')}{' '}
+                                received
+                            </dt>
+                            <dd
+                                className="flex items-center gap-1.5 font-mono font-medium"
+                                title={exactCountTitle(pasteisCount)}
+                            >
+                                <img
+                                    src="/pastel-de-nata.svg"
+                                    alt=""
+                                    width={20}
+                                    height={20}
+                                    className="size-5 shrink-0 object-contain"
+                                />
+                                {formatCount(pasteisCount)}
+                            </dd>
+                        </div>
+                    )}
+                </dl>
             </header>
 
             <ActivityGraph
