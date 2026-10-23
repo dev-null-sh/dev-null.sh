@@ -99,3 +99,64 @@ it('skips candidates without an embedding', function (): void {
 
     expect(relatedCommitIds($source))->toBe([$embedded->id]);
 });
+
+it('hides pending and rejected commits from other viewers', function (): void {
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $approved = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->pending()->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->rejected()->create(['embedding' => embeddingVector(0)]);
+
+    expect(relatedCommitIds($source, User::factory()->create()))->toBe([$approved->id]);
+});
+
+it('shows an author their own pending commit', function (): void {
+    $author = User::factory()->create();
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $pending = Commit::factory()->for($author)->pending()->create(['embedding' => embeddingVector(0)]);
+
+    expect(relatedCommitIds($source, $author))->toBe([$pending->id]);
+});
+
+it('hides approved commits across a block in either direction', function (): void {
+    $viewer = User::factory()->create();
+    $blocked = User::factory()->create();
+    $blocker = User::factory()->create();
+    $viewer->blocking()->attach($blocked);
+    $blocker->blocking()->attach($viewer);
+
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $reachable = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->for($blocked)->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->for($blocker)->create(['embedding' => embeddingVector(0)]);
+
+    expect(relatedCommitIds($source, $viewer))->toBe([$reachable->id]);
+});
+
+it('hides muted authors', function (): void {
+    $viewer = User::factory()->create();
+    $muted = User::factory()->create();
+    $viewer->muting()->attach($muted);
+
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $reachable = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->for($muted)->create(['embedding' => embeddingVector(0)]);
+
+    expect(relatedCommitIds($source, $viewer))->toBe([$reachable->id]);
+});
+
+it('hides deleted commits', function (): void {
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $kept = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->create(['embedding' => embeddingVector(0)])->delete();
+
+    expect(relatedCommitIds($source))->toBe([$kept->id]);
+});
+
+it('gives guests approved commits only', function (): void {
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $approved = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->pending()->create(['embedding' => embeddingVector(0)]);
+    Commit::factory()->rejected()->create(['embedding' => embeddingVector(0)]);
+
+    expect(relatedCommitIds($source))->toBe([$approved->id]);
+});
