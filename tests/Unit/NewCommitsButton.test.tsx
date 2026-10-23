@@ -5,9 +5,7 @@ import type { ReactElement, ReactNode } from 'react';
 import { beforeEach, test, vi } from 'vite-plus/test';
 import type { Commit, CursorPaginated } from '../../resources/js/types';
 
-type LocationListener = (event: {
-    detail: { versionChange: boolean };
-}) => void;
+type LocationListener = (event: { detail: { versionChange: boolean } }) => void;
 
 const locationListeners: LocationListener[] = [];
 const stopPolling = vi.fn();
@@ -97,7 +95,8 @@ function renderLog() {
     });
     const button = elements(page).find(
         (element) =>
-            element.type === 'button' && typeof element.props.onClick === 'function',
+            element.type === 'button' &&
+            typeof element.props.onClick === 'function',
     )!;
 
     return {
@@ -142,5 +141,25 @@ test('keeps loading in place after a visit without a new version', () => {
 
     assert.equal(stopPolling.mock.calls.length, 0);
     assert.equal(router.reload.mock.calls.length, 1);
+    assert.equal(assign.mock.calls.length, 0);
+});
+
+test('loads the log in full when its own reload finds the new version', () => {
+    const log = renderLog();
+
+    log.showNewCommits();
+    log.navigate(true);
+
+    assert.equal(router.reload.mock.calls.length, 1);
+    assert.deepEqual(assign.mock.calls, [['/log/latest']]);
+});
+
+test('leaves a poll that finds the new version for the next click', () => {
+    const log = renderLog();
+
+    log.showNewCommits();
+    (router.reload.mock.calls[0][0] as { onFinish: () => void }).onFinish();
+    log.navigate(true);
+
     assert.equal(assign.mock.calls.length, 0);
 });
