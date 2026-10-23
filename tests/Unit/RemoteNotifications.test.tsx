@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import type { Page, SharedPageProps } from '@inertiajs/core';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
 import { chatSnapshot, loadTab, markThreadRead, seedThread, setConversationArchived, setConversationMute, watchRemoteAlerts, watchRemotesPage, watchThread } from '../../resources/js/lib/chat';
+import { pageTitle } from '../../resources/js/lib/page-title';
 import { createRemoteAlerts, isRemoteMuted, remoteAlertsEnabled, setRemoteAlerts } from '../../resources/js/lib/remote-notifications';
 import type { ConversationSummary } from '../../resources/js/types';
 
@@ -111,23 +113,38 @@ test('ignores backlog, own messages, org events, read conversations and active m
     assert.deepEqual(assign.mock.calls, [['/remotes/remote-one']]);
 });
 
-test('one ten-second cooldown covers bursts in different remotes and concurrent tabs, without delayed duplicate alerts', async () => {
+test('only sound has a ten-second cooldown across remotes and tabs, while banners update without duplicates', async () => {
     const first = reader();
     const second = reader();
     await Promise.all([first.receive([], () => false), second.receive([], () => false)]);
     await Promise.all([first.receive([conversation(20)], () => false), second.receive([conversation(20)], () => false)]);
     time += 9999;
     await first.receive([conversation(21, { id: 'another-remote' })], () => false);
-    assert.equal(shown.length, 1);
+    assert.equal(shown.length, 2);
+    assert.equal(play.mock.calls.length, 1);
     time++;
     await second.receive([conversation(21, { id: 'another-remote' })], () => false);
-    assert.equal(shown.length, 1);
-    await second.receive([conversation(22, { kind: 'org' })], () => false);
     assert.equal(shown.length, 2);
+    assert.equal(play.mock.calls.length, 1);
+    await second.receive([conversation(22, { kind: 'org' })], () => false);
+    assert.equal(shown.length, 3);
     time += 10_000;
     await first.receive([conversation(22)], () => false);
-    assert.equal(shown.length, 2);
+    assert.equal(shown.length, 3);
     assert.equal(play.mock.calls.length, 2);
+});
+
+test('a banner sent with sound disabled does not start the sound cooldown', async () => {
+    const alerts = reader();
+    await alerts.receive([], () => false);
+    await setRemoteAlerts('me', false, 'sound');
+    await alerts.receive([conversation(20)], () => false);
+    await setRemoteAlerts('me', true, 'sound');
+    time++;
+    await alerts.receive([conversation(21)], () => false);
+
+    assert.equal(shown.length, 2);
+    assert.equal(play.mock.calls.length, 1);
 });
 
 test.each([false, true])('out-of-order arrivals across remotes are not lost to %s cross-tab deduplication', async (otherTab) => {
@@ -328,11 +345,13 @@ test.each([true, false])('background inbox polling alerts without consuming unre
     vi.stubGlobal('document', { hidden: true, cookie: '', addEventListener() {}, removeEventListener() {} });
     await setRemoteAlerts('me', banners);
     let messages = [conversation(30, { kind: 'org' })];
+    let unread = 1;
+    const page = { props: { auth: { user: { id: 'me' }, unreadNotificationsCount: 2, unreadMessagesCount: 8 } } } as Page<SharedPageProps>;
     const requestedBaselines: boolean[] = [];
     vi.stubGlobal('fetch', async (url: string) => {
         const baseline = url.includes('notification_baseline=1');
         requestedBaselines.push(baseline);
-        return Response.json({ conversations: messages, has_more: false, unread: 1, requests: 0, ...(baseline ? { notification_baseline: { 'remote-one': 30 } } : {}) });
+        return Response.json({ conversations: messages, has_more: false, unread, requests: 0, ...(baseline ? { notification_baseline: { 'remote-one': 30 } } : {}) });
     });
     const stop = watchRemoteAlerts('me');
 
@@ -346,10 +365,28 @@ test.each([true, false])('background inbox polling alerts without consuming unre
         assert.equal(chatSnapshot().unread, 1);
         assert.equal(chatSnapshot().conversations?.[0].ahead, 1);
         assert.deepEqual(requestedBaselines, [true, false]);
+        assert.equal(pageTitle('Remotes', page), '(3) Remotes - /dev/null');
+
+        unread = 4;
+        messages = [conversation(32, { kind: 'org', ahead: 4 })];
+        await vi.advanceTimersByTimeAsync(15_000);
+        assert.equal(pageTitle('Settings', page), '(6) Settings - /dev/null');
+        assert.equal(shown.length, 2 * Number(banners));
+        assert.equal(play.mock.calls.length, 2);
+
+        unread = 0;
+        messages = [conversation(32, { kind: 'org', ahead: 0 })];
+        await vi.advanceTimersByTimeAsync(15_000);
+        assert.equal(pageTitle('', page), '(2) /dev/null');
+        page.props.auth.unreadNotificationsCount = 0;
+        assert.equal(pageTitle('Remotes', page), 'Remotes - /dev/null');
     } finally {
         stop();
         vi.useRealTimers();
     }
+    assert.equal(pageTitle('Settings', page), '(8) Settings - /dev/null');
+    page.props.auth.user = null;
+    assert.equal(pageTitle('Settings', page), 'Settings - /dev/null');
 });
 
 test('restarting alerts during an inbox request waits for its own baseline without replaying old messages', async () => {

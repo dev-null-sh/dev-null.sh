@@ -1,4 +1,4 @@
-import { usePage, usePoll } from '@inertiajs/react';
+import { Head, usePage, usePoll } from '@inertiajs/react';
 import { useCallback, useState } from 'react';
 import { AppAside } from '@/components/app-aside';
 import {
@@ -19,7 +19,7 @@ import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
 import { SearchDialog } from '@/components/search-dialog';
-import { useRemoteAlerts } from '@/hooks/use-chat';
+import { useRemoteAlerts, useUnreadMessages } from '@/hooks/use-chat';
 import { useIsComposerInView } from '@/hooks/use-composer-visibility';
 import { usePageDeletion } from '@/hooks/use-deleted-resources';
 import { useFixedPage } from '@/hooks/use-fixed-page';
@@ -72,6 +72,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
     return (
         <>
+            <NotificationTitle />
             {!isMessages && <ProductHuntBanner />}
             <div
                 data-nav={isLayoutOpen ? 'expanded' : 'collapsed'}
@@ -149,6 +150,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
             </div>
         </>
     );
+}
+
+function NotificationTitle() {
+    const { auth } = usePage().props;
+    const unread = useUnreadMessages() + auth.unreadNotificationsCount;
+
+    // Refresh Inertia's title callback when chat polling changes the count, without replacing the page's title.
+    return <Head key={unread} />;
 }
 
 /**

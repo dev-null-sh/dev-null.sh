@@ -80,7 +80,7 @@ export function isRemoteMuted(until: string | null, now = Date.now()): boolean {
 }
 
 /**
- * Only new arrivals, never the backlog on opening the site. One shared cooldown covers every remote and tab.
+ * Only new arrivals, never the backlog on opening the site. Sound shares one cooldown across every remote and tab.
  * No message text leaves the page for the operating system's notification history.
  */
 export function createRemoteAlerts(
@@ -90,7 +90,7 @@ export function createRemoteAlerts(
 ) {
     let latest: Record<string, number> | null = null;
     let stopped = false;
-    let lastAlertAt = 0;
+    let lastSoundAt = 0;
     const sound = new Audio('/sounds/remote.wav');
     const notifications = new Set<Notification>();
     const cooldownKey = `remote-alert-cooldown:${userId}`;
@@ -209,31 +209,26 @@ export function createRemoteAlerts(
                 const consumedState = [...consumed]
                     .map(([id, message]) => `${id}:${message}`)
                     .join('\n');
-                const previousAlertAt = Math.max(
-                    lastAlertAt,
+                const previousSoundAt = Math.max(
+                    lastSoundAt,
                     Number(storedAt) || 0,
                 );
 
                 writeStorage(
                     cooldownKey,
-                    `${previousAlertAt}\n${consumedState}`,
+                    `${previousSoundAt}\n${consumedState}`,
                 );
                 const showBanner =
                     remoteAlertsEnabled(userId) && remoteNotificationsAllowed();
                 const playSound = remoteAlertsEnabled(userId, 'sound');
 
-                if (
-                    incoming === undefined ||
-                    !(showBanner || playSound) ||
-                    now - previousAlertAt < 10_000
-                ) {
+                if (incoming === undefined || !(showBanner || playSound)) {
                     return;
                 }
 
-                lastAlertAt = now;
-                writeStorage(cooldownKey, `${now}\n${consumedState}`);
-
-                if (playSound) {
+                if (playSound && now - previousSoundAt >= 10_000) {
+                    lastSoundAt = now;
+                    writeStorage(cooldownKey, `${now}\n${consumedState}`);
                     sound.currentTime = 0;
                     void sound.play().catch(() => undefined);
                 }
