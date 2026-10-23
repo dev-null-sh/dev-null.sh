@@ -43,14 +43,16 @@ export function focusCommit(commit: HTMLElement): void {
 }
 
 /**
+ * Without a focused commit, the shortcuts act on the commit a page is about, so r replies to it straight away.
  * A deleted commit's actions are inert, which stops pointers and focus but not a scripted click.
  */
 function focusedCommitAction(key: string): HTMLButtonElement | null {
-    const action = document.activeElement
-        ?.closest('[data-commit]')
-        ?.querySelector<HTMLButtonElement>(
-            `button[aria-keyshortcuts="${CSS.escape(key)}"]`,
-        );
+    const commit =
+        document.activeElement?.closest('[data-commit]') ??
+        document.querySelector('[data-commit][data-focused]');
+    const action = commit?.querySelector<HTMLButtonElement>(
+        `button[aria-keyshortcuts="${CSS.escape(key)}"]`,
+    );
 
     return action && !action.closest('[inert]') ? action : null;
 }
