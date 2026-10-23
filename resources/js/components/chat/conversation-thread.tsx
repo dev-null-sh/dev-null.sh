@@ -45,6 +45,11 @@ import { MentionTextarea } from '@/components/mention-textarea';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
 import { useChat, useThread } from '@/hooks/use-chat';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
@@ -1672,26 +1677,38 @@ function Composer({
                                     isCompact ? 'size-9' : 'size-10',
                                 )}
                             />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                disabled={trimmed !== '' || hasImages}
-                                onClick={() => void voiceNote.start()}
-                                aria-label="Record a voice note"
-                                title={
-                                    trimmed !== '' || hasImages
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="-mx-1 inline-flex shrink-0">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            disabled={
+                                                trimmed !== '' || hasImages
+                                            }
+                                            onClick={() =>
+                                                void voiceNote.start()
+                                            }
+                                            aria-label="Record a voice note"
+                                            className={cn(
+                                                'text-muted-foreground',
+                                                isCompact
+                                                    ? 'size-9'
+                                                    : 'size-10',
+                                            )}
+                                            data-test="record-voice-note"
+                                        >
+                                            <Mic className="size-5" />
+                                        </Button>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {trimmed !== '' || hasImages
                                         ? 'Voice notes go on their own'
-                                        : 'Record a voice note, up to a minute'
-                                }
-                                className={cn(
-                                    '-mx-1 shrink-0 text-muted-foreground',
-                                    isCompact ? 'size-9' : 'size-10',
-                                )}
-                                data-test="record-voice-note"
-                            >
-                                <Mic className="size-5" />
-                            </Button>
+                                        : 'Record a voice note (max. 1 min)'}
+                                </TooltipContent>
+                            </Tooltip>
                             <div className="relative min-w-0 flex-1">
                                 <MentionTextarea
                                     id={id}
