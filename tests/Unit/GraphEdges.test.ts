@@ -65,9 +65,9 @@ void test('draws a line in the lane of the node it leaves, end to end, as the ra
     assert.deepEqual(
         edges.map((edge) => [edge.id, edge.lane]),
         [
-            ['root->reply', 'var(--lane-1)'],
-            ['root->sibling', 'var(--lane-1)'],
-            ['sibling->nested', 'var(--lane-3)'],
+            ['branch:reply', 'var(--lane-1)'],
+            ['branch:sibling', 'var(--lane-1)'],
+            ['branch:nested', 'var(--lane-3)'],
         ],
     );
     assert.ok(edges.every((edge) => !('toLane' in edge)));
@@ -99,7 +99,7 @@ void test('branches off the trunk at the reply instead of doubling it when the t
         node({ id: 'reply', x: 100, y: 160, parent: 'parent' }),
         node({ id: 'sibling', y: 400, after: 'parent', dashed: true }),
     ]);
-    const branch = edges.find((edge) => edge.id === 'parent->reply');
+    const branch = edges.find((edge) => edge.id === 'branch:reply');
 
     assert.ok(branch);
     assert.equal(branch.d, 'M 32 148 Q 32 160 44 160 H 100');
@@ -116,9 +116,9 @@ void test('branches every reply off its parent, each one from where the reply ab
     assert.deepEqual(
         edges.map((edge) => [edge.id, edge.d]),
         [
-            ['parent->first', 'M 32 40 V 148 Q 32 160 44 160 H 100'],
-            ['parent->second', 'M 32 148 V 288 Q 32 300 44 300 H 100'],
-            ['parent->third', 'M 32 288 V 408 Q 32 420 44 420 H 100'],
+            ['branch:first', 'M 32 40 V 148 Q 32 160 44 160 H 100'],
+            ['branch:second', 'M 32 148 V 288 Q 32 300 44 300 H 100'],
+            ['branch:third', 'M 32 288 V 408 Q 32 420 44 420 H 100'],
         ],
     );
     assert.deepEqual(edges[1].start, { x: 32, y: 148 });
@@ -137,9 +137,9 @@ void test("starts each branch's dashes where the column above left them, so the 
     assert.deepEqual(
         edges.map((edge) => [edge.id, edge.dashOffset]),
         [
-            ['parent->first', 0],
-            ['parent->second', 108],
-            ['parent->more', 248],
+            ['branch:first', 0],
+            ['branch:second', 108],
+            ['branch:more', 248],
             ['more->next', 0],
         ],
     );
@@ -151,7 +151,7 @@ void test('runs straight down to a node on the parent itself, like a "more repli
         node({ id: 'reply', x: 100, y: 160, parent: 'parent' }),
         node({ id: 'more', y: 240, parent: 'parent' }),
     ]);
-    const toDot = edges.find((edge) => edge.id === 'parent->more');
+    const toDot = edges.find((edge) => edge.id === 'branch:more');
 
     assert.ok(toDot);
     assert.equal(toDot.d, 'M 32 148 V 240');
@@ -178,7 +178,7 @@ void test('keeps the full elbow when the trunk below ends before the reply', () 
         node({ id: 'next', y: 100, after: 'parent' }),
         node({ id: 'reply', x: 100, y: 160, parent: 'parent' }),
     ]);
-    const branch = edges.find((edge) => edge.id === 'parent->reply');
+    const branch = edges.find((edge) => edge.id === 'branch:reply');
 
     assert.ok(branch);
     assert.equal(branch.d, 'M 32 40 V 148 Q 32 160 44 160 H 100');
@@ -243,6 +243,29 @@ void test('names the nodes a line joins', () => {
             ['parent', 'next'],
         ],
     );
+});
+
+void test("keeps a reply's branch the same line when its parent's end dot gives way to the commit, as the thread goes on", () => {
+    const replies = [
+        node({ id: 'first', x: 100, y: 160 }),
+        node({ id: 'second', x: 100, y: 300 }),
+    ];
+    const ending = graphEdges([
+        node({ id: 'commit', y: 40 }),
+        node({ id: 'commit:end', y: 100, after: 'commit' }),
+        ...replies.map((reply) => ({ ...reply, parent: 'commit:end' })),
+    ]);
+    const goingOn = graphEdges([
+        node({ id: 'commit', y: 40 }),
+        node({ id: 'next', y: 400, after: 'commit' }),
+        ...replies.map((reply) => ({ ...reply, parent: 'commit' })),
+    ]);
+    const branchIds = (edges: typeof ending) =>
+        edges
+            .filter((edge) => edge.to !== 'commit:end' && edge.to !== 'next')
+            .map((edge) => edge.id);
+
+    assert.deepEqual(branchIds(goingOn), branchIds(ending));
 });
 
 void test('waits for the nodes of a line to finish scaling in before drawing it', () => {

@@ -259,6 +259,9 @@ function cornerOf(from: GraphNode, to: GraphNode): number {
  * above turned (from the parent for the first one), so the branches share it without overlapping. When the parent's
  * trunk goes on below the reply, the branch only starts at its corner, so it doesn't draw a second line over the
  * trunk. A node on the column itself, like a "more replies" dot, takes a straight line.
+ *
+ * A reply has a single parent, so its branch is named after the reply alone: when the parent's end dot gives way to the
+ * commit, as the thread goes on below it, the branch stays the line already drawn instead of drawing itself in again.
  */
 function branch(
     from: GraphNode,
@@ -277,7 +280,7 @@ function branch(
               : `M ${from.x} ${top} V ${corner} ${turn}`;
 
     return {
-        id: `${from.id}->${to.id}`,
+        id: `branch:${to.id}`,
         from: from.id,
         to: to.id,
         d,
