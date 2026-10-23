@@ -9,6 +9,7 @@ use App\Services\GitHub;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HtmlSanitizer\HtmlSanitizer;
+use Symfony\Component\HtmlSanitizer\HtmlSanitizerAction;
 use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 
 final readonly class GitHubReadmeQuery
@@ -83,8 +84,8 @@ final readonly class GitHubReadmeQuery
     }
 
     /**
-     * Never trusted as is: only plain formatting, links and proxied images are kept. Classes, ids and styles are
-     * dropped, so a README can't take on the page's own styles, cover it or pose as part of it.
+     * Never trusted as is: only plain formatting, links and images from GitHub's hosts are kept. Classes, ids and
+     * styles are dropped, so a README can't take on the page's own styles, cover it or pose as part of it.
      */
     private function sanitize(string $html): string
     {
@@ -110,11 +111,15 @@ final readonly class GitHubReadmeQuery
             $config = $config->allowElement($element);
         }
 
+        // Any other element goes, but what it holds stays: GitHub's own wrappers like g-emoji or themed-picture, and
+        // the rarer text elements like samp or dl, keep their words. Only these go with everything in them.
+        $config = $config->defaultAction(HtmlSanitizerAction::Block);
+
+        foreach (['script', 'style', 'template', 'noscript', 'iframe', 'object', 'embed', 'svg', 'math', 'dialog', 'map', 'form', 'textarea', 'select', 'button', 'head', 'title', 'source', 'video', 'audio'] as $element) {
+            $config = $config->dropElement($element);
+        }
+
         $config = $config
-            // GitHub wraps tables, theme-aware images and emoji in its own elements: those go, what they hold stays.
-            ->blockElement('markdown-accessiblity-table')
-            ->blockElement('themed-picture')
-            ->blockElement('g-emoji')
             ->allowLinkSchemes(['https', 'http', 'mailto'])
             ->allowRelativeLinks(false)
             ->allowMediaSchemes(['https'])

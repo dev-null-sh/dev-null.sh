@@ -122,6 +122,26 @@ it('keeps only the attributes a readme is written with', function (): void {
         ->not->toContain('area');
 });
 
+it('keeps the words of the rarer text elements, without the elements', function (): void {
+    $user = User::factory()->create();
+
+    fakeGitHubReadme($user, Http::response(<<<'HTML'
+        <p><samp>A resourceful programmer</samp> with <ins>five</ins> years of <abbr title="x">PHP</abbr>.</p>
+        <dl><dt>Stack</dt><dd>Laravel</dd></dl>
+        <figure><img src="https://camo.githubusercontent.com/a" alt="chart"><figcaption>Commits</figcaption></figure>
+        <svg><text>secret</text></svg><template><p>hidden</p></template>
+        HTML));
+
+    expect(resolve(GitHubReadmeQuery::class)->get($user))
+        ->toContain('<p>A resourceful programmer with five years of PHP.</p>')
+        ->toContain('StackLaravel')
+        ->toContain('<img src="https://camo.githubusercontent.com/a" alt="chart" />Commits')
+        ->not->toContain('samp')
+        ->not->toContain('<dl')
+        ->not->toContain('secret')
+        ->not->toContain('hidden');
+});
+
 it('shows no readme for a github account that no longer exists', function (): void {
     $user = User::factory()->create();
 
