@@ -7,7 +7,7 @@ export function isBehindLatest(
     const boundary = messages.filter((message) => !message.event).at(-25);
     const bubble = boundary
         ? scroller.querySelector<HTMLElement>(
-              `[data-message-id="${boundary.id}"]`,
+              `[data-scroll-anchor="${CSS.escape(boundary.client_id)}"]`,
           )
         : null;
 
