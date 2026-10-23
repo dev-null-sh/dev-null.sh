@@ -259,16 +259,17 @@ test('shows a pending GIF card while writing before Preview or Commit', () => {
 
 const secret = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
 
-test('keeps the sensitive text warning beside preview', () => {
+test('keeps token-shaped text editable with preview and no secret warning', () => {
     const markup = renderComposer(secret);
 
     assert.equal(
         (markup.match(/aria-label="Sensitive text warning"/g) ?? []).length,
-        1,
+        0,
     );
     assert.equal((markup.match(/data-test="preview-toggle"/g) ?? []).length, 1);
-    assert.ok(markup.includes('Remove detected secrets'));
-    assert.ok(markup.includes('data-test="secret-warning-minimize"'));
+    assert.ok(markup.includes(secret));
+    assert.ok(!markup.includes('Remove detected secrets'));
+    assert.ok(!markup.includes('data-test="secret-warning-minimize"'));
     assert.ok(!markup.includes('Publish possible secrets?'));
 });
 

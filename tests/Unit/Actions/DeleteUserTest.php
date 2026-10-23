@@ -9,6 +9,7 @@ use App\Ai\Agents\CommitTranslator;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
 use App\Models\Device;
 use App\Models\LinkPreview;
 use App\Models\Message;
@@ -329,9 +330,12 @@ it('erases the orgs a deleted user was the last one in, with the images and voic
     }
 
     $this->actingAs($former)->deleteJson(route('org-member.destroy', [$emptied, $former]))->assertNoContent();
+    $this->actingAs($user)->putJson(route('org-mute.update', $kept), ['duration' => 'forever'])->assertOk();
+    $this->actingAs($former)->putJson(route('org-mute.update', $kept), ['duration' => 'week'])->assertOk();
 
     resolve(DeleteUser::class)->handle($user);
 
     expect(Conversation::query()->pluck('id')->all())->toBe([$kept])
-        ->and(Storage::disk()->allFiles())->toBe([$other->path]);
+        ->and(Storage::disk()->allFiles())->toBe([$other->path])
+        ->and(ConversationParticipant::query()->whereNotNull('muted_until_at')->pluck('user_id')->all())->toBe([$former->id]);
 });

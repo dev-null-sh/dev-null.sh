@@ -14,6 +14,14 @@ use Illuminate\Support\Facades\Context;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Fluent;
 
+/**
+ * @phpstan-type TrafficBreakdown array{name: string, visitors: int, pageviews: int}
+ * @phpstan-type TrafficReport array{
+ *     current: int,
+ *     totals: array{visitors: int, pageviews: int, avg_duration: int, bounce_rate: float},
+ *     breakdowns: array<string, array<int, TrafficBreakdown>>
+ * }
+ */
 final readonly class FathomTrafficQuery
 {
     /**
@@ -42,7 +50,7 @@ final readonly class FathomTrafficQuery
      * are cached for a minute and each range's report for five. A failed read is not cached, so the next refresh tries
      * again. Breakdowns are the top ten by visitors, and an empty name is a direct visit or an unknown value.
      *
-     * @return array{current: int, totals: array{visitors: int, pageviews: int, avg_duration: int, bounce_rate: float}, breakdowns: array<string, array<int, array{name: string, visitors: int, pageviews: int}>>}|null
+     * @return TrafficReport|null
      */
     public function get(CarbonImmutable $from, CarbonImmutable $to): ?array
     {
@@ -131,7 +139,7 @@ final readonly class FathomTrafficQuery
     }
 
     /**
-     * @return array<int, array{name: string, visitors: int, pageviews: int}>
+     * @return array<int, TrafficBreakdown>
      */
     private function breakdown(CarbonImmutable $from, CarbonImmutable $to, string $field): array
     {

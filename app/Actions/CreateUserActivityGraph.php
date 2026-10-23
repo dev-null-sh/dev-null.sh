@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\ActivityGraphTheme;
 use App\Enums\ActivityScale;
 use App\Models\User;
+use App\Queries\ActivityBucketsQuery;
 use App\Queries\UserActivityQuery;
 use App\Queries\UserStreakQuery;
 use Carbon\CarbonImmutable;
@@ -14,6 +15,10 @@ use Illuminate\Support\Str;
 
 /**
  * Draws the year grid of the profile's activity graph as a standalone SVG, from what guests may see.
+ *
+ * @phpstan-import-type ActivityBucket from ActivityBucketsQuery
+ *
+ * @phpstan-type Palette array{card: string, border: string, ink: string, muted: string, empty: string, lanes: list<string>}
  */
 final readonly class CreateUserActivityGraph
 {
@@ -40,7 +45,7 @@ final readonly class CreateUserActivityGraph
     /**
      * The colors of `resources/css/app.css`.
      *
-     * @var array{card: string, border: string, ink: string, muted: string, empty: string, lanes: list<string>}
+     * @var Palette
      */
     private const array LIGHT = [
         'card' => '#ffffff',
@@ -52,7 +57,7 @@ final readonly class CreateUserActivityGraph
     ];
 
     /**
-     * @var array{card: string, border: string, ink: string, muted: string, empty: string, lanes: list<string>}
+     * @var Palette
      */
     private const array DARK = [
         'card' => '#18181a',
@@ -116,7 +121,7 @@ final readonly class CreateUserActivityGraph
     /**
      * The month of each week that starts one, skipping the first one when the next follows too closely to fit.
      *
-     * @param  list<array{date: string, count: int}>  $buckets
+     * @param  list<ActivityBucket>  $buckets
      * @return list<array{label: string, x: int}>
      */
     private function months(array $buckets): array
@@ -150,7 +155,7 @@ final readonly class CreateUserActivityGraph
     }
 
     /**
-     * @param  array{card: string, border: string, ink: string, muted: string, empty: string, lanes: list<string>}  $palette
+     * @param  Palette  $palette
      */
     private function palette(array $palette, int|string $lane): string
     {

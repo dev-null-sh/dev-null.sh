@@ -33,10 +33,6 @@ return [
         'private_key' => env('GITHUB_APP_PRIVATE_KEY'),
     ],
 
-    'openai' => [
-        'key' => env('OPENAI_API_KEY'),
-    ],
-
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],

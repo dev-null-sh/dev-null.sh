@@ -51,7 +51,6 @@ import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
-import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
@@ -71,7 +70,6 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
-import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -304,14 +302,16 @@ export function useThread(
     const replyRequest = useRef(0);
     const [isReplying, setIsReplying] = useState(false);
 
-    const [previousPreview, setPreviousPreview] = useState(preview);
-    if (preview !== previousPreview) {
-        setPreviousPreview(preview);
-        if (preview !== undefined && (replies?.length ?? 0) <= repliesPerPage) {
+    const [previousInitial, setPreviousInitial] = useState(initial);
+    if (initial !== previousInitial) {
+        setPreviousInitial(initial);
+        if (initial !== undefined && (replies?.length ?? 0) <= repliesPerPage) {
+            ++replyRequest.current;
+            setIsLoading(false);
             setThread((current) => ({
                 ...current,
-                replies: preview.data,
-                nextCursor: preview.next_cursor,
+                replies: initial.data,
+                nextCursor: initial.next_cursor,
             }));
         }
     }
@@ -430,6 +430,25 @@ export function useThread(
             reload();
         }
     });
+
+    const onInitialChanged = useEffectEvent(() => {
+        if (
+            replies !== null &&
+            (initial === undefined || replies.length > repliesPerPage)
+        ) {
+            reload();
+        }
+    });
+    const loadedInitial = useRef({ initial, count: commit.replies_count });
+    useEffect(() => {
+        if (
+            loadedInitial.current.initial !== initial ||
+            loadedInitial.current.count !== commit.replies_count
+        ) {
+            loadedInitial.current = { initial, count: commit.replies_count };
+            onInitialChanged();
+        }
+    }, [initial, commit.replies_count]);
 
     const loadedExcept = useRef(except);
     useEffect(() => {
@@ -1353,7 +1372,6 @@ function ReplyComposer({
         image_descriptions: [],
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const secrets = useSecretWarning(body);
     const commitRules = useCommitRules();
     const isReplyable =
         (images.length > 0 || characterCount(body.trim()) >= minBodyLength) &&
@@ -1403,8 +1421,7 @@ function ReplyComposer({
         if (
             request.processing ||
             attachments.isReading() ||
-            !commitRules.beforeSubmit() ||
-            !secrets.beforeSubmit()
+            !commitRules.beforeSubmit()
         ) {
             return;
         }
@@ -1505,16 +1522,6 @@ function ReplyComposer({
                 />
             )}
             <CommitRulesDialog rules={commitRules} textarea={textareaRef} />
-            <SecretWarning
-                body={body}
-                findings={secrets.findings}
-                textarea={textareaRef}
-                onChange={updateBody}
-                confirming={secrets.confirming}
-                onConfirmingChange={secrets.setConfirming}
-                onApprove={secrets.approve}
-                onEdit={preview.close}
-            />
             <InputError
                 message={attachments.error ?? imageErrorFrom(errors)}
                 className="mt-1 px-1"

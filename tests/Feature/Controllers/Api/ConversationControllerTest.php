@@ -35,10 +35,12 @@ it('lists conversations by latest message, with what is unread, as the web inbox
         ->assertJsonPath('data.0.last_message.body', 'ship it')
         ->assertJsonPath('data.0.last_message.user_id', $nuno->id)
         ->assertJsonPath('data.0.ahead', 2)
+        ->assertJsonPath('data.0.last_incoming_message_id', $latest->id)
         ->assertJsonPath('data.0.is_archived', false)
         ->assertJsonPath('data.1.partner.username', 'taylorotwell')
         ->assertJsonPath('data.1.last_message.id', $thanks->id)
         ->assertJsonPath('data.1.ahead', 0)
+        ->assertJsonPath('data.1.last_incoming_message_id', null)
         ->assertJsonPath('has_more', false)
         ->assertJsonPath('unread_count', 2)
         ->assertJsonPath('requests_count', 0);
@@ -72,6 +74,46 @@ it('lists orgs with their name and members', function (): void {
         ->assertJsonPath('data.0.members.1.role', 'contributor')
         ->assertJsonPath('data.0.last_message.event', 'created');
 });
+
+it('points at the newest incoming org message even when an event follows it', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    [$taylor] = followersOf($mark, 1);
+    $this->user->following()->attach($mark);
+    $org = createOrg($mark, [$this->user]);
+    $shipIt = pushToOrg($mark, $org, 'ship it');
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => true])->assertNoContent();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-conversation.index'))
+        ->assertOk()
+        ->assertJsonPath('data.0.last_message.event', 'added')
+        ->assertJsonPath('data.0.ahead', 1)
+        ->assertJsonPath('data.0.last_incoming_message_id', $shipIt->id)
+        ->assertJsonPath('unread_count', 1);
+});
+
+it('only exposes incoming org message ids from the history shared with a new member', function (bool $sharesHistory): void {
+    $mark = User::factory()->withRemotes()->create();
+    [$nuno] = followersOf($mark, 1);
+    $this->user->following()->attach($mark);
+    $org = createOrg($mark, [$nuno]);
+    $beforeJoining = pushToOrg($mark, $org, 'before joining');
+
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), [
+        'members' => [$this->user->username],
+        'share_history' => $sharesHistory,
+    ])->assertNoContent();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-conversation.index'))
+        ->assertOk()
+        ->assertJsonPath('data.0.id', $org)
+        ->assertJsonPath('data.0.last_incoming_message_id', $sharesHistory ? $beforeJoining->id : null);
+
+    $afterJoining = pushToOrg($mark, $org, 'after joining');
+
+    signedApiRequest($this->keyPair, 'GET', route('api-conversation.index'))
+        ->assertOk()
+        ->assertJsonPath('data.0.last_incoming_message_id', $afterJoining->id);
+})->with([false, true]);
 
 it('lists the stashed and fetched tabs', function (): void {
     $nuno = User::factory()->withRemotes()->create();

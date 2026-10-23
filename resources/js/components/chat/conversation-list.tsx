@@ -264,6 +264,7 @@ function ConversationRow({
                     title={title}
                     user={user}
                     isArchived={conversation.is_archived}
+                    conversation={conversation}
                     onLeave={isActive ? onLeaveActive : undefined}
                     onBlocked={isActive ? onLeaveActive : onBlocked}
                     onOpenChange={setIsMenuOpen}

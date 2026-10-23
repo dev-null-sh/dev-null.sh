@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\UpdateCommitHotScores;
 use App\Enums\Log;
+use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Services\CommitBodies;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function (): void {
     $this->user = User::factory()->create();
@@ -204,6 +206,7 @@ it('lists commits 20 at a time with a cursor to the next page', function (): voi
 });
 
 it('does not query each commit or author', function (): void {
+    Queue::fake([DetectCommitLanguage::class]);
     signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'latest'))->assertOk();
 
     $queries = function (): int {

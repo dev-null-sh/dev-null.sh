@@ -91,7 +91,7 @@ it('lets moderators detect and translate pending commits without approving them'
 });
 
 it('keeps ai suggestions private and notifies the quoted author only after moderator approval', function (): void {
-    config(['services.openai.key' => 'sk-test']);
+    config(['ai.providers.openai.key' => 'sk-test']);
     Http::fake([
         'api.openai.com/v1/moderations' => Http::response(['results' => [[
             'categories' => ['harassment' => true],

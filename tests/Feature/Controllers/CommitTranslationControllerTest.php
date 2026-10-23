@@ -298,7 +298,8 @@ it('hides cached translations when an author views their post after it returns t
     CommitTranslator::assertPromptedTimes(1);
 });
 
-it('leaves failed translations uncached and can retry', function (): void {
+it('leaves failed translations uncached and can retry even without a provider key', function (): void {
+    config(['ai.providers.opencode.key' => null]);
     Exceptions::fake();
     $attempts = 0;
     CommitTranslator::fake(function () use (&$attempts): array {

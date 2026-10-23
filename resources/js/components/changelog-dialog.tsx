@@ -2,6 +2,7 @@ import { ExternalLink } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import {
+    ChangelogAuthorLink,
     ChangelogAvatar,
     ChangelogLane,
     changelogLaneColor,
@@ -29,10 +30,12 @@ function DaySection({
     day,
     timeZone,
     isRevealed,
+    onNavigate,
 }: {
     day: ChangelogDay;
     timeZone: string;
     isRevealed: boolean;
+    onNavigate?: () => void;
 }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const firstRevealedLink = useRef<HTMLAnchorElement>(null);
@@ -73,11 +76,16 @@ function DaySection({
                                 boxShadow: `0 0 0 1.5px ${changelogLaneColor(author)}`,
                             }}
                         >
-                            <ChangelogAvatar
-                                login={author.login}
-                                avatar={author.avatar}
-                                size={20}
-                            />
+                            <ChangelogAuthorLink
+                                author={author}
+                                onClick={onNavigate}
+                                className="flex rounded-full"
+                            >
+                                <ChangelogAvatar
+                                    avatar={author.avatar}
+                                    size={20}
+                                />
+                            </ChangelogAuthorLink>
                         </li>
                     ))}
                 </ul>
@@ -87,6 +95,7 @@ function DaySection({
                     pullRequests={shown}
                     continues={hidden.length > 0}
                     timeZone={timeZone}
+                    onNavigate={onNavigate}
                 />
                 {hidden.length > 0 &&
                     (isExpanded ? (
@@ -97,6 +106,7 @@ function DaySection({
                                     previousAuthor={shown.at(-1)?.author}
                                     firstLinkRef={firstRevealedLink}
                                     timeZone={timeZone}
+                                    onNavigate={onNavigate}
                                 />
                             </div>
                         </div>
@@ -180,6 +190,7 @@ export function ChangelogDialog({
                     onLoadOlder={onLoadOlder}
                     timeZone={timeZone}
                     isDialog
+                    onNavigate={() => onOpenChange(false)}
                 />
             </DialogContent>
         </Dialog>
@@ -194,6 +205,7 @@ export function ChangelogContent({
     onLoadOlder,
     timeZone,
     isDialog = false,
+    onNavigate,
 }: {
     changelog: Changelog | null;
     hasFailed: boolean;
@@ -202,6 +214,7 @@ export function ChangelogContent({
     onLoadOlder: (onLoaded: (added: ChangelogPullRequest[]) => void) => void;
     timeZone: string;
     isDialog?: boolean;
+    onNavigate?: () => void;
 }) {
     const [revealedDays, setRevealedDays] = useState<Set<string>>(new Set());
     const scroller = useRef<HTMLDivElement>(null);
@@ -252,6 +265,7 @@ export function ChangelogContent({
                                 day={day}
                                 timeZone={timeZone}
                                 isRevealed={revealedDays.has(day.date)}
+                                onNavigate={onNavigate}
                             />
                         ))}
                         {changelog.olderBefore !== null && (

@@ -1,9 +1,11 @@
 import { router } from '@inertiajs/react';
 import BannedController from '@/actions/App/Http/Controllers/BannedController';
 import ConversationArchiveController from '@/actions/App/Http/Controllers/ConversationArchiveController';
+import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import ConversationDropController from '@/actions/App/Http/Controllers/ConversationDropController';
 import ConversationMergeController from '@/actions/App/Http/Controllers/ConversationMergeController';
 import ConversationMessageController from '@/actions/App/Http/Controllers/ConversationMessageController';
+import ConversationMuteController from '@/actions/App/Http/Controllers/ConversationMuteController';
 import ConversationReadController from '@/actions/App/Http/Controllers/ConversationReadController';
 import ConversationTypingController from '@/actions/App/Http/Controllers/ConversationTypingController';
 import InboxController from '@/actions/App/Http/Controllers/InboxController';
@@ -12,6 +14,7 @@ import OrgArchiveController from '@/actions/App/Http/Controllers/OrgArchiveContr
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import OrgMemberController from '@/actions/App/Http/Controllers/OrgMemberController';
 import OrgMessageController from '@/actions/App/Http/Controllers/OrgMessageController';
+import OrgMuteController from '@/actions/App/Http/Controllers/OrgMuteController';
 import OrgReadController from '@/actions/App/Http/Controllers/OrgReadController';
 import OrgTypingController from '@/actions/App/Http/Controllers/OrgTypingController';
 import RemoteCandidateController from '@/actions/App/Http/Controllers/RemoteCandidateController';
@@ -19,6 +22,7 @@ import UserBlockController from '@/actions/App/Http/Controllers/UserBlockControl
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import type { ReactionUsage } from '@/lib/reactions';
 import { withReactionUse } from '@/lib/reactions';
+import { createRemoteAlerts, isRemoteMuted } from '@/lib/remote-notifications';
 import type { VoiceDraft } from '@/lib/voice-notes';
 import type {
     ConversationSummary,
@@ -81,6 +85,7 @@ export type ThreadState = {
     typing: string[];
     role: OrgRole | null;
     is_archived: boolean;
+    muted_until_at: string | null;
     access: PushAccess;
     pending: PendingMessage[];
     /**
@@ -114,6 +119,7 @@ export type ChatState = {
     requests: number | null;
     isPollingInbox: boolean;
     threads: Record<string, ThreadState>;
+    mutePreferences: Record<string, { until: string | null; version: number }>;
     /**
      * The emoji the user reacts with, most used first, loaded once something shows a conversation.
      */
@@ -145,6 +151,7 @@ let state: ChatState = {
     requests: null,
     isPollingInbox: false,
     threads: {},
+    mutePreferences: {},
     reactionUsage: null,
 };
 const listeners = new Set<() => void>();
@@ -156,6 +163,10 @@ const reactionsSettledAt = new Map<number, number>();
 let inboxWatchers = 0;
 let inboxTimer: number | undefined;
 let isLoadingReactionUsage = false;
+let remoteAlerts: ReturnType<typeof createRemoteAlerts> | null = null;
+let isFetchingInbox = false;
+let muteVersion = 0;
+let remotesPageWatchers = 0;
 
 export function targetKey(target: ChatTarget): string {
     return target.kind === 'direct'
@@ -180,6 +191,7 @@ function urls(target: ChatTarget) {
         const partner = { partner: target.partner.username };
 
         return {
+            show: ConversationController.show.url(partner),
             index: (query?: Record<string, number>) =>
                 ConversationMessageController.index.url(
                     partner,
@@ -190,12 +202,14 @@ function urls(target: ChatTarget) {
             typing: ConversationTypingController.update.url(partner),
             stash: ConversationArchiveController.store.url(partner),
             pop: ConversationArchiveController.destroy.url(partner),
+            mute: ConversationMuteController.update.url(partner),
         };
     }
 
     const org = { org: target.org.id };
 
     return {
+        show: OrgController.show.url(org),
         index: (query?: Record<string, number>) =>
             OrgMessageController.index.url(org, query ? { query } : undefined),
         store: OrgMessageController.store.url(org),
@@ -203,6 +217,7 @@ function urls(target: ChatTarget) {
         typing: OrgTypingController.update.url(org),
         stash: OrgArchiveController.store.url(org),
         pop: OrgArchiveController.destroy.url(org),
+        mute: OrgMuteController.update.url(org),
     };
 }
 
@@ -227,6 +242,22 @@ function update(next: Partial<ChatState>): void {
 function updateDuringRender(next: Partial<ChatState>): void {
     state = { ...state, ...next };
     queueMicrotask(() => listeners.forEach((listener) => listener()));
+}
+
+/**
+ * Inbox, search, and thread responses share mute state. A slower, older request must not undo a newer read or save.
+ */
+function withMutePreferences(
+    preferences: [string, string | null][],
+    version = ++muteVersion,
+): ChatState['mutePreferences'] {
+    const next = { ...state.mutePreferences };
+    for (const [key, until] of preferences) {
+        if (version >= (next[key]?.version ?? 0)) {
+            next[key] = { until, version };
+        }
+    }
+    return next;
 }
 
 function updateThread(
@@ -382,6 +413,12 @@ function byLatest(conversations: ConversationSummary[]): ConversationSummary[] {
 export function seedInbox(inbox: InboxPage): void {
     updateDuringRender({
         conversations: inbox.conversations,
+        mutePreferences: withMutePreferences(
+            inbox.conversations.map((item) => [
+                summaryKey(item),
+                item.muted_until_at,
+            ]),
+        ),
         hasMore: { ...state.hasMore, open: inbox.has_more },
         unread: state.unread ?? unreadOf(inbox.conversations),
     });
@@ -410,12 +447,40 @@ function withFirstPage(
 async function fetchInbox(
     tab: InboxTab,
     before?: string,
-): Promise<InboxPage & { unread: number; requests: number }> {
-    return request(
+    notificationBaseline = false,
+): Promise<
+    InboxPage & {
+        unread: number;
+        requests: number;
+        notification_baseline?: Record<string, number>;
+    }
+> {
+    const version = ++muteVersion;
+    const page = await request<
+        InboxPage & {
+            unread: number;
+            requests: number;
+            notification_baseline?: Record<string, number>;
+        }
+    >(
         InboxController.index.url({
-            query: { tab, ...(before === undefined ? {} : { before }) },
+            query: {
+                tab,
+                ...(before === undefined ? {} : { before }),
+                ...(notificationBaseline ? { notification_baseline: 1 } : {}),
+            },
         }),
     );
+    update({
+        mutePreferences: withMutePreferences(
+            page.conversations.map((item) => [
+                summaryKey(item),
+                item.muted_until_at,
+            ]),
+            version,
+        ),
+    });
+    return page;
 }
 
 /**
@@ -479,6 +544,7 @@ function emptyThread(target: ChatTarget): ThreadState {
         typing: [],
         role: null,
         is_archived: false,
+        muted_until_at: null,
         access: 'open',
         pending: [],
         reactions_version: null,
@@ -497,6 +563,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
               typing: thread.typing,
               role: thread.role,
               is_archived: thread.is_archived,
+              muted_until_at: thread.muted_until_at,
               access: thread.access,
           }
         : {
@@ -504,6 +571,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
               partner_read_at: thread.partner_read_at,
               partner_typing: thread.partner_typing,
               is_archived: thread.is_archived,
+              muted_until_at: thread.muted_until_at,
               access: thread.access,
           };
 }
@@ -519,6 +587,7 @@ export function seedThread(
     const current = state.threads[key] ?? emptyThread(target);
 
     updateDuringRender({
+        mutePreferences: withMutePreferences([[key, thread.muted_until_at]]),
         threads: {
             ...state.threads,
             [key]: {
@@ -554,23 +623,48 @@ export function rememberTarget(target: ChatTarget): void {
 }
 
 async function pollInbox(): Promise<void> {
-    if (document.hidden) {
+    if ((document.hidden && remoteAlerts === null) || isFetchingInbox) {
         return;
     }
 
+    isFetchingInbox = true;
+
     try {
-        const { conversations, unread, requests } = await fetchInbox('open');
+        const alerts = remoteAlerts;
+        const { conversations, unread, requests, notification_baseline } =
+            await fetchInbox('open', undefined, alerts?.needsBaseline());
+        const isReading = (conversation: ConversationSummary) =>
+            !document.hidden &&
+            document.hasFocus() &&
+            isWatching(summaryKey(conversation));
+        if (
+            alerts === remoteAlerts &&
+            (!alerts?.needsBaseline() || notification_baseline !== undefined)
+        ) {
+            void alerts?.receive(
+                conversations.map((conversation) => ({
+                    ...conversation,
+                    muted_until_at:
+                        state.mutePreferences[summaryKey(conversation)].until,
+                })),
+                (conversation) =>
+                    isViewingRemotes() ||
+                    isReading(conversation) ||
+                    isRemoteMuted(
+                        state.mutePreferences[summaryKey(conversation)].until,
+                    ),
+                notification_baseline,
+            );
+        }
         const requestsChanged =
             state.requests !== null && requests !== state.requests;
-        const watched = conversations.filter((conversation) =>
-            isWatching(summaryKey(conversation)),
-        );
+        const watched = conversations.filter(isReading);
 
         update({
             conversations: withFirstPage(
                 state.conversations,
                 conversations.map((conversation) =>
-                    isWatching(summaryKey(conversation))
+                    isReading(conversation)
                         ? { ...conversation, ahead: 0 }
                         : conversation,
                 ),
@@ -589,7 +683,46 @@ async function pollInbox(): Promise<void> {
         }
     } catch {
         // Keep the last known inbox until the next poll.
+    } finally {
+        isFetchingInbox = false;
     }
+}
+
+export function watchRemoteAlerts(userId: string): () => void {
+    const alerts = createRemoteAlerts(
+        userId,
+        (conversation) => urls(targetOf(conversation)).show,
+        () =>
+            isViewingRemotes()
+                ? ['*']
+                : !document.hidden && document.hasFocus()
+                  ? [...threadWatchers.keys()].map(
+                        (key) => urls(state.threads[key].target).show,
+                    )
+                  : [],
+    );
+    remoteAlerts = alerts;
+    const unwatch = watchInbox();
+
+    return () => {
+        alerts.stop();
+        if (remoteAlerts === alerts) remoteAlerts = null;
+        unwatch();
+    };
+}
+
+function isViewingRemotes(): boolean {
+    return remotesPageWatchers > 0 && !document.hidden && document.hasFocus();
+}
+
+export function watchRemotesPage(): () => void {
+    remotesPageWatchers++;
+    remoteAlerts?.updateReading();
+
+    return () => {
+        remotesPageWatchers--;
+        remoteAlerts?.updateReading();
+    };
 }
 
 function scheduleInbox(): void {
@@ -647,6 +780,7 @@ async function pollThread(target: ChatTarget): Promise<void> {
     const reactionsAfter =
         after === null ? null : (thread?.reactions_version ?? null);
     const polledAt = performance.now();
+    const version = ++muteVersion;
 
     const fresh = await request<
         (Thread & { partner: User }) | (OrgThread & { org: OrgRef })
@@ -672,6 +806,10 @@ async function pollThread(target: ChatTarget): Promise<void> {
     }
 
     update({
+        mutePreferences: withMutePreferences(
+            [[key, fresh.muted_until_at]],
+            version,
+        ),
         threads: {
             ...state.threads,
             [key]: {
@@ -747,6 +885,8 @@ export function watchThread(target: ChatTarget): () => void {
         }));
     }
 
+    remoteAlerts?.updateReading();
+
     const tick = async () => {
         window.clearTimeout(timer);
 
@@ -795,6 +935,7 @@ export function watchThread(target: ChatTarget): () => void {
             threadWatchers.set(key, watchers);
         }
 
+        remoteAlerts?.updateReading();
         scheduleInbox();
     };
 }
@@ -819,11 +960,13 @@ function touchInbox(target: ChatTarget, message: Message): void {
         partner: target.kind === 'direct' ? target.partner : null,
         members: existing?.members ?? null,
         last_message: message,
+        last_incoming_message_id: existing?.last_incoming_message_id ?? null,
         last_message_at: message.created_at,
         ahead: existing?.ahead ?? 0,
         partner_read_through_id: existing?.partner_read_through_id ?? 0,
         partner_read_at: existing?.partner_read_at ?? null,
         is_archived: false,
+        muted_until_at: existing?.muted_until_at ?? null,
     };
 
     update({
@@ -1081,6 +1224,8 @@ export function retryMessage(target: ChatTarget, clientId: string): void {
 }
 
 export function markThreadRead(target: ChatTarget): void {
+    if (document.hidden || !document.hasFocus()) return;
+
     const key = targetKey(target);
     const thread = state.threads[key];
     const latest = thread?.messages.at(-1)?.id ?? 0;
@@ -1156,6 +1301,7 @@ export async function searchConversations(
     tab: InboxTab,
     signal: AbortSignal,
 ): Promise<ConversationSummary[]> {
+    const version = ++muteVersion;
     const response = await fetch(
         InboxController.index.url({ query: { q: term, tab } }),
         { headers: { Accept: 'application/json' }, cache: 'no-store', signal },
@@ -1165,7 +1311,17 @@ export async function searchConversations(
         throw new Error(`Conversation search failed: ${response.status}`);
     }
 
-    return ((await response.json()) as InboxPage).conversations;
+    const { conversations } = (await response.json()) as InboxPage;
+    update({
+        mutePreferences: withMutePreferences(
+            conversations.map((item) => [
+                summaryKey(item),
+                item.muted_until_at,
+            ]),
+            version,
+        ),
+    });
+    return conversations;
 }
 
 /**
@@ -1294,6 +1450,34 @@ export async function setConversationArchived(
 
         return false;
     }
+}
+
+export type MuteDuration = 'hour' | 'tomorrow' | 'week' | 'forever' | 'off';
+
+export async function setConversationMute(
+    target: ChatTarget,
+    duration: MuteDuration,
+): Promise<void> {
+    const preference = await request<{ muted_until_at: string | null }>(
+        urls(target).mute,
+        'PUT',
+        { duration },
+    );
+    const key = targetKey(target);
+    const apply = (items: ConversationSummary[] | null) =>
+        items?.map((item) =>
+            summaryKey(item) === key ? { ...item, ...preference } : item,
+        ) ?? null;
+
+    update({
+        mutePreferences: withMutePreferences([
+            [key, preference.muted_until_at],
+        ]),
+        conversations: apply(state.conversations),
+        fetched: apply(state.fetched),
+        archived: apply(state.archived),
+    });
+    updateThread(key, () => preference);
 }
 
 /**
