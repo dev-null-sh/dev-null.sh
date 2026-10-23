@@ -335,3 +335,18 @@ it('erases the orgs a deleted user was the last one in, with the images and voic
     expect(Conversation::query()->pluck('id')->all())->toBe([$kept])
         ->and(Storage::disk()->allFiles())->toBe([$other->path]);
 });
+
+it('erases only the deleted users issue screenshots', function (): void {
+    Storage::fake();
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $path = 'issue-images/'.$user->id.'/shot.webp';
+    $otherPath = 'issue-images/'.$other->id.'/shot.webp';
+    Storage::disk()->put($path, 'pixels');
+    Storage::disk()->put($otherPath, 'other pixels');
+
+    resolve(DeleteUser::class)->handle($user);
+
+    Storage::disk()->assertMissing($path);
+    Storage::disk()->assertExists($otherPath);
+});

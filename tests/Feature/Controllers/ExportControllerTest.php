@@ -23,6 +23,8 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 it('requires authentication to download personal data', function (): void {
     $this->get(route('export'))->assertRedirectToRoute('home');
@@ -82,7 +84,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 2,
+        'schema_version' => 3,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -127,6 +129,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'dismissed_suggestions' => [],
         'messages' => [],
         'notifications' => [],
+        'issue_images' => [],
         'ssh_keys' => [],
         'devices' => [],
         'timeouts' => [],
@@ -514,4 +517,18 @@ it('exports the voice notes the user sent as links', function (): void {
     $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['messages'][0]['voice'])->toBe(route('message-voice.show', $voice));
+});
+
+it('exports only the users issue screenshot URLs', function (): void {
+    Storage::fake();
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $image = Str::uuid7()->toString();
+    Storage::disk()->put('issue-images/'.$user->id.'/'.$image.'.webp', 'pixels');
+    Storage::disk()->put('issue-images/'.$other->id.'/'.$image.'.webp', 'other pixels');
+
+    $response = $this->actingAs($user)->get(route('export'))->assertOk();
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['issue_images'])->toBe([route('issue-image.show', ['reporter' => $user->id, 'image' => $image])]);
 });

@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\LazyCollection;
 use stdClass;
 
@@ -32,6 +33,7 @@ use stdClass;
  * @phpstan-type ExportUser array{username: string}
  * @phpstan-type UserExport array{
  *     schema_version: int,
+ *     issue_images: list<string>,
  *     exported_at: string,
  *     profile: array<string, bool|int|string|null>,
  *     commits: Generator<int, array<string, mixed>>,
@@ -61,7 +63,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 2,
+            'schema_version' => 3,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -106,6 +108,9 @@ final readonly class CreateExport
             'dismissed_suggestions' => $this->usernames($user->dismissedSuggestions()),
             'messages' => $this->messages($user),
             'notifications' => $this->notifications($user),
+            'issue_images' => array_values(collect(Storage::disk()->files('issue-images/'.$user->id))
+                ->map(fn (string $path): string => route('issue-image.show', ['reporter' => $user->id, 'image' => pathinfo($path, PATHINFO_FILENAME)]))
+                ->all()),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
             'devices' => $user->devices()->oldest('approved_at')->get()->map(fn (Device $device): array => [
                 'name' => $device->name,

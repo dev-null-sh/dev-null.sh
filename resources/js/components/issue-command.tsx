@@ -4,6 +4,7 @@ import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { store } from '@/actions/App/Http/Controllers/IssueController';
+import { minBodyLength } from '@/lib/commit';
 import { collectEnvironment } from '@/lib/environment';
 import type { IssueEnvironment } from '@/lib/environment';
 import type { IssueCommand, IssueKind } from '@/lib/issue-commands';
@@ -14,7 +15,7 @@ import {
     typedCommand,
 } from '@/lib/issue-commands';
 import { hasModKey } from '@/lib/keyboard';
-import { cn } from '@/lib/utils';
+import { characterCount, cn } from '@/lib/utils';
 
 const hintDismissedKey = 'issue-command-hint-dismissed';
 
@@ -31,11 +32,15 @@ function isHintDismissed(): boolean {
  */
 export function useIssueCommand({
     body,
+    images,
+    descriptions,
     updateBody,
     enabled,
     onCreated,
 }: {
     body: string;
+    images: File[];
+    descriptions: string[];
     updateBody: (body: string) => void;
     enabled: boolean;
     onCreated: () => void;
@@ -46,20 +51,31 @@ export function useIssueCommand({
     const [focused, setFocused] = useState(false);
     const [hintDismissed, setHintDismissed] = useState(isHintDismissed);
     const request = useHttp<
-        { command: string; body: string; environment?: IssueEnvironment },
+        {
+            command: string;
+            body: string;
+            environment?: IssueEnvironment;
+            images: File[];
+            image_descriptions: string[];
+        },
         { number: number; url: string }
-    >({ command: '', body: '' });
+    >({ command: '', body: '', images: [], image_descriptions: [] });
     const command =
         issueCommands.find((candidate) => candidate.kind === kind) ?? null;
     // A draft restored from the stash can be a lone slash: the menu only opens while the user is typing in it.
     const suggestions =
         enabled && kind === null && !dismissed && focused
-            ? suggestedCommands(body)
+            ? suggestedCommands(body).filter(
+                  (candidate) =>
+                      images.length === 0 || candidate.kind === 'bug',
+              )
             : [];
     const hint =
         enabled && kind === null && !hintDismissed ? hintedCommand(body) : null;
 
     const start = (next: IssueKind, rest: string) => {
+        if (request.processing || (next === 'feature' && images.length > 0))
+            return;
         setKind(next);
         setSelected(0);
         updateBody(rest);
@@ -69,7 +85,7 @@ export function useIssueCommand({
         setDismissed(false);
         const typed = enabled && kind === null ? typedCommand(value) : null;
 
-        if (typed) {
+        if (typed && (typed.kind === 'bug' || images.length === 0)) {
             start(typed.kind, typed.body);
         } else {
             updateBody(value);
@@ -77,7 +93,11 @@ export function useIssueCommand({
     };
 
     const submit = async () => {
-        if (command === null || request.processing) {
+        if (
+            command === null ||
+            request.processing ||
+            characterCount(body.trim()) < minBodyLength
+        ) {
             return;
         }
 
@@ -85,6 +105,10 @@ export function useIssueCommand({
             command: command.name,
             body,
             environment: collectEnvironment(),
+            ...(images.length > 0 && {
+                images,
+                image_descriptions: descriptions,
+            }),
         }));
 
         try {
@@ -190,7 +214,7 @@ export function useIssueCommand({
     return {
         command,
         suggestions,
-        hint,
+        hint: images.length > 0 && hint?.kind === 'feature' ? null : hint,
         dismissHint: () => {
             setHintDismissed(true);
             try {

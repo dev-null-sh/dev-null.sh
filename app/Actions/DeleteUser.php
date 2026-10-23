@@ -73,6 +73,7 @@ final readonly class DeleteUser
         });
 
         Storage::disk()->delete($imagePaths);
+        Storage::disk()->deleteDirectory('issue-images/'.$user->id);
     }
 
     /**

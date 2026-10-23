@@ -6,6 +6,10 @@ namespace App\Actions;
 
 use App\Models\User;
 use App\Services\GitHubApp;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
@@ -16,7 +20,7 @@ use League\CommonMark\Parser\MarkdownParser;
 
 final readonly class CreateIssue
 {
-    public function __construct(private GitHubApp $github)
+    public function __construct(private GitHubApp $github, private CreateImageFiles $createImageFiles)
     {
         //
     }
@@ -25,9 +29,11 @@ final readonly class CreateIssue
      * The issue is opened by the app, crediting the reporter, whose GitHub login is their username here.
      *
      * @param  array<string, string>  $environment
+     * @param  list<UploadedFile>  $images
+     * @param  list<string|null>  $descriptions
      * @return array{number: int, url: string}
      */
-    public function handle(User $user, string $command, string $body, array $environment = []): array
+    public function handle(User $user, string $command, string $body, array $environment = [], array $images = [], array $descriptions = []): array
     {
         $type = mb_substr($command, 1);
         $title = mb_trim(Str::before($body, "\n"));
@@ -50,11 +56,33 @@ final readonly class CreateIssue
             );
         }
 
-        return $this->github->createIssue(
-            Str::limit($title, 256, '') ?: ucfirst($type).' report',
-            $body.$this->details($environment)."\n\n---\n\nReported by {$user->mention()} via [/dev/null](".route('user.show', $user).').',
-            [$type === 'feature' ? 'enhancement' : 'bug'],
-        );
+        $files = DB::transaction(function () use ($user, $images, $descriptions): array {
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+
+            return $this->createImageFiles->handle($images, $descriptions, 'issue-images/'.$user->id);
+        });
+
+        $screenshots = '';
+
+        foreach ($files as $file) {
+            $url = route('issue-image.show', ['reporter' => $user->id, 'image' => pathinfo($file['path'], PATHINFO_FILENAME)]);
+            $description = e($file['description'] ?: 'Screenshot '.($file['position'] + 1));
+            $screenshots .= "<img src=\"{$url}\" alt=\"{$description}\" />\n\n";
+        }
+
+        try {
+            return $this->github->createIssue(
+                Str::limit($title, 256, '') ?: ucfirst($type).' report',
+                $screenshots.$body.$this->details($environment)."\n\n---\n\nReported by {$user->mention()} via [/dev/null](".route('user.show', $user).').',
+                [$type === 'feature' ? 'enhancement' : 'bug'],
+            );
+        } catch (RequestException $requestException) {
+            if ($requestException->response->clientError()) {
+                Storage::disk()->delete(array_column($files, 'path'));
+            }
+
+            throw $requestException;
+        }
     }
 
     /**

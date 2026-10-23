@@ -121,6 +121,7 @@ function render() {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    http.processing = false;
     state = [];
     flash = {};
     effects = [];
@@ -532,7 +533,7 @@ test('typing a command and a space turns the draft into an issue, and backspace 
     assert.equal(find('data-test', 'create-commit-button'), undefined);
     assert.equal(
         view.fields.some((element) => element.type === ImagePickerButton),
-        false,
+        true,
     );
     assert.equal(find('data-test', 'add-poll-button'), undefined);
     assert.equal(view.form.props.onBefore(), false);
@@ -670,31 +671,175 @@ test('switching a discounted commit to an issue enforces the literal limit for t
     }
 });
 
-test('commands are not offered while the draft has images, a poll or a schedule', () => {
+test('an image draft can become a bug report and sends screenshots and descriptions', () => {
     draft.images = [image];
+    draft.descriptions = ['The jumping timeline'];
     draft.body = '/';
     focus(render());
-    const view = render();
-    assert.equal(
-        view.fields.some((element) => element.type === IssueCommandSuggestions),
-        false,
+    let view = render();
+    const suggestions = view.fields.find(
+        (element) => element.type === IssueCommandSuggestions,
+    )!;
+    assert.deepEqual(
+        (suggestions.props.suggestions as { name: string }[]).map(
+            (command) => command.name,
+        ),
+        ['/bug'],
     );
-    draft.body = 'Found a bug';
-    assert.equal(
-        render().fields.some((element) => element.type === IssueCommandHint),
-        false,
-    );
-    draft.body = '/';
-
     const textarea = view.fields.find(
         (element) => element.type === MentionTextarea,
     )!;
+    (textarea.props.onValueChange as (value: string) => void)(
+        '/bug The timeline jumps',
+    );
+    draft.body = 'The timeline jumps';
+    view = render();
+    assert.ok(
+        view.fields.some((element) => element.type === ImagePickerButton),
+    );
+    keyDown(view, 'Enter', { metaKey: true });
+    const payload = http.transform.mock.calls[0][0] as () => {
+        images?: File[];
+        image_descriptions?: string[];
+    };
+    vi.stubGlobal('navigator', { userAgent: '', language: 'en-US' });
+    vi.stubGlobal('window', {
+        innerWidth: 1440,
+        innerHeight: 900,
+        devicePixelRatio: 2,
+        matchMedia: () => ({ matches: false }),
+        location: { pathname: '/log' },
+    });
+    try {
+        const sent = payload();
+        assert.deepEqual(sent.images, [image]);
+        assert.deepEqual(sent.image_descriptions, ['The jumping timeline']);
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});
+
+test('bug screenshots still require text and cannot change during submission', () => {
+    draft.body = '/bug ';
+    const textarea = render().fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
     (textarea.props.onValueChange as (value: string) => void)('/bug ');
-    assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['/bug ']);
+    draft.body = '';
+    draft.images = [image];
+    let view = render();
     assert.equal(
-        render().fields.some((element) => element.type === IssueCommandBadge),
+        view.fields.find(
+            (element) => element.props['data-test'] === 'open-issue-button',
+        )!.props.disabled,
+        true,
+    );
+    keyDown(view, 'Enter', { metaKey: true });
+    assert.equal(http.submit.mock.calls.length, 0);
+    http.processing = true;
+    view = render();
+    assert.equal(
+        view.fields.find((element) => element.type === ImagePickerButton)!.props
+            .disabled,
+        true,
+    );
+    assert.equal(
+        view.fields.find((element) => element.type === MentionTextarea)!.props
+            .onPaste,
+        undefined,
+    );
+    assert.equal(
+        view.fields.some(
+            (element) => element.type === 'div' && 'onDrop' in element.props,
+        ),
         false,
     );
+});
+
+test('feature requests remain text only', () => {
+    draft.body = '/feature ';
+    let view = render();
+    (
+        view.fields.find((element) => element.type === MentionTextarea)!.props
+            .onValueChange as (value: string) => void
+    )('/feature Better search');
+    draft.body = 'Better search';
+    view = render();
+    assert.equal(
+        view.fields.some((element) => element.type === ImagePickerButton),
+        false,
+    );
+    assert.equal(
+        view.fields.find((element) => element.type === MentionTextarea)!.props
+            .onPaste,
+        undefined,
+    );
+    assert.equal(
+        view.fields.some(
+            (element) => element.type === 'div' && 'onDrop' in element.props,
+        ),
+        false,
+    );
+});
+
+test('failed issue submission preserves its screenshots and command for retry', async () => {
+    draft.body = '/bug ';
+    const textarea = render().fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    (textarea.props.onValueChange as (value: string) => void)(
+        '/bug Broken timeline',
+    );
+    draft.body = 'Broken timeline';
+    draft.images = [image];
+    draft.descriptions = ['Jump'];
+    http.submit.mockRejectedValueOnce(new Error('offline'));
+    const button = render().fields.find(
+        (element) => element.props['data-test'] === 'open-issue-button',
+    )!;
+    (button.props.onClick as () => void)();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(draft.drop.mock.calls.length, 0);
+    assert.deepEqual(draft.images, [image]);
+    assert.deepEqual(draft.descriptions, ['Jump']);
+    assert.ok(
+        render().fields.some((element) => element.type === IssueCommandBadge),
+    );
+});
+
+test('confirmed issue creation clears the screenshot draft', async () => {
+    draft.body = '/bug ';
+    const textarea = render().fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    (textarea.props.onValueChange as (value: string) => void)(
+        '/bug Broken timeline',
+    );
+    draft.body = 'Broken timeline';
+    draft.images = [image];
+    http.submit.mockResolvedValueOnce({
+        number: 123,
+        url: 'https://github.com/nunomaduro/dev-null.sh/issues/123',
+    });
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        const button = render().fields.find(
+            (element) => element.props['data-test'] === 'open-issue-button',
+        )!;
+        (button.props.onClick as () => void)();
+        await Promise.resolve();
+        await Promise.resolve();
+        assert.equal(draft.drop.mock.calls.length, 1);
+        assert.equal(
+            render().fields.some(
+                (element) => element.type === IssueCommandBadge,
+            ),
+            false,
+        );
+    } finally {
+        vi.unstubAllGlobals();
+    }
 });
 
 test('turning scheduling off clears the chosen time and commits now', () => {

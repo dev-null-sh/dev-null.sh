@@ -2,15 +2,21 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateIssue;
+use App\Actions\DeleteUser;
 use App\Models\User;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
+use League\CommonMark\GithubFlavoredMarkdownConverter;
 
 beforeEach(function (): void {
+    Storage::fake();
     $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
     assert($key !== false);
     openssl_pkey_export($key, $privateKey);
@@ -51,6 +57,18 @@ function fakeGitHubApp(array $issue = []): void
         ], 201),
     ]);
 }
+
+it('does not store screenshots for a reporter deleted after authentication', function (): void {
+    fakeGitHubApp();
+    $user = User::factory()->create();
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(fn () => resolve(CreateIssue::class)->handle($user, '/bug', 'Broken.', [UploadedFile::fake()->image('shot.png')]))
+        ->toThrow(ModelNotFoundException::class);
+
+    expect(Storage::disk()->allFiles('issue-images'))->toBe([]);
+    Http::assertNothingSent();
+});
 
 it('opens the issue as the app, crediting the reporter, with the label of the command', function (string $command, string $label): void {
     fakeGitHubApp();
@@ -159,16 +177,90 @@ it('collapses blank lines and keeps the title within the limit of GitHub', funct
         && str_starts_with((string) $request['body'], str_repeat('a', 300)."\n\nplease\n\n---"));
 });
 
-it('does not send images to GitHub', function (): void {
+it('embeds optimized screenshots with permanent public URLs and escaped descriptions', function (string $extension): void {
     fakeGitHubApp();
+    $user = User::factory()->create();
 
-    $this->actingAs(User::factory()->create())
-        ->post(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.', 'images' => [UploadedFile::fake()->image('shot.png')]], ['Accept' => 'application/json'])
-        ->assertCreated();
+    $this->actingAs($user)->post(route('issue.store'), [
+        'command' => '/bug',
+        'body' => 'The timeline jumps.',
+        'images' => [UploadedFile::fake()->image('shot.'.$extension, 20, 10)],
+        'image_descriptions' => ['A "broken" <timeline>'],
+    ], ['Accept' => 'application/json'])->assertCreated();
+
+    $paths = Storage::disk()->files('issue-images/'.$user->id);
+    expect($paths)->toHaveCount(1);
+    $bytes = Storage::disk()->get($paths[0]);
+    expect(getimagesizefromstring($bytes)[2])->toBe(IMAGETYPE_WEBP);
+    $url = route('issue-image.show', ['reporter' => $user->id, 'image' => pathinfo($paths[0], PATHINFO_FILENAME)]);
 
     Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/issues')
-        && ! str_contains((string) $request['body'], '<img'));
-});
+        && str_contains((string) $request['body'], '<img src="'.$url.'" alt="A &quot;broken&quot; &lt;timeline&gt;" />'));
+    $this->assertDatabaseCount('commits', 0);
+})->with(['png', 'jpg', 'webp']);
+
+it('renders screenshots before unfinished Markdown in the bug description', function (string $unfinished): void {
+    fakeGitHubApp();
+    $body = "The timeline jumps.\n\n".$unfinished;
+
+    $this->actingAs(User::factory()->create())->post(route('issue.store'), [
+        'command' => '/bug',
+        'body' => $body,
+        'images' => [UploadedFile::fake()->image('first.png'), UploadedFile::fake()->image('second.png')],
+        'image_descriptions' => ['First screenshot', 'Second screenshot'],
+    ], ['Accept' => 'application/json'])->assertCreated();
+
+    $request = Http::recorded(fn (Request $request): bool => str_ends_with($request->url(), '/issues'))->first()[0];
+    $html = (string) new GithubFlavoredMarkdownConverter()->convert($request['body']);
+
+    expect(mb_substr_count($html, '<img '))->toBe(2)
+        ->and(mb_strpos($html, 'alt="First screenshot"'))->toBeLessThan(mb_strpos($html, 'alt="Second screenshot"'))
+        ->and($request['title'])->toBe('The timeline jumps.')
+        ->and($request['body'])->toContain($body);
+})->with([
+    'backtick fence' => ["```text\nError: failed to load"],
+    'tilde fence' => ["~~~text\nError: failed to load"],
+    'HTML comment' => ['<!-- unfinished comment'],
+]);
+
+it('validates bug attachments before contacting GitHub', function (array $payload, string $field): void {
+    Http::fake();
+    $this->actingAs(User::factory()->create())->post(route('issue.store'), [
+        'command' => '/bug', 'body' => 'Broken.', ...$payload,
+    ], ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors($field);
+
+    Http::assertNothingSent();
+    expect(Storage::disk()->allFiles('issue-images'))->toBe([]);
+})->with([
+    'feature' => [fn (): array => ['command' => '/feature', 'images' => [UploadedFile::fake()->image('shot.png')]], 'images'],
+    'body required' => [fn (): array => ['body' => '', 'images' => [UploadedFile::fake()->image('shot.png')]], 'body'],
+    'count' => [fn (): array => ['images' => array_map(fn (): UploadedFile => UploadedFile::fake()->image('shot.png'), range(1, 4))], 'images'],
+    'invalid contents' => [fn (): array => ['images' => [UploadedFile::fake()->createWithContent('shot.png', 'not an image')]], 'images.0'],
+    'svg' => [fn (): array => ['images' => [UploadedFile::fake()->createWithContent('shot.svg', '<svg xmlns="http://www.w3.org/2000/svg"/>')]], 'images.0'],
+    'size' => [fn (): array => ['images' => [UploadedFile::fake()->image('shot.png')->size(10241)]], 'images.0'],
+    'dimensions' => [fn (): array => ['images' => [UploadedFile::fake()->image('shot.png', 6001, 1)]], 'images.0'],
+    'description' => [fn (): array => ['image_descriptions' => [str_repeat('x', 1001)]], 'image_descriptions.0'],
+]);
+
+it('cleans up rejected screenshots but retains them when issue creation is uncertain', function (Closure $response, int $remaining): void {
+    Http::fake([
+        'api.github.com/repos/dev-null-sh/dev-null.sh/installation' => Http::response(['id' => 99]),
+        'api.github.com/app/installations/99/access_tokens' => Http::response(['token' => 'installation-token'], 201),
+        'api.github.com/repos/dev-null-sh/dev-null.sh/issues' => $response,
+    ]);
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post(route('issue.store'), [
+        'command' => '/bug', 'body' => 'Broken.',
+        'images' => [UploadedFile::fake()->image('shot.png')],
+    ], ['Accept' => 'application/json'])->assertStatus(502);
+
+    expect(Storage::disk()->files('issue-images/'.$user->id))->toHaveCount($remaining);
+})->with([
+    'rejected' => [fn () => Http::response([], 422), 0],
+    'server failure' => [fn () => Http::response([], 500), 1],
+    'timeout' => [fn () => throw new ConnectionException('timeout'), 1],
+]);
 
 it('keeps the draft when GitHub rejects the issue or does not respond', function (Closure $response, string $message): void {
     Http::fake([

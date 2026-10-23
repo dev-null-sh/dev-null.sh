@@ -5,8 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Models\Commit;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Dimensions;
+use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\Rules\In;
 
 final class CreateIssueRequest extends FormRequest
@@ -24,9 +29,9 @@ final class CreateIssueRequest extends FormRequest
     }
 
     /**
-     * Issues carry text only: images are not accepted.
+     * Only bug reports accept images, as screenshots.
      *
-     * @return array<string, array<int, string|In>>
+     * @return array<string, array<int, string|ValidationRule|File|Dimensions|Enum|In>>
      */
     public function rules(): array
     {
@@ -35,6 +40,8 @@ final class CreateIssueRequest extends FormRequest
             'body' => ['required', 'string', 'min:'.self::MIN_BODY_LENGTH, 'max:'.Commit::MAX_BODY_LENGTH],
             'environment' => ['nullable', 'array:'.implode(',', self::ENVIRONMENT_FIELDS)],
             'environment.*' => ['nullable', 'string', 'max:100'],
+            ...collect(CreateCommitRequest::attachmentRules())->only(['images', 'images.*', 'image_descriptions', 'image_descriptions.*'])->all(),
+            ...($this->input('command') !== '/bug' ? ['images' => ['prohibited'], 'image_descriptions' => ['prohibited']] : []),
         ];
     }
 
@@ -47,5 +54,26 @@ final class CreateIssueRequest extends FormRequest
         $environment = $this->array('environment');
 
         return array_filter($environment, fn (?string $value): bool => $value !== null && $value !== '');
+    }
+
+    /**
+     * @return list<UploadedFile>
+     */
+    public function images(): array
+    {
+        $images = $this->file('images');
+
+        return is_array($images) ? array_values($images) : [];
+    }
+
+    /**
+     * @return list<string|null>
+     */
+    public function imageDescriptions(): array
+    {
+        /** @var list<string|null> $descriptions */
+        $descriptions = $this->array('image_descriptions');
+
+        return $descriptions;
     }
 }
