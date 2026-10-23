@@ -430,7 +430,11 @@ export function AppNav({
                         </span>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
-                        className="w-60"
+                        className={
+                            iconsOnly
+                                ? 'w-60'
+                                : 'w-(--radix-dropdown-menu-trigger-width)'
+                        }
                         side="top"
                         align="start"
                     >
