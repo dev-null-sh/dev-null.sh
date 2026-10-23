@@ -628,7 +628,13 @@ export function rememberTarget(target: ChatTarget): void {
 }
 
 async function pollInbox(): Promise<void> {
-    if ((document.hidden && remoteAlerts === null) || isFetchingInbox) {
+    const isPaused = document.hidden && remoteAlerts === null;
+
+    if (isPaused && state.unread !== null) {
+        update({ unread: null });
+    }
+
+    if (isPaused || isFetchingInbox) {
         return;
     }
 
