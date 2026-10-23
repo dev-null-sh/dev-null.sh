@@ -95,16 +95,20 @@ function ConversationRow({
     const lastBody =
         lastMessage?.body ||
         (lastMessage?.voice ? 'sent a voice note' : 'sent an image');
+    const prefix =
+        lastMessage === null || lastMessage.event
+            ? ''
+            : isMine
+              ? 'you: '
+              : partner === null
+                ? `${lastMessage.user?.name.split(' ')[0] ?? 'someone'}: `
+                : '';
     const preview =
         lastMessage === null
             ? ''
             : lastMessage.event
               ? eventText(lastMessage, user)
-              : isMine
-                ? `you: ${lastBody}`
-                : partner === null
-                  ? `${lastMessage.user?.name.split(' ')[0] ?? 'someone'}: ${lastBody}`
-                  : lastBody;
+              : lastBody;
     const className = cn(
         'relative grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 text-left transition-colors hover:bg-accent focus-visible:-outline-offset-2',
         isCompact ? 'px-3.5 py-2.5' : 'px-4 py-3',
@@ -193,8 +197,9 @@ function ConversationRow({
                         className={cn('truncate', {
                             'font-mono text-xs': lastMessage?.event,
                         })}
-                        title={preview}
+                        title={`${prefix}${preview}`}
                     >
+                        {prefix}
                         <WordmarkText>{preview}</WordmarkText>
                     </span>
                 </span>

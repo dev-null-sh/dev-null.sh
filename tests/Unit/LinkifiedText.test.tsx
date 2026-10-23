@@ -5,6 +5,7 @@ import type { ComponentProps, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vite-plus/test';
 import { BodyCounter } from '../../resources/js/components/body-counter';
+import { ConversationList } from '../../resources/js/components/chat/conversation-list';
 import { MessageText } from '../../resources/js/components/chat/message-parts';
 import { CommitBody } from '../../resources/js/components/commit-body';
 import {
@@ -14,6 +15,7 @@ import {
 import { WordmarkText } from '../../resources/js/components/wordmark-text';
 import { bodySegments } from '../../resources/js/lib/code';
 import { bodyCharacterCount } from '../../resources/js/lib/commit';
+import type { User } from '../../resources/js/types';
 
 test('counts each prose URL once per occurrence, without discounting code or oversized links', () => {
     const cases: [string, number][] = [
@@ -539,3 +541,70 @@ test('leaves literal code plain while styling surrounding brand mentions', () =>
     assert.ok(html.includes('`cat &gt; /dev/null`'));
     assert.ok(html.includes('```sh\ncat &gt; /dev/null\n```'));
 });
+
+for (const kind of ['direct', 'org'] as const) {
+    for (const outgoing of [false, true]) {
+        test(`keeps fenced code plain in ${outgoing ? 'outgoing' : 'incoming'} ${kind} previews`, () => {
+            const user: User = {
+                id: 'viewer',
+                name: 'Alex Morgan',
+                username: 'alex',
+                avatar_url: null,
+                bio: null,
+                company: null,
+                location: null,
+                website: null,
+                lane: 0,
+                timezone: null,
+                show_local_time: false,
+                has_sponsors_listing: false,
+                has_github_account: true,
+                created_at: '2026-10-23T10:00:00Z',
+                updated_at: '2026-10-23T10:00:00Z',
+            };
+            const partner = {
+                ...user,
+                id: 'sender',
+                name: 'Sam Rivera',
+                username: 'sam',
+            };
+            const sender = outgoing ? user : partner;
+            const body = '```sh\ncat > /dev/null\n```\nBack to /dev/null.';
+            const prefix = outgoing ? 'you: ' : kind === 'org' ? 'Sam: ' : '';
+            const html = renderPage(
+                <ConversationList
+                    user={user}
+                    empty={null}
+                    conversations={[
+                        {
+                            id: 'conversation',
+                            kind,
+                            name: 'Developers',
+                            partner: kind === 'direct' ? partner : null,
+                            members: [{ user: partner, role: null }],
+                            last_message: {
+                                id: 1,
+                                user_id: sender.id,
+                                user: sender,
+                                client_id: 'message',
+                                body,
+                                created_at: user.created_at,
+                            },
+                            last_message_at: null,
+                            ahead: 0,
+                            partner_read_through_id: 0,
+                            partner_read_at: null,
+                            is_archived: false,
+                        },
+                    ]}
+                />,
+            );
+
+            assert.equal(html.match(/-webkit-text-stroke/g)?.length, 1);
+            assert.ok(html.includes('cat &gt; /dev/null\n```'));
+            assert.ok(
+                html.includes(`title="${prefix}${body.replace('>', '&gt;')}"`),
+            );
+        });
+    }
+}
