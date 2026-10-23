@@ -7,6 +7,7 @@ use App\Http\Controllers\AboutController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\BulkActivityController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
@@ -373,6 +374,7 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-rejection.store');
     Route::put('moderation', [ModerationController::class, 'update'])->name('moderation.update');
     Route::get('moderation/people', [ModeratedUserController::class, 'index'])->name('moderated-user.index');
+    Route::get('moderation/bulk', [BulkActivityController::class, 'index'])->name('bulk-activity.index');
     Route::delete('moderation/bans/{ban}', [BanController::class, 'destroy'])->whereUuid('ban')->name('ban.destroy');
 
     // Operations...
