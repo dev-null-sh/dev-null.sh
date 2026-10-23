@@ -1,4 +1,4 @@
-import { Check, Copy, WrapText } from 'lucide-react';
+import { Check, Copy, Play, Square, WrapText } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useClipboard } from '@/hooks/use-clipboard';
@@ -9,15 +9,25 @@ export function CodeBlock({
     html,
     language,
     isCopyable = true,
+    isRunnable = true,
 }: {
     html: string;
     language: string | null;
     isCopyable?: boolean;
+    isRunnable?: boolean;
 }) {
     const codeRef = useRef<HTMLPreElement>(null);
     const [, copy] = useClipboard();
     const [isCopied, setIsCopied] = useState(false);
     const [isWrapped, setIsWrapped] = useState(false);
+    const [output, setOutput] = useState<string[] | null>(null);
+    const [ending, setEnding] = useState<string | null>(null);
+    const running = useRef<AbortController | null>(null);
+    const [isRunning, setIsRunning] = useState(false);
+    const canRun =
+        isCopyable && isRunnable && language?.toLowerCase() === 'php';
+
+    useEffect(() => () => running.current?.abort(), []);
 
     useEffect(() => {
         if (!isCopied) {
@@ -48,6 +58,53 @@ export function CodeBlock({
         );
     };
 
+    // PHP only loads once someone runs a block, and runs in their browser: nothing is sent anywhere.
+    const runCode = async () => {
+        if (running.current) {
+            running.current.abort();
+
+            return;
+        }
+
+        const controller = new AbortController();
+        // A run again keeps the last output until it prints its own, so the panel doesn't collapse and grow back.
+        let isFirstLine = true;
+
+        running.current = controller;
+        setIsRunning(true);
+        setOutput((current) => current ?? []);
+        setEnding(null);
+
+        try {
+            const php = await import('@/lib/php');
+            const result = await php.run(
+                codeRef.current?.textContent ?? '',
+                (line) => {
+                    if (isFirstLine) {
+                        isFirstLine = false;
+                        setOutput([line]);
+                    } else {
+                        setOutput((current) => [...(current ?? []), line]);
+                    }
+                },
+                controller.signal,
+            );
+
+            if (isFirstLine) {
+                setOutput([]);
+            }
+
+            setEnding(php.ending(result));
+        } catch {
+            setEnding(
+                'PHP could not start. Check your connection and try again.',
+            );
+        } finally {
+            running.current = null;
+            setIsRunning(false);
+        }
+    };
+
     return (
         <div className="my-2 rounded-md border bg-muted/60">
             {(language || isCopyable) && (
@@ -57,6 +114,36 @@ export function CodeBlock({
                     </span>
                     {isCopyable && (
                         <div className="flex shrink-0 items-center gap-0.5">
+                            {canRun && (
+                                <button
+                                    type="button"
+                                    onClick={runCode}
+                                    aria-label={
+                                        isRunning ? 'Stop running' : 'Run code'
+                                    }
+                                    title={
+                                        isRunning
+                                            ? 'Stop running'
+                                            : 'Run in your browser'
+                                    }
+                                    className={cn(
+                                        'grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                                        isRunning && 'text-foreground',
+                                    )}
+                                >
+                                    {isRunning ? (
+                                        <Square
+                                            className="size-3"
+                                            aria-hidden
+                                        />
+                                    ) : (
+                                        <Play
+                                            className="size-3.5"
+                                            aria-hidden
+                                        />
+                                    )}
+                                </button>
+                            )}
                             <button
                                 type="button"
                                 onClick={() => setIsWrapped(!isWrapped)}
@@ -118,6 +205,27 @@ export function CodeBlock({
                     __html: withCertificateHashes(html),
                 }}
             />
+            {output !== null && (
+                // A click on the output is for reading it, not for opening the commit around it.
+                <div
+                    onClick={(event) => event.stopPropagation()}
+                    className="border-t px-3 py-2 font-mono text-[12px] leading-normal"
+                >
+                    {output.length > 0 && (
+                        <div className="mb-1.5 max-h-64 overflow-y-auto wrap-anywhere whitespace-pre-wrap">
+                            {output.map((line, index) => (
+                                <div key={index}>{line || ' '}</div>
+                            ))}
+                        </div>
+                    )}
+                    <p
+                        role="status"
+                        className="text-[11px] text-muted-foreground"
+                    >
+                        {ending ?? 'Running…'}
+                    </p>
+                </div>
+            )}
         </div>
     );
 }

@@ -13,11 +13,13 @@ export function CommitBody({
     mentions,
     className,
     isStatic = false,
+    isFolded = false,
 }: {
     segments: BodySegment[];
     mentions: Commit['mentions'];
     className?: string;
     isStatic?: boolean;
+    isFolded?: boolean;
 }) {
     return (
         <div
@@ -37,6 +39,7 @@ export function CommitBody({
                             segments={block.segments}
                             mentions={mentions}
                             isStatic={isStatic}
+                            isFolded={isFolded}
                         />
                     </blockquote>
                 ) : (
@@ -45,6 +48,7 @@ export function CommitBody({
                         segments={block.segments}
                         mentions={mentions}
                         isStatic={isStatic}
+                        isFolded={isFolded}
                     />
                 ),
             )}
@@ -56,10 +60,12 @@ export function BodySegments({
     segments,
     mentions,
     isStatic = false,
+    isFolded = false,
 }: {
     segments: BodySegment[];
     mentions: Commit['mentions'];
     isStatic?: boolean;
+    isFolded?: boolean;
 }) {
     const { auth } = usePage().props;
 
@@ -93,6 +99,7 @@ export function BodySegments({
                                 html={segment.html}
                                 language={segment.language}
                                 isCopyable={!isStatic}
+                                isRunnable={!isFolded}
                             />
                         );
                 }
@@ -146,10 +153,12 @@ export function FoldedCommitBody({
 
     return (
         <div ref={bodyRef} tabIndex={-1} className="outline-none">
+            {/* A preview can cut a code block short, so its code only runs once unfolded. */}
             <CommitBody
                 segments={isUnfolded ? segments : previewSegments}
                 mentions={mentions}
                 className={className}
+                isFolded={!isUnfolded}
             />
             {!isUnfolded && (
                 <button
