@@ -338,3 +338,70 @@ test.each(['poll', 'scroll'] as const)(
         assert.equal(chatSnapshot().hasMore.open, false);
     },
 );
+
+test.each(['pin', 'unpin'] as const)(
+    'restarts reconciliation when another device changes a %s between pages',
+    async (change) => {
+        const inbox = pagedInbox(`mid-refresh-${change}`);
+        let rows = inbox.original;
+        let reconciling = false;
+        vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
+            if (init?.method === 'PUT') {
+                rows = [
+                    ...rows.slice(1, 30),
+                    ...rows.slice(30),
+                    { ...rows[0], pinned_at: null },
+                ];
+                reconciling = true;
+                return Response.json({ pinned_at: null });
+            }
+            const before = new URL(input, 'http://localhost').searchParams.get(
+                'before',
+            );
+            if (reconciling && before !== null) {
+                reconciling = false;
+                rows =
+                    change === 'unpin'
+                        ? [
+                              ...rows.slice(0, 28),
+                              ...rows.slice(29),
+                              { ...inbox.moved, pinned_at: null },
+                          ]
+                        : [
+                              { ...rows[63], pinned_at: at },
+                              ...rows.slice(0, 63),
+                              ...rows.slice(64),
+                          ];
+            }
+            const start =
+                before === null
+                    ? 0
+                    : rows.findIndex(({ id }) => id === before) + 1;
+            return Response.json({
+                conversations: rows.slice(start, start + 30),
+                has_more: start + 30 < rows.length,
+                pins: Object.fromEntries(
+                    rows
+                        .filter((item) => item.pinned_at !== null)
+                        .map((item) => [item.id, item.pinned_at]),
+                ),
+            });
+        });
+        await loadTab('open');
+        await loadMoreConversations('open');
+
+        await setConversationPinned(targetOf(inbox.original[0]), false);
+
+        assert.equal(chatSnapshot().conversations?.length, 60);
+        assert.deepEqual(
+            chatSnapshot().conversations?.map(({ id }) => id),
+            rows.slice(0, 60).map(({ id }) => id),
+        );
+        await loadMoreConversations('open');
+        assert.deepEqual(
+            chatSnapshot().conversations?.map(({ id }) => id),
+            rows.map(({ id }) => id),
+        );
+        assert.equal(chatSnapshot().hasMore.open, false);
+    },
+);

@@ -660,23 +660,39 @@ async function refreshConversationPages(
     const revision = inboxRevision;
     const depth = state[listOf[tab]]?.length ?? 0;
     const conversations: ConversationSummary[] = [];
-    let page: InboxPage;
+    let page: Awaited<ReturnType<typeof fetchInbox>>;
     let before: string | undefined;
+    let pins: string | undefined;
     update({ isLoadingMore: { ...state.isLoadingMore, [tab]: true } });
     try {
-        do {
+        while (true) {
             page = await fetchInbox(tab, before);
             if (revision !== inboxRevision) {
                 return;
             }
+            const snapshot = JSON.stringify(
+                Object.entries(page.pins ?? {}).sort(([left], [right]) =>
+                    left.localeCompare(right),
+                ),
+            );
+            if (pins !== undefined && pins !== snapshot) {
+                conversations.length = 0;
+                before = undefined;
+                pins = undefined;
+                continue;
+            }
+            pins = snapshot;
             conversations.push(...page.conversations);
             before = page.conversations.at(-1)?.id;
-        } while (
-            page.has_more &&
-            before !== undefined &&
-            (conversations.length < depth ||
-                (more && conversations.length === depth))
-        );
+            if (
+                !page.has_more ||
+                before === undefined ||
+                conversations.length > depth ||
+                (!more && conversations.length === depth)
+            ) {
+                break;
+            }
+        }
         invalidatedInboxTabs.delete(tab);
         update({
             [listOf[tab]]: withConversationPins(conversations),
