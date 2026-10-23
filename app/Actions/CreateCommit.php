@@ -6,12 +6,14 @@ namespace App\Actions;
 
 use App\Dto\NewPoll;
 use App\Enums\CommitStatus;
+use App\Enums\CommitVideoStatus;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
+use App\Models\CommitVideo;
 use App\Models\LinkPreview;
 use App\Models\User;
 use App\Queries\MentionedUsersQuery;
@@ -46,7 +48,7 @@ final readonly class CreateCommit
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?string $videoId = null, ?string $videoDescription = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -54,7 +56,10 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $videoId, $videoDescription): Commit {
+            // Claim under the same lock as cancellation, so two tabs cannot attach the same upload.
+            $video = $videoId === null ? null : CommitVideo::query()->where('user_id', $user->id)
+                ->where('status', CommitVideoStatus::Ready)->whereNull('commit_id')->lockForUpdate()->findOrFail($videoId);
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
@@ -64,7 +69,7 @@ final readonly class CreateCommit
                 'mentions' => $this->mentionedUsers->get($body),
                 'parent_id' => $parent?->id,
                 'root_id' => $parent?->threadRootId(),
-                'status' => $user->isAdmin() || $hasGoodReputation ? CommitStatus::Approved : CommitStatus::Pending,
+                'status' => $video === null && ($user->isAdmin() || $hasGoodReputation) ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
                 'quoted_commit_id' => $quotedCommit?->id,
                 'hot_score' => $this->theAlgorithm->score($createdAt, 0, 0),
@@ -72,6 +77,8 @@ final readonly class CreateCommit
             ]);
 
             $this->createCommitImages->handle($commit, $images, $imageDescriptions);
+
+            $video?->update(['commit_id' => $commit->id, 'description' => $videoDescription]);
 
             if ($poll instanceof NewPoll) {
                 $this->createPoll($commit, $poll);
@@ -105,7 +112,7 @@ final readonly class CreateCommit
                 dispatch(new CheckUserLevel($user))->afterCommit();
             }
 
-            if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation) {
+            if ($video === null && $commit->status === CommitStatus::Pending && ! $hasGoodReputation) {
                 dispatch(new ModerateCommit($commit))->afterCommit();
             }
 

@@ -146,5 +146,8 @@ jobs:
         if: steps.build-cache.outputs.cache-hit != 'true'
         run: bun run build
 
+      - name: Install Video Encoder
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - name: Tests
         run: composer test:unit

@@ -66,7 +66,7 @@ final readonly class CommitController
     {
         $before = $achievements->unlockedBadgeNames($user);
 
-        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll());
+        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), videoId: $request->videoId(), videoDescription: $request->videoDescription());
 
         $unlocked = $achievements->unlockedBadgeNames($user)->diff($before)->values();
 

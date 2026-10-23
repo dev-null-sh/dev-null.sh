@@ -31,6 +31,8 @@ composer dev
 
 Run `composer test` before opening a pull request.
 
+Video uploads also need FFmpeg and FFprobe, both locally and in the tests. Videos are encoded on the `videos` queue, so run `php artisan queue:work --queue=videos` alongside `composer dev`. Locally, uploads go through PHP, so set `post_max_size` and `upload_max_filesize` above 100M in your `php.ini`.
+
 ## License
 
 /dev/null is open-sourced software licensed under the **[MIT license](composer.json)**.

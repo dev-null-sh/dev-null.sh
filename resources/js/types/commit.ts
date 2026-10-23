@@ -2,6 +2,17 @@ import type { User } from '@/types/auth';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
 
+export type CommitVideo = {
+    id: string;
+    status: 'uploading' | 'processing' | 'ready' | 'failed';
+    url: string | null;
+    poster_url: string | null;
+    description: string | null;
+    width: number | null;
+    height: number | null;
+    duration: number | null;
+};
+
 export type EmbedKind = 'video' | 'audio' | 'code';
 
 export type Embed = {
@@ -93,6 +104,7 @@ export type Commit = {
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
     images?: CommitImage[];
+    video?: CommitVideo | null;
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;
     ai_categories?: string[] | null;
 };
@@ -113,6 +125,7 @@ export type QuotedCommit = Pick<
     | 'poll'
     | 'link_preview'
     | 'images'
+    | 'video'
 >;
 
 export type DeletedCommit = {

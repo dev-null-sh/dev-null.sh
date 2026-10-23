@@ -5,6 +5,7 @@ import { CommitBodyExcerpt } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
+import { CommitVideo } from '@/components/commit-video';
 import { LinkPreview } from '@/components/link-preview';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
@@ -71,6 +72,7 @@ export function QuotedCommit({
                 className="mt-1 max-h-60"
             />
             {commit.images && <CommitImages images={commit.images} />}
+            {commit.video && <CommitVideo video={commit.video} />}
             {commit.poll && (
                 <CommitPoll commit={commit} poll={commit.poll} isStatic />
             )}
@@ -84,9 +86,20 @@ export function QuotedCommit({
         </>
     );
 
-    if (isPreview) {
+    if (isPreview || commit.video) {
         return (
             <div className={className} data-test="quoted-commit">
+                {!isPreview && (
+                    <Link
+                        href={CommitController.show({
+                            user: commit.user,
+                            commit,
+                        })}
+                        className="text-sm text-primary hover:underline"
+                    >
+                        View quoted commit →
+                    </Link>
+                )}
                 {content}
             </div>
         );

@@ -7,6 +7,7 @@ namespace App\Http\Resources;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\CommitVideo;
 use App\Models\Poll;
 use App\Models\User;
 use App\Services\CommitBodies;
@@ -14,6 +15,7 @@ use App\Services\Mentions;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\URL;
 
 /**
  * A commit and its author, as anyone may see them.
@@ -62,6 +64,12 @@ final class CommitResource extends JsonResource
             'stars_count' => $this->whenCounted('stars'),
             'replies_count' => $this->whenCounted('replies'),
             'link_preview' => $this->whenLoaded('linkPreview'),
+            'video' => $this->whenLoaded('video', fn (CommitVideo $video): array => $this->status === CommitStatus::Approved || ! $this->imagesAreVisibleTo($request->user())
+                ? $video->toArray()
+                : [...$video->toArray(),
+                    'url' => URL::temporarySignedRoute('commit-video-playback.show', now()->addMinutes(5), ['commitVideo' => $video]),
+                    'poster_url' => URL::temporarySignedRoute('commit-video-playback.show', now()->addMinutes(5), ['commitVideo' => $video, 'poster' => true]),
+                ]),
             'images' => $this->whenLoaded('images', fn (): mixed => $this->status === CommitStatus::Approved || ! $this->imagesAreVisibleTo($request->user())
                 ? $this->images
                 : $this->images->map(fn (CommitImage $image): array => [...$image->toArray(), 'url' => $image->temporaryUrl()])),

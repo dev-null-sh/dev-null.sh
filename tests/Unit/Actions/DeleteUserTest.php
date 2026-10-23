@@ -6,8 +6,10 @@ use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Ai\Agents\CommitTranslator;
+use App\Enums\CommitVideoStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\CommitVideo;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
@@ -34,6 +36,34 @@ it('may delete a user', function (): void {
 
     expect($user->exists)->toBeFalse();
     $this->assertModelMissing($user);
+});
+
+it('erases attached and pending videos and videos cascaded with deleted threads', function (): void {
+    Storage::fake();
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+    $other = User::factory()->create();
+    $videos = collect([
+        ['user_id' => $user->id, 'commit_id' => $commit->id],
+        ['user_id' => $user->id, 'commit_id' => null],
+        ['user_id' => $other->id, 'commit_id' => $reply->id],
+        ['user_id' => $other->id, 'commit_id' => null],
+    ])->map(fn (array $attributes): CommitVideo => CommitVideo::query()->create([...$attributes, 'size' => 10, 'status' => CommitVideoStatus::Processing]));
+    foreach ($videos as $video) {
+        foreach (['source', 'video.mp4', 'poster.jpg'] as $file) {
+            Storage::put($video->path($file), 'video');
+        }
+    }
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(CommitVideo::query()->sole()->id)->toBe($videos->last()->id);
+    foreach ($videos->take(3) as $video) {
+        Storage::assertMissing([$video->path('source'), $video->path('video.mp4'), $video->path('poster.jpg')]);
+    }
+
+    Storage::assertExists($videos->last()->path('source'));
 });
 
 it('erases the commits of a deleted user along with the replies under them', function (): void {

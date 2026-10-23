@@ -31,6 +31,10 @@ final readonly class UpdateCommitAiDecision
      */
     public function handle(Commit $commit): void
     {
+        if ($commit->video()->exists()) {
+            return;
+        }
+
         $images = array_values($commit->images->map(
             fn (CommitImage $image): string => 'data:image/webp;base64,'.base64_encode((string) Storage::get($image->path)),
         )->all());

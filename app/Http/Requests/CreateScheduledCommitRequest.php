@@ -34,6 +34,7 @@ final class CreateScheduledCommitRequest extends FormRequest
 
         return [
             'body' => CreateCommitRequest::bodyRules($this->hasFile('images')),
+            'video_id' => ['prohibited'],
             'scheduled_at' => ['required', 'date_format:Y-m-d\TH:i:sP', 'after:now', 'before_or_equal:'.now()->addDays(30)->toIso8601String(), new ScheduledCommitLimit($user)],
             'parent_id' => ['prohibited'],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],

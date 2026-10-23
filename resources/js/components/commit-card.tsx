@@ -19,6 +19,7 @@ import {
     useThread,
 } from '@/components/commit-thread';
 import { useCommitTranslation } from '@/components/commit-translation';
+import { CommitVideo } from '@/components/commit-video';
 import {
     GraphDimmed,
     GraphScope,
@@ -465,6 +466,9 @@ export function CommitCard({
                             </div>
                             {translation.notice}
                             {showImages && <CommitImages commit={commit} />}
+                            {commit.video && (
+                                <CommitVideo video={commit.video} />
+                            )}
                             {commit.poll && (
                                 <CommitPoll
                                     key={`${commit.poll.id}-${commit.poll.has_voted}-${commit.poll.total_votes}`}

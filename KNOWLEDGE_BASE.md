@@ -22,6 +22,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Draft previews](#draft-previews)
   - [Stashed drafts](#stashed-drafts)
   - [Images and descriptions](#images-and-descriptions)
+  - [Short videos](#short-videos)
   - [Links, link cards, and embedded players](#links-link-cards-and-embedded-players)
   - [Replies and threads](#replies-and-threads)
   - [Quoting commits](#quoting-commits)
@@ -226,6 +227,14 @@ Sources: [stash hook](resources/js/hooks/use-stash.ts), [image storage](resource
 Attach up to **three JPEG, PNG, or WebP images** to a commit or reply. Each image can be at most **10 MB** and **6,000 pixels in either dimension**. Add an image description of up to **1,000 characters** for accessibility. Add images with the picker, by pasting, or by dropping them on the composer. Every image is re-encoded to WebP, at most 1,600 pixels on its longest side, which strips metadata such as location. Images can be posted without accompanying text on the web and in the app. Images on a pending commit are visible only to its author and admins. Image attachments and a poll cannot be combined in the same commit. Open an attached photo to view it in the photo viewer, move through the commit's images, read its description, or download it. Terminal commits can attach images without descriptions, and signed API commits with them.
 
 Sources: [image picker](resources/js/components/commit-image-picker.tsx), [image limits](app/Actions/CreateCommitImages.php), [image processing](app/Actions/CreateImageFiles.php), [attachment validation](app/Http/Requests/CreateCommitRequest.php), [photo controller](app/Http/Controllers/CommitPhotoController.php).
+
+### Short videos
+
+Ordinary commits in the browser can attach one MP4, MOV, or WebM video, up to **60 seconds** and **100 MiB**. Videos cannot be combined with images or a poll, and are not available in replies, quotes, scheduled commits, or remotes. Text is optional; an optional description can explain the video in up to 1,000 characters.
+
+Keep the composer open while the video uploads and prepares for playback. You can keep writing, but Commit becomes available only when the video is ready. Videos do not survive closing the draft: choose the file again when returning. A submitted video commit waits for review before other people can see it. Playback starts only when you press play, with controls to pause, seek, mute, replay, and go fullscreen. Uploaded videos are re-encoded and their original metadata removed; the original upload is not retained after processing.
+
+Sources: [video composer](resources/js/components/commit-video-picker.tsx), [video validation](app/Http/Requests/CreateCommitRequest.php), [video processing](app/Services/CommitVideos.php).
 
 ### Links, link cards, and embedded players
 

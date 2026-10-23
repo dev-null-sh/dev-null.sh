@@ -56,6 +56,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'stars_count' => 0,
         'replies_count' => 2,
         'link_preview' => null,
+        'video' => null,
         'images' => [],
         'author' => [
             'id' => $author->id,

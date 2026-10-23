@@ -8,6 +8,7 @@ use App\Enums\ConversationKind;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\CommitVideo;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageImage;
@@ -42,6 +43,17 @@ final readonly class DeleteUser
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
             $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
+
+            // Lock before erasing rows or files: an encoder may be about to publish its result.
+            CommitVideo::query()
+                ->where(fn (Builder $query) => $query->where('user_id', $user->id)
+                    ->orWhereIn('commit_id', $user->commits()->withTrashed()->select('id'))
+                    ->orWhereIn('commit_id', Commit::query()->withTrashed()->whereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id'))->select('id')))
+                ->lockForUpdate()->eachById(function (CommitVideo $video): void {
+                    Storage::delete($video->path('source'));
+                    Storage::deleteDirectory('commit-videos/'.$video->id);
+                    $video->delete();
+                });
 
             $translationKeys = Commit::query()->withTrashed()
                 ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)

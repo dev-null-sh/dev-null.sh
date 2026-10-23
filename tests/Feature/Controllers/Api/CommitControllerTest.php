@@ -42,6 +42,7 @@ it('shows an approved commit to anyone', function (): void {
             'stars_count' => 0,
             'replies_count' => 0,
             'link_preview' => null,
+            'video' => null,
             'images' => [],
             'author' => [
                 'id' => $user->id,
@@ -246,6 +247,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'stars_count' => 1,
                 'replies_count' => 1,
                 'link_preview' => null,
+                'video' => null,
                 'images' => [
                     ['id' => $image->id, 'width' => 1200, 'height' => 800, 'description' => null, 'url' => route('commit-image.show', $image)],
                 ],
@@ -274,6 +276,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'created_at' => now()->subMinute()->toIso8601ZuluString(),
                 'stars_count' => 0,
                 'link_preview' => null,
+                'video' => null,
                 'images' => [],
                 'author' => $author($root->user),
                 'body_segments' => [['type' => 'text', 'text' => 'Who broke prod?']],

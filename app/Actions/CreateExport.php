@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\NotificationType;
 use App\Models\CommitImage;
+use App\Models\CommitVideo;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
@@ -35,6 +36,7 @@ use stdClass;
  *     exported_at: string,
  *     profile: array<string, bool|int|string|null>,
  *     commits: Generator<int, array<string, mixed>>,
+ *     videos: Generator<int, array<mixed>>,
  *     polls: Generator<int, ExportPoll>,
  *     poll_votes: Generator<int, ExportPollVote>,
  *     stars: Generator<int, string>,
@@ -98,6 +100,7 @@ final readonly class CreateExport
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
             'commits' => $this->commits($user),
+            'videos' => $this->videos($user),
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
             'stars' => $this->stars($user),
@@ -169,6 +172,20 @@ final readonly class CreateExport
                     'deleted_at' => $commit->deleted_at?->toIso8601String(),
                 ];
             }
+        }
+    }
+
+    /** @return Generator<int, array<mixed>> */
+    private function videos(User $user): Generator
+    {
+        foreach (CommitVideo::query()->where('user_id', $user->id)->lazyById(500) as $video) {
+            yield [
+                ...$video->toArray(),
+                'commit_id' => $video->commit_id,
+                'size' => $video->size,
+                'created_at' => $video->created_at->toIso8601String(),
+                'updated_at' => $video->updated_at->toIso8601String(),
+            ];
         }
     }
 

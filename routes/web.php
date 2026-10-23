@@ -31,6 +31,10 @@ use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
 use App\Http\Controllers\CommitStatusController;
 use App\Http\Controllers\CommitTranslationController;
+use App\Http\Controllers\CommitVideoController;
+use App\Http\Controllers\CommitVideoPlaybackController;
+use App\Http\Controllers\CommitVideoProcessingController;
+use App\Http\Controllers\CommitVideoUploadController;
 use App\Http\Controllers\ConversationArchiveController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\ConversationDropController;
@@ -210,6 +214,8 @@ Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageCont
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('commit-videos/{commitVideo}/playback', [CommitVideoPlaybackController::class, 'show'])
+    ->whereUuid('commitVideo')->name('commit-video-playback.show');
 Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
     ->name('commit-link-preview.show');
 Route::get('commits/{commit}/status', [CommitStatusController::class, 'show'])
@@ -235,6 +241,16 @@ Route::get('search/commits', [CommitSearchController::class, 'index'])
     ->name('commit-search.index');
 
 Route::middleware('auth')->group(function (): void {
+    Route::post('commit-videos', [CommitVideoController::class, 'store'])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:6,60,video-uploads:'])->name('commit-video.store');
+    Route::get('commit-videos/{commitVideo}', [CommitVideoController::class, 'show'])
+        ->middleware('throttle:120,1,video-status:')->name('commit-video.show');
+    Route::delete('commit-videos/{commitVideo}', [CommitVideoController::class, 'destroy'])->name('commit-video.destroy');
+    Route::put('commit-videos/{commitVideo}/upload', [CommitVideoUploadController::class, 'update'])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:6,60,video-bytes:'])->name('commit-video-upload.update');
+    Route::post('commit-videos/{commitVideo}/processing', [CommitVideoProcessingController::class, 'store'])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:20,1,video-processing:'])->name('commit-video-processing.store');
+
     Route::post('issues', [IssueController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('issue.store');

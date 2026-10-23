@@ -5,8 +5,10 @@ declare(strict_types=1);
 use App\Actions\CreateCommitRestoration;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteCommitContent;
+use App\Enums\CommitVideoStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\CommitVideo;
 use App\Models\LinkPreview;
 use App\Models\Poll;
 use Illuminate\Support\Facades\Queue;
@@ -15,6 +17,32 @@ use Illuminate\Support\Facades\Storage;
 beforeEach(function (): void {
     Storage::fake();
     Queue::fake();
+});
+
+it('keeps videos through undo and erases all their files after the window closes', function (): void {
+    $commit = Commit::factory()->create();
+    $video = CommitVideo::query()->create(['user_id' => $commit->user_id, 'commit_id' => $commit->id, 'size' => 10, 'status' => CommitVideoStatus::Ready]);
+    $paths = array_map($video->path(...), ['source', 'video.mp4', 'poster.jpg']);
+    foreach ($paths as $path) {
+        Storage::put($path, 'video');
+    }
+
+    resolve(DeleteCommit::class)->handle($commit);
+    $this->travel(29)->seconds();
+    resolve(DeleteCommitContent::class)->handle($commit);
+    $this->assertModelExists($video);
+    Storage::assertExists($paths);
+
+    resolve(CreateCommitRestoration::class)->handle($commit);
+    $this->travel(31)->seconds();
+    resolve(DeleteCommitContent::class)->handle($commit);
+    $this->assertModelExists($video);
+
+    resolve(DeleteCommit::class)->handle($commit);
+    $this->travel(30)->seconds();
+    resolve(DeleteCommitContent::class)->handle($commit);
+    $this->assertModelMissing($video);
+    Storage::assertMissing($paths);
 });
 
 function deletedCommitWithImage(): CommitImage

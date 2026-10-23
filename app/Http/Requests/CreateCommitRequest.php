@@ -10,6 +10,7 @@ use App\Enums\PollDuration;
 use App\Models\Commit;
 use App\Models\User;
 use App\Rules\CommitBodyLength;
+use App\Rules\ReadyCommitVideo;
 use App\Rules\VisibleCommit;
 use App\Services\CommitBodies;
 use App\Services\Urls;
@@ -87,7 +88,9 @@ final class CreateCommitRequest extends FormRequest
         $attachmentRules['poll'][] = 'prohibits:quoted_commit_id';
 
         return [
-            'body' => self::bodyRules($this->hasFile('images')),
+            'body' => self::bodyRules($this->hasFile('images') || $this->filled('video_id')),
+            'video_id' => ['bail', 'nullable', 'uuid', 'prohibits:images,poll,quoted_commit_id,parent_id,scheduled_at', new ReadyCommitVideo($user)],
+            'video_description' => ['nullable', 'string', 'max:1000'],
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, 'That commit is no longer available to quote.')],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...$attachmentRules,
@@ -167,6 +170,16 @@ final class CreateCommitRequest extends FormRequest
         return $this->filled('quoted_commit_id')
             ? Commit::query()->visibleTo($user)->find($this->string('quoted_commit_id')->value())
             : null;
+    }
+
+    public function videoId(): ?string
+    {
+        return $this->filled('video_id') ? $this->string('video_id')->value() : null;
+    }
+
+    public function videoDescription(): ?string
+    {
+        return $this->filled('video_description') ? $this->string('video_description')->value() : null;
     }
 
     public function prepareForValidation(): void

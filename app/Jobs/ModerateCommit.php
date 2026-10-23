@@ -36,7 +36,7 @@ final class ModerateCommit implements ShouldQueue
      */
     public function handle(UpdateCommitAiDecision $action, UpdateCommitStatuses $updateCommitStatuses): void
     {
-        if ($this->commit->status !== CommitStatus::Pending || $this->commit->trashed()) {
+        if ($this->commit->status !== CommitStatus::Pending || $this->commit->trashed() || $this->commit->video()->exists()) {
             return;
         }
 
