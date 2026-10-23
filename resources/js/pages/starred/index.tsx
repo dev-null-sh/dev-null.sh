@@ -49,7 +49,7 @@ export default function Index({
         <>
             <Head title="Starred" />
 
-            <header className="sticky top-0 z-10 flex h-14 items-center justify-between gap-3 border-b bg-card px-4 sm:px-6">
+            <header className="sticky top-below-header z-10 flex h-14 items-center justify-between gap-3 border-b bg-card px-4 sm:px-6">
                 <h1 ref={headingRef} tabIndex={-1} className="font-semibold">
                     Starred
                 </h1>

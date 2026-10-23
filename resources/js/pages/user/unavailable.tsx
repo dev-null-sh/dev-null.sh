@@ -20,7 +20,7 @@ export default function Unavailable({
         <>
             <Head title={`@${username}`} />
 
-            <div className="sticky top-0 z-10 flex h-14 items-center border-b bg-card px-4">
+            <div className="sticky top-below-header z-10 flex h-14 items-center border-b bg-card px-4">
                 <p className="truncate font-mono text-sm">@{username}</p>
             </div>
 

@@ -1,5 +1,6 @@
 import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
 import { ArrowUp } from 'lucide-react';
+import type { CSSProperties } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitComposer } from '@/components/commit-composer';
@@ -155,7 +156,7 @@ export default function Show({
 
             <div
                 ref={tabsRef}
-                className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]"
+                className="sticky top-below-header z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]"
             >
                 <h1 className="sr-only">{titles[log]}</h1>
                 <PageTabs
@@ -189,8 +190,12 @@ export default function Show({
 
             {newCommitsCount > 0 && (
                 <div
-                    className="pointer-events-none sticky z-10 flex h-0 items-start justify-center"
-                    style={{ top: tabsHeight }}
+                    className="pointer-events-none sticky top-below-header z-10 flex h-0 items-start justify-center"
+                    style={
+                        {
+                            '--top-below-header': `${tabsHeight}px`,
+                        } as CSSProperties
+                    }
                 >
                     <button
                         type="button"

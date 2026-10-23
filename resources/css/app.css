@@ -192,6 +192,7 @@
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
 
+    --ease-out-cubic: cubic-bezier(0.33, 1, 0.68, 1);
     --ease-spring: linear(
         0,
         0.058,
@@ -533,11 +534,29 @@ html body[data-scroll-locked] {
     }
 }
 
+/* What sticks to the top of the page steps down under the mobile header while it is down. `--top-below-header` sticks
+   one that much further down, or up. */
+@utility top-below-header {
+    top: calc(var(--mobile-header-offset, 0px) + var(--top-below-header, 0px));
+}
+
 @media (max-width: 767px) {
     :root[data-fixed-page],
     :root[data-fixed-page] body {
         overflow: hidden;
         overscroll-behavior: none;
+    }
+
+    /* The keyboard needs the room more. */
+    :root[data-mobile-header-shown]:not([data-keyboard-open]) {
+        --mobile-header-offset: --spacing(14);
+    }
+}
+
+/* All on one timing, so the mobile header and what sticks under it move as one. */
+@media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+    .top-below-header {
+        transition: top 200ms var(--ease-out-cubic);
     }
 }
 
