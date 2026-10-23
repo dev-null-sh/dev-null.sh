@@ -435,13 +435,16 @@ export function useThread(
             reload();
         }
     });
-    const loadedInitial = useRef(initial);
+    const loadedInitial = useRef({ initial, count: commit.replies_count });
     useEffect(() => {
-        if (loadedInitial.current !== initial) {
-            loadedInitial.current = initial;
+        if (
+            loadedInitial.current.initial !== initial ||
+            loadedInitial.current.count !== commit.replies_count
+        ) {
+            loadedInitial.current = { initial, count: commit.replies_count };
             onInitialChanged();
         }
-    }, [initial]);
+    }, [initial, commit.replies_count]);
 
     const loadedExcept = useRef(except);
     useEffect(() => {

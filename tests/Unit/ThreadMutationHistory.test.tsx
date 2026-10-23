@@ -277,7 +277,6 @@ test('refreshes all loaded reply pages after posting a quote without collapsing 
         next_cursor: 'next',
         prev_cursor: null,
     };
-    const updated = { ...initial, data: original.slice(0, 3) };
     const fetch = vi.fn().mockImplementation(async (url: string) => {
         const last = new URL(url, 'http://localhost').searchParams.has(
             'cursor',
@@ -295,8 +294,8 @@ test('refreshes all loaded reply pages after posting a quote without collapsing 
     function Probe() {
         const [posted, setPosted] = React.useState(false);
         useThread(
-            { ...reply('quoted-paginated'), replies_count: 5 },
-            posted ? updated : initial,
+            { ...reply('quoted-paginated'), replies_count: posted ? 5 : 4 },
+            initial,
         );
         if (!posted) {
             setPosted(true);
