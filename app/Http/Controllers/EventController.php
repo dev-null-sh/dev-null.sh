@@ -43,6 +43,7 @@ final readonly class EventController
         return Inertia::render('event/create', [
             'limits' => [
                 'title' => Event::MAX_TITLE_LENGTH,
+                'body' => Commit::MAX_BODY_LENGTH,
                 'location' => Event::MAX_LOCATION_LENGTH,
                 'url' => Event::MAX_URL_LENGTH,
                 'agendaItems' => Event::MAX_AGENDA_ITEMS,
@@ -79,6 +80,7 @@ final readonly class EventController
             'host' => fn (): ?User => $commit->user,
             'response' => fn (): ?string => $event->responseOf($currentUser)?->value,
             'attendees' => fn (): Collection => $attendees->get($event, $currentUser),
+            'attendeesLimit' => EventAttendeesQuery::LIMIT,
             'commit' => fn (): Commit => $page->get($commit, $currentUser),
             'replies' => fn (): CursorPaginator => $replies->paginate($commit, $currentUser, limit: $request->repliesPerPage()),
         ]);

@@ -25,6 +25,6 @@ export type Event = {
 };
 
 export type EventWithHost = Event & {
-    commit: { id: string; user: User };
+    host: User;
     going_count: number;
 };

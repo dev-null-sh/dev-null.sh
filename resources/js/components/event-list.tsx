@@ -10,7 +10,12 @@ import type { ReactNode } from 'react';
 import EventController from '@/actions/App/Http/Controllers/EventController';
 import { Spinner } from '@/components/ui/spinner';
 import { useNow } from '@/hooks/use-now';
-import { eventFormat, eventStateAt, eventStateLabels } from '@/lib/event';
+import {
+    eventFormat,
+    eventPlace,
+    eventStateAt,
+    eventStateLabels,
+} from '@/lib/event';
 import { formatEventWhen } from '@/lib/event-dates';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { cn, shortHash } from '@/lib/utils';
@@ -96,9 +101,9 @@ export function EventList({
                                     {formatEventWhen(event, timeZone)}
                                 </p>
                                 <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
-                                    {event.location !== null &&
-                                        `${event.location} · `}
-                                    hosted by @{event.commit.user.username}
+                                    {eventPlace(event) !== null &&
+                                        `${eventPlace(event)} · `}
+                                    hosted by @{event.host.username}
                                 </p>
                             </div>
                             <span
