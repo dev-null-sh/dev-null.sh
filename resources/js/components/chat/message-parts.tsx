@@ -46,7 +46,7 @@ export function MessageText({
         <CommitBody
             segments={segments}
             mentions={message.mentions ?? null}
-            className={cn('leading-snug', { [onPrimary]: isMine })}
+            className={cn('flow-root leading-snug', { [onPrimary]: isMine })}
         />
     );
 }

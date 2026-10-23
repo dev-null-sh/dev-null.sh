@@ -1,8 +1,10 @@
 import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import { Fragment } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
+import { CertificateText } from '@/components/certificate-text';
 import { GitHubIcon } from '@/components/github-icon';
 import { UserPreview } from '@/components/user-preview';
 import { typedProse } from '@/lib/code';
@@ -231,7 +233,7 @@ function GitHubLink({
 
 function withPasteis(text: string, pasteisMode: boolean): ReactNode {
     if (!pasteisMode) {
-        return text;
+        return <CertificateText text={text} />;
     }
 
     return text
@@ -240,7 +242,7 @@ function withPasteis(text: string, pasteisMode: boolean): ReactNode {
         )
         .map((part, index) =>
             index % 2 === 0 ? (
-                part
+                <CertificateText key={index} text={part} />
             ) : (
                 <img
                     key={index}
@@ -262,7 +264,9 @@ function withWordmarks(text: string, pasteisMode: boolean): ReactNode[] {
         )
         .map((part, index) =>
             index % 2 === 0 ? (
-                withPasteis(part, pasteisMode)
+                <Fragment key={index}>
+                    {withPasteis(part, pasteisMode)}
+                </Fragment>
             ) : (
                 <span
                     key={`wordmark-${index}`}
