@@ -6,6 +6,7 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use App\Models\UserList;
+use Illuminate\Support\Facades\DB;
 
 it('renders the lists of the user', function (): void {
     $user = User::factory()->create();
@@ -129,6 +130,38 @@ it('leaves out commits of muted and blocked members', function (): void {
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page->has('commits.data', 0));
+});
+
+it('leaves people across a block out of the members and their count', function (): void {
+    $user = User::factory()->create();
+    $blocked = User::factory()->create();
+    $blocker = User::factory()->create();
+    $friend = User::factory()->create();
+    $list = UserList::factory()->for($user)->create();
+
+    $list->members()->attach([$blocked->id, $blocker->id, $friend->id]);
+    $user->blocking()->attach($blocked);
+    $blocker->blocking()->attach($user);
+
+    $this->actingAs($user)->get(route('user-list.show', $list))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('list.members_count', 1)
+        ->has('members', 1)
+        ->where('members.0.id', $friend->id));
+
+    $this->actingAs($user)->get(route('user-list.index'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('lists.0.members_count', 1));
+});
+
+it('keeps list names encrypted and sorts them by name', function (): void {
+    $user = User::factory()->create();
+    UserList::factory()->for($user)->create(['name' => 'rust']);
+    UserList::factory()->for($user)->create(['name' => 'Laravel']);
+
+    expect(DB::table('user_lists')->pluck('name')->all())->not->toContain('rust', 'Laravel');
+
+    $this->actingAs($user)->get(route('user-list.index'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('lists.0.name', 'Laravel')
+        ->where('lists.1.name', 'rust'));
 });
 
 it('does not show the list of someone else', function (): void {

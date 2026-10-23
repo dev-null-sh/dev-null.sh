@@ -329,9 +329,18 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:lists')
         ->name('user-list.store');
     Route::get('lists/{userList}', [UserListController::class, 'show'])->whereUuid('userList')->name('user-list.show');
-    Route::delete('lists/{userList}', [UserListController::class, 'destroy'])->whereUuid('userList')->name('user-list.destroy');
-    Route::put('lists/{userList}/pin', [UserListPinController::class, 'update'])->whereUuid('userList')->name('user-list-pin.update');
-    Route::delete('lists/{userList}/pin', [UserListPinController::class, 'destroy'])->whereUuid('userList')->name('user-list-pin.destroy');
+    Route::delete('lists/{userList}', [UserListController::class, 'destroy'])
+        ->whereUuid('userList')
+        ->middleware('throttle:lists')
+        ->name('user-list.destroy');
+    Route::put('lists/{userList}/pin', [UserListPinController::class, 'update'])
+        ->whereUuid('userList')
+        ->middleware('throttle:pins')
+        ->name('user-list-pin.update');
+    Route::delete('lists/{userList}/pin', [UserListPinController::class, 'destroy'])
+        ->whereUuid('userList')
+        ->middleware('throttle:pins')
+        ->name('user-list-pin.destroy');
     Route::post('lists/{userList}/members/@{user:username}', [UserListMemberController::class, 'store'])
         ->whereUuid('userList')
         ->withoutScopedBindings()

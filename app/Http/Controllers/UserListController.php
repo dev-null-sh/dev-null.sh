@@ -12,7 +12,9 @@ use App\Http\Requests\ShowUserListRequest;
 use App\Models\User;
 use App\Models\UserList;
 use App\Queries\UserListCommitsQuery;
+use Closure;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
@@ -23,7 +25,8 @@ final readonly class UserListController
     public function index(#[CurrentUser] User $user): Response
     {
         return Inertia::render('user-list/index', [
-            'lists' => fn (): Collection => $user->lists()->withCount('members')->orderBy('name')->get(),
+            // Names are encrypted, so they are sorted here rather than by the database.
+            'lists' => fn (): Collection => $user->lists()->withCount(['members' => $this->visibleMembers($user)])->get()->sortBy('name', SORT_NATURAL | SORT_FLAG_CASE)->values(),
             'maxLists' => UserList::MAX_PER_USER,
             'maxPinned' => UserList::MAX_PINNED,
         ]);
@@ -44,8 +47,8 @@ final readonly class UserListController
     public function show(ShowUserListRequest $request, #[CurrentUser] User $user, UserList $userList, UserListCommitsQuery $commits): Response
     {
         return Inertia::render('user-list/show', [
-            'list' => $userList->loadCount('members'),
-            'members' => fn (): Collection => $userList->members()->orderBy('username')->get(),
+            'list' => $userList->loadCount(['members' => $this->visibleMembers($user)]),
+            'members' => fn (): Collection => $userList->members()->whereNotIn('users.id', $user->idsAcrossBlocks())->orderBy('username')->get(),
             'pinnedLists' => $user->pinnedLists(...),
             'commits' => Inertia::scroll(fn () => $commits->builder($user, $userList)->cursorPaginate(20)),
         ]);
@@ -58,5 +61,15 @@ final readonly class UserListController
         Inertia::flash('toast', ['type' => 'success', 'message' => "Deleted {$userList->name}."]);
 
         return to_route('user-list.index');
+    }
+
+    /**
+     * Someone across a block stays on the list, but its owner no longer sees or counts them there, as anywhere else.
+     *
+     * @return Closure(Builder<User>): Builder<User>
+     */
+    private function visibleMembers(User $user): Closure
+    {
+        return fn (Builder $query): Builder => $query->whereNotIn('users.id', $user->idsAcrossBlocks());
     }
 }
