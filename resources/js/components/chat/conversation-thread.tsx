@@ -856,6 +856,7 @@ const ThreadItem = memo(function ThreadItem({
                     <Link
                         href={show(item.author)}
                         className="flex min-w-0 items-center gap-1.5 rounded-sm text-xs text-muted-foreground"
+                        title={item.author.name}
                     >
                         <UserAvatar
                             user={item.author}
