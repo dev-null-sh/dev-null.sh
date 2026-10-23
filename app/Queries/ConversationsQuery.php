@@ -126,6 +126,19 @@ final readonly class ConversationsQuery
     }
 
     /**
+     * @return array<string, string|null>
+     */
+    public function pins(User $user): array
+    {
+        return ConversationParticipant::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('pinned_at')
+            ->get(['conversation_id', 'pinned_at'])
+            ->mapWithKeys(fn (ConversationParticipant $participant): array => [$participant->conversation_id => $participant->pinned_at?->toJSON()])
+            ->all();
+    }
+
+    /**
      * Initial notification baselines across open, stashed and fetched conversations, regardless of read position.
      *
      * @return array<string, int>

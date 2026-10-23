@@ -137,3 +137,19 @@ it('keeps recent notification candidates visible when older pins fill the inbox 
     $response->assertJsonPath('notification_conversations.0.partner.id', $recent->id)
         ->assertJsonPath('notification_conversations.0.last_message.body', 'new activity beyond the pinned page');
 });
+
+it('returns the owners complete pin snapshot independently of the visible page', function (): void {
+    $this->freezeSecond();
+    $user = User::factory()->withRemotes()->create();
+    $partner = User::factory()->withRemotes()->create();
+    sendChatMessage($partner, $user);
+    $conversation = Conversation::betweenOrFail($user, $partner);
+    $this->actingAs($user)->putJson(route('conversation-pin.update', $partner), ['pinned' => true])->assertOk();
+    $this->postJson(route('conversation-archive.store', $partner))->assertNoContent();
+
+    $this->getJson(route('inbox.index'))->assertJsonPath('conversations', [])
+        ->assertJsonPath('pins', [$conversation->id => now()->toJSON()]);
+    $this->actingAs($partner)->getJson(route('inbox.index'))->assertJsonPath('pins', []);
+    $this->actingAs($user)->putJson(route('conversation-pin.update', $partner), ['pinned' => false])->assertOk();
+    $this->getJson(route('inbox.index'))->assertJsonPath('pins', []);
+});

@@ -151,3 +151,190 @@ test('retains older loaded pages when a pinned first page has an older message d
         ['pinned', 'recent', 'middle'],
     );
 });
+
+function pagedInbox(prefix: string) {
+    const pins = Array.from({ length: 30 }, (_, index) => ({
+        ...summary(`${prefix}-pin-${index}`, '00', at),
+        last_message_at: `2026-10-01T00:${String(59 - index).padStart(2, '0')}:00Z`,
+    }));
+    const newer = Array.from({ length: 35 }, (_, index) => ({
+        ...summary(`${prefix}-new-${index}`, '00'),
+        last_message_at: `2026-10-23T00:${String(59 - index).padStart(2, '0')}:00Z`,
+    }));
+    const moved = pins.at(-1)!;
+    const original = [...pins, ...newer];
+    let rows = original;
+    const unpin = () => {
+        rows = [...pins.slice(0, -1), ...newer, { ...moved, pinned_at: null }];
+    };
+    const fetch = async (input: string, init?: RequestInit) => {
+        if (init?.method === 'PUT') {
+            rows = [
+                ...pins.slice(0, -1),
+                ...newer,
+                { ...moved, pinned_at: null },
+            ];
+            return Response.json({ pinned_at: null });
+        }
+        const before = new URL(input, 'http://localhost').searchParams.get(
+            'before',
+        );
+        const start =
+            before === null ? 0 : rows.findIndex(({ id }) => id === before) + 1;
+        return Response.json({
+            conversations: rows.slice(start, start + 30),
+            pins: Object.fromEntries(
+                rows
+                    .filter((item) => item.pinned_at !== null)
+                    .map((item) => [item.id, item.pinned_at]),
+            ),
+            has_more: start + 30 < rows.length,
+        });
+    };
+    return { fetch, moved, original, rows: () => rows, unpin };
+}
+
+test.each(['open', 'fetched', 'stashed'] as const)(
+    'unpinning backfills the loaded %s prefix before continuing pagination',
+    async (tab) => {
+        const inbox = pagedInbox(`gap-${tab}`);
+        vi.stubGlobal('fetch', inbox.fetch);
+        await loadTab(tab);
+
+        await setConversationPinned(targetOf(inbox.moved), false);
+        await loadMoreConversations(tab);
+        await loadMoreConversations(tab);
+
+        const list = {
+            open: chatSnapshot().conversations,
+            fetched: chatSnapshot().fetched,
+            stashed: chatSnapshot().archived,
+        }[tab];
+        assert.deepEqual(
+            list?.map(({ id }) => id),
+            inbox.rows().map(({ id }) => id),
+        );
+        assert.equal(chatSnapshot().hasMore[tab], false);
+    },
+);
+
+test('pin reconciliation preserves the number of pages already loaded', async () => {
+    const inbox = pagedInbox('loaded-depth');
+    vi.stubGlobal('fetch', inbox.fetch);
+    await loadTab('open');
+    await loadMoreConversations('open');
+
+    await setConversationPinned(targetOf(inbox.moved), false);
+
+    assert.equal(chatSnapshot().conversations?.length, 60);
+    assert.deepEqual(
+        chatSnapshot().conversations?.map(({ id }) => id),
+        inbox
+            .rows()
+            .slice(0, 60)
+            .map(({ id }) => id),
+    );
+    assert.equal(chatSnapshot().hasMore.open, true);
+    await loadMoreConversations('open');
+    assert.deepEqual(
+        chatSnapshot().conversations?.map(({ id }) => id),
+        inbox.rows().map(({ id }) => id),
+    );
+});
+
+test('scrolling retries a failed reconciliation without losing the saved pin or skipping the gap', async () => {
+    const inbox = pagedInbox('retry-prefix');
+    let fail = false;
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+        if (fail && init?.method !== 'PUT') {
+            fail = false;
+            return Promise.reject(new Error('offline'));
+        }
+        return inbox.fetch(url, init);
+    });
+    await loadTab('open');
+    fail = true;
+
+    await setConversationPinned(targetOf(inbox.moved), false);
+    assert.equal(
+        chatSnapshot().pinPreferences[`org:${inbox.moved.id}`].at,
+        null,
+    );
+    await loadMoreConversations('open');
+    await loadMoreConversations('open');
+
+    assert.deepEqual(
+        chatSnapshot().conversations?.map(({ id }) => id),
+        inbox.rows().map(({ id }) => id),
+    );
+    assert.equal(chatSnapshot().hasMore.open, false);
+});
+
+test('a page requested before unpinning cannot restore the obsolete continuation state', async () => {
+    const inbox = pagedInbox('late-page');
+    let hold = true;
+    let finish!: (response: Response) => void;
+    vi.stubGlobal('fetch', (url: string, init?: RequestInit) => {
+        if (url.includes('before=') && hold) {
+            hold = false;
+            return new Promise<Response>((resolve) => {
+                finish = resolve;
+            });
+        }
+        return inbox.fetch(url, init);
+    });
+    await loadTab('open');
+    const loading = loadMoreConversations('open');
+
+    await setConversationPinned(targetOf(inbox.moved), false);
+    finish(
+        Response.json({
+            conversations: inbox.original.slice(30, 60),
+            has_more: true,
+        }),
+    );
+    await loading;
+
+    assert.deepEqual(
+        chatSnapshot().conversations?.map(({ id }) => id),
+        inbox
+            .rows()
+            .slice(0, 30)
+            .map(({ id }) => id),
+    );
+    assert.equal(chatSnapshot().isLoadingMore.open, false);
+    await loadMoreConversations('open');
+    await loadMoreConversations('open');
+    assert.deepEqual(
+        chatSnapshot().conversations?.map(({ id }) => id),
+        inbox.rows().map(({ id }) => id),
+    );
+});
+
+test.each(['poll', 'scroll'] as const)(
+    'a pin removed on another device reconciles the prefix through %s, even when it falls outside the page',
+    async (source) => {
+        const inbox = pagedInbox(`other-device-${source}`);
+        vi.stubGlobal('fetch', inbox.fetch);
+        await loadTab('open');
+        inbox.unpin();
+
+        if (source === 'poll') {
+            const stop = watchInbox();
+            await vi.advanceTimersByTimeAsync(0);
+            stop();
+        }
+        await loadMoreConversations('open');
+        await loadMoreConversations('open');
+
+        assert.equal(
+            chatSnapshot().pinPreferences[`org:${inbox.moved.id}`].at,
+            null,
+        );
+        assert.deepEqual(
+            chatSnapshot().conversations?.map(({ id }) => id),
+            inbox.rows().map(({ id }) => id),
+        );
+        assert.equal(chatSnapshot().hasMore.open, false);
+    },
+);

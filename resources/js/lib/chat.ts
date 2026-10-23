@@ -178,6 +178,8 @@ let remoteAlerts: ReturnType<typeof createRemoteAlerts> | null = null;
 let isFetchingInbox = false;
 let muteVersion = 0;
 let pinVersion = 0;
+let inboxRevision = 0;
+const invalidatedInboxTabs = new Set<InboxTab>();
 
 export function targetKey(target: ChatTarget): string {
     return target.kind === 'direct'
@@ -455,6 +457,7 @@ function withoutKey(
 }
 
 export function seedInbox(inbox: InboxPage): void {
+    invalidatedInboxTabs.delete('open');
     updateDuringRender({
         pinPreferences: withPinPreferences(
             inbox.conversations.map((item) => [
@@ -508,6 +511,8 @@ async function fetchInbox(
         requests: number;
         notification_baseline?: Record<string, number>;
         notification_conversations?: ConversationSummary[];
+        pins?: Record<string, string | null>;
+        pinsChanged: boolean;
     }
 > {
     const version = ++muteVersion;
@@ -518,6 +523,7 @@ async function fetchInbox(
             requests: number;
             notification_baseline?: Record<string, number>;
             notification_conversations?: ConversationSummary[];
+            pins?: Record<string, string | null>;
         }
     >(
         InboxController.index.url({
@@ -533,9 +539,16 @@ async function fetchInbox(
     );
     update({
         pinPreferences: withPinPreferences(
-            page.conversations.map((item) => [
+            [
+                ...(state.conversations ?? []),
+                ...(state.fetched ?? []),
+                ...(state.archived ?? []),
+                ...page.conversations,
+            ].map((item) => [
                 summaryKey(item),
-                item.pinned_at,
+                page.pins === undefined
+                    ? item.pinned_at
+                    : (page.pins[item.id] ?? null),
             ]),
             pinsVersion,
         ),
@@ -547,15 +560,39 @@ async function fetchInbox(
             version,
         ),
     });
-    return { ...page, conversations: withConversationPins(page.conversations) };
+    const known = [
+        ...(state.conversations ?? []),
+        ...(state.fetched ?? []),
+        ...(state.archived ?? []),
+    ];
+    const pinsChanged =
+        known.some(
+            (item) =>
+                state.pinPreferences[summaryKey(item)]?.at !== item.pinned_at,
+        ) ||
+        page.conversations.some(
+            (item) =>
+                item.pinned_at !== null &&
+                !known.some((current) => current.id === item.id),
+        );
+    return {
+        ...page,
+        pinsChanged,
+        conversations: withConversationPins(page.conversations),
+    };
 }
 
 /**
  * Loads a tab's first page, for the tabs that are not polled.
  */
 export async function loadTab(tab: InboxTab): Promise<void> {
+    const revision = inboxRevision;
     try {
         const page = await fetchInbox(tab);
+        if (revision !== inboxRevision) {
+            return loadTab(tab);
+        }
+        invalidatedInboxTabs.delete(tab);
 
         update({
             [listOf[tab]]: page.conversations,
@@ -571,30 +608,86 @@ export async function loadTab(tab: InboxTab): Promise<void> {
  * The next page of a tab, once the user scrolls to the end of it.
  */
 export async function loadMoreConversations(tab: InboxTab): Promise<void> {
-    const list = state[listOf[tab]];
-    const last = list?.at(-1);
-
-    if (!state.hasMore[tab] || state.isLoadingMore[tab] || last === undefined) {
+    if (!state.hasMore[tab] || state.isLoadingMore[tab]) {
         return;
     }
-
+    if (invalidatedInboxTabs.has(tab)) {
+        await refreshConversationPages(tab, true);
+        return;
+    }
+    const last = state[listOf[tab]]?.at(-1);
+    if (last === undefined) {
+        return;
+    }
+    const revision = inboxRevision;
     update({ isLoadingMore: { ...state.isLoadingMore, [tab]: true } });
 
     try {
         const page = await fetchInbox(tab, last.id);
+        if (revision !== inboxRevision) {
+            return;
+        }
+        if (page.pinsChanged) {
+            invalidateConversationPages();
+            await refreshConversationPages(tab, true);
+            return;
+        }
         const known = new Set((state[listOf[tab]] ?? []).map(summaryKey));
 
         update({
-            [listOf[tab]]: [
+            [listOf[tab]]: withConversationPins([
                 ...(state[listOf[tab]] ?? []),
                 ...page.conversations.filter(
                     (item) => !known.has(summaryKey(item)),
                 ),
-            ],
+            ]),
             hasMore: { ...state.hasMore, [tab]: page.has_more },
         });
     } finally {
-        update({ isLoadingMore: { ...state.isLoadingMore, [tab]: false } });
+        if (revision === inboxRevision) {
+            update({ isLoadingMore: { ...state.isLoadingMore, [tab]: false } });
+        }
+    }
+}
+
+/**
+ * A moved pin invalidates the last displayed row as a cursor. Rebuild the loaded depth as a continuous prefix.
+ */
+async function refreshConversationPages(
+    tab: InboxTab,
+    more = false,
+): Promise<void> {
+    const revision = inboxRevision;
+    const depth = state[listOf[tab]]?.length ?? 0;
+    const conversations: ConversationSummary[] = [];
+    let page: InboxPage;
+    let before: string | undefined;
+    update({ isLoadingMore: { ...state.isLoadingMore, [tab]: true } });
+    try {
+        do {
+            page = await fetchInbox(tab, before);
+            if (revision !== inboxRevision) {
+                return;
+            }
+            conversations.push(...page.conversations);
+            before = page.conversations.at(-1)?.id;
+        } while (
+            page.has_more &&
+            before !== undefined &&
+            (conversations.length < depth ||
+                (more && conversations.length === depth))
+        );
+        invalidatedInboxTabs.delete(tab);
+        update({
+            [listOf[tab]]: withConversationPins(conversations),
+            hasMore: { ...state.hasMore, [tab]: page.has_more },
+        });
+    } catch {
+        // Keep the cursor invalid so the next scroll retries from the first page instead of skipping the gap.
+    } finally {
+        if (revision === inboxRevision) {
+            update({ isLoadingMore: { ...state.isLoadingMore, [tab]: false } });
+        }
     }
 }
 
@@ -699,6 +792,7 @@ async function pollInbox(): Promise<void> {
     }
 
     isFetchingInbox = true;
+    const revision = inboxRevision;
 
     try {
         const alerts = remoteAlerts;
@@ -708,12 +802,16 @@ async function pollInbox(): Promise<void> {
             requests,
             notification_baseline,
             notification_conversations,
+            pinsChanged,
         } = await fetchInbox(
             'open',
             undefined,
             alerts?.needsBaseline(),
             alerts !== null,
         );
+        if (revision !== inboxRevision) {
+            return;
+        }
         const notifications = notification_conversations ?? conversations;
         const isReading = (conversation: ConversationSummary) =>
             !document.hidden &&
@@ -737,19 +835,32 @@ async function pollInbox(): Promise<void> {
                 notification_baseline,
             );
         }
+        if (pinsChanged) {
+            invalidateConversationPages();
+        }
+        const reconcileOpen = invalidatedInboxTabs.has('open');
+        await Promise.all(
+            [...invalidatedInboxTabs].map((tab) =>
+                refreshConversationPages(tab),
+            ),
+        );
         const requestsChanged =
             state.requests !== null && requests !== state.requests;
         const watched = conversations.filter(isReading);
 
         update({
-            conversations: withFirstPage(
-                state.conversations,
-                conversations.map((conversation) =>
-                    isReading(conversation)
-                        ? { ...conversation, ahead: 0 }
-                        : conversation,
-                ),
-            ),
+            conversations: reconcileOpen
+                ? state.conversations
+                : withFirstPage(
+                      state.conversations,
+                      conversations.map((conversation) =>
+                          isReading(conversation)
+                              ? { ...conversation, ahead: 0 }
+                              : conversation,
+                      ),
+                  ),
+            fetched: state.fetched && withConversationPins(state.fetched),
+            archived: state.archived && withConversationPins(state.archived),
             requests,
             unread:
                 unread -
@@ -1672,6 +1783,15 @@ export async function setConversationArchived(
     }
 }
 
+function invalidateConversationPages(): void {
+    inboxRevision++;
+    for (const tab of ['open', 'fetched', 'stashed'] as const) {
+        if (state[listOf[tab]] !== null && state.hasMore[tab]) {
+            invalidatedInboxTabs.add(tab);
+        }
+    }
+}
+
 export async function setConversationPinned(
     target: ChatTarget,
     pinned: boolean,
@@ -1682,6 +1802,7 @@ export async function setConversationPinned(
         { pinned },
     );
     const key = targetKey(target);
+    invalidateConversationPages();
     update({
         pinPreferences: withPinPreferences([[key, preference.pinned_at]]),
     });
@@ -1692,6 +1813,9 @@ export async function setConversationPinned(
         archived: state.archived && withConversationPins(state.archived),
     });
     updateThread(key, () => preference);
+    await Promise.all(
+        [...invalidatedInboxTabs].map((tab) => refreshConversationPages(tab)),
+    );
 }
 
 export type MuteDuration = 'hour' | 'tomorrow' | 'week' | 'forever' | 'off';
