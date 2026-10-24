@@ -70,12 +70,16 @@ it('lets moderators detect and translate pending commits without approving them'
 
     $this->actingAs($admin)->withHeader('Accept-Language', 'en')->get(route('moderation.show'))
         ->assertOk()->assertInertia(fn ($page) => $page
-        ->where('commits.data.0.translation.available', true)
+        ->where('commits.data.0.translation.available', false)
         ->where('commits.data.0.translation.translated', null));
     Queue::assertPushed(DetectCommitLanguage::class, fn (DetectCommitLanguage $job): bool => $job->commitId === $commit->id);
     CommitTranslator::assertNeverPrompted();
 
     new DetectCommitLanguage($commit->id)->handle(resolve(CreateCommitTranslation::class));
+
+    $this->get(route('moderation.show'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commits.data.0.translation.available', true)
+        ->where('commits.data.0.translation.translated', null));
 
     $this->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
         ->assertOk()->assertJsonPath('translation.source_name', 'German')

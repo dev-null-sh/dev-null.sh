@@ -131,19 +131,34 @@ it('does not offer translation for the readers language or indeterminate text', 
     CommitTranslator::assertPromptedTimes(1);
 })->with(['en', 'und']);
 
-it('detects unfamiliar posts in the background without translating on a page read', function (): void {
+it('only offers translation after background detection confirms another language', function (string $body, string $source, bool $available): void {
     Queue::fake([DetectCommitLanguage::class]);
-    CommitTranslator::fake()->preventStrayPrompts();
-    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+    CommitTranslator::fake([['source_language' => $source, 'body' => '']])->preventStrayPrompts();
+    $commit = Commit::factory()->create(['body' => $body]);
+    $url = route('commit.show', ['user' => $commit->user, 'commit' => $commit]);
 
-    $this->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+    $this->withHeader('Accept-Language', 'en-US,en;q=0.9')->get($url)
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.translation.source_language', null)
+        ->where('commit.translation.available', false)
         ->where('commit.translation.translated', null));
 
     Queue::assertPushed(DetectCommitLanguage::class, fn (DetectCommitLanguage $job): bool => $job->commitId === $commit->id);
     CommitTranslator::assertNeverPrompted();
-});
+
+    new DetectCommitLanguage($commit->id)->handle(resolve(CreateCommitTranslation::class));
+
+    $this->get($url)->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.source_language', $source)
+        ->where('commit.translation.available', $available)
+        ->where('commit.translation.translated', null));
+
+    CommitTranslator::assertPromptedTimes(1);
+})->with([
+    'matching language' => ['But why', 'en', false],
+    'another language' => ['Guten morgen', 'de', true],
+    'indeterminate text' => ['😀', 'und', false],
+]);
 
 it('hides translations everywhere and stops queueing detection once an admin switches the feature off', function (): void {
     Queue::fake([DetectCommitLanguage::class]);
