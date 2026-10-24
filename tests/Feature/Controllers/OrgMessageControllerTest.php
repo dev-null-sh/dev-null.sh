@@ -112,6 +112,23 @@ it('replies only to messages in the history the member can see', function (): vo
         ->assertJsonPath('message.reply_to.body', 'welcome taylor');
 });
 
+it('does not quote messages from before the member joined', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno]);
+    $before = pushToOrg($nuno, $org, 'from before taylor joined');
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+
+    $this->actingAs($nuno)->postJson(route('org-message.store', $org), ['body' => 'still on?', 'client_id' => Str::uuid()->toString(), 'reply_to_id' => $before->id])
+        ->assertCreated();
+
+    $reply = fn (User $member): array => collect($this->actingAs($member)->getJson(route('org-message.index', $org))->assertOk()->json('messages'))
+        ->firstWhere('body', 'still on?');
+
+    expect($reply($taylor))->toHaveKey('reply_to', null)
+        ->and($reply($nuno)['reply_to']['body'])->toBe('from before taylor joined');
+});
+
 it('pushes images and the link card the member chose', function (?string $choice, ?string $url): void {
     Queue::fake();
     Storage::fake();
