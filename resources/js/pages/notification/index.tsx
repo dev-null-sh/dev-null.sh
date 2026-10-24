@@ -3,6 +3,7 @@ import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
 import {
     ArrowUp,
     AtSign,
+    CalendarX2,
     Check,
     ChevronDown,
     ChevronsUp,
@@ -22,6 +23,7 @@ import {
     useState,
 } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import EventController from '@/actions/App/Http/Controllers/EventController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
@@ -39,6 +41,7 @@ import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
+import { formatEventWhen } from '@/lib/event-dates';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import {
     cn,
@@ -727,6 +730,7 @@ export function NotificationContent({
 }) {
     const now = useNow();
     const { user } = useUser();
+    const timeZone = user?.timezone ?? undefined;
     const actorRef = useRef<HTMLSpanElement>(null);
     const { actor } = notification;
     const actors =
@@ -758,8 +762,13 @@ export function NotificationContent({
         notification.type === 'quoted' ||
         notification.type === 'mentioned';
     const level = notification.type === 'leveled_up' ? notification : null;
+    const cancelledEvent =
+        notification.type === 'event_cancelled'
+            ? notification.commit.event
+            : null;
     const Icon = {
         followed: UserPlus,
+        event_cancelled: CalendarX2,
         leveled_up: ChevronsUp,
         replied: MessageSquareReply,
         quoted: Quote,
@@ -783,10 +792,12 @@ export function NotificationContent({
         notification.type === 'leveled_up' ||
         (!summary && notification.type === 'starred')
             ? show(actor)
-            : CommitController.show({
-                  user: isOwnCommit ? user : actor,
-                  commit: notification.commit,
-              });
+            : cancelledEvent
+              ? EventController.show(cancelledEvent.id)
+              : CommitController.show({
+                    user: isOwnCommit ? user : actor,
+                    commit: notification.commit,
+                });
     const time = (
         <time
             dateTime={notification.created_at}
@@ -807,12 +818,22 @@ export function NotificationContent({
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
         leveled_up: level && `You reached level ${level.level}: ${level.rank}`,
+        event_cancelled: 'cancelled an event you were going to',
     }[notification.type];
     const excerpt =
         notification.type === 'followed' ||
         isImageOnly ? null : notification.type === 'leveled_up' ? (
             <p className="mt-1 text-sm text-muted-foreground">
                 {notification.rank_description}
+            </p>
+        ) : cancelledEvent ? (
+            <p className="mt-1 text-[15px]" data-test="cancelled-event">
+                <span className="font-semibold line-through decoration-muted-foreground">
+                    {cancelledEvent.title}
+                </span>{' '}
+                <span className="font-mono text-[13px] text-muted-foreground">
+                    {formatEventWhen(cancelledEvent, timeZone)}
+                </span>
             </p>
         ) : isOwnCommit ? (
             <OwnCommitExcerpt segments={notification.commit.body_segments} />

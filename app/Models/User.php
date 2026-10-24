@@ -74,6 +74,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, Notification> $notifications
  * @property-read Collection<int, SshKey> $sshKeys
  * @property-read Collection<int, PollVote> $pollVotes
+ * @property-read Collection<int, EventAttendee> $eventAttendances
  * @property-read Collection<int, Device> $devices
  * @property-read Collection<int, UserTimeout> $timeouts
  * @property-read Ban|null $ban
@@ -232,6 +233,14 @@ final class User extends Authenticatable
     public function pollVotes(): HasMany
     {
         return $this->hasMany(PollVote::class);
+    }
+
+    /**
+     * @return HasMany<EventAttendee, $this>
+     */
+    public function eventAttendances(): HasMany
+    {
+        return $this->hasMany(EventAttendee::class);
     }
 
     /**

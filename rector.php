@@ -6,6 +6,7 @@ use Rector\Caching\ValueObject\Storage\FileCacheStorage;
 use Rector\CodingStyle\Rector\ClassMethod\MakeInheritedMethodVisibilitySameAsParentRector;
 use Rector\Config\RectorConfig;
 use Rector\Php85\Rector\Property\AddOverrideAttributeToOverriddenPropertiesRector;
+use Rector\Renaming\Rector\Name\RenameClassRector;
 use RectorLaravel\Rector\If_\ThrowIfRector;
 use RectorLaravel\Set\LaravelSetList;
 
@@ -43,6 +44,12 @@ return RectorConfig::configure()
         MakeInheritedMethodVisibilitySameAsParentRector::class,
         AddOverrideAttributeToOverriddenPropertiesRector::class,
         ThrowIfRector::class => [__DIR__.'/app/Actions/*'],
+        // The Event model shares its name with Laravel's Event facade alias, which these models refer to it by...
+        RenameClassRector::class => [
+            __DIR__.'/app/Models/Commit.php',
+            __DIR__.'/app/Models/EventAgendaItem.php',
+            __DIR__.'/app/Models/EventAttendee.php',
+        ],
     ])
     ->withPreparedSets(
         deadCode: true,

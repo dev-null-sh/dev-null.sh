@@ -5,6 +5,7 @@ import { useCallback, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { CommitEvent } from '@/components/commit-event';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
@@ -474,6 +475,12 @@ export function CommitCard({
                                     key={`${commit.poll.id}-${commit.poll.has_voted}-${commit.poll.total_votes}`}
                                     commit={commit}
                                     poll={commit.poll}
+                                />
+                            )}
+                            {commit.event && (
+                                <CommitEvent
+                                    commit={commit}
+                                    event={commit.event}
                                 />
                             )}
                             {commit.quoted_commit_id !== null && (

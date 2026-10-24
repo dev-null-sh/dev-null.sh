@@ -19,12 +19,12 @@ final class ShowUserRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'tab' => ['nullable', 'string', 'in:commits,replies'],
+            'tab' => ['nullable', 'string', 'in:commits,replies,events'],
         ];
     }
 
     public function tab(): string
     {
-        return $this->input('tab') === 'replies' ? 'replies' : 'commits';
+        return in_array($this->input('tab'), ['replies', 'events'], true) ? $this->string('tab')->value() : 'commits';
     }
 }

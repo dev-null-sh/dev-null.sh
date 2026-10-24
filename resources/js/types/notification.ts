@@ -1,5 +1,6 @@
 import type { User } from '@/types/auth';
 import type { Commit, DeletedCommit } from '@/types/commit';
+import type { Event } from '@/types/event';
 
 type BaseNotification = {
     id: string;
@@ -41,6 +42,12 @@ export type Notification =
           level: number;
           rank: string;
           rank_description: string;
+      })
+    | (BaseNotification & {
+          type: 'event_cancelled';
+          commit_id: string;
+          subject_id: null;
+          commit: Omit<Commit, 'user'> & { event: Event | null };
       })
     | (BaseNotification & {
           type: 'quoted';

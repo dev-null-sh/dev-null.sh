@@ -20,6 +20,7 @@ import { ActivityStreaks } from '@/components/activity-streaks';
 import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { EditProfileMenu } from '@/components/edit-profile-menu';
+import { EventList } from '@/components/event-list';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import {
@@ -49,6 +50,7 @@ import type {
     Activity,
     Commit,
     CursorPaginated,
+    EventWithHost,
     Profile,
     Streaks,
 } from '@/types';
@@ -82,8 +84,8 @@ export default function Show({
     activity: Activity;
     streaks: Streaks;
     achievements: Achievements;
-    commits: CursorPaginated<Commit>;
-    tab: 'commits' | 'replies';
+    commits: CursorPaginated<Commit> | CursorPaginated<EventWithHost>;
+    tab: 'commits' | 'replies' | 'events';
     pinnedCommit: Commit | null;
 }) {
     const { auth } = usePage().props;
@@ -441,52 +443,75 @@ export default function Show({
                             href: show(user, { query: { tab: 'replies' } }),
                             isActive: tab === 'replies',
                         },
+                        {
+                            title: 'Events',
+                            href: show(user, { query: { tab: 'events' } }),
+                            isActive: tab === 'events',
+                        },
                     ]}
                 />
 
-                <CommitFeed
-                    key={`${user.id}:${tab}`}
-                    commits={commits}
-                    pinnedCommit={tab === 'commits' ? pinnedCommit : null}
-                    threadActions={
-                        isCurrentUser && tab === 'commits'
-                            ? (commit) => (
-                                  <PinCommitButton
-                                      commit={commit}
-                                      isPinned={commit.id === pinnedCommit?.id}
-                                  />
-                              )
-                            : undefined
-                    }
-                    highlightedPeriod={highlightedPeriod}
-                    end={
-                        tab === 'replies'
-                            ? isCurrentUser
-                                ? 'That was your first reply.'
-                                : `That's @${user.username}'s first reply.`
-                            : isCurrentUser
-                              ? 'That was your first commit. Everyone starts somewhere.'
-                              : `That's @${user.username}'s root commit.`
-                    }
-                    empty={
-                        tab === 'replies' ? (
-                            <EmptyFeed command="fatal: no replies yet">
+                {tab === 'events' ? (
+                    <EventList
+                        key={`${user.id}:${tab}`}
+                        events={commits as CursorPaginated<EventWithHost>}
+                        data="commits"
+                        empty={
+                            <EmptyFeed command="fatal: no events yet">
                                 {isCurrentUser
-                                    ? 'Your replies show up here. Join a conversation from your log.'
-                                    : `@${user.username} hasn't replied to anything yet.`}
+                                    ? 'Events you host show up here. Plan one from Events.'
+                                    : `@${user.username} hasn't hosted an event yet.`}
                             </EmptyFeed>
-                        ) : isCurrentUser ? (
-                            <EmptyFeed command="fatal: you do not have any commits yet">
-                                Your commits show up here. Make your first one
-                                from your log.
-                            </EmptyFeed>
-                        ) : (
-                            <EmptyFeed command="fatal: no commits yet">
-                                @{user.username} hasn't committed anything yet.
-                            </EmptyFeed>
-                        )
-                    }
-                />
+                        }
+                    />
+                ) : (
+                    <CommitFeed
+                        key={`${user.id}:${tab}`}
+                        commits={commits as CursorPaginated<Commit>}
+                        pinnedCommit={tab === 'commits' ? pinnedCommit : null}
+                        threadActions={
+                            isCurrentUser && tab === 'commits'
+                                ? (commit) => (
+                                      <PinCommitButton
+                                          commit={commit}
+                                          isPinned={
+                                              commit.id === pinnedCommit?.id
+                                          }
+                                      />
+                                  )
+                                : undefined
+                        }
+                        highlightedPeriod={highlightedPeriod}
+                        end={
+                            tab === 'replies'
+                                ? isCurrentUser
+                                    ? 'That was your first reply.'
+                                    : `That's @${user.username}'s first reply.`
+                                : isCurrentUser
+                                  ? 'That was your first commit. Everyone starts somewhere.'
+                                  : `That's @${user.username}'s root commit.`
+                        }
+                        empty={
+                            tab === 'replies' ? (
+                                <EmptyFeed command="fatal: no replies yet">
+                                    {isCurrentUser
+                                        ? 'Your replies show up here. Join a conversation from your log.'
+                                        : `@${user.username} hasn't replied to anything yet.`}
+                                </EmptyFeed>
+                            ) : isCurrentUser ? (
+                                <EmptyFeed command="fatal: you do not have any commits yet">
+                                    Your commits show up here. Make your first
+                                    one from your log.
+                                </EmptyFeed>
+                            ) : (
+                                <EmptyFeed command="fatal: no commits yet">
+                                    @{user.username} hasn't committed anything
+                                    yet.
+                                </EmptyFeed>
+                            )
+                        }
+                    />
+                )}
             </div>
         </>
     );

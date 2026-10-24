@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     Activity,
     Bell,
+    CalendarDays,
     Star,
     GitCommitVertical,
     History,
@@ -17,6 +18,7 @@ import {
 import type { ReactElement, ReactNode } from 'react';
 import { useLayoutEffect, useRef, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
+import EventController from '@/actions/App/Http/Controllers/EventController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
@@ -98,6 +100,11 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
               ]
             : []),
         {
+            title: 'Events',
+            href: EventController.index(),
+            icon: CalendarDays,
+        },
+        {
             title: 'Profile',
             href: hrefFor((user) => show(user)),
             icon: UserRound,
@@ -143,7 +150,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                     ? isCurrentOrParentUrl('/remotes')
                     : item.title === 'Operations'
                       ? isCurrentOrParentUrl('/operations')
-                      : isCurrentUrl(item.href)),
+                      : item.title === 'Events'
+                        ? isCurrentOrParentUrl('/events')
+                        : isCurrentUrl(item.href)),
     }));
 }
 
@@ -539,7 +548,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
     const [isChangelogOpen, setIsChangelogOpen] = useState(false);
     const allItems = useNavItems();
     const menuItems = allItems.filter((item) =>
-        ['Profile', 'Settings', 'Operations'].includes(item.title),
+        ['Events', 'Profile', 'Settings', 'Operations'].includes(item.title),
     );
     const items = allItems.filter(
         (item) =>

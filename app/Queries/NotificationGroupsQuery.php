@@ -81,6 +81,19 @@ final readonly class NotificationGroupsQuery
     }
 
     /**
+     * A cancellation names the event, which goes with the commit announcing it.
+     *
+     * @param  CursorPaginator<int, Notification>  $groups
+     * @return CursorPaginator<int, Notification>
+     */
+    public function withCancelledEvents(CursorPaginator $groups): CursorPaginator
+    {
+        new Collection($groups->items())->where('type', NotificationType::EventCancelled)->loadMissing('commit.event');
+
+        return $groups;
+    }
+
+    /**
      * Whether two unread notifications share a group only depends on what happened between them, so grouping from the
      * oldest unread one onward counts the same groups as grouping the whole history, which every page would pay for.
      */
