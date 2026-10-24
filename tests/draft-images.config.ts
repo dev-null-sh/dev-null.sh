@@ -41,6 +41,7 @@ export default defineConfig({
             'tests/Unit/CommitPoll.test.tsx',
             'tests/Unit/GraphCanvas.test.tsx',
             'tests/Unit/RailEntrance.test.tsx',
+            'tests/Unit/LazyTooltip.test.tsx',
             'tests/Unit/ReportDialog.test.tsx',
             'tests/Unit/StandaloneCommitGraphs.test.tsx',
             'tests/Unit/LogInsertion.test.tsx',
