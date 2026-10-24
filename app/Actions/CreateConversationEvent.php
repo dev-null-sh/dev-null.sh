@@ -15,7 +15,7 @@ final readonly class CreateConversationEvent
 {
     /**
      * Records a membership change in the org's history. It is read straight away by whoever made it, and doesn't
-     * pop the org out of anyone's stash.
+     * pop the org out of anyone's stash. Nobody makes an inheritance, so the heir keeps their unread messages.
      */
     public function handle(User $actor, Conversation $org, OrgEvent $event, ?User $subject = null, string $body = ''): Message
     {
@@ -30,10 +30,12 @@ final readonly class CreateConversationEvent
 
         CreateMessage::advance($org, $message, unstash: false);
 
-        ConversationParticipant::query()
-            ->where('conversation_id', $org->id)
-            ->where('user_id', $actor->id)
-            ->update(['read_through_id' => $message->id]);
+        if ($event !== OrgEvent::Inherited) {
+            ConversationParticipant::query()
+                ->where('conversation_id', $org->id)
+                ->where('user_id', $actor->id)
+                ->update(['read_through_id' => $message->id]);
+        }
 
         return $message;
     }
