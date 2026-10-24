@@ -40,6 +40,7 @@ it('renders a user profile', function (): void {
             ->where('isFollowing', true)
             ->where('followsYou', false)
             ->has('achievements')
+            ->missing('xpLog')
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
             ->where('commits.data.0.user.username', 'octocat')
@@ -700,4 +701,22 @@ it('offers guests and the profile owner no remote', function (): void {
 
     $this->actingAs($user)->get(route('user.show', $user))
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canPush', false));
+});
+
+it('loads the xp log only when the achievements dialog asks for it', function (): void {
+    $this->travelTo(now()->setDate(2026, 10, 22)->setTime(12, 0));
+    $user = User::factory()->create(['username' => 'octocat', 'created_at' => '2026-10-01 10:00:00']);
+    Commit::factory()->for($user)->create(['created_at' => '2026-10-21 09:00:00']);
+
+    $this->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'user/show',
+        'X-Inertia-Partial-Data' => 'xpLog',
+    ])->get(route('user.show', $user))->assertOk()
+        ->assertJsonPath('props.xpLog.0.date', '2026-10-21')
+        ->assertJsonPath('props.xpLog.0.xp', 25)
+        ->assertJsonPath('props.xpLog.1.date', '2026-10-01')
+        ->assertJsonPath('props.xpLog.1.entries.0.source', 'shell_shocked')
+        ->assertJsonMissingPath('props.commits');
 });
