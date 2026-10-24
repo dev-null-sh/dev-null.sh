@@ -49,7 +49,7 @@ final readonly class ThrottleCommits
         }
 
         // The mobile app reads JSON with a code...
-        if ($request->routeIs('api-commit.store')) {
+        if ($request->routeIs('api-commit.store', 'api-scheduled-commit.store')) {
             return new ApiException(ApiErrorCode::RateLimited, $message, ['Retry-After' => $retryAfter])->render();
         }
 

@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\OrgPinController;
 use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\OrgTypingController;
 use App\Http\Controllers\Api\RemoteCandidateController;
+use App\Http\Controllers\Api\ScheduledCommitController;
 use App\Http\Controllers\Api\StarredCommitController;
 use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
@@ -125,6 +126,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
             ->name('api-commit.store');
         Route::delete('commits/{commit}', [ApiCommitController::class, 'destroy'])->name('api-commit.destroy');
+
+        // Scheduled Commit...
+        Route::post('scheduled-commits', [ScheduledCommitController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
+            ->name('api-scheduled-commit.store');
 
         // Commit Preview: a draft as the commit it would become, which keeps nothing...
         Route::post('commits/preview', [CommitPreviewController::class, 'store'])->name('api-commit-preview.store');
