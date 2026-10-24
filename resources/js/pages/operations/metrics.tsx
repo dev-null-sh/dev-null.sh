@@ -876,11 +876,6 @@ function ActiveUserCounts({
                 format={formatCount}
                 empty="nothing yet: days are counted from the day tracking started"
             />
-            <p className="mt-3 max-w-2xl text-sm text-muted-foreground">
-                Each shadow runs from a day's total down to the next day's
-                returning users, whether they came the day before or after a
-                longer gap: its drop is the net change. Today is still counting.
-            </p>
         </div>
     );
 }
