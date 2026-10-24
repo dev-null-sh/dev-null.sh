@@ -526,6 +526,8 @@ Commits and replies may be pending, approved, or rejected. Some posts are approv
 
 Moderators are the site administrators. They review pending commits and reported content. Authors can receive a reason when their content is rejected. Moderation is a restricted role, not a control every account receives.
 
+Ordinary photos of children are not prohibited just because a child appears in them. Images still undergo safety checks, and sexual content involving minors remains prohibited.
+
 Posts awaiting automated checks stay pending if those checks fail; a failed check never approves a post.
 
 Before you first commit, reply, quote, or schedule a commit, the web composer shows the commit rules, and keeps showing them on every attempt until you send with "Got it, commit": no engagement bait, no low-effort posts, no AI-generated posts, no spam or self-promotion, and no harassment, hate, or private information, followed by a link to the terms. Your first submission must come from the web so you can accept these rules; terminal, GitHub Action, and app posting become available afterwards.
