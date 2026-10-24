@@ -17,6 +17,16 @@ use Random\Randomizer;
 
 final readonly class SuggestedUsersQuery
 {
+    /**
+     * Popular people come in groups of the next 20 most followed, each shuffled on its own once reached.
+     */
+    private const int POPULAR_CHUNK = 20;
+
+    /**
+     * How far rounds reach down the rankings before going back to the first page anyway.
+     */
+    private const int MAX_ROUND = 100;
+
     private const string THREAD_PARTICIPANTS = <<<'SQL'
         WITH RECURSIVE visible_thread(id, user_id) AS (
             SELECT id, user_id FROM commits WHERE id = ?
@@ -46,8 +56,9 @@ final readonly class SuggestedUsersQuery
      * popular people picked from the 20 most followed. On a profile or discussion page, relevant developers come
      * first. The regular suggestions fill any remaining places.
      *
-     * The day's candidates are split into pages of that mix, and each round shows the next page,
-     * going back to the first one after the last.
+     * The candidates are split into pages of that mix, and each round shows the next page. Later rounds reach further
+     * down both rankings, so a round only goes back to the first page once nobody new is left. Contextual pages go
+     * back after their candidates and the day's first regular picks.
      *
      * Spares come after the page, taken from the pages that follow it, to fill the slot of someone dismissed without
      * reloading the rest.
@@ -56,6 +67,8 @@ final readonly class SuggestedUsersQuery
      */
     public function get(User $user, int $limit = 3, int $round = 0, int $spares = 0, User|Commit|null $context = null): Collection
     {
+        $round = max(0, $round);
+
         $randomizer = $this->randomizerFor($user);
 
         $following = $user->following();
@@ -70,9 +83,17 @@ final readonly class SuggestedUsersQuery
             ? $this->contextual($user, $context, $followingIds, $following, $limit)
             : new Collection;
 
+        $wraps = true;
+
         if ($contextual->count() >= $limit * 5 && $limit + $spares <= $contextual->count()) {
             $pages = $this->pages($randomizer, $contextual, new Collection, $limit, prioritizeNetwork: true);
         } else {
+            // Enough of each ranking for every page up to this round and the spares after it.
+            $wanted = $contextual->isEmpty() ? (min($round, self::MAX_ROUND) + 1) * $limit + $spares : 0;
+            $networkLimit = max($limit * 10, $wanted);
+            // Whole chunks, so a chunk is shuffled the same however far the rounds have reached.
+            $popularLimit = self::POPULAR_CHUNK * max(1, (int) ceil($wanted / self::POPULAR_CHUNK));
+
             $followedByFollowing = $following->newPivotStatement()
                 ->select($following->getRelatedPivotKeyName())
                 ->whereIn($following->getForeignPivotKeyName(), $followingIds);
@@ -91,7 +112,7 @@ final readonly class SuggestedUsersQuery
                 ->orderByDesc('followed_by_following_count')
                 ->orderByDesc('followers_count')
                 ->latest('users.id')
-                ->limit($limit * 10)
+                ->limit($networkLimit)
                 ->get();
 
             // Ranked before looking for commits, so only the most followed are looked up rather than every candidate.
@@ -106,10 +127,13 @@ final readonly class SuggestedUsersQuery
                 ->whereIn('users.id', $this->committers($user))
                 ->orderByDesc('followers_count')
                 ->latest('users.id')
-                ->limit(20)
+                ->limit($popularLimit)
                 ->get();
 
-            $pages = $this->pages($randomizer, $network, $popularPool, $limit);
+            $wraps = $contextual->isNotEmpty() || $round > self::MAX_ROUND
+                || ($network->count() < $networkLimit && $popularPool->count() < $popularLimit);
+
+            $pages = $this->pages($randomizer, $network, $popularPool, $limit, popularChunk: self::POPULAR_CHUNK, topUp: $wraps);
 
             if ($contextual->isNotEmpty()) {
                 /** @var Collection<int, User> $general */
@@ -125,7 +149,7 @@ final readonly class SuggestedUsersQuery
             }
         }
 
-        $current = max(0, $round) % count($pages);
+        $current = $wraps ? $round % count($pages) : $round;
 
         $rotated = [...array_slice($pages, $current), ...array_slice($pages, 0, $current)];
 
@@ -174,20 +198,26 @@ final readonly class SuggestedUsersQuery
     }
 
     /**
-     * The last page is topped up from the first one, so a refresh never shows fewer people.
+     * Popular people are shuffled a chunk at a time as the pages reach them, so earlier pages stay the same however far
+     * the pool goes. When the pages go back to the first one, the last page is topped up from it, so a refresh never
+     * shows fewer people.
      *
      * @param  Collection<int, User>  $network
      * @param  Collection<int, User>  $popularPool
      * @return non-empty-list<Collection<int, User>>
      */
-    private function pages(Randomizer $randomizer, Collection $network, Collection $popularPool, int $limit, bool $prioritizeNetwork = false): array
+    private function pages(Randomizer $randomizer, Collection $network, Collection $popularPool, int $limit, bool $prioritizeNetwork = false, int $popularChunk = PHP_INT_MAX, bool $topUp = true): array
     {
-        $popular = null;
+        $popular = new Collection;
         $pages = [];
 
         do {
             $networkSlots = $prioritizeNetwork ? $limit : $limit - $randomizer->getInt(1, max(1, $limit - 1));
-            $popular ??= new Collection($randomizer->shuffleArray($popularPool->all()));
+
+            if ($pages === [] || ($popular->count() < $limit && $popularPool->isNotEmpty())) {
+                $popular = new Collection([...$popular, ...$randomizer->shuffleArray($popularPool->take($popularChunk)->all())]);
+                $popularPool = $popularPool->skip($popularChunk);
+            }
 
             $pageNetwork = $network->take(max($networkSlots, $limit - $popular->count()));
             $pagePopular = $popular->take($limit - $pageNetwork->count());
@@ -198,11 +228,11 @@ final readonly class SuggestedUsersQuery
             $pages[] = $prioritizeNetwork
                 ? [...$randomizer->shuffleArray($pageNetwork->all()), ...$randomizer->shuffleArray($pagePopular->all())]
                 : $randomizer->shuffleArray([...$pageNetwork, ...$pagePopular]);
-        } while ($network->isNotEmpty() || $popular->isNotEmpty());
+        } while ($network->isNotEmpty() || $popular->isNotEmpty() || $popularPool->isNotEmpty());
 
         $last = array_key_last($pages);
 
-        if ($last > 0 && count($pages[$last]) < $limit) {
+        if ($topUp && $last > 0 && count($pages[$last]) < $limit) {
             $pages[$last] = $randomizer->shuffleArray([...$pages[$last], ...array_slice($pages[0], 0, $limit - count($pages[$last]))]);
         }
 
