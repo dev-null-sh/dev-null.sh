@@ -8,6 +8,7 @@ use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 it('adds people with or without the history', function (bool $sharesHistory, int $visible): void {
@@ -27,6 +28,22 @@ it('adds people with or without the history', function (bool $sharesHistory, int
     'with the history' => [true, 1],
     'from now on' => [false, 0],
 ]);
+
+it('looks the people up once while validating and adding them', function (): void {
+    $mark = User::factory()->create();
+    $followers = followersOf($mark, 4);
+    $org = createOrg($mark, [$followers[0]]);
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => array_map(fn (User $user): string => $user->username, array_slice($followers, 1)), 'share_history' => true])->assertNoContent();
+
+    $lookups = array_filter(DB::getQueryLog(), fn (array $query): bool => str_starts_with($query['query'], 'select * from "users" where "username" in'));
+
+    expect($lookups)->toHaveCount(1);
+
+    DB::disableQueryLog();
+});
 
 it('lets only maintainers add, up to a hundred', function (): void {
     $mark = User::factory()->create();

@@ -7,6 +7,7 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia;
 
 it('creates an org with people who follow the maintainer', function (): void {
@@ -72,6 +73,21 @@ it('lets site admins add anyone with remotes on', function (): void {
     createOrg($mark, [$nuno]);
 
     $this->actingAs($nuno)->getJson(route('inbox.index'))->assertJsonCount(1, 'conversations');
+});
+
+it('looks the people up once while validating and creating the org', function (): void {
+    $mark = User::factory()->create();
+    $followers = followersOf($mark, 3);
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    $this->actingAs($mark)->postJson(route('org.store'), ['members' => array_map(fn (User $user): string => $user->username, $followers)])->assertCreated();
+
+    $lookups = array_filter(DB::getQueryLog(), fn (array $query): bool => str_starts_with($query['query'], 'select * from "users" where "username" in'));
+
+    expect($lookups)->toHaveCount(1);
+
+    DB::disableQueryLog();
 });
 
 it('caps an org at a hundred people', function (): void {
