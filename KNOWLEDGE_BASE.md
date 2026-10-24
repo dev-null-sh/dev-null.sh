@@ -33,6 +33,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Pinning a commit](#pinning-a-commit)
   - [Pastéis mode and awards](#pastéis-mode-and-awards)
   - [Notifications](#notifications)
+  - [Emails from /dev/null](#emails-from-devnull)
   - [Remotes: direct messages](#remotes-direct-messages)
   - [Orgs: group chats](#orgs-group-chats)
   - [Muting and blocking](#muting-and-blocking)
@@ -114,7 +115,7 @@ Sources: [go-live menu](resources/js/components/profile-actions-menu.tsx), [live
 
 ### Achievement badges and XP
 
-Profiles have **14 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
+Profiles have **15 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
 
 | Badge | When it unlocks |
 | --- | --- |
@@ -132,6 +133,7 @@ Profiles have **14 achievement badges**. Earned badges appear in a single row, w
 | **sweet tooth** | Receive **100 pastéis across your account**, not on a single commit. Pastéis mode does not need to be enabled, and the total survives deletion of the awarded commits. |
 | **luddite** | Stop following Tom while he still follows you. This deducts **100 XP**; following him again removes the badge and penalty. Accounts Tom has never befriended do not qualify. |
 | **shell shocked** | “Survived the php2shell downtime of Oct '26. Earns 100 XP.” — accounts created before **October 21, 2026 at 14:00 UTC** receive this badge and **100 bonus XP**. Accounts created at or after that moment do not qualify. |
+| **super-saiyan** | Have **9,000 followers or more** on /dev/null. “Y—your follower count. It... it’s over 9000!!!1!” |
 
 Commit counts include replies and quotes. Commit-based badges and XP use non-deleted commits visible to the person viewing the profile, so an author may see progress from pending or rejected commits that other viewers cannot see. Streak badges use the **longest** streak, not the current streak: missing a day does not by itself remove them. Days follow the activity graph's app-timezone grouping, not the user's selected display timezone.
 
@@ -151,9 +153,9 @@ Sources: [follow import](app/Actions/CreateUserGitHubFollows.php), [suggestions]
 
 ### Following, Latest, and Trending logs
 
-Logs are the app's timelines. **Following** contains your commits and those of developers you follow, newest first; it requires sign-in. **Latest** contains the newest public commits across the app. **Trending** favors recent public commits that attract engagement from distinct other developers across the thread, with replies and quotes weighing more than stars and diminishing returns from additional engagement. Pastéis don't affect Trending. On the web, Trending reshuffles each time you open it: higher-scoring commits are more likely to appear first, but the order varies between visits and the same draw is used while you scroll. The signed API does not redraw on each visit.
+Logs are the app's timelines. **Following** contains your commits and those of developers you follow, newest first; it requires sign-in. **Latest** contains the newest public commits across the app. **Trending** draws from the public commits of the last seven days and favors recent ones that attract engagement from distinct other developers across the thread, with diminishing returns from additional engagement. Replies weigh the most, especially replies the author answers, then quotes, then stars. Each further commit by the same author ranks a little lower, so one person does not fill the log, and when you are signed in, commits by people you follow and your own rank a little higher. Pastéis don't affect Trending. Trending reshuffles each time you open or refresh it, on the web and in the app: higher-scoring commits are more likely to appear first, but the order varies between visits, older commits sometimes come back, and the same draw is used while you scroll.
 
-Logs list top-level commits, including quotes, rather than every reply, 20 at a time as you scroll, and show your own pending commits to you. Following and Latest check for new commits every 30 seconds and mark where you left off. Following offers an "N new commits" control to load them. Latest loads new commits automatically: at the top they animate into view, while a reader who has scrolled keeps their place and can scroll up to see them. On touch screens, swipe sideways to move between logs. An empty Following log suggests three recent commits from people to follow. Muted and blocked people are filtered for signed-in viewers. The last log you opened is remembered.
+Logs list top-level commits, including quotes, rather than every reply, 20 at a time as you scroll, and show your own pending commits to you. Following and Latest check for new commits every 30 seconds and mark where you left off. Following and Latest load new commits automatically. New arrivals stay above the content you are reading, even when you start at the top or their images and link previews finish loading later. A **New commits** control appears after they load above you and stays until you return to the top or see the newest arrival below the sticky tabs. Switching away from the tab does not mark arrivals as seen. It previews up to three distinct authors from the new commits waiting above you, with a +N circle for additional authors. Each check removes deleted or no-longer-visible arrivals from the announcement and loaded feed; the control disappears if none remain. Select it to scroll to the new commits; it disappears when you reach them. On touch screens, swipe sideways to move between logs. An empty Following log suggests three recent commits from people to follow. Muted and blocked people are filtered for signed-in viewers. The last log you opened is remembered.
 
 Browser Back and Forward restore expanded replies and loaded thread continuations. Offscreen commits are measured before scroll restoration so returning to a log or discussion keeps the content in place.
 
@@ -205,9 +207,11 @@ In commits, replies, and remotes, start a line with `>` to render a quote block.
 
 Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions search the loaded member list instantly and update as membership refreshes. Suggestions are limited to the org's members, but you can still type anyone's handle yourself. Mentions link to profiles and can notify the mentioned developer after approval. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
 
-Typing **#123** in a composer looks up that exact issue or pull request in the /dev/null repository, `dev-null-sh/dev-null.sh`. The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL. A space or punctuation after the number automatically inserts the match, without treating a pause midway through a longer number as completion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
+Typing **#123** in a composer looks up that exact issue or pull request in the /dev/null repository, `dev-null-sh/dev-null.sh`. The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL, just like choosing an emoji suggestion. A space or punctuation leaves the number as typed and dismisses the suggestion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
 
-Sources: [body renderer](resources/js/components/commit-body.tsx), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
+A hex color such as `#ff8a4c` or `#fff` shows with a small swatch of the color, outside code. A color written only with digits counts when it has 6 or 8 digits or starts with a zero, which issue numbers here don't: `#000`, `#000000` and `#333333` are colors, while `#123` and `#333` stay plain text.
+
+Sources: [body renderer](resources/js/components/commit-body.tsx), [colors](resources/js/lib/colors.ts), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
 
 ### Draft previews
 
@@ -233,7 +237,7 @@ Sources: [image picker](resources/js/components/commit-image-picker.tsx), [image
 
 Each link in a commit or reply counts as at most **23 characters** toward the 4,000-character allowance; shorter links count at their actual length. This also applies to quotes, scheduled commits, previews, and terminal and app submissions. The full URL is stored and followed directly, not through a redirect service. Prose URLs longer than **2,048 characters** are rejected, including the inferred `https://` scheme for bare domains. Code still counts literally toward the 4,000-character allowance. Bodies are additionally capped at 40,000 raw characters to bound storage and processing. Private messages and issue drafts keep their existing literal character limits.
 
-URLs and bare domains in commits and replies become clickable links. Long URLs are shortened visually; hover reveals the full destination. GitHub repository links show as `owner/repo`, and issue or pull request links as `owner/repo#123`, with the GitHub mark. Links to /dev/null commits show as the author's username and a short hash. Code keeps its literal text. The first link normally gets a preview card with available title, description, and image. In the commit and reply composers, choose another link from the body or choose no card; quotes, terminal commits, and app commits always use the first link. Missing site metadata may leave a link without a rich preview.
+URLs and bare domains in commits and replies become clickable links. Long URLs are shortened visually; hover reveals the full destination. GitHub repository links show as `owner/repo`, and issue or pull request links as `owner/repo#123`, with the GitHub mark. Links to /dev/null commits show as the author's username and a short hash. Code keeps its literal text. The first link normally gets a preview card with available title, description, and image. In the commit, reply, and quote composers, choose another link from the body or choose no card; terminal commits and app commits always use the first link. Missing site metadata may leave a link without a rich preview.
 
 Supported links can also show click-to-play embedded players: YouTube, Vimeo, Loom, Twitch, Spotify, SoundCloud, Apple Music, Suno, CodePen, and asciinema. Only the link that gets the card can show a player, so choosing no card means no player. Embeds depend on server configuration and the linked URL being supported. Third-party player content loads only after you press play; those providers have their own privacy policies. This is embedding a link, not uploading a video or audio file to /dev/null.
 
@@ -253,7 +257,7 @@ Sources: [reply validation](app/Http/Requests/CreateCommitReplyRequest.php), [co
 
 ### Quoting commits
 
-Quote a visible commit to publish a new top-level commit with your own commentary and an embedded card pointing to the original. Quotes follow normal commit limits, image support, and moderation. The quote composer has a preview but no link-card choice, poll, or scheduling. Quoting is different from replying: the quote appears in logs as its own post, and it is also listed among the original's replies and counted in its reply count. The original author is notified after approval, except for self-quotes.
+Quote a visible commit to publish a new top-level commit with your own commentary and an embedded card pointing to the original. Quotes follow normal commit limits, image support, and moderation. The quote composer has a preview and link-card choice, but no poll or scheduling. Quoting is different from replying: the quote appears in logs as its own post, and it is also listed among the original's replies and counted in its reply count. The original author is notified after approval, except for self-quotes.
 
 The embedded original only shows content the viewer may see. Deleted originals appear as `[deleted]`; otherwise-inaccessible originals appear as `[unavailable]` without exposing their author or body. There is no comment-free repost action.
 
@@ -334,6 +338,12 @@ Pin a direct remote or org from its **…** menu to keep it above unpinned conve
 To silence one direct remote or org, open its **…** menu and choose **Mute**, below **Stash**, then **For one hour**, **Until tomorrow**, **For one week**, or **Forever**. **Until tomorrow** ends at the next midnight in your account's timezone, or UTC if no timezone is set. The mute follows your account across devices, does not tell other members, and suppresses browser alerts and sound without hiding messages or changing unread counts. New messages do not cancel a mute. Timed mutes expire automatically; choose **Unmute** in the same menu to end any mute early.
 
 Livestream history: the notification requirements on [day one at 5:28:53](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=19733s) explicitly included removing stale activity after an unfollow or deleted reply. The stated goal was to avoid both spam and notifications that “no longer make sense.”
+
+### Emails from /dev/null
+
+Every now and then, the people running /dev/null email everyone with an account, usually about what shipped recently. Emails go to the address GitHub shared when you signed in. They are not notifications: activity such as replies, stars, or follows never sends an email.
+
+Every email has an **Unsubscribe** link at the bottom, and mail apps such as Gmail also show their own one-click unsubscribe button. Opening the link asks you to confirm, so a mail scanner that opens links can't unsubscribe you by accident. Unsubscribing takes effect right away and does not change anything else about your account. Banned accounts never get these emails, and your data export includes when you unsubscribed.
 
 ### Remotes: direct messages
 
@@ -516,6 +526,8 @@ Sources: [account deletion confirmation](resources/js/components/delete-user.tsx
 Commits and replies may be pending, approved, or rejected. Some posts are approved automatically; others need a moderator's review. Automated checks can also reject clear violations. Pending and rejected content is not publicly visible; its author can still see its status. On a pending commit, a badge tells the author whether it is still being checked automatically or waiting for a moderator; when the check approves it while the author is looking, the badge shows a check mark. Approval makes content eligible for public lists and releases reply, quote, and mention notifications, but does not notify the author. Rejection notifies the author, with the moderator's reason when one is given. Moderation applies to browser, scheduled, terminal, and app submissions alike.
 
 Moderators are the site administrators. They review pending commits and reported content. Authors can receive a reason when their content is rejected. Moderation is a restricted role, not a control every account receives.
+
+Ordinary photos of children are not prohibited just because a child appears in them. Images still undergo safety checks, and sexual content involving minors remains prohibited.
 
 Posts awaiting automated checks stay pending if those checks fail; a failed check never approves a post.
 

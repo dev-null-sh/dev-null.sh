@@ -7,7 +7,9 @@ import AppWordmark from '@/components/app-wordmark';
 import { CertificateText } from '@/components/certificate-text';
 import { GitHubIcon } from '@/components/github-icon';
 import { UserPreview } from '@/components/user-preview';
-import { typedProse } from '@/lib/code';
+import { typedProse, withoutCode } from '@/lib/code';
+import type { Color } from '@/lib/colors';
+import { colorsIn } from '@/lib/colors';
 import { mentionPattern } from '@/lib/mentions';
 import {
     hrefFor,
@@ -257,19 +259,23 @@ function withPasteis(text: string, pasteisMode: boolean): ReactNode {
         );
 }
 
-function withWordmarks(text: string, pasteisMode: boolean): ReactNode[] {
+function withWordmarks(
+    text: string,
+    offset: number,
+    pasteisMode: boolean,
+): ReactNode[] {
     return text
         .split(
             /(?<![\p{L}\p{M}\p{N}_./-])(\/dev\/null)(?![\p{L}\p{M}\p{N}_/-])/u,
         )
         .map((part, index) =>
             index % 2 === 0 ? (
-                <Fragment key={index}>
+                <Fragment key={`text-${offset}-${index}`}>
                     {withPasteis(part, pasteisMode)}
                 </Fragment>
             ) : (
                 <span
-                    key={`wordmark-${index}`}
+                    key={`wordmark-${offset}-${index}`}
                     title={part}
                     className="font-semibold tracking-tight whitespace-nowrap"
                 >
@@ -279,10 +285,60 @@ function withWordmarks(text: string, pasteisMode: boolean): ReactNode[] {
         );
 }
 
+/**
+ * The hex colors found in the whole text that fall in this slice of it, as their value with a swatch of the color.
+ */
+function withColors(
+    text: string,
+    offset: number,
+    colors: Color[],
+    pasteisMode: boolean,
+): ReactNode[] {
+    const parts: ReactNode[] = [];
+    let position = 0;
+
+    for (const color of colors) {
+        const index = color.index - offset;
+
+        if (index < position || index + color.length > text.length) {
+            continue;
+        }
+
+        parts.push(
+            ...withWordmarks(
+                text.slice(position, index),
+                offset + position,
+                pasteisMode,
+            ),
+            <span
+                key={`color-${color.index}`}
+                className="whitespace-nowrap"
+                data-test="color"
+            >
+                <span
+                    aria-hidden="true"
+                    className="mr-0.5 inline-block size-[0.75em] rounded-sm border border-border align-[-0.05em]"
+                    style={{ backgroundColor: `#${color.value}` }}
+                />
+                {text.slice(index, index + color.length)}
+            </span>,
+        );
+
+        position = index + color.length;
+    }
+
+    parts.push(
+        ...withWordmarks(text.slice(position), offset + position, pasteisMode),
+    );
+
+    return parts;
+}
+
 function withMentions(
     text: string,
     offset: number,
     mentions: Commit['mentions'],
+    colors: Color[],
     pasteisMode: boolean,
     isStatic: boolean,
 ): ReactNode[] {
@@ -297,7 +353,12 @@ function withMentions(
                 : null;
 
         parts.push(
-            ...withWordmarks(text.slice(position, match.index), pasteisMode),
+            ...withColors(
+                text.slice(position, match.index),
+                offset + position,
+                colors,
+                pasteisMode,
+            ),
             isStatic || !userId ? (
                 match[0]
             ) : (
@@ -320,7 +381,14 @@ function withMentions(
         position = match.index + match[0].length;
     }
 
-    parts.push(...withWordmarks(text.slice(position), pasteisMode));
+    parts.push(
+        ...withColors(
+            text.slice(position),
+            offset + position,
+            colors,
+            pasteisMode,
+        ),
+    );
 
     return parts;
 }
@@ -330,13 +398,18 @@ export function LinkifiedText({
     mentions,
     pasteisMode = false,
     isStatic = false,
+    startsText = false,
 }: {
     text: string;
     mentions: Commit['mentions'];
     pasteisMode?: boolean;
     isStatic?: boolean;
+    // Whether the text is a whole body, so its start is the start of a line.
+    startsText?: boolean;
 }) {
     const parts: ReactNode[] = [];
+    // Colors are found in the prose only, for callers that pass a whole body, code included.
+    const colors = colorsIn(withoutCode(text), startsText);
     let position = 0;
 
     for (const match of text.matchAll(urlPattern)) {
@@ -355,6 +428,7 @@ export function LinkifiedText({
                 text.slice(position, match.index),
                 position,
                 mentions,
+                colors,
                 pasteisMode,
                 isStatic,
             ),
@@ -400,6 +474,7 @@ export function LinkifiedText({
             text.slice(position),
             position,
             mentions,
+            colors,
             pasteisMode,
             isStatic,
         ),

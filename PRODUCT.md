@@ -38,6 +38,7 @@ What exists, one line each (details in the knowledge base):
 - **Remotes:** private one-to-one and group messages (orgs).
 - **Notifications:** in-app activity, plus independently controlled browser and sound alerts for Remotes while the site is open, enabled by default; only browser banners require notification permission.
 - **Search:** developers by name, commits by meaning.
+- **Emails:** an occasional update the admins write to everyone, or to a filtered audience, with one-click unsubscribe. Never per-activity notifications.
 - **Safety:** mute, block, reports, and moderation.
 - **Bots:** Tom answers questions about /dev/null from the knowledge base, the public repository, and aggregate community statistics; World answers "hello world". They use @tom and @world until those GitHub owners sign in, then keep working as @devnull-tom and @devnull-world.
 - **Data:** JSON export and account deletion.

@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { DragonBallIcon } from '@/components/dragon-ball-icon';
 import {
     Popover,
     PopoverContent,
@@ -49,6 +50,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     cookie: Cookie,
     'bot-off': BotOff,
     bomb: Bomb,
+    'dragon-ball': DragonBallIcon,
 };
 
 export function AchievementsShelf({

@@ -72,7 +72,9 @@ final class HandleInertiaRequests extends Middleware
         };
         $context = $context instanceof User || $context instanceof Commit ? $context : null;
 
-        $suggestedUsers = $user instanceof User && $showsWhoToFollow && ! $request->routeIs('onboarding.show')
+        $hasAside = ! $request->routeIs('onboarding.show') && ! $request->is('operations', 'operations/*');
+
+        $suggestedUsers = $user instanceof User && $showsWhoToFollow && $hasAside
             ? Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get(
                 $user,
                 round: max(0, (int) $request->cookie('who_to_follow_round')),
@@ -107,12 +109,12 @@ final class HandleInertiaRequests extends Middleware
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
-            'liveFollowing' => fn (): Collection => $user instanceof User && ! $request->routeIs('onboarding.show')
+            'liveFollowing' => fn (): Collection => $user instanceof User && $hasAside
                 ? resolve(LiveFollowingQuery::class)->get($user)
                 : collect(),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
-            // Onboarding has no sidebar. Contextual suggestions must not reuse the once-cached list across pages.
+            // Onboarding and the operations console have no aside. Contextual suggestions must not reuse the once-cached list across pages.
             ...$suggestedUsers !== null ? [
                 'suggestedUsers' => ($context === null ? $suggestedUsers->once() : $suggestedUsers)->merge()->matchOn('id'),
             ] : [],

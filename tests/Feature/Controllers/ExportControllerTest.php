@@ -115,6 +115,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'live_ends_at' => null,
             'last_seen_at' => now()->toDateString(),
             'commit_rules_accepted_at' => $user->commit_rules_accepted_at->toIso8601String(),
+            'emails_unsubscribed_at' => null,
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],

@@ -205,14 +205,14 @@ it('leaves a commit the ai is not all but certain about to moderators', function
         ->status->toBe(CommitStatus::Pending);
 });
 
-it('checks the images of a commit too, one per request', function (): void {
+it('checks the images of a commit too, one per request', function (string $category): void {
     Storage::fake();
     Storage::put('commit-images/first.webp', 'first');
     Storage::put('commit-images/second.webp', 'second');
 
     Http::fakeSequence('api.openai.com/v1/moderations')
         ->push(moderationResponse())
-        ->push(moderationResponse(['sexual']));
+        ->push(moderationResponse([$category]));
     Http::fake(['api.openai.com/v1/responses' => reviewResponses()]);
 
     $commit = Commit::factory()->pending()->create(['body' => 'Look at this']);
@@ -223,7 +223,8 @@ it('checks the images of a commit too, one per request', function (): void {
 
     expect($commit->refresh())
         ->ai_decision->toBe(CommitStatus::Rejected)
-        ->ai_categories->toBe(['sexual']);
+        ->ai_categories->toBe([$category])
+        ->status->toBe(CommitStatus::Pending);
 
     $inputs = Http::recorded(fn (Request $request): bool => str_ends_with($request->url(), '/moderations'))
         ->map(fn (array $pair): mixed => $pair[0]['input'])
@@ -238,7 +239,7 @@ it('checks the images of a commit too, one per request', function (): void {
             ['type' => 'image_url', 'image_url' => ['url' => 'data:image/webp;base64,'.base64_encode('second')]],
         ],
     ]);
-});
+})->with(['sexual', 'sexual/minors']);
 
 it('checks only the images of a commit without a body', function (): void {
     Storage::fake();
@@ -284,7 +285,7 @@ it('flags categories scoring above the strict thresholds, even when openai does 
         ->ai_categories->toBe(['harassment', 'sexual/minors']);
 });
 
-it('rejects images that may show a minor', function (): void {
+it('approves otherwise safe images without guessing ages', function (string $body): void {
     Storage::fake();
     Storage::put('commit-images/first.webp', 'first');
     Storage::put('commit-images/second.webp', 'second');
@@ -294,28 +295,22 @@ it('rejects images that may show a minor', function (): void {
         'api.openai.com/v1/responses' => reviewResponses(['minors' => reviewResponse('minors', true)]),
     ]);
 
-    $commit = Commit::factory()->pending()->create();
+    $commit = Commit::factory()->pending()->create(['body' => $body]);
     CommitImage::factory()->for($commit)->create(['path' => 'commit-images/first.webp', 'position' => 0]);
     CommitImage::factory()->for($commit)->create(['path' => 'commit-images/second.webp', 'position' => 1]);
 
     dispatch_sync(new ModerateCommit($commit));
 
     expect($commit->refresh())
-        ->ai_decision->toBe(CommitStatus::Rejected)
-        ->ai_categories->toBe(['minor-in-image'])
-        ->status->toBe(CommitStatus::Pending);
+        ->ai_decision->toBe(CommitStatus::Approved)
+        ->ai_categories->toBe([])
+        ->status->toBe(CommitStatus::Approved);
 
-    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/responses')
-        && $request['model'] === 'gpt-6.1-sol'
-        && $request['text']['format']['schema']['required'] === ['minors']
-        && $request['input'][1]['content'] === [
-            ['type' => 'input_text', 'text' => 'Review these images.'],
-            ['type' => 'input_image', 'image_url' => 'data:image/webp;base64,'.base64_encode('first')],
-            ['type' => 'input_image', 'image_url' => 'data:image/webp;base64,'.base64_encode('second')],
-        ]);
-});
+    Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/responses')
+        && $request['text']['format']['schema']['required'] === ['minors']);
+})->with(['with text' => 'A family day out', 'images only' => '']);
 
-it('rejects images when the reasoning model gives no clear answer', function (array $response): void {
+it('does not hold safe images for an inconclusive age review', function (array $response): void {
     Storage::fake();
     Storage::put('commit-images/first.webp', 'first');
 
@@ -330,8 +325,9 @@ it('rejects images when the reasoning model gives no clear answer', function (ar
     dispatch_sync(new ModerateCommit($commit));
 
     expect($commit->refresh())
-        ->ai_decision->toBe(CommitStatus::Rejected)
-        ->ai_categories->toBe(['minor-in-image']);
+        ->ai_decision->toBe(CommitStatus::Approved)
+        ->ai_categories->toBe([])
+        ->status->toBe(CommitStatus::Approved);
 })->with('unclear answers');
 
 it('flags text the moderation model misses, such as an implied threat, without rejecting it', function (): void {

@@ -18,7 +18,7 @@ import {
     useComposerPreview,
 } from '@/components/composer-preview';
 import InputError from '@/components/input-error';
-import { typedLinks } from '@/components/linkified-text';
+import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { StashLabel } from '@/components/stash-label';
@@ -32,6 +32,7 @@ import {
 import { UserAvatar } from '@/components/user-avatar';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
+import { useLinkCard } from '@/hooks/use-link-card';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
@@ -135,6 +136,7 @@ function QuoteComposer({
         updateImages,
         stashKey,
     );
+    const linkCard = useLinkCard(body);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const commitRules = useCommitRules();
     const keys = useKeyLabels();
@@ -268,7 +270,9 @@ function QuoteComposer({
                                     placeholder="Add your take"
                                     autoComplete="off"
                                     aria-invalid={
-                                        errors.body || errors.quoted_commit_id
+                                        errors.body ||
+                                        errors.link_preview_url ||
+                                        errors.quoted_commit_id
                                             ? true
                                             : undefined
                                     }
@@ -281,7 +285,7 @@ function QuoteComposer({
                                 {preview.isPreviewing && (
                                     <ComposerPreviewBody
                                         preview={preview}
-                                        url={typedLinks(body)[0] ?? null}
+                                        url={linkCard.link}
                                         images={attachments.images}
                                         descriptions={attachments.descriptions}
                                         className="col-start-1 row-start-1 py-1.5"
@@ -290,7 +294,11 @@ function QuoteComposer({
                             </div>
 
                             <InputError
-                                message={errors.body ?? errors.quoted_commit_id}
+                                message={
+                                    errors.body ??
+                                    errors.link_preview_url ??
+                                    errors.quoted_commit_id
+                                }
                             />
 
                             <CommitRulesDialog
@@ -315,8 +323,8 @@ function QuoteComposer({
 
                             <QuotedCommit commit={commit} isPreview />
 
-                            <div className="sticky -bottom-4 -mb-4 flex items-center justify-end gap-3 bg-background pt-3 pb-4 sm:-bottom-5 sm:-mb-5 sm:pb-5">
-                                <div className="mr-auto flex items-center gap-2">
+                            <div className="sticky -bottom-4 -mb-4 flex flex-wrap items-center justify-end gap-x-3 gap-y-2 bg-background pt-3 pb-4 sm:-bottom-5 sm:-mb-5 sm:pb-5">
+                                <div className="mr-auto flex min-w-0 items-center gap-2">
                                     <ImagePickerButton
                                         count={images.length}
                                         disabled={processing}
@@ -328,11 +336,18 @@ function QuoteComposer({
                                         preview={preview}
                                         className="-ml-2 size-8"
                                     />
+                                    <LinkCardPicker
+                                        linkCard={linkCard}
+                                        disabled={processing}
+                                        className="-ml-1"
+                                        labelClassName="max-sm:sr-only"
+                                    />
                                     {isRestored && (
                                         <StashLabel
                                             onDrop={() => {
                                                 attachments.clear();
                                                 drop();
+                                                linkCard.reset();
                                                 document
                                                     .getElementById(id)
                                                     ?.focus();

@@ -20,6 +20,7 @@
         "league/flysystem-aws-s3-v3": "^3.35.3",
         "nunomaduro/essentials": "^1.2.0",
         "phpseclib/phpseclib": "^4.0.2",
+        "resend/resend-php": "^1.17",
         "tempest/highlight": "^2.29.0"
     },
     "require-dev": {
