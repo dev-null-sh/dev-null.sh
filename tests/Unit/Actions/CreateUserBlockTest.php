@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommitStar;
 use App\Actions\CreateUserBlock;
+use App\Dto\ThreadEngagement;
 use App\Models\Commit;
 use App\Models\User;
 use App\Services\TheAlgorithm;
@@ -88,5 +89,5 @@ it('lowers the commits that lost a star back', function (): void {
     resolve(CreateUserBlock::class)->handle($user, $blocked);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, ThreadEngagement::none()), 1e-9);
 });
