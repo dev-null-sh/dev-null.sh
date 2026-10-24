@@ -214,3 +214,46 @@ test('clears recent searches, keeps other accounts intact, and focuses the searc
     assert.equal(focus.mock.calls.length, 1);
     assert.equal(input().props['aria-activedescendant'], 'search-suggestion-0');
 });
+
+test('offers "See all matching commits" for queries of three or more characters and navigates on Enter', () => {
+    state = [];
+    userId = null;
+    visit.mockClear();
+
+    (input().props.onChange as (event: { target: { value: string } }) => void)({
+        target: { value: 'php' },
+    });
+
+    cursor = 0;
+    const dialog = SearchDialog({ open: true, onOpenChange: () => {} });
+    const allMatching = elements(dialog).find(
+        (element) =>
+            (element.props.option as { kind?: string } | undefined)?.kind ===
+            'all',
+    );
+    assert.ok(allMatching);
+    assert.equal(allMatching.props.term, 'php');
+
+    keyDown('Enter', false);
+    assert.equal(visit.mock.calls.length, 1);
+    const destination = visit.mock.calls[0][0] as { url?: string } | string;
+    const url = typeof destination === 'string' ? destination : (destination.url ?? '');
+    assert.match(url, /\/search\?q=php/);
+});
+
+test('does not offer "See all matching commits" for terms under three characters or explicit @ handles', () => {
+    for (const term of ['ph', 'a', '@tom', '@']) {
+        (input().props.onChange as (event: { target: { value: string } }) => void)({
+            target: { value: term },
+        });
+
+        cursor = 0;
+        const dialog = SearchDialog({ open: true, onOpenChange: () => {} });
+        const allMatching = elements(dialog).find(
+            (element) =>
+                (element.props.option as { kind?: string } | undefined)?.kind ===
+                'all',
+        );
+        assert.equal(allMatching, undefined, `Expected no seeAll for "${term}"`);
+    }
+});

@@ -98,12 +98,6 @@ export function SearchDialog({
         .resultsFor(developerTerm)
         .filter(({ user }) => user.id !== excludeId);
     const visibleCommits = commits.resultsFor(commitTerm);
-    const results = optionsFor(
-        intent,
-        intent === 'topic' ? visibleDevelopers.slice(0, 2) : visibleDevelopers,
-        visibleCommits,
-        commitTerm,
-    );
     const isLoading = developers.isLoading || commits.isLoading;
     const hasSearched =
         developers.hasSearched(developerTerm) &&
@@ -111,6 +105,13 @@ export function SearchDialog({
     const isEmpty = term === '';
     const isAwaitingDeveloperName =
         awaitsDeveloperName(term) || (isPicking && isEmpty);
+    const showSeeAll = !isPicking && term.length >= 3 && !term.startsWith('@');
+    const results = optionsFor(
+        intent,
+        intent === 'topic' ? visibleDevelopers.slice(0, 2) : visibleDevelopers,
+        visibleCommits,
+        showSeeAll,
+    );
     const isThrottled =
         developers.isThrottled(developerTerm) ||
         commits.isThrottled(commitTerm);
@@ -472,7 +473,7 @@ function optionsFor(
     intent: ReturnType<typeof searchIntent>,
     developers: FoundDeveloper[],
     commits: Commit[],
-    commitTerm: string,
+    showSeeAll: boolean,
 ): Option[] {
     const developerOptions: Option[] = developers.map(({ user, reason }) => ({
         kind: 'developer',
@@ -485,8 +486,7 @@ function optionsFor(
         id: `commit-${commit.id}`,
         commit,
     }));
-    const seeAll: Option[] =
-        commitTerm === '' ? [] : [{ kind: 'all', id: 'all' }];
+    const seeAll: Option[] = showSeeAll ? [{ kind: 'all', id: 'all' }] : [];
 
     if (intent === 'topic') {
         return [...commitOptions, ...seeAll, ...developerOptions];
