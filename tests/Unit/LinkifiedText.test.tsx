@@ -513,6 +513,53 @@ for (const link of [
     });
 }
 
+test('shows a hex color with a swatch of it', () => {
+    const html = renderToStaticMarkup(
+        <LinkifiedText text="Brand orange is #ff8a4c." mentions={null} />,
+    );
+
+    assert.ok(html.includes('data-test="color"'));
+    assert.ok(html.includes('background-color:#ff8a4c'));
+    assert.equal(html.replace(/<[^>]*>/g, ''), 'Brand orange is #ff8a4c.');
+});
+
+test('shows no swatch for a color in code when given a whole body', () => {
+    const html = renderToStaticMarkup(
+        <LinkifiedText
+            text={'see `#fff` and\n```\n#abc\n```\nthen #ff8a4c'}
+            mentions={null}
+        />,
+    );
+
+    assert.equal(html.match(/data-test="color"/g)?.length, 1);
+    assert.ok(html.includes('background-color:#ff8a4c'));
+});
+
+test('shows swatches next to links, mentions and wordmarks', () => {
+    const html = renderToStaticMarkup(
+        <LinkifiedText
+            text="#fff on /dev/null by @Alice at https://example.com/#abc, then #abc"
+            mentions={{ alice: '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b' }}
+        />,
+    );
+
+    assert.equal(html.match(/data-test="color"/g)?.length, 2);
+    assert.ok(html.includes('data-test="mention"'));
+    assert.ok(html.includes('href="https://example.com/#abc"'));
+});
+
+test('shows a swatch for a color that starts a quoted line at the start of a whole body', () => {
+    const colors = (text: string) =>
+        renderToStaticMarkup(
+            <LinkifiedText text={text} mentions={null} startsText />,
+        ).match(/data-test="color"/g)?.length ?? 0;
+
+    assert.equal(colors('>#fff'), 1);
+    assert.equal(colors('line\n>#fff'), 1);
+    assert.equal(colors('>>#fff'), 0);
+    assert.equal(colors('`x`>#fff'), 0);
+});
+
 test('styles every standalone brand mention in UI copy without changing its text', () => {
     const text = 'Welcome to /dev/null. /dev/null was updated.';
     const html = renderToStaticMarkup(<WordmarkText>{text}</WordmarkText>);
@@ -608,3 +655,15 @@ for (const kind of ['direct', 'org'] as const) {
         });
     }
 }
+
+test('gives the text on each side of a color its own key', () => {
+    const element = LinkifiedText({
+        text: 'Brand #ff8a4c, white',
+        mentions: {},
+    }) as ReactElement<{ children: unknown }>;
+    const parts = [element.props.children].flat(Infinity) as ReactElement[];
+    const keys = parts.map((part) => part.key);
+
+    assert.equal(parts.length, 3);
+    assert.equal(new Set(keys).size, keys.length, keys.join(', '));
+});

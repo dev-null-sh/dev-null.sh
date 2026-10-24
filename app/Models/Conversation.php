@@ -38,6 +38,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read int $partner_read_through_id
  * @property-read CarbonInterface|null $partner_read_at
  * @property-read CarbonInterface|null $archived_at
+ * @property-read CarbonInterface|null $pinned_at
  * @property-read CarbonInterface|null $muted_until_at
  */
 final class Conversation extends Model
@@ -113,6 +114,7 @@ final class Conversation extends Model
             'partner_read_through_id' => 'integer',
             'partner_read_at' => 'datetime',
             'archived_at' => 'datetime',
+            'pinned_at' => 'datetime',
             'muted_until_at' => 'datetime',
         ];
     }

@@ -43,7 +43,7 @@ function conversation(id: number, changes: Partial<ConversationSummary> = {}): C
         last_incoming_message_id: id,
         last_incoming_sender: 'Alice',
         last_message_at: new Date(time).toISOString(), ahead: 1,
-        partner_read_through_id: 0, partner_read_at: null, is_archived: false, muted_until_at: null,
+        partner_read_through_id: 0, partner_read_at: null, is_archived: false, pinned_at: null, muted_until_at: null,
         ...changes,
     };
 }
@@ -788,7 +788,7 @@ test('an unfocused window does not mark incoming messages read before it can ale
     seedThread(target, {
         messages: [conversation(50).last_message!], has_older: false,
         reactions_version: 0, reaction_changes: [], read_through_id: 0,
-        members: [], typing: [], is_archived: false, muted_until_at: null,
+        members: [], typing: [], is_archived: false, pinned_at: null, muted_until_at: null,
         role: 'contributor', access: 'open',
     });
 
@@ -797,4 +797,32 @@ test('an unfocused window does not mark incoming messages read before it can ale
     focused = true;
     markThreadRead(target);
     assert.equal(chatSnapshot().threads['org:unfocused-org'].read_through_id, 50);
+});
+
+
+test('alerts from recent activity even when older pins occupy the visible first page', async () => {
+    vi.useFakeTimers();
+    Object.assign(window, { setTimeout, clearTimeout });
+    vi.stubGlobal('document', { hidden: true, cookie: '', addEventListener() {}, removeEventListener() {} });
+    await setRemoteAlerts('me', true);
+    let incoming = conversation(100, { id: 'recent-unpinned', kind: 'org' });
+    const pinned = conversation(10, { id: 'old-pinned', kind: 'org', pinned_at: '2026-10-23T10:00:00Z' });
+    const requested: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+        requested.push(url);
+        return Response.json({ conversations: [pinned], notification_conversations: [incoming], notification_baseline: { 'recent-unpinned': 100, 'old-pinned': 10 }, has_more: true, unread: 2, requests: 0 });
+    });
+    const stop = watchRemoteAlerts('me');
+    try {
+        await vi.advanceTimersByTimeAsync(0);
+        incoming = conversation(101, { id: 'recent-unpinned', kind: 'org' });
+        await vi.advanceTimersByTimeAsync(15_000);
+        assert.equal(shown.length, 1);
+        assert.equal(play.mock.calls.length, 1);
+        assert.equal(chatSnapshot().conversations?.[0].id, 'old-pinned');
+        assert.ok(requested.every((url) => url.includes('notification_conversations=1')));
+    } finally {
+        stop();
+        vi.useRealTimers();
+    }
 });

@@ -69,6 +69,7 @@ import {
     toggleReaction,
 } from '@/lib/chat';
 import type { ChatTarget, PendingMessage } from '@/lib/chat';
+import { isBehindLatest } from '@/lib/chat-scroll';
 import { formatCount } from '@/lib/numbers';
 import { pullsOf, statusMessageOf } from '@/lib/pulls';
 import { doubleTapReaction } from '@/lib/reactions';
@@ -172,6 +173,7 @@ export function ConversationThread({
     const seenLatest = useRef(0);
     const [unseen, setUnseen] = useState(0);
     const [isBrowsingHistory, setIsBrowsingHistory] = useState(false);
+    const [isScrolledBack, setIsScrolledBack] = useState(false);
     const [isJumping, setIsJumping] = useState(false);
     const jumpRequest = useRef<AbortController | null>(null);
 
@@ -208,6 +210,15 @@ export function ConversationThread({
     const draft = useMessageDraft(user, current);
     const replyingTo = thread?.replyingTo ?? null;
     const members = thread?.members;
+
+    const updateScrollPosition = useCallback(() => {
+        setIsScrolledBack(
+            scroller.current !== null &&
+                isBehindLatest(scroller.current, messages),
+        );
+    }, [messages]);
+
+    useLayoutEffect(updateScrollPosition, [updateScrollPosition, isVisible]);
 
     useLayoutEffect(() => {
         isReplyResizing.current = true;
@@ -448,6 +459,8 @@ export function ConversationThread({
                 restoreScrollAnchor(element, anchor.current);
                 restoredScrollTop.current = element.scrollTop;
             }
+
+            updateScrollPosition();
         });
 
         const onWheel = (event: WheelEvent) => {
@@ -484,7 +497,7 @@ export function ConversationThread({
             element.removeEventListener('wheel', onWheel);
             element.removeEventListener('touchmove', releaseScrollAnchor);
         };
-    }, [releaseScrollAnchor, thread?.isLoaded]);
+    }, [releaseScrollAnchor, thread?.isLoaded, updateScrollPosition]);
 
     const onScroll = () => {
         const element = scroller.current;
@@ -492,6 +505,8 @@ export function ConversationThread({
         if (element === null) {
             return;
         }
+
+        updateScrollPosition();
 
         // A correction during the reply fold is not an intentional scroll, even while it is close to the bottom.
         if (
@@ -537,6 +552,7 @@ export function ConversationThread({
         jumpRequest.current = null;
         setIsJumping(false);
         setIsBrowsingHistory(false);
+        setIsScrolledBack(false);
         anchor.current = null;
         sentAnchor.current = null;
         isFollowingSend.current = false;
@@ -645,12 +661,14 @@ export function ConversationThread({
                 )}
             </div>
 
-            {(isBrowsingHistory || unseen > 0) && (
+            {(isBrowsingHistory || isScrolledBack || unseen > 0) && (
                 <button
                     type="button"
                     onClick={jumpToLatest}
                     aria-label={
-                        isBrowsingHistory ? 'Back to present' : undefined
+                        isBrowsingHistory || unseen === 0
+                            ? 'Back to present'
+                            : undefined
                     }
                     className="absolute bottom-[calc(var(--composer-height,4rem)+2.5rem)] left-1/2 flex min-h-9 -translate-x-1/2 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium whitespace-nowrap text-primary-foreground shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
@@ -659,7 +677,9 @@ export function ConversationThread({
                     ) : (
                         <ArrowDown aria-hidden className="size-3.5" />
                     )}
-                    {isBrowsingHistory ? 'Back to present' : `${unseen} new`}
+                    {isBrowsingHistory || unseen === 0
+                        ? 'Back to present'
+                        : `${unseen} new`}
                     {isJumping && (
                         <span className="sr-only" role="status">
                             Loading original message
@@ -689,7 +709,7 @@ export function ConversationThread({
                         setIsJumping(false);
                         setIsBrowsingHistory(false);
                         sentAnchor.current =
-                            scroller.current === null
+                            scroller.current === null || isPinned.current
                                 ? null
                                 : scrollAnchorOf(scroller.current);
                         isPinned.current = true;

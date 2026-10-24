@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CreateTomFriendship;
 use App\Actions\UpdateCommitStatuses;
+use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\ReplyAsTom;
@@ -103,7 +104,7 @@ it('lifts the thread when a reply is approved', function (): void {
     resolve(UpdateCommitStatuses::class)->handle([$reply->id], CommitStatus::Approved);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 0, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
 });
 
 it('lifts the quoted thread when a quote is approved', function (): void {
@@ -113,5 +114,5 @@ it('lifts the quoted thread when a quote is approved', function (): void {
     resolve(UpdateCommitStatuses::class)->handle([$quote->id], CommitStatus::Approved);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 1, repliers: 0, repliersAnsweredByAuthor: 0)), 1e-9);
 });

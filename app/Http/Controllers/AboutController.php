@@ -11,7 +11,7 @@ use Inertia\Response;
 
 final readonly class AboutController
 {
-    public function show(PageMetadata $metadata, ContributorsQuery $contributors): Response
+    public function show(ContributorsQuery $contributors, PageMetadata $metadata): Response
     {
         return Inertia::render('about/show', [
             'contributors' => $contributors->get(...),

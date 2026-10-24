@@ -334,7 +334,7 @@ function Contributors({ contributors }: { contributors: StoryContributor[] }) {
 export default function Show({
     contributors,
 }: {
-    contributors: StoryContributor[];
+    contributors: StoryContributor[] | null;
 }) {
     const { repository } = usePage().props;
     return (
@@ -427,7 +427,13 @@ export default function Show({
 
                 <DocumentSection id="contributors" title="Contributors">
                     <p>Everyone who has a commit on production. Thank you.</p>
-                    <Contributors contributors={contributors} />
+                    {contributors ? (
+                        <Contributors contributors={contributors} />
+                    ) : (
+                        <p className="text-muted-foreground">
+                            GitHub couldn't be reached. Try again in a minute.
+                        </p>
+                    )}
                     <p className="text-muted-foreground">
                         Want to be on this list?{' '}
                         <a

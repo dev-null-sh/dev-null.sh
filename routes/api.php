@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\ConversationDropController;
 use App\Http\Controllers\Api\ConversationMergeController;
 use App\Http\Controllers\Api\ConversationMessageController;
 use App\Http\Controllers\Api\ConversationMuteController;
+use App\Http\Controllers\Api\ConversationPinController;
 use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
@@ -30,6 +31,7 @@ use App\Http\Controllers\Api\OrgArchiveController;
 use App\Http\Controllers\Api\OrgController;
 use App\Http\Controllers\Api\OrgMessageController;
 use App\Http\Controllers\Api\OrgMuteController;
+use App\Http\Controllers\Api\OrgPinController;
 use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\OrgTypingController;
 use App\Http\Controllers\Api\RemoteCandidateController;
@@ -189,9 +191,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 ->name('api-org-archive.destroy');
             Route::put('remotes/@{partner:username}/mute', [ConversationMuteController::class, 'update'])
                 ->name('api-conversation-mute.update');
+            Route::put('remotes/@{partner:username}/pin', [ConversationPinController::class, 'update'])
+                ->name('api-conversation-pin.update');
             Route::put('remotes/orgs/{org}/mute', [OrgMuteController::class, 'update'])
                 ->whereUuid('org')
                 ->name('api-org-mute.update');
+            Route::put('remotes/orgs/{org}/pin', [OrgPinController::class, 'update'])
+                ->whereUuid('org')
+                ->name('api-org-pin.update');
             Route::post('remotes/@{partner:username}/merge', [ConversationMergeController::class, 'store'])
                 ->name('api-conversation-merge.store');
             Route::post('remotes/@{partner:username}/drop', [ConversationDropController::class, 'store'])
