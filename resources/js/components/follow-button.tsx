@@ -69,28 +69,35 @@ export function useFollowHover() {
     };
 }
 
-const isFollowingKey = (user: Pick<User, 'id'>): string =>
-    `is_following:${user.id}`;
+type FollowUser =
+    | { id: string; username?: string }
+    | { id?: string; username: string };
+
+const userKey = (user: FollowUser): string =>
+    user.id ?? ('username' in user && user.username ? user.username : '');
+
+const isFollowingKey = (user: FollowUser): string =>
+    `is_following:${userKey(user)}`;
 
 /**
  * Every follow control shares whether you follow someone, so a follow from a profile or a preview also shows in "Who to follow".
  */
 export function useIsFollowing(
-    user: Pick<User, 'id'>,
+    user: FollowUser,
     isFollowing: boolean,
 ): [boolean, (isFollowing: boolean) => void] {
     return useSharedState(isFollowingKey(user), isFollowing);
 }
 
-const isPendingKey = (user: Pick<User, 'id'>): string =>
-    `follow_pending:${user.id}`;
+const isPendingKey = (user: FollowUser): string =>
+    `follow_pending:${userKey(user)}`;
 
-const hasBlockKey = (user: Pick<User, 'id'>): string => `has_block:${user.id}`;
+const hasBlockKey = (user: FollowUser): string => `has_block:${userKey(user)}`;
 
 /**
  * Whether this tab has seen a block between you, either way: one you made, or a follow the server refused.
  */
-export function useHasBlockWith(user: Pick<User, 'id'>): boolean {
+export function useHasBlockWith(user: FollowUser): boolean {
     const [hasBlock] = useSharedState(hasBlockKey(user), false);
 
     return hasBlock;
@@ -99,7 +106,7 @@ export function useHasBlockWith(user: Pick<User, 'id'>): boolean {
 /**
  * A block works both ways and ends the follow.
  */
-export function rememberBlock(user: Pick<User, 'id'>): void {
+export function rememberBlock(user: FollowUser): void {
     refreshSharedState(
         new Map([
             [isFollowingKey(user), false],
@@ -112,9 +119,15 @@ export function rememberBlock(user: Pick<User, 'id'>): void {
  * The server only refuses a follow across a block, which a suggestion can't know about until it tries, so it toasts instead of swapping in the 403 page.
  */
 export function onFollowHttpException(
-    user: Pick<User, 'id' | 'username'>,
+    user: Pick<User, 'username'> & { id?: string },
     response: { status: number },
 ): boolean {
+    if (response.status === 404) {
+        toast.error(`@${user.username} hasn't joined /dev/null yet.`);
+
+        return false;
+    }
+
     if (response.status !== 403) {
         return !toastWhenThrottled(response);
     }
@@ -262,7 +275,7 @@ export function FollowIconButton({
     marksFollowsYou = false,
     ...props
 }: {
-    user: Pick<User, 'id' | 'username'>;
+    user: Pick<User, 'username'> & { id?: string };
     isFollowing: boolean;
     followsYou?: boolean;
     marksFollowsYou?: boolean;
@@ -270,13 +283,34 @@ export function FollowIconButton({
 }) {
     const {
         component,
-        props: { log, commits },
+        props: { auth, log, commits },
     } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const [isFollowing, setIsFollowing] = useIsFollowing(
         user,
         initialIsFollowing,
     );
     const Icon = isFollowing ? UserCheck : UserPlus;
+
+    if (auth.user === null) {
+        return (
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <button
+                        type="button"
+                        onClick={signIn}
+                        aria-label={`Follow @${user.username}`}
+                        className={cn(
+                            'shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                        )}
+                        {...props}
+                    >
+                        <Icon aria-hidden className="size-4" />
+                    </button>
+                </TooltipTrigger>
+                <TooltipContent>{`Follow @${user.username}`}</TooltipContent>
+            </Tooltip>
+        );
+    }
 
     return (
         <Tooltip>
