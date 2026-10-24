@@ -100,6 +100,39 @@ it('limits each address to 60 device redemptions a minute, before their signatur
         ->and($limit->decaySeconds)->toBe(60);
 });
 
+it('limits each address to 300 polls of a terminal sign-in a minute, before their signatures are checked', function (): void {
+    $request = Request::create('/api/v1/devices', 'POST', server: ['REMOTE_ADDR' => '203.0.113.7', 'CONTENT_TYPE' => 'application/json'], content: '{"device_code":"the-device-code"}');
+
+    $limiter = RateLimiter::limiter('devices');
+
+    assert($limiter instanceof Closure);
+
+    $limit = $limiter($request);
+
+    expect($limit)->toBeInstanceOf(Limit::class)
+        ->and($limit->key)->toBe('device-polls:203.0.113.7')
+        ->and($limit->maxAttempts)->toBe(300)
+        ->and($limit->decaySeconds)->toBe(60);
+});
+
+it('limits each user to 20 device code lookups and decisions a minute', function (): void {
+    $user = User::factory()->create();
+
+    $request = Request::create('/activate', 'POST');
+    $request->setUserResolver(fn (): User => $user);
+
+    $limiter = RateLimiter::limiter('device-activations');
+
+    assert($limiter instanceof Closure);
+
+    $limit = $limiter($request);
+
+    expect($limit)->toBeInstanceOf(Limit::class)
+        ->and($limit->key)->toBe($user->id)
+        ->and($limit->maxAttempts)->toBe(20)
+        ->and($limit->decaySeconds)->toBe(60);
+});
+
 it('limits each user to 10 approvals of the devnull app a minute', function (): void {
     $user = User::factory()->create();
 

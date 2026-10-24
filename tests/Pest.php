@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateDeviceAuthorization;
+use App\Dto\DeviceAuthorization;
 use App\Dto\SshPublicKey;
 use App\Jobs\UnfurlLink;
 use App\Models\Device;
@@ -445,4 +447,15 @@ function apiKeyPairFor(User $user): SshKeyPair
     Device::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
 
     return $keyPair;
+}
+
+/**
+ * Starts a sign-in from a terminal for a key, as POST /api/v1/device-authorizations does, and returns what it hands
+ * out: the device code the terminal polls with, and the authorization behind it, with the code the user types.
+ *
+ * @return array{device_code: string, authorization: DeviceAuthorization}
+ */
+function pendingDeviceAuthorization(string $fingerprint = 'SHA256:key', string $deviceName = 'devnull on a laptop'): array
+{
+    return resolve(CreateDeviceAuthorization::class)->handle($fingerprint, $deviceName);
 }

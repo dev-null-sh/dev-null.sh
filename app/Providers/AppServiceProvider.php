@@ -103,11 +103,17 @@ final class AppServiceProvider extends ServiceProvider
         });
 
         // Redeeming a code for a device is limited per key once the signature checks out. Before that, each address gets
-        // a ceiling, so unsigned or badly signed requests can't force signature checks...
-        RateLimiter::for('devices', fn (Request $request): Limit => Limit::perMinute(60)->by((string) $request->ip())->response($rateLimited));
+        // a ceiling, so unsigned or badly signed requests can't force signature checks. Terminals polling for their
+        // sign-in every few seconds share an address more often than phones do, so they get a ceiling of their own...
+        RateLimiter::for('devices', fn (Request $request): Limit => $request->filled('device_code')
+            ? Limit::perMinute(300)->by('device-polls:'.$request->ip())->response($rateLimited)
+            : Limit::perMinute(60)->by((string) $request->ip())->response($rateLimited));
 
         // Approving the devnull app on the web hands out a code each time...
         RateLimiter::for('mobile-authorizations', fn (Request $request): Limit => Limit::perMinute(10)->by($this->userId($request)));
+
+        // Looking up the code a terminal shows is where one could be guessed, so each user gets a few tries...
+        RateLimiter::for('device-activations', fn (Request $request): Limit => Limit::perMinute(20)->by($this->userId($request)));
 
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
         RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));

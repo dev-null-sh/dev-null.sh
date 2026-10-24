@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 use App\Actions\CreateAuthorizationCode;
 use App\Actions\CreateDevice;
+use App\Actions\CreateDeviceActivation;
 use App\Dto\AuthorizationCode;
+use App\Dto\DeviceAuthorization;
 use App\Dto\MobileAuthorization;
+use App\Enums\DeviceAuthorizationStatus;
 use App\Models\Device;
 use App\Models\SshKey;
 use App\Models\User;
@@ -13,6 +16,7 @@ use Illuminate\Cache\Events\CacheHit;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Testing\TestResponse;
 use Tests\Support\SshKeyPair;
 
@@ -185,4 +189,164 @@ it('limits each address to 60 tries a minute, before checking signatures', funct
     $this->postJson(route('api-device.store'))
         ->assertTooManyRequests()
         ->assertJsonPath('code', 'rate_limited');
+});
+
+describe('polling a sign-in started from a terminal', function (): void {
+    beforeEach(function (): void {
+        ['device_code' => $this->deviceCode, 'authorization' => $this->authorization] = pendingDeviceAuthorization($this->keyPair->publicKey->fingerprint(), 'devnull on a laptop');
+    });
+
+    it('says the user has not decided yet', function (): void {
+        signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['device_code' => $this->deviceCode])
+            ->assertBadRequest()
+            ->assertExactJson([
+                'message' => 'Waiting for the device to be approved on the web.',
+                'code' => 'authorization_pending',
+            ]);
+
+        expect(Device::query()->exists())->toBeFalse();
+    });
+
+    it('tells a terminal asking again sooner than the interval to slow down, and the interval to use from then on', function (): void {
+        signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['device_code' => $this->deviceCode])
+            ->assertJsonPath('code', 'authorization_pending');
+
+        signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['device_code' => $this->deviceCode])
+            ->assertBadRequest()
+            ->assertExactJson([
+                'message' => 'Asking too often. Wait 10 seconds between tries from now on.',
+                'code' => 'slow_down',
+                'interval' => 10,
+            ]);
+
+        $this->travel(3)->seconds();
+
+        signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['device_code' => $this->deviceCode])
+            ->assertJsonPath('code', 'slow_down');
+
+        $this->travel(1)->seconds();
+
+        signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['device_code' => $this->deviceCode])
+            ->assertJsonPath('code', 'authorization_pending');
+    });
+
+    it('finds the device the user approved on the web, and answers like me', function (): void {
+        resolve(CreateDeviceActivation::class)->handle($this->user, $this->authorization, DeviceAuthorizationStatus::Approved);
+
+        $response = signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['device_code' => $this->deviceCode]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.id', $this->user->id)
+            ->assertJsonPath('data.username', 'octocat')
+            ->assertJsonPath('data.commits_count', 0)
+            ->assertJsonPath('unread_notifications_count', 0);
+
+        $device = Device::query()->sole();
+
+        expect($device->user_id)->toBe($this->user->id)
+            ->and($device->fingerprint)->toBe($this->keyPair->publicKey->fingerprint())
+            ->and($device->name)->toBe('devnull on a laptop');
+
+        signedApiRequest($this->keyPair, 'GET', route('api-current-user.show'))
+            ->assertOk()
+            ->assertJsonPath('data.id', $this->user->id);
+
+        Http::assertNothingSent();
+    });
+
+    it('answers the same again while the sign-in lasts', function (): void {
+        resolve(CreateDeviceActivation::class)->handle($this->user, $this->authorization, DeviceAuthorizationStatus::Approved);
+
+        signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['device_code' => $this->deviceCode])->assertOk();
+
+        $this->travel(DeviceAuthorization::INTERVAL_SECONDS)->seconds();
+
+        signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['device_code' => $this->deviceCode])
+            ->assertOk()
+            ->assertJsonPath('data.id', $this->user->id);
+
+        expect(Device::query()->count())->toBe(1);
+    });
+
+    it('says the user denied the device', function (): void {
+        resolve(CreateDeviceActivation::class)->handle($this->user, $this->authorization, DeviceAuthorizationStatus::Denied);
+
+        signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['device_code' => $this->deviceCode])
+            ->assertBadRequest()
+            ->assertExactJson([
+                'message' => 'The device was denied on the web. Start the sign-in again if that was a mistake.',
+                'code' => 'access_denied',
+            ]);
+
+        expect(Device::query()->exists())->toBeFalse();
+    });
+
+    it('refuses a device code it cannot redeem, the same way whatever is wrong with it', function (Closure $request): void {
+        $response = $request($this);
+
+        $response->assertBadRequest()
+            ->assertExactJson([
+                'message' => 'This sign-in has expired or was already used. Sign in again in the app.',
+                'code' => 'invalid_grant',
+            ]);
+    })->with([
+        'an unknown device code' => fn ($test): TestResponse => signedApiRequest($test->keyPair, 'POST', route('api-device.store'), ['device_code' => 'another-code']),
+        'another key' => fn ($test): TestResponse => signedApiRequest(SshKeyPair::generate(), 'POST', route('api-device.store'), ['device_code' => $test->deviceCode]),
+        'an expired sign-in' => function ($test): TestResponse {
+            $test->travel(DeviceAuthorization::EXPIRES_AFTER_MINUTES)->minutes();
+
+            return signedApiRequest($test->keyPair, 'POST', route('api-device.store'), ['device_code' => $test->deviceCode]);
+        },
+        'a device revoked since the user approved it' => function ($test): TestResponse {
+            resolve(CreateDeviceActivation::class)->handle($test->user, $test->authorization, DeviceAuthorizationStatus::Approved);
+            Device::query()->delete();
+
+            return signedApiRequest($test->keyPair, 'POST', route('api-device.store'), ['device_code' => $test->deviceCode]);
+        },
+        'a user deleted since they approved it' => function ($test): TestResponse {
+            resolve(CreateDeviceActivation::class)->handle($test->user, $test->authorization, DeviceAuthorizationStatus::Approved);
+            $test->user->delete();
+
+            return signedApiRequest($test->keyPair, 'POST', route('api-device.store'), ['device_code' => $test->deviceCode]);
+        },
+    ]);
+
+    it('refuses a sign-in started by another key, and leaves it for that key', function (): void {
+        signedApiRequest(SshKeyPair::generate(), 'POST', route('api-device.store'), ['device_code' => $this->deviceCode])
+            ->assertJsonPath('code', 'invalid_grant');
+
+        resolve(CreateDeviceActivation::class)->handle($this->user, $this->authorization, DeviceAuthorizationStatus::Approved);
+
+        signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['device_code' => $this->deviceCode])
+            ->assertOk();
+    });
+
+    it('validates the device code next to the code and its verifier', function (array $data, array $fields): void {
+        signedApiRequest($this->keyPair, 'POST', route('api-device.store'), $data)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors($fields);
+    })->with([
+        'neither a code nor a device code' => [['code_verifier' => str_repeat('a', 43)], ['code', 'device_code']],
+        'a code and a device code' => [['code' => 'the-code', 'code_verifier' => str_repeat('a', 43), 'device_code' => 'the-device-code'], ['code']],
+        'a device code that is not text' => [['device_code' => ['the-device-code']], ['device_code']],
+    ]);
+
+    it('redeems a code the usual way when the device code is empty', function (): void {
+        signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier, 'device_code' => ''])
+            ->assertOk()
+            ->assertJsonPath('data.id', $this->user->id);
+
+        expect(RateLimiter::attempts("devices:{$this->keyPair->publicKey->fingerprint()}"))->toBe(1);
+    });
+
+    it("never counts polls against the key's tries at redeeming a code", function (): void {
+        foreach (range(1, 13) as $attempt) {
+            signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['device_code' => $this->deviceCode])->assertBadRequest();
+        }
+
+        signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier])
+            ->assertOk();
+
+        expect(RateLimiter::attempts("devices:{$this->keyPair->publicKey->fingerprint()}"))->toBe(1);
+    });
 });

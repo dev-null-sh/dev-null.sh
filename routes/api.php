@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\ConversationPinController;
 use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
+use App\Http\Controllers\Api\DeviceAuthorizationController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\MessageImageController;
@@ -94,6 +95,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         ->withoutMiddleware('throttle:api')
         ->middleware('signed:relative')
         ->name('api-message-image.show');
+
+    // Signing in from a terminal: the key that isn't approved yet asks for a code the user types on the web...
+    Route::post('device-authorizations', [DeviceAuthorizationController::class, 'store'])
+        ->withoutMiddleware('throttle:api')
+        ->middleware('throttle:devices')
+        ->name('api-device-authorization.store');
 
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {

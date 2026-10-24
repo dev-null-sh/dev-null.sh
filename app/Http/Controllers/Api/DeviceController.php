@@ -16,12 +16,13 @@ use Illuminate\Support\Facades\Auth;
 final readonly class DeviceController
 {
     /**
-     * Approves the key that signed the request as a device, for the user who approved the app on the web, and answers
-     * as GET /api/v1/me does. A code redeemed by another request in the meantime gets the same answer as a wrong one.
+     * Approves the key that signed the request as a device, for the user who approved the app on the web, or finds
+     * the device the user approved on the web for a terminal's sign-in, and answers as GET /api/v1/me does. A code
+     * redeemed by another request in the meantime gets the same answer as a wrong one.
      */
     public function store(CreateApiDeviceRequest $request, CreateDevice $action, NotificationGroupsQuery $notifications): CurrentUserResource|JsonResponse
     {
-        $device = $action->handle($request->authorizationCode());
+        $device = $request->device() ?? $action->handle($request->authorizationCode());
 
         if (! $device instanceof Device) {
             return ApiException::invalidGrant()->render();
