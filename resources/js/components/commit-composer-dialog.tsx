@@ -1,3 +1,5 @@
+import { router } from '@inertiajs/react';
+import { useEffect } from 'react';
 import { CommitComposer } from '@/components/commit-composer';
 import {
     Dialog,
@@ -57,6 +59,14 @@ export function CommitComposerDialog({
         setClosedCount((count) => count + 1);
     };
 
+    // The layout persists across visits, so the dialog would otherwise stay over the page a profile link leads to. The
+    // draft is in the stash, so leaving it does not need the cleanup that closing after a commit does.
+    useEffect(
+        () =>
+            open ? router.on('navigate', () => onOpenChange(false)) : undefined,
+        [open, onOpenChange],
+    );
+
     return (
         <Dialog
             open={open}
@@ -83,7 +93,7 @@ export function CommitComposerDialog({
                         if (
                             event.target instanceof Element &&
                             event.target.closest(
-                                '[data-mention-suggestions], [data-command-suggestions]',
+                                '[data-mention-suggestions], [data-command-suggestions], [data-user-preview]',
                             )
                         ) {
                             event.preventDefault();

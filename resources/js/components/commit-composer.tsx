@@ -38,6 +38,7 @@ import {
 } from '@/components/schedule-picker';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
+import { UserPreview } from '@/components/user-preview';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import type { UseLinkCardReturn } from '@/hooks/use-link-card';
@@ -193,13 +194,16 @@ function CommitComposerBody({
                     isInDialog ? (
                         <RailAvatar user={user} progress={progress} />
                     ) : (
-                        <Link
-                            href={show(user)}
-                            aria-label="View your profile"
-                            className="flex rounded-full"
-                        >
-                            <RailAvatar user={user} progress={progress} />
-                        </Link>
+                        <UserPreview user={user} className="flex">
+                            <Link
+                                href={show(user)}
+                                tabIndex={-1}
+                                aria-label="View your profile"
+                                className="flex rounded-full"
+                            >
+                                <RailAvatar user={user} progress={progress} />
+                            </Link>
+                        </UserPreview>
                     )
                 }
             />

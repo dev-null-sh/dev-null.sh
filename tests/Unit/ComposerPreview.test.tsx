@@ -149,7 +149,7 @@ function renderComposer(body: string, isInDialog = false): string {
                                 user: {
                                     id: 'preview-user',
                                     name: 'Preview User',
-                                    username: 'previewuser',
+                                    username: 'preview-user',
                                     lane: 0,
                                 },
                                 log: {},
@@ -192,7 +192,7 @@ for (const count of [1, 2, 3, 3850]) {
 
 test('links the composer avatar to the author profile', () => {
     const markup = renderComposer('');
-    const avatar = markup.match(/<a[^>]*href="\/@previewuser"[^>]*>/)?.[0];
+    const avatar = markup.match(/<a[^>]*href="\/@preview-user"[^>]*>/)?.[0];
 
     assert.ok(avatar);
     assert.ok(avatar.includes('aria-label="View your profile"'));
@@ -201,7 +201,7 @@ test('links the composer avatar to the author profile', () => {
 test('keeps the composer avatar unlinked inside the dialog', () => {
     const markup = renderComposer('', true);
 
-    assert.ok(!markup.includes('href="/@previewuser"'));
+    assert.ok(!markup.includes('href="/@preview-user"'));
 });
 
 test('previews the chosen link card instead of the first link in the body', () => {
@@ -273,6 +273,15 @@ test('ordinary drafts retain preview without a sensitive text warning', () => {
     const markup = renderComposer('Shipped a small fix');
     assert.ok(markup.includes('data-test="preview-toggle"'));
     assert.ok(!markup.includes('aria-label="Sensitive text warning"'));
+});
+
+test('links the composer avatar to the author profile', () => {
+    const markup = renderComposer('Shipped a small fix');
+    const avatar = markup.match(
+        /<span[^>]*><a[^>]*href="\/@preview-user"[^>]*>/,
+    )?.[0];
+
+    assert.ok(avatar);
 });
 
 for (const isAdmin of [false, true]) {
