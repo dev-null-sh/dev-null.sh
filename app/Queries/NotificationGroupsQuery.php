@@ -22,6 +22,8 @@ final readonly class NotificationGroupsQuery
 
     private const int STACKED_ACTORS = 3;
 
+    private const array GROUP_COLUMNS = ['group_id', 'actor_position', 'group_rank', 'event_count', 'actors_count', 'unread_count'];
+
     /** @return CursorPaginator<int, Notification> */
     public function paginate(User $user, string $type = 'all', ?CarbonImmutable $through = null): CursorPaginator
     {
@@ -31,7 +33,7 @@ final readonly class NotificationGroupsQuery
             ->selectRaw("NTH_VALUE(actor_id, 2) OVER ({$order}) AS second_actor_id")
             ->selectRaw("NTH_VALUE(actor_id, 3) OVER ({$order}) AS third_actor_id");
 
-        $query = Notification::query()->fromSub($events, 'notifications')
+        $query = $this->withNotifications($events, ['second_actor_id', 'third_actor_id'])
             ->where('group_rank', 1)
             ->with([
                 'actor' => fn (BelongsTo $query): BelongsTo => $query
@@ -93,13 +95,13 @@ final readonly class NotificationGroupsQuery
         $oldestUnread = $this->visible($user)->unread()->oldest()->first();
 
         return $oldestUnread instanceof Notification
-            ? $this->groupsSince($user, $oldestUnread->created_at, $type)->where('group_rank', 1)->where('unread_count', '>', 0)->count()
+            ? $this->groupsSince($user, $oldestUnread->created_at, $type)->whereNull('read_at')->distinct()->count('group_id')
             : 0;
     }
 
     public function members(User $user, Notification $notification, string $type = 'all'): NotificationBuilder
     {
-        return $this->group($this->visible($user), $type, $notification)
+        return $this->withNotifications($this->group($this->visible($user), $type, $notification))
             ->with(['actor' => fn (BelongsTo $query): BelongsTo => $query
                 ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)])]);
     }
@@ -121,7 +123,25 @@ final readonly class NotificationGroupsQuery
 
     private function visible(User $user): NotificationBuilder
     {
-        return Notification::query()->where('recipient_id', $user->id)->relevant()->select('notifications.*');
+        return Notification::query()->where('recipient_id', $user->id)->relevant()->select([
+            'notifications.id', 'notifications.recipient_id', 'notifications.actor_id', 'notifications.commit_id',
+            'notifications.type', 'notifications.created_at', 'notifications.read_at',
+        ]);
+    }
+
+    /**
+     * Grouping only reads the columns visible() selects. Sorting whole notifications through its windows costs more
+     * than looking them up by id once the caller has narrowed the groups down.
+     *
+     * @param  list<string>  $columns
+     */
+    private function withNotifications(NotificationBuilder $grouped, array $columns = []): NotificationBuilder
+    {
+        $notifications = Notification::query()->select('notifications.*')
+            ->addSelect(array_map(fn (string $column): string => "grouped.{$column}", [...self::GROUP_COLUMNS, ...$columns]))
+            ->joinSub($grouped, 'grouped', 'grouped.id', '=', 'notifications.id');
+
+        return Notification::query()->fromSub($notifications, 'notifications')->withCasts(['event_count' => 'integer']);
     }
 
     private function group(NotificationBuilder $visible, string $type = 'all', ?Notification $member = null): NotificationBuilder
@@ -151,7 +171,8 @@ final readonly class NotificationGroupsQuery
         // Deleted ancestors supply grouping identity only; content comes from relevant notifications. A commit's
         // recorded root is always one of its ancestors, so the walk up the thread only continues past it when the
         // recorded root is itself a reply. Follows never group across days, as a busy account gets followed so often
-        // that its follows would otherwise never stop joining a single group.
+        // that its follows would otherwise never stop joining a single group. The windows over the whole history sit in
+        // their own CTE, so the per-topic windows after them share a single sort.
         $sql = <<<SQL
             WITH RECURSIVE visible AS ({$visible->toSql()}),
             threads AS (
@@ -179,12 +200,16 @@ final readonly class NotificationGroupsQuery
                 FROM visible LEFT JOIN threads ON threads.notification_id = visible.id
                 LEFT JOIN ancestry ON ancestry.notification_id = visible.id AND ancestry.parent_id IS NULL
             ),
-            predecessors AS (
-                SELECT id, topic_kind, topic_id, topic_day, created_at,
-                    LAG(created_at) OVER (PARTITION BY topic_kind, topic_id, topic_day ORDER BY created_at, id) AS previous_match_at,
+            ordered AS (
+                SELECT topics.*,
                     LAG(topic_kind) OVER (ORDER BY created_at, id) AS previous_topic_kind,
                     LAG(topic_id) OVER (ORDER BY created_at, id) AS previous_topic_id
                 FROM topics
+            ),
+            predecessors AS (
+                SELECT id, topic_kind, topic_id, topic_day, created_at, previous_topic_kind, previous_topic_id,
+                    LAG(created_at) OVER (PARTITION BY topic_kind, topic_id, topic_day ORDER BY created_at, id) AS previous_match_at
+                FROM ordered
             ),
             sessions AS (
                 SELECT id, topic_kind, topic_id, topic_day, created_at,
@@ -217,8 +242,7 @@ final readonly class NotificationGroupsQuery
             SQL;
 
         return Notification::query()->fromSub($sql, 'notifications')->addBinding($visible->getBindings(), 'from')
-            ->addBinding($filtered->getBindings(), 'from')
-            ->withCasts(['event_count' => 'integer']);
+            ->addBinding($filtered->getBindings(), 'from');
     }
 
     /** @param array<int, Notification> $groups */
