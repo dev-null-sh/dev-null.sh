@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
+use App\Services\Features;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 it('lists the ancestors of a commit from the root down', function (): void {
     $root = Commit::factory()->create();
@@ -78,6 +81,8 @@ it('limits the ancestors and points the oldest one at its parent', function (): 
 });
 
 it('loads ancestors in the same number of queries however deep the thread is', function (): void {
+    Queue::fake([DetectCommitLanguage::class]);
+    resolve(Features::class)->all();
     $viewer = User::factory()->create();
     $queriesFor = function (int $depth) use ($viewer): int {
         $commits = [Commit::factory()->create()];

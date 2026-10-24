@@ -19,8 +19,7 @@ Schedule::call(function (): void {
         $connection = config($store.'.connection');
 
         DB::connection($connection)->table(config()->string($store.'.table'))
-            ->where('key', 'like', config()->string('cache.prefix').'commit-translations:%')
             ->where('expiration', '<=', now()->getTimestamp())
             ->delete();
     }
-})->name('prune-commit-translations')->hourly();
+})->name('prune-expired-cache')->hourly();

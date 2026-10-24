@@ -84,20 +84,43 @@ export type TrafficRange = {
 
 export type MetricsRange = TrafficRange & { all_time: boolean };
 
-export type FunnelRate = 'conversion' | 'activation' | 'retention' | 'referral';
+export type FunnelRate = 'conversion' | 'activation' | 'retention';
+
+export type AcquisitionDay = {
+    date: string;
+    signups: number;
+    visitors: number | null;
+    converted: number | null;
+    complete: boolean;
+};
+
+export type ActivationDay = {
+    date: string;
+    activated: number;
+    eligible: number;
+    complete: boolean;
+};
 
 export type Funnel = {
     visitors: number | null;
     signups: number;
+    acquisition_by_day: AcquisitionDay[];
     activated: number;
     activation_eligible: number;
+    activation_by_day: ActivationDay[];
     retained: number;
     retention_eligible: number;
-    retention_horizon: 1 | 7 | 14 | null;
-    retention_full_on: string | null;
-    referral: { members: number; team: number } | null;
     rates: Record<FunnelRate, number | null>;
     changes: Record<FunnelRate, number | null>;
+};
+
+export type ActiveUserCount = {
+    date: string;
+    count: number;
+    returning: number;
+    activated: number;
+    not_activated: number;
+    pending: number;
 };
 
 export type ActiveUsers = {

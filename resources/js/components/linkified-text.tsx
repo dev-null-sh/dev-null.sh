@@ -1,42 +1,26 @@
 import { Link } from '@inertiajs/react';
 import type { ReactNode } from 'react';
+import { Fragment } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
+import { CertificateText } from '@/components/certificate-text';
 import { GitHubIcon } from '@/components/github-icon';
 import { UserPreview } from '@/components/user-preview';
-import { typedProse } from '@/lib/code';
+import { typedProse, withoutCode } from '@/lib/code';
+import type { Color } from '@/lib/colors';
+import { colorsIn } from '@/lib/colors';
 import { mentionPattern } from '@/lib/mentions';
-import { shortenUrl } from '@/lib/urls';
+import {
+    hrefFor,
+    shortenUrl,
+    urlPattern,
+    withoutTrailingPunctuation,
+} from '@/lib/urls';
 import { shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
-import type { Commit } from '@/types';
+import type { BodySegment, Commit } from '@/types';
 
-// Keep these rules in sync with app/Services/Urls.php and app/Services/Mentions.php.
-
-// Top-level domains that a bare domain like "nativephp.com" may end with. It is an allowlist because most file
-// extensions are also real TLDs. Leave out any that read like code or files (sh, py, rs, md, pl, cc, in, mk, ml, so,
-// tf, ps, am, cl, gd, cr, do, zip, mov, ...) or like a property in code (user.id, user.name, app.run, ...).
-const topLevelDomains = [
-    'com org net edu gov mil info biz io dev app co ai me xyz tech gg tv fm ly to is blog cloud site online design',
-    'studio tools software codes wiki news website club ninja rocks academy guide social digital agency fyi lol live',
-    'uk de fr nl es it pt br ca au jp ch se no dk fi be at ie nz us eu cz sk hu ro bg gr hr si ee lv lt ru ua tr il za',
-    'mx ar kr cn tw hk sg vn th',
-]
-    .join(' ')
-    .split(' ');
-
-// A URL with a scheme, or a bare domain: ASCII labels ending in an allowed TLD, optionally followed by a path, query or
-// fragment. A bare domain can't follow a letter, digit, "_", ".", "/", "@" or "-". Its TLD must be all lowercase or all
-// uppercase, and must end the word without a "(" or another label after it. There is no case-insensitive flag, so
-// that the TLD's case can be checked.
-const urlPattern = new RegExp(
-    String.raw`\b[Hh][Tt][Tt][Pp][Ss]?:\/\/[^\s<>]+` +
-        String.raw`|(?<![\p{L}\p{N}_.\/@-])(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+` +
-        String.raw`(?:${[...topLevelDomains, ...topLevelDomains.map((domain) => domain.toUpperCase())].join('|')})` +
-        String.raw`(?![\p{L}\p{N}_(-]|\.[A-Za-z0-9])(?:[\/?#][^\s<>]*)?`,
-    'gu',
-);
 // A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
 const commitLinkPattern =
     /^https?:\/\/(?:www\.)?dev-null\.sh\/@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/commits\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
@@ -53,44 +37,6 @@ const gitHubReservedPaths = new Set(
         .join(' ')
         .split(' '),
 );
-const schemePattern = /^https?:\/\//i;
-const maxUrlLength = 2048;
-const brackets = [
-    ['(', ')'],
-    ['[', ']'],
-] as const;
-
-function count(text: string, character: string): number {
-    return text.split(character).length - 1;
-}
-
-function withoutTrailingPunctuation(candidate: string): string {
-    let url = candidate;
-    let previous: string;
-
-    do {
-        previous = url;
-        url = url.replace(/[.,;:!?'"]+$/u, '');
-
-        for (const [open, close] of brackets) {
-            if (url.endsWith(close) && count(url, open) < count(url, close)) {
-                url = url.slice(0, -1);
-            }
-        }
-    } while (url !== previous);
-
-    return url;
-}
-
-function hrefFor(linkText: string): string | null {
-    const href = schemePattern.test(linkText)
-        ? linkText
-        : `https://${linkText}`;
-
-    return href.endsWith('://') || Array.from(href).length > maxUrlLength
-        ? null
-        : href;
-}
 
 /**
  * Every link in the prose being typed, in order and once each, as the server finds them for the link card.
@@ -109,6 +55,17 @@ export function typedLinks(text: string): string[] {
     }
 
     return [...links];
+}
+
+/**
+ * Whether the prose outside code mentions someone, by the same rules that link a mention.
+ */
+export function hasMention(segments: BodySegment[]): boolean {
+    return segments.some(
+        (segment) =>
+            segment.type === 'text' &&
+            segment.text.search(mentionPattern) !== -1,
+    );
 }
 
 // Like X, the hidden parts of a shortened URL stay in the text, so copying it or a screen reader gets the whole URL.
@@ -278,7 +235,7 @@ function GitHubLink({
 
 function withPasteis(text: string, pasteisMode: boolean): ReactNode {
     if (!pasteisMode) {
-        return text;
+        return <CertificateText text={text} />;
     }
 
     return text
@@ -287,7 +244,7 @@ function withPasteis(text: string, pasteisMode: boolean): ReactNode {
         )
         .map((part, index) =>
             index % 2 === 0 ? (
-                part
+                <CertificateText key={index} text={part} />
             ) : (
                 <img
                     key={index}
@@ -302,17 +259,23 @@ function withPasteis(text: string, pasteisMode: boolean): ReactNode {
         );
 }
 
-function withWordmarks(text: string, pasteisMode: boolean): ReactNode[] {
+function withWordmarks(
+    text: string,
+    offset: number,
+    pasteisMode: boolean,
+): ReactNode[] {
     return text
         .split(
             /(?<![\p{L}\p{M}\p{N}_./-])(\/dev\/null)(?![\p{L}\p{M}\p{N}_/-])/u,
         )
         .map((part, index) =>
             index % 2 === 0 ? (
-                withPasteis(part, pasteisMode)
+                <Fragment key={`text-${offset}-${index}`}>
+                    {withPasteis(part, pasteisMode)}
+                </Fragment>
             ) : (
                 <span
-                    key={`wordmark-${index}`}
+                    key={`wordmark-${offset}-${index}`}
                     title={part}
                     className="font-semibold tracking-tight whitespace-nowrap"
                 >
@@ -322,10 +285,60 @@ function withWordmarks(text: string, pasteisMode: boolean): ReactNode[] {
         );
 }
 
+/**
+ * The hex colors found in the whole text that fall in this slice of it, as their value with a swatch of the color.
+ */
+function withColors(
+    text: string,
+    offset: number,
+    colors: Color[],
+    pasteisMode: boolean,
+): ReactNode[] {
+    const parts: ReactNode[] = [];
+    let position = 0;
+
+    for (const color of colors) {
+        const index = color.index - offset;
+
+        if (index < position || index + color.length > text.length) {
+            continue;
+        }
+
+        parts.push(
+            ...withWordmarks(
+                text.slice(position, index),
+                offset + position,
+                pasteisMode,
+            ),
+            <span
+                key={`color-${color.index}`}
+                className="whitespace-nowrap"
+                data-test="color"
+            >
+                <span
+                    aria-hidden="true"
+                    className="mr-0.5 inline-block size-[0.75em] rounded-sm border border-border align-[-0.05em]"
+                    style={{ backgroundColor: `#${color.value}` }}
+                />
+                {text.slice(index, index + color.length)}
+            </span>,
+        );
+
+        position = index + color.length;
+    }
+
+    parts.push(
+        ...withWordmarks(text.slice(position), offset + position, pasteisMode),
+    );
+
+    return parts;
+}
+
 function withMentions(
     text: string,
     offset: number,
     mentions: Commit['mentions'],
+    colors: Color[],
     pasteisMode: boolean,
     isStatic: boolean,
 ): ReactNode[] {
@@ -340,7 +353,12 @@ function withMentions(
                 : null;
 
         parts.push(
-            ...withWordmarks(text.slice(position, match.index), pasteisMode),
+            ...withColors(
+                text.slice(position, match.index),
+                offset + position,
+                colors,
+                pasteisMode,
+            ),
             isStatic || !userId ? (
                 match[0]
             ) : (
@@ -363,7 +381,14 @@ function withMentions(
         position = match.index + match[0].length;
     }
 
-    parts.push(...withWordmarks(text.slice(position), pasteisMode));
+    parts.push(
+        ...withColors(
+            text.slice(position),
+            offset + position,
+            colors,
+            pasteisMode,
+        ),
+    );
 
     return parts;
 }
@@ -373,13 +398,18 @@ export function LinkifiedText({
     mentions,
     pasteisMode = false,
     isStatic = false,
+    startsText = false,
 }: {
     text: string;
     mentions: Commit['mentions'];
     pasteisMode?: boolean;
     isStatic?: boolean;
+    // Whether the text is a whole body, so its start is the start of a line.
+    startsText?: boolean;
 }) {
     const parts: ReactNode[] = [];
+    // Colors are found in the prose only, for callers that pass a whole body, code included.
+    const colors = colorsIn(withoutCode(text), startsText);
     let position = 0;
 
     for (const match of text.matchAll(urlPattern)) {
@@ -398,6 +428,7 @@ export function LinkifiedText({
                 text.slice(position, match.index),
                 position,
                 mentions,
+                colors,
                 pasteisMode,
                 isStatic,
             ),
@@ -443,6 +474,7 @@ export function LinkifiedText({
             text.slice(position),
             position,
             mentions,
+            colors,
             pasteisMode,
             isStatic,
         ),

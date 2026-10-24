@@ -2,10 +2,13 @@
 
 declare(strict_types=1);
 
+use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitContinuationQuery;
+use App\Services\Features;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 it('follows the author replying to themselves down the thread', function (): void {
     $author = User::factory()->create();
@@ -147,6 +150,8 @@ it('has no continuation for a muted author', function (): void {
 });
 
 it('follows the thread in the same number of queries however long it is', function (): void {
+    Queue::fake([DetectCommitLanguage::class]);
+    resolve(Features::class)->all();
     $author = User::factory()->create();
     $commits = [Commit::factory()->for($author)->create()];
 

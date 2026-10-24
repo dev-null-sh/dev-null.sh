@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use App\Enums\Log;
 use App\Http\Controllers\AboutController;
-use App\Http\Controllers\BookmarkController;
+use App\Http\Controllers\BanController;
+use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\BulkActivityController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
@@ -34,15 +36,19 @@ use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\ConversationDropController;
 use App\Http\Controllers\ConversationMergeController;
 use App\Http\Controllers\ConversationMessageController;
+use App\Http\Controllers\ConversationMuteController;
+use App\Http\Controllers\ConversationPinController;
 use App\Http\Controllers\ConversationReadController;
 use App\Http\Controllers\ConversationTypingController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
+use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
+use App\Http\Controllers\IssueSuggestionController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
@@ -50,7 +56,9 @@ use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\MessageImageController;
 use App\Http\Controllers\MessageLinkPreviewController;
 use App\Http\Controllers\MessageReactionController;
+use App\Http\Controllers\MessageVoiceController;
 use App\Http\Controllers\MobileAuthorizationController;
+use App\Http\Controllers\ModeratedUserController;
 use App\Http\Controllers\ModerationController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
@@ -60,6 +68,8 @@ use App\Http\Controllers\OrgArchiveController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
 use App\Http\Controllers\OrgMessageController;
+use App\Http\Controllers\OrgMuteController;
+use App\Http\Controllers\OrgPinController;
 use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
 use App\Http\Controllers\PrivacyController;
@@ -72,9 +82,13 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
+use App\Http\Controllers\StarredCommitController;
+use App\Http\Controllers\SuggestionDismissalController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\TrafficController;
 use App\Http\Controllers\UserActivityGraphController;
+use App\Http\Controllers\UserAutomaticTranslationController;
+use App\Http\Controllers\UserBanController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFeedController;
@@ -92,9 +106,12 @@ use App\Http\Controllers\UserRemotePreferencesController;
 use App\Http\Controllers\UserRemotesController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
+use App\Http\Controllers\UserTimeoutController;
 use App\Http\Controllers\UserTimezoneController;
 use App\Http\Controllers\UserTranslationLanguageController;
+use App\Http\Middleware\PreventPostingInTimeout;
 use App\Http\Middleware\RememberIntendedUrl;
+use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -228,28 +245,25 @@ Route::middleware('auth')->group(function (): void {
     Route::post('logout', [SessionController::class, 'destroy'])
         ->name('logout');
 
+    // Banned, where a banned user is sent from everywhere else...
+    Route::get('banned', [BannedController::class, 'show'])->name('banned.show');
+
     // Onboarding...
     Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
     Route::put('onboarding', [OnboardingController::class, 'update'])->name('onboarding.update');
 
-    // Private saved commits...
-    Route::get('saved', [BookmarkController::class, 'index'])->name('bookmark.index');
-    Route::put('commits/{commit}/bookmark', [BookmarkController::class, 'store'])
-        ->middleware('throttle:bookmarks')
-        ->name('bookmark.store');
-    Route::delete('commits/{commit}/bookmark', [BookmarkController::class, 'destroy'])
-        ->middleware('throttle:bookmarks')
-        ->name('bookmark.destroy');
+    // Private starred commits...
+    Route::get('starred', [StarredCommitController::class, 'index'])->name('starred.index');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');
     Route::post('scheduled-commits', [ScheduledCommitController::class, 'store'])
-        ->middleware(ThrottleCommits::class)->name('scheduled-commit.store');
+        ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])->name('scheduled-commit.store');
     Route::delete('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'destroy'])->name('scheduled-commit.destroy');
 
     Route::get('commit-stars', [CommitStarCountController::class, 'index'])->name('commit-star-count.index');
     Route::post('commits', [CommitController::class, 'store'])
-        ->middleware(ThrottleCommits::class)
+        ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
         ->name('commit.store');
     Route::post('commits/preview', [CommitPreviewController::class, 'store'])
         ->name('commit-preview.store');
@@ -267,6 +281,8 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])
         ->middleware('throttle:pins')
         ->name('commit-pin.destroy');
+    Route::get('commits/{commit}/stars', [CommitStarController::class, 'index'])
+        ->name('commit-star.index');
     Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
         ->middleware('throttle:stars')
         ->name('commit-star.store');
@@ -280,7 +296,7 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:stars')
         ->name('commit-star.destroy');
     Route::post('commits/{commit}/replies', [CommitReplyController::class, 'store'])
-        ->middleware(ThrottleCommits::class)
+        ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
         ->name('commit-reply.store');
     Route::delete('commits/{commit}/replies/{reply}', [CommitReplyController::class, 'destroy'])
         ->withTrashed()
@@ -297,6 +313,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('remotes/@{partner:username}', [ConversationController::class, 'show'])->name('conversation.show');
     Route::get('remotes/orgs/{org}', [OrgController::class, 'show'])->whereUuid('org')->name('org.show');
     Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])->whereUuid('messageImage')->name('message-image.show');
+    Route::get('remotes/voices/{messageVoice}', [MessageVoiceController::class, 'show'])->whereUuid('messageVoice')->name('message-voice.show');
 
     Route::middleware('throttle:conversations')->group(function (): void {
         Route::get('remotes/inbox', [InboxController::class, 'index'])->name('inbox.index');
@@ -313,21 +330,27 @@ Route::middleware('auth')->group(function (): void {
         Route::put('remotes/preferences', [UserRemotePreferencesController::class, 'update'])
             ->name('user-remote-preferences.update');
         Route::get('remotes/candidates', [RemoteCandidateController::class, 'index'])->name('remote-candidate.index');
-        Route::post('remotes/orgs', [OrgController::class, 'store'])->middleware('throttle:messages')->name('org.store');
-        Route::put('remotes/orgs/{org}', [OrgController::class, 'update'])->whereUuid('org')->name('org.update');
+        Route::post('remotes/orgs', [OrgController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:messages'])->name('org.store');
+        Route::put('remotes/orgs/{org}', [OrgController::class, 'update'])->whereUuid('org')->middleware(PreventPostingInTimeout::class)->name('org.update');
         Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
         Route::put('remotes/orgs/{org}/pin', [App\Http\Controllers\OrgPinController::class, 'update'])->whereUuid('org')->name('org-pin.update');
         Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
         Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
         Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');
-        Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])->whereUuid('org')->middleware('throttle:messages')->name('org-member.store');
+        Route::put('remotes/orgs/{org}/mute', [OrgMuteController::class, 'update'])->whereUuid('org')->name('org-mute.update');
+        Route::put('remotes/orgs/{org}/pin', [OrgPinController::class, 'update'])->whereUuid('org')->name('org-pin.update');
+        Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])->whereUuid('org')->middleware([PreventPostingInTimeout::class, 'throttle:messages'])->name('org-member.store');
         Route::put('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'update'])->whereUuid('org')->withoutScopedBindings()->name('org-member.update');
         Route::delete('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'destroy'])->whereUuid('org')->withoutScopedBindings()->name('org-member.destroy');
         Route::post('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'store'])
             ->name('conversation-archive.store');
         Route::delete('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'destroy'])
             ->name('conversation-archive.destroy');
+        Route::put('remotes/@{partner:username}/mute', [ConversationMuteController::class, 'update'])
+            ->name('conversation-mute.update');
+        Route::put('remotes/@{partner:username}/pin', [ConversationPinController::class, 'update'])
+            ->name('conversation-pin.update');
         Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
             ->whereNumber('message')
             ->name('message-link-preview.show');
@@ -341,11 +364,11 @@ Route::middleware('auth')->group(function (): void {
     });
 
     Route::post('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'store'])
-        ->middleware('throttle:messages')
+        ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
         ->name('conversation-message.store');
     Route::post('remotes/orgs/{org}/messages', [OrgMessageController::class, 'store'])
         ->whereUuid('org')
-        ->middleware('throttle:messages')
+        ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
         ->name('org-message.store');
 
     // Moderation...
@@ -357,6 +380,9 @@ Route::middleware('auth')->group(function (): void {
     Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
         ->name('commit-rejection.store');
     Route::put('moderation', [ModerationController::class, 'update'])->name('moderation.update');
+    Route::get('moderation/people', [ModeratedUserController::class, 'index'])->name('moderated-user.index');
+    Route::get('moderation/bulk', [BulkActivityController::class, 'index'])->name('bulk-activity.index');
+    Route::delete('moderation/bans/{ban}', [BanController::class, 'destroy'])->whereUuid('ban')->name('ban.destroy');
 
     // Operations...
     Route::get('operations', [OperationsController::class, 'show'])->name('operations.show');
@@ -367,6 +393,7 @@ Route::middleware('auth')->group(function (): void {
     Route::post('operations/failed-jobs/{failedJob}/retry', [FailedJobRetryController::class, 'store'])
         ->whereUuid('failedJob')
         ->name('failed-job-retry.store');
+    Route::delete('operations/failed-jobs', [FailedJobsController::class, 'destroy'])->name('failed-jobs.destroy');
     Route::delete('operations/failed-jobs/{failedJob}', [FailedJobController::class, 'destroy'])
         ->whereUuid('failedJob')
         ->name('failed-job.destroy');
@@ -376,6 +403,10 @@ Route::middleware('auth')->group(function (): void {
     Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
         ->middleware('throttle:people')
         ->name('mention-suggestion.index');
+
+    Route::get('search/issues', [IssueSuggestionController::class, 'index'])
+        ->middleware('throttle:issue-suggestions')
+        ->name('issue-suggestion.index');
 
     // User Profile...
     Route::get('settings', fn () => to_route('user-profile.edit'));
@@ -393,6 +424,7 @@ Route::middleware('auth')->group(function (): void {
     // User Timezone...
     Route::put('settings/timezone', [UserTimezoneController::class, 'update'])->name('user-timezone.update');
 
+    Route::put('settings/automatic-translation', [UserAutomaticTranslationController::class, 'update'])->name('user-automatic-translation.update');
     Route::put('settings/translation-language', [UserTranslationLanguageController::class, 'update'])->name('user-translation-language.update');
 
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
@@ -444,6 +476,22 @@ Route::middleware('auth')->group(function (): void {
         ->name('user-block.store');
     Route::delete('@{user:username}/block', [UserBlockController::class, 'destroy'])
         ->name('user-block.destroy');
+
+    // Suggestion Dismissal...
+    Route::post('@{user:username}/dismiss', [SuggestionDismissalController::class, 'store'])
+        ->name('suggestion-dismissal.store');
+
+    // User Timeout, given by moderators...
+    Route::post('@{user:username}/timeout', [UserTimeoutController::class, 'store'])
+        ->name('user-timeout.store');
+    Route::delete('@{user:username}/timeout', [UserTimeoutController::class, 'destroy'])
+        ->name('user-timeout.destroy');
+
+    // User Ban, given by moderators...
+    Route::post('@{user:username}/ban', [UserBanController::class, 'store'])
+        ->name('user-ban.store');
+    Route::delete('@{user:username}/ban', [UserBanController::class, 'destroy'])
+        ->name('user-ban.destroy');
 });
 
 Route::fallback(fn () => abort(404));

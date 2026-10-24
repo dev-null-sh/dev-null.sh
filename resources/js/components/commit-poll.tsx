@@ -3,10 +3,12 @@ import { Check } from 'lucide-react';
 import { useId, useState } from 'react';
 import { toast } from 'sonner';
 import CommitPollVoteController from '@/actions/App/Http/Controllers/CommitPollVoteController';
+import { BodySegments } from '@/components/commit-body';
 import { Button } from '@/components/ui/button';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
-import { emojify } from '@/lib/emoji';
+import { bodySegments } from '@/lib/code';
+import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import type { Commit, Poll } from '@/types';
 
@@ -28,12 +30,31 @@ function timeLeft(closesAt: string, now: Date): string {
 
 const failedVoteMessage = 'Could not record your vote. Try again.';
 
-function votesLabel(count: number): string {
-    return `${count} ${count === 1 ? 'vote' : 'votes'}`;
+function votesLabel(count: number, format = formatExactCount): string {
+    return `${format(count)} ${count === 1 ? 'vote' : 'votes'}`;
 }
 
 function percentage(votes: number, total: number): number {
     return total === 0 ? 0 : Math.round((votes / total) * 100);
+}
+
+// Only mentions the body also makes are linked, since those are the people the commit notifies.
+function OptionLabel({
+    label,
+    mentions,
+    isStatic,
+}: {
+    label: string;
+    mentions: Commit['mentions'];
+    isStatic: boolean;
+}) {
+    return (
+        <BodySegments
+            segments={bodySegments(label)}
+            mentions={mentions}
+            isStatic={isStatic}
+        />
+    );
 }
 
 export function CommitPoll({
@@ -41,7 +62,8 @@ export function CommitPoll({
     poll: initialPoll,
     isStatic = false,
 }: {
-    commit: Pick<Commit, 'id' | 'user_id' | 'status'>;
+    commit: Pick<Commit, 'id' | 'user_id' | 'status'> &
+        Partial<Pick<Commit, 'mentions'>>;
     poll: Poll;
     isStatic?: boolean;
 }) {
@@ -119,7 +141,11 @@ export function CommitPoll({
                                 key={option.id}
                                 className="rounded-md border px-3 py-2 text-[15px] wrap-anywhere"
                             >
-                                {emojify(option.label)}
+                                <OptionLabel
+                                    label={option.label}
+                                    mentions={commit.mentions ?? null}
+                                    isStatic
+                                />
                             </li>
                         ))}
                     </ul>
@@ -147,7 +173,11 @@ export function CommitPoll({
                                     className="size-4 accent-primary"
                                 />
                                 <span className="min-w-0 wrap-anywhere">
-                                    {emojify(option.label)}
+                                    <OptionLabel
+                                        label={option.label}
+                                        mentions={commit.mentions ?? null}
+                                        isStatic={false}
+                                    />
                                 </span>
                             </label>
                         ))}
@@ -198,7 +228,13 @@ export function CommitPoll({
                                                 option.voted && 'font-medium',
                                             )}
                                         >
-                                            {emojify(option.label)}
+                                            <OptionLabel
+                                                label={option.label}
+                                                mentions={
+                                                    commit.mentions ?? null
+                                                }
+                                                isStatic={isStatic}
+                                            />
                                             {option.voted && (
                                                 <>
                                                     <Check
@@ -235,7 +271,19 @@ export function CommitPoll({
                         role="status"
                         data-test="poll-summary"
                     >
-                        {votesLabel(poll.total_votes)}
+                        <span
+                            aria-hidden
+                            title={
+                                exactCountTitle(poll.total_votes) === undefined
+                                    ? undefined
+                                    : votesLabel(poll.total_votes)
+                            }
+                        >
+                            {votesLabel(poll.total_votes, formatCount)}
+                        </span>
+                        <span className="sr-only">
+                            {votesLabel(poll.total_votes)}
+                        </span>
                         <span aria-hidden> · </span>
                         {status}
                     </p>

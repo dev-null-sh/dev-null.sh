@@ -15,7 +15,7 @@ use RuntimeException;
 use Throwable;
 
 #[Backoff([60, 600])]
-#[Timeout(600)]
+#[Timeout(900)]
 #[Tries(3)]
 final class ReplyAsTom implements ShouldBeUnique, ShouldQueue
 {

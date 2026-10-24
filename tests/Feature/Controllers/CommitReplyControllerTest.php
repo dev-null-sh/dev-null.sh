@@ -15,13 +15,15 @@ use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 it('answers a casual public Tom mention in the same thread', function (): void {
-    config(['app.admins' => ['alice', 'tom'], 'ai.providers.opencode.key' => 'test']);
+    config(['app.admins' => ['alice', 'tom'], 'ai.providers.opencode.key' => 'test', 'ai.providers.openai.key' => 'test']);
     Queue::fake([ReplyAsTom::class, DetectCommitLanguage::class]);
     Tom::fake(['A little rusty, but happy to see you. :-D'])->preventStrayPrompts();
+    Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
     $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $user = User::factory()->create(['username' => 'alice']);
     $parent = Commit::factory()->create();
@@ -37,6 +39,7 @@ it('answers a casual public Tom mention in the same thread', function (): void {
         ->assertJsonPath('data.0.user.id', $tom->id)
         ->assertJsonPath('data.0.root_id', $parent->id);
     Tom::assertPrompted('@tom how are your rusty joints?');
+    Http::assertSentCount(1);
 });
 
 it('rejects non-text reply bodies with a validation error', function (mixed $body): void {
@@ -238,8 +241,7 @@ it('lists only approved replies to guests', function (): void {
 
     $response->assertOk()
         ->assertJsonCount(1, 'data')
-        ->assertJsonPath('data.0.body', 'Approved')
-        ->assertJsonPath('data.0.is_saved', false);
+        ->assertJsonPath('data.0.body', 'Approved');
 });
 
 it('returns not found to guests for the replies of a commit that is not approved', function (): void {

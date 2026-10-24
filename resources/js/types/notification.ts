@@ -34,6 +34,15 @@ export type Notification =
           commit: Omit<Commit, 'user'>;
       })
     | (BaseNotification & {
+          type: 'leveled_up';
+          commit_id: null;
+          subject_id: null;
+          commit: null;
+          level: number;
+          rank: string;
+          rank_description: string;
+      })
+    | (BaseNotification & {
           type: 'quoted';
           commit_id: string;
           subject_id: null;

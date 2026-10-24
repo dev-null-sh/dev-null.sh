@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Jobs\CheckUserLevel;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\Notification;
@@ -84,7 +85,7 @@ final readonly class UpdateCommitStatuses
 
                 $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
 
-                if (filled(config('ai.providers.opencode.key')) && ($tom = $this->tomQuery->get()) instanceof User) {
+                if (($tom = $this->tomQuery->get()) instanceof User) {
                     foreach ($commits as $commit) {
                         if ($commit->user?->github_id !== CreateTomFriendship::GITHUB_ID
                             && $commit->isAddressedTo($tom)) {
@@ -92,6 +93,9 @@ final readonly class UpdateCommitStatuses
                         }
                     }
                 }
+
+                User::query()->whereKey($commits->pluck('user_id')->filter()->unique()->values()->all())->get()
+                    ->each(fn (User $author) => dispatch(new CheckUserLevel($author))->afterCommit());
             }
         });
     }

@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     ArrowUpRight,
     Flag,
@@ -13,19 +13,19 @@ import {
     DocumentPage,
     DocumentSection,
 } from '@/components/document-page';
+import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import type {
     StoryCommit,
+    StoryContributor,
     StoryEvent,
     StoryEventKind,
     StoryStream,
 } from '@/lib/about';
 import {
-    repositoryUrl,
     storyAfter,
     storyAfterLane,
     storyBefore,
-    storyContributors,
     storyFounders,
     storyStreams,
 } from '@/lib/about';
@@ -203,7 +203,7 @@ function Timeline({ lane, events }: { lane: Lane; events: StoryEvent[] }) {
                             </p>
                             {event.body && (
                                 <p className="mt-1 text-muted-foreground">
-                                    {event.body}
+                                    <WordmarkText>{event.body}</WordmarkText>
                                 </p>
                             )}
                             {event.commit && (
@@ -265,10 +265,10 @@ function Stream({ stream }: { stream: StoryStream }) {
     );
 }
 
-function Contributors() {
+function Contributors({ contributors }: { contributors: StoryContributor[] }) {
     return (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
-            {storyContributors.map((contributor) => (
+            {contributors.map((contributor) => (
                 <li key={contributor.login}>
                     <a
                         href={`https://github.com/${contributor.login}`}
@@ -302,7 +302,12 @@ function Contributors() {
     );
 }
 
-export default function Show() {
+export default function Show({
+    contributors,
+}: {
+    contributors: StoryContributor[] | null;
+}) {
+    const { repository } = usePage().props;
     return (
         <>
             <Head title="About" />
@@ -310,12 +315,13 @@ export default function Show() {
             <DocumentPage title="About">
                 <section className="space-y-3 px-4 py-6 text-[15px] text-pretty sm:px-6">
                     <p>
-                        /dev/null started as a stream, live from the JetBrains
-                        office. On October 15, 2026, Nuno Maduro, Brent Roose,
-                        Matthieu Napoli, and Pauline Vos opened an empty
-                        repository and built a full social network for
-                        developers in 48 hours, in the open. GitHub is the only
-                        way in, posts are commits, and the timeline is a log.
+                        <WordmarkText>/dev/null</WordmarkText> started as a
+                        stream, live from the JetBrains office. On October 15,
+                        2026, Nuno Maduro, Brent Roose, Matthieu Napoli, and
+                        Pauline Vos opened an empty repository and built a full
+                        social network for developers in 48 hours, in the open.
+                        GitHub is the only way in, posts are commits, and the
+                        timeline is a log.
                     </p>
                     <p>
                         Everything was written from scratch with{' '}
@@ -392,11 +398,17 @@ export default function Show() {
 
                 <DocumentSection id="contributors" title="Contributors">
                     <p>Everyone who has a commit on production. Thank you.</p>
-                    <Contributors />
+                    {contributors ? (
+                        <Contributors contributors={contributors} />
+                    ) : (
+                        <p className="text-muted-foreground">
+                            GitHub couldn't be reached. Try again in a minute.
+                        </p>
+                    )}
                     <p className="text-muted-foreground">
                         Want to be on this list?{' '}
                         <a
-                            href={repositoryUrl}
+                            href={`https://github.com/${repository}`}
                             target="_blank"
                             rel="noopener noreferrer"
                         >

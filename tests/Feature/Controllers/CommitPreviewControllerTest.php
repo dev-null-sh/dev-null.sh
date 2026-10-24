@@ -6,14 +6,29 @@ use App\Models\User;
 
 it('renders a draft the way the commit it becomes is rendered', function (): void {
     $user = User::factory()->create();
+    User::factory()->create(['username' => 'nunomaduro']);
     $body = "  shipped :rocket with @nunomaduro\n```php\n\$name = 'devnull';\n```\nrun `composer test` :fire  ";
 
     $preview = $this->actingAs($user)->postJson(route('commit-preview.store'), ['body' => $body]);
 
     $this->actingAs($user)->post(route('commit.store'), ['body' => $body]);
 
+    $commit = $user->commits()->sole();
+
     $preview->assertOk()
-        ->assertExactJson(['segments' => $user->commits()->sole()->toArray()['body_segments']]);
+        ->assertExactJson(['segments' => $commit->toArray()['body_segments'], 'mentions' => $commit->mentions]);
+});
+
+it('links the mentions of a draft to the people the commit would link', function (): void {
+    $user = User::factory()->create();
+    $alice = User::factory()->create(['username' => 'Alice']);
+
+    $preview = $this->actingAs($user)->postJson(route('commit-preview.store'), [
+        'body' => "Pairing with @alice and @nobody-here\n`@alice` in code is not a mention",
+    ]);
+
+    $preview->assertOk()
+        ->assertJsonPath('mentions', ['alice' => $alice->id]);
 });
 
 it('previews drafts without publishing or spending its commit budget', function (): void {
@@ -40,7 +55,7 @@ it('collapses runs of blank lines in the preview like in the commit', function (
     $this->actingAs($user)->post(route('commit.store'), ['body' => $body]);
 
     $preview->assertOk()
-        ->assertExactJson(['segments' => $user->commits()->sole()->toArray()['body_segments']]);
+        ->assertJsonPath('segments', $user->commits()->sole()->toArray()['body_segments']);
 });
 
 it('requires a body the composer could commit', function (array $data, string $error): void {
