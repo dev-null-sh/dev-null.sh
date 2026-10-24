@@ -131,7 +131,9 @@ function insertAt(
     authors: User[] = [],
     log: Log = 'latest',
     total = 3,
+    focused = false,
 ) {
+    if (focused) viewer = { id: 'reader' } as User;
     slots = [];
     listeners.clear();
     reload.mockClear();
@@ -139,6 +141,15 @@ function insertAt(
     let scrollY = offset;
     let rowPosition = offset + 80;
     const animate = vi.fn();
+    const input = {
+        isConnected: true,
+        getBoundingClientRect: () => ({
+            top: 60 - scrollY,
+            bottom: 100 - scrollY,
+        }),
+        closest: () => input,
+    };
+    const composer = { contains: (element: unknown) => element === input };
     const existing = {
         dataset: { commit: 'existing' },
         isConnected: true,
@@ -159,12 +170,16 @@ function insertAt(
     }));
     let rows: unknown[] = [existing];
     const scrollListeners: (() => void)[] = [];
+    const focusListeners: (() => void)[] = [];
+    const resizeListeners: (() => void)[] = [];
+    const mutationListeners: (() => void)[] = [];
     const intersections: {
         callback: (entries: unknown[]) => void;
         disconnected: boolean;
         observed: Set<unknown>;
     }[] = [];
     vi.stubGlobal('window', {
+        innerHeight: 900,
         get scrollY() {
             return scrollY;
         },
@@ -177,12 +192,36 @@ function insertAt(
         matchMedia: () => ({ matches: reduced }),
         addEventListener: (name: string, listener: () => void) => {
             if (name === 'scroll') scrollListeners.push(listener);
+            if (name === 'focusin' || name === 'focusout')
+                focusListeners.push(listener);
         },
-        removeEventListener: vi.fn(),
+        removeEventListener: (name: string, listener: () => void) => {
+            const callbacks =
+                name === 'scroll' ? scrollListeners : focusListeners;
+            const index = callbacks.indexOf(listener);
+            if (index !== -1) callbacks.splice(index, 1);
+        },
     });
+    vi.stubGlobal('document', {
+        activeElement: focused ? input : null,
+        documentElement: { style: { overflowAnchor: '' } },
+    });
+    vi.stubGlobal(
+        'MutationObserver',
+        class {
+            constructor(callback: () => void) {
+                mutationListeners.push(callback);
+            }
+            observe() {}
+            disconnect() {}
+        },
+    );
     vi.stubGlobal(
         'ResizeObserver',
         class {
+            constructor(callback: () => void) {
+                resizeListeners.push(callback);
+            }
             observe() {}
             disconnect() {}
         },
@@ -226,6 +265,10 @@ function insertAt(
             }),
         );
         for (const node of nodes) {
+            if (typeof node.props.ref === 'function') {
+                node.props.ref(composer);
+                continue;
+            }
             if (typeof node.props.className !== 'string' || !node.props.ref)
                 continue;
             const ref = node.props.ref as React.RefObject<unknown>;
@@ -295,6 +338,32 @@ function insertAt(
         data: () => current.data,
         request: () => pollOptions(),
         readingTop: () => existing.getBoundingClientRect().top,
+        composerTop: () => input.getBoundingClientRect().top,
+        blur: () => {
+            Object.defineProperty(document, 'activeElement', {
+                value: null,
+                configurable: true,
+            });
+            focusListeners.forEach((listener) => listener());
+        },
+        refreshCounts: () =>
+            listeners.get('beforeUpdate')!({
+                detail: {
+                    page: {
+                        component: 'log/show',
+                        props: { commits: current },
+                        scrollProps: { commits: { reset: true } },
+                    },
+                },
+            }),
+        mutateAbove: (height: number) => {
+            rowPosition += height;
+            mutationListeners.forEach((listener) => listener());
+        },
+        resizeAbove: (height: number) => {
+            rowPosition += height;
+            resizeListeners.forEach((listener) => listener());
+        },
         render: () => render(current),
         paginate: () => {
             current = {
@@ -339,24 +408,14 @@ for (const offset of [1, 20, 39, 40, 80, 500]) {
     });
 }
 
-test('animates arriving commits at the top without scrolling the page', () => {
-    const result = insertAt(0);
-
-    assert.equal(result.scrollY, 0);
-    assert.equal(result.animate.mock.calls.length, 3);
-    for (const [frames] of result.animate.mock.calls) {
-        assert.ok(
-            frames.every((frame: Keyframe) => frame.height === undefined),
-        );
-    }
-});
-
-test('respects reduced motion at the top', () => {
-    const result = insertAt(0, true);
-
-    assert.equal(result.scrollY, 0);
-    assert.equal(result.animate.mock.calls.length, 0);
-});
+for (const reduced of [false, true]) {
+    test(`preserves the reading row at the top with reduced motion ${reduced}`, () => {
+        const result = insertAt(0, reduced);
+        assert.equal(result.top, 80);
+        assert.equal(result.scrollY, 360);
+        assert.equal(result.animate.mock.calls.length, 0);
+    });
+}
 
 test('keeps the loaded control while new commits are above a shallowly scrolled reader', () => {
     const result = insertAt(20);
@@ -387,11 +446,11 @@ for (const log of ['following', 'latest'] as const) {
         (button.props.onClick as () => void)();
         assert.equal(reload.mock.calls.length, requests);
     });
-    test(`does not show a prompt at the top of ${log}`, () => {
+    test(`offers the arrivals inserted above the reader who started at the top of ${log}`, () => {
         const result = insertAt(0, false, [], log);
         assert.equal(
             result.finish().some((node) => node.type === 'button'),
-            false,
+            true,
         );
     });
     test(`does not announce an unsuccessful ${log} reload`, () => {
@@ -646,4 +705,55 @@ test('reconciles removals and new arrivals in the same polling cycle', () => {
         'new-1',
         'new-2',
     ]);
+});
+
+for (const log of ['latest', 'following'] as const) {
+    test(`keeps the reading row still after delayed preview and image resizing on ${log}`, () => {
+        const result = insertAt(80, false, [], log);
+        result.finish();
+        result.refreshCounts();
+        result.mutateAbove(20.75);
+        assert.equal(result.readingTop(), 80);
+        result.resizeAbove(256);
+        assert.equal(result.readingTop(), 80);
+        result.resizeAbove(-100);
+        assert.equal(result.readingTop(), 80);
+    });
+
+    test(`follows deliberate scrolling before preserving later media resizing on ${log}`, () => {
+        const result = insertAt(80, false, [], log);
+        result.finish();
+        result.scrollTo(300);
+        const top = result.readingTop();
+        result.resizeAbove(60);
+        assert.equal(result.readingTop(), top);
+        result.scrollTo(420);
+        const next = result.readingTop();
+        result.resizeAbove(90);
+        assert.equal(result.readingTop(), next);
+    });
+}
+
+test('keeps a visible focused composer in place while arrivals and previews load below it', () => {
+    const result = insertAt(0, false, [], 'latest', 3, true);
+    result.finish();
+    assert.equal(result.composerTop(), 60);
+    result.mutateAbove(80);
+    assert.equal(result.composerTop(), 60);
+});
+
+test('anchors the reading row after a focused composer has scrolled out of view', () => {
+    const result = insertAt(500, false, [], 'latest', 3, true);
+    result.finish();
+    result.resizeAbove(60);
+    assert.equal(result.readingTop(), 80);
+});
+
+test('returns the anchor to the feed when the reader leaves the composer', () => {
+    const result = insertAt(0, false, [], 'latest', 3, true);
+    result.finish();
+    result.blur();
+    const top = result.readingTop();
+    result.mutateAbove(80);
+    assert.equal(result.readingTop(), top);
 });

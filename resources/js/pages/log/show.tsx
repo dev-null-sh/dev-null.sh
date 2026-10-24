@@ -64,10 +64,19 @@ export default function Show({
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
     const feedRef = useRef<HTMLDivElement>(null);
-    const followAnchor = useRef<{ row: HTMLElement; top: number } | null>(null);
+    const followAnchor = useRef<{
+        row: HTMLElement;
+        top: number;
+        documentTop: number;
+        scrollY: number;
+    } | null>(null);
     const [composer, setComposer] = useState<HTMLDivElement | null>(null);
     useLaneSwipe(feedRef, log);
     useComposerVisibility(composer, tabsHeight);
+
+    useLayoutEffect(() => {
+        followAnchor.current = null;
+    }, [log]);
 
     useEffect(() => {
         const tabs = tabsRef.current;
@@ -86,21 +95,104 @@ export default function Show({
         return () => observer.disconnect();
     }, []);
 
-    const preserveReadingPosition = useCallback((ids: Set<string>) => {
-        const headerBottom =
-            tabsRef.current?.getBoundingClientRect().bottom ?? 0;
-        const rows =
-            feedRef.current?.querySelectorAll<HTMLElement>('[data-commit]') ??
-            [];
-        const row = Array.from(rows).find(
-            (row) =>
-                ids.has(row.dataset.commit ?? '') &&
-                row.getBoundingClientRect().bottom > headerBottom,
-        );
-        followAnchor.current = row
-            ? { row, top: row.getBoundingClientRect().top }
-            : null;
-    }, []);
+    const preserveReadingPosition = useCallback(
+        (ids: Set<string>) => {
+            const headerBottom =
+                tabsRef.current?.getBoundingClientRect().bottom ?? 0;
+            const focused = document.activeElement?.closest<HTMLElement>(
+                'input, textarea, [contenteditable="true"]',
+            );
+            const rows =
+                feedRef.current?.querySelectorAll<HTMLElement>(
+                    '[data-commit]',
+                ) ?? [];
+            const row =
+                focused &&
+                composer?.contains(focused) &&
+                focused.getBoundingClientRect().bottom > headerBottom &&
+                focused.getBoundingClientRect().top < window.innerHeight
+                    ? focused
+                    : Array.from(rows).find(
+                          (row) =>
+                              ids.has(row.dataset.commit ?? '') &&
+                              row.getBoundingClientRect().bottom > headerBottom,
+                      );
+            followAnchor.current = row
+                ? {
+                      row,
+                      top: row.getBoundingClientRect().top,
+                      documentTop:
+                          row.getBoundingClientRect().top + window.scrollY,
+                      scrollY: window.scrollY,
+                  }
+                : null;
+        },
+        [composer],
+    );
+
+    const restoreReadingPosition = useCallback(() => {
+        const anchor = followAnchor.current;
+        if (!anchor?.row.isConnected) return;
+
+        const top = anchor.row.getBoundingClientRect().top;
+        const documentTop = top + window.scrollY;
+
+        // A scroll moves the viewport; loading above the row moves its document position.
+        if (
+            Math.abs(documentTop - anchor.documentTop) < 0.01 &&
+            window.scrollY !== anchor.scrollY
+        ) {
+            preserveReadingPosition(
+                new Set(commits.data.map((commit) => commit.id)),
+            );
+            return;
+        }
+
+        if (top !== anchor.top) window.scrollBy(0, top - anchor.top);
+        anchor.documentTop =
+            anchor.row.getBoundingClientRect().top + window.scrollY;
+        anchor.scrollY = window.scrollY;
+    }, [commits, preserveReadingPosition]);
+
+    useLayoutEffect(() => {
+        const feed = feedRef.current;
+        if (!feed || isRanked) return;
+
+        // Keep one owner of scroll compensation while previews and offscreen cards settle.
+        const style = document.documentElement.style;
+        const previous = style.overflowAnchor;
+        style.overflowAnchor = 'none';
+        const observer = new ResizeObserver(restoreReadingPosition);
+        observer.observe(feed);
+        const mutations = new MutationObserver(restoreReadingPosition);
+        mutations.observe(feed, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+            attributes: true,
+            attributeFilter: ['style'],
+        });
+        const updateFocus = () => {
+            if (followAnchor.current)
+                preserveReadingPosition(
+                    new Set(commits.data.map((commit) => commit.id)),
+                );
+        };
+        window.addEventListener('focusin', updateFocus);
+        window.addEventListener('focusout', updateFocus);
+        window.addEventListener('scroll', restoreReadingPosition, {
+            passive: true,
+        });
+
+        return () => {
+            observer.disconnect();
+            mutations.disconnect();
+            window.removeEventListener('focusin', updateFocus);
+            window.removeEventListener('focusout', updateFocus);
+            window.removeEventListener('scroll', restoreReadingPosition);
+            style.overflowAnchor = previous;
+        };
+    }, [commits, isRanked, preserveReadingPosition, restoreReadingPosition]);
 
     useEffect(
         () =>
@@ -114,7 +206,6 @@ export default function Show({
                 }
 
                 const incoming = page.props.commits as CursorPaginated<Commit>;
-                followAnchor.current = null;
 
                 if (incoming === commits) {
                     return;
@@ -128,11 +219,6 @@ export default function Show({
                             .map((commit) => commit.id)
                             .filter((id) => !known.has(id)),
                     ]);
-
-                    // Someone reading further down keeps their place, while someone at the top watches the commits arrive.
-                    if (window.scrollY <= 0) {
-                        return;
-                    }
                 }
 
                 preserveReadingPosition(
@@ -142,17 +228,7 @@ export default function Show({
         [log, commits, preserveReadingPosition],
     );
 
-    useLayoutEffect(() => {
-        const anchor = followAnchor.current;
-        followAnchor.current = null;
-
-        if (anchor?.row.isConnected) {
-            window.scrollBy(
-                0,
-                anchor.row.getBoundingClientRect().top - anchor.top,
-            );
-        }
-    }, [commits]);
+    useLayoutEffect(restoreReadingPosition, [restoreReadingPosition]);
 
     useLayoutEffect(() => {
         const ids = freshIds.current;
@@ -165,36 +241,9 @@ export default function Show({
             feedRef.current?.querySelectorAll<HTMLElement>('[data-commit]') ??
                 [],
         ).filter((row) => ids.has(row.dataset.commit ?? ''));
-        const reduced = window.matchMedia(
-            '(prefers-reduced-motion: reduce)',
-        ).matches;
-
-        rows.filter((row) => row.dataset.fresh === undefined).forEach(
-            (row, index) => {
-                row.dataset.fresh = '';
-
-                if (!reduced && window.scrollY <= 0) {
-                    row.animate(
-                        [
-                            {
-                                opacity: 0,
-                                transform: 'translateY(-12px)',
-                            },
-                            {
-                                opacity: 1,
-                                transform: 'none',
-                            },
-                        ],
-                        {
-                            duration: 520,
-                            delay: index * 140,
-                            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-                            fill: 'backwards',
-                        },
-                    );
-                }
-            },
-        );
+        rows.filter((row) => row.dataset.fresh === undefined).forEach((row) => {
+            row.dataset.fresh = '';
+        });
 
         // They stay lit until they are on screen, then while nobody is touching the page, and fade soon after the pointer
         // starts moving. Commits that arrived while the reader was further down wait for them to scroll back up.
