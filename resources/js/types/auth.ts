@@ -60,6 +60,7 @@ export type Auth = {
 };
 
 export type SuggestedUser = User & {
+    is_followed?: boolean;
     followed_by_following_count: number;
     followers_count: number;
     follows_you: boolean;
