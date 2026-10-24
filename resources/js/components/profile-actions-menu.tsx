@@ -1,5 +1,5 @@
 import { Form, router } from '@inertiajs/react';
-import { Ellipsis, Radio, Square } from 'lucide-react';
+import { Ellipsis, Radio, RadioOff } from 'lucide-react';
 import { useState } from 'react';
 import UserLiveController from '@/actions/App/Http/Controllers/UserLiveController';
 import InputError from '@/components/input-error';
@@ -67,7 +67,7 @@ export function ProfileActionsMenu({ user }: { user: Pick<User, 'live'> }) {
                             onSelect={endStream}
                             data-test="end-stream"
                         >
-                            <Square />
+                            <RadioOff />
                             End stream
                         </DropdownMenuItem>
                     ) : (
