@@ -63,7 +63,7 @@ Route::prefix('cli')->group(function (): void {
         ->middleware([AuthenticateSshSignature::class, PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
         ->name('cli-commit.store');
     Route::post('key-lookups', [KeyLookupController::class, 'store'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:key-lookups')
         ->name('cli-key-lookup.store');
 });
 
@@ -142,7 +142,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Commit Pastel...
         Route::post('commits/{commit}/pasteis', [CommitPastelController::class, 'store'])
-            ->middleware('throttle:60,1')
+            ->middleware('throttle:pasteis')
             ->name('api-commit-pastel.store');
 
         // Commit Poll Vote...

@@ -118,7 +118,7 @@ it('may not give a pastel across a block', function (Closure $block): void {
 it('shares the web limit of 60 a minute', function (): void {
     $commit = Commit::factory()->create();
 
-    RateLimiter::increment(sha1((string) $this->user->id), amount: 60);
+    RateLimiter::increment(md5('pasteis'.$this->user->id), amount: 60);
 
     signedApiRequest($this->keyPair, 'POST', route('api-commit-pastel.store', $commit))
         ->assertTooManyRequests()
