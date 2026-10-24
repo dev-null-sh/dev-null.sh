@@ -22,6 +22,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\DB;
+use Laravel\Passport\Contracts\OAuthenticatable;
+use Laravel\Passport\HasApiTokens;
 
 /**
  * @property-read string $id
@@ -108,8 +110,10 @@ use Illuminate\Support\Facades\DB;
     'banned_at',
     'commit_rules_accepted_at',
 ])]
-final class User extends Authenticatable
+final class User extends Authenticatable implements OAuthenticatable
 {
+    use HasApiTokens;
+
     /** @use HasFactory<UserFactory> */
     use HasFactory;
 
