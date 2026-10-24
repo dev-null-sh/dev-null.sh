@@ -33,7 +33,7 @@ use stdClass;
  * @phpstan-type UserExport array{
  *     schema_version: int,
  *     exported_at: string,
- *     profile: array<string, bool|int|string|null>,
+ *     profile: array<string, bool|int|list<string>|string|null>,
  *     commits: Generator<int, array<string, mixed>>,
  *     polls: Generator<int, ExportPoll>,
  *     poll_votes: Generator<int, ExportPollVote>,
@@ -81,6 +81,7 @@ final readonly class CreateExport
                 'show_local_time' => $user->show_local_time,
                 'translation_language' => $user->translation_language,
                 'automatic_translation' => $user->automatic_translation ?? true,
+                'known_languages' => $user->known_languages,
                 'lane_color' => $user->lane_color,
                 'pasteis_mode' => $user->pasteis_mode,
                 'pasteis_received' => $user->pasteis_received,
