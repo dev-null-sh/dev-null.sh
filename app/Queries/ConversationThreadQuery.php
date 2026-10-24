@@ -15,6 +15,7 @@ use App\Models\MessageReaction;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
@@ -163,7 +164,8 @@ final readonly class ConversationThreadQuery
     }
 
     /**
-     * The latest page, the page before a message for scrolling back, or everything after one for polling.
+     * The latest page, the page before a message for scrolling back, or everything after one for polling. The message
+     * a reply points to is shown only from where the reader's history starts, like the messages themselves.
      *
      * @return array{Collection<int, Message>, bool}
      */
@@ -171,7 +173,11 @@ final readonly class ConversationThreadQuery
     {
         $query = $conversation->messages()
             ->where('id', '>', $visibleFrom)
-            ->with([...Message::SHOWN_WITH, ...$withPeople ? ['user', 'subject'] : []]);
+            ->with([
+                ...Message::SHOWN_WITH,
+                'replyTo' => fn (BelongsTo $query): BelongsTo => $query->where('id', '>', $visibleFrom),
+                ...$withPeople ? ['user', 'subject'] : [],
+            ]);
 
         $messages = $after === null
             ? $query->where('id', '<', $before ?? PHP_INT_MAX)->orderByDesc('id')->limit(self::PAGE + 1)->get()->reverse()->values()
