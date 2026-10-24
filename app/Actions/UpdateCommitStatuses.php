@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Jobs\CheckUserLevel;
+use App\Jobs\ClassifyCommitTopics;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\Notification;
@@ -14,6 +15,7 @@ use App\Models\Poll;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Queries\TomQuery;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -85,6 +87,8 @@ final readonly class UpdateCommitStatuses
 
                 $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
 
+                $this->queueRootTopics($commits);
+
                 if (($tom = $this->tomQuery->get()) instanceof User) {
                     foreach ($commits as $commit) {
                         if ($commit->user?->github_id !== CreateTomFriendship::GITHUB_ID
@@ -98,5 +102,13 @@ final readonly class UpdateCommitStatuses
                     ->each(fn (User $author) => dispatch(new CheckUserLevel($author))->afterCommit());
             }
         });
+    }
+
+    /** @param Collection<int, Commit> $commits */
+    private function queueRootTopics(Collection $commits): void
+    {
+        Commit::query()->whereKey($commits->modelKeys())->whereNull('parent_id')->where('body', '!=', '')
+            ->whereDoesntHave('topics')->orderBy('id')->get()->chunk(40)
+            ->each(fn (Collection $batch) => dispatch(new ClassifyCommitTopics(array_values($batch->map(fn (Commit $commit): string => $commit->id)->all())))->afterCommit());
     }
 }
