@@ -572,30 +572,34 @@ export default function Show({
                         title={announcementLabel}
                         className={cn(
                             notice.leaving && '-translate-y-2 opacity-0',
-                            'pointer-events-auto mt-3 flex min-h-11 w-60 max-w-[calc(100vw-2rem)] items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:transition-[opacity,translate,background-color] motion-safe:duration-450 motion-safe:fade-in motion-safe:slide-in-from-top-2',
+                            'pointer-events-auto mt-3 flex min-h-11 max-w-[calc(100vw-2rem)] items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:transition-[opacity,translate,background-color] motion-safe:duration-450 motion-safe:fade-in motion-safe:slide-in-from-top-2',
                         )}
                     >
                         <ArrowUp className="size-4 shrink-0" />
                         <span
                             aria-hidden
-                            className="grid w-21 shrink-0 grid-cols-[repeat(3,20px)_24px] items-center"
+                            className="flex shrink-0 items-center -space-x-1 [clip-path:inset(-2px)] motion-safe:transition-[width] motion-safe:duration-250 motion-safe:ease-out"
+                            style={{
+                                width:
+                                    24 + (Math.min(authors.length, 4) - 1) * 20,
+                            }}
                         >
-                            {[0, 1, 2].map((slot) => (
-                                <span key={slot}>
-                                    {authors[slot] && (
-                                        <UserAvatar
-                                            key={authors[slot].id}
-                                            user={authors[slot]}
-                                            pixels={48}
-                                            className="size-6 ring-2 ring-primary"
-                                        />
-                                    )}
+                            {authors.slice(0, 3).map((author) => (
+                                <span
+                                    key={author.id}
+                                    className="shrink-0 motion-safe:animate-in motion-safe:duration-250 motion-safe:fade-in"
+                                >
+                                    <UserAvatar
+                                        user={author}
+                                        pixels={48}
+                                        className="size-6 ring-2 ring-primary"
+                                    />
                                 </span>
                             ))}
                             {authors.length > 3 && (
                                 <span
                                     title={`${authors.length - 3} more authors`}
-                                    className="relative grid size-6 shrink-0 place-items-center rounded-full bg-muted pt-0.5 font-mono text-[10px] leading-none font-medium text-foreground tabular-nums ring-2 ring-primary"
+                                    className="relative grid size-6 shrink-0 place-items-center rounded-full bg-muted pt-0.5 font-mono text-[10px] leading-none font-medium text-foreground tabular-nums ring-2 ring-primary motion-safe:animate-in motion-safe:duration-250 motion-safe:fade-in"
                                 >
                                     {authors.length - 3 > 99
                                         ? '99+'

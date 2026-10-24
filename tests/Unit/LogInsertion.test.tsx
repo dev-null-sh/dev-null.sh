@@ -501,6 +501,7 @@ for (const log of ['following', 'latest'] as const) {
 
 for (const [total, label] of [
     [1, undefined],
+    [2, undefined],
     [3, undefined],
     [4, '+1'],
     [7, '+4'],
