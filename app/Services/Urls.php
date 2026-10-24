@@ -127,13 +127,14 @@ final readonly class Urls
     }
 
     /**
-     * Shortens a URL for display, like X does: without its scheme or "www.", with the whole host, and with at most 20
-     * characters after it, the last of which is an ellipsis when it's cut. A cut never splits a percent-encoded
-     * character. Keep the rule in sync with resources/js/lib/urls.ts.
+     * Shortens a URL for display, like X does: without its scheme, "www." or a slash that ends its path, with the whole
+     * host, and with at most 20 characters after it, the last of which is an ellipsis when it's cut. A cut never splits
+     * a percent-encoded character. Keep the rule in sync with resources/js/lib/urls.ts.
      */
     public function shorten(string $url): string
     {
         $url = (string) preg_replace('/^(?:https?:\/\/)?(?:www\.(?=[^\/?#]*\.))?/i', '', $url);
+        $url = (string) preg_replace('/^[^?#]*\K\/\z/', '', $url);
         $host = (string) preg_replace('/[\/?#].*$/su', '', $url);
         $path = mb_substr($url, mb_strlen($host));
 

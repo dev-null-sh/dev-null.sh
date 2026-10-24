@@ -273,6 +273,14 @@ it('shortens urls for display', function (string $url, string $shortened): void 
     'bare domain with a path' => ['nunomaduro.com/talks', 'nunomaduro.com/talks'],
     'bare www domain' => ['www.php.net/manual/en/function.array-map.php', 'php.net/manual/en/function…'],
     'www as the domain' => ['https://www.com/about', 'www.com/about'],
+    'host with a trailing slash' => ['https://www.example.com/', 'example.com'],
+    'path with a trailing slash' => ['https://laravel.com/docs/', 'laravel.com/docs'],
+    'bare domain with a trailing slash' => ['example.org/', 'example.org'],
+    '20 characters and a trailing slash after the host' => ['https://example.com/blog/hello-world-20/', 'example.com/blog/hello-world-20'],
+    '21 characters and a trailing slash after the host' => ['https://example.com/blog/hello-world-021/', 'example.com/blog/hello-world-0…'],
+    'slash ending a query' => ['https://example.com/login?next=/', 'example.com/login?next=/'],
+    'slash ending a fragment' => ['https://example.com/#/', 'example.com/#/'],
+    'slash before a trailing newline' => ["https://example.com/\n", "example.com/\n"],
 ]);
 
 it('shortens the urls in prose', function (): void {

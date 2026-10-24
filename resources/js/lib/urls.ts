@@ -56,29 +56,41 @@ export function hrefFor(linkText: string): string | null {
         : href;
 }
 
-// Keep in sync with app/Services/Urls.php: like X, a URL shows without its scheme or "www.", with the whole host, and
-// with at most 20 characters after it, the last of which is an ellipsis when it's cut. A cut never splits a
-// percent-encoded character.
+// Keep in sync with app/Services/Urls.php: like X, a URL shows without its scheme, "www." or a slash that ends its
+// path, with the whole host, and with at most 20 characters after it, the last of which is an ellipsis when it's cut.
+// A cut never splits a percent-encoded character.
 const maxShortenedPathLength = 20;
 
 export type ShortenedUrl = {
     hiddenStart: string;
     shown: string;
     hiddenEnd: string;
+    cut: boolean;
 };
 
 /**
- * Splits a URL into what is shown and what is hidden around it. The ellipsis is shown whenever the end is hidden.
+ * Splits a URL into what is shown and what is hidden around it. The ellipsis is shown whenever the URL is cut.
  */
 export function shortenUrl(url: string): ShortenedUrl {
     const hiddenStart =
         /^(?:https?:\/\/)?(?:www\.(?=[^/?#]*\.))?/i.exec(url)?.[0] ?? '';
-    const rest = url.slice(hiddenStart.length);
+    const trailingSlash = /^[^?#]*\/$/u.test(url.slice(hiddenStart.length))
+        ? '/'
+        : '';
+    const rest = url.slice(
+        hiddenStart.length,
+        url.length - trailingSlash.length,
+    );
     const host = rest.replace(/[/?#][\s\S]*$/u, '');
     const path = Array.from(rest.slice(host.length));
 
     if (path.length <= maxShortenedPathLength) {
-        return { hiddenStart, shown: rest, hiddenEnd: '' };
+        return {
+            hiddenStart,
+            shown: rest,
+            hiddenEnd: trailingSlash,
+            cut: false,
+        };
     }
 
     const kept = path
@@ -89,7 +101,8 @@ export function shortenUrl(url: string): ShortenedUrl {
     return {
         hiddenStart,
         shown: host + kept,
-        hiddenEnd: rest.slice(host.length + kept.length),
+        hiddenEnd: rest.slice(host.length + kept.length) + trailingSlash,
+        cut: true,
     };
 }
 
