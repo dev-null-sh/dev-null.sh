@@ -74,6 +74,9 @@ export function GraphRail({
     // A fresh commit going on below another one, like a reply chained under the last commit of a thread, scales in once
     // the trunk has reached it.
     const waitsForTrunk = isFresh && previousLane !== undefined;
+    // Replies hang off the end dot right under the commit's actions, with no padding below them, so the dot sits lower
+    // to land on their row: 24px tall, or 28px below md, where the secondary actions fold into a menu button.
+    const endsOnActions = endsWithDot && hasReplyTail;
 
     return (
         <div
@@ -134,7 +137,8 @@ export function GraphRail({
                                 dimmable,
                                 {
                                     'opacity-60': isDimmed,
-                                    'bottom-5': endsWithDot,
+                                    'bottom-5': endsWithDot && !endsOnActions,
+                                    'bottom-3.5 md:bottom-3': endsOnActions,
                                     'top-[calc(50%-1px)]':
                                         nodePosition === 'center',
                                     'top-[22px]': nodePosition === 'author',
@@ -154,7 +158,9 @@ export function GraphRail({
                                 'top-[23px]': nodePosition === 'author',
                                 'top-1/2': nodePosition === 'center',
                                 'top-auto h-5':
-                                    endsWithDot || nodePosition === 'bottom',
+                                    (endsWithDot && !endsOnActions) ||
+                                    nodePosition === 'bottom',
+                                'top-auto h-3.5 md:h-3': endsOnActions,
                             },
                         )}
                         style={laneStrokeStyle('var(--lane)', {
@@ -180,6 +186,7 @@ export function GraphRail({
                 }
                 isFresh={isFresh}
                 isDimmed={isDimmed}
+                isOnActions={endsOnActions}
                 delay={endDotDelay + (waitsForTrunk ? bridgeDuration : 0)}
             />
 
@@ -266,11 +273,13 @@ export function RailEndDot({
     isDimmed = false,
     delay = endDotDelay,
     isLeaving = false,
+    isOnActions = false,
     onLeft,
 }: {
     spec?: GraphNodeSpec | null;
     isFresh?: boolean;
     isDimmed?: boolean;
+    isOnActions?: boolean;
     delay?: number;
     isLeaving?: boolean;
     onLeft?: () => void;
@@ -290,7 +299,9 @@ export function RailEndDot({
             data-dimmed={isDimmed || undefined}
             isFresh={isFresh && !isLeaving}
             className={cn(
-                'group/rail-node absolute bottom-5 left-1/2 flex -translate-x-1/2 translate-y-1/2 rounded-full',
+                'group/rail-node absolute',
+                isOnActions ? 'bottom-3.5 md:bottom-3' : 'bottom-5',
+                'left-1/2 flex -translate-x-1/2 translate-y-1/2 rounded-full',
                 { 'motion-safe:animate-node-out': isLeaving },
             )}
             style={
