@@ -25,8 +25,6 @@ Each answers the three questions of the [data guidelines](.ai/guidelines/data.bl
 
 **Seen** means signed in and opening a page or doing something (starring, replying, following) on the web or the installed app, or using the API from the mobile app or the terminal. Posts automated with the GitHub Action count too: someone who publishes, even automatically, is active. What a page reads on its own (polling for notifications, partial reloads, prefetches, JSON reads) doesn't count, or a tab left open would keep its owner active forever.
 
-Tracking started with the release that added it: visits before that left no trace, and the per-day counts start on that day.
-
 ## The funnel (implemented)
 
 The funnel follows the people who **signed up in the selected range** (the last 30 days by default, or all time). Each step shows its count, its rate, and the change of that rate in percentage points since the period before.
@@ -64,7 +62,6 @@ The funnel follows the people who **signed up in the selected range** (the last 
 
 - **Retained**: seen again **from day 1 after signing up, or later** ("unbounded" retention), as told by `last_seen_at`. Day 1 is temporary, while /dev/null is days old and changes day by day; the goal is day 14.
 - **Retention rate** = retained ÷ signups whose day 1 is over. A signup whose day 1 is today isn't counted yet: they may still come back today.
-- Only signups whose day N falls on or after the day tracking started count: someone who came back before tracking started left no trace.
 - Why `last_seen_at` and not one row per person per day: it is one date per person, overwritten, with no history, which is the least data that answers "is this person still coming back after 14 days?".
 - Caveats:
   - Unbounded retention is always higher than the bounded "active on day N" retention that public benchmarks use. Someone who comes back once on day 60 counts as retained at day 1. **Do not compare it with the a16z numbers below.**
