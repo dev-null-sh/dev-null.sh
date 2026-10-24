@@ -122,6 +122,7 @@ use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -173,8 +174,10 @@ Route::get('brand', [BrandController::class, 'show'])->name('brand.show');
 Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.index');
 
 // Public pages, readable by guests and crawlers...
+// Profiles used to live at /@{username}, kept working for old links...
+Route::get('@{username}', fn (Request $request, string $username) => to_route('user.show', ['user' => $username, ...$request->query()], 301));
 Route::middleware(RememberIntendedUrl::class)->group(function (): void {
-    Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
+    Route::get('home/{user:username}', [UserController::class, 'show'])->name('user.show');
     Route::get('@{user:username}/following', [UserFollowingController::class, 'index'])
         ->name('user-following.index');
     Route::get('@{user:username}/followers', [UserFollowersController::class, 'index'])

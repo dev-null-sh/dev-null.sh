@@ -100,7 +100,7 @@ it('ignores deleted recipients at approval and returns 404 for their mention lin
 it('redirects guests to the current profile and rejects invalid mention ids', function (): void {
     $mentioned = User::factory()->create(['username' => 'original']);
 
-    $this->get('/mentions/'.$mentioned->id)->assertRedirect('/@original');
+    $this->get('/mentions/'.$mentioned->id)->assertRedirect('/home/original');
     $this->get('/mentions/original')->assertNotFound();
 });
 

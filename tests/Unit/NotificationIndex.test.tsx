@@ -231,7 +231,7 @@ void test('links the actor to their profile apart from the commit link', async (
 
     assert.deepEqual(
         links.map((link) => link.match(/href="([^"]*)"/)?.[1]),
-        ['/@mnapoli', '/@mnapoli', '/@mnapoli', '/@nunomaduro/commits/reply'],
+        ['/home/mnapoli', '/home/mnapoli', '/home/mnapoli', '/@nunomaduro/commits/reply'],
     );
     assert.match(links[0], /tabindex="-1"/);
     assert.match(links[1], /hover:underline/);
@@ -286,7 +286,7 @@ for (const type of ['replied', 'starred']) {
 }
 
 const avatarLink =
-    /<span class="flex shrink-0 self-start"><span class="flex"><a tabindex="-1"[^>]*href="\/@mnapoli"/;
+    /<span class="flex shrink-0 self-start"><span class="flex"><a tabindex="-1"[^>]*href="\/home\/mnapoli"/;
 
 const nestedLink = /<a\b(?:(?!<\/a>).)*<a\b/s;
 
@@ -322,7 +322,7 @@ void test('links an expanded reply to its author and to the reply', async () => 
     assert.match(body, avatarLink);
     assert.match(
         body,
-        /<a [^>]*href="\/@mnapoli"[^>]*><span class="[^"]*font-semibold[^"]*" title="Matthieu Napoli">/,
+        /<a [^>]*href="\/home\/mnapoli"[^>]*><span class="[^"]*font-semibold[^"]*" title="Matthieu Napoli">/,
     );
     assert.match(
         body,
@@ -342,7 +342,7 @@ void test('keeps an expanded star as one link to the profile', async () => {
     } as Notification);
 
     assert.equal(body.match(/<a\b/g)?.length, 1);
-    assert.match(body, /<a [^>]*href="\/@mnapoli"/);
+    assert.match(body, /<a [^>]*href="\/home\/mnapoli"/);
 });
 
 void test('says which level and rank a level-up reached, linking to the profile', async () => {
@@ -366,5 +366,5 @@ void test('says which level and rank a level-up reached, linking to the profile'
     );
     assert.match(body, /You reached level 5: wheel<\/a>\./);
     assert.match(body, /Member of the trusted wheel administrative group/);
-    assert.match(body, /<a[^>]*href="\/@mnapoli"/);
+    assert.match(body, /<a[^>]*href="\/home\/mnapoli"/);
 });
