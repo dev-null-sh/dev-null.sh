@@ -35,6 +35,7 @@ use stdClass;
  *     exported_at: string,
  *     profile: array<string, bool|int|string|null>,
  *     commits: Generator<int, array<string, mixed>>,
+ *     commit_signatures: Generator<int, array{commit_id: string, payload: string, signature: string, public_key: string, fingerprint: string, namespace: string}>,
  *     polls: Generator<int, ExportPoll>,
  *     poll_votes: Generator<int, ExportPollVote>,
  *     stars: Generator<int, string>,
@@ -99,6 +100,7 @@ final readonly class CreateExport
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
             'commits' => $this->commits($user),
+            'commit_signatures' => $this->commitSignatures($user),
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
             'stars' => $this->stars($user),
@@ -184,6 +186,40 @@ final readonly class CreateExport
                     'deleted_at' => $commit->deleted_at?->toIso8601String(),
                 ];
             }
+        }
+    }
+
+    /**
+     * The original signed bytes, included in the author's export.
+     *
+     * @return Generator<int, array{commit_id: string, payload: string, signature: string, public_key: string, fingerprint: string, namespace: string}>
+     */
+    private function commitSignatures(User $user): Generator
+    {
+        $rows = DB::table('commit_signatures')
+            ->join('commits', 'commits.id', '=', 'commit_signatures.commit_id')
+            ->where('commits.user_id', $user->id)
+            ->orderBy('commit_signatures.commit_id')
+            ->select([
+                'commit_signatures.commit_id',
+                'commit_signatures.payload',
+                'commit_signatures.signature',
+                'commit_signatures.public_key',
+                'commit_signatures.fingerprint',
+                'commit_signatures.namespace',
+            ])
+            ->cursor();
+
+        foreach ($rows as $row) {
+            /** @var object{commit_id: string, payload: string, signature: string, public_key: string, fingerprint: string, namespace: string} $row */
+            yield [
+                'commit_id' => $row->commit_id,
+                'payload' => $row->payload,
+                'signature' => $row->signature,
+                'public_key' => $row->public_key,
+                'fingerprint' => $row->fingerprint,
+                'namespace' => $row->namespace,
+            ];
         }
     }
 

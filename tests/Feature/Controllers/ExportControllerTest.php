@@ -119,6 +119,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
         'commits' => [],
+        'commit_signatures' => [],
         'polls' => [],
         'poll_votes' => [],
         'stars' => [],

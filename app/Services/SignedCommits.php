@@ -30,7 +30,7 @@ final readonly class SignedCommits
 
     /**
      * @param  (Closure(): list<string>)|null  $imageHashes
-     * @return array{user: User, reply_to: string|null, body: string}
+     * @return array{user: User, reply_to: string|null, body: string, proof: array{payload: string, signature: string, public_key: string, fingerprint: string, namespace: string}}
      */
     public function verify(string $payload, string $signature, ?Closure $imageHashes = null): array
     {
@@ -76,6 +76,13 @@ final readonly class SignedCommits
             'user' => $user,
             'reply_to' => $replyTo === '' ? null : $replyTo,
             'body' => mb_trim($body),
+            'proof' => [
+                'payload' => $payload,
+                'signature' => $signature,
+                'public_key' => $publicKey->toOpenSsh(),
+                'fingerprint' => $publicKey->fingerprint(),
+                'namespace' => $withImages ? self::ImagesNamespace : self::Namespace,
+            ],
         ];
     }
 }

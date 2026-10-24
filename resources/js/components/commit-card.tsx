@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { CornerDownRight, Trash2 } from 'lucide-react';
+import { CornerDownRight, ShieldCheck, Trash2 } from 'lucide-react';
 import type { MouseEvent, PointerEvent, ReactNode } from 'react';
 import { useCallback, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -385,6 +385,27 @@ export function CommitCard({
                                 />
 
                                 <CommitStatusBadge commit={commit} />
+
+                                {commit.ssh_signed &&
+                                    commit.status === 'approved' && (
+                                        <a
+                                            href={`/api/v1/commits/${commit.id}/proof`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex shrink-0 items-center gap-1 rounded-md font-mono text-[11px] text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none"
+                                            title="Verify this commit's SSH signature offline"
+                                            aria-label="View portable SSH signature receipt"
+                                            data-test="ssh-signed-proof"
+                                        >
+                                            <ShieldCheck
+                                                className="size-3.5"
+                                                aria-hidden
+                                            />
+                                            <span className="hidden lg:inline">
+                                                SSH-signed
+                                            </span>
+                                        </a>
+                                    )}
 
                                 <span
                                     data-commit-hash

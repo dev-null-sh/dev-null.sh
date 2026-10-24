@@ -46,8 +46,9 @@ final readonly class CreateCommit
      *
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
+     * @param  array{payload: string, signature: string, public_key: string, fingerprint: string, namespace: string}|null  $signedProof
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?array $signedProof = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -55,13 +56,14 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $signedProof): Commit {
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
 
             $commit = $user->commits()->create([
                 'body' => $this->emojiShortcodes->replace($body),
+                'signer_fingerprint' => $signedProof['fingerprint'] ?? null,
                 'mentions' => $this->mentionedUsers->get($body),
                 'parent_id' => $parent?->id,
                 'root_id' => $parent?->threadRootId(),
@@ -71,6 +73,20 @@ final readonly class CreateCommit
                 'hot_score' => $this->theAlgorithm->score($createdAt, ThreadEngagement::none()),
                 'created_at' => $createdAt,
             ]);
+
+            // Retain only middleware-verified proof bytes, in the same transaction.
+            if ($signedProof !== null) {
+                DB::table('commit_signatures')->insert([
+                    'commit_id' => $commit->id,
+                    'payload' => $signedProof['payload'],
+                    'signature' => $signedProof['signature'],
+                    'public_key' => $signedProof['public_key'],
+                    'fingerprint' => $signedProof['fingerprint'],
+                    'namespace' => $signedProof['namespace'],
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            }
 
             $this->createCommitImages->handle($commit, $images, $imageDescriptions);
 
