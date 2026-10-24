@@ -22,6 +22,10 @@ export type User = {
     company: string | null;
     has_sponsors_listing: boolean;
     has_github_account: boolean;
+    /**
+     * Whether this person has commits on the /dev/null GitHub repository.
+     */
+    contributor: boolean;
     lane: Lane;
     timezone: string | null;
     show_local_time: boolean;

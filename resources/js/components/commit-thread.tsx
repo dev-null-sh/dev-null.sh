@@ -39,6 +39,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { ContributorBadge } from '@/components/contributor-badge';
 import {
     graphDash,
     graphStrokeWidth,
@@ -1177,6 +1178,7 @@ function CommitReply({
                             >
                                 {reply.user.name}
                             </Link>
+                            {reply.user.contributor && <ContributorBadge />}
                             <Link
                                 href={show(reply.user)}
                                 tabIndex={-1}

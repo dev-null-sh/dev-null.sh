@@ -37,6 +37,7 @@ final class UserResource extends JsonResource
             'commits_count' => $this->whenCounted('commits'),
             'followers_count' => $this->whenCounted('followers'),
             'following_count' => $this->whenCounted('following'),
+            'contributor' => $this->isRepositoryContributor(),
             'lane' => $this->when($request->user() instanceof User, fn (): int|string => $this->lane()),
             'is_followed' => $this->whenHas('is_followed'),
             'follows_you' => $this->whenHas('follows_you'),

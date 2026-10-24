@@ -22,6 +22,7 @@ const actor: User = {
     timezone: null,
     show_local_time: false,
     has_github_account: true,
+    contributor: false,
     lane: 0,
     created_at: timestamp,
     updated_at: timestamp,

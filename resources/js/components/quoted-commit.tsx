@@ -5,6 +5,7 @@ import { CommitBodyExcerpt } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
+import { ContributorBadge } from '@/components/contributor-badge';
 import { LinkPreview } from '@/components/link-preview';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
@@ -50,6 +51,7 @@ export function QuotedCommit({
                 <span className="truncate font-semibold">
                     {commit.user.name}
                 </span>
+                {commit.user.contributor && <ContributorBadge />}
                 <span className="truncate font-mono text-xs text-muted-foreground">
                     @{commit.user.username}
                 </span>

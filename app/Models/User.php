@@ -10,6 +10,7 @@ use App\Dto\LiveStream;
 use App\Enums\LivePlatform;
 use App\Enums\Log;
 use App\Enums\RemotesFrom;
+use App\Queries\RepositoryContributorsQuery;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -542,6 +543,14 @@ final class User extends Authenticatable
     }
 
     /**
+     * Whether this GitHub username has commits on the /dev/null repository.
+     */
+    public function isRepositoryContributor(): bool
+    {
+        return resolve(RepositoryContributorsQuery::class)->contains($this->username);
+    }
+
+    /**
      * @return array<mixed>
      */
     public function toArray(): array
@@ -550,6 +559,7 @@ final class User extends Authenticatable
             ...parent::toArray(),
             'lane' => $this->lane(),
             'has_github_account' => $this->hasGitHubAccount(),
+            'contributor' => $this->isRepositoryContributor(),
             'live' => $this->liveStream()?->toArray(),
         ];
     }

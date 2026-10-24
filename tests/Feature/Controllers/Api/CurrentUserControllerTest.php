@@ -51,6 +51,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
                 'commits_count' => 1,
                 'followers_count' => 3,
                 'following_count' => 2,
+                'contributor' => false,
                 'lane' => $user->lane(),
                 'pasteis_mode' => true,
                 'pasteis_remaining' => 7,

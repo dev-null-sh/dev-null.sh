@@ -37,6 +37,7 @@ const commit: Commit = {
         company: null,
         has_sponsors_listing: false,
         has_github_account: true,
+        contributor: false,
         lane: 0,
         created_at: '2026-10-16T10:00:00Z',
         updated_at: '2026-10-16T10:00:00Z',
