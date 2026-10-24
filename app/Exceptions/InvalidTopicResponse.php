@@ -8,6 +8,16 @@ use UnexpectedValueException;
 
 final class InvalidTopicResponse extends UnexpectedValueException
 {
+    public static function matches(): self
+    {
+        return new self('Invalid topic matches.');
+    }
+
+    public static function matchResult(): self
+    {
+        return new self('Invalid topic match.');
+    }
+
     public static function labels(): self
     {
         return new self('Invalid topic labels.');
