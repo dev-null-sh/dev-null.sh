@@ -107,17 +107,27 @@ test('leaves the end dot of a commit already there still', () => {
     assert.doesNotMatch(dot, /animate-node-in/);
 });
 
-test('lowers the end dot onto the actions row when replies hang off it', () => {
-    const onActions = endDot(
+test("lands a commit's end dot on its actions row, with or without replies hanging off it", () => {
+    const withReplies = endDot(
         renderToStaticMarkup(
-            <GraphRail lane="var(--lane-1)" endsWithDot hasReplyTail />,
+            <GraphRail
+                lane="var(--lane-1)"
+                endsWithDot
+                endsOnActions
+                hasReplyTail
+            />,
         ),
     );
-    const alone = endDot(
+    const withoutReplies = endDot(
+        renderToStaticMarkup(
+            <GraphRail lane="var(--lane-1)" endsWithDot endsOnActions />,
+        ),
+    );
+    const elsewhere = endDot(
         renderToStaticMarkup(<GraphRail lane="var(--lane-1)" endsWithDot />),
     );
 
-    assert.match(onActions ?? '', /bottom-3\.5 md:bottom-3/);
-    assert.doesNotMatch(onActions ?? '', /bottom-5/);
-    assert.match(alone ?? '', /bottom-5/);
+    assert.match(withReplies ?? '', /bottom-3\.5 md:bottom-3/);
+    assert.match(withoutReplies ?? '', /bottom-\[27px\] md:bottom-\[25px\]/);
+    assert.match(elsewhere ?? '', /bottom-5/);
 });

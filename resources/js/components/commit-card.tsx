@@ -272,6 +272,7 @@ export function CommitCard({
                     lane={laneColor(commit.user.lane)}
                     previousLane={previousLane}
                     endsWithDot={endsWithDot}
+                    endsOnActions
                     nodePosition={railNodePosition}
                     hasTail={hasRailTail && railNodePosition !== 'bottom'}
                     hasReplyTail={
