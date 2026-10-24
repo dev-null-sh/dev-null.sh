@@ -13,6 +13,7 @@
         "Unit/ReactionTray.test.tsx",
         "Unit/NotificationFilters.test.tsx",
         "Unit/DraftImageReads.test.tsx",
+        "Unit/DraftImagePreview.test.tsx",
         "Unit/ImageAttachments.test.tsx",
         "Unit/StagedRail.test.tsx",
         "Unit/UseNow.test.tsx",

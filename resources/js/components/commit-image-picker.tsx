@@ -221,9 +221,9 @@ export function ImagePickerPreviews({
         return `${baseName}.${ext}`;
     };
 
-    const shownImages: ShownImage[] = images.map((image, index) => ({
-        id: image.name ? image.name.replace(/\.[^/.]+$/, '') : `${index + 1}`,
-        url: urls[index],
+    const shownImages: ShownImage[] = urls.map((url, index) => ({
+        id: url,
+        url,
         description: descriptions[index]?.trim() || null,
     }));
 

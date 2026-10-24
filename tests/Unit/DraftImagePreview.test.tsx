@@ -80,9 +80,8 @@ test('renders preview buttons for draft images and opens them in the image viewe
     assert.equal(viewer.props.index, null);
     const shownImages = viewer.props.images as ShownImage[];
     assert.equal(shownImages.length, 2);
-    assert.equal(shownImages[0].id, 'photo1');
+    assert.notEqual(shownImages[0].id, shownImages[1].id);
     assert.equal(shownImages[0].description, 'First caption');
-    assert.equal(shownImages[1].id, 'photo2');
     assert.equal(shownImages[1].description, null);
 
     // Click first image to preview it
@@ -136,6 +135,55 @@ test('renders preview buttons for draft images and opens them in the image viewe
     viewer = tree.find((el) => el.type === ImageViewer);
     assert.ok(viewer);
     assert.equal(viewer.props.index, null);
+});
+
+test('draft images with matching filenames keep independent caption controls', () => {
+    const files = [
+        new File(['png'], 'shot.png', { type: 'image/png' }),
+        new File(['webp'], 'shot.webp', { type: 'image/webp' }),
+        new File(['another png'], 'shot.png', { type: 'image/png' }),
+    ];
+    const picker = elements(ImagePickerPreviews({
+        images: files,
+        descriptions: ['First caption', 'Second caption', 'Third caption'],
+        onDescribe: () => {},
+        onRemove: () => {},
+    }));
+    const images = picker.find((element) => element.type === ImageViewer)!.props.images as ShownImage[];
+    const viewerCursor = cursor;
+
+    const captions = () => {
+        cursor = viewerCursor;
+        const viewer = ImageViewer({
+            images,
+            index: 0,
+            onView: () => {},
+            onClose: () => {},
+        });
+        const render = viewer.props.render as {
+            slideFooter: (props: { slide: { src: string } }) => ReactNode;
+        };
+
+        return images.map((image) => elements(render.slideFooter({ slide: { src: image.url } })));
+    };
+
+    let rendered = captions();
+    const controls = rendered.map((caption) => caption.find((element) => element.type === 'button')!);
+    assert.equal(new Set(controls.map((button) => button.props['aria-controls'])).size, files.length);
+
+    (controls[0].props.onClick as () => void)();
+    rendered = captions();
+    assert.equal(rendered[0].find((element) => element.type === 'p')?.props.children, 'First caption');
+    assert.equal(rendered[1].some((element) => element.type === 'p'), false);
+    assert.equal(rendered[2].some((element) => element.type === 'p'), false);
+
+    (rendered[1].find((element) => element.type === 'button')!.props.onClick as () => void)();
+    rendered = captions();
+    const activeCaption = rendered[1].find((element) => element.type === 'p')!;
+    assert.equal(activeCaption.props.children, 'Second caption');
+    assert.equal(activeCaption.props.id, controls[1].props['aria-controls']);
+    assert.equal(rendered[0].some((element) => element.type === 'p'), false);
+    assert.equal(rendered[2].some((element) => element.type === 'p'), false);
 });
 
 test('removing the currently previewed image closes the viewer', () => {
