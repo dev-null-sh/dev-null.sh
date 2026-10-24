@@ -69,9 +69,9 @@ function looksLikeHandle(word: string): boolean {
 }
 
 /**
- * A lowercase word made only of letters, long enough to be a topic ("caching", "sharding"), is as likely a subject as
- * a username. Digits, dashes or capitals tip it towards a handle.
+ * A lowercase word made only of letters, long enough to be a topic ("rust", "claw", "caching"), is as likely a subject
+ * as a username. Digits, dashes or capitals tip it towards a handle, and so do the shortest words ("go", "ai").
  */
 function isDictionaryShaped(word: string): boolean {
-    return /^[a-z]{6,}$/u.test(word);
+    return /^[a-z]{4,}$/u.test(word);
 }
