@@ -7,13 +7,19 @@ use App\Actions\DeleteUserFollow;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\Notification;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function (): void {
     $this->user = User::factory()->create();
     $this->keyPair = apiKeyPairFor($this->user);
+});
+
+afterEach(function (): void {
+    Model::automaticallyEagerLoadRelationships();
 });
 
 it('lists the notifications of the user, newest first', function (): void {
@@ -89,6 +95,7 @@ it('lists the notifications of the user, newest first', function (): void {
                     'quoted_commit_id' => null,
                 ],
                 'quoted_commit_id' => null,
+                'quoted_commit' => null,
             ],
         ])
         ->assertJsonPath('data.1.id', $followed->id)
@@ -200,6 +207,9 @@ it('marks every notification as read like the web, and says when, so the new one
 });
 
 it('does not query each notification', function (): void {
+    // Essentials' automatic eager loading may batch lazy loads away, but the endpoint itself must not lean on them.
+    Model::automaticallyEagerLoadRelationships(false);
+
     signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))->assertOk();
 
     $queries = function (): int {
@@ -211,13 +221,48 @@ it('does not query each notification', function (): void {
         return count(DB::getQueryLog());
     };
 
-    // Two followers make a group with stacked actors, which takes the same queries however many there are...
+    // Two followers make a group with stacked actors, and every quote its own recipient-quoted commit with its
+    // author, which takes the same queries however many there are...
     Notification::factory()->for($this->user, 'recipient')->count(2)->create();
     Notification::factory()->for($this->user, 'recipient')->replied()->create();
+    Notification::factory()->for($this->user, 'recipient')->quoted()->count(2)->create();
     $few = $queries();
 
     Notification::factory()->for($this->user, 'recipient')->count(3)->create();
     Notification::factory()->for($this->user, 'recipient')->replied()->count(3)->create();
+    Notification::factory()->for($this->user, 'recipient')->quoted()->count(3)->create();
+
+    expect($queries())->toBe($few);
+});
+
+it('does not query each member of a group', function (): void {
+    // Essentials' automatic eager loading may batch lazy loads away, but the endpoint itself must not lean on them.
+    Model::automaticallyEagerLoadRelationships(false);
+
+    $root = Commit::factory()->for($this->user)->create();
+    $mention = fn (): Notification => Notification::factory()->for($this->user, 'recipient')->create([
+        'type' => NotificationType::Mentioned,
+        'commit_id' => Commit::factory()->for($root, 'parent')->for(Commit::factory()->for($this->user), 'quotedCommit')
+            ->create(['body' => "Thanks @{$this->user->username}"])->id,
+    ]);
+    $latest = $mention();
+
+    $queries = function () use ($latest): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        signedApiRequest($this->keyPair, 'GET', route('api-notification-group.show', $latest))->assertOk();
+
+        return count(DB::getQueryLog());
+    };
+
+    $queries();
+
+    $few = $queries();
+
+    $mention();
+    $mention();
+    $mention();
 
     expect($queries())->toBe($few);
 });
@@ -244,6 +289,113 @@ it('groups stars per commit, newest stargazer first, like the web', function ():
         ->assertJsonMissingPath('data.0.actors.0.email');
 
     expect($this->user->notifications()->unread()->exists())->toBeFalse();
+});
+
+it('shows the images of a starred commit, with its text or alone, and only a starred one', function (): void {
+    $withImage = Commit::factory()->for($this->user)->create(['body' => 'Have you seen this?']);
+    $image = CommitImage::factory()->for($withImage)->create();
+    $imageOnly = Commit::factory()->for($this->user)->create(['body' => '']);
+    $alone = CommitImage::factory()->for($imageOnly)->create(['description' => 'A pastel de nata']);
+
+    Notification::factory()->for($this->user, 'recipient')->starred($imageOnly)->create();
+    Notification::factory()->for($this->user, 'recipient')->starred($withImage)->create(['created_at' => now()->subMinute()]);
+    Notification::factory()->for($this->user, 'recipient')->starred()->create(['created_at' => now()->subMinutes(2)]);
+    Notification::factory()->for($this->user, 'recipient')->replied()->create(['created_at' => now()->subMinutes(3)]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))
+        ->assertOk()
+        ->assertJsonPath('data.0.commit.body_segments', [])
+        ->assertJsonPath('data.0.commit.images.0', [
+            'id' => $alone->id,
+            'width' => $alone->width,
+            'height' => $alone->height,
+            'description' => 'A pastel de nata',
+            'url' => route('commit-image.show', $alone),
+        ])
+        ->assertJsonPath('data.1.commit.body_segments', [['type' => 'text', 'text' => 'Have you seen this?']])
+        ->assertJsonPath('data.1.commit.images.0.id', $image->id)
+        ->assertJsonPath('data.1.commit.images.0.url', route('commit-image.show', $image))
+        ->assertJsonPath('data.2.commit.images', [])
+        ->assertJsonMissingPath('data.3.commit.images');
+});
+
+it("shows quotes with the recipient's commit they quote, as a tombstone once deleted, and no one else's", function (): void {
+    $quote = Notification::factory()->for($this->user, 'recipient')->quoted()->create();
+    $deleted = Notification::factory()->for($this->user, 'recipient')->quoted()->create(['created_at' => now()->subMinute()]);
+    $deleted->commit->quotedCommit->delete();
+
+    $reply = Notification::factory()->for($this->user, 'recipient')->replied()->create(['created_at' => now()->subMinutes(2)]);
+    $unavailable = Commit::factory()->pending()->create();
+    $reply->commit->update(['quoted_commit_id' => $unavailable->id]);
+
+    $approved = Notification::factory()->for($this->user, 'recipient')->replied()->create(['created_at' => now()->subMinutes(3)]);
+    $foreign = Commit::factory()->create(['body' => 'An approved quote of someone else']);
+    $approved->commit->update(['quoted_commit_id' => $foreign->id]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))
+        ->assertOk()
+        ->assertJsonPath('data.0.commit.quoted_commit_id', $quote->commit->quoted_commit_id)
+        ->assertJsonPath('data.0.commit.quoted_commit.id', $quote->commit->quotedCommit->id)
+        ->assertJsonPath('data.0.commit.quoted_commit.body', $quote->commit->quotedCommit->body)
+        ->assertJsonPath('data.0.commit.quoted_commit.author.id', $this->user->id)
+        ->assertJsonMissingPath('data.0.commit.quoted_commit.quoted_commit')
+        ->assertJsonMissingPath('data.0.commit.quoted_commit.images')
+        ->assertJsonPath('data.1.commit.quoted_commit', [
+            'id' => $deleted->commit->quoted_commit_id,
+            'parent_id' => null,
+            'deleted_at' => $deleted->commit->quotedCommit->deleted_at->toIso8601ZuluString(),
+        ])
+        ->assertJsonPath('data.2.commit.quoted_commit_id', $unavailable->id)
+        ->assertJsonPath('data.2.commit.quoted_commit', null)
+        ->assertJsonPath('data.3.commit.quoted_commit_id', $foreign->id)
+        ->assertJsonPath('data.3.commit.quoted_commit', null)
+        ->assertDontSee($unavailable->body)
+        ->assertDontSee('An approved quote of someone else');
+});
+
+it("expands a group with the recipient's quoted commit and a starred commit's images", function (): void {
+    $commit = Commit::factory()->for($this->user)->create();
+    $image = CommitImage::factory()->for($commit)->create();
+    Notification::factory()->for($this->user, 'recipient')->starred($commit)->create(['created_at' => now()->subDay()]);
+    $latest = Notification::factory()->for($this->user, 'recipient')->starred($commit)->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification-group.show', [$latest, 'type' => 'stars']))
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.commit.images.0.id', $image->id)
+        ->assertJsonPath('data.1.commit.images.0.id', $image->id)
+        ->assertJsonMissingPath('data.0.actors')
+        ->assertJsonPath('meta.next_cursor', null);
+
+    $quote = Notification::factory()->for($this->user, 'recipient')->quoted()->create();
+    Notification::factory()->for($this->user, 'recipient')->quoted()->create(['created_at' => now()->subMinute()]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification-group.show', $quote))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.commit.quoted_commit.id', $quote->commit->quotedCommit->id)
+        ->assertJsonPath('data.0.commit.quoted_commit.body', $quote->commit->quotedCommit->body);
+
+    $reply = Notification::factory()->for($this->user, 'recipient')->replied()->create();
+    $unavailable = Commit::factory()->pending()->create(['body' => "Someone else's unpublished words"]);
+    $reply->commit->update(['quoted_commit_id' => $unavailable->id]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification-group.show', $reply))
+        ->assertOk()
+        ->assertJsonPath('data.0.commit.quoted_commit_id', $unavailable->id)
+        ->assertJsonPath('data.0.commit.quoted_commit', null)
+        ->assertJsonMissingPath('data.0.commit.images')
+        ->assertDontSee("Someone else's unpublished words");
+
+    $approved = Notification::factory()->for($this->user, 'recipient')->replied()->create();
+    $foreign = Commit::factory()->create(['body' => 'An approved quote of someone else']);
+    $approved->commit->update(['quoted_commit_id' => $foreign->id]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification-group.show', $approved))
+        ->assertOk()
+        ->assertJsonPath('data.0.commit.quoted_commit_id', $foreign->id)
+        ->assertJsonPath('data.0.commit.quoted_commit', null)
+        ->assertDontSee('An approved quote of someone else');
 });
 
 it('filters notifications by type like the web, and echoes the filter', function (?string $type, array $types): void {
