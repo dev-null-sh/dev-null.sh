@@ -54,10 +54,12 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Commit|null $quotedCommit
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
+ * @property-read Collection<int, Topic> $topics
  */
 #[Hidden([
     'ai_decision',
     'ai_categories',
+    'topics',
     'embedding',
 ])]
 #[UseEloquentBuilder(CommitBuilder::class)]
@@ -162,6 +164,14 @@ final class Commit extends Model
     public function stars(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'stars')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<Topic, $this>
+     */
+    public function topics(): BelongsToMany
+    {
+        return $this->belongsToMany(Topic::class);
     }
 
     public function isAddressedTo(User $user): bool

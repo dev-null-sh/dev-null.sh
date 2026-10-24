@@ -50,6 +50,13 @@ final readonly class DeleteUser
                 ->lazyById(500)
                 ->map(resolve(CommitTranslations::class)->key(...))->unique()->all();
 
+            $commitIds = Commit::query()->withTrashed()
+                ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
+                    ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id')))
+                ->select('id');
+            (clone $commitIds)->orderBy('id')->lockForUpdate()->get();
+            DB::table('commit_topic')->whereIn('commit_id', $commitIds)->delete();
+
             $user->commits()->withTrashed()->topLevel()->forceDelete();
             CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
             CommitReport::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();

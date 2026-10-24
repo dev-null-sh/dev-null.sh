@@ -19,6 +19,7 @@ use App\Models\MessageVoice;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
+use App\Models\Topic;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
@@ -47,6 +48,41 @@ it('erases the commits of a deleted user along with the replies under them', fun
     resolve(DeleteUser::class)->handle($user);
 
     expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id]);
+});
+
+it('erases topic associations from deleted threads and retained reply tombstones without deleting labels', function (): void {
+    $this->freezeTime();
+    $user = User::factory()->create();
+    $root = Commit::factory()->for($user)->create();
+    $child = Commit::factory()->for($root, 'parent')->create();
+    $otherRoot = Commit::factory()->create();
+    $reply = Commit::factory()->for($user)->for($otherRoot, 'parent')->create();
+    Commit::factory()->for($reply, 'parent')->create();
+    $sole = Topic::factory()->create(['last_applied_at' => now()->subDay()]);
+    $childOnly = Topic::factory()->create(['last_applied_at' => now()->subDay()]);
+    $shared = Topic::factory()->create(['last_applied_at' => now()->subDay()]);
+    $unrelated = Topic::factory()->create();
+    $root->topics()->attach([$sole->id, $shared->id]);
+    $reply->topics()->attach($sole);
+    $child->topics()->attach($childOnly);
+    $otherRoot->topics()->attach($shared);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $this->assertDatabaseMissing('commit_topic', ['commit_id' => $root->id]);
+    $this->assertDatabaseMissing('commit_topic', ['commit_id' => $child->id]);
+    $this->assertDatabaseMissing('commit_topic', ['commit_id' => $reply->id]);
+    $this->assertModelMissing($root);
+    $this->assertModelMissing($child);
+    $this->assertSoftDeleted($reply);
+    $this->assertModelExists($sole);
+    $this->assertModelExists($childOnly);
+    $this->assertModelExists($shared);
+    $this->assertModelExists($unrelated);
+    expect($otherRoot->topics()->pluck('topics.id')->all())->toBe([$shared->id]);
+    expect($sole->fresh()->last_applied_at->toDateTimeString())->toBe($sole->last_applied_at->toDateTimeString());
+    expect($childOnly->fresh()->last_applied_at->toDateTimeString())->toBe($childOnly->last_applied_at->toDateTimeString());
+    expect($shared->fresh()->last_applied_at->toDateTimeString())->toBe($shared->last_applied_at->toDateTimeString());
 });
 
 it('keeps the quotes of others when erasing the quoted commits of a deleted user', function (): void {

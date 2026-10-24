@@ -9,6 +9,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\Poll;
+use App\Models\Topic;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -125,4 +126,40 @@ it('does nothing for a commit that is gone', function (): void {
     resolve(DeleteCommitContent::class)->handle($commit);
 
     expect(CommitImage::query()->count())->toBe(0);
+});
+
+it('erases topic associations but retains orphan labels and associations of restorable commits', function (): void {
+    $this->freezeTime();
+    $commit = Commit::factory()->create();
+    $other = Commit::factory()->create();
+    $sole = Topic::factory()->create(['last_applied_at' => now()->subDay()]);
+    $shared = Topic::factory()->create(['last_applied_at' => now()->subDay()]);
+    $unrelated = Topic::factory()->create();
+    $commit->topics()->attach([$sole->id, $shared->id]);
+    $other->topics()->attach($shared);
+    resolve(DeleteCommit::class)->handle($commit);
+    $this->travel(30)->seconds();
+    resolve(DeleteCommit::class)->handle($other);
+
+    resolve(DeleteCommitContent::class)->handle($commit);
+
+    $this->assertDatabaseMissing('commit_topic', ['commit_id' => $commit->id]);
+    $this->assertModelExists($sole);
+    $this->assertModelExists($shared);
+    $this->assertModelExists($unrelated);
+    expect($other->topics()->pluck('topics.id')->all())->toBe([$shared->id]);
+    expect($sole->fresh()->last_applied_at->toDateTimeString())->toBe($sole->last_applied_at->toDateTimeString());
+    expect($shared->fresh()->last_applied_at->toDateTimeString())->toBe($shared->last_applied_at->toDateTimeString());
+});
+
+it('retains topic labels and associations throughout the undo window', function (): void {
+    $commit = Commit::factory()->create();
+    $topic = Topic::factory()->create();
+    $commit->topics()->attach($topic);
+    resolve(DeleteCommit::class)->handle($commit);
+    $this->travel(29)->seconds();
+
+    resolve(DeleteCommitContent::class)->handle($commit);
+
+    expect($commit->topics()->pluck('topics.id')->all())->toBe([$topic->id]);
 });

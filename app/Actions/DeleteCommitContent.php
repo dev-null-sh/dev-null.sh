@@ -30,6 +30,7 @@ final readonly class DeleteCommitContent
 
             $commit->images()->delete();
             $commit->poll()->delete();
+            $commit->topics()->detach();
 
             LinkPreview::query()->where('url', 'like', "%/commits/{$commit->id}%")->delete();
 
