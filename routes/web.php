@@ -53,6 +53,7 @@ use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
+use App\Http\Controllers\LinkController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
@@ -270,6 +271,9 @@ Route::middleware('auth')->group(function (): void {
 
     // Private starred commits...
     Route::get('starred', [StarredCommitController::class, 'index'])->name('starred.index');
+
+    // Every commit about a link, a prototype only reachable by its URL...
+    Route::get('links', [LinkController::class, 'index'])->name('link.index');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');

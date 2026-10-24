@@ -9,6 +9,7 @@ import {
 import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
 import {
     useCallback,
+    useContext,
     useEffect,
     useEffectEvent,
     useRef,
@@ -48,6 +49,7 @@ import {
     useGraphOverlay,
 } from '@/components/graph-canvas';
 import { RailDot, railDotRing } from '@/components/graph-rail';
+import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
@@ -1062,6 +1064,7 @@ function CommitReply({
 }) {
     const { auth } = usePage().props;
     const now = useNow();
+    const hiddenLinkPreviewUrl = useContext(HiddenLinkPreviewContext);
     const { bodyRef, ...translation } = useCommitTranslation(reply);
     const wasDeleted = useIsCommitDeleted(reply.id);
     const commitNotFound = useCommitNotFound();
@@ -1250,14 +1253,15 @@ function CommitReply({
                     </div>
                     {translation.notice}
                     <CommitImages commit={reply} />
-                    {reply.link_preview && (
-                        <LinkPreview
-                            refreshUrl={CommitLinkPreviewController.show.url(
-                                reply.id,
-                            )}
-                            preview={reply.link_preview}
-                        />
-                    )}
+                    {reply.link_preview &&
+                        reply.link_preview.url !== hiddenLinkPreviewUrl && (
+                            <LinkPreview
+                                refreshUrl={CommitLinkPreviewController.show.url(
+                                    reply.id,
+                                )}
+                                preview={reply.link_preview}
+                            />
+                        )}
                     <ShowThreadLink thread={thread} />
 
                     {isConfirming ? (
