@@ -335,7 +335,7 @@ export function ImagePickerPreviews({
                         }}
                         maxLength={maxDescriptionLength}
                         placeholder="Describe the image for people who can't see it"
-                        className="mt-1 block field-sizing-content max-h-40 min-h-12 w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground"
+                        className="mt-1 block field-sizing-content max-h-40 min-h-12 w-full resize-none bg-transparent text-base leading-relaxed outline-none placeholder:text-muted-foreground md:text-sm"
                         data-test="image-description-input"
                     />
                     <div className="mt-1 flex items-center justify-end gap-3">
