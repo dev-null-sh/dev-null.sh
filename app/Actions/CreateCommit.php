@@ -86,7 +86,7 @@ final readonly class CreateCommit
             $this->createMentionNotifications->handle($commit);
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
-                dispatch(new UnfurlLink($linkPreview));
+                dispatch(new UnfurlLink($linkPreview))->afterCommit();
             }
 
             $this->createWorldReply->handle($commit);
@@ -97,7 +97,7 @@ final readonly class CreateCommit
                 $tom = $this->tomQuery->get();
 
                 if ($tom instanceof User && $commit->isAddressedTo($tom)) {
-                    dispatch(new ReplyAsTom($commit->id));
+                    dispatch(new ReplyAsTom($commit->id))->afterCommit();
                 }
             }
 
