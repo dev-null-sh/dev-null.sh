@@ -347,7 +347,7 @@ When you are at the bottom of a chat, opening a reply moves the messages up to k
 
 Click the quoted preview above a reply to jump to the original message, even when it is in older history that has not loaded yet. The original is briefly highlighted. **Back to present** returns to the latest messages.
 
-Unread badges in conversation rows and the desktop dock display **99+** above 99; the full count remains available on hover and to screen readers. The **Fetched** tab applies the same display cap to waiting requests.
+The **Remotes** badge in the navigation and the desktop dock counts conversations with unread messages, plus waiting requests, not the messages themselves: three new messages in one conversation count once. Unread badges in conversation rows and the desktop dock display **99+** above 99; the full count remains available on hover and to screen readers. The **Fetched** tab applies the same display cap to waiting requests.
 
 Link cards are fetched by /dev/null's server. Unlike message bodies and attachments, the card's URL and page metadata are stored without encryption, using the same link-preview storage as public commits.
 
