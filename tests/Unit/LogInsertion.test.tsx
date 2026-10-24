@@ -173,6 +173,7 @@ function insertAt(
     const focusListeners: (() => void)[] = [];
     const resizeListeners: (() => void)[] = [];
     const mutationListeners: (() => void)[] = [];
+    const visibilityListeners: (() => void)[] = [];
     const intersections: {
         callback: (entries: unknown[]) => void;
         disconnected: boolean;
@@ -204,6 +205,13 @@ function insertAt(
     });
     vi.stubGlobal('document', {
         activeElement: focused ? input : null,
+        visibilityState: 'visible',
+        addEventListener: (_name: string, listener: () => void) =>
+            visibilityListeners.push(listener),
+        removeEventListener: (_name: string, listener: () => void) => {
+            const i = visibilityListeners.indexOf(listener);
+            if (i !== -1) visibilityListeners.splice(i, 1);
+        },
         documentElement: { style: { overflowAnchor: '' } },
     });
     vi.stubGlobal(
@@ -243,10 +251,12 @@ function insertAt(
                 intersections.push(this.state);
             }
             observe(row: unknown) {
+                this.state.disconnected = false;
                 this.state.observed.add(row);
             }
             disconnect() {
                 this.state.disconnected = true;
+                this.state.observed.clear();
             }
         },
     );
@@ -377,14 +387,26 @@ function insertAt(
             scrollListeners.forEach((listener) => listener());
             render(current);
         },
-        sight: (index: number) => {
+        visibility: (state: 'hidden' | 'visible') => {
+            Object.defineProperty(document, 'visibilityState', {
+                value: state,
+                configurable: true,
+            });
+            visibilityListeners.forEach((listener) => listener());
+            render(current);
+        },
+        sight: (index: number, ratio = 1) => {
             for (const observer of intersections) {
                 if (
                     !observer.disconnected &&
                     observer.observed.has(fresh[index])
                 )
                     observer.callback([
-                        { target: fresh[index], isIntersecting: true },
+                        {
+                            target: fresh[index],
+                            isIntersecting: ratio > 0,
+                            intersectionRatio: ratio,
+                        },
                     ]);
             }
             render(current);
@@ -573,6 +595,70 @@ test('keeps the prompt until the newest arriving row is visible', () => {
         true,
     );
     result.sight(0);
+    vi.advanceTimersByTime(450);
+    assert.equal(
+        result.render().some((node) => node.type === 'button'),
+        false,
+    );
+});
+
+test('keeps the announcement when less than 60 percent of the newest row is visible', () => {
+    const result = insertAt(80);
+    result.finish();
+    result.sight(0, 0.31);
+    vi.advanceTimersByTime(8000);
+    assert.equal(
+        result.render().some((node) => node.type === 'button'),
+        true,
+    );
+    result.sight(0, 0.6);
+    vi.advanceTimersByTime(450);
+    assert.equal(
+        result.render().some((node) => node.type === 'button'),
+        false,
+    );
+});
+
+test('keeps background arrivals announced until they are seen in the visible tab', () => {
+    const result = insertAt(80);
+    result.visibility('hidden');
+    result.finish();
+    result.sight(0);
+    vi.advanceTimersByTime(8000);
+    assert.equal(
+        result.render().some((node) => node.type === 'button'),
+        true,
+    );
+    result.visibility('visible');
+    result.sight(0, 0.31);
+    vi.advanceTimersByTime(450);
+    assert.equal(
+        result.render().some((node) => node.type === 'button'),
+        true,
+    );
+    result.sight(0);
+    vi.advanceTimersByTime(450);
+    assert.equal(
+        result.render().some((node) => node.type === 'button'),
+        false,
+    );
+});
+
+test('retains background arrivals when a focused composer keeps the viewport at the top', () => {
+    const result = insertAt(0, false, [], 'latest', 1, true);
+    result.visibility('hidden');
+    result.finish();
+    assert.equal(
+        result.render().some((node) => node.type === 'button'),
+        true,
+    );
+    result.scrollTo(0);
+    vi.advanceTimersByTime(450);
+    assert.equal(
+        result.render().some((node) => node.type === 'button'),
+        true,
+    );
+    result.visibility('visible');
     vi.advanceTimersByTime(450);
     assert.equal(
         result.render().some((node) => node.type === 'button'),

@@ -329,7 +329,12 @@ export default function Show({
                             !known.has(commit.id) &&
                             commit.user_id !== user?.id,
                     );
-                    if (window.scrollY <= 0 || arrivals.length === 0) return;
+                    if (
+                        arrivals.length === 0 ||
+                        (document.visibilityState === 'visible' &&
+                            window.scrollY <= 0)
+                    )
+                        return;
 
                     setNotice((current) => ({
                         commits: [
@@ -437,15 +442,29 @@ export default function Show({
 
         const observer = new IntersectionObserver(
             (entries) => {
-                if (entries.some((entry) => entry.isIntersecting))
+                if (
+                    document.visibilityState === 'visible' &&
+                    entries.some((entry) => entry.intersectionRatio >= 0.6)
+                )
                     dismissNotice();
             },
-            { threshold: 0.6 },
+            {
+                rootMargin: `-${tabsHeight}px 0px 0px 0px`,
+                threshold: 0.6,
+            },
         );
-        observer.observe(row);
+        const update = () => {
+            observer.disconnect();
+            if (document.visibilityState === 'visible') observer.observe(row);
+        };
+        update();
+        document.addEventListener('visibilitychange', update);
 
-        return () => observer.disconnect();
-    }, [noticeNewestId, commits, dismissNotice]);
+        return () => {
+            observer.disconnect();
+            document.removeEventListener('visibilitychange', update);
+        };
+    }, [noticeNewestId, commits, tabsHeight, dismissNotice]);
 
     useEffect(
         () => () => {
@@ -456,11 +475,16 @@ export default function Show({
 
     useEffect(() => {
         const update = () => {
-            if (window.scrollY <= 0) dismissNotice();
+            if (document.visibilityState === 'visible' && window.scrollY <= 0)
+                dismissNotice();
         };
         window.addEventListener('scroll', update, { passive: true });
+        document.addEventListener('visibilitychange', update);
 
-        return () => window.removeEventListener('scroll', update);
+        return () => {
+            window.removeEventListener('scroll', update);
+            document.removeEventListener('visibilitychange', update);
+        };
     }, [dismissNotice]);
 
     const authors = [
