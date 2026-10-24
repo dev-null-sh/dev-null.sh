@@ -4,6 +4,7 @@ import type { MouseEvent, PointerEvent, ReactNode } from 'react';
 import { useCallback, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
+import { CommitAuthorFollowButton } from '@/components/commit-author-follow-button';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
@@ -262,6 +263,7 @@ export function CommitCard({
             }
             onPointerLeave={onHover && ((event) => onHover(false, event))}
         >
+            <CommitAuthorFollowButton user={commit.user} keyShortcut="f" />
             <div
                 className="grid min-h-0 grid-cols-[4rem_minmax(0,1fr)] overflow-hidden sm:grid-cols-[4.5rem_minmax(0,1fr)]"
                 data-graph-leaving={deletion === 'deleting' || undefined}
@@ -520,6 +522,7 @@ export function CommitCard({
                                     <div className="flex flex-wrap items-center gap-0.5">
                                         <CommitStarButton
                                             commit={commit}
+                                            keyShortcut="s"
                                             className="px-2 py-0.5"
                                         />
                                         <CommitPastelButton
@@ -542,6 +545,7 @@ export function CommitCard({
                                         <>
                                             <CommitStarButton
                                                 commit={commit}
+                                                keyShortcut="s"
                                                 className="px-2 py-0.5"
                                             />
                                             <CommitPastelButton

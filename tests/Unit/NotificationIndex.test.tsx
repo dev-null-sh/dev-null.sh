@@ -202,7 +202,7 @@ void test('shows the image of a starred image-only commit beside who starred it'
         commit: {
             id: 'image-only',
             body: '',
-            body_segments: [],
+            body_segments: [] as Commit['body_segments'],
             images: [
                 {
                     id: 'image',

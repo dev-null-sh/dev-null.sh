@@ -1,9 +1,9 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
+import { test } from 'vite-plus/test';
 import { CommitStarButton } from '../../resources/js/components/commit-star-button';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import type { Commit } from '../../resources/js/types';
@@ -11,6 +11,7 @@ import type { Commit } from '../../resources/js/types';
 async function render(
     user: { id: string } | null,
     commit: Partial<Commit> = {},
+    keyShortcut?: string,
 ): Promise<string> {
     const result = await createInertiaApp<{
         auth: { user: { id: string } | null };
@@ -38,6 +39,7 @@ async function render(
                         ...commit,
                     } as Commit
                 }
+                keyShortcut={keyShortcut}
             />
         ),
         render: renderToString,
@@ -83,6 +85,13 @@ for (const user of [null, { id: 'viewer' }]) {
         assert.doesNotMatch(body, /data-test="own-star-count"/);
     });
 }
+
+void test('star button exposes the keyboard shortcut used by j/k navigation', async () => {
+    const body = await render({ id: 'viewer' }, {}, 's');
+
+    assert.match(body, /data-test="star-commit-button"/);
+    assert.match(body, /aria-keyshortcuts="s"/);
+});
 
 void test('unstarred commits reserve the count slot outside the star control', async () => {
     const body = await render({ id: 'viewer' }, { stars_count: 0 });
