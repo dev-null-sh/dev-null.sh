@@ -1169,6 +1169,7 @@ function CommitReply({
                         <UserPreview
                             user={reply.user}
                             anchor={avatarRef}
+                            showLiveStream={false}
                             className="flex min-w-0 items-baseline gap-1.5"
                         >
                             <Link

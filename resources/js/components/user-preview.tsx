@@ -105,6 +105,7 @@ export function UserPreview({
     children,
     className,
     anchor,
+    showLiveStream = true,
     onHoverChange,
 }: {
     user: User | Pick<User, 'username'>;
@@ -112,6 +113,7 @@ export function UserPreview({
     children: ReactNode;
     className?: string;
     anchor?: RefObject<HTMLElement | null>;
+    showLiveStream?: boolean;
     onHoverChange?: (isHovering: boolean) => void;
 }) {
     const previewUrl = userId ? preview(userId).url : userPreview(user).url;
@@ -298,6 +300,7 @@ export function UserPreview({
                         <UserPreviewContent
                             user={previewUser}
                             data={data}
+                            showLiveStream={showLiveStream}
                             onChange={(next) => {
                                 cache.set(previewUrl, next);
                                 setData(next);
@@ -321,11 +324,13 @@ export function UserPreview({
 function UserPreviewContent({
     user,
     data,
+    showLiveStream,
     onChange,
     onMenuOpenChange,
 }: {
     user: User | Profile;
     data: PreviewData | null;
+    showLiveStream: boolean;
     onChange: (data: PreviewData) => void;
     onMenuOpenChange: (isOpen: boolean) => void;
 }) {
@@ -543,7 +548,7 @@ function UserPreviewContent({
                 )}
             </div>
 
-            {user.live && !data?.isUnavailable && (
+            {showLiveStream && user.live && !data?.isUnavailable && (
                 <div className="mt-4 border-t pt-4">
                     <LiveStreamCard user={user} stream={user.live} />
                 </div>
