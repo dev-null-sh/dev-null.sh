@@ -13,7 +13,7 @@ export default defineConfig({
             typeCheck: true,
         },
         plugins: ['eslint', 'typescript', 'unicorn', 'oxc', 'react'],
-        ignorePatterns: ['vite.config.ts'],
+        ignorePatterns: ['vite.config.ts', 'resources/js/lib/php/php.mjs'],
     },
     fmt: {
         printWidth: 80,
@@ -50,7 +50,12 @@ export default defineConfig({
             'resources/js/actions/*',
             'resources/js/routes/*',
             'resources/js/wayfinder/*',
+            'resources/js/lib/php/php.mjs',
         ],
+    },
+    // The PHP that runs code blocks is an ES module, so its worker has to be one too.
+    worker: {
+        format: 'es',
     },
     server: {
         watch: {

@@ -200,7 +200,7 @@ Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController
 
 ### Code, emoji, and mentions
 
-Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. Text outside code supports emoji shortcodes, clickable URLs, and `@username` mentions. This is developer-oriented text formatting, not a full rich-text editor.
+Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. PHP code blocks that have the copy control, in commits, replies, draft previews and Remotes messages, also have a **Run** control that runs the code with PHP compiled to WebAssembly, in a worker in your browser, so the code never leaves it. A folded preview can cut a code block short, so its blocks only get **Run** once **Show more** unfolds them. PHP downloads once, about 6 MB or under 2 MB gzipped, the first time you run a block. Each run gets a fresh 32-bit PHP with 128 MB of memory and no network, no shell, no host lookups and no URL wrappers, and is stopped after 5 seconds, keeping the output printed until then. Output is cut at 64 KB or 1,000 lines. Files, directories and links share 16 MB, past which writes fail as on a full disk; writing over a file gives its old space back, deleting one doesn't. A run can hold about 250 files, directories and other handles open at once. Output and errors share the lines in the order PHP writes them. The opening `<?php` tag is optional. This isn't PHP's command line, so `STDIN`, `STDOUT` and `STDERR` aren't defined, but `php://stdout` and `php://stderr` work. The extensions are ctype, filter, tokenizer and the ones PHP always builds. There is no mbstring, which keeps the only LGPL code PHP would link in out of the build, and no fibers, which need stack switching WebAssembly doesn't have. The licenses of PHP, the Zend Engine, the libraries PHP bundles, php-wasm-builder, Emscripten and musl are served from `/licenses/php/`. Text outside code supports emoji shortcodes, clickable URLs, and `@username` mentions. This is developer-oriented text formatting, not a full rich-text editor.
 
 In commits, replies, and remotes, start a line with `>` to render a quote block. Consecutive quoted lines stay together; an unquoted line ends the block. Quotes keep inline code, links, mentions, and emoji formatting. A `>` inside code or in the middle of a line stays literal.
 
@@ -210,7 +210,7 @@ Typing **#123** in a composer looks up that exact issue or pull request in the /
 
 A hex color such as `#ff8a4c` or `#fff` shows with a small swatch of the color, outside code. A color written only with digits counts when it has 6 or 8 digits or starts with a zero, which issue numbers here don't: `#000`, `#000000` and `#333333` are colors, while `#123` and `#333` stay plain text.
 
-Sources: [body renderer](resources/js/components/commit-body.tsx), [colors](resources/js/lib/colors.ts), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
+Sources: [body renderer](resources/js/components/commit-body.tsx), [colors](resources/js/lib/colors.ts), [code blocks](resources/js/components/code-block.tsx), [running PHP](resources/js/lib/php.ts), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
 
 ### Draft previews
 
