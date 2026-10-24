@@ -451,3 +451,9 @@ it('never shows the images of a deleted commit in its tombstone', function (): v
 
     expect($tombstone->toArray())->not->toHaveKey('images');
 });
+
+it('hides its moderation metadata by default', function (): void {
+    $commit = Commit::factory()->create(['moderation_score' => 50, 'moderation_signals' => [['code' => 'duplicate', 'weight' => 50]], 'body_hash' => 'hash']);
+
+    expect($commit->toArray())->not->toHaveKeys(['moderation_score', 'moderation_signals', 'body_hash']);
+});

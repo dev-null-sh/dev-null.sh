@@ -12,6 +12,7 @@ use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\User;
+use App\Moderation\DeterministicModerationSignals;
 use App\Queries\CommitBuilder;
 use App\Queries\TomQuery;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,7 @@ final readonly class UpdateCommitStatuses
         private CreateWorldReply $createWorldReply,
         private UpdateCommitHotScores $updateCommitHotScores,
         private TomQuery $tomQuery,
+        private DeterministicModerationSignals $moderationSignals,
     ) {
         //
     }
@@ -58,6 +60,13 @@ final readonly class UpdateCommitStatuses
                 ->delete();
 
             if ($status === CommitStatus::Rejected) {
+                // Commits approved at creation were never hashed, so a pending copy would miss them as duplicates.
+                $commits
+                    ->filter(fn (Commit $commit): bool => $commit->body_hash === null)
+                    ->each(fn (Commit $commit): int => Commit::query()
+                        ->whereKey($commit->id)
+                        ->update(['body_hash' => $this->moderationSignals->bodyHash($commit->body)]));
+
                 Notification::query()->insert($commits->map(fn (Commit $commit): array => [
                     'id' => Str::uuid7()->toString(),
                     'recipient_id' => $commit->user_id,

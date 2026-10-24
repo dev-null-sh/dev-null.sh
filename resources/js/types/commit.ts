@@ -13,6 +13,11 @@ export type Embed = {
     poster?: string | null;
 };
 
+export type ModerationSignal = {
+    code: string;
+    weight: number;
+};
+
 export type LinkPreview = {
     url: string;
     title: string | null;
@@ -75,6 +80,8 @@ export type Commit = {
     translation?: CommitTranslation | null;
     status: CommitStatus;
     is_checking?: boolean;
+    moderation_score?: number;
+    moderation_signals?: ModerationSignal[] | null;
     created_at: string;
     updated_at: string;
     deleted_at?: null;

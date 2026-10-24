@@ -11,6 +11,7 @@ use App\Models\Commit;
 use App\Services\CommitTranslations;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Laravel\Ai\Responses\StructuredAgentResponse;
 use RuntimeException;
 use Throwable;
 
@@ -37,11 +38,12 @@ final readonly class CreateCommitTranslation
             try {
                 $response = new CommitTranslator($language)->prompt($commit->body);
 
-                $source = $response['source_language'] ?? null;
-                $body = $response['body'] ?? null;
+                $structured = $response instanceof StructuredAgentResponse ? $response->structured : [];
+                $source = $structured['source_language'] ?? null;
+                $body = $structured['body'] ?? null;
 
                 $reason = match (true) {
-                    $response->structured === [] => 'empty_or_malformed_response',
+                    $structured === [] => 'empty_or_malformed_response',
                     ! is_string($source), ! is_string($body) => 'invalid_response_shape',
                     ! in_array($source, [...$this->translations->languages(), 'und'], true) => 'unsupported_source_language',
                     $language !== null && $source !== 'und' && blank($body) => 'empty_translation',
