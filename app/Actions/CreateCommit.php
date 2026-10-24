@@ -64,7 +64,7 @@ final readonly class CreateCommit
                 'mentions' => $this->mentionedUsers->get($body),
                 'parent_id' => $parent?->id,
                 'root_id' => $parent?->threadRootId(),
-                'status' => $user->isAdmin() || ($hasGoodReputation && ! $user->hasRecentReports()) ? CommitStatus::Approved : CommitStatus::Pending,
+                'status' => $user->isAdmin() || $hasGoodReputation ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
                 'quoted_commit_id' => $quotedCommit?->id,
                 'hot_score' => $this->theAlgorithm->score($createdAt, 0, 0),
@@ -92,7 +92,7 @@ final readonly class CreateCommit
             $this->createWorldReply->handle($commit);
 
             if ($commit->status === CommitStatus::Approved
-                && $user->github_id !== CreateTomFriendship::GITHUB_ID && filled(config('ai.providers.opencode.key'))
+                && $user->github_id !== CreateTomFriendship::GITHUB_ID
             ) {
                 $tom = $this->tomQuery->get();
 
@@ -105,11 +105,11 @@ final readonly class CreateCommit
                 dispatch(new CheckUserLevel($user))->afterCommit();
             }
 
-            if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation && filled(config('services.openai.key'))) {
+            if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation) {
                 dispatch(new ModerateCommit($commit))->afterCommit();
             }
 
-            if ($commit->body !== '' && filled(config('services.openai.key'))) {
+            if ($commit->body !== '') {
                 dispatch(new EmbedCommit($commit))->afterCommit();
             }
 

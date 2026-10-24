@@ -4,6 +4,7 @@ import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { store } from '@/actions/App/Http/Controllers/IssueController';
+import { WordmarkText } from '@/components/wordmark-text';
 import { collectEnvironment } from '@/lib/environment';
 import type { IssueEnvironment } from '@/lib/environment';
 import type { IssueCommand, IssueKind } from '@/lib/issue-commands';
@@ -33,13 +34,11 @@ export function useIssueCommand({
     body,
     updateBody,
     enabled,
-    hasSecrets,
     onCreated,
 }: {
     body: string;
     updateBody: (body: string) => void;
     enabled: boolean;
-    hasSecrets: boolean;
     onCreated: () => void;
 }) {
     const [kind, setKind] = useState<IssueKind | null>(null);
@@ -83,13 +82,6 @@ export function useIssueCommand({
             return;
         }
 
-        if (hasSecrets) {
-            toast.error(
-                'Remove detected secrets before opening a public GitHub issue.',
-            );
-            return;
-        }
-
         request.transform(() => ({
             command: command.name,
             body,
@@ -106,7 +98,7 @@ export function useIssueCommand({
                 onHttpException: (response) => {
                     toast.error(
                         response.status === 429
-                            ? 'Issue limit reached. Try again in an hour.'
+                            ? 'Issue limit reached: 10 a day. Try again tomorrow.'
                             : 'GitHub did not confirm the issue. Check upstream before retrying. Your draft is safe.',
                     );
                 },
@@ -324,9 +316,11 @@ export function IssueCommandHint({
         <div className="mt-1 flex min-w-0 items-center gap-2 text-[13px] text-muted-foreground">
             <Icon className="size-3.5 shrink-0" aria-hidden="true" />
             <span className="min-w-0 truncate">
-                {command.kind === 'bug'
-                    ? 'Found a bug in /dev/null?'
-                    : 'Have an idea for /dev/null?'}
+                <WordmarkText>
+                    {command.kind === 'bug'
+                        ? 'Found a bug in /dev/null?'
+                        : 'Have an idea for /dev/null?'}
+                </WordmarkText>
             </span>
             <button
                 type="button"

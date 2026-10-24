@@ -1,6 +1,6 @@
 import { AudioLines, Code2, Play } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 import type { Embed, LinkPreview } from '@/types';
 
@@ -18,6 +18,75 @@ function frameStyle(embed: Embed): CSSProperties {
     return embed.aspect_ratio === null
         ? { height: embed.height ?? undefined }
         : { aspectRatio: embed.aspect_ratio };
+}
+
+function isAsciinemaRecording(embed: Embed): boolean {
+    return (
+        embed.provider === 'asciinema' &&
+        /^https:\/\/asciinema\.org\/a\/\w+\/iframe(?:[?#].*)?$/.test(embed.src)
+    );
+}
+
+function isAsciinemaBodySize(
+    data: unknown,
+): data is { type: 'bodySize'; payload: { height: number } } {
+    return (
+        typeof data === 'object' &&
+        data !== null &&
+        'type' in data &&
+        data.type === 'bodySize' &&
+        'payload' in data &&
+        typeof data.payload === 'object' &&
+        data.payload !== null &&
+        'height' in data.payload &&
+        typeof data.payload.height === 'number' &&
+        Number.isFinite(data.payload.height) &&
+        data.payload.height > 0
+    );
+}
+
+export function EmbedFrame({ embed, title }: { embed: Embed; title: string }) {
+    const iframeRef = useRef<HTMLIFrameElement>(null);
+    const recording = isAsciinemaRecording(embed);
+    const [height, setHeight] = useState(embed.height ?? 420);
+
+    useEffect(() => {
+        if (!recording) {
+            return;
+        }
+
+        const iframe = iframeRef.current;
+        const resize = (event: MessageEvent<unknown>) => {
+            if (
+                event.origin !== 'https://asciinema.org' ||
+                event.source !== iframe?.contentWindow ||
+                !isAsciinemaBodySize(event.data)
+            ) {
+                return;
+            }
+
+            setHeight(event.data.payload.height);
+        };
+
+        window.addEventListener('message', resize);
+
+        return () => window.removeEventListener('message', resize);
+    }, [recording]);
+
+    return (
+        <iframe
+            ref={iframeRef}
+            src={embed.src}
+            title={title}
+            allow="autoplay; encrypted-media; fullscreen; picture-in-picture; clipboard-write"
+            sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation allow-forms"
+            referrerPolicy="strict-origin-when-cross-origin"
+            allowFullScreen
+            style={recording ? { height } : frameStyle(embed)}
+            className="block w-full border-0 bg-muted"
+            data-test="link-embed-frame"
+        />
+    );
 }
 
 function Thumbnail({
@@ -116,16 +185,10 @@ export function LinkEmbed({
     const poster = preview.image_url ?? embed.poster ?? null;
 
     const frame = (
-        <iframe
-            src={embed.src}
+        <EmbedFrame
+            key={embed.src}
+            embed={embed}
             title={preview.title ?? `${embed.provider} player`}
-            allow="autoplay; encrypted-media; fullscreen; picture-in-picture; clipboard-write"
-            sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-presentation allow-forms"
-            referrerPolicy="strict-origin-when-cross-origin"
-            allowFullScreen
-            style={frameStyle(embed)}
-            className="block w-full border-0 bg-muted"
-            data-test="link-embed-frame"
         />
     );
 

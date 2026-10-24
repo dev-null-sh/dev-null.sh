@@ -11,6 +11,7 @@ let showPreview = false;
 let component = 'user/show';
 let log: string | undefined;
 let loadedCommits: { data: { id: string }[] } | undefined;
+let suggestedUsers: SuggestedUser[] | undefined;
 type VisitOptions = {
     only?: string[];
     headers?: Record<string, string>;
@@ -22,9 +23,14 @@ type VisitOptions = {
     onError?: () => void;
     onNetworkError?: () => void;
     onCancel?: () => void;
+    onFinish?: () => void;
+    onBeforeUpdate?: () => void;
 };
 
 const visits: (VisitOptions & { method?: string })[] = [];
+const reloads: VisitOptions[] = [];
+const navigateListeners: (() => void)[] = [];
+const timers: (() => void)[] = [];
 const toasts: string[] = [];
 
 vi.doMock('react', () => ({
@@ -54,12 +60,27 @@ vi.doMock('@inertiajs/react', async () => ({
             auth: { user: { id: 'viewer' } },
             log,
             commits: loadedCommits,
+            showsWhoToFollow: true,
+            suggestedUsers,
         },
     }),
     router: {
         flushAll: () => {},
         visit: (url: { method: string }, options: VisitOptions) =>
             visits.push({ ...options, method: url.method }),
+        reload: (options: VisitOptions) => reloads.push(options),
+        on: (event: string, listener: () => void) => {
+            if (event === 'navigate') {
+                navigateListeners.push(listener);
+            }
+
+            return () =>
+                navigateListeners.splice(navigateListeners.indexOf(listener), 1);
+        },
+        replaceProp: (
+            _key: string,
+            update: (current: SuggestedUser[]) => SuggestedUser[],
+        ) => (suggestedUsers = update(suggestedUsers ?? [])),
     },
 }));
 
@@ -79,20 +100,33 @@ const { FollowButton } =
     await import('../../resources/js/components/follow-button');
 const { UserPreview } =
     await import('../../resources/js/components/user-preview');
-const { SuggestedUserRow } =
+const { SuggestedUserRow, WhoToFollow, WhoToFollowInLog } =
     await import('../../resources/js/components/who-to-follow');
+const { refreshSharedState } =
+    await import('../../resources/js/hooks/use-shared-state');
 const { UserSafetyMenu } =
     await import('../../resources/js/components/user-safety-menu');
 const { ConversationActions } =
     await import('../../resources/js/components/chat/conversation-actions');
 
-vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
-vi.stubGlobal('document', { body: {} });
+vi.stubGlobal('window', {
+    matchMedia: () => ({ matches: false }),
+    setTimeout: (callback: () => void) => timers.push(callback),
+});
+vi.stubGlobal('document', { body: {}, cookie: '' });
 afterAll(() => vi.unstubAllGlobals());
 afterEach(() => {
     component = 'user/show';
     log = undefined;
     loadedCommits = undefined;
+    suggestedUsers = undefined;
+    refreshSharedState(
+        new Map<string, boolean | number | string>([
+            ['who-to-follow-dismissing', 0],
+            ['who-to-follow-top-up', 'idle'],
+            ['who-to-follow-dismissed', false],
+        ]),
+    );
 });
 
 function find(
@@ -130,6 +164,7 @@ function suggestion(username: string): SuggestedUser {
         avatar_url: null,
         lane: 1,
         timezone: null,
+        show_local_time: false,
         followed_by_following_count: 0,
         followers_count: 0,
     } as unknown as SuggestedUser;
@@ -490,4 +525,165 @@ test('both Following controls carry the oldest loaded row through the follow red
             'X-Log-Through': 'oldest-loaded',
         });
     }
+});
+
+function shownSuggestions(): (string | number)[] {
+    return (suggestedUsers ?? []).slice(0, 3).map((user) => user.id);
+}
+
+function suggestionRow(user: SuggestedUser): Props {
+    const row = find(
+        WhoToFollow(),
+        (props) => (props.user as SuggestedUser | undefined)?.id === user.id,
+    );
+    assert.ok(row);
+
+    return row.props;
+}
+
+function dismissSuggestion(user: SuggestedUser): boolean {
+    return (
+        suggestionRow(user).onDismiss as (onFailed: () => void) => boolean
+    )(() => {});
+}
+
+function hasElementNamed(node: ReactNode, name: string): boolean {
+    if (Array.isArray(node)) {
+        return node.some((child) => hasElementNamed(child, name));
+    }
+
+    if (!React.isValidElement<Props>(node)) {
+        return false;
+    }
+
+    return (
+        (node.type as { name?: string }).name === name ||
+        hasElementNamed(node.props.children, name)
+    );
+}
+
+function suggestions(...usernames: string[]): SuggestedUser[] {
+    return usernames.map(suggestion);
+}
+
+function finishTopUp(topUp: VisitOptions): void {
+    topUp.onBeforeUpdate?.();
+    topUp.onSuccess?.();
+    topUp.onFinish?.();
+}
+
+test('a failed dismissal takes its slot back from whoever holds it, without bringing back a saved one', () => {
+    const [ada, bob, cleo, dina, eve, finn] = suggestions(
+        'ada',
+        'bob',
+        'cleo',
+        'dina',
+        'eve',
+        'finn',
+    );
+    suggestedUsers = [ada, bob, cleo, dina, eve, finn];
+
+    assert.equal(dismissSuggestion(ada), true);
+    const failed = visits.at(-1)!;
+    assert.equal(dismissSuggestion(dina), true);
+    const saved = visits.at(-1)!;
+    assert.deepEqual(shownSuggestions(), ['eve', 'bob', 'cleo']);
+
+    saved.onSuccess?.();
+    saved.onFinish?.();
+    failed.onFinish?.();
+
+    assert.deepEqual(
+        suggestedUsers.map((user) => user.id),
+        ['ada', 'bob', 'cleo', 'eve', 'finn'],
+    );
+});
+
+test('a dismissal that fails after a refresh leaves the new suggestions alone', () => {
+    const [gus, hana, ivo, jay] = suggestions('gus', 'hana', 'ivo', 'jay');
+    suggestedUsers = [gus, hana, ivo, jay];
+
+    dismissSuggestion(gus);
+    const failed = visits.at(-1)!;
+    document.cookie = 'who_to_follow_round=1';
+    const refreshed = suggestions('kai', 'lea', 'max');
+    suggestedUsers = refreshed;
+    failed.onFinish?.();
+    document.cookie = '';
+
+    assert.deepEqual(suggestedUsers, refreshed);
+});
+
+test('nobody is left only once a top-up after every dismissal finds nobody, in both blocks', () => {
+    const [nia] = suggestions('nia');
+    suggestedUsers = [nia];
+
+    assert.equal(dismissSuggestion(nia), false);
+    const dismissal = visits.at(-1)!;
+    timers.splice(0).forEach((timer) => timer());
+    assert.deepEqual(suggestedUsers, []);
+    assert.equal(hasElementNamed(WhoToFollow(), 'WhoToFollowEmptied'), false);
+
+    dismissal.onSuccess?.();
+    dismissal.onFinish?.();
+    assert.deepEqual(reloads.at(-1)?.only, ['suggestedUsers']);
+    assert.equal(hasElementNamed(WhoToFollow(), 'WhoToFollowEmptied'), false);
+
+    finishTopUp(reloads.at(-1)!);
+    assert.equal(hasElementNamed(WhoToFollow(), 'WhoToFollowEmptied'), true);
+    assert.equal(
+        hasElementNamed(WhoToFollowInLog(), 'WhoToFollowEmptied'),
+        true,
+    );
+});
+
+test('a top-up cancelled by visiting another page is sent again once it shows', () => {
+    const [oli] = suggestions('oli');
+    suggestedUsers = [oli];
+
+    dismissSuggestion(oli);
+    visits.at(-1)?.onSuccess?.();
+    visits.at(-1)?.onFinish?.();
+    const cancelled = reloads.at(-1)!;
+    cancelled.onFinish?.();
+    timers.splice(0).forEach((timer) => timer());
+
+    assert.equal(hasElementNamed(WhoToFollow(), 'WhoToFollowEmptied'), false);
+
+    navigateListeners.slice().forEach((listener) => listener());
+
+    assert.notEqual(reloads.at(-1), cancelled);
+    assert.deepEqual(reloads.at(-1)?.only, ['suggestedUsers']);
+    assert.equal(navigateListeners.length, 0);
+});
+
+test('a top-up that lands after someone else was dismissed takes them back out and tops up again', () => {
+    const [pia, quin, rae, sam, tom, uma] = suggestions(
+        'pia',
+        'quin',
+        'rae',
+        'sam',
+        'tom',
+        'uma',
+    );
+    suggestedUsers = [pia, quin, rae, sam, tom];
+
+    dismissSuggestion(pia);
+    visits.at(-1)?.onSuccess?.();
+    visits.at(-1)?.onFinish?.();
+    const topUp = reloads.at(-1)!;
+
+    dismissSuggestion(quin);
+    visits.at(-1)?.onSuccess?.();
+    visits.at(-1)?.onFinish?.();
+    assert.equal(reloads.at(-1), topUp);
+
+    suggestedUsers = [sam, quin, rae, tom, uma];
+    finishTopUp(topUp);
+
+    assert.deepEqual(
+        suggestedUsers.map((user) => user.id),
+        ['sam', 'tom', 'rae', 'uma'],
+    );
+    assert.notEqual(reloads.at(-1), topUp);
 });

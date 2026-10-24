@@ -12,10 +12,11 @@ import { LiveFollowing } from '@/components/live-following';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
+import { WordmarkText } from '@/components/wordmark-text';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { commitStateKey } from '@/lib/commit-state';
 import { useKeyLabels } from '@/lib/keyboard';
-import { formatCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { laneColor } from '@/lib/utils';
 import { login } from '@/routes';
 import { show } from '@/routes/user';
@@ -44,7 +45,7 @@ export function AppAside({
             >
                 <Search className="size-4" />
                 Search
-                <kbd className="ml-auto rounded border border-b-2 bg-muted px-1.5 font-mono text-xs">
+                <kbd className="ml-auto rounded-sm border border-b-2 bg-muted px-1.5 font-mono text-xs">
                     {keys.combo(keys.mod, 'K')}
                 </kbd>
             </button>
@@ -52,10 +53,10 @@ export function AppAside({
             {user === null ? (
                 <section
                     aria-labelledby="aside-sign-in"
-                    className="rounded-xl border bg-card p-4"
+                    className="rounded-lg border bg-card p-4"
                 >
                     <h2 id="aside-sign-in" className="font-semibold">
-                        New to /dev/null?
+                        <WordmarkText>New to /dev/null?</WordmarkText>
                     </h2>
                     <p className="mt-1 text-sm text-pretty text-muted-foreground">
                         Sign in with GitHub to follow developers, star commits,
@@ -112,7 +113,7 @@ export function AppAside({
                             </span>
                         </span>
                     </Link>
-                    <dl className="mt-4 flex gap-4 text-sm">
+                    <dl className="mt-4 grid grid-cols-3 gap-4 text-center text-sm">
                         {[
                             {
                                 count: commitsCount,
@@ -136,7 +137,7 @@ export function AppAside({
                         ].map((stat) => (
                             <div
                                 key={stat.label}
-                                className="group flex flex-row-reverse gap-1.5"
+                                className="group flex min-w-0 flex-col-reverse"
                             >
                                 <dt className="text-muted-foreground">
                                     <Link
@@ -146,10 +147,11 @@ export function AppAside({
                                         {stat.label}
                                     </Link>
                                 </dt>
-                                <dd className="font-mono font-medium">
+                                <dd className="font-mono font-medium tabular-nums">
                                     <Link
                                         href={stat.href}
                                         className="group-hover:underline"
+                                        title={exactCountTitle(stat.count)}
                                     >
                                         {formatCount(stat.count)}
                                     </Link>
@@ -203,7 +205,7 @@ export function AppAside({
                 className="mt-auto flex items-center gap-2 self-start rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground"
             >
                 Keyboard shortcuts
-                <kbd className="min-w-5 rounded border border-b-2 bg-muted px-1 text-center font-mono text-xs">
+                <kbd className="min-w-5 rounded-sm border border-b-2 bg-muted px-1 text-center font-mono text-xs">
                     ?
                 </kbd>
             </button>

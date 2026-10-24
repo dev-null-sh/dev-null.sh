@@ -1,3 +1,4 @@
+import { Transition } from '@headlessui/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { Copy, Search, SmilePlus } from 'lucide-react';
 import type { KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react';
@@ -5,11 +6,18 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
     Popover,
+    PopoverAnchor,
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { emojiName, searchEmojiByUse } from '@/lib/emoji';
+import { formatCount, formatExactCount } from '@/lib/numbers';
 import type { ReactionUsage, Tap } from '@/lib/reactions';
 import {
     frequentReactions,
@@ -109,56 +117,159 @@ export function ReactionChips({
     nameOf: (userId: string) => string;
     onToggle: ((emoji: string) => void) | null;
 }) {
-    const summaries = summarizeReactions(reactions, userId);
+    const hasReactions = (reactions?.length ?? 0) > 0;
+    const [displayedReactions, setDisplayedReactions] = useState(reactions);
 
-    if (summaries.length === 0) {
-        return null;
+    // Keep the last chips in the fold until their row and its gap have collapsed.
+    if (hasReactions && reactions !== displayedReactions) {
+        setDisplayedReactions(reactions);
     }
 
-    return (
-        <ul
-            aria-label="Reactions"
-            className={cn('flex max-w-full flex-wrap gap-1', {
-                'justify-end': isMine,
-            })}
-            data-test="message-reactions"
-        >
-            {summaries.map((summary) => {
-                const names = summary.userIds.map(nameOf).join(', ');
+    const summaries = summarizeReactions(
+        hasReactions ? reactions : displayedReactions,
+        userId,
+    );
 
-                return (
-                    <li key={summary.emoji}>
-                        <button
-                            type="button"
-                            disabled={onToggle === null}
-                            aria-pressed={summary.isMine}
-                            aria-label={`${shortcodeOf(summary.emoji)} ${summary.count}, from ${names}`}
-                            title={`${names} reacted with ${shortcodeOf(summary.emoji)}`}
-                            onClick={() => onToggle?.(summary.emoji)}
-                            className={cn(
-                                'inline-flex h-6 items-center gap-1 rounded-full border bg-card pr-2 pl-1.5 text-[13px] leading-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none enabled:hover:border-foreground/25',
-                                {
-                                    'border-primary/45 bg-primary-soft enabled:hover:border-primary':
-                                        summary.isMine,
-                                },
-                            )}
-                            data-test="reaction-chip"
-                        >
-                            <span aria-hidden>{summary.emoji}</span>
-                            <span
-                                aria-hidden
+    return (
+        <Transition show={hasReactions}>
+            <div
+                inert={!hasReactions}
+                aria-hidden={!hasReactions}
+                className="-mt-0.5 grid max-w-full grid-rows-[1fr] data-leave:data-closed:-mt-1 data-leave:data-closed:grid-rows-[0fr] data-leave:data-closed:opacity-0 motion-safe:data-leave:transition-[grid-template-rows,margin-top,opacity] motion-safe:data-leave:duration-300 motion-safe:data-leave:ease-out"
+            >
+                <div
+                    className={cn(
+                        'min-h-0',
+                        !hasReactions && 'overflow-hidden',
+                    )}
+                >
+                    <ul
+                        aria-label="Reactions"
+                        className={cn(
+                            'flex max-w-full flex-wrap gap-1 pb-0.5',
+                            {
+                                'justify-end': isMine,
+                            },
+                        )}
+                        data-test="message-reactions"
+                    >
+                        {summaries.map((summary) => (
+                            <ReactionChip
+                                key={summary.emoji}
+                                summary={summary}
+                                nameOf={nameOf}
+                                onToggle={onToggle}
+                                isLeaving={!hasReactions}
+                            />
+                        ))}
+                    </ul>
+                </div>
+            </div>
+        </Transition>
+    );
+}
+
+function ReactionChip({
+    summary,
+    nameOf,
+    onToggle,
+    isLeaving,
+}: {
+    summary: ReturnType<typeof summarizeReactions>[number];
+    nameOf: (userId: string) => string;
+    onToggle: ((emoji: string) => void) | null;
+    isLeaving: boolean;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const anchor = useRef<HTMLButtonElement>(null);
+    const names = summary.userIds.map(nameOf).join(', ');
+    const touch = useTouchReactions({
+        onLongPress: () => setIsOpen(true),
+    });
+
+    return (
+        <li>
+            <Popover open={isOpen && !isLeaving} onOpenChange={setIsOpen}>
+                <Tooltip open={isOpen ? false : undefined}>
+                    <TooltipTrigger asChild>
+                        <PopoverAnchor asChild>
+                            <button
+                                ref={anchor}
+                                type="button"
+                                disabled={isLeaving}
+                                aria-pressed={summary.isMine}
+                                aria-label={`${shortcodeOf(summary.emoji)} ${formatExactCount(summary.count)}, from ${names}`}
+                                aria-description="Press and hold, or press Shift+F10, to see who reacted."
+                                aria-haspopup="dialog"
+                                aria-expanded={isOpen && !isLeaving}
+                                {...touch}
+                                onPointerDown={(event) => {
+                                    event.stopPropagation();
+                                    touch.onPointerDown?.(event);
+                                }}
+                                onKeyDown={(event) => {
+                                    if (
+                                        event.key === 'ContextMenu' ||
+                                        (event.shiftKey && event.key === 'F10')
+                                    ) {
+                                        event.preventDefault();
+                                        setIsOpen(true);
+                                    }
+                                }}
+                                onClick={() => onToggle?.(summary.emoji)}
                                 className={cn(
-                                    'min-w-[1ch] font-mono text-[11px] font-medium text-muted-foreground tabular-nums',
-                                    { 'text-primary': summary.isMine },
+                                    'inline-flex h-6 items-center gap-1 rounded-md border bg-card pr-2 pl-1.5 text-[13px] leading-none transition-colors select-none [-webkit-touch-callout:none] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none enabled:hover:border-foreground/25',
+                                    {
+                                        'border-primary/45 bg-primary-soft enabled:hover:border-primary':
+                                            summary.isMine,
+                                    },
                                 )}
+                                data-test="reaction-chip"
                             >
-                                {summary.count}
-                            </span>
-                        </button>
-                    </li>
-                );
-            })}
-        </ul>
+                                <span aria-hidden>{summary.emoji}</span>
+                                <span
+                                    aria-hidden
+                                    className={cn(
+                                        'min-w-[1ch] font-mono text-[11px] font-medium text-muted-foreground tabular-nums',
+                                        { 'text-primary': summary.isMine },
+                                    )}
+                                >
+                                    {formatCount(summary.count)}
+                                </span>
+                            </button>
+                        </PopoverAnchor>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        {names} reacted with {shortcodeOf(summary.emoji)}
+                    </TooltipContent>
+                </Tooltip>
+                <PopoverContent
+                    side="top"
+                    className="max-h-[min(18rem,var(--radix-popover-content-available-height))] max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain p-3"
+                    aria-label={`People who reacted with ${shortcodeOf(summary.emoji)}`}
+                    onOpenAutoFocus={(event) => event.preventDefault()}
+                    onCloseAutoFocus={(event) => event.preventDefault()}
+                    onFocusOutside={(event) => {
+                        // Lifting the held finger focuses its chip before the synthetic click is suppressed.
+                        if (anchor.current?.contains(event.target as Node)) {
+                            event.preventDefault();
+                        }
+                    }}
+                    data-test="reaction-authors"
+                >
+                    <p className="mb-2 flex items-center gap-2 text-sm font-medium">
+                        <span aria-hidden>{summary.emoji}</span>
+                        {formatExactCount(summary.count)}{' '}
+                        {summary.count === 1 ? 'reaction' : 'reactions'}
+                    </p>
+                    <ul className="space-y-1 text-sm wrap-anywhere">
+                        {summary.userIds.map((id) => (
+                            <li key={id}>{nameOf(id)}</li>
+                        ))}
+                    </ul>
+                </PopoverContent>
+            </Popover>
+        </li>
     );
 }
 
@@ -174,6 +285,7 @@ export function ReactionTray({
     trigger,
     usage,
     reacted,
+    hasReactions,
     isMine,
     onReact,
 }: {
@@ -183,13 +295,17 @@ export function ReactionTray({
     trigger: RefObject<HTMLButtonElement | null>;
     usage: ReactionUsage[];
     reacted: Set<string>;
+    hasReactions: boolean;
     isMine: boolean;
     onReact: (emoji: string) => void;
 }) {
     const tray = useRef<HTMLDivElement>(null);
     const [isPickerOpen, setIsPickerOpen] = useState(false);
     const isPicking = isOpen && isPickerOpen;
-    const isPicked = useRef(false);
+    const pickedEmoji = useRef<string | null>(null);
+    const pendingReaction = useRef<string | null>(null);
+    const [isReservingReaction, setIsReservingReaction] = useState(false);
+    const reservesFirstReaction = isReservingReaction && !hasReactions;
 
     const close = () => {
         onOpenChange(false);
@@ -197,9 +313,29 @@ export function ReactionTray({
     };
 
     const react = (emoji: string) => {
-        onReact(emoji);
+        pendingReaction.current = emoji;
+        setIsReservingReaction(!hasReactions);
         close();
     };
+
+    useEffect(() => {
+        if (isOpen || pendingReaction.current === null) {
+            return;
+        }
+
+        const emoji = pendingReaction.current;
+        pendingReaction.current = null;
+
+        // Adding the chip or changing the presets would move the tray while it folds away.
+        void Promise.allSettled(
+            tray.current
+                ?.getAnimations()
+                .map((animation) => animation.finished) ?? [],
+        ).then(() => {
+            onReact(emoji);
+            setIsReservingReaction(false);
+        });
+    }, [isOpen, onReact]);
 
     useEffect(() => {
         if (!isOpen) {
@@ -249,22 +385,29 @@ export function ReactionTray({
                 }
             }}
             className={cn(
-                'grid w-full transition-[grid-template-rows,margin-bottom] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none pointer-coarse:hidden',
+                'grid w-full duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none pointer-coarse:hidden',
                 isOpen ? '-mb-2 grid-rows-[1fr]' : 'grid-rows-[0fr]',
+                // The first chip replaces this 26px row (including bottom spacing) and its 2px gap.
+                reservesFirstReaction
+                    ? 'pb-7 transition-[grid-template-rows,margin-bottom,padding-bottom]'
+                    : 'transition-[grid-template-rows,margin-bottom]',
             )}
             data-test="reaction-tray"
         >
             {/* The fold clips, so it reaches past the row by the shadow's spread, and the open tray gives that back below. */}
             <div
-                className={cn('-mx-2 flex min-h-0 overflow-hidden px-2', {
-                    'justify-end': isMine,
-                })}
+                className={cn(
+                    '-mx-2 flex min-h-0 items-start overflow-hidden px-2',
+                    {
+                        'justify-end': isMine,
+                    },
+                )}
             >
                 <div
                     role="toolbar"
                     aria-label="React"
                     className={cn(
-                        'mt-0.5 mb-3.5 flex w-max items-center gap-0.5 rounded-full border bg-popover p-[3px] shadow-[0_6px_16px_-8px_rgb(0_0_0/0.35)] transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none',
+                        'mt-0.5 mb-3.5 flex w-max items-center gap-0.5 rounded-lg border bg-popover p-[3px] shadow-[0_6px_16px_-8px_rgb(0_0_0/0.35)] transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none',
                         isOpen
                             ? 'translate-y-0 opacity-100'
                             : '-translate-y-2 opacity-0',
@@ -292,7 +435,7 @@ export function ReactionTray({
                                 title={shortcodeOf(emoji)}
                                 onClick={() => react(emoji)}
                                 className={cn(
-                                    'grid size-8 place-items-center rounded-full text-lg leading-none transition-[background-color,scale] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-90',
+                                    'grid size-8 place-items-center rounded-md text-lg leading-none transition-[background-color,scale] hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:scale-90',
                                     { 'bg-primary-soft': reacted.has(emoji) },
                                 )}
                                 data-test="quick-reaction"
@@ -308,7 +451,7 @@ export function ReactionTray({
                                 type="button"
                                 aria-label="More reactions"
                                 title="More reactions"
-                                className="grid size-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-[state=open]:bg-accent data-[state=open]:text-foreground"
+                                className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-[state=open]:bg-accent data-[state=open]:text-foreground"
                                 data-test="more-reactions"
                             >
                                 <SmilePlus aria-hidden className="size-4" />
@@ -317,11 +460,14 @@ export function ReactionTray({
                         <PopoverContent
                             align={isMine ? 'end' : 'start'}
                             collisionPadding={8}
-                            className="flex h-[min(25rem,var(--radix-popover-content-available-height))] w-76 flex-col overflow-hidden rounded-xl p-0 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)]"
+                            className="flex h-[min(25rem,var(--radix-popover-content-available-height))] w-76 flex-col overflow-hidden rounded-lg p-0 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)]"
                             onCloseAutoFocus={(event) => {
-                                if (isPicked.current) {
+                                const emoji = pickedEmoji.current;
+
+                                if (emoji !== null) {
                                     event.preventDefault();
-                                    isPicked.current = false;
+                                    pickedEmoji.current = null;
+                                    react(emoji);
                                 }
                             }}
                         >
@@ -329,9 +475,9 @@ export function ReactionTray({
                                 usage={usage}
                                 reacted={reacted}
                                 onPick={(emoji) => {
-                                    isPicked.current = true;
+                                    // Keep the fading picker's contents and anchor still until it unmounts.
+                                    pickedEmoji.current = emoji;
                                     setIsPickerOpen(false);
-                                    react(emoji);
                                 }}
                             />
                         </PopoverContent>
@@ -600,7 +746,7 @@ function EmojiCell({
  * tap that ends a long press doesn't also follow a link.
  */
 export function useTouchReactions(
-    gestures: { onLongPress: () => void; onDoubleTap: () => void } | null,
+    gestures: { onLongPress: () => void; onDoubleTap?: () => void } | null,
 ) {
     const timer = useRef<number | undefined>(undefined);
     const start = useRef<{ x: number; y: number } | null>(null);
@@ -613,6 +759,8 @@ export function useTouchReactions(
         start.current = null;
     };
 
+    useEffect(() => () => window.clearTimeout(timer.current), []);
+
     if (gestures === null) {
         return {};
     }
@@ -624,6 +772,18 @@ export function useTouchReactions(
             }
 
             didLongPress.current = false;
+
+            // Portaled viewers still bubble through React, and a second finger starts a pinch, not a hold.
+            if (
+                !event.currentTarget.contains(event.target as Node) ||
+                !event.isPrimary
+            ) {
+                cancel();
+                lastTap.current = null;
+
+                return;
+            }
+
             start.current = { x: event.clientX, y: event.clientY };
             timer.current = window.setTimeout(() => {
                 didLongPress.current = true;
@@ -666,7 +826,7 @@ export function useTouchReactions(
                 lastTap.current = null;
                 didDoubleTap.current = true;
                 navigator.vibrate?.(8);
-                gestures.onDoubleTap();
+                gestures.onDoubleTap?.();
             } else {
                 lastTap.current = tap;
             }
@@ -818,7 +978,7 @@ export function ReactionSheet({
                             role="toolbar"
                             aria-label="React"
                             data-sheet-part
-                            className="flex w-max items-center gap-1 rounded-full border bg-popover p-1 shadow-[0_10px_28px_-10px_rgb(0_0_0/0.45)]"
+                            className="flex w-max items-center gap-1 rounded-lg border bg-popover p-1 shadow-[0_10px_28px_-10px_rgb(0_0_0/0.45)]"
                         >
                             {quickReactions(usage).map((emoji) => (
                                 <button
@@ -828,7 +988,7 @@ export function ReactionSheet({
                                     aria-pressed={reacted.has(emoji)}
                                     onClick={() => react(emoji)}
                                     className={cn(
-                                        'grid size-11 place-items-center rounded-full text-2xl leading-none transition-transform active:scale-90',
+                                        'grid size-11 place-items-center rounded-md text-2xl leading-none transition-transform active:scale-90',
                                         {
                                             'bg-primary-soft':
                                                 reacted.has(emoji),
@@ -848,7 +1008,7 @@ export function ReactionSheet({
                                 aria-expanded={isPicking}
                                 onClick={() => setIsPicking(true)}
                                 className={cn(
-                                    'grid size-11 place-items-center rounded-full text-muted-foreground',
+                                    'grid size-11 place-items-center rounded-md text-muted-foreground',
                                     { 'bg-accent text-foreground': isPicking },
                                 )}
                             >
@@ -938,7 +1098,7 @@ function PickerSheet({
                     : undefined
             }
             className={cn(
-                '-mx-3 mt-auto flex h-[min(calc(var(--visual-viewport-height,100dvh)*0.6),28rem)] flex-col rounded-t-2xl border-t bg-popover pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-16px_rgb(0_0_0/0.45)] motion-safe:animate-in motion-safe:slide-in-from-bottom',
+                '-mx-3 mt-auto flex h-[min(calc(var(--visual-viewport-height,100dvh)*0.6),28rem)] flex-col rounded-t-lg border-t bg-popover pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_30px_-16px_rgb(0_0_0/0.45)] motion-safe:animate-in motion-safe:slide-in-from-bottom',
                 { 'transition-transform duration-200': !isDragging },
             )}
             data-test="emoji-sheet"

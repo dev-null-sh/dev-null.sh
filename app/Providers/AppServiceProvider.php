@@ -128,6 +128,13 @@ final class AppServiceProvider extends ServiceProvider
             $request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip(),
         ));
 
+        // Every issue lookup GitHub hasn't answered in the last five minutes costs a request out of the shared hourly budget,
+        // which also keeps SSH keys in sync for the CLI, so it gets a budget of its own...
+        RateLimiter::for('issue-suggestions', fn (Request $request): array => [
+            Limit::perMinute(30)->by($this->userId($request)),
+            Limit::perDay(300)->by('day:'.$this->userId($request)),
+        ]);
+
         // Every commit search pays for an embedding and a relevance verdict, so it gets a budget of its own...
         RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(15)
             ->by($request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip())

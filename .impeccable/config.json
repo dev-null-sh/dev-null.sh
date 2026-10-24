@@ -37,6 +37,24 @@
         ],
         "createdAt": "2026-10-15T12:16:02.254Z",
         "reason": "agent decided: unchosen decision-round sketch, never shipped"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "resources/js/components/app-aside.tsx"
+        ],
+        "createdAt": "2026-10-22T11:11:07.911Z",
+        "reason": "Agent triage: the only two matches are unchanged kbd keycaps, not cards. DESIGN.md:313 specifies bordered mono keyboard caps; production f539edb0 has identical classes at lines 47 and 207. The detector has no value-specific exception for this rule."
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "resources/js/components/app-nav.tsx"
+        ],
+        "createdAt": "2026-10-22T18:11:50.134Z",
+        "reason": "Agent decided: DESIGN.md specifies bordered mono kbd caps; the unchanged keycap bottom border conveys key depth rather than a card accent."
       }
     ]
   }

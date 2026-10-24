@@ -5,6 +5,7 @@ import {
     DocumentPage,
     DocumentSection,
 } from '@/components/document-page';
+import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import {
     COMPANY_NAME,
@@ -33,10 +34,11 @@ export default function Show() {
                 <DocumentSection id="who" title="Who we are">
                     <p>
                         {COMPANY_NAME}, a company registered in Portugal ("we",
-                        "us"), operates /dev/null and everything we offer under
-                        that name or any other, now or in the future (the
-                        "service"), and is the controller of the personal data
-                        processed in it. Contact: <Mail />.
+                        "us"), operates <WordmarkText>/dev/null</WordmarkText>{' '}
+                        and everything we offer under that name or any other,
+                        now or in the future (the "service"), and is the
+                        controller of the personal data processed in it.
+                        Contact: <Mail />.
                     </p>
                 </DocumentSection>
 
@@ -69,6 +71,17 @@ export default function Show() {
                                 messages you send us, and data derived from all
                                 of this, such as rankings and moderation
                                 signals.
+                            </>,
+                            <>
+                                <strong>Private messages:</strong> messages,
+                                images, and voice notes you send in Remotes,
+                                which only the people in the conversation can
+                                see. They are encrypted at rest, are not used by
+                                AI features, and are erased with your account.
+                                Voice notes are recorded with your microphone
+                                only after you start recording; recording stops
+                                and the microphone is released when you stop or
+                                discard.
                             </>,
                             <>
                                 <strong>From others:</strong> what other users
@@ -106,9 +119,9 @@ export default function Show() {
                         archive, or reuse public content, and we can't control
                         or remove those copies. Deleted content may still appear
                         in replies, quotes, search engines, and copies others
-                        made. Don't post anything you don't want public. You are
-                        responsible for any personal data of others that you
-                        post.
+                        made. Private messages are not public. Don't post
+                        anything you don't want public. You are responsible for
+                        any personal data of others that you post.
                     </p>
                 </DocumentSection>
 
@@ -187,6 +200,13 @@ export default function Show() {
                         keeping threads intact, preventing abuse, complying with
                         the law, and defending legal claims. Deleted content may
                         remain in backups and logs for a period.
+                    </p>
+                    <p>
+                        If a moderator put you in timeout or banned you, we keep
+                        a record of it after you delete your account: your
+                        GitHub account id, the reason, and when it happened. It
+                        stops a banned GitHub account from signing up again, and
+                        keeps a timeout from ending early by signing up again.
                     </p>
                 </DocumentSection>
 

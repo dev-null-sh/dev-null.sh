@@ -298,7 +298,8 @@ it('hides cached translations when an author views their post after it returns t
     CommitTranslator::assertPromptedTimes(1);
 });
 
-it('leaves failed translations uncached and can retry', function (): void {
+it('leaves failed translations uncached and can retry even without a provider key', function (): void {
+    config(['ai.providers.opencode.key' => null]);
     Exceptions::fake();
     $attempts = 0;
     CommitTranslator::fake(function () use (&$attempts): array {
@@ -452,16 +453,20 @@ it('rate limits generation and does not call the provider after the limit', func
     CommitTranslator::assertPromptedTimes(1);
 });
 
-it('physically prunes expired database translations without deleting fresh or unrelated cache entries', function (): void {
+it('physically prunes expired database cache entries without deleting fresh ones', function (): void {
     config(['cache.default' => 'database']);
     Cache::put('commit-translations:v1:expired', 'expired', 1);
+    Cache::put('open-graph-image:commit:expired', 'expired', 1);
     Cache::put('commit-translations:v1:fresh', 'fresh', 60);
     Cache::put('unrelated', 'keep', 60);
     $this->travel(2)->seconds();
 
-    collect(resolve(Schedule::class)->events())->firstWhere('description', 'prune-commit-translations')->run(app());
+    collect(resolve(Schedule::class)->events())->firstWhere('description', 'prune-expired-cache')->run(app());
 
-    expect(DB::table('cache')->where('key', config('cache.prefix').'commit-translations:v1:expired')->exists())->toBeFalse()
+    expect(DB::table('cache')->whereIn('key', [
+        config('cache.prefix').'commit-translations:v1:expired',
+        config('cache.prefix').'open-graph-image:commit:expired',
+    ])->exists())->toBeFalse()
         ->and(Cache::get('commit-translations:v1:fresh'))->toBe('fresh')
         ->and(Cache::get('unrelated'))->toBe('keep');
 });
@@ -513,4 +518,28 @@ it('uses the saved preference to hide translation for matching source languages'
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.translation.language', 'ja')
         ->where('commit.translation.available', false));
+});
+
+it('lets readers translate on demand after disabling automatic translations without affecting other readers', function (): void {
+    CommitTranslator::fake([['source_language' => 'zh', 'body' => 'Released a new version today.']])->preventStrayPrompts();
+    $reader = User::factory()->create(['automatic_translation' => false]);
+    $other = User::factory()->create();
+    $commit = Commit::factory()->create(['body' => '今天发布了新版本。']);
+
+    $this->actingAs($other)->postJson(route('commit-translation.store', $commit), ['language' => 'en'])->assertOk();
+
+    $this->actingAs($reader)->withHeader('Accept-Language', 'en')
+        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertInertia(fn ($page) => $page
+            ->where('auth.automaticTranslation', false)
+            ->where('commit.body', '今天发布了新版本。')
+            ->where('commit.translation.translated.body_segments.0.text', 'Released a new version today.'));
+
+    $this->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.translated.body_segments.0.text', 'Released a new version today.');
+
+    $this->actingAs($other)->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertInertia(fn ($page) => $page->where('auth.automaticTranslation', true));
+
+    CommitTranslator::assertPromptedTimes(1);
 });

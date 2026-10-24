@@ -1,6 +1,16 @@
-import type { CSSProperties, ReactNode } from 'react';
+import { useState } from 'react';
+import type { ComponentProps, CSSProperties, ReactNode } from 'react';
+import {
+    GraphAnchor,
+    WithoutGraph,
+    graphDash,
+    useGraphOverlay,
+    useShowsUpLive,
+} from '@/components/graph-canvas';
+import type { GraphNodeSpec } from '@/components/graph-canvas';
 import { LiveAvatarMarker } from '@/components/live-stream-card';
 import { UserAvatar } from '@/components/user-avatar';
+import { bridgeDuration } from '@/lib/graph';
 import { cn, laneStrokeStyle } from '@/lib/utils';
 import type { User } from '@/types';
 
@@ -18,11 +28,29 @@ type Props = {
     node?: ReactNode;
     nodePosition?: 'top' | 'center' | 'bottom' | 'author';
     onHoverChange?: (isHovering: boolean) => void;
+    /** The node's place in a graph canvas, which then draws the lines instead of the rail. */
+    graph?: {
+        id: string;
+        after?: string;
+        endId?: string;
+        ring?: number;
+        /** False when the node registers itself, because it moves inside the rail. */
+        measuresNode?: boolean;
+    };
 };
 
 const dimmable = 'transition-opacity duration-200';
 
 const stagedDash = 4;
+
+/**
+ * A fresh commit's end dot pops once its avatar has scaled in (700ms) and its line looks drawn: the draw eases out, so
+ * the line reads as whole well before its 500ms end.
+ */
+const endDotDelay = 900;
+
+/** A rail dot's ring is a 2px box-shadow, outside its box. */
+export const railDotRing = 2;
 
 // Nodes fade inside an opaque backdrop so the lane line behind them stays hidden.
 const dimmedNode = 'group-data-dimmed/rail-node:opacity-60';
@@ -41,7 +69,12 @@ export function GraphRail({
     node,
     nodePosition = 'top',
     onHoverChange,
+    graph,
 }: Props) {
+    // A fresh commit going on below another one, like a reply chained under the last commit of a thread, scales in once
+    // the trunk has reached it.
+    const waitsForTrunk = isFresh && previousLane !== undefined;
+
     return (
         <div
             aria-hidden
@@ -60,88 +93,118 @@ export function GraphRail({
                     event.pointerType === 'mouse' && onHoverChange(false))
             }
         >
-            {previousLane && variant === 'staged' && (
-                <span className="absolute top-0 left-1/2 h-8 -translate-x-1/2 border-l-2 border-dashed border-rail" />
-            )}
+            <WithoutGraph>
+                {previousLane && variant === 'staged' && (
+                    <span className="absolute top-0 left-1/2 h-8 -translate-x-1/2 border-l-2 border-dashed border-rail" />
+                )}
 
-            {previousLane && variant !== 'staged' && (
-                <span
-                    className={cn(
-                        // Overlap the tail by 1px so abutting edges don't flash a hairline gap.
-                        'absolute top-0 left-1/2 h-[calc(2rem+1px)] w-0.5 -translate-x-1/2',
-                        dimmable,
-                        {
-                            'opacity-60': isPreviousDimmed,
-                            'h-[calc(50%+1px)]': nodePosition === 'center',
-                            'h-6': nodePosition === 'author',
-                            'bottom-5 h-auto': nodePosition === 'bottom',
-                        },
-                    )}
-                    style={{ background: previousLane }}
-                    data-test="rail-previous"
-                />
-            )}
-
-            {hasTail &&
-                (variant === 'staged' ? (
-                    <span
-                        className="absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2"
-                        style={laneStrokeStyle('var(--rail)', {
-                            dash: stagedDash,
-                            anchor: 'end',
-                        })}
-                        data-test="rail-staged-tail"
-                    />
-                ) : (
+                {previousLane && variant !== 'staged' && (
                     <span
                         className={cn(
-                            // Start 1px early so this meets the previous segment without a seam.
-                            'absolute top-[calc(2rem-1px)] bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-(--lane)',
+                            // Overlap the tail by 1px so abutting edges don't flash a hairline gap.
+                            'absolute top-0 left-1/2 h-[calc(2rem+1px)] w-0.5 -translate-x-1/2',
+                            dimmable,
+                            {
+                                'opacity-60': isPreviousDimmed,
+                                'h-[calc(50%+1px)]': nodePosition === 'center',
+                                'h-6': nodePosition === 'author',
+                                'bottom-5 h-auto': nodePosition === 'bottom',
+                            },
+                        )}
+                        style={{ background: previousLane }}
+                        data-test="rail-previous"
+                    />
+                )}
+
+                {hasTail &&
+                    (variant === 'staged' ? (
+                        <span
+                            className="absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2"
+                            style={laneStrokeStyle('var(--rail)', {
+                                dash: stagedDash,
+                                anchor: 'end',
+                            })}
+                            data-test="rail-staged-tail"
+                        />
+                    ) : (
+                        <span
+                            className={cn(
+                                // Start 1px early so this meets the previous segment without a seam.
+                                'absolute top-[calc(2rem-1px)] bottom-0 left-1/2 w-0.5 -translate-x-1/2 bg-(--lane)',
+                                dimmable,
+                                {
+                                    'opacity-60': isDimmed,
+                                    'bottom-5': endsWithDot,
+                                    'top-[calc(50%-1px)]':
+                                        nodePosition === 'center',
+                                    'top-[22px]': nodePosition === 'author',
+                                },
+                            )}
+                            data-test="rail-tail"
+                        />
+                    ))}
+
+                {hasReplyTail && (
+                    <span
+                        className={cn(
+                            'absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2',
                             dimmable,
                             {
                                 'opacity-60': isDimmed,
-                                'bottom-5': endsWithDot,
-                                'top-[calc(50%-1px)]':
-                                    nodePosition === 'center',
-                                'top-[22px]': nodePosition === 'author',
+                                'top-[23px]': nodePosition === 'author',
+                                'top-1/2': nodePosition === 'center',
+                                'top-auto h-5':
+                                    endsWithDot || nodePosition === 'bottom',
                             },
                         )}
-                        data-test="rail-tail"
+                        style={laneStrokeStyle('var(--lane)', {
+                            dash: graphDash,
+                        })}
+                        data-test="commit-reply-spine"
                     />
-                ))}
+                )}
+            </WithoutGraph>
 
-            {hasReplyTail && (
-                <span
-                    className={cn(
-                        'absolute top-8 bottom-0 left-1/2 -translate-x-1/2 border-l border-dashed border-(--lane)',
-                        dimmable,
-                        {
-                            'opacity-60': isDimmed,
-                            'top-[23px]': nodePosition === 'author',
-                            'top-1/2': nodePosition === 'center',
-                            'top-auto h-5':
-                                endsWithDot || nodePosition === 'bottom',
-                        },
-                    )}
-                    data-test="commit-reply-spine"
-                />
-            )}
+            <RailEnd
+                isShown={hasTail && endsWithDot}
+                spec={
+                    graph?.endId
+                        ? {
+                              id: graph.endId,
+                              lane,
+                              after: graph.id,
+                              dimmed: isDimmed,
+                              ring: railDotRing,
+                          }
+                        : null
+                }
+                isFresh={isFresh}
+                isDimmed={isDimmed}
+                delay={endDotDelay + (waitsForTrunk ? bridgeDuration : 0)}
+            />
 
-            {hasTail && endsWithDot && (
-                <span
-                    data-dimmed={isDimmed || undefined}
-                    className="group/rail-node absolute bottom-5 left-1/2 flex -translate-x-1/2 translate-y-1/2 rounded-full"
-                >
-                    <RailDot />
-                </span>
-            )}
-
-            <span
+            <GraphAnchor
+                spec={
+                    graph && graph.measuresNode !== false
+                        ? {
+                              id: graph.id,
+                              lane,
+                              after: graph.after,
+                              dimmed: isDimmed,
+                              ring: graph.ring,
+                          }
+                        : null
+                }
                 data-dimmed={isDimmed || undefined}
+                isFresh={isFresh}
+                style={
+                    waitsForTrunk
+                        ? { animationDelay: `${bridgeDuration}ms` }
+                        : undefined
+                }
                 className={cn(
                     'group/rail-node absolute top-8 left-1/2 flex -translate-1/2 rounded-full',
                     {
-                        'motion-safe:animate-node-in': isFresh,
                         'top-1/2': nodePosition === 'center',
                         'top-[23px]': nodePosition === 'author',
                         'top-auto bottom-5 translate-y-1/2':
@@ -150,7 +213,137 @@ export function GraphRail({
                 )}
             >
                 {node ?? <RailDot isHollow={!isFilled || variant === 'root'} />}
-            </span>
+            </GraphAnchor>
+        </div>
+    );
+}
+
+// Without motion, no animation would end to take a leaving end dot away.
+function prefersStillness(): boolean {
+    return (
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
+}
+
+/**
+ * Where a thread ends, when it ends on this commit. Once the thread goes on below it, live, the end dot scales out, the
+ * way it scaled in, as the trunk runs on through it.
+ */
+function RailEnd({
+    isShown,
+    ...dot
+}: { isShown: boolean } & Omit<
+    ComponentProps<typeof RailEndDot>,
+    'isLeaving' | 'onLeft'
+>) {
+    const isDrawing = useGraphOverlay();
+    const [wasShown, setWasShown] = useState(isShown);
+    const [isLeaving, setIsLeaving] = useState(false);
+
+    if (wasShown !== isShown) {
+        setWasShown(isShown);
+        setIsLeaving(!isShown && isDrawing && !prefersStillness());
+    }
+
+    return isShown || isLeaving ? (
+        <RailEndDot
+            {...dot}
+            isLeaving={!isShown}
+            onLeft={() => setIsLeaving(false)}
+        />
+    ) : null;
+}
+
+/**
+ * The dot a thread ends on. A fresh one pops once its line is drawn, so the line doesn't wait for it. A leaving one, as
+ * the thread goes on below it, scales out the way it scaled in, and is gone once it has. It stays a node of the canvas,
+ * linked to nothing, whose cut-out scales out with it: the trunk running on through it never shows across it.
+ */
+export function RailEndDot({
+    spec = null,
+    isFresh = false,
+    isDimmed = false,
+    delay = endDotDelay,
+    isLeaving = false,
+    onLeft,
+}: {
+    spec?: GraphNodeSpec | null;
+    isFresh?: boolean;
+    isDimmed?: boolean;
+    delay?: number;
+    isLeaving?: boolean;
+    onLeft?: () => void;
+}) {
+    return (
+        <GraphAnchor
+            spec={
+                isLeaving && spec
+                    ? {
+                          id: spec.id,
+                          lane: spec.lane,
+                          ring: spec.ring,
+                          isLeaving: true,
+                      }
+                    : spec
+            }
+            data-dimmed={isDimmed || undefined}
+            isFresh={isFresh && !isLeaving}
+            className={cn(
+                'group/rail-node absolute bottom-5 left-1/2 flex -translate-x-1/2 translate-y-1/2 rounded-full',
+                { 'motion-safe:animate-node-out': isLeaving },
+            )}
+            style={
+                isLeaving
+                    ? // Gone as the trunk reaches the commit going on below it, which then scales in.
+                      { animationDuration: `${bridgeDuration}ms` }
+                    : isFresh
+                      ? { animationDelay: `${delay}ms` }
+                      : undefined
+            }
+            onAnimationEnd={(event) => {
+                if (isLeaving && event.target === event.currentTarget) {
+                    onLeft?.();
+                }
+            }}
+            data-graph-trails
+            data-graph-leaves={isLeaving || undefined}
+            data-test="rail-end-dot"
+        >
+            <RailDot />
+        </GraphAnchor>
+    );
+}
+
+/**
+ * The body of a commit. A fresh one going on below another, like a reply chained under the last commit of a thread,
+ * fades in as the trunk draws itself to it, and shows in full as its node scales in.
+ */
+export function ChainedEntrance({
+    isFresh = false,
+    previousLane,
+    className,
+    children,
+}: {
+    isFresh?: boolean;
+    previousLane?: string;
+    className?: string;
+    children: ReactNode;
+}) {
+    const isLive = useShowsUpLive() && isFresh && previousLane !== undefined;
+
+    return (
+        <div
+            className={cn(className, {
+                'motion-safe:animate-commit-in': isLive,
+            })}
+            style={
+                isLive
+                    ? { animationDuration: `${bridgeDuration}ms` }
+                    : undefined
+            }
+        >
+            {children}
         </div>
     );
 }
@@ -270,20 +463,25 @@ export function RailSegment({
             aria-hidden
             className={cn('relative w-16 shrink-0 sm:w-18', className)}
         >
-            {lane && (
-                <span
-                    className={cn(
-                        'absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2',
-                        dimmable,
-                        { 'opacity-60': isDimmed },
-                    )}
-                    style={
-                        isDashed
-                            ? laneStrokeStyle(lane, { dash: stagedDash })
-                            : { background: lane }
-                    }
-                />
-            )}
+            {lane &&
+                (isDashed ? (
+                    // The dashed rail carries the composer's on, which no graph canvas draws.
+                    <span
+                        className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2"
+                        style={laneStrokeStyle(lane, { dash: stagedDash })}
+                    />
+                ) : (
+                    <WithoutGraph>
+                        <span
+                            className={cn(
+                                'absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2',
+                                dimmable,
+                                { 'opacity-60': isDimmed },
+                            )}
+                            style={{ background: lane }}
+                        />
+                    </WithoutGraph>
+                ))}
         </div>
     );
 }
