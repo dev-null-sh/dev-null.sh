@@ -28,6 +28,7 @@ final readonly class NotificationGroupController
                 'commit.parent' => fn (BelongsTo $query): BelongsTo => $query
                     ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($user))
                     ->with('user'),
+                'issue',
             ])
             ->latest()
             ->latest('id')

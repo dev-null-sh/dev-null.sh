@@ -10,6 +10,7 @@ use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Device;
+use App\Models\Issue;
 use App\Models\Message;
 use App\Models\MessageVoice;
 use App\Models\Notification;
@@ -132,6 +133,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'remote_mutes' => [],
         'remote_pins' => [],
         'notifications' => [],
+        'issues' => [],
         'ssh_keys' => [],
         'devices' => [],
         'timeouts' => [],
@@ -374,6 +376,7 @@ it('exports received notifications without revealing moderators', function (): v
             'commit_id' => null,
             'reason' => null,
             'level' => null,
+            'url' => null,
             'read_at' => now()->toIso8601String(),
             'created_at' => now()->toIso8601String(),
         ])
@@ -383,6 +386,7 @@ it('exports received notifications without revealing moderators', function (): v
             'commit_id' => $commit->id,
             'reason' => 'Looks like spam.',
             'level' => null,
+            'url' => null,
             'read_at' => null,
             'created_at' => now()->toIso8601String(),
         ])
@@ -392,10 +396,36 @@ it('exports received notifications without revealing moderators', function (): v
             'commit_id' => null,
             'reason' => null,
             'level' => 3,
+            'url' => null,
             'read_at' => null,
             'created_at' => now()->toIso8601String(),
         ])
         ->and($response->streamedContent())->not->toContain('secret-moderator');
+});
+
+it('exports the issues the user opened and comments on them, naming only commenters on /dev/null', function (): void {
+    $user = User::factory()->create();
+    $maintainer = User::factory()->create(['username' => 'maintainer']);
+    $issue = Issue::factory()->for($user)->create(['number' => 1096, 'title' => 'Issue reply notifications']);
+    Issue::factory()->create();
+    Notification::factory()->issueCommented($issue, 1)->create(['actor_id' => $maintainer->id]);
+    Notification::factory()->issueCommented($issue, 2)->create();
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['issues'])->toBe([[
+        'repository' => 'dev-null-sh/dev-null.sh',
+        'number' => 1096,
+        'title' => 'Issue reply notifications',
+        'url' => $issue->url,
+        'created_at' => now()->toIso8601String(),
+    ]])
+        ->and(collect($data['notifications'])->map(fn (array $notification): array => [$notification['type'], $notification['actor'], $notification['url']])->sortBy(2)->values()->all())
+        ->toBe([
+            ['issue_commented', 'maintainer', "{$issue->url}#issuecomment-1"],
+            ['issue_commented', null, "{$issue->url}#issuecomment-2"],
+        ]);
 });
 
 it('exports ssh key fingerprints and sessions without session ids or payloads', function (): void {

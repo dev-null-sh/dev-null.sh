@@ -27,12 +27,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string $key
  * @property-read string|null $reason
  * @property-read int|null $level
+ * @property-read string|null $issue_id
+ * @property-read string|null $url
  * @property-read CarbonInterface|null $read_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read User $recipient
  * @property-read User $actor
  * @property-read Commit|null $commit
+ * @property-read Issue|null $issue
  * @property-read string $group_id
  * @property-read int $event_count
  * @property-read int $actors_count
@@ -71,6 +74,8 @@ final class Notification extends Model
             'key' => 'string',
             'reason' => 'string',
             'level' => 'integer',
+            'issue_id' => 'string',
+            'url' => 'string',
             'read_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -113,5 +118,13 @@ final class Notification extends Model
     public function commit(): BelongsTo
     {
         return $this->belongsTo(Commit::class);
+    }
+
+    /**
+     * @return BelongsTo<Issue, $this>
+     */
+    public function issue(): BelongsTo
+    {
+        return $this->belongsTo(Issue::class);
     }
 }

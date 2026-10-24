@@ -7,6 +7,7 @@ use App\Actions\DeleteUserFollow;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
+use App\Models\Issue;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -90,6 +91,8 @@ it('lists the notifications of the user, newest first', function (): void {
                 ],
                 'quoted_commit_id' => null,
             ],
+            'issue' => null,
+            'url' => null,
         ])
         ->assertJsonPath('data.1.id', $followed->id)
         ->assertJsonPath('data.1.type', 'followed')
@@ -342,6 +345,19 @@ it('lists the notifications of a group like the web expands it', function (): vo
         ->assertJsonPath('meta.next_cursor', null);
 
     expect($latest->refresh()->read_at)->toBeNull();
+});
+
+it('lists the comments on an issue as one group, each with its issue and link', function (): void {
+    $issue = Issue::factory()->for($this->user)->create(['number' => 1096]);
+    $first = Notification::factory()->issueCommented($issue, 1)->create(['created_at' => now()->subMinute()]);
+    $latest = Notification::factory()->issueCommented($issue, 2)->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification-group.show', $latest))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$latest->id, $first->id])
+        ->assertJsonPath('data.*.issue.number', [1096, 1096])
+        ->assertJsonPath('data.0.url', "{$issue->url}#issuecomment-2")
+        ->assertJsonPath('data.0.commit', null);
 });
 
 it('returns not found for the group of a notification the user may not see', function (): void {

@@ -9,6 +9,7 @@ use App\Models\CommitImage;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
+use App\Models\Issue;
 use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
@@ -47,6 +48,7 @@ use stdClass;
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
  *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
  *     notifications: Generator<int, array<string, int|string|null>>,
+ *     issues: array<int, array{repository: string, number: int, title: string, url: string, created_at: string}>,
  *     ssh_keys: array<mixed>,
  *     devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>,
  *     timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>,
@@ -138,6 +140,13 @@ final readonly class CreateExport
                 ])
                 ->all(),
             'notifications' => $this->notifications($user),
+            'issues' => $user->issues()->oldest()->get()->map(fn (Issue $issue): array => [
+                'repository' => $issue->repository,
+                'number' => $issue->number,
+                'title' => $issue->title,
+                'url' => $issue->url,
+                'created_at' => $issue->created_at->toIso8601String(),
+            ])->all(),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
             'devices' => $user->devices()->oldest('approved_at')->get()->map(fn (Device $device): array => [
                 'name' => $device->name,
@@ -286,28 +295,31 @@ final readonly class CreateExport
     }
 
     /**
-     * Moderators stay anonymous, as they are on the notifications page, and level-ups are the user's own doing.
+     * Moderators stay anonymous, as they are on the notifications page, and level-ups are the user's own doing, as is a
+     * comment on their issue by someone who isn't on /dev/null. A comment on their issue comes with its link.
      *
      * @return Generator<int, array<string, int|string|null>>
      */
     private function notifications(User $user): Generator
     {
-        /** @var LazyCollection<int, object{type: string, actor: string, commit_id: string|null, reason: string|null, level: int|string|null, read_at: string|null, created_at: string}> $notifications */
+        /** @var LazyCollection<int, object{type: string, actor_id: string, actor: string, commit_id: string|null, reason: string|null, level: int|string|null, url: string|null, read_at: string|null, created_at: string}> $notifications */
         $notifications = $user->notifications()
             ->join('users as actors', 'actors.id', '=', 'notifications.actor_id')
             ->toBase()
-            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actors.username as actor'])
+            ->select(['notifications.id', 'notifications.type', 'notifications.actor_id', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.url', 'notifications.read_at', 'notifications.created_at', 'actors.username as actor'])
             ->lazyById(500, 'notifications.id', 'id');
 
         foreach ($notifications as $notification) {
             $isModeration = in_array($notification->type, [NotificationType::Approved->value, NotificationType::Rejected->value, NotificationType::LeveledUp->value], true);
+            $isOwnActor = $notification->actor_id === $user->id;
 
             yield [
                 'type' => $notification->type,
-                'actor' => $isModeration ? null : $notification->actor,
+                'actor' => $isModeration || $isOwnActor ? null : $notification->actor,
                 'commit_id' => $notification->commit_id,
                 'reason' => $notification->reason,
                 'level' => $notification->level === null ? null : (int) $notification->level,
+                'url' => $notification->url,
                 'read_at' => $notification->read_at === null ? null : CarbonImmutable::parse($notification->read_at)->toIso8601String(),
                 'created_at' => CarbonImmutable::parse($notification->created_at)->toIso8601String(),
             ];
