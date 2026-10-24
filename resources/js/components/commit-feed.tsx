@@ -1,7 +1,8 @@
 import { InfiniteScroll, router, usePage } from '@inertiajs/react';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { Pin } from 'lucide-react';
 import type { PointerEvent, ReactNode } from 'react';
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
@@ -191,6 +192,13 @@ export function CommitFeed({
             ? commit.user_id !== highlightedAuthor
             : highlightedCommit !== null && commit.id !== highlightedCommit);
 
+    const virtualizer = useWindowVirtualizer({
+        count: listed.length,
+        estimateSize: () => 192,
+        overscan: 6,
+        initialRect: { width: 0, height: 800 },
+    });
+
     const lastCommit = listed.at(-1) ?? pinnedCommit;
     const interludeIndex = Math.min(interludeAfter, listed.length) - 1;
 
@@ -256,41 +264,64 @@ export function CommitFeed({
                     </div>
                 }
             >
-                {listed.map((commit, index) => {
-                    const previous = listed[index - 1];
-                    const startsDay =
-                        !isRanked &&
-                        (!previous ||
-                            localDayKey(previous.created_at) !==
-                                localDayKey(commit.created_at));
-                    const stagedLane =
-                        isBelowComposer && index === 0 && !pinnedCommit
-                            ? 'var(--rail)'
-                            : undefined;
+                <div
+                    ref={virtualizer.containerRef}
+                    style={{
+                        height: `${virtualizer.getTotalSize()}px`,
+                        position: 'relative',
+                        width: '100%',
+                    }}
+                >
+                    {virtualizer.getVirtualItems().map((virtualItem) => {
+                        const commit = listed[virtualItem.index];
+                        const previous = listed[virtualItem.index - 1];
+                        const startsDay =
+                            !isRanked &&
+                            (!previous ||
+                                localDayKey(previous.created_at) !==
+                                    localDayKey(commit.created_at));
+                        const stagedLane =
+                            isBelowComposer &&
+                            virtualItem.index === 0 &&
+                            !pinnedCommit
+                                ? 'var(--rail)'
+                                : undefined;
 
-                    return (
-                        <Fragment key={commit.id}>
-                            {!isRanked && commit.id === firstSeenId && (
-                                <LastVisitMarker stagedLane={stagedLane} />
-                            )}
-                            {startsDay && (
-                                <DayMarker
-                                    label={formatDayLabel(
-                                        commit.created_at,
-                                        now,
-                                    )}
-                                    stagedLane={stagedLane}
-                                />
-                            )}
-                            {card(commit)}
-                            {index === interludeIndex &&
-                                interlude?.(
-                                    laneColor(commit.user.lane),
-                                    isDimmed(commit),
+                        return (
+                            <div
+                                key={commit.id}
+                                data-index={virtualItem.index}
+                                ref={virtualizer.measureElement}
+                                style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    width: '100%',
+                                    transform: `translateY(${virtualItem.start}px)`,
+                                }}
+                            >
+                                {!isRanked && commit.id === firstSeenId && (
+                                    <LastVisitMarker stagedLane={stagedLane} />
                                 )}
-                        </Fragment>
-                    );
-                })}
+                                {startsDay && (
+                                    <DayMarker
+                                        label={formatDayLabel(
+                                            commit.created_at,
+                                            now,
+                                        )}
+                                        stagedLane={stagedLane}
+                                    />
+                                )}
+                                {card(commit)}
+                                {virtualItem.index === interludeIndex &&
+                                    interlude?.(
+                                        laneColor(commit.user.lane),
+                                        isDimmed(commit),
+                                    )}
+                            </div>
+                        );
+                    })}
+                </div>
             </InfiniteScroll>
 
             {commits.next_cursor === null && lastCommit && (
