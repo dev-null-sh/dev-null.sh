@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use App\Queries\UserSearchQuery;
 
 it('finds users by username or name, best matches first', function (): void {
     User::factory()->create(['username' => 'taylorotwell', 'name' => 'Taylor Otwell']);
@@ -110,4 +111,23 @@ it('leaves out muted people and people across a block', function (): void {
     $response->assertOk()
         ->assertJsonCount(1, 'users')
         ->assertJsonPath('users.0.username', 'taylor');
+});
+
+it('finds users by bio, after name and username matches', function (): void {
+    User::factory()->create(['username' => 'abc', 'name' => 'Ferris', 'bio' => 'Writes Laravel by day']);
+    User::factory()->create(['username' => 'zlaravel', 'name' => 'Fan', 'bio' => null]);
+    User::factory()->create(['username' => 'gopher', 'name' => 'Gopher', 'bio' => 'Go only']);
+
+    $this->actingAs(User::factory()->create(['username' => 'viewer', 'name' => 'Viewer', 'bio' => null]))
+        ->getJson('/search/users?q=laravel')
+        ->assertOk()
+        ->assertJsonCount(2, 'users')
+        ->assertJsonPath('users.0.username', 'zlaravel')
+        ->assertJsonPath('users.1.username', 'abc');
+});
+
+it('leaves bio matches out unless asked for them', function (): void {
+    User::factory()->create(['username' => 'abc', 'name' => 'Ferris', 'bio' => 'Writes Laravel by day']);
+
+    expect(resolve(UserSearchQuery::class)->get('laravel', null))->toBeEmpty();
 });
