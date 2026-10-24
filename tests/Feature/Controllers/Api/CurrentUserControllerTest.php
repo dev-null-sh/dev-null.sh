@@ -60,6 +60,9 @@ it('returns the signed-in user with their unread notifications and their pastéi
                 'automatic_lane' => $user->automaticLane(),
                 'sponsors_url' => null,
                 'github_synced_at' => null,
+                'terms_version' => config('legal.terms_version'),
+                'terms_accepted_at' => null,
+                'terms_accepted' => false,
                 'remotes' => [
                     'from' => 'following',
                     'pull_receipts' => true,
