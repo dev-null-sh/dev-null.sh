@@ -46,6 +46,7 @@ use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
+use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
@@ -64,6 +65,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
+use App\Http\Controllers\OperationsEventController;
 use App\Http\Controllers\OrgArchiveController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
@@ -84,6 +86,7 @@ use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StarredCommitController;
 use App\Http\Controllers\SuggestionDismissalController;
+use App\Http\Controllers\SystemHealthController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\TrafficController;
 use App\Http\Controllers\UserActivityGraphController;
@@ -385,6 +388,9 @@ Route::middleware('auth')->group(function (): void {
 
     // Operations...
     Route::get('operations', [OperationsController::class, 'show'])->name('operations.show');
+    Route::get('operations/health', [SystemHealthController::class, 'show'])->name('system-health.show');
+    Route::get('operations/events', [OperationsEventController::class, 'index'])->name('operations-event.index');
+    Route::get('operations/forecasts', [ForecastController::class, 'show'])->name('forecast.show');
     Route::get('operations/features', [FeatureController::class, 'index'])->name('feature.index');
     Route::get('operations/activity', [SiteActivityController::class, 'show'])->name('site-activity.show');
     Route::get('operations/traffic', [TrafficController::class, 'show'])->name('traffic.show');
