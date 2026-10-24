@@ -298,7 +298,7 @@ export function AppNav({
                     <AppLogoIcon className="col-start-1 row-start-1 size-7 self-center fill-current opacity-100 transition-opacity duration-300 motion-reduce:transition-none nav-wide:opacity-0" />
                     <AppLogo className="col-start-1 row-start-1 w-max max-w-0 overflow-hidden text-[1.75rem] font-bold tracking-[-0.03em] opacity-0 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none nav-wide:max-w-52 nav-wide:opacity-100" />
                     <span className="col-start-1 row-start-2 max-w-0 overflow-hidden text-sm leading-5 text-muted-foreground opacity-0 transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none nav-wide:max-w-52 nav-wide:opacity-100">
-                        a social network for devs
+                        the social network for devs
                     </span>
                 </Link>
             </LogoMenu>

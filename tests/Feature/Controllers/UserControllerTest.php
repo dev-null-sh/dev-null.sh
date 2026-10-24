@@ -368,7 +368,7 @@ it('describes guests a profile without a bio', function (): void {
     $this->get('/@octocat')
         ->assertOk()
         ->assertSee('<meta property="og:title" content="@octocat on /dev/null">', false)
-        ->assertSee('<meta property="og:description" content="Read @octocat&#039;s commits on /dev/null, a social network for developers.">', false);
+        ->assertSee('<meta property="og:description" content="Read @octocat&#039;s commits on /dev/null, the social network for developers.">', false);
 });
 
 it('escapes the profile in the link preview', function (): void {

@@ -2,7 +2,7 @@
     "id": "/",
     "name": "/dev/null",
     "short_name": "/dev/null",
-    "description": "A social network for developers. Sign in with GitHub, commit plain text to a shared log.",
+    "description": "The social network for developers. Sign in with GitHub, commit plain text to a shared log.",
     "lang": "en",
     "dir": "ltr",
     "start_url": "/",

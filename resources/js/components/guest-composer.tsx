@@ -35,7 +35,7 @@ export function GuestComposer() {
                     id="guest-composer"
                     className="text-[17px] leading-snug font-semibold tracking-tight text-balance"
                 >
-                    A social network for developers.
+                    The social network for developers.
                 </h2>
                 <p className="mt-1 text-[15px] text-pretty text-muted-foreground">
                     Everyone below signed in with GitHub and committed plain

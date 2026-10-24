@@ -17,7 +17,7 @@ it('renders the trending log for guests', function (): void {
 it('describes the landing page to search engines and link previews', function (): void {
     $this->get(route('home'))
         ->assertOk()
-        ->assertSee('<title>/dev/null: a social network for developers</title>', false)
+        ->assertSee('<title>/dev/null: the social network for developers</title>', false)
         ->assertSee('<link rel="canonical" href="'.route('home').'">', false)
         ->assertSee('<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">', false)
         ->assertSee('<meta property="og:type" content="website">', false)

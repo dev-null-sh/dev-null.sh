@@ -46,11 +46,11 @@ final readonly class PageMetadata
     public function home(): array
     {
         $url = route('home');
-        $description = 'A social network for developers. Sign in with GitHub. Commit messages to the log. Talk with other devs.';
+        $description = 'The social network for developers. Sign in with GitHub. Commit messages to the log. Talk with other devs.';
 
         return [
             'type' => 'website',
-            'title' => '/dev/null: a social network for developers',
+            'title' => '/dev/null: the social network for developers',
             'description' => $description,
             'url' => $url,
             'robots' => self::INDEXABLE,
@@ -59,7 +59,7 @@ final readonly class PageMetadata
                 'width' => OpenGraphCanvas::WIDTH,
                 'height' => OpenGraphCanvas::HEIGHT,
                 'type' => 'image/png',
-                'alt' => '/dev/null: a social network for developers',
+                'alt' => '/dev/null: the social network for developers',
             ]],
             'structuredData' => [
                 '@context' => 'https://schema.org',
@@ -216,7 +216,7 @@ final readonly class PageMetadata
         return [
             'type' => 'profile',
             'title' => $title,
-            'description' => $user->bio ?? "Read {$user->mention()}'s commits on /dev/null, a social network for developers.",
+            'description' => $user->bio ?? "Read {$user->mention()}'s commits on /dev/null, the social network for developers.",
             'url' => route('user.show', $user),
             'robots' => self::INDEXABLE,
             'images' => [$this->profileImage($user, $title)],
@@ -261,8 +261,8 @@ final readonly class PageMetadata
             'type' => 'profile',
             'title' => $title,
             'description' => $type === 'followers'
-                ? "See who follows {$user->mention()} on /dev/null, a social network for developers."
-                : "See who {$user->mention()} follows on /dev/null, a social network for developers.",
+                ? "See who follows {$user->mention()} on /dev/null, the social network for developers."
+                : "See who {$user->mention()} follows on /dev/null, the social network for developers.",
             'url' => route($type === 'followers' ? 'user-followers.index' : 'user-following.index', $user),
             'robots' => self::NOT_INDEXABLE,
             'images' => [$this->profileImage($user, $title)],
