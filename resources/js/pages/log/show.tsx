@@ -67,10 +67,10 @@ export default function Show({
     const followAnchor = useRef<{
         row: HTMLElement;
         top: number;
-        documentTop: number;
         scrollY: number;
     } | null>(null);
     const returningToTop = useRef(false);
+    const nativeAnchoring = useRef<string | null>(null);
     const [composer, setComposer] = useState<HTMLDivElement | null>(null);
     useLaneSwipe(feedRef, log);
     useComposerVisibility(composer, tabsHeight);
@@ -78,6 +78,14 @@ export default function Show({
     useLayoutEffect(() => {
         followAnchor.current = null;
         returningToTop.current = false;
+
+        return () => {
+            if (nativeAnchoring.current !== null) {
+                document.documentElement.style.overflowAnchor =
+                    nativeAnchoring.current;
+                nativeAnchoring.current = null;
+            }
+        };
     }, [log]);
 
     useEffect(() => {
@@ -124,11 +132,15 @@ export default function Show({
                 ? {
                       row,
                       top: row.getBoundingClientRect().top,
-                      documentTop:
-                          row.getBoundingClientRect().top + window.scrollY,
                       scrollY: window.scrollY,
                   }
                 : null;
+            if (row && nativeAnchoring.current === null) {
+                // Take ownership before insertion so the browser cannot also compensate for it.
+                const style = document.documentElement.style;
+                nativeAnchoring.current = style.overflowAnchor;
+                style.overflowAnchor = 'none';
+            }
         },
         [composer],
     );
@@ -139,33 +151,24 @@ export default function Show({
         if (!anchor?.row.isConnected) return;
 
         const top = anchor.row.getBoundingClientRect().top;
-        const documentTop = top + window.scrollY;
+        const scrollDelta = window.scrollY - anchor.scrollY;
+        // Layout compensation must retain viewport movement, even when both change in one frame.
+        const targetTop = anchor.top - scrollDelta;
+        if (top !== targetTop) window.scrollBy(0, top - targetTop);
+        anchor.top = targetTop;
+        anchor.scrollY = window.scrollY;
 
-        // A scroll moves the viewport; loading above the row moves its document position.
-        if (
-            Math.abs(documentTop - anchor.documentTop) < 0.01 &&
-            window.scrollY !== anchor.scrollY
-        ) {
+        if (scrollDelta !== 0) {
             preserveReadingPosition(
                 new Set(commits.data.map((commit) => commit.id)),
             );
-            return;
         }
-
-        if (top !== anchor.top) window.scrollBy(0, top - anchor.top);
-        anchor.documentTop =
-            anchor.row.getBoundingClientRect().top + window.scrollY;
-        anchor.scrollY = window.scrollY;
     }, [commits, preserveReadingPosition]);
 
     useLayoutEffect(() => {
         const feed = feedRef.current;
         if (!feed || isRanked) return;
 
-        // Keep one owner of scroll compensation while previews and offscreen cards settle.
-        const style = document.documentElement.style;
-        const previous = style.overflowAnchor;
-        style.overflowAnchor = 'none';
         const observer = new ResizeObserver(restoreReadingPosition);
         observer.observe(feed);
         const mutations = new MutationObserver(restoreReadingPosition);
@@ -212,7 +215,6 @@ export default function Show({
             window.removeEventListener('focusin', updateFocus);
             window.removeEventListener('focusout', updateFocus);
             window.removeEventListener('scroll', updateScroll);
-            style.overflowAnchor = previous;
         };
     }, [commits, isRanked, preserveReadingPosition, restoreReadingPosition]);
 

@@ -132,6 +132,7 @@ function insertAt(
     log: Log = 'latest',
     total = 3,
     focused = false,
+    initialOnly = false,
 ) {
     if (focused) viewer = { id: 'reader' } as User;
     slots = [];
@@ -299,30 +300,34 @@ function insertAt(
         pollOptions().onSuccess!({
             props: { newCommitsCount: count, removedCommitIds },
         } as never);
-    poll();
+    if (!initialOnly) poll();
     const fetching = render(previous);
     const incoming = {
-        data: [
-            ...fresh.map((row, index) => {
-                const user = authors.length
-                    ? authors[index % authors.length]
-                    : { id: 'author', name: 'Author', avatar_url: null };
-                return { id: row.dataset.commit, user_id: user.id, user };
-            }),
-            ...previous.data,
-        ],
+        data: initialOnly
+            ? previous.data
+            : [
+                  ...fresh.map((row, index) => {
+                      const user = authors.length
+                          ? authors[index % authors.length]
+                          : { id: 'author', name: 'Author', avatar_url: null };
+                      return { id: row.dataset.commit, user_id: user.id, user };
+                  }),
+                  ...previous.data,
+              ],
     } as CursorPaginated<Commit>;
-    listeners.get('beforeUpdate')!({
-        detail: {
-            page: {
-                component: 'log/show',
-                props: { commits: incoming },
-                scrollProps: { commits: { reset: true } },
+    if (!initialOnly)
+        listeners.get('beforeUpdate')!({
+            detail: {
+                page: {
+                    component: 'log/show',
+                    props: { commits: incoming },
+                    scrollProps: { commits: { reset: true } },
+                },
             },
-        },
-    });
-    rowPosition += total * 120;
-    rows = [...fresh, existing];
+        });
+    const insertionAnchoring = document.documentElement.style.overflowAnchor;
+    rowPosition += initialOnly ? 0 : total * 120;
+    rows = initialOnly ? [existing] : [...fresh, existing];
     render(incoming);
     let current = incoming;
     replaceCommits = (value) => {
@@ -345,6 +350,7 @@ function insertAt(
     };
     return {
         incoming,
+        insertionAnchoring,
         data: () => current.data,
         request: () => pollOptions(),
         readingTop: () => existing.getBoundingClientRect().top,
@@ -883,5 +889,25 @@ for (const log of ['latest', 'following'] as const) {
         const top = result.readingTop();
         result.resizeAbove(70);
         assert.equal(result.readingTop(), top);
+    });
+}
+
+for (const log of ['latest', 'following'] as const) {
+    test(`leaves initial media anchoring with the browser until arrivals load on ${log}`, () => {
+        insertAt(500, false, [], log, 3, false, true);
+        assert.equal(document.documentElement.style.overflowAnchor, '');
+        const arrival = insertAt(500, false, [], log);
+        assert.equal(arrival.insertionAnchoring, 'none');
+        arrival.finish();
+        assert.equal(document.documentElement.style.overflowAnchor, 'none');
+    });
+    test(`preserves intentional scrolling when preview growth occurs in the same task on ${log}`, () => {
+        const result = insertAt(80, false, [], log);
+        result.finish();
+        const top = result.readingTop();
+        const offset = result.currentScroll();
+        result.progressScroll(offset + 200, 20.75);
+        assert.equal(result.readingTop(), top - 200);
+        assert.equal(result.currentScroll(), offset + 200 + 20.75);
     });
 }
