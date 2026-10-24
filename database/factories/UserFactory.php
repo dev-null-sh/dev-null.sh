@@ -27,7 +27,6 @@ final class UserFactory extends Factory
             'github_id' => (string) fake()->unique()->numberBetween(1, 999_999_999),
             'username' => $username,
             'name' => fake()->name(),
-            'email' => fake()->unique()->safeEmail(),
             'avatar_url' => 'https://avatars.githubusercontent.com/u/'.fake()->numberBetween(1, 999_999),
             'bio' => fake()->sentence(),
             'location' => fake()->city(),
@@ -77,7 +76,6 @@ final class UserFactory extends Factory
     public function withoutProfile(): self
     {
         return $this->state(fn (array $attributes): array => [
-            'email' => null,
             'avatar_url' => null,
             'bio' => null,
             'location' => null,

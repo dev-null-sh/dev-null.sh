@@ -13,14 +13,12 @@ it('mirrors the github profile of the user', function (): void {
     $user = User::factory()->create([
         'github_id' => '583231',
         'username' => 'old-username',
-        'email' => 'private@example.com',
         'has_sponsors_listing' => true,
     ]);
 
     fakeGitHubAccount($user, [
         'login' => 'octocat',
         'name' => 'The Octocat',
-        'email' => null,
         'avatar_url' => 'https://avatars.githubusercontent.com/u/583231?v=4',
         'bio' => ' I am the Octocat. ',
         'company' => '@github',
@@ -39,7 +37,6 @@ it('mirrors the github profile of the user', function (): void {
         ->company->toBe('@github')
         ->location->toBe('San Francisco')
         ->website->toBe('https://github.blog')
-        ->email->toBe('private@example.com')
         ->has_sponsors_listing->toBeTrue()
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 });
@@ -143,7 +140,7 @@ it('fails when github cannot be reached', function (): void {
 
 it('frees the stale username when syncing a renamed github account', function (string $staleUsername): void {
     $stale = User::factory()->create(['github_id' => '1', 'username' => $staleUsername, 'bio' => 'Renamed away']);
-    $user = User::factory()->create(['github_id' => '583231', 'username' => 'old-username', 'email' => 'private@example.com']);
+    $user = User::factory()->create(['github_id' => '583231', 'username' => 'old-username']);
 
     fakeGitHubAccount($user, ['login' => 'octocat']);
 
@@ -153,7 +150,6 @@ it('frees the stale username when syncing a renamed github account', function (s
         ->and($user->refresh())
         ->username->toBe('octocat')
         ->github_id->toBe('583231')
-        ->email->toBe('private@example.com')
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 
     expect($stale->refresh())

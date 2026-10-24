@@ -23,18 +23,16 @@ final readonly class UpdateOrCreateUser
     {
         $githubId = (string) $githubUser->getId();
         $profile = GitHubProfile::fromSocialite($githubUser);
-        $email = mb_trim((string) $githubUser->getEmail());
 
         $hasSponsorsListing = $this->hasSponsorsListing($githubUser->token, $profile->username);
 
-        return DB::transaction(function () use ($githubId, $profile, $email, $hasSponsorsListing): User {
+        return DB::transaction(function () use ($githubId, $profile, $hasSponsorsListing): User {
             $this->updateStaleUsernames->handle($profile->username, $githubId);
 
             return User::query()->updateOrCreate([
                 'github_id' => $githubId,
             ], [
                 ...$profile->attributes(),
-                'email' => $email === '' ? null : $email,
                 'github_synced_at' => now(),
                 ...($hasSponsorsListing === null ? [] : ['has_sponsors_listing' => $hasSponsorsListing]),
             ]);

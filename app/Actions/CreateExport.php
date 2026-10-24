@@ -63,13 +63,12 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 2,
+            'schema_version' => 3,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
                 'username' => $user->username,
                 'name' => $user->name,
-                'email' => $user->email,
                 'avatar_url' => $user->avatar_url,
                 'bio' => $user->bio,
                 'location' => $user->location,

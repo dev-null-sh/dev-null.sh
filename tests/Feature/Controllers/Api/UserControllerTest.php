@@ -52,14 +52,12 @@ it('shows a public profile with public counts', function (): void {
 it('never exposes hidden fields', function (): void {
     $user = User::factory()->create([
         'username' => 'octocat',
-        'email' => 'octocat@github.com',
         'github_id' => '583231',
         'preferred_lane' => 3,
     ]);
 
     $this->getJson('/api/v1/users/octocat')
         ->assertOk()
-        ->assertDontSee('octocat@github.com')
         ->assertDontSee('583231')
         ->assertJsonMissingPath('data.email')
         ->assertJsonMissingPath('data.github_id')

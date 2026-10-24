@@ -28,7 +28,6 @@ use Illuminate\Support\Facades\DB;
  * @property-read string $github_id
  * @property-read string $username
  * @property-read string $name
- * @property-read string|null $email
  * @property-read string|null $avatar_url
  * @property-read string|null $bio
  * @property-read string|null $location
@@ -83,7 +82,6 @@ use Illuminate\Support\Facades\DB;
  */
 #[Hidden([
     'github_id',
-    'email',
     'remember_token',
     'translation_language',
     'automatic_translation',
@@ -167,7 +165,6 @@ final class User extends Authenticatable
             'github_id' => 'string',
             'username' => 'string',
             'name' => 'string',
-            'email' => 'string',
             'avatar_url' => 'string',
             'bio' => 'string',
             'location' => 'string',
