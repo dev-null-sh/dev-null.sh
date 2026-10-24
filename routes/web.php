@@ -262,6 +262,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');
     Route::post('scheduled-commits', [ScheduledCommitController::class, 'store'])
         ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])->name('scheduled-commit.store');
+    Route::put('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'update'])->name('scheduled-commit.update');
     Route::delete('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'destroy'])->name('scheduled-commit.destroy');
 
     Route::get('commit-stars', [CommitStarCountController::class, 'index'])->name('commit-star-count.index');
