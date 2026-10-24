@@ -59,12 +59,15 @@ final readonly class UserAchievementsQuery
     {
         $visibleCommitsQuery = $user->commits()->visibleTo($viewer);
 
-        // Replies must be to other developers (excluding self-replies), deleted parents included
+        // Replies must be to other developers (excluding self-replies), deleted parents included, even those whose
+        // author deleted their account and left a tombstone without a user
         /** @var object{total_commits: int|string, has_syntax: int|string|null, replies: int|string} $commitStats */
         $commitStats = (clone $visibleCommitsQuery)
             ->leftJoin('commits as parents', fn (JoinClause $join): JoinClause => $join
                 ->on('parents.id', '=', 'commits.parent_id')
-                ->where('parents.user_id', '!=', $user->id))
+                ->where(fn (JoinClause $join): JoinClause => $join
+                    ->whereNull('parents.user_id')
+                    ->orWhere('parents.user_id', '!=', $user->id)))
             ->selectRaw("COUNT(*) as total_commits, MAX(CASE WHEN commits.body LIKE '%```%' THEN 1 ELSE 0 END) as has_syntax, COUNT(parents.id) as replies")
             ->first();
 

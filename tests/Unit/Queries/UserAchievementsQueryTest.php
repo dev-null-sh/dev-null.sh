@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateTomFriendship;
+use App\Actions\DeleteUser;
 use App\Enums\Achievement;
 use App\Enums\CommitStatus;
 use App\Enums\UnixRank;
@@ -136,6 +137,26 @@ it('counts replies even if the parent commit was soft deleted', function (): voi
     $pipeBadge = collect($result['badges'])->firstWhere('id', Achievement::Pipe->value);
 
     expect($pipeBadge['progress'])->toBe(1)
+        ->and($result['xp_breakdown']['replies']['count'])->toBe(1);
+});
+
+it('counts replies to a commit whose author deleted their account', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+
+    $userCommit = Commit::factory()->for($user)->create();
+    $otherReply = Commit::factory()->for($other)->for($userCommit, 'parent')->create();
+    Commit::factory()->for($user)->for($otherReply, 'parent')->create();
+
+    // The other reply has a reply, so it stays behind as a tombstone without a user
+    resolve(DeleteUser::class)->handle($other);
+
+    $result = resolve(UserAchievementsQuery::class)->get($user, $user);
+
+    $pipeBadge = collect($result['badges'])->firstWhere('id', Achievement::Pipe->value);
+
+    expect(Commit::query()->withTrashed()->find($otherReply->id)->user_id)->toBeNull()
+        ->and($pipeBadge['progress'])->toBe(1)
         ->and($result['xp_breakdown']['replies']['count'])->toBe(1);
 });
 
