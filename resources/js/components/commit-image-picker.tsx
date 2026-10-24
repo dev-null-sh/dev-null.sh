@@ -175,6 +175,10 @@ export function ImagePickerPreviews({
             ? describedIndex
             : null;
     const altButtonId = (index: number) => `${id}-alt-${index}`;
+    // Screen readers read the description to people who can't see the image; nothing stops posting without one.
+    const undescribed = images.filter(
+        (_, index) => !descriptions[index]?.trim(),
+    ).length;
 
     const finishDescribing = () => {
         if (editing !== null) {
@@ -223,11 +227,14 @@ export function ImagePickerPreviews({
                                 }
                                 aria-expanded={editing === index}
                                 aria-controls={`${id}-description`}
+                                aria-describedby={
+                                    isDescribed ? undefined : `${id}-hint`
+                                }
                                 className={cn(
                                     'absolute bottom-1 left-1 rounded px-1 text-[11px] leading-4 font-bold tracking-wide backdrop-blur transition',
                                     isDescribed
                                         ? 'bg-foreground text-background'
-                                        : 'bg-background/80 text-foreground hover:bg-background',
+                                        : 'bg-background/80 text-foreground ring-2 ring-primary hover:bg-background',
                                 )}
                                 data-test="describe-image-button"
                             >
@@ -237,6 +244,19 @@ export function ImagePickerPreviews({
                     );
                 })}
             </ul>
+
+            {editing === null && undescribed > 0 && (
+                <p
+                    id={`${id}-hint`}
+                    className="mt-1.5 text-xs text-muted-foreground"
+                    data-test="image-description-hint"
+                >
+                    Add a description with{' '}
+                    <span className="font-bold text-foreground">+ALT</span> so
+                    screen readers can describe{' '}
+                    {undescribed === 1 ? 'your image' : 'your images'}.
+                </p>
+            )}
 
             {editing !== null && (
                 <div

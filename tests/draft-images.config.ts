@@ -21,6 +21,7 @@ export default defineConfig({
             'tests/Unit/DraftStash.test.tsx',
             'tests/Unit/DraftImageReads.test.tsx',
             'tests/Unit/ImageAttachments.test.tsx',
+            'tests/Unit/ImageDescriptionHint.test.tsx',
             'tests/Unit/ComposerDraft.test.tsx',
             'tests/Unit/QuoteDraft.test.tsx',
             'tests/Unit/EmojiSearch.test.tsx',
