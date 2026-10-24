@@ -37,7 +37,7 @@ it('may delete a user', function (): void {
 
 it('erases the commits of a deleted user along with the replies under them', function (): void {
     $user = User::factory()->create();
-    $commit = Commit::factory()->for($user)->create();
+    $commit = Commit::factory()->for($user)->create(['topic_decision' => true]);
     Commit::factory()->for($user)->create()->delete();
     Commit::factory()->for($commit, 'parent')->create();
     $unrelated = Commit::factory()->create();

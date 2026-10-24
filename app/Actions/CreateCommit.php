@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Dto\NewPoll;
 use App\Enums\CommitStatus;
 use App\Jobs\CheckUserLevel;
+use App\Jobs\ClassifyCommitTopics;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\ReplyAsTom;
@@ -58,6 +59,9 @@ final readonly class CreateCommit
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
+            $isRootCommit = ! $parent instanceof Commit;
+            $hasOpenAiServiceKey = filled(config('services.openai.key'));
+            $hasOpenAiProviderKey = filled(config('ai.providers.openai.key'));
 
             $commit = $user->commits()->create([
                 'body' => $this->emojiShortcodes->replace($body),
@@ -77,7 +81,7 @@ final readonly class CreateCommit
                 $this->createPoll($commit, $poll);
             }
 
-            if (($parent instanceof Commit || $quotedCommit instanceof Commit) && $commit->status === CommitStatus::Approved) {
+            if ((! $isRootCommit || $quotedCommit instanceof Commit) && $commit->status === CommitStatus::Approved) {
                 $this->updateCommitHotScores->handle([$commit->id]);
             }
 
@@ -93,7 +97,7 @@ final readonly class CreateCommit
 
             if ($commit->status === CommitStatus::Approved
                 && $user->github_id !== CreateTomFriendship::GITHUB_ID
-                && filled(config('ai.providers.opencode.key')) && filled(config('ai.providers.openai.key'))
+                && filled(config('ai.providers.opencode.key')) && $hasOpenAiProviderKey
             ) {
                 $tom = $this->tomQuery->get();
 
@@ -106,12 +110,16 @@ final readonly class CreateCommit
                 dispatch(new CheckUserLevel($user))->afterCommit();
             }
 
-            if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation && filled(config('services.openai.key'))) {
+            if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation && $hasOpenAiServiceKey) {
                 dispatch(new ModerateCommit($commit))->afterCommit();
             }
 
-            if ($commit->body !== '' && filled(config('services.openai.key'))) {
+            if ($commit->body !== '' && $hasOpenAiServiceKey) {
                 dispatch(new EmbedCommit($commit))->afterCommit();
+            }
+
+            if ($isRootCommit && $commit->body !== '' && $hasOpenAiProviderKey) {
+                dispatch(new ClassifyCommitTopics([$commit->id]))->afterCommit();
             }
 
             return $commit;

@@ -7,6 +7,7 @@ use App\Dto\NewPoll;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Enums\PollDuration;
+use App\Jobs\ClassifyCommitTopics;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\UnfurlLink;
@@ -187,6 +188,31 @@ it('asks the ai for its decision on pending commits', function (): void {
     $commit = $action->handle(User::factory()->create(), 'Initial commit');
 
     Queue::assertPushed(ModerateCommit::class, fn (ModerateCommit $job): bool => $job->commit->is($commit));
+});
+
+it('queues topic classification after creation for roots and quotes but not replies or empty posts', function (): void {
+    config(['ai.providers.openai.key' => 'sk-test']);
+    Queue::fake();
+    $user = User::factory()->create();
+    $action = resolve(CreateCommit::class);
+
+    $root = $action->handle($user, 'Will PHP 8.6 ship this November?');
+    $quote = $action->handle($user, 'PHP releases are worth discussing', quotedCommit: $root);
+    $action->handle($user, 'I think so', parent: $root);
+    $action->handle($user, '');
+
+    Queue::assertPushed(ClassifyCommitTopics::class, 2);
+    Queue::assertPushed(ClassifyCommitTopics::class, fn (ClassifyCommitTopics $job): bool => $job->commitIds === [$root->id] && $job->afterCommit === true);
+    Queue::assertPushed(ClassifyCommitTopics::class, fn (ClassifyCommitTopics $job): bool => $job->commitIds === [$quote->id]);
+});
+
+it('does not queue topic classification without a provider key', function (): void {
+    config(['ai.providers.openai.key' => null]);
+    Queue::fake();
+
+    resolve(CreateCommit::class)->handle(User::factory()->create(), 'Will PHP 8.6 ship this November?');
+
+    Queue::assertNotPushed(ClassifyCommitTopics::class);
 });
 
 it('does not ask the ai about commits of admins', function (): void {
