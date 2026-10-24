@@ -36,6 +36,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CommitStatus|null $ai_decision
  * @property-read list<string>|null $ai_categories
  * @property-read bool|null $topic_decision
+ * @property-read CarbonInterface|null $topics_classified_at
  * @property-read list<float>|null $embedding
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -55,11 +56,14 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Commit|null $quotedCommit
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
+ * @property-read Collection<int, Topic> $topics
  */
 #[Hidden([
     'ai_decision',
     'ai_categories',
     'topic_decision',
+    'topics_classified_at',
+    'topics',
     'embedding',
 ])]
 #[UseEloquentBuilder(CommitBuilder::class)]
@@ -122,6 +126,7 @@ final class Commit extends Model
             'ai_decision' => CommitStatus::class,
             'ai_categories' => 'array',
             'topic_decision' => 'boolean',
+            'topics_classified_at' => 'datetime',
             'embedding' => AsVector::class,
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -165,6 +170,14 @@ final class Commit extends Model
     public function stars(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'stars')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<Topic, $this>
+     */
+    public function topics(): BelongsToMany
+    {
+        return $this->belongsToMany(Topic::class);
     }
 
     public function isAddressedTo(User $user): bool

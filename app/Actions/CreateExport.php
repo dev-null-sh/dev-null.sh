@@ -103,8 +103,8 @@ final readonly class CreateExport
     {
         $commits = $user->commits()
             ->withTrashed()
-            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'topic_decision', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
-            ->with('images:id,commit_id')
+            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'topic_decision', 'topics_classified_at', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
+            ->with(['images:id,commit_id', 'topics:id,value'])
             ->lazyById(500);
 
         $translations = resolve(CommitTranslations::class);
@@ -121,6 +121,8 @@ final readonly class CreateExport
                     'cached_translations' => $cached[$translations->key($commit)],
                     'status' => $commit->status->value,
                     'topic_decision' => $commit->topic_decision,
+                    'topics' => $commit->topics->pluck('value')->sort()->values()->all(),
+                    'topics_classified_at' => $commit->topics_classified_at?->toIso8601String(),
                     'pasteis_count' => $commit->pasteis_count,
                     'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
                     'created_at' => $commit->created_at->toIso8601String(),

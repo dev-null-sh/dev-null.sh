@@ -17,6 +17,7 @@ use App\Models\MessageVoice;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
+use App\Models\Topic;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
@@ -45,6 +46,37 @@ it('erases the commits of a deleted user along with the replies under them', fun
     resolve(DeleteUser::class)->handle($user);
 
     expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id]);
+});
+
+it('erases topic associations and orphaned labels from deleted threads and retained reply tombstones', function (): void {
+    $user = User::factory()->create();
+    $root = Commit::factory()->for($user)->create();
+    $child = Commit::factory()->for($root, 'parent')->create();
+    $otherRoot = Commit::factory()->create();
+    $reply = Commit::factory()->for($user)->for($otherRoot, 'parent')->create(['topic_decision' => true, 'topics_classified_at' => now()]);
+    Commit::factory()->for($reply, 'parent')->create();
+    $sole = Topic::factory()->create();
+    $childOnly = Topic::factory()->create();
+    $shared = Topic::factory()->create();
+    $unrelated = Topic::factory()->create();
+    $root->topics()->attach([$sole->id, $shared->id]);
+    $reply->topics()->attach($sole);
+    $child->topics()->attach($childOnly);
+    $otherRoot->topics()->attach($shared);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $this->assertDatabaseMissing('commit_topic', ['commit_id' => $root->id]);
+    $this->assertDatabaseMissing('commit_topic', ['commit_id' => $child->id]);
+    $this->assertDatabaseMissing('commit_topic', ['commit_id' => $reply->id]);
+    $this->assertModelMissing($sole);
+    $this->assertModelMissing($childOnly);
+    $this->assertModelExists($shared);
+    $this->assertModelExists($unrelated);
+    expect($otherRoot->topics()->pluck('topics.id')->all())->toBe([$shared->id])
+        ->and(Commit::withTrashed()->findOrFail($reply->id))
+        ->topic_decision->toBeNull()
+        ->topics_classified_at->toBeNull();
 });
 
 it('keeps the quotes of others when erasing the quoted commits of a deleted user', function (): void {

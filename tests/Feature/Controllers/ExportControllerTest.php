@@ -208,6 +208,8 @@ it('exports all the signed-in users commits including replies, deleted ones, and
         ],
         'status' => 'approved',
         'topic_decision' => true,
+        'topics' => [],
+        'topics_classified_at' => null,
         'pasteis_count' => 3,
         'images' => [],
         'created_at' => $approved->created_at->toIso8601String(),
