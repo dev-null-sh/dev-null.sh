@@ -39,6 +39,22 @@ it('may attach a poll to a commit', function (): void {
         ->and($poll->options->pluck('label')->all())->toBe(['Tabs', 'Spaces']);
 });
 
+it('may attach a poll with up to eight options', function (): void {
+    $user = User::factory()->create();
+    $options = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Pick one?',
+            'poll' => ['options' => $options, 'duration' => PollDuration::OneDay->value],
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirectToRoute('log.show', Log::Following);
+
+    expect($user->commits()->sole()->poll->options->pluck('label')->all())->toBe($options);
+});
+
 it('keeps a poll when its link card is chosen or removed', function (?string $linkPreviewUrl): void {
     Queue::fake([UnfurlLink::class]);
 
@@ -140,7 +156,7 @@ it('validates the poll', function (array $poll, array|string $errors): void {
     expect(Commit::query()->count())->toBe(0);
 })->with([
     'one option' => [['options' => ['Tabs'], 'duration' => 1440], 'poll.options'],
-    'five options' => [['options' => ['A', 'B', 'C', 'D', 'E'], 'duration' => 1440], 'poll.options'],
+    'nine options' => [['options' => ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'], 'duration' => 1440], 'poll.options'],
     'empty option' => [['options' => ['Tabs', '  '], 'duration' => 1440], 'poll.options.1'],
     'long option' => [['options' => ['Tabs', str_repeat('a', 51)], 'duration' => 1440], 'poll.options.1'],
     'duplicate options' => [['options' => ['Tabs', 'tabs'], 'duration' => 1440], 'poll.options.1'],

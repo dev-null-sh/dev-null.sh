@@ -10,7 +10,7 @@ final readonly class NewPoll
 {
     public const int MinOptions = 2;
 
-    public const int MaxOptions = 4;
+    public const int MaxOptions = 8;
 
     public const int MaxOptionLength = 50;
 

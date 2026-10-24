@@ -13,7 +13,7 @@ export const emptyPollDraft: PollDraft = { options: ['', ''], duration: 1440 };
 
 const maxOptionLength = 50;
 
-const maxOptions = 4;
+const maxOptions = 8;
 
 const durations = [
     { minutes: 60, label: '1 hour' },
