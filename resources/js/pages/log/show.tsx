@@ -439,51 +439,62 @@ export default function Show({
                             loaded === 'leaving' &&
                                 newCommitsCount === 0 &&
                                 '-translate-y-2 opacity-0',
-                            'pointer-events-auto mt-3 flex min-h-11 max-w-[calc(100vw-2rem)] items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:transition-[opacity,translate,background-color] motion-safe:duration-450 motion-safe:fade-in motion-safe:slide-in-from-top-2',
+                            'pointer-events-auto mt-3 grid min-h-11 max-w-[calc(100vw-2rem)] items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:transition-[opacity,translate,background-color] motion-safe:duration-450 motion-safe:fade-in motion-safe:slide-in-from-top-2',
                         )}
                     >
-                        {isFetching ? (
-                            <LoaderCircle className="size-4 motion-safe:animate-spin" />
-                        ) : (
-                            <ArrowUp className="size-4" />
-                        )}
-                        {isFetching ? (
-                            `Fetching ${announced === 1 ? 'commit' : `${announced} commits`}…`
-                        ) : newCommitsCount === 0 ? (
-                            `${waiting === 1 ? '1 new commit' : `${waiting} new commits`} loaded${isAway ? ` · ${window.matchMedia('(pointer: coarse)').matches ? 'Tap' : 'Click'} to scroll up` : ''}`
-                        ) : (
-                            <>
-                                <span
-                                    aria-hidden
-                                    className="flex shrink-0 items-center -space-x-1"
-                                >
-                                    {newCommitAuthors.users.map((author) => (
-                                        <UserAvatar
-                                            key={author.id}
-                                            user={author}
-                                            pixels={48}
-                                            className="size-6 ring-2 ring-primary"
-                                        />
-                                    ))}
-                                    {newCommitAuthors.total > 5 && (
-                                        <span
-                                            title={`${newCommitAuthors.total - 5} more authors`}
-                                            className="relative grid h-6 w-10 shrink-0 place-items-center rounded-sm bg-muted font-mono text-[11px] font-medium text-foreground tabular-nums ring-2 ring-primary"
-                                        >
-                                            +
-                                            {Math.min(
-                                                newCommitAuthors.total - 5,
-                                                99,
-                                            )}
-                                            {newCommitAuthors.total - 5 > 99
-                                                ? '+'
-                                                : ''}
-                                        </span>
-                                    )}
-                                </span>
-                                committed
-                            </>
-                        )}
+                        <span
+                            aria-hidden
+                            className="invisible col-start-1 row-start-1 flex items-center gap-1.5"
+                        >
+                            <span className="size-4 shrink-0" />
+                            <span>{`${Math.max(newCommitsCount, announced, waiting)} new commits loaded · Click to scroll up`}</span>
+                        </span>
+                        <span className="col-start-1 row-start-1 flex items-center justify-center gap-1.5">
+                            {isFetching ? (
+                                <LoaderCircle className="size-4 motion-safe:animate-spin" />
+                            ) : (
+                                <ArrowUp className="size-4" />
+                            )}
+                            {isFetching ? (
+                                `Fetching ${announced === 1 ? 'commit' : `${announced} commits`}…`
+                            ) : newCommitsCount === 0 ? (
+                                `${waiting === 1 ? '1 new commit' : `${waiting} new commits`} loaded${isAway ? ` · ${window.matchMedia('(pointer: coarse)').matches ? 'Tap' : 'Click'} to scroll up` : ''}`
+                            ) : (
+                                <>
+                                    <span
+                                        aria-hidden
+                                        className="flex shrink-0 items-center -space-x-1"
+                                    >
+                                        {newCommitAuthors.users.map(
+                                            (author) => (
+                                                <UserAvatar
+                                                    key={author.id}
+                                                    user={author}
+                                                    pixels={48}
+                                                    className="size-6 ring-2 ring-primary"
+                                                />
+                                            ),
+                                        )}
+                                        {newCommitAuthors.total > 5 && (
+                                            <span
+                                                title={`${newCommitAuthors.total - 5} more authors`}
+                                                className="relative grid h-6 w-10 shrink-0 place-items-center rounded-sm bg-muted font-mono text-[11px] font-medium text-foreground tabular-nums ring-2 ring-primary"
+                                            >
+                                                +
+                                                {Math.min(
+                                                    newCommitAuthors.total - 5,
+                                                    99,
+                                                )}
+                                                {newCommitAuthors.total - 5 > 99
+                                                    ? '+'
+                                                    : ''}
+                                            </span>
+                                        )}
+                                    </span>
+                                    committed
+                                </>
+                            )}
+                        </span>
                     </button>
                 </div>
             )}
