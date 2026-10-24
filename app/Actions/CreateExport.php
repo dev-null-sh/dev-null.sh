@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\NotificationType;
 use App\Models\CommitImage;
+use App\Models\CommitReport;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
@@ -24,34 +25,14 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\LazyCollection;
 use stdClass;
+use Traversable;
 
 /**
  * @phpstan-type ExportPoll array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}
  * @phpstan-type ExportPollVote array{commit_id: string, option: string, created_at: string}
  * @phpstan-type ExportMessage array{to: string|null, body: string, voice: string|null, created_at: string}
  * @phpstan-type ExportUser array{username: string}
- * @phpstan-type UserExport array{
- *     schema_version: int,
- *     exported_at: string,
- *     profile: array<string, bool|int|string|null>,
- *     commits: Generator<int, array<string, mixed>>,
- *     polls: Generator<int, ExportPoll>,
- *     poll_votes: Generator<int, ExportPollVote>,
- *     stars: Generator<int, string>,
- *     following: Generator<int, ExportUser>,
- *     followers: Generator<int, ExportUser>,
- *     muting: Generator<int, ExportUser>,
- *     blocking: Generator<int, ExportUser>,
- *     dismissed_suggestions: Generator<int, ExportUser>,
- *     messages: Generator<int, ExportMessage>,
- *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
- *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
- *     notifications: Generator<int, array<string, int|string|null>>,
- *     ssh_keys: array<mixed>,
- *     devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>,
- *     timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>,
- *     sessions: Collection<int, stdClass>
- * }
+ * @phpstan-type UserExport array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, ExportPoll>, poll_votes: Generator<int, ExportPollVote>, stars: Generator<int, string>, following: Generator<int, ExportUser>, followers: Generator<int, ExportUser>, muting: Generator<int, ExportUser>, blocking: Generator<int, ExportUser>, dismissed_suggestions: Generator<int, ExportUser>, messages: Generator<int, ExportMessage>, reports: Traversable<int, array<string, mixed>>, remote_pins: array<int, array{to: string|null, pinned_at: string|null}>, remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>, notifications: Generator<int, array<string, int|string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>, sessions: Collection<int, stdClass>}
  */
 final readonly class CreateExport
 {
@@ -108,6 +89,13 @@ final readonly class CreateExport
             'blocking' => $this->usernames($user->blocking()),
             'dismissed_suggestions' => $this->usernames($user->dismissedSuggestions()),
             'messages' => $this->messages($user),
+            'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
+                'commit_id' => $report->commit_id,
+                'reason' => $report->reason,
+                'details' => $report->details,
+                'attachments' => $report->toArray()['attachments'],
+                'created_at' => $report->created_at->toIso8601String(),
+            ])->getIterator(),
             'remote_mutes' => Conversation::query()
                 ->join('conversation_participants as mine', 'mine.conversation_id', '=', 'conversations.id')
                 ->where('mine.user_id', $user->id)

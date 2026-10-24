@@ -41,7 +41,7 @@ final readonly class DeleteUser
         $imagePaths = DB::transaction(function () use ($user): array {
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
-            $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
+            $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
 
             $translationKeys = Commit::query()->withTrashed()
                 ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
@@ -100,6 +100,18 @@ final readonly class DeleteUser
     private function replies(User $user): HasMany
     {
         return $user->commits()->withTrashed()->whereNotNull('parent_id');
+    }
+
+    /** @return array<int, string> */
+    private function reportImagePaths(User $user): array
+    {
+        return CommitReport::query()
+            ->where('reporter_id', $user->id)
+            ->orWhereIn('commit_id', $user->commits()->withTrashed()->select('id'))
+            ->orWhereIn('commit_id', Commit::query()->withTrashed()->whereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id'))->select('id'))
+            ->get(['images'])
+            ->flatMap(fn (CommitReport $report): array => array_column($report->images ?? [], 'path'))
+            ->all();
     }
 
     /**

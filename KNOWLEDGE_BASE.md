@@ -375,7 +375,7 @@ Sources: [safety settings](resources/js/pages/safety/edit.tsx), [mute action](ap
 
 ### Reporting commits
 
-Report another person's visible, approved commit or reply privately from its controls. Choose a reason (spam or misleading links, harassment or hate, harmful or private information, or something else) and optionally add up to **500 characters** of detail. You can report a particular commit once, and file up to five reports a minute. Reporting does not immediately hide or reject the content. Moderators review reports without the reporter's identity and can dismiss the report or reject the commit, with an optional reason sent to its author. Deleting a reported commit keeps its reports. This is a content-safety report, not a software bug report; use `/bug` for app defects.
+Report another person's visible, approved commit or reply privately from its controls. Choose a reason (spam or misleading links, harassment or hate, harmful or private information, or something else) and optionally add up to **500 characters** of detail. Attach up to **three JPEG, PNG, or WebP images**, each up to **10 MB**, using the image picker, paste, or drag and drop. Attachments can include descriptions and are visible only to you and moderators. You can report a particular commit once, and file up to five reports a minute. Reporting does not immediately hide or reject the content. Moderators review reports without the reporter's identity and can dismiss the report or reject the commit, with an optional reason sent to its author. Deleting a reported commit keeps its reports. This is a content-safety report, not a software bug report; use `/bug` for app defects.
 
 Sources: [report control](resources/js/components/commit-report-button.tsx), [report validation](app/Http/Requests/CreateCommitReportRequest.php), [reported-commit controller](app/Http/Controllers/ReportedCommitController.php).
 
@@ -497,7 +497,7 @@ Choose **Download JSON** in Settings → Profile to export your account data. Th
 - SSH key fingerprints, approved devices, and your timeout history;
 - active-session metadata: IP address, browser information, and last activity.
 
-Other people's replies and received messages are not included as your authored data. Message images, message reactions, reports you filed, scheduled commits, and ban records are not included either. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
+Other people's replies and received messages are not included as your authored data. Message images, message reactions, scheduled commits, and ban records are not included either. Reports you filed include their reason, details, and attachment references; reports filed by other people are excluded. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
 
 The export does not expose session IDs, authentication tokens, private SSH keys, or other people's poll choices. Keep the downloaded JSON private because it includes personal account information. Exports are limited to **three per hour**.
 
