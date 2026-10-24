@@ -173,7 +173,7 @@ A **commit** is a post on /dev/null, not a Git commit in a repository. Open the 
 
 Commits, replies, quotes, scheduling, terminal submissions, and app (signed API) commits share a limit of 10 attempts per minute per user. Posts go through [moderation](#moderation), so a newly submitted commit may be pending rather than public immediately; admins and authors with a good reputation are approved at once.
 
-New top-level commits with text, including quotes but not replies, can have their text processed by an AI classifier to decide whether it contains a substantive community topic. This is only a classification step: it does not create topics, change moderation, or affect the logs. The yes/no result is not shown publicly, is included in the author's data export, and is erased with the commit's content or account. Topic creation and browsing are not available yet.
+Top-level commits with text, including quotes but not replies, can have their text processed by an AI classifier to decide whether it contains a substantive community topic. This can include older commits that have not yet been classified. This is only a classification step: it does not create topics, change moderation, or affect the logs. The yes/no result is not shown publicly, is included in the author's data export, and is erased with the commit's content or account. Topic creation and browsing are not available yet.
 
 Sources: [composer](resources/js/components/commit-composer.tsx), [commit model](app/Models/Commit.php), [commit validation](app/Http/Requests/CreateCommitRequest.php), [submission throttle](app/Http/Middleware/ThrottleCommits.php).
 
