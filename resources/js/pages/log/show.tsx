@@ -70,12 +70,14 @@ export default function Show({
         documentTop: number;
         scrollY: number;
     } | null>(null);
+    const returningToTop = useRef(false);
     const [composer, setComposer] = useState<HTMLDivElement | null>(null);
     useLaneSwipe(feedRef, log);
     useComposerVisibility(composer, tabsHeight);
 
     useLayoutEffect(() => {
         followAnchor.current = null;
+        returningToTop.current = false;
     }, [log]);
 
     useEffect(() => {
@@ -97,6 +99,7 @@ export default function Show({
 
     const preserveReadingPosition = useCallback(
         (ids: Set<string>) => {
+            if (returningToTop.current) return;
             const headerBottom =
                 tabsRef.current?.getBoundingClientRect().bottom ?? 0;
             const focused = document.activeElement?.closest<HTMLElement>(
@@ -131,6 +134,7 @@ export default function Show({
     );
 
     const restoreReadingPosition = useCallback(() => {
+        if (returningToTop.current) return;
         const anchor = followAnchor.current;
         if (!anchor?.row.isConnected) return;
 
@@ -178,18 +182,36 @@ export default function Show({
                     new Set(commits.data.map((commit) => commit.id)),
                 );
         };
+        let scrollTimer: ReturnType<typeof setTimeout> | undefined;
+        const updateScroll = () => {
+            if (!returningToTop.current) {
+                restoreReadingPosition();
+                return;
+            }
+
+            // Smooth scrolling owns the viewport until it finishes or the reader interrupts it.
+            clearTimeout(scrollTimer);
+            scrollTimer = setTimeout(() => {
+                returningToTop.current = false;
+                preserveReadingPosition(
+                    new Set(commits.data.map((commit) => commit.id)),
+                );
+            }, 150);
+        };
         window.addEventListener('focusin', updateFocus);
         window.addEventListener('focusout', updateFocus);
-        window.addEventListener('scroll', restoreReadingPosition, {
+        window.addEventListener('scroll', updateScroll, {
             passive: true,
         });
+        if (returningToTop.current) updateScroll();
 
         return () => {
             observer.disconnect();
             mutations.disconnect();
+            clearTimeout(scrollTimer);
             window.removeEventListener('focusin', updateFocus);
             window.removeEventListener('focusout', updateFocus);
-            window.removeEventListener('scroll', restoreReadingPosition);
+            window.removeEventListener('scroll', updateScroll);
             style.overflowAnchor = previous;
         };
     }, [commits, isRanked, preserveReadingPosition, restoreReadingPosition]);
@@ -540,6 +562,8 @@ export default function Show({
                     <button
                         type="button"
                         onClick={() => {
+                            returningToTop.current = true;
+                            followAnchor.current = null;
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
                         aria-label={announcementLabel}

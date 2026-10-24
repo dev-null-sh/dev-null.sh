@@ -375,6 +375,15 @@ function insertAt(
             resizeListeners.forEach((listener) => listener());
         },
         render: () => render(current),
+        currentScroll: () => scrollY,
+        progressScroll: (top: number, height: number) => {
+            scrollY = top;
+            rowPosition += height;
+            mutationListeners.forEach((listener) => listener());
+            resizeListeners.forEach((listener) => listener());
+            scrollListeners.forEach((listener) => listener());
+            render(current);
+        },
         paginate: () => {
             current = {
                 ...current,
@@ -843,3 +852,36 @@ test('returns the anchor to the feed when the reader leaves the composer', () =>
     result.mutateAbove(80);
     assert.equal(result.readingTop(), top);
 });
+
+for (const log of ['latest', 'following'] as const) {
+    test(`lets New commits finish smooth scrolling through card remeasurement on ${log}`, () => {
+        const result = insertAt(1500, false, [], log);
+        const button = result.finish().find((node) => node.type === 'button')!;
+        window.scrollTo = () => {};
+        (button.props.onClick as () => void)();
+        result.progressScroll(1400, 60);
+        assert.equal(result.currentScroll(), 1400);
+        result.progressScroll(700, -80);
+        assert.equal(result.currentScroll(), 700);
+        result.progressScroll(0, 120);
+        assert.equal(result.currentScroll(), 0);
+        vi.advanceTimersByTime(450);
+        assert.equal(
+            result.render().some((node) => node.type === 'button'),
+            false,
+        );
+    });
+    test(`resumes reading preservation after an interrupted return settles on ${log}`, () => {
+        const result = insertAt(1500, false, [], log);
+        const button = result.finish().find((node) => node.type === 'button')!;
+        window.scrollTo = () => {};
+        (button.props.onClick as () => void)();
+        result.progressScroll(1400, 60);
+        assert.equal(result.currentScroll(), 1400);
+        result.paginate();
+        vi.advanceTimersByTime(150);
+        const top = result.readingTop();
+        result.resizeAbove(70);
+        assert.equal(result.readingTop(), top);
+    });
+}
