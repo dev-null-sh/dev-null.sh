@@ -44,6 +44,15 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
     useHasStash: () => true,
     moveCaretToEnd: vi.fn(),
 }));
+vi.doMock('../../resources/js/components/composer-preview', async () => ({
+    ...(await vi.importActual(
+        '../../resources/js/components/composer-preview',
+    )),
+    useComposerPreview: () => ({
+        isPreviewing: false,
+        handleShortcut: () => false,
+    }),
+}));
 
 const { Form } = await import('@inertiajs/react');
 const { CommitQuoteButton } =
@@ -52,6 +61,10 @@ const { ImagePickerButton, ImagePickerPreviews } =
     await import('../../resources/js/components/commit-image-picker');
 const { StashLabel } =
     await import('../../resources/js/components/stash-label');
+const { LinkCardPicker } =
+    await import('../../resources/js/components/link-card-picker');
+const { default: InputError } =
+    await import('../../resources/js/components/input-error');
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
     if (!React.isValidElement(node)) {
@@ -178,4 +191,101 @@ test('quotes submit restored images and clear the complete draft only on success
     } finally {
         vi.unstubAllGlobals();
     }
+});
+
+test('escape in the preview returns to writing without closing the quote', () => {
+    const commit = {
+        id: 'quoted',
+        user_id: 'author',
+        user: { username: 'author' },
+        status: 'approved',
+    } as Commit;
+    const button = CommitQuoteButton({ commit })!;
+    const dialog = React.Children.toArray(
+        button.props.children,
+    )[1] as ReactElement<{
+        children: ReactElement<{ commit: Commit; onClose: () => void }>;
+    }>;
+    const composer = dialog.props.children;
+    const renderComposer = composer.type as (
+        props: typeof composer.props,
+    ) => ReactElement<{ onEscapeKeyDown: (event: unknown) => void }>;
+    const { onEscapeKeyDown } = renderComposer(composer.props).props;
+
+    class FakeElement {
+        constructor(private readonly isInPreview: boolean) {}
+
+        closest(selector: string) {
+            return this.isInPreview && selector === '[data-composer-preview]'
+                ? this
+                : null;
+        }
+    }
+
+    vi.stubGlobal('Element', FakeElement);
+    vi.stubGlobal('document', { querySelector: () => null });
+    try {
+        const escapeFrom = (isInPreview: boolean) => {
+            const preventDefault = vi.fn();
+            onEscapeKeyDown({
+                target: new FakeElement(isInPreview),
+                preventDefault,
+            });
+
+            return preventDefault.mock.calls.length;
+        };
+
+        assert.equal(escapeFrom(true), 1);
+        assert.equal(escapeFrom(false), 0);
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});
+
+test('quotes let the author pick which link gets the card', () => {
+    draft.body =
+        'Read https://laravel.com/docs first, then https://github.com/laravel/framework';
+    const commit = {
+        id: 'quoted',
+        user_id: 'author',
+        user: { username: 'author' },
+        status: 'approved',
+    } as Commit;
+    const button = CommitQuoteButton({ commit })!;
+    const dialog = React.Children.toArray(
+        button.props.children,
+    )[1] as ReactElement<{
+        children: ReactElement<{ commit: Commit; onClose: () => void }>;
+    }>;
+    const composer = dialog.props.children;
+    const renderComposer = composer.type as (
+        props: typeof composer.props,
+    ) => ReactElement;
+    const form = elements(renderComposer(composer.props)).find(
+        (element) => element.type === Form,
+    )!;
+    const renderFields = form.props.children as (props: {
+        processing: boolean;
+        errors: Record<string, string>;
+    }) => ReactNode;
+    const message = 'The link card must be one of the links in the body.';
+    const fields = elements(
+        renderFields({
+            processing: false,
+            errors: { link_preview_url: message },
+        }),
+    );
+
+    const picker = fields.find((element) => element.type === LinkCardPicker)!;
+    assert.deepEqual((picker.props.linkCard as { links: string[] }).links, [
+        'https://laravel.com/docs',
+        'https://github.com/laravel/framework',
+    ]);
+    assert.ok(
+        fields.some(
+            (element) =>
+                element.type === InputError &&
+                element.props.message === message,
+        ),
+    );
 });

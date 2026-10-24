@@ -9,6 +9,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
+use Inertia\Support\Header;
 
 final class ListNotificationsRequest extends FormRequest
 {
@@ -52,5 +53,10 @@ final class ListNotificationsRequest extends FormRequest
     public function through(): ?CarbonImmutable
     {
         return $this->date('through')?->toImmutable();
+    }
+
+    public function loadsNotifications(): bool
+    {
+        return str($this->headers->get(Header::PARTIAL_ONLY, 'notifications'))->explode(',')->contains('notifications');
     }
 }

@@ -27,6 +27,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  *     partner_read_at: DirectThread['partner_read_at'],
  *     partner_typing: DirectThread['partner_typing'],
  *     is_archived: DirectThread['is_archived'],
+ *     pinned_at: DirectThread['pinned_at'],
  *     muted_until_at: DirectThread['muted_until_at'],
  *     access: DirectThread['access']
  * }

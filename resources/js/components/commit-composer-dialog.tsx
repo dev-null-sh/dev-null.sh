@@ -72,7 +72,9 @@ export function CommitComposerDialog({
                         if (
                             document.querySelector(
                                 '[data-mention-suggestions], [data-command-suggestions]',
-                            )
+                            ) ||
+                            (event.target instanceof Element &&
+                                event.target.closest('[data-composer-preview]'))
                         ) {
                             event.preventDefault();
                         }

@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import { CopyableCode } from '@/components/copyable-code';
 import Heading from '@/components/heading';
+import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 
@@ -51,7 +52,14 @@ export default function Show({ url }: { url: string }) {
             <section className="px-4 py-6 sm:px-6">
                 <Heading
                     title="Commit from your terminal"
-                    description="No login, no token: the script signs your commit with an SSH key that is on your GitHub account, and /dev/null checks it against the keys GitHub publishes for you."
+                    description={
+                        <WordmarkText>
+                            No login, no token: the script signs your commit
+                            with an SSH key that is on your GitHub account, and
+                            /dev/null checks it against the keys GitHub
+                            publishes for you.
+                        </WordmarkText>
+                    }
                 />
 
                 <div className="space-y-3">
@@ -103,8 +111,8 @@ export default function Show({ url }: { url: string }) {
                             >
                                 signing key
                             </a>
-                            . It can sign /dev/null commits, but never push code
-                            or log in.
+                            . It can sign <WordmarkText>/dev/null</WordmarkText>{' '}
+                            commits, but never push code or log in.
                         </p>
                     </li>
                     <li>
@@ -154,8 +162,8 @@ export default function Show({ url }: { url: string }) {
 
                 <p className="mt-4 max-w-prose text-sm text-pretty text-muted-foreground">
                     The job prints the link to your commit, and whether it is
-                    pending review. When /dev/null refuses it, the job fails
-                    with the reason.
+                    pending review. When <WordmarkText>/dev/null</WordmarkText>{' '}
+                    refuses it, the job fails with the reason.
                 </p>
             </section>
         </>

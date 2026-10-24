@@ -3,14 +3,20 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Http;
 
 it('renders the about page for guests', function (): void {
+    fakeGitHubContributors([gitHubContributor('xHeaven', 187)]);
+
     $this->get(route('about.show'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('about/show'));
 });
 
 it('renders the about page for signed in users', function (): void {
+    fakeGitHubContributors([gitHubContributor('xHeaven', 187)]);
+
     $this->actingAs(User::factory()->create())
         ->get(route('about.show'))
         ->assertOk()
@@ -18,9 +24,29 @@ it('renders the about page for signed in users', function (): void {
 });
 
 it('describes the about page to search engines and link previews', function (): void {
+    fakeGitHubContributors([gitHubContributor('xHeaven', 187)]);
+
     $this->get(route('about.show'))
         ->assertOk()
         ->assertSee('<title>About - /dev/null</title>', false)
         ->assertSee('<link rel="canonical" href="'.route('about.show').'">', false)
         ->assertSee('"@type":"WebPage"', false);
+});
+
+it('hands the contributors to the page', function (): void {
+    fakeGitHubContributors([gitHubContributor('xHeaven', 187)]);
+
+    $this->get(route('about.show'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('contributors', 1)
+            ->where('contributors.0', ['login' => 'xHeaven', 'commits' => 187]));
+});
+
+it('leaves the contributors out while GitHub is unreachable', function (): void {
+    Http::fake(fn () => throw new ConnectionException('timeout'));
+
+    $this->get(route('about.show'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('contributors', null));
 });
