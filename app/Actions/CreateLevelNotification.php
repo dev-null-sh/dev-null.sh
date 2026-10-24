@@ -20,14 +20,16 @@ final readonly class CreateLevelNotification
 
     /**
      * The level is the one everyone sees on the profile, so a pending commit that ends up rejected never levels anyone
-     * up. Each level notifies once, ever: losing XP and earning it back does not bring the same notification again.
+     * up. Each level notifies once, ever, and only on the way up: losing XP and earning it back does not bring the same
+     * notification again, and dropping to a level skipped on the way does not announce it.
      * Someone who reaches a level before ever being checked hears about that level only, not every one on the way.
      */
     public function handle(User $user): void
     {
         $level = $this->achievements->get($user, null)['level'];
 
-        if ($level <= UnixRank::User->level()) {
+        if ($level <= UnixRank::User->level()
+            || $user->notifications()->where('type', NotificationType::LeveledUp)->where('level', '>=', $level)->exists()) {
             return;
         }
 
