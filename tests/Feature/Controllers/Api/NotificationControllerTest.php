@@ -99,6 +99,15 @@ it('lists the notifications of the user, newest first', function (): void {
         ->assertJsonPath('meta.next_cursor', null);
 });
 
+it('leaves the stars of the commits out, as only the web inbox stars from a notification', function (): void {
+    Notification::factory()->for($this->user, 'recipient')->replied()->create();
+
+    signedApiRequest($this->keyPair, 'GET', route('api-notification.index'))
+        ->assertOk()
+        ->assertJsonMissingPath('data.0.commit.stars_count')
+        ->assertJsonMissingPath('data.0.commit.starred');
+});
+
 it('hides notifications that no longer hold', function (): void {
     $notification = Notification::factory()->for($this->user, 'recipient')->create();
 

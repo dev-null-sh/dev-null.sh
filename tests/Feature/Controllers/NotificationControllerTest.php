@@ -64,6 +64,22 @@ it('lists mentions of the user', function (): void {
             ->where('notifications.data.0.commit.id', $mentioned->commit_id));
 });
 
+it('says how starred the reply is and whether the user starred it, so it can be starred from the inbox', function (): void {
+    $user = User::factory()->create();
+    $replied = Notification::factory()->for($user, 'recipient')->replied()->create();
+    $reply = Commit::query()->findOrFail($replied->commit_id);
+    resolve(CreateCommitStar::class)->handle($user, $reply);
+    resolve(CreateCommitStar::class)->handle(User::factory()->create(), $reply);
+
+    $response = $this->actingAs($user)->get(route('notification.index'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('notifications.data.0.commit.id', $reply->id)
+            ->where('notifications.data.0.commit.stars_count', 2)
+            ->where('notifications.data.0.commit.starred', true));
+});
+
 it('hides notifications that no longer hold', function (): void {
     $user = User::factory()->create();
     $notification = Notification::factory()->for($user, 'recipient')->create();

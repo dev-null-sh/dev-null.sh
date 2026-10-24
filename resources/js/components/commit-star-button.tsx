@@ -29,11 +29,19 @@ function starLabel(starred: boolean, count: number): string {
     return `${verb} commit, ${formatExactCount(count)} ${noun}`;
 }
 
+/**
+ * Only what starring reads, so a commit loaded without its author, like a notification's, can be starred too.
+ */
+type StarrableCommit = Pick<
+    Commit,
+    'id' | 'user_id' | 'status' | 'starred' | 'stars_count'
+>;
+
 export function CommitStarButton({
     commit,
     className,
 }: {
-    commit: Commit;
+    commit: StarrableCommit;
     className?: string;
 }) {
     const { auth } = usePage().props;
@@ -205,7 +213,7 @@ function StarCount({
     className,
 }: {
     ref?: Ref<HTMLButtonElement>;
-    commit: Commit;
+    commit: StarrableCommit;
     count: number;
     className?: string;
 }) {
