@@ -50,3 +50,16 @@ it('leaves the contributors out while GitHub is unreachable', function (): void 
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('contributors', null));
 });
+
+it('hands which contributors the user follows to the page', function (): void {
+    fakeGitHubContributors([gitHubContributor('xHeaven', 187)]);
+    $user = User::factory()->create();
+    $contributor = User::factory()->create(['username' => 'xHeaven']);
+    $user->following()->attach($contributor);
+
+    $this->actingAs($user)
+        ->get(route('about.show'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('followingLogins', ['xheaven']));
+});
