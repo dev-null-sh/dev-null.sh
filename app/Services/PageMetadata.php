@@ -246,24 +246,28 @@ final readonly class PageMetadata
     }
 
     /**
-     * The link preview of who follows a profile, or who it follows. The lists are thin pages, so they are not indexed, though their links are followed.
+     * The link preview of who follows a profile, who it follows, or who of those follow it back. The lists are thin pages, so they are not indexed, though their links are followed.
      *
-     * @param  'followers'|'following'  $type
+     * @param  'followers'|'following'|'mutuals'  $type
      * @return ConnectionsMetadata
      */
     public function connections(User $user, string $type): array
     {
-        $title = $type === 'followers'
-            ? "People following {$user->nameWithHandle()} on /dev/null"
-            : "People followed by {$user->nameWithHandle()} on /dev/null";
+        $title = match ($type) {
+            'followers' => "People following {$user->nameWithHandle()} on /dev/null",
+            'following' => "People followed by {$user->nameWithHandle()} on /dev/null",
+            'mutuals' => "Mutuals of {$user->nameWithHandle()} on /dev/null",
+        };
 
         return [
             'type' => 'profile',
             'title' => $title,
-            'description' => $type === 'followers'
-                ? "See who follows {$user->mention()} on /dev/null, a social network for developers."
-                : "See who {$user->mention()} follows on /dev/null, a social network for developers.",
-            'url' => route($type === 'followers' ? 'user-followers.index' : 'user-following.index', $user),
+            'description' => match ($type) {
+                'followers' => "See who follows {$user->mention()} on /dev/null, a social network for developers.",
+                'following' => "See who {$user->mention()} follows on /dev/null, a social network for developers.",
+                'mutuals' => "See who follows {$user->mention()} back on /dev/null, a social network for developers.",
+            },
+            'url' => route("user-{$type}.index", $user),
             'robots' => self::NOT_INDEXABLE,
             'images' => [$this->profileImage($user, $title)],
             'username' => $user->username,

@@ -3,6 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
+import UserMutualsController from '@/actions/App/Http/Controllers/UserMutualsController';
 import { EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { PageTabs } from '@/components/page-tabs';
@@ -14,6 +15,14 @@ import { show } from '@/routes/user';
 import type { CursorPaginated, User } from '@/types';
 
 type Connection = User & { is_followed: boolean };
+
+type ConnectionType = 'followers' | 'following' | 'mutuals';
+
+const titles: Record<ConnectionType, string> = {
+    followers: 'Followers',
+    following: 'Following',
+    mutuals: 'Mutuals',
+};
 
 function ConnectionFollowButton({ person }: { person: Connection }) {
     return (
@@ -35,11 +44,16 @@ export default function Connections({
     users,
 }: {
     user: User;
-    type: 'following' | 'followers';
+    type: ConnectionType;
     users: CursorPaginated<Connection>;
 }) {
     const { auth } = usePage().props;
-    const title = type === 'following' ? 'Following' : 'Followers';
+    const title = titles[type];
+    const emptyMessages: Record<ConnectionType, string> = {
+        followers: `Nobody is following @${user.username} yet.`,
+        following: `@${user.username} isn't following anyone yet.`,
+        mutuals: `@${user.username} has no mutuals yet.`,
+    };
 
     return (
         <>
@@ -74,6 +88,11 @@ export default function Connections({
                             href: UserFollowingController.index(user),
                             isActive: type === 'following',
                         },
+                        {
+                            title: 'Mutuals',
+                            href: UserMutualsController.index(user),
+                            isActive: type === 'mutuals',
+                        },
                     ]}
                 />
             </div>
@@ -81,9 +100,7 @@ export default function Connections({
             {users.data.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed command={`fatal: no ${type} yet`}>
-                        {type === 'following'
-                            ? `@${user.username} isn't following anyone yet.`
-                            : `Nobody is following @${user.username} yet.`}
+                        {emptyMessages[type]}
                     </EmptyFeed>
                 </div>
             ) : (
