@@ -25,6 +25,7 @@ import {
     useGraphNode,
 } from '@/components/graph-canvas';
 import {
+    ChainedEntrance,
     GraphRail,
     RailAvatar,
     RailDot,
@@ -154,6 +155,7 @@ export function CommitCard({
         hasRailTail && railNodePosition !== 'bottom' && endsWithDot;
     const graphEndId = `${commit.id}:end`;
     const isOwn = commit.user_id === auth.user?.id;
+    const isFresh = isOwn && isWithinSeconds(commit.created_at, 15);
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });
@@ -273,7 +275,7 @@ export function CommitCard({
                     hasReplyTail={
                         hasVisibleReplies && (!hasRailTail || endsWithDot)
                     }
-                    isFresh={isOwn && isWithinSeconds(commit.created_at, 15)}
+                    isFresh={isFresh}
                     isDimmed={isDimmed}
                     isPreviousDimmed={isPreviousDimmed}
                     onHoverChange={onAuthorHover}
@@ -317,7 +319,9 @@ export function CommitCard({
                     }
                 />
 
-                <div
+                <ChainedEntrance
+                    isFresh={isFresh}
+                    previousLane={previousLane}
                     className={cn(
                         'min-w-0 pr-4',
                         hasVisibleReplies ? 'pt-3' : 'border-b py-3',
@@ -601,7 +605,7 @@ export function CommitCard({
                             )}
                         </div>
                     </div>
-                </div>
+                </ChainedEntrance>
                 {commit.replies_count !== undefined && (
                     <>
                         <RailSegment
@@ -632,6 +636,9 @@ export function CommitCard({
                                                 endsOnDot
                                                     ? graphEndId
                                                     : commit.id
+                                            }
+                                            isOnTrunk={
+                                                hasRailTail && !endsWithDot
                                             }
                                         />
                                     </GraphScope>

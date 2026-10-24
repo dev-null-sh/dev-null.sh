@@ -44,6 +44,7 @@ use stdClass;
  *     blocking: Generator<int, ExportUser>,
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     messages: Generator<int, ExportMessage>,
+ *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
  *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
  *     notifications: Generator<int, array<string, int|string|null>>,
  *     ssh_keys: array<mixed>,
@@ -94,6 +95,7 @@ final readonly class CreateExport
                 'live_ends_at' => $user->live_ends_at?->toIso8601String(),
                 'last_seen_at' => $user->last_seen_at?->toDateString(),
                 'commit_rules_accepted_at' => $user->commit_rules_accepted_at?->toIso8601String(),
+                'emails_unsubscribed_at' => $user->emails_unsubscribed_at?->toIso8601String(),
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
@@ -119,6 +121,20 @@ final readonly class CreateExport
                 ->map(fn (Conversation $conversation): array => [
                     'to' => $this->recipient($user, $conversation),
                     'muted_until_at' => $conversation->muted_until_at?->toIso8601String(),
+                ])
+                ->all(),
+            'remote_pins' => Conversation::query()
+                ->join('conversation_participants as mine', 'mine.conversation_id', '=', 'conversations.id')
+                ->where('mine.user_id', $user->id)
+                ->whereNotNull('mine.pinned_at')
+                ->select('conversations.*')
+                ->addSelect('mine.pinned_at as pinned_at')
+                ->with('participants.user')
+                ->oldest('mine.id')
+                ->get()
+                ->map(fn (Conversation $conversation): array => [
+                    'to' => $this->recipient($user, $conversation),
+                    'pinned_at' => $conversation->pinned_at?->toIso8601String(),
                 ])
                 ->all(),
             'notifications' => $this->notifications($user),

@@ -104,6 +104,7 @@ export type ConversationSummary = {
     partner_read_through_id: number;
     partner_read_at: string | null;
     is_archived: boolean;
+    pinned_at: string | null;
     muted_until_at: string | null;
 };
 
@@ -117,6 +118,7 @@ export type Thread = {
     partner_read_at: string | null;
     partner_typing: boolean;
     is_archived: boolean;
+    pinned_at: string | null;
     muted_until_at: string | null;
     access: PushAccess;
 };
@@ -130,6 +132,7 @@ export type OrgThread = {
     members: OrgMember[];
     typing: string[];
     is_archived: boolean;
+    pinned_at: string | null;
     muted_until_at: string | null;
     role: OrgRole | null;
     access: PushAccess;

@@ -661,43 +661,58 @@ final class StressSeeder extends Seeder
     }
 
     /**
-     * The same score UpdateCommitHotScores gives, for every top-level commit at once. Each other developer counts once,
-     * for the most they did: three for replying anywhere in the thread or quoting any of its commits, and one for only
-     * starring the commit or one of its replies.
+     * The same score UpdateCommitHotScores gives, for every top-level commit at once: each other developer counts once
+     * for each thing they did in the thread, with the weights of the hot score.
      */
     private function seedHotScores(): void
     {
         DB::statement(<<<'SQL'
-            with engagements as (
-                select root_id as thread_id, user_id, true as replied from commits
-                where root_id is not null and status = 'approved' and deleted_at is null
-                union all
-                select quoted_commit_id, user_id, true from commits
-                where quoted_commit_id is not null and status = 'approved' and deleted_at is null
-                union all
-                select quoted.root_id, engagements.user_id, true from commits as engagements
-                join commits as quoted on quoted.id = engagements.quoted_commit_id
-                where quoted.root_id is not null and engagements.status = 'approved' and engagements.deleted_at is null and quoted.status = 'approved'
-                union all
-                select commit_id, user_id, false from stars
-                union all
-                select starred.root_id, stars.user_id, false from stars
+            with stargazers as (
+                select commit_id as thread_id, user_id from stars
+                union
+                select starred.root_id, stars.user_id from stars
                 join commits as starred on starred.id = stars.commit_id
                 where starred.root_id is not null and starred.status = 'approved' and starred.deleted_at is null
             ),
-            people as (
-                select thread_id, user_id, bool_or(replied) as replied from engagements group by thread_id, user_id
+            quoters as (
+                select quoted_commit_id as thread_id, user_id from commits
+                where quoted_commit_id is not null and status = 'approved' and deleted_at is null
+                union
+                select quoted.root_id, quotes.user_id from commits as quotes
+                join commits as quoted on quoted.id = quotes.quoted_commit_id
+                where quoted.root_id is not null and quotes.status = 'approved' and quotes.deleted_at is null and quoted.status = 'approved'
             ),
-            engaged as (
-                select roots.id, count(*) filter (where people.replied) as repliers, count(*) filter (where not people.replied) as stargazers
-                from commits as roots join people on people.thread_id = roots.id
-                where roots.parent_id is null and people.user_id is distinct from roots.user_id
+            repliers as (
+                select distinct root_id as thread_id, user_id from commits
+                where root_id is not null and status = 'approved' and deleted_at is null
+            ),
+            repliers_answered_by_author as (
+                select distinct replies.root_id as thread_id, replies.user_id from commits as replies
+                join commits as roots on roots.id = replies.root_id
+                join commits as answers on answers.parent_id = replies.id and answers.user_id = roots.user_id
+                where replies.status = 'approved' and replies.deleted_at is null and answers.status = 'approved' and answers.deleted_at is null
+            ),
+            engagements as (
+                select thread_id, user_id, 0.5 as weight from stargazers
+                union all
+                select thread_id, user_id, 1.0 from quoters
+                union all
+                select thread_id, user_id, 13.5 from repliers
+                union all
+                select thread_id, user_id, 75.0 from repliers_answered_by_author
+            ),
+            weighted as (
+                select roots.id, sum(engagements.weight) as engagement
+                from commits as roots join engagements on engagements.thread_id = roots.id
+                where roots.parent_id is null and engagements.user_id is distinct from roots.user_id
                 group by roots.id
             )
-            update commits set hot_score = round((log(2, (1 + coalesce(engaged.stargazers, 0) + 3 * coalesce(engaged.repliers, 0))::numeric)
-                + extract(epoch from commits.created_at)::numeric / 10800), 6)
+            update commits set hot_score = round((
+                log(2, 1 + coalesce(weighted.engagement, 0))
+                + extract(epoch from commits.created_at)::numeric / 21600
+            ), 6)
             from commits as roots
-            left join engaged on engaged.id = roots.id
+            left join weighted on weighted.id = roots.id
             where commits.id = roots.id and roots.parent_id is null and roots.deleted_at is null
             SQL);
     }

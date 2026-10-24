@@ -6,6 +6,7 @@ use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Ai\Agents\CommitTranslator;
+use App\Dto\ThreadEngagement;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Conversation;
@@ -236,9 +237,9 @@ it('lowers the threads the deleted user starred or replied to', function (): voi
     resolve(DeleteUser::class)->handle($user);
 
     expect($starred->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($starred->created_at, 0, 0), 1e-9)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($starred->created_at, ThreadEngagement::none()), 1e-9)
         ->and($repliedTo->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($repliedTo->created_at, 0, 1), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($repliedTo->created_at, new ThreadEngagement(stargazers: 0, quoters: 0, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
 });
 
 it('lowers the threads the deleted user quoted', function (): void {
@@ -250,7 +251,7 @@ it('lowers the threads the deleted user quoted', function (): void {
     resolve(DeleteUser::class)->handle($user);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, ThreadEngagement::none()), 1e-9);
 });
 
 it('erases however many commits a user has without listing them in its queries', function (): void {
@@ -333,8 +334,12 @@ it('erases the orgs a deleted user was the last one in, with the images and voic
     $this->actingAs($user)->putJson(route('org-mute.update', $kept), ['duration' => 'forever'])->assertOk();
     $this->actingAs($former)->putJson(route('org-mute.update', $kept), ['duration' => 'week'])->assertOk();
 
+    $this->actingAs($user)->putJson(route('org-pin.update', $kept), ['pinned' => true])->assertOk();
+    $this->actingAs($former)->putJson(route('org-pin.update', $kept), ['pinned' => true])->assertOk();
+
     resolve(DeleteUser::class)->handle($user);
 
+    expect(ConversationParticipant::query()->whereNotNull('pinned_at')->pluck('user_id')->all())->toBe([$former->id]);
     expect(Conversation::query()->pluck('id')->all())->toBe([$kept])
         ->and(Storage::disk()->allFiles())->toBe([$other->path])
         ->and(ConversationParticipant::query()->whereNotNull('muted_until_at')->pluck('user_id')->all())->toBe([$former->id]);

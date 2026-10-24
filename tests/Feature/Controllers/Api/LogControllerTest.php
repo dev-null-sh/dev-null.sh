@@ -267,6 +267,28 @@ it('pages through the trending log in its ranking', function (): void {
         ->assertJsonPath('meta.next_cursor', null);
 });
 
+it('draws the trending log anew on each request', function (): void {
+    config(['trending.temperature' => 0.5]);
+    Commit::factory()->count(10)->create(['created_at' => now()]);
+
+    $draw = fn (): array => signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'trending'))->json('data.*.id');
+
+    expect($draw())->not->toBe($draw());
+});
+
+it('keeps the draw of the trending log while it pages', function (): void {
+    config(['trending.temperature' => 0.5]);
+    $commits = Commit::factory()->count(25)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+
+    $first = signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'trending'));
+    $second = signedApiRequest($this->keyPair, 'GET', route('api-log.show', ['trending', 'cursor' => $first->json('meta.next_cursor')]));
+
+    expect([...$first->json('data.*.id'), ...$second->json('data.*.id')])->toEqualCanonicalizing($commits->modelKeys())
+        ->and($second->json('meta.next_cursor'))->toBeNull();
+});
+
 it('counts no newer commits on the trending log, like the web', function (): void {
     $seen = Commit::factory()->create(['created_at' => now()->subMinute(), 'hot_score' => 10]);
     Commit::factory()->create();

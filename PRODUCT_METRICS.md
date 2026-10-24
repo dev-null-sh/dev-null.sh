@@ -1,10 +1,10 @@
 # Product metrics
 
-How /dev/null measures whether it works: which metrics exist, exactly how each is counted, what was measured on purpose and what was left for later. The numbers live in Operations → Metrics (`/operations/metrics`, admins only).
+How /dev/null measures whether it works: which metrics exist, exactly how each is counted, what was measured on purpose and what was left for later. The numbers live in the Operations console → Growth (`/operations/metrics`, admins only). Its Overview turns the same data into signals (what is failing, what to watch, what is fine), and Forecasts projects active users, signups, commits and replies two weeks ahead from the daily history.
 
 The goal is to know where the product leaks and what to act on, not to collect data. The page follows AARRR (acquisition, activation, retention; referral is not measured yet, and there is no revenue), plus a few community health metrics.
 
-Status: **implemented** metrics are on the Metrics tab. **Not yet** metrics are ideas kept for later, with what they would need.
+Status: **implemented** metrics are on the Growth page. **Not yet** metrics are ideas kept for later, with what they would need.
 
 ## Principles
 
@@ -19,8 +19,8 @@ Each answers the three questions of the [data guidelines](.ai/guidelines/data.bl
 
 | Data | Where | Why the feature needs it | Who sees it | When it is deleted |
 |---|---|---|---|---|
-| The last day a person was seen (a date, no time) | `users.last_seen_at`, hidden | Retention and active users can't be derived from anything else: reading alone leaves no trace. Written at most once a day, without touching `updated_at`. | Admins, only as aggregates on the Metrics tab; the person in their export | With the account |
-| The number of people seen each day | `active_user_counts` (`seen_at`, `count`), no user ids | The daily active users history: `last_seen_at` only keeps each person's latest day, so past days can't be recomputed. Incremented the first time each person is seen in a day, so the count is exact. | Admins, on the Metrics tab | Never: it is an anonymous count |
+| The last day a person was seen (a date, no time) | `users.last_seen_at`, hidden | Retention and active users can't be derived from anything else: reading alone leaves no trace. Written at most once a day, without touching `updated_at`. | Admins, only as aggregates on the Growth page; the person in their export | With the account |
+| The number of people seen each day | `active_user_counts` (`seen_at`, `count`), no user ids | The daily active users history: `last_seen_at` only keeps each person's latest day, so past days can't be recomputed. Incremented the first time each person is seen in a day, so the count is exact. | Admins, on the Growth page | Never: it is an anonymous count |
 | Two anonymous events, `guest-visit` and `signup` | Fathom | The conversion rate, counted on both sides by the same tool. No user id is sent. | Admins, through Fathom | Per Fathom's retention |
 
 **Seen** means signed in and opening a page or doing something (starring, replying, following) on the web or the installed app, or using the API from the mobile app or the terminal. Posts automated with the GitHub Action count too: someone who publishes, even automatically, is active. What a page reads on its own (polling for notifications, partial reloads, prefetches, JSON reads) doesn't count, or a tab left open would keep its owner active forever.
@@ -29,7 +29,7 @@ Tracking started with the release that added it: visits before that left no trac
 
 ## The funnel (implemented)
 
-The funnel follows the people who **signed up in the selected range** (all time by default). Each step shows its count, its rate, and the change of that rate in percentage points since the period before.
+The funnel follows the people who **signed up in the selected range** (the last 30 days by default, or all time). Each step shows its count, its rate, and the change of that rate in percentage points since the period before.
 
 ### Acquisition
 
