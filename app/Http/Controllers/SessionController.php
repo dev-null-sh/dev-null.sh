@@ -14,15 +14,26 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Laravel\Socialite\Socialite;
+use Laravel\Socialite\Two\GithubProvider;
 use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Two\User as GitHubUser;
 use Symfony\Component\HttpFoundation\RedirectResponse as SymfonyRedirectResponse;
 
 final readonly class SessionController
 {
-    public function create(): SymfonyRedirectResponse
+    private const string SignedOut = 'signed_out';
+
+    /**
+     * GitHub signs an account it has already authorized straight back in, so right after signing out it is asked to let
+     * the person pick which account to continue with instead.
+     */
+    public function create(Request $request): SymfonyRedirectResponse
     {
-        return Socialite::driver('github')->redirect();
+        $github = Socialite::driver('github');
+        assert($github instanceof GithubProvider);
+
+        // with() replaces the parameters rather than adding to them, so a prompt never carries over to a later sign-in.
+        return $github->with($request->session()->pull(self::SignedOut) === true ? ['prompt' => 'select_account'] : [])->redirect();
     }
 
     public function store(Request $request, UpdateOrCreateUser $action, CreateTomFriendship $createTomFriendship, GitHubAccountScreening $screening): RedirectResponse
@@ -74,6 +85,7 @@ final readonly class SessionController
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
+        $request->session()->put(self::SignedOut, true);
 
         return to_route('home');
     }

@@ -7,6 +7,7 @@ use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\SyncGitHubSshKeysJob;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Uri;
 use Laravel\Socialite\Socialite;
 use Laravel\Socialite\Two\InvalidStateException;
 use Laravel\Socialite\Two\User as GitHubUser;
@@ -16,11 +17,25 @@ beforeEach(function (): void {
 });
 
 it('redirects to github', function (): void {
-    Socialite::fake('github');
+    config(['services.github.client_id' => 'client-id', 'services.github.client_secret' => 'secret']);
 
     $response = $this->get(route('login'));
 
     $response->assertRedirect();
+
+    expect((string) $response->headers->get('Location'))->toStartWith('https://github.com/login/oauth/authorize?');
+});
+
+it('lets the person pick a github account when they sign in again after signing out', function (): void {
+    config(['services.github.client_id' => 'client-id', 'services.github.client_secret' => 'secret']);
+    $prompt = fn (): ?string => Uri::of((string) $this->get(route('login'))->headers->get('Location'))->query()->get('prompt');
+
+    expect($prompt())->toBeNull();
+
+    $this->actingAs(User::factory()->create())->post(route('logout'));
+
+    expect($prompt())->toBe('select_account')
+        ->and($prompt())->toBeNull();
 });
 
 it('creates a user and logs them in', function (): void {
