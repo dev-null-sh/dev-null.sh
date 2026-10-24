@@ -24,6 +24,7 @@ export default defineConfig({
             'tests/Unit/ComposerDraft.test.tsx',
             'tests/Unit/QuoteDraft.test.tsx',
             'tests/Unit/EmojiSearch.test.tsx',
+            'tests/Unit/IssueReference.test.tsx',
             'tests/Unit/ReactionTray.test.tsx',
             'tests/Unit/NotificationFilters.test.tsx',
             'tests/Unit/EmojiShortcodes.test.tsx',
