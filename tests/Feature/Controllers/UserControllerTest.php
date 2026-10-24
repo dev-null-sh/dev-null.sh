@@ -23,7 +23,7 @@ it('renders a user profile', function (): void {
     Commit::factory()->create();
 
     $response = $this->actingAs($viewer)
-        ->get('/@octocat');
+        ->get('/home/octocat');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -52,12 +52,12 @@ it('only lets guests see the local time of users who opted in', function (): voi
     User::factory()->create(['username' => 'shared', 'timezone' => 'Europe/Berlin', 'show_local_time' => true]);
     User::factory()->create(['username' => 'private', 'timezone' => 'Europe/Berlin']);
 
-    $this->get('/@shared')
+    $this->get('/home/shared')
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('user.timezone', 'Europe/Berlin')
             ->where('user.show_local_time', true));
 
-    $this->get('/@private')
+    $this->get('/home/private')
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->where('user.timezone', 'Europe/Berlin')
             ->where('user.show_local_time', false));
@@ -109,7 +109,7 @@ it('does not count the profile of guests reloading only commits', function (): v
 
     DB::enableQueryLog();
 
-    $this->get('/@octocat', [
+    $this->get('/home/octocat', [
         'X-Inertia' => 'true',
         'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
         'X-Inertia-Partial-Component' => 'user/show',
@@ -133,7 +133,7 @@ it('counts the profile of guests once for both the page and its link preview', f
 
     DB::enableQueryLog();
 
-    $this->get('/@octocat')
+    $this->get('/home/octocat')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('user.commits_count', 1)
@@ -157,7 +157,7 @@ it('renders the user commit activity for the last year', function (): void {
     Commit::factory()->create();
 
     $response = $this->actingAs(User::factory()->create())
-        ->get('/@octocat');
+        ->get('/home/octocat');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -177,7 +177,7 @@ it('renders the hourly commit activity of a user who only committed today', func
     Commit::factory()->for($user)->create(['created_at' => now()->subHours(3)]);
 
     $response = $this->actingAs(User::factory()->create())
-        ->get('/@octocat');
+        ->get('/home/octocat');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -199,7 +199,7 @@ it('renders the user commit streaks alongside starred commits', function (): voi
     $viewer->starredCommits()->attach($commit);
 
     $response = $this->actingAs($viewer)
-        ->get('/@octocat');
+        ->get('/home/octocat');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -317,7 +317,7 @@ it('renders whether the user follows the viewer', function (): void {
 
 it('returns not found for unknown usernames', function (): void {
     $response = $this->actingAs(User::factory()->create())
-        ->get('/@missing');
+        ->get('/home/missing');
 
     $response->assertNotFound();
 });
@@ -332,7 +332,7 @@ it('shows guests the profile with its approved commits and a link preview', func
     Commit::factory()->for($user)->create(['body' => 'A commit everyone may read']);
     Commit::factory()->for($user)->pending()->create(['body' => 'A pending commit only its author may read']);
 
-    $response = $this->get('/@octocat');
+    $response = $this->get('/home/octocat');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -365,7 +365,7 @@ it('shows guests the profile with its approved commits and a link preview', func
 it('describes guests a profile without a bio', function (): void {
     User::factory()->create(['username' => 'octocat', 'name' => 'octocat', 'bio' => null]);
 
-    $this->get('/@octocat')
+    $this->get('/home/octocat')
         ->assertOk()
         ->assertSee('<meta property="og:title" content="@octocat on /dev/null">', false)
         ->assertSee('<meta property="og:description" content="Read @octocat&#039;s commits on /dev/null, a social network for developers.">', false);
@@ -378,7 +378,7 @@ it('escapes the profile in the link preview', function (): void {
         'bio' => '<img src=x onerror=alert(1)>',
     ]);
 
-    $this->get('/@octocat')
+    $this->get('/home/octocat')
         ->assertOk()
         ->assertDontSee('<script>alert(1)</script>', false)
         ->assertDontSee('<img src=x', false)
@@ -388,7 +388,7 @@ it('escapes the profile in the link preview', function (): void {
 it('changes the link preview image version only when public profile data changes', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
 
-    $version = fn (): string => Str::betweenFirst($this->get('/@octocat')->getContent(), 'og.png?v=', '"');
+    $version = fn (): string => Str::betweenFirst($this->get('/home/octocat')->getContent(), 'og.png?v=', '"');
 
     $initial = $version();
 
@@ -405,7 +405,7 @@ it('changes the link preview image version only when public profile data changes
 it('changes the link preview image version only when something drawn on it changes', function (): void {
     $user = User::factory()->create(['username' => 'octocat', 'log' => Log::Following]);
 
-    $version = fn (): string => Str::betweenFirst($this->get('/@octocat')->getContent(), 'og.png?v=', '"');
+    $version = fn (): string => Str::betweenFirst($this->get('/home/octocat')->getContent(), 'og.png?v=', '"');
 
     $initial = $version();
 
@@ -422,7 +422,7 @@ it('changes the link preview image version only when something drawn on it chang
 it('returns guests to the profile after signing in', function (): void {
     $user = User::factory()->create(['username' => 'octocat']);
 
-    $this->get('/@octocat')->assertOk();
+    $this->get('/home/octocat')->assertOk();
 
     expect(session('url.intended'))->toBe(route('user.show', $user));
 });
@@ -430,8 +430,8 @@ it('returns guests to the profile after signing in', function (): void {
 it('does not return guests to a profile they only prefetched or partially reloaded', function (): void {
     User::factory()->create(['username' => 'octocat']);
 
-    $this->get('/@octocat', ['Purpose' => 'prefetch'])->assertOk();
-    $this->get('/@octocat', [
+    $this->get('/home/octocat', ['Purpose' => 'prefetch'])->assertOk();
+    $this->get('/home/octocat', [
         'X-Inertia' => 'true',
         'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
         'X-Inertia-Partial-Component' => 'user/show',
@@ -444,20 +444,20 @@ it('does not return guests to a profile they only prefetched or partially reload
 it('does not change where signed-in users return to', function (): void {
     User::factory()->create(['username' => 'octocat']);
 
-    $this->actingAs(User::factory()->create())->get('/@octocat')->assertOk();
+    $this->actingAs(User::factory()->create())->get('/home/octocat')->assertOk();
 
     expect(session('url.intended'))->toBeNull();
 });
 
 it('returns not found for unknown usernames to guests', function (): void {
-    $this->get('/@missing')->assertNotFound();
+    $this->get('/home/missing')->assertNotFound();
 });
 
 it('keeps the default link preview for signed-in users', function (): void {
     User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
 
     $this->actingAs(User::factory()->create())
-        ->get('/@octocat')
+        ->get('/home/octocat')
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('user/show'))
         ->assertSee('<meta property="og:image" content="'.url('/og.png').'">', false)
@@ -538,7 +538,7 @@ it('hides pending and rejected commits from other users', function (): void {
     Commit::factory()->for($user)->rejected()->create();
 
     $response = $this->actingAs(User::factory()->create())
-        ->get('/@octocat');
+        ->get('/home/octocat');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -556,7 +556,7 @@ it('shows own pending and rejected commits', function (): void {
     Commit::factory()->for($user)->rejected()->create();
 
     $response = $this->actingAs($user)
-        ->get('/@octocat');
+        ->get('/home/octocat');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -572,7 +572,7 @@ it('hides deleted commits from profiles', function (): void {
     Commit::factory()->for($user)->create()->delete();
 
     $response = $this->actingAs($user)
-        ->get('/@octocat');
+        ->get('/home/octocat');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -590,7 +590,7 @@ it('only shows top-level commits on profiles', function (): void {
     Commit::factory()->for($parent, 'parent')->create();
 
     $response = $this->actingAs(User::factory()->create())
-        ->get('/@octocat');
+        ->get('/home/octocat');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -606,7 +606,7 @@ it('leaves the next commit of the author thread out of the reply count on profil
     Commit::factory()->for($parent, 'parent')->create();
 
     $this->actingAs(User::factory()->create())
-        ->get('/@octocat')
+        ->get('/home/octocat')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('commits.data.0.continuation_id', $next->id)
@@ -619,7 +619,7 @@ it('includes the quoted commits of the user commits', function (): void {
     Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
 
     $response = $this->actingAs(User::factory()->create())
-        ->get('/@octocat');
+        ->get('/home/octocat');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -636,7 +636,7 @@ it('includes the link previews of the user commits', function (): void {
     Commit::factory()->for($user)->for($linkPreview)->create();
 
     $response = $this->actingAs(User::factory()->create())
-        ->get('/@octocat');
+        ->get('/home/octocat');
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -700,4 +700,10 @@ it('offers guests and the profile owner no remote', function (): void {
 
     $this->actingAs($user)->get(route('user.show', $user))
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canPush', false));
+});
+
+it('redirects old profile links to the new profile path', function (): void {
+    User::factory()->create(['username' => 'octocat']);
+
+    $this->get('/@octocat?tab=replies')->assertRedirect('/home/octocat?tab=replies')->assertStatus(301);
 });

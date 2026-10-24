@@ -36,7 +36,7 @@ it('logs signups, bots left out', function (): void {
         'message' => 'Signed up',
         'detail' => null,
         'actor' => 'alice',
-        'href' => '/@alice',
+        'href' => '/home/alice',
     ]]);
 });
 
@@ -166,7 +166,7 @@ it('logs bans and timeouts by their reason, naming the person while they still h
             'message' => 'Account banned',
             'detail' => 'Spam or self-promotion',
             'actor' => 'spammer',
-            'href' => '/@spammer',
+            'href' => '/home/spammer',
         ],
         [
             'id' => "timeouts:{$timeout->id}",

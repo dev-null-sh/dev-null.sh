@@ -192,7 +192,7 @@ for (const count of [1, 2, 3, 3850]) {
 
 test('links the composer avatar to the author profile', () => {
     const markup = renderComposer('');
-    const avatar = markup.match(/<a[^>]*href="\/@previewuser"[^>]*>/)?.[0];
+    const avatar = markup.match(/<a[^>]*href="\/home\/previewuser"[^>]*>/)?.[0];
 
     assert.ok(avatar);
     assert.ok(avatar.includes('aria-label="View your profile"'));
@@ -201,7 +201,7 @@ test('links the composer avatar to the author profile', () => {
 test('keeps the composer avatar unlinked inside the dialog', () => {
     const markup = renderComposer('', true);
 
-    assert.ok(!markup.includes('href="/@previewuser"'));
+    assert.ok(!markup.includes('href="/home/previewuser"'));
 });
 
 test('previews the chosen link card instead of the first link in the body', () => {
