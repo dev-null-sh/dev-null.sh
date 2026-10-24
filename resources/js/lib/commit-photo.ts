@@ -2,6 +2,7 @@ import type { PendingVisit } from '@inertiajs/core';
 import { router } from '@inertiajs/react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitPhotoController from '@/actions/App/Http/Controllers/CommitPhotoController';
+import { randomUuid } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 export type CommitPhoto = {
@@ -202,8 +203,8 @@ export const commitPhotoUrl = (commit: Commit, index: number): string =>
 
 export function openCommitPhoto(commit: Commit, index: number): void {
     const entry: PhotoHistory = {
-        sessionId: photoSessionId ?? crypto.randomUUID(),
-        entryId: crypto.randomUUID(),
+        sessionId: photoSessionId ?? randomUuid(),
+        entryId: randomUuid(),
     };
     photoSessionId = entry.sessionId;
     documentPhotoSessions.add(entry.sessionId);
@@ -221,7 +222,7 @@ export function openCommitPhoto(commit: Commit, index: number): void {
                             ? source
                             : {
                                   sessionId: entry.sessionId,
-                                  entryId: crypto.randomUUID(),
+                                  entryId: randomUuid(),
                               },
                 },
                 '',
