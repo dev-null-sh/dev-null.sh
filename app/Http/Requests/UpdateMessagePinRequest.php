@@ -14,16 +14,10 @@ final class UpdateMessagePinRequest extends FormRequest
 {
     /**
      * Maintainers pin an org's messages for everyone in it, up to its limit, and only within the history they can see.
-     * Events can't be pinned.
+     * Events can't be pinned. The app pins the same way.
      */
-    public function authorize(): Response
+    public static function authorization(User $user, Message $message): Response
     {
-        $user = $this->user();
-        assert($user instanceof User);
-
-        $message = $this->route('message');
-        assert($message instanceof Message);
-
         $org = $message->conversation;
 
         return match (true) {
@@ -32,6 +26,17 @@ final class UpdateMessagePinRequest extends FormRequest
             $message->pinned_at === null && $org->messages()->whereNotNull('pinned_at')->count() >= Conversation::MAX_PINNED_MESSAGES => Response::deny('An org can pin up to '.Conversation::MAX_PINNED_MESSAGES.' messages. Unpin one first.'),
             default => Response::allow(),
         };
+    }
+
+    public function authorize(): Response
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        $message = $this->route('message');
+        assert($message instanceof Message);
+
+        return self::authorization($user, $message);
     }
 
     /**

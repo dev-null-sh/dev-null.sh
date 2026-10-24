@@ -12,8 +12,19 @@ use Illuminate\Foundation\Http\FormRequest;
 final class DeleteMessagePinRequest extends FormRequest
 {
     /**
-     * Maintainers unpin an org's messages for everyone in it.
+     * Maintainers unpin an org's messages for everyone in it. The app unpins the same way.
      */
+    public static function authorization(User $user, Message $message): Response
+    {
+        $org = $message->conversation;
+
+        return match (true) {
+            ! $user->remotes_enabled || ! $message->isVisibleTo($user) || ! $org->isOrg() => Response::denyAsNotFound(),
+            ! $org->isMaintainedBy($user) => Response::deny('Only maintainers can unpin messages.'),
+            default => Response::allow(),
+        };
+    }
+
     public function authorize(): Response
     {
         $user = $this->user();
@@ -22,13 +33,7 @@ final class DeleteMessagePinRequest extends FormRequest
         $message = $this->route('message');
         assert($message instanceof Message);
 
-        $org = $message->conversation;
-
-        return match (true) {
-            ! $user->remotes_enabled || ! $message->isVisibleTo($user) || ! $org->isOrg() => Response::denyAsNotFound(),
-            ! $org->isMaintainedBy($user) => Response::deny('Only maintainers can unpin messages.'),
-            default => Response::allow(),
-        };
+        return self::authorization($user, $message);
     }
 
     /**

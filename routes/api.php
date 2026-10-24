@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\MacAppController;
 use App\Http\Controllers\Api\MessageImageController;
 use App\Http\Controllers\Api\MessageLinkPreviewController;
+use App\Http\Controllers\Api\MessagePinController;
 use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\MessageVoiceController;
 use App\Http\Controllers\Api\NotificationController;
@@ -272,6 +273,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::delete('remotes/messages/{message}/reactions', [MessageReactionController::class, 'destroy'])
                 ->whereNumber('message')
                 ->name('api-message-reaction.destroy');
+        });
+
+        // Remote Pins: an org's maintainers pinning and unpinning messages for everyone in it...
+        Route::middleware('throttle:pins')->group(function (): void {
+            Route::put('remotes/messages/{message}/pin', [MessagePinController::class, 'update'])
+                ->whereNumber('message')
+                ->middleware(PreventPostingInTimeout::class)
+                ->name('api-message-pin.update');
+            Route::delete('remotes/messages/{message}/pin', [MessagePinController::class, 'destroy'])
+                ->whereNumber('message')
+                ->name('api-message-pin.destroy');
         });
 
         // Notifications...
