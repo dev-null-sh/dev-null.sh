@@ -10,6 +10,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 
 it('shares app name from config', function (): void {
@@ -260,6 +261,14 @@ it('does not dim lanes when disabled', function (): void {
     $shared = $middleware->share($request);
 
     expect($shared['dimsLanes'])->toBeFalse();
+});
+
+it('shares the moment the page is rendered, which relative times count from on the server and while hydrating', function (): void {
+    $this->travelTo(Date::parse('2026-10-24T12:34:56.789Z'));
+
+    $shared = new HandleInertiaRequests()->share(Request::create('/', 'GET'));
+
+    expect($shared['now'])->toBe(1792845296789);
 });
 
 it("shares the reader's clock their browser left in cookies, so the server shows times as the browser will", function (?string $timeZone, ?string $hourCycle, array $clock): void {

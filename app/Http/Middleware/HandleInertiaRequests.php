@@ -116,6 +116,8 @@ final class HandleInertiaRequests extends Middleware
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
             'clock' => ReaderClock::of($request)->toArray(),
+            // Relative times count from it on the server and while the browser hydrates the page, so both agree.
+            'now' => now()->getTimestampMs(),
             // Onboarding and the operations console have no aside. Contextual suggestions must not reuse the once-cached list across pages.
             ...$suggestedUsers !== null ? [
                 'suggestedUsers' => ($context === null ? $suggestedUsers->once() : $suggestedUsers)->merge()->matchOn('id'),

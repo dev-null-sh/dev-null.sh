@@ -6,6 +6,7 @@ import ReactDOMServer from 'react-dom/server';
 import { TimeoutDialog } from '@/components/timeout-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { setRenderedAt } from '@/hooks/use-now';
 import { pageTitle } from '@/lib/page-title';
 import { clockOf, setReaderClock } from '@/lib/utils';
 import type { SharedClock } from '@/lib/utils';
@@ -18,6 +19,7 @@ createServer((page) =>
             setReaderClock(
                 clockOf(page.props.clock as SharedClock | undefined),
             );
+            setRenderedAt(page.props.now as number);
 
             return ReactDOMServer.renderToString(app);
         },

@@ -31,6 +31,8 @@ declare module '@inertiajs/core' {
             dimsLanes: boolean;
             repliesPerPage: number;
             clock: SharedClock;
+            /** When the server rendered the page, in milliseconds. */
+            now: number;
             suggestedUsers?: SuggestedUser[];
             liveFollowing?: User[];
             [key: string]: unknown;
