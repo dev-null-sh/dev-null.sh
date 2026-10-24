@@ -1,6 +1,6 @@
 import { Form, Link, usePage } from '@inertiajs/react';
 import { ChartBar, Clock3 } from 'lucide-react';
-import type { KeyboardEvent } from 'react';
+import type { DragEvent, KeyboardEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
@@ -72,6 +72,13 @@ function bodyProgress(count: number): number {
 
 function focusBody(id: string): void {
     requestAnimationFrame(() => document.getElementById(id)?.focus());
+}
+
+function preventFileDrop(event: DragEvent<HTMLDivElement>): void {
+    if (Array.from(event.dataTransfer.types).includes('Files')) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'none';
+    }
 }
 
 function useCommitSchedule() {
@@ -152,6 +159,7 @@ function CommitComposerBody({
     const textBox = useRef<HTMLDivElement>(null);
     const preview = useComposerPreview({ body, textareaRef, isSubmittable });
     const isIssue = issue.command !== null;
+    const acceptsImages = !isIssue && poll === null;
 
     // When the dialog's text box shrinks, as the keyboard opens or an image is added, it keeps the caret in view.
     useEffect(() => {
@@ -179,9 +187,15 @@ function CommitComposerBody({
     return (
         <div
             className={cn('relative flex', { 'min-h-0': isInDialog })}
-            {...(poll === null ? attachments.dropzone : {})}
+            {...(acceptsImages
+                ? attachments.dropzone
+                : {
+                      onDragOver: preventFileDrop,
+                      onDrop: preventFileDrop,
+                      onDragLeave: attachments.dropzone.onDragLeave,
+                  })}
         >
-            {attachments.isDraggingFiles && (
+            {acceptsImages && attachments.isDraggingFiles && (
                 <ImageDropOverlay className="inset-2" />
             )}
             <GraphRail
@@ -250,7 +264,7 @@ function CommitComposerBody({
                             value={body}
                             onValueChange={issue.change}
                             onPaste={
-                                poll === null ? attachments.onPaste : undefined
+                                acceptsImages ? attachments.onPaste : undefined
                             }
                             onKeyDown={(event) =>
                                 preview.handleShortcut(event) ||
