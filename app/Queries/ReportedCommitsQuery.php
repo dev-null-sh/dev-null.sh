@@ -16,7 +16,7 @@ final readonly class ReportedCommitsQuery
     public function paginate(User $viewer): CursorPaginator
     {
         return CommitReport::query()
-            ->select(['id', 'commit_id', 'reason', 'details', 'created_at'])
+            ->select(['id', 'commit_id', 'reason', 'details', 'images', 'created_at'])
             ->whereNull('dismissed_at')
             ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->approved()->visibleTo($viewer))
             ->with(['commit' => fn (BelongsTo $query): BelongsTo => $query

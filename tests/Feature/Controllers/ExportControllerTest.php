@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitReport;
 use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
 use App\Ai\Agents\CommitTranslator;
@@ -9,6 +10,7 @@ use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\CommitReport;
 use App\Models\Device;
 use App\Models\Message;
 use App\Models\MessageVoice;
@@ -20,9 +22,11 @@ use App\Models\User;
 use App\Models\UserTimeout;
 use App\Services\CommitTranslations;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Storage;
 
 it('requires authentication to download personal data', function (): void {
     $this->get(route('export'))->assertRedirectToRoute('home');
@@ -128,6 +132,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'blocking' => [],
         'dismissed_suggestions' => [],
         'messages' => [],
+        'reports' => [],
         'remote_mutes' => [],
         'remote_pins' => [],
         'notifications' => [],
@@ -558,4 +563,20 @@ it('exports your remote pins without the pins of other members', function (): vo
         ['to' => 'alice', 'pinned_at' => now()->toIso8601String()],
         ['to' => 'org: Release crew', 'pinned_at' => now()->toIso8601String()],
     ]);
+});
+
+it('exports only reports and private attachment references submitted by the user', function (): void {
+    Storage::fake();
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+    resolve(CreateCommitReport::class)->handle($user, $commit, 'other', 'My evidence', [UploadedFile::fake()->image('evidence.png')], ['Private screenshot']);
+    $report = CommitReport::query()->sole();
+    CommitReport::factory()->create(['commit_id' => Commit::factory()->for($user)->create()->id, 'details' => 'Someone else reported me']);
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+    expect($data['reports'])->toHaveCount(1)
+        ->and($data['reports'][0]['details'])->toBe('My evidence')
+        ->and($data['reports'][0]['attachments'][0]['description'])->toBe('Private screenshot')
+        ->and($response->streamedContent())->not->toContain($report->images[0]['path'], 'Someone else reported me');
+    $this->get($data['reports'][0]['attachments'][0]['url'])->assertOk();
 });
