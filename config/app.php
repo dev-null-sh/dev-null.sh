@@ -13,9 +13,12 @@ return [
     | framework needs to place the application's name in a notification or
     | other UI elements where an application name needs to be displayed.
     |
+    | It is not read from APP_NAME: production's APP_NAME is "devnull", and
+    | the session cookie and cache prefixes are derived from it.
+    |
     */
 
-    'name' => env('APP_NAME', '/dev/null'),
+    'name' => '/dev/null',
 
     /*
     |--------------------------------------------------------------------------

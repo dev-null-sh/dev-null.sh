@@ -2,7 +2,7 @@ import type { Page } from '@inertiajs/core';
 import { chatSnapshot } from '@/lib/chat';
 import type { Auth } from '@/types';
 
-const appName = import.meta.env.VITE_APP_NAME || '/dev/null';
+const appName = '/dev/null';
 
 export function pageTitle(title: string, page: Page): string {
     const auth = page.props.auth as Auth;
