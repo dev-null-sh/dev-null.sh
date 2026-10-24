@@ -13,6 +13,7 @@ import {
     DocumentPage,
     DocumentSection,
 } from '@/components/document-page';
+import { FollowIconButton } from '@/components/follow-button';
 import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import type {
@@ -265,47 +266,79 @@ function Stream({ stream }: { stream: StoryStream }) {
     );
 }
 
-function Contributors({ contributors }: { contributors: StoryContributor[] }) {
+function Contributors({
+    contributors,
+    followingLogins = [],
+}: {
+    contributors: StoryContributor[];
+    followingLogins?: string[];
+}) {
+    const { auth } = usePage().props;
+
     return (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
-            {contributors.map((contributor) => (
-                <li key={contributor.login}>
-                    <a
-                        href={`https://github.com/${contributor.login}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2.5 rounded-md border px-2.5 py-2 no-underline! transition-colors hover:bg-muted"
+            {contributors.map((contributor) => {
+                const isCurrentUser =
+                    auth.user?.username.toLowerCase() ===
+                    contributor.login.toLowerCase();
+                const isFollowing = followingLogins.includes(
+                    contributor.login.toLowerCase(),
+                );
+
+                return (
+                    <li
+                        key={contributor.login}
+                        className="flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 transition-colors hover:bg-muted"
                     >
-                        <img
-                            src={`https://github.com/${contributor.login}.png?size=64`}
-                            alt=""
-                            width={28}
-                            height={28}
-                            loading="lazy"
-                            className="size-7 shrink-0 rounded-full bg-muted"
-                        />
-                        <span className="min-w-0">
-                            <span className="block truncate text-sm font-medium">
-                                @{contributor.login}
+                        <a
+                            href={`https://github.com/${contributor.login}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex min-w-0 flex-1 items-center gap-2.5 no-underline!"
+                        >
+                            <img
+                                src={`https://github.com/${contributor.login}.png?size=64`}
+                                alt=""
+                                width={28}
+                                height={28}
+                                loading="lazy"
+                                className="size-7 shrink-0 rounded-full bg-muted"
+                            />
+                            <span className="min-w-0">
+                                <span className="block truncate text-sm font-medium">
+                                    @{contributor.login}
+                                </span>
+                                <span className="block font-mono text-xs text-muted-foreground tabular-nums">
+                                    {contributor.commits}{' '}
+                                    {contributor.commits === 1
+                                        ? 'commit'
+                                        : 'commits'}
+                                </span>
                             </span>
-                            <span className="block font-mono text-xs text-muted-foreground tabular-nums">
-                                {contributor.commits}{' '}
-                                {contributor.commits === 1
-                                    ? 'commit'
-                                    : 'commits'}
-                            </span>
-                        </span>
-                    </a>
-                </li>
-            ))}
+                        </a>
+                        {!isCurrentUser && (
+                            <FollowIconButton
+                                user={{
+                                    id: contributor.login,
+                                    username: contributor.login,
+                                }}
+                                isFollowing={isFollowing}
+                                data-test="contributor-follow-button"
+                            />
+                        )}
+                    </li>
+                );
+            })}
         </ul>
     );
 }
 
 export default function Show({
     contributors,
+    followingLogins = [],
 }: {
     contributors: StoryContributor[] | null;
+    followingLogins?: string[];
 }) {
     const { repository } = usePage().props;
     return (
@@ -399,7 +432,10 @@ export default function Show({
                 <DocumentSection id="contributors" title="Contributors">
                     <p>Everyone who has a commit on production. Thank you.</p>
                     {contributors ? (
-                        <Contributors contributors={contributors} />
+                        <Contributors
+                            contributors={contributors}
+                            followingLogins={followingLogins}
+                        />
                     ) : (
                         <p className="text-muted-foreground">
                             GitHub couldn't be reached. Try again in a minute.
