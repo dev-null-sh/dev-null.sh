@@ -31,6 +31,18 @@ composer dev
 
 Run `composer test` before opening a pull request.
 
+### Git worktrees
+
+`.env` is gitignored, so a new worktree starts without one. `bin/worktree-setup` copies it from the main checkout. Claude Code and Cursor run it automatically when they create a worktree; otherwise run it yourself, then run `composer setup`.
+
+Worktrees share your main checkout's database by default. To give each worktree its own database, named `{DB_DATABASE}_{worktree directory}`, set this in the main checkout's `.env` before creating worktrees:
+
+```dotenv
+WORKTREE_DB_ISOLATE=true
+```
+
+Nothing drops these databases when a worktree is removed. Run `dropdb` yourself.
+
 ## License
 
 /dev/null is open-sourced software licensed under the **[MIT license](composer.json)**.
