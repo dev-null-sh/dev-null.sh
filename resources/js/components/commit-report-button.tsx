@@ -103,7 +103,7 @@ export function CommitReportDialog({
                         Reporting does not hide this commit.
                     </DialogDescription>
                 </DialogHeader>
-                <p className="line-clamp-3 border-y py-3 text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">
+                <p className="line-clamp-3 overflow-y-auto border-y py-3 text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">
                     {commit.body}
                 </p>
                 <form
