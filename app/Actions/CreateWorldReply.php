@@ -21,12 +21,14 @@ final readonly class CreateWorldReply
     public function __construct(
         private HelloWorld $helloWorld,
         private CreateReplyNotifications $createReplyNotifications,
+        private UpdateCommitHotScores $updateCommitHotScores,
     ) {
         //
     }
 
     /**
-     * @world answers an approved hello world, once. A pending one waits until it is approved.
+     * @world answers an approved hello world, once, and the thread is rescored to count the reply. A pending one
+     * waits until it is approved.
      */
     public function handle(Commit $commit): void
     {
@@ -65,6 +67,7 @@ final readonly class CreateWorldReply
             ]);
 
             $this->createReplyNotifications->handle($reply);
+            $this->updateCommitHotScores->handle([$reply->id]);
         });
     }
 

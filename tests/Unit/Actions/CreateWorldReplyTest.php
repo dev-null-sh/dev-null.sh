@@ -9,6 +9,7 @@ use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\User;
+use App\Services\TheAlgorithm;
 
 it('answers an approved hello world once', function (): void {
     $commit = Commit::factory()->for(User::factory()->create(['name' => 'Nuno Maduro']))->create(['body' => 'Hello, World!']);
@@ -52,6 +53,25 @@ it('waits until a hello world is approved', function (): void {
     expect($reply->body)->toBe('Hello, Taylor Otwell.')
         ->and($commit->user->notifications()->where('type', NotificationType::Replied)->sole()->commit_id)->toBe($reply->id);
 });
+
+it('counts its reply in the hot score of a hello world approved on create, as when a moderator approves it', function (bool $moderated): void {
+    $this->travelTo(now()->startOfSecond());
+    config(['app.admins' => ['nunomaduro']]);
+
+    $commit = resolve(CreateCommit::class)->handle(
+        User::factory()->create(['username' => $moderated ? 'taylorotwell' : 'nunomaduro']),
+        'hello world',
+    );
+
+    if ($moderated) {
+        resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
+    }
+
+    expect($commit->refresh()->hot_score)->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+})->with([
+    'approved on create' => false,
+    'approved by a moderator' => true,
+]);
 
 it('stays quiet for anything else', function (): void {
     $commit = Commit::factory()->create(['body' => 'hello world, we shipped']);
