@@ -89,8 +89,8 @@ it('answers a request the app did not make right with a plain error page, and ne
     'a plain challenge' => [['code_challenge_method' => 'plain'], 'The selected code challenge method is invalid.'],
     'no state' => [['state' => null], 'The state field is required.'],
     'no redirect' => [['redirect_uri' => null], 'The redirect uri field is required.'],
-    'a redirect to a website' => [['redirect_uri' => 'https://evil.example/callback'], 'The redirect uri field must start with one of the following: devnull://.'],
-    'a redirect to another app' => [['redirect_uri' => 'otherapp://auth/callback'], 'The redirect uri field must start with one of the following: devnull://.'],
+    'a redirect to a website' => [['redirect_uri' => 'https://evil.example/callback'], 'The redirect uri field must start with one of the following: devnull://, raycast://oauth?package_name=Extension.'],
+    'a redirect to another app' => [['redirect_uri' => 'otherapp://auth/callback'], 'The redirect uri field must start with one of the following: devnull://, raycast://oauth?package_name=Extension.'],
     'a redirect with a fragment' => [['redirect_uri' => 'devnull://auth/callback#x'], 'The redirect uri field format is invalid.'],
 ]);
 
@@ -124,12 +124,24 @@ it('keeps the query a redirect already has', function (): void {
         ->toEndWith('&state=af0ifjsldkj');
 });
 
+it('sends the code back to the Raycast extension that asked for it', function (): void {
+    $response = $this->actingAs(User::factory()->create())
+        ->post(route('mobile-authorization.store'), [
+            ...$this->parameters,
+            'device_name' => 'Raycast on MacBook',
+            'redirect_uri' => 'raycast://oauth?package_name=Extension',
+        ]);
+
+    expect((string) $response->headers->get('Location'))->toStartWith('raycast://oauth?package_name=Extension&code=')
+        ->toEndWith('&state=af0ifjsldkj');
+});
+
 it('approves nothing the app did not ask for right', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->post(route('mobile-authorization.store'), [...$this->parameters, 'redirect_uri' => 'https://evil.example/callback']);
 
     $response->assertBadRequest()
-        ->assertInertia(fn (Assert $page): Assert => $page->where('error', 'The redirect uri field must start with one of the following: devnull://.'));
+        ->assertInertia(fn (Assert $page): Assert => $page->where('error', 'The redirect uri field must start with one of the following: devnull://, raycast://oauth?package_name=Extension.'));
 
     expect($this->codesHandedOut)->toBe(0);
 });
