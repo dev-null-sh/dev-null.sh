@@ -61,3 +61,28 @@ test('preserves offsets after code and non-ASCII text, and chooses the latest re
         query: '456',
     });
 });
+
+test('does not look up digit-only colors as issues', () => {
+    for (const [text, caret] of [
+        ['#333333', 7],
+        ['See #99999999', 13],
+        ['Gray is #333333.', 15],
+        ['#333333`code`', 7],
+        ['#99999999`a b` done', 9],
+    ] as const) {
+        assert.equal(issueReferenceBeforeCaret(text, caret), null, text);
+    }
+
+    for (const [text, caret, query] of [
+        ['See #123', 8, '123'],
+        ['See (#333333', 12, '333333'],
+        ['#333333.com', 7, '333333'],
+        ['#333333`code', 7, '333333'],
+    ] as const) {
+        assert.equal(
+            issueReferenceBeforeCaret(text, caret)?.query,
+            query,
+            text,
+        );
+    }
+});
