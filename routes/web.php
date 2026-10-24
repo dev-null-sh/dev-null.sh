@@ -7,6 +7,7 @@ use App\Http\Controllers\AboutController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
+use App\Http\Controllers\BulkActivityController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
@@ -35,6 +36,8 @@ use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\ConversationDropController;
 use App\Http\Controllers\ConversationMergeController;
 use App\Http\Controllers\ConversationMessageController;
+use App\Http\Controllers\ConversationMuteController;
+use App\Http\Controllers\ConversationPinController;
 use App\Http\Controllers\ConversationReadController;
 use App\Http\Controllers\ConversationTypingController;
 use App\Http\Controllers\DeviceController;
@@ -53,6 +56,7 @@ use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\MessageImageController;
 use App\Http\Controllers\MessageLinkPreviewController;
 use App\Http\Controllers\MessageReactionController;
+use App\Http\Controllers\MessageVoiceController;
 use App\Http\Controllers\MobileAuthorizationController;
 use App\Http\Controllers\ModeratedUserController;
 use App\Http\Controllers\ModerationController;
@@ -64,6 +68,8 @@ use App\Http\Controllers\OrgArchiveController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
 use App\Http\Controllers\OrgMessageController;
+use App\Http\Controllers\OrgMuteController;
+use App\Http\Controllers\OrgPinController;
 use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
 use App\Http\Controllers\PrivacyController;
@@ -77,9 +83,11 @@ use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StarredCommitController;
+use App\Http\Controllers\SuggestionDismissalController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\TrafficController;
 use App\Http\Controllers\UserActivityGraphController;
+use App\Http\Controllers\UserAutomaticTranslationController;
 use App\Http\Controllers\UserBanController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
@@ -305,6 +313,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('remotes/@{partner:username}', [ConversationController::class, 'show'])->name('conversation.show');
     Route::get('remotes/orgs/{org}', [OrgController::class, 'show'])->whereUuid('org')->name('org.show');
     Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])->whereUuid('messageImage')->name('message-image.show');
+    Route::get('remotes/voices/{messageVoice}', [MessageVoiceController::class, 'show'])->whereUuid('messageVoice')->name('message-voice.show');
 
     Route::middleware('throttle:conversations')->group(function (): void {
         Route::get('remotes/inbox', [InboxController::class, 'index'])->name('inbox.index');
@@ -328,6 +337,8 @@ Route::middleware('auth')->group(function (): void {
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
         Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
         Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');
+        Route::put('remotes/orgs/{org}/mute', [OrgMuteController::class, 'update'])->whereUuid('org')->name('org-mute.update');
+        Route::put('remotes/orgs/{org}/pin', [OrgPinController::class, 'update'])->whereUuid('org')->name('org-pin.update');
         Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])->whereUuid('org')->middleware([PreventPostingInTimeout::class, 'throttle:messages'])->name('org-member.store');
         Route::put('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'update'])->whereUuid('org')->withoutScopedBindings()->name('org-member.update');
         Route::delete('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'destroy'])->whereUuid('org')->withoutScopedBindings()->name('org-member.destroy');
@@ -335,6 +346,10 @@ Route::middleware('auth')->group(function (): void {
             ->name('conversation-archive.store');
         Route::delete('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'destroy'])
             ->name('conversation-archive.destroy');
+        Route::put('remotes/@{partner:username}/mute', [ConversationMuteController::class, 'update'])
+            ->name('conversation-mute.update');
+        Route::put('remotes/@{partner:username}/pin', [ConversationPinController::class, 'update'])
+            ->name('conversation-pin.update');
         Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
             ->whereNumber('message')
             ->name('message-link-preview.show');
@@ -365,6 +380,7 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-rejection.store');
     Route::put('moderation', [ModerationController::class, 'update'])->name('moderation.update');
     Route::get('moderation/people', [ModeratedUserController::class, 'index'])->name('moderated-user.index');
+    Route::get('moderation/bulk', [BulkActivityController::class, 'index'])->name('bulk-activity.index');
     Route::delete('moderation/bans/{ban}', [BanController::class, 'destroy'])->whereUuid('ban')->name('ban.destroy');
 
     // Operations...
@@ -407,6 +423,7 @@ Route::middleware('auth')->group(function (): void {
     // User Timezone...
     Route::put('settings/timezone', [UserTimezoneController::class, 'update'])->name('user-timezone.update');
 
+    Route::put('settings/automatic-translation', [UserAutomaticTranslationController::class, 'update'])->name('user-automatic-translation.update');
     Route::put('settings/translation-language', [UserTranslationLanguageController::class, 'update'])->name('user-translation-language.update');
 
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
@@ -458,6 +475,10 @@ Route::middleware('auth')->group(function (): void {
         ->name('user-block.store');
     Route::delete('@{user:username}/block', [UserBlockController::class, 'destroy'])
         ->name('user-block.destroy');
+
+    // Suggestion Dismissal...
+    Route::post('@{user:username}/dismiss', [SuggestionDismissalController::class, 'store'])
+        ->name('suggestion-dismissal.store');
 
     // User Timeout, given by moderators...
     Route::post('@{user:username}/timeout', [UserTimeoutController::class, 'store'])

@@ -65,6 +65,21 @@ final class HandleInertiaRequests extends Middleware
         $isAdmin = $request->user()?->isAdmin() ?? false;
         $user = $request->user();
         $showsWhoToFollow = $user instanceof User && $request->cookie('who_to_follow') !== 'false';
+        $context = match (true) {
+            $request->routeIs('user.show') => $request->route('user'),
+            $request->routeIs('commit.show', 'commit-photo.show') => $request->route('commit'),
+            default => null,
+        };
+        $context = $context instanceof User || $context instanceof Commit ? $context : null;
+
+        $suggestedUsers = $user instanceof User && $showsWhoToFollow && ! $request->routeIs('onboarding.show')
+            ? Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get(
+                $user,
+                round: max(0, (int) $request->cookie('who_to_follow_round')),
+                spares: 3,
+                context: $context,
+            ))
+            : null;
 
         return [
             ...parent::share($request),
@@ -73,6 +88,7 @@ final class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'isAdmin' => $isAdmin,
+                'automaticTranslation' => $user->automatic_translation ?? true,
                 'mustReadCommitRules' => $user instanceof User && $user->commit_rules_accepted_at === null,
                 'log' => fn (): ?Log => $request->user()?->log,
                 'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0,
@@ -96,12 +112,9 @@ final class HandleInertiaRequests extends Middleware
                 : collect(),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
-            // Onboarding has no sidebar to show them in, and the people followed during it change who is suggested.
-            ...$user instanceof User && $showsWhoToFollow && ! $request->routeIs('onboarding.show') ? [
-                'suggestedUsers' => Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get(
-                    $user,
-                    round: max(0, (int) $request->cookie('who_to_follow_round')),
-                ))->once(),
+            // Onboarding has no sidebar. Contextual suggestions must not reuse the once-cached list across pages.
+            ...$suggestedUsers !== null ? [
+                'suggestedUsers' => ($context === null ? $suggestedUsers->once() : $suggestedUsers)->merge()->matchOn('id'),
             ] : [],
         ];
     }

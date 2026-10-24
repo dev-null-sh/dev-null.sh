@@ -48,6 +48,21 @@ it('renders a user profile', function (): void {
             ->where('commits.data.1.body', 'Older'));
 });
 
+it('only lets guests see the local time of users who opted in', function (): void {
+    User::factory()->create(['username' => 'shared', 'timezone' => 'Europe/Berlin', 'show_local_time' => true]);
+    User::factory()->create(['username' => 'private', 'timezone' => 'Europe/Berlin']);
+
+    $this->get('/@shared')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('user.timezone', 'Europe/Berlin')
+            ->where('user.show_local_time', true));
+
+    $this->get('/@private')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('user.timezone', 'Europe/Berlin')
+            ->where('user.show_local_time', false));
+});
+
 it('renders whether the user can be sponsored on github', function (): void {
     $user = User::factory()->create(['has_sponsors_listing' => true]);
 

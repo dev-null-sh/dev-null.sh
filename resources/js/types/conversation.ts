@@ -9,6 +9,7 @@ export type MessageReply = {
     user_id: string;
     body: string;
     images_count: number;
+    has_voice: boolean;
 };
 
 export type MessageImage = {
@@ -17,6 +18,16 @@ export type MessageImage = {
     width: number;
     height: number;
     description: string | null;
+};
+
+/**
+ * A voice note's waveform runs from 0 to 100 per bar. The audio itself is only fetched when it is played.
+ */
+export type MessageVoice = {
+    id: string;
+    url: string;
+    duration_ms: number;
+    waveform: number[];
 };
 
 export type MessageReaction = {
@@ -43,6 +54,7 @@ export type Message = {
     mentions?: Record<string, string> | null;
     link_preview?: LinkPreview | null;
     images?: MessageImage[];
+    voice?: MessageVoice | null;
     reactions?: MessageReaction[];
     event?: OrgEvent | null;
     subject_id?: string | null;
@@ -71,6 +83,8 @@ export type OrgEvent =
 export type OrgRef = { id: string; name: string | null };
 
 export type OrgMember = {
+    suggests_mentions: boolean;
+    is_followed: boolean;
     user: User;
     role: OrgRole | null;
     read_through_id: number;
@@ -83,11 +97,15 @@ export type ConversationSummary = {
     partner: User | null;
     members: { user: User; role: OrgRole | null }[] | null;
     last_message: Message | null;
+    last_incoming_message_id: number | null;
+    last_incoming_sender: string | null;
     last_message_at: string | null;
     ahead: number;
     partner_read_through_id: number;
     partner_read_at: string | null;
     is_archived: boolean;
+    pinned_at: string | null;
+    muted_until_at: string | null;
 };
 
 export type Thread = {
@@ -100,6 +118,8 @@ export type Thread = {
     partner_read_at: string | null;
     partner_typing: boolean;
     is_archived: boolean;
+    pinned_at: string | null;
+    muted_until_at: string | null;
     access: PushAccess;
 };
 
@@ -112,6 +132,8 @@ export type OrgThread = {
     members: OrgMember[];
     typing: string[];
     is_archived: boolean;
+    pinned_at: string | null;
+    muted_until_at: string | null;
     role: OrgRole | null;
     access: PushAccess;
 };

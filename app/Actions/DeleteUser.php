@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\ConversationKind;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageImage;
+use App\Models\MessageVoice;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +24,7 @@ use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteUser
 {
-    public function __construct(private UpdateCommitHotScores $updateCommitHotScores)
+    public function __construct(private UpdateCommitHotScores $updateCommitHotScores, private DeleteOrgs $deleteOrgs)
     {
         //
     }
@@ -28,14 +32,16 @@ final readonly class DeleteUser
     /**
      * The user's top-level commits are erased with every reply under them, and so are their replies, except the ones
      * other people replied to: those stay behind as tombstones with no author or body, so the replies under them keep their thread.
-     * The database cascades the image rows of erased commits and the user's scheduled commits, but the image files are erased here.
+     * The database cascades the image rows of erased commits and the user's scheduled commits, and the voice notes of their
+     * messages, but the files are erased here. Orgs the user was the last one in go too, with everything sent in them,
+     * as they do when the last member leaves.
      */
     public function handle(User $user): void
     {
         $imagePaths = DB::transaction(function () use ($user): array {
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
-            $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user)];
+            $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
 
             $translationKeys = Commit::query()->withTrashed()
                 ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
@@ -54,6 +60,8 @@ final readonly class DeleteUser
 
             $user->commits()->delete();
             $user->commits()->withTrashed()->update(['user_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
+
+            $this->deleteOrgs->handle($this->emptyOrgs($user));
 
             $user->delete();
 
@@ -134,5 +142,30 @@ final readonly class DeleteUser
             ->get(['path'])
             ->map(fn (MessageImage $image): string => $image->path)
             ->all();
+    }
+
+    /**
+     * The voice notes the user sent in remotes, whose messages go along with them.
+     *
+     * @return array<int, string>
+     */
+    private function messageVoicePaths(User $user): array
+    {
+        return MessageVoice::query()
+            ->whereIn('message_id', Message::query()->where('user_id', $user->id)->select('id'))
+            ->get(['path'])
+            ->map(fn (MessageVoice $voice): string => $voice->path)
+            ->all();
+    }
+
+    /**
+     * @return Builder<Conversation>
+     */
+    private function emptyOrgs(User $user): Builder
+    {
+        return Conversation::query()
+            ->where('kind', ConversationKind::Org)
+            ->whereHas('participants', fn (Builder $query): Builder => $query->where('user_id', $user->id))
+            ->whereDoesntHave('participants', fn (Builder $query): Builder => $query->where('user_id', '!=', $user->id));
     }
 }

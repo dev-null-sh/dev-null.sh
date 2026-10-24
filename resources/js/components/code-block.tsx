@@ -2,6 +2,7 @@ import { Check, Copy, WrapText } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { withCertificateHashes } from '@/lib/certificate-hashes';
 import { cn } from '@/lib/utils';
 
 export function CodeBlock({
@@ -113,7 +114,9 @@ export function CodeBlock({
                         ? 'overflow-x-hidden wrap-anywhere whitespace-pre-wrap'
                         : 'overflow-x-auto wrap-normal whitespace-pre',
                 )}
-                dangerouslySetInnerHTML={{ __html: html }}
+                dangerouslySetInnerHTML={{
+                    __html: withCertificateHashes(html),
+                }}
             />
         </div>
     );

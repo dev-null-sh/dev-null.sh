@@ -1,5 +1,6 @@
 import {
     Award,
+    Bomb,
     BotOff,
     Box,
     ChevronRight,
@@ -27,7 +28,9 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { WordmarkText } from '@/components/wordmark-text';
 import { dropConfetti } from '@/lib/confetti';
+import { formatCount, formatExactCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import type { Achievements } from '@/types';
 
@@ -45,6 +48,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     key: Key,
     cookie: Cookie,
     'bot-off': BotOff,
+    bomb: Bomb,
 };
 
 export function AchievementsShelf({
@@ -151,7 +155,9 @@ export function AchievementsShelf({
                         Lv. {achievements.level} · {achievements.rank}
                     </span>
                     <span aria-hidden>·</span>
-                    <span>{achievements.xp} XP</span>
+                    <span title={`${formatExactCount(achievements.xp)} XP`}>
+                        {formatCount(achievements.xp)} XP
+                    </span>
                 </button>
                 <button
                     type="button"
@@ -168,14 +174,26 @@ export function AchievementsShelf({
             {/* Integrated XP Progress Bar */}
             <div className="mt-2.5">
                 <div className="flex items-center justify-between font-mono text-[11px] text-muted-foreground">
-                    <span>
+                    <span
+                        title={
+                            achievements.next_level_xp
+                                ? `${formatExactCount(achievements.xp)} / ${formatExactCount(achievements.next_level_xp)} XP`
+                                : `${formatExactCount(achievements.xp)} XP`
+                        }
+                    >
                         {achievements.next_level_xp
-                            ? `${achievements.xp} / ${achievements.next_level_xp} XP`
-                            : `${achievements.xp} XP`}
+                            ? `${formatCount(achievements.xp)} / ${formatCount(achievements.next_level_xp)} XP`
+                            : `${formatCount(achievements.xp)} XP`}
                     </span>
-                    <span>
+                    <span
+                        title={
+                            nextRank
+                                ? `${formatExactCount(nextRank.min_xp - achievements.xp)} XP to ${nextRank.rank}`
+                                : undefined
+                        }
+                    >
                         {nextRank
-                            ? `${nextRank.min_xp - achievements.xp} XP to ${nextRank.rank}`
+                            ? `${formatCount(nextRank.min_xp - achievements.xp)} XP to ${nextRank.rank}`
                             : 'Maximum rank (UID 0)'}
                     </span>
                 </div>
@@ -351,7 +369,9 @@ export function AchievementsShelf({
                                                 : `(${badge.progress}/${badge.target})`}
                                         </p>
                                         <p className="mt-0.5 font-sans text-muted-foreground">
-                                            {badge.description}
+                                            <WordmarkText>
+                                                {badge.description}
+                                            </WordmarkText>
                                         </p>
                                     </TooltipContent>
                                 </Tooltip>

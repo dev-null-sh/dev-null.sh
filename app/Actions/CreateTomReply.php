@@ -11,9 +11,9 @@ use App\Models\User;
 use App\Queries\TomQuery;
 use App\Services\TomToolDecision;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Ai\Contracts\Tool;
+use Laravel\Ai\Messages\UserMessage;
 use RuntimeException;
 
 final readonly class CreateTomReply
@@ -25,10 +25,6 @@ final readonly class CreateTomReply
 
     public function handle(string $commitId): void
     {
-        if (blank(config('ai.providers.opencode.key')) || blank(config('ai.providers.openai.key'))) {
-            return;
-        }
-
         $commit = Commit::query()->visibleTo(null)->with('user')->find($commitId);
 
         if (! $commit instanceof Commit) {
@@ -44,15 +40,19 @@ final readonly class CreateTomReply
         $history = new Tom($commit)->messages();
         $tools = $this->toolDecision->decide($commit->body, $history);
         $attempt = 0;
+        $messages = [];
+        $called = collect();
 
         do {
-            $response = new Tom($commit, $tools)->prompt($commit->body);
-            $missingTools = $tools->contains(fn (Tool $tool): bool => $response->toolResults->doesntContain('name', class_basename($tool)));
+            $response = new Tom($commit, $tools, $messages)->prompt($commit->body);
+            $messages = [...$messages, new UserMessage($commit->body), ...$response->messages];
+            $called = $called->concat($response->toolResults->pluck('name'));
+            $missingTools = $tools->contains(fn (Tool $tool): bool => $called->doesntContain(class_basename($tool)));
             $attempt++;
         } while ($missingTools && $attempt < 3);
 
         if ($missingTools) {
-            Log::warning('Tom skipped a selected tool after retries.', ['commit_id' => $commit->id]);
+            throw new RuntimeException('Tom skipped a selected tool after retries.');
         }
 
         $body = mb_trim($response->text);
