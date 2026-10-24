@@ -34,11 +34,14 @@ final readonly class YouTube implements LivePlatformDriver
 
     /**
      * Only links that play a single video can be a stream, and only those have a poster, which carries the video's id.
+     * The link must also be an http(s) one, so a scheme like javascript cannot hide behind a YouTube host.
      */
     private function videoId(string $url): ?string
     {
         $parsed = Url::parse($url);
-        $poster = $parsed instanceof Url ? $this->embeds->embed($parsed)?->poster : null;
+        $poster = $parsed instanceof Url && in_array($parsed->getScheme(), ['http', 'https'], true)
+            ? $this->embeds->embed($parsed)?->poster
+            : null;
 
         return preg_match('#^https://i\.ytimg\.com/vi/([A-Za-z0-9_-]{11})/#', (string) $poster, $matches) === 1 ? $matches[1] : null;
     }
