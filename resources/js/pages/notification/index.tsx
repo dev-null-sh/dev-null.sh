@@ -16,6 +16,7 @@ import type { ReactNode, RefObject } from 'react';
 import {
     Fragment,
     useEffect,
+    useEffectEvent,
     useId,
     useLayoutEffect,
     useRef,
@@ -371,9 +372,7 @@ export default function Index({
                                         key={
                                             filters.type +
                                             '-' +
-                                            notification.id +
-                                            '-' +
-                                            notification.event_count
+                                            notification.group_id
                                         }
                                         notification={notification}
                                         type={filters.type}
@@ -518,6 +517,33 @@ function NotificationGroupItem({
             setLoading(false);
         }
     };
+
+    // A poll can change this group. New events are always the newest, so the latest id and the count change whenever its events do.
+    // An open list stays open and reloads from the top, a list down to one event closes, and a closed list reloads when it opens.
+    const version = `${notification.id}:${notification.event_count}`;
+    const loadedVersion = useRef(version);
+    const onVersionChange = useEffectEvent(() => {
+        loadedVersion.current = version;
+
+        if (open && grouped) {
+            void load();
+
+            return;
+        }
+
+        if (!grouped) {
+            setOpen(false);
+        }
+
+        setItems([]);
+        setCursor(null);
+    });
+
+    useEffect(() => {
+        if (loadedVersion.current !== version) {
+            onVersionChange();
+        }
+    }, [version]);
 
     return (
         <article
