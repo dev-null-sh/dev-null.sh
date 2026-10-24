@@ -10,12 +10,22 @@ export function GitHubProfile() {
         { label: 'bio', value: user.bio },
         { label: 'company', value: user.company },
         { label: 'location', value: user.location },
-        { label: 'website', value: user.website },
+        {
+            label: 'website',
+            value: user.website?.replace(/^https?:\/\//u, '') ?? null,
+            link: user.website
+                ? { href: user.website, rel: 'noopener noreferrer nofollow' }
+                : undefined,
+        },
         {
             label: 'sponsors',
             value: user.has_sponsors_listing
                 ? `github.com/sponsors/${user.username}`
                 : null,
+            link: {
+                href: `https://github.com/sponsors/${user.username}`,
+                rel: 'noopener noreferrer',
+            },
         },
     ];
 
@@ -47,7 +57,18 @@ export function GitHubProfile() {
                                     : 'font-mono text-[13px] text-muted-foreground'
                             }
                         >
-                            {field.value ?? 'null'}
+                            {field.value && field.link ? (
+                                <a
+                                    href={field.link.href}
+                                    target="_blank"
+                                    rel={field.link.rel}
+                                    className="text-primary hover:underline"
+                                >
+                                    {field.value}
+                                </a>
+                            ) : (
+                                (field.value ?? 'null')
+                            )}
                         </dd>
                     </div>
                 ))}
