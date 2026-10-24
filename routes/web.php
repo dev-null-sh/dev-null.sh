@@ -76,6 +76,7 @@ use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\ProductMetricsController;
+use App\Http\Controllers\RelatedCommitController;
 use App\Http\Controllers\RemoteCandidateController;
 use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
@@ -224,6 +225,8 @@ Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
     ->name('commit-reply.index');
 Route::get('commits/{commit}/continuation', [CommitContinuationController::class, 'index'])
     ->name('commit-continuation.index');
+Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index'])
+    ->name('related-commit.index');
 
 // Search...
 Route::get('search', [SearchController::class, 'index'])

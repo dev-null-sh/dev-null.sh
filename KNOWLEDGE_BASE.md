@@ -253,6 +253,12 @@ Deleting a parent does not automatically delete other people's replies: an autho
 
 Sources: [reply validation](app/Http/Requests/CreateCommitReplyRequest.php), [commit page](app/Http/Controllers/CommitController.php), [reply notifications](app/Actions/CreateReplyNotifications.php), [commit deletion](app/Actions/DeleteCommit.php).
 
+### Related commits
+
+Under a commit, /dev/null shows up to three commits from other threads that say something close to it. It only suggests commits you could find through search: nothing from people you block, who block you or whom you mute, and nothing still pending. When nothing is close, nothing shows.
+
+Sources: [related commits query](app/Queries/RelatedCommitsQuery.php), [related commits rail](resources/js/components/related-commits.tsx).
+
 ### Quoting commits
 
 Quote a visible commit to publish a new top-level commit with your own commentary and an embedded card pointing to the original. Quotes follow normal commit limits, image support, and moderation. The quote composer has a preview and link-card choice, but no poll or scheduling. Quoting is different from replying: the quote appears in logs as its own post, and it is also listed among the original's replies and counted in its reply count. The original author is notified after approval, except for self-quotes.
