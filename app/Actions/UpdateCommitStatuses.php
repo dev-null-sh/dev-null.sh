@@ -94,8 +94,15 @@ final readonly class UpdateCommitStatuses
                     }
                 }
 
-                User::query()->whereKey($commits->pluck('user_id')->filter()->unique()->values()->all())->get()
-                    ->each(fn (User $author) => dispatch(new CheckUserLevel($author))->afterCommit());
+                // Dispatched once the statuses are saved, as CreateCommit does, so a check still holding its unique lock
+                // can't abort the approval.
+                $authors = User::query()->whereKey($commits->pluck('user_id')->filter()->unique()->values()->all())->get();
+
+                DB::afterCommit(function () use ($authors): void {
+                    foreach ($authors as $author) {
+                        dispatch(new CheckUserLevel($author));
+                    }
+                });
             }
         });
     }

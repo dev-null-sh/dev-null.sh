@@ -102,8 +102,13 @@ final readonly class CreateCommit
                 }
             }
 
+            // A unique job takes its lock when it is dispatched, even with afterCommit(). With the database cache, a lock
+            // still held by an earlier check would fail its insert and abort this transaction on Postgres, so the job is
+            // only dispatched once the commit is saved.
             if ($commit->status === CommitStatus::Approved) {
-                dispatch(new CheckUserLevel($user))->afterCommit();
+                DB::afterCommit(function () use ($user): void {
+                    dispatch(new CheckUserLevel($user));
+                });
             }
 
             if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation) {
