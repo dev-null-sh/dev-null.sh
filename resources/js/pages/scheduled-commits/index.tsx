@@ -1,11 +1,22 @@
 import { Head, Link, router, usePoll } from '@inertiajs/react';
-import { ArrowLeft, Clock3, ImageIcon, LockKeyhole } from 'lucide-react';
+import {
+    ArrowLeft,
+    Clock3,
+    ImageIcon,
+    LockKeyhole,
+    Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import ScheduledCommitSubmissionController from '@/actions/App/Http/Controllers/ScheduledCommitSubmissionController';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { Button } from '@/components/ui/button';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
@@ -151,33 +162,40 @@ export default function Index({
                                                     ? 'Committing…'
                                                     : 'Commit now'}
                                             </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={busy !== null}
-                                                aria-label={`Cancel the commit scheduled for ${when}`}
-                                                onClick={() => {
-                                                    setBusy({
-                                                        id: scheduled.id,
-                                                        action: 'cancel',
-                                                    });
-                                                    router.delete(
-                                                        ScheduledCommitController.destroy(
-                                                            scheduled.id,
-                                                        ),
-                                                        {
-                                                            preserveScroll: true,
-                                                            onFinish: () =>
-                                                                setBusy(null),
-                                                        },
-                                                    );
-                                                }}
-                                            >
-                                                {busy?.id === scheduled.id &&
-                                                busy.action === 'cancel'
-                                                    ? 'Canceling…'
-                                                    : 'Cancel'}
-                                            </Button>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button
+                                                        type="button"
+                                                        disabled={busy !== null}
+                                                        aria-label={`Cancel the commit scheduled for ${when}`}
+                                                        onClick={() => {
+                                                            setBusy({
+                                                                id: scheduled.id,
+                                                                action: 'cancel',
+                                                            });
+                                                            router.delete(
+                                                                ScheduledCommitController.destroy(
+                                                                    scheduled.id,
+                                                                ),
+                                                                {
+                                                                    preserveScroll: true,
+                                                                    onFinish:
+                                                                        () =>
+                                                                            setBusy(
+                                                                                null,
+                                                                            ),
+                                                                },
+                                                            );
+                                                        }}
+                                                        className="self-center rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
+                                                    >
+                                                        <Trash2 className="size-4" />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    Cancel
+                                                </TooltipContent>
+                                            </Tooltip>
                                         </div>
                                     )}
                                 </div>
