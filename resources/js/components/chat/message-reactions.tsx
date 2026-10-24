@@ -17,6 +17,7 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { emojiName, searchEmojiByUse } from '@/lib/emoji';
+import { peekableSelector } from '@/lib/image-peek';
 import { formatCount, formatExactCount } from '@/lib/numbers';
 import type { ReactionUsage, Tap } from '@/lib/reactions';
 import {
@@ -773,10 +774,12 @@ export function useTouchReactions(
 
             didLongPress.current = false;
 
-            // Portaled viewers still bubble through React, and a second finger starts a pinch, not a hold.
+            // Portaled viewers still bubble through React, and a second finger starts a pinch, not a hold. Holding an
+            // image peeks at it instead.
             if (
                 !event.currentTarget.contains(event.target as Node) ||
-                !event.isPrimary
+                !event.isPrimary ||
+                (event.target as Element).closest(peekableSelector) !== null
             ) {
                 cancel();
                 lastTap.current = null;

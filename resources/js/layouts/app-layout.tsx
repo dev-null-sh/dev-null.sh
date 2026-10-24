@@ -15,6 +15,7 @@ import {
 import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
 import { DeletedPageDialog } from '@/components/deleted-page-dialog';
+import { ImagePeekHost } from '@/components/image-peek-host';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
@@ -124,6 +125,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                         />
                     )}
                 </MobileNav>
+
+                <ImagePeekHost />
 
                 {deletedPage === null ? (
                     <CommitImageViewer />

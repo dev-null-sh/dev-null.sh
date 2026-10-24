@@ -108,10 +108,14 @@ function CommitImageThumbnail({
                 loading="lazy"
                 decoding="async"
                 data-single-image={isSingle || undefined}
+                data-image-peek=""
+                draggable={false}
                 onLoad={() => setIsLoaded(true)}
                 onError={(event) => replaceFailedImage(event.currentTarget)}
                 className={cn(
                     className,
+                    // Pressing and holding peeks at it, so a phone must not offer to save it or select it instead.
+                    'select-none [-webkit-touch-callout:none]',
                     'transition-opacity duration-300',
                     !isLoaded && 'opacity-0',
                 )}
