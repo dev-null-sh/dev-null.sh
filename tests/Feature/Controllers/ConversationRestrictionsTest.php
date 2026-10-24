@@ -62,3 +62,20 @@ it('lets site admins push to anyone with remotes on', function (): void {
     $this->actingAs($nuno)->getJson(route('inbox.index'))->assertJsonCount(1, 'conversations');
     $this->actingAs($mark)->getJson(route('conversation-message.index', $off))->assertJsonPath('access', 'closed');
 });
+
+it('stops an existing sender after the recipient unfollows them', function (): void {
+    $sender = User::factory()->create();
+    $recipient = User::factory()->create();
+
+    $recipient->following()->attach($sender);
+    sendChatMessage($sender, $recipient, 'hello');
+
+    $this->actingAs($recipient)->delete(route('user-follow.destroy', $sender))->assertRedirect();
+
+    $this->actingAs($sender)
+        ->postJson(route('conversation-message.store', $recipient), [
+            'body' => 'still there?',
+            'client_id' => Str::uuid()->toString(),
+        ])
+        ->assertForbidden();
+});
