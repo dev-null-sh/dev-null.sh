@@ -14,7 +14,7 @@ import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog'
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { LinkifiedText } from '@/components/linkified-text';
-import { PageTabs } from '@/components/page-tabs';
+import { LogTabs } from '@/components/log-tabs';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
@@ -25,17 +25,19 @@ import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
 import { cn } from '@/lib/utils';
-import type { Commit, CursorPaginated, Log } from '@/types';
+import type { Commit, CursorPaginated, Log, PinnedList } from '@/types';
 
 export default function Show({
     log,
     commits,
     isRanked,
+    pinnedLists = [],
     suggestions,
 }: {
     log: Log;
     commits: CursorPaginated<Commit>;
     isRanked: boolean;
+    pinnedLists?: PinnedList[];
     suggestions: Commit[];
 }) {
     const {
@@ -527,27 +529,7 @@ export default function Show({
                 className="sticky top-0 z-10 bg-card [view-transition-class:tab-header] [view-transition-name:log-header]"
             >
                 <h1 className="sr-only">{titles[log]}</h1>
-                <PageTabs
-                    label="Logs"
-                    prefetch={false}
-                    tabs={[
-                        {
-                            title: 'Following',
-                            href: LogController.show('following'),
-                            isActive: log === 'following',
-                        },
-                        {
-                            title: 'Latest',
-                            href: LogController.show('latest'),
-                            isActive: log === 'latest',
-                        },
-                        {
-                            title: 'Trending',
-                            href: LogController.show('trending'),
-                            isActive: log === 'trending',
-                        },
-                    ]}
-                />
+                <LogTabs active={log} pinnedLists={pinnedLists} />
             </div>
 
             {user !== null && (

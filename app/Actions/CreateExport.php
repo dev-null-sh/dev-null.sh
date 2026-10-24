@@ -13,6 +13,7 @@ use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\User;
+use App\Models\UserList;
 use App\Models\UserTimeout;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
@@ -43,6 +44,7 @@ use stdClass;
  *     muting: Generator<int, ExportUser>,
  *     blocking: Generator<int, ExportUser>,
  *     dismissed_suggestions: Generator<int, ExportUser>,
+ *     lists: array<int, array{name: string, pinned_at: string|null, created_at: string, members: array<int, string>}>,
  *     messages: Generator<int, ExportMessage>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
  *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
@@ -108,6 +110,12 @@ final readonly class CreateExport
             'muting' => $this->usernames($user->muting()),
             'blocking' => $this->usernames($user->blocking()),
             'dismissed_suggestions' => $this->usernames($user->dismissedSuggestions()),
+            'lists' => $user->lists()->oldest()->get()->map(fn (UserList $list): array => [
+                'name' => $list->name,
+                'pinned_at' => $list->pinned_at?->toIso8601String(),
+                'created_at' => $list->created_at->toIso8601String(),
+                'members' => $list->members()->orderBy('username')->get(['users.id', 'users.username'])->map(fn (User $member): string => $member->username)->values()->all(),
+            ])->all(),
             'messages' => $this->messages($user),
             'remote_mutes' => Conversation::query()
                 ->join('conversation_participants as mine', 'mine.conversation_id', '=', 'conversations.id')

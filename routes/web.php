@@ -104,6 +104,9 @@ use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
 use App\Http\Controllers\UserFollowingController;
 use App\Http\Controllers\UserLaneController;
+use App\Http\Controllers\UserListController;
+use App\Http\Controllers\UserListMemberController;
+use App\Http\Controllers\UserListPinController;
 use App\Http\Controllers\UserLiveController;
 use App\Http\Controllers\UserMuteController;
 use App\Http\Controllers\UserOpenGraphImageController;
@@ -319,6 +322,35 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-reply.destroy');
     Route::post('commits/{commit}/poll/votes', [CommitPollVoteController::class, 'store'])
         ->name('commit-poll-vote.store');
+
+    // Lists...
+    Route::get('lists', [UserListController::class, 'index'])->name('user-list.index');
+    Route::post('lists', [UserListController::class, 'store'])
+        ->middleware('throttle:lists')
+        ->name('user-list.store');
+    Route::get('lists/{userList}', [UserListController::class, 'show'])->whereUuid('userList')->name('user-list.show');
+    Route::delete('lists/{userList}', [UserListController::class, 'destroy'])
+        ->whereUuid('userList')
+        ->middleware('throttle:lists')
+        ->name('user-list.destroy');
+    Route::put('lists/{userList}/pin', [UserListPinController::class, 'update'])
+        ->whereUuid('userList')
+        ->middleware('throttle:pins')
+        ->name('user-list-pin.update');
+    Route::delete('lists/{userList}/pin', [UserListPinController::class, 'destroy'])
+        ->whereUuid('userList')
+        ->middleware('throttle:pins')
+        ->name('user-list-pin.destroy');
+    Route::post('lists/{userList}/members/@{user:username}', [UserListMemberController::class, 'store'])
+        ->whereUuid('userList')
+        ->withoutScopedBindings()
+        ->middleware('throttle:lists')
+        ->name('user-list-member.store');
+    Route::delete('lists/{userList}/members/@{user:username}', [UserListMemberController::class, 'destroy'])
+        ->whereUuid('userList')
+        ->withoutScopedBindings()
+        ->middleware('throttle:lists')
+        ->name('user-list-member.destroy');
 
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');

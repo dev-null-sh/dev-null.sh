@@ -20,6 +20,7 @@ use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\User;
+use App\Models\UserList;
 use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\Cache;
@@ -343,4 +344,19 @@ it('erases the orgs a deleted user was the last one in, with the images and voic
     expect(Conversation::query()->pluck('id')->all())->toBe([$kept])
         ->and(Storage::disk()->allFiles())->toBe([$other->path])
         ->and(ConversationParticipant::query()->whereNotNull('muted_until_at')->pluck('user_id')->all())->toBe([$former->id]);
+});
+
+it('deletes the lists of a deleted user and takes them off the lists of others', function (): void {
+    $user = User::factory()->create();
+    $kept = User::factory()->create();
+    $own = UserList::factory()->for($user)->create();
+    $own->members()->attach($kept);
+    $others = UserList::factory()->create();
+    $others->members()->attach([$user->id, $kept->id]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(UserList::query()->pluck('id')->all())->toBe([$others->id])
+        ->and($others->members()->pluck('users.id')->all())->toBe([$kept->id])
+        ->and(DB::table('user_list_members')->where('user_list_id', $own->id)->exists())->toBeFalse();
 });
