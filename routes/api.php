@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\CommitPollVoteController;
 use App\Http\Controllers\Api\CommitPreviewController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CommitReportController;
+use App\Http\Controllers\Api\CommitSearchController;
 use App\Http\Controllers\Api\CommitStarController;
 use App\Http\Controllers\Api\ConversationArchiveController;
 use App\Http\Controllers\Api\ConversationController;
@@ -48,6 +49,7 @@ use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\UserRemotePreferencesController;
 use App\Http\Controllers\Api\UserRemotesController;
+use App\Http\Controllers\Api\UserSearchController;
 use App\Http\Controllers\Cli\CommitController;
 use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
@@ -80,6 +82,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-user-following.index');
         Route::get('commits/{commit}', [ApiCommitController::class, 'show'])
             ->name('api-commit.show');
+        Route::get('search/users', [UserSearchController::class, 'index'])
+            ->middleware('throttle:people')
+            ->name('api-user-search.index');
+        Route::get('search/commits', [CommitSearchController::class, 'index'])
+            ->middleware('throttle:search')
+            ->name('api-commit-search.index');
     });
 
     // Signing in: the app redeems the code it got on the web, signed with a key that isn't approved yet...
