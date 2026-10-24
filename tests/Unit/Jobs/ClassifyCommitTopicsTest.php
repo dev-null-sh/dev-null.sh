@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommit;
+use App\Ai\Agents\TopicLabelGenerator;
 use App\Enums\CommitStatus;
 use App\Exceptions\CommitProcessingFailed;
 use App\Jobs\ClassifyCommitTopics;
@@ -17,6 +18,7 @@ use Laravel\Ai\Prompts\ClassificationPrompt;
 use Laravel\Ai\Responses\Data\BooleanAnswer;
 
 it('stores a private yes or no decision without changing moderation', function (float $probability, bool $expected): void {
+    TopicLabelGenerator::fake([['post_0' => []]])->preventStrayPrompts();
     Classification::fake([['post_1' => new BooleanAnswer($probability)]]);
     $commit = Commit::factory()->pending()->create(['body' => 'Will PHP 8.6 be released this November?']);
 
@@ -42,11 +44,12 @@ it('does not classify replies, deleted commits, empty bodies or completed decisi
     'reply' => fn (): array => ['parent_id' => Commit::factory()->create()->id],
     'deleted' => fn (): array => ['deleted_at' => now()],
     'empty body' => [['body' => '']],
-    'positive decision' => [['topic_decision' => true]],
+    'positive decision' => fn (): array => ['topic_decision' => true, 'topics_classified_at' => now()],
     'negative decision' => [['topic_decision' => false]],
 ]);
 
 it('leaves failed classifications undecided so a retry can succeed', function (): void {
+    TopicLabelGenerator::fake([['post_0' => []]])->preventStrayPrompts();
     Classification::fake(fn () => throw new RuntimeException('Classifier unavailable'));
     $commit = Commit::factory()->create();
 
@@ -121,6 +124,7 @@ it('does not restore a decision if the commit is deleted during classification',
 });
 
 it('classifies a batch in one request by answer key and skips work completed before execution', function (): void {
+    TopicLabelGenerator::fake([['post_0' => []]])->preventStrayPrompts();
     config(['ai.providers.openai.key' => 'sk-test']);
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => [
         ['type' => 'predicate', 'name' => 'post_2', 'probability' => 0.1],
@@ -151,6 +155,7 @@ it('classifies a batch in one request by answer key and skips work completed bef
 });
 
 it('does not overwrite a concurrent decision while saving the rest of a batch', function (): void {
+    TopicLabelGenerator::fake([['post_0' => []]])->preventStrayPrompts();
     $first = Commit::factory()->create();
     $second = Commit::factory()->create();
     Classification::fake(function () use ($first): array {

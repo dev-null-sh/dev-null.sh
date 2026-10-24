@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
-use App\Jobs\ClassifyCommitTopics;
+use App\Jobs\BackfillCommitTopics;
 use App\Models\Commit;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use Illuminate\Database\Eloquent\Collection;
 
 #[Signature('commits:classify-topics {--batch-size=20 : Commits per classification request (1–100)}')]
-#[Description('Queue topic classification for undecided top-level commits on the low priority queue')]
+#[Description('Backfill root commit topics in sequential low priority batches')]
 final class ClassifyCommitTopicsCommand extends Command
 {
     public function handle(): int
@@ -25,16 +24,17 @@ final class ClassifyCommitTopicsCommand extends Command
             return self::INVALID;
         }
 
-        $queued = 0;
+        $last = Commit::query()->latest('id')->first(['id']);
 
-        Commit::query()->select('id')->whereNull('parent_id')->whereNull('topic_decision')->where('body', '!=', '')
-            ->chunkById($batchSize, function (Collection $commits) use (&$queued): void {
-                dispatch(new ClassifyCommitTopics(array_values($commits->map(fn (Commit $commit): string => $commit->id)->all())));
+        if (! $last instanceof Commit) {
+            $this->components->info('No commits to classify.');
 
-                $queued += $commits->count();
-            });
+            return self::SUCCESS;
+        }
 
-        $this->components->info("Queued {$queued} commits for topic classification.");
+        dispatch(new BackfillCommitTopics($batchSize, $last->id));
+
+        $this->components->info("Queued topic backfill in batches of {$batchSize}.");
 
         return self::SUCCESS;
     }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\CreateTomFriendship;
 use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
+use App\Jobs\AssignCommitTopics;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
@@ -114,4 +115,19 @@ it('lifts the quoted thread when a quote is approved', function (): void {
 
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+});
+
+it('queues unfinished interesting roots on approval but not replies empty posts or completed decisions', function (): void {
+    Queue::fake([AssignCommitTopics::class, CheckUserLevel::class]);
+    $unknown = Commit::factory()->pending()->create();
+    $interesting = Commit::factory()->pending()->create(['topic_decision' => true]);
+    $reply = Commit::factory()->pending()->create(['parent_id' => $unknown->id, 'topic_decision' => true]);
+    $empty = Commit::factory()->pending()->create(['body' => '', 'topic_decision' => true]);
+    $negative = Commit::factory()->pending()->create(['topic_decision' => false]);
+    $completed = Commit::factory()->pending()->create(['topic_decision' => true, 'topics_classified_at' => now()]);
+
+    resolve(UpdateCommitStatuses::class)->handle([$unknown->id, $interesting->id, $reply->id, $empty->id, $negative->id, $completed->id], CommitStatus::Approved);
+
+    Queue::assertPushed(AssignCommitTopics::class, 1);
+    Queue::assertPushed(AssignCommitTopics::class, fn (AssignCommitTopics $job): bool => $job->commitIds === [$interesting->id]);
 });

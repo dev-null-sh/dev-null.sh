@@ -32,6 +32,10 @@ final class ClassifyCommitTopics implements ShouldQueue
     {
         try {
             $action->handle($this->commitIds);
+
+            foreach (array_reverse(array_chunk($this->commitIds, 20)) as $batch) {
+                $this->prependToChain(new AssignCommitTopics($batch));
+            }
         } catch (Throwable $throwable) {
             throw new CommitProcessingFailed('Topic classification', implode(', ', $this->commitIds), $throwable);
         }
