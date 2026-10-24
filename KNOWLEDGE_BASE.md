@@ -420,6 +420,7 @@ Press **?** to open the shortcut reference. Navigation shortcuts work outside te
 | `y` | Copy the focused commit's link. |
 | `r` / `q` / `o` | Reply, quote, or show/hide replies. |
 | `c` | Write a commit. |
+| `.` | Scroll up to the new commits a log is announcing. |
 | `⌘/Ctrl+K` or `/` | Search developers and commits. |
 | `⌘/Ctrl+Enter` | Submit from the composer. |
 | `⌘/Ctrl+Shift+P` | Toggle composer preview. |
