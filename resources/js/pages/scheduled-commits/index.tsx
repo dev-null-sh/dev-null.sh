@@ -3,6 +3,7 @@ import { ArrowLeft, Clock3, ImageIcon, LockKeyhole } from 'lucide-react';
 import { useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
+import ScheduledCommitSubmissionController from '@/actions/App/Http/Controllers/ScheduledCommitSubmissionController';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { Button } from '@/components/ui/button';
 import { useNow } from '@/hooks/use-now';
@@ -34,7 +35,10 @@ export default function Index({
     };
 }) {
     const now = useNow();
-    const [canceling, setCanceling] = useState<string | null>(null);
+    const [busy, setBusy] = useState<{
+        id: string;
+        action: 'commit' | 'cancel';
+    } | null>(null);
     usePoll(30_000, backgroundPollOptions({ only: ['scheduledCommits'] }));
 
     const labels = {
@@ -90,6 +94,12 @@ export default function Index({
                         const due =
                             new Date(scheduled.scheduled_at).getTime() <=
                             now.getTime();
+                        const when = new Date(
+                            scheduled.scheduled_at,
+                        ).toLocaleString(dateLocale, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                        });
                         return (
                             <li
                                 key={scheduled.id}
@@ -108,38 +118,67 @@ export default function Index({
                                             dateTime={scheduled.scheduled_at}
                                             className="mt-1 block font-mono text-xs text-muted-foreground"
                                         >
-                                            {new Date(
-                                                scheduled.scheduled_at,
-                                            ).toLocaleString(dateLocale, {
-                                                dateStyle: 'medium',
-                                                timeStyle: 'short',
-                                            })}
+                                            {when}
                                         </time>
                                     </div>
                                     {scheduled.status === 'scheduled' && (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={canceling !== null}
-                                            aria-label={`Cancel the commit scheduled for ${new Date(scheduled.scheduled_at).toLocaleString(dateLocale, { dateStyle: 'medium', timeStyle: 'short' })}`}
-                                            onClick={() => {
-                                                setCanceling(scheduled.id);
-                                                router.delete(
-                                                    ScheduledCommitController.destroy(
-                                                        scheduled.id,
-                                                    ),
-                                                    {
-                                                        preserveScroll: true,
-                                                        onFinish: () =>
-                                                            setCanceling(null),
-                                                    },
-                                                );
-                                            }}
-                                        >
-                                            {canceling === scheduled.id
-                                                ? 'Canceling…'
-                                                : 'Cancel'}
-                                        </Button>
+                                        <div className="flex shrink-0 gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={busy !== null}
+                                                aria-label={`Commit now instead of at ${when}`}
+                                                onClick={() => {
+                                                    setBusy({
+                                                        id: scheduled.id,
+                                                        action: 'commit',
+                                                    });
+                                                    router.post(
+                                                        ScheduledCommitSubmissionController.store(
+                                                            scheduled.id,
+                                                        ),
+                                                        {},
+                                                        {
+                                                            preserveScroll: true,
+                                                            onFinish: () =>
+                                                                setBusy(null),
+                                                        },
+                                                    );
+                                                }}
+                                            >
+                                                {busy?.id === scheduled.id &&
+                                                busy.action === 'commit'
+                                                    ? 'Committing…'
+                                                    : 'Commit now'}
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={busy !== null}
+                                                aria-label={`Cancel the commit scheduled for ${when}`}
+                                                onClick={() => {
+                                                    setBusy({
+                                                        id: scheduled.id,
+                                                        action: 'cancel',
+                                                    });
+                                                    router.delete(
+                                                        ScheduledCommitController.destroy(
+                                                            scheduled.id,
+                                                        ),
+                                                        {
+                                                            preserveScroll: true,
+                                                            onFinish: () =>
+                                                                setBusy(null),
+                                                        },
+                                                    );
+                                                }}
+                                            >
+                                                {busy?.id === scheduled.id &&
+                                                busy.action === 'cancel'
+                                                    ? 'Canceling…'
+                                                    : 'Cancel'}
+                                            </Button>
+                                        </div>
                                     )}
                                 </div>
                                 {scheduled.body && (
@@ -184,7 +223,7 @@ export default function Index({
                                     <p className="text-xs text-muted-foreground">
                                         {due
                                             ? 'Waiting for the scheduler. If submission fails, it is retried automatically.'
-                                            : 'Private until submitted. You can cancel before submission.'}
+                                            : 'Private until submitted. You can commit it now or cancel it before submission.'}
                                     </p>
                                 )}
                             </li>

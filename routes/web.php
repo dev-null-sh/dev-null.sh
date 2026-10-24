@@ -84,6 +84,7 @@ use App\Http\Controllers\RemoteCandidateController;
 use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
+use App\Http\Controllers\ScheduledCommitSubmissionController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SiteActivityController;
@@ -280,6 +281,8 @@ Route::middleware('auth')->group(function (): void {
     Route::post('scheduled-commits', [ScheduledCommitController::class, 'store'])
         ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])->name('scheduled-commit.store');
     Route::delete('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'destroy'])->name('scheduled-commit.destroy');
+    Route::post('scheduled-commits/{scheduledCommit}/submission', [ScheduledCommitSubmissionController::class, 'store'])
+        ->middleware(PreventPostingInTimeout::class)->name('scheduled-commit-submission.store');
 
     Route::get('commit-stars', [CommitStarCountController::class, 'index'])->name('commit-star-count.index');
     Route::post('commits', [CommitController::class, 'store'])
