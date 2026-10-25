@@ -13,7 +13,7 @@ final readonly class UserCoverImageRejectionController
 {
     public function store(CreateUserCoverImageRejectionRequest $request, User $user, DeleteUserCoverImage $action): RedirectResponse
     {
-        $action->handle($user);
+        $action->handle($user, $user->cover_image_path);
 
         return back();
     }
