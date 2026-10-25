@@ -217,6 +217,7 @@ it('limits outstanding submissions per author and frees a slot on cancellation',
 
 it('shares the existing commit rate limit', function (): void {
     $user = User::factory()->create();
+    $scheduled = ScheduledCommit::factory()->for($user)->create();
     for ($i = 0; $i < 10; $i++) {
         $this->actingAs($user)->post(route('commit.store'), ['body' => 'An ordinary commit.']);
     }
@@ -224,7 +225,10 @@ it('shares the existing commit rate limit', function (): void {
     $this->post(route('scheduled-commit.store'), [
         'body' => 'Must be throttled.', 'scheduled_at' => now()->addDay()->toIso8601String(),
     ])->assertRedirect();
-    expect(ScheduledCommit::query()->count())->toBe(0);
+    $this->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirect()
+        ->assertInertiaFlash('toast.type', 'error')->assertInertiaFlashMissing('submitted');
+    expect(ScheduledCommit::query()->count())->toBe(1)
+        ->and($scheduled->fresh()->submitted_at)->toBeNull();
 });
 
 it('keeps schedules out of logs profiles activity previews and moderation until due', function (): void {

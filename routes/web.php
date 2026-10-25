@@ -282,7 +282,7 @@ Route::middleware('auth')->group(function (): void {
         ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])->name('scheduled-commit.store');
     Route::delete('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'destroy'])->name('scheduled-commit.destroy');
     Route::post('scheduled-commits/{scheduledCommit}/submission', [ScheduledCommitSubmissionController::class, 'store'])
-        ->middleware(PreventPostingInTimeout::class)->name('scheduled-commit-submission.store');
+        ->middleware([PreventPostingInTimeout::class, ThrottleCommits::class])->name('scheduled-commit-submission.store');
 
     Route::get('commit-stars', [CommitStarCountController::class, 'index'])->name('commit-star-count.index');
     Route::post('commits', [CommitController::class, 'store'])
