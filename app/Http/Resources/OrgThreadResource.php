@@ -4,21 +4,33 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
-use App\Enums\OrgRole;
-use App\Enums\PushAccess;
 use App\Models\Conversation;
-use App\Models\Message;
-use App\Models\MessageReaction;
-use App\Models\User;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use App\Queries\ConversationThreadQuery;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Collection;
 
 /**
  * An org as the web's thread loads and polls it: its name, a page of messages from where the user's history starts,
  * the reactions changed since the version a poll last saw, its members with their roles and, where both share pulls,
  * how far each has pulled, who is typing, and the user's own role.
+ *
+ * @phpstan-import-type OrgThread from ConversationThreadQuery
+ *
+ * @phpstan-type ThreadWithOrg array{
+ *     org: Conversation,
+ *     messages: OrgThread['messages'],
+ *     has_older: OrgThread['has_older'],
+ *     reactions_version: OrgThread['reactions_version'],
+ *     reaction_changes: OrgThread['reaction_changes'],
+ *     read_through_id: OrgThread['read_through_id'],
+ *     members: OrgThread['members'],
+ *     typing: OrgThread['typing'],
+ *     is_archived: OrgThread['is_archived'],
+ *     pinned_at: OrgThread['pinned_at'],
+ *     muted_until_at: OrgThread['muted_until_at'],
+ *     role: OrgThread['role'],
+ *     access: OrgThread['access']
+ * }
  */
 final class OrgThreadResource extends JsonResource
 {
@@ -27,7 +39,7 @@ final class OrgThreadResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        /** @var array{org: Conversation, messages: Collection<int, Message>, has_older: bool, reactions_version: int, reaction_changes: Collection<int, array{id: int, reactions: EloquentCollection<int, MessageReaction>}>, read_through_id: int, members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int, suggests_mentions: bool, is_followed: bool}>, typing: array<int, string>, is_archived: bool, role: OrgRole|null, access: PushAccess} $thread */
+        /** @var ThreadWithOrg $thread */
         $thread = $this->resource;
 
         return [

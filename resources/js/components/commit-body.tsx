@@ -1,7 +1,9 @@
 import { usePage } from '@inertiajs/react';
 import { useEffect, useRef, useState } from 'react';
+import { CertificateText } from '@/components/certificate-text';
 import { CodeBlock } from '@/components/code-block';
 import { LinkifiedText } from '@/components/linkified-text';
+import { bodyBlocks } from '@/lib/code';
 import { emojify } from '@/lib/emoji';
 import { cn } from '@/lib/utils';
 import type { BodySegment, Commit } from '@/types';
@@ -25,11 +27,27 @@ export function CommitBody({
                 className,
             )}
         >
-            <BodySegments
-                segments={segments}
-                mentions={mentions}
-                isStatic={isStatic}
-            />
+            {bodyBlocks(segments).map((block, index) =>
+                block.quoted ? (
+                    <blockquote
+                        key={index}
+                        className="my-1 min-h-[1lh] border-l-2 border-(--lane-5) pl-3"
+                    >
+                        <BodySegments
+                            segments={block.segments}
+                            mentions={mentions}
+                            isStatic={isStatic}
+                        />
+                    </blockquote>
+                ) : (
+                    <BodySegments
+                        key={index}
+                        segments={block.segments}
+                        mentions={mentions}
+                        isStatic={isStatic}
+                    />
+                ),
+            )}
         </div>
     );
 }
@@ -65,7 +83,7 @@ export function BodySegments({
                                 key={index}
                                 className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[0.875em]"
                             >
-                                {segment.code}
+                                <CertificateText text={segment.code} />
                             </code>
                         );
                     case 'block':

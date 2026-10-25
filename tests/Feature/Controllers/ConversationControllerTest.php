@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia;
 
@@ -70,4 +71,21 @@ it('hides conversations you cannot have', function (): void {
 
 it('requires authentication', function (): void {
     $this->get(route('conversation.index'))->assertRedirect();
+});
+
+it('polls the badge counts on an open conversation without marking it read', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    sendChatMessage($nuno, $mark, 'ship it');
+
+    $this->actingAs($mark)->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'conversation/index',
+        'X-Inertia-Partial-Data' => 'auth.unreadNotificationsCount,auth.unreadMessagesCount',
+    ])->get(route('conversation.show', $nuno))->assertOk()
+        ->assertJsonPath('props.auth.unreadMessagesCount', 1)
+        ->assertJsonMissingPath('props.thread');
+
+    $this->actingAs($nuno)->getJson(route('conversation-message.index', $mark))->assertJsonPath('partner_read_through_id', 0);
 });

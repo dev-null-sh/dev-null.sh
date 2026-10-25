@@ -803,6 +803,23 @@ it('reads the fields of a commit with images from its payload, cleaned like a js
         ->and($commit->images->pluck('description')->all())->toBe([null, null]);
 });
 
+it('keeps the text after a NUL byte in the fields of a commit with images', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequestWithImages($keyPair, 'POST', route('api-commit.store'), [
+        'body' => 'It was'.chr(0).' DNS',
+        'image_descriptions' => ['A trace'.chr(0).' of DNS'],
+    ], [UploadedFile::fake()->image('trace.png', 10, 10)])->assertCreated();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->body)->toBe('It was DNS')
+        ->and($commit->images->sole()->description)->toBe('A trace of DNS');
+});
+
 it('replies and quotes with images from a signed request', function (string $field): void {
     Storage::fake();
 
@@ -866,7 +883,6 @@ it('shows the author the images of their pending commit through urls that need n
 });
 
 it('sends a commit from a signed request to the ai moderation the web uses', function (): void {
-    config(['services.openai.key' => 'sk-test']);
     Queue::fake();
 
     $user = User::factory()->create();

@@ -16,6 +16,8 @@ export const maxVoiceMs = 60_000;
 
 export const voiceBars = 48;
 
+export const voiceSpeeds = [1, 1.5, 2];
+
 /**
  * A recorded voice note that hasn't been pushed yet.
  */

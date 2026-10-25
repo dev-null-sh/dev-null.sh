@@ -16,7 +16,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
  */
 final readonly class OpenPoll implements ValidationRule
 {
-    public function __construct(private Commit $commit, private User $voter)
+    public function __construct(private Commit $commit, private User $voter, private bool $allowExistingVote = false)
     {
         //
     }
@@ -35,7 +35,7 @@ final readonly class OpenPoll implements ValidationRule
             $fail("You can't vote on your own poll.");
         } elseif ($poll->isClosed()) {
             $fail('This poll has closed.');
-        } elseif ($poll->votes()->where('user_id', $this->voter->id)->exists()) {
+        } elseif (! $this->allowExistingVote && $poll->votes()->where('user_id', $this->voter->id)->exists()) {
             $fail('You have already voted on this poll.');
         }
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\UpdateCommitHotScores;
 use App\Enums\Log;
+use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
@@ -11,6 +12,7 @@ use App\Models\User;
 use App\Services\CommitBodies;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function (): void {
     $this->user = User::factory()->create();
@@ -204,6 +206,7 @@ it('lists commits 20 at a time with a cursor to the next page', function (): voi
 });
 
 it('does not query each commit or author', function (): void {
+    Queue::fake([DetectCommitLanguage::class]);
     signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'latest'))->assertOk();
 
     $queries = function (): int {
@@ -262,6 +265,28 @@ it('pages through the trending log in its ranking', function (): void {
         ->assertOk()
         ->assertJsonPath('data.*.id', $commits->slice(20)->pluck('id')->values()->all())
         ->assertJsonPath('meta.next_cursor', null);
+});
+
+it('draws the trending log anew on each request', function (): void {
+    config(['trending.temperature' => 0.5]);
+    Commit::factory()->count(10)->create(['created_at' => now()]);
+
+    $draw = fn (): array => signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'trending'))->json('data.*.id');
+
+    expect($draw())->not->toBe($draw());
+});
+
+it('keeps the draw of the trending log while it pages', function (): void {
+    config(['trending.temperature' => 0.5]);
+    $commits = Commit::factory()->count(25)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+
+    $first = signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'trending'));
+    $second = signedApiRequest($this->keyPair, 'GET', route('api-log.show', ['trending', 'cursor' => $first->json('meta.next_cursor')]));
+
+    expect([...$first->json('data.*.id'), ...$second->json('data.*.id')])->toEqualCanonicalizing($commits->modelKeys())
+        ->and($second->json('meta.next_cursor'))->toBeNull();
 });
 
 it('counts no newer commits on the trending log, like the web', function (): void {

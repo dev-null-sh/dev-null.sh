@@ -1,6 +1,6 @@
 import { usePage } from '@inertiajs/react';
 import type { ComponentProps, KeyboardEvent, Ref, SyntheticEvent } from 'react';
-import { useEffect, useEffectEvent, useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { index as issueSuggestions } from '@/actions/App/Http/Controllers/IssueSuggestionController';
 import MentionSuggestionController from '@/actions/App/Http/Controllers/MentionSuggestionController';
@@ -19,7 +19,6 @@ type Trigger = {
     kind: 'mention' | 'emoji' | 'issue';
     start: number;
     query: string;
-    complete?: boolean;
 };
 
 type IssueSuggestion = {
@@ -495,7 +494,7 @@ export function MentionTextarea({
         trigger !== null &&
         position !== null &&
         (trigger.kind === 'issue'
-            ? issue !== null && !trigger.complete
+            ? issue !== null
             : trigger.kind === 'emoji'
               ? emojis.length > 0
               : suggestions.length > 0 || query !== '');
@@ -552,18 +551,6 @@ export function MentionTextarea({
     const select = (user: User) => insert(`@${user.username}`, ' ');
 
     const selectEmoji = (emoji: EmojiSuggestion) => insert(emoji.emoji, '');
-
-    const autoLinkIssue = useEffectEvent(() => {
-        if (trigger?.kind === 'issue' && trigger.complete && issue) {
-            insert(issue.url, '');
-        }
-    });
-
-    useEffect(() => {
-        const frame = requestAnimationFrame(autoLinkIssue);
-
-        return () => cancelAnimationFrame(frame);
-    }, [trigger, issue]);
 
     const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (isOpen && !event.nativeEvent.isComposing) {

@@ -23,19 +23,22 @@ use Inertia\Response;
 final readonly class OrgController
 {
     /**
-     * The thread is read before it is marked read, so the page can show where the user left off.
+     * The thread is read before it is marked read, so the page can show where the user left off. Only rendering the
+     * thread marks it read, so the badge poll's partial reload leaves the read receipt where the user left it.
      */
     public function show(ShowOrgRequest $request, #[CurrentUser] User $user, Conversation $org, ConversationsQuery $conversations, ConversationThreadQuery $threads, UpdateConversationReadThrough $action): Response
     {
-        $thread = $threads->org($user, $org);
-
-        $action->handle($user, $org, $thread['messages']->last()->id ?? 0);
-
         return Inertia::render('conversation/index', [
+            'thread' => function () use ($user, $org, $threads, $action): array {
+                $thread = $threads->org($user, $org);
+
+                $action->handle($user, $org, $thread['messages']->last()->id ?? 0);
+
+                return $thread;
+            },
             'inbox' => fn (): array => $conversations->get($user),
             'partner' => null,
             'org' => ['id' => $org->id, 'name' => $org->name],
-            'thread' => $thread,
         ]);
     }
 

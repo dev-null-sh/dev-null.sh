@@ -45,6 +45,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read int $pasteis_given_today
  * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
+ * @property-read bool|null $automatic_translation
  * @property-read string|null $translation_language
  * @property-read string|null $timezone
  * @property-read bool $show_local_time
@@ -59,6 +60,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read CarbonInterface|null $last_seen_at
  * @property-read CarbonInterface|null $banned_at
  * @property-read CarbonInterface|null $commit_rules_accepted_at
+ * @property-read CarbonInterface|null $emails_unsubscribed_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, Commit> $commits
@@ -85,6 +87,7 @@ use Illuminate\Support\Facades\DB;
     'email',
     'remember_token',
     'translation_language',
+    'automatic_translation',
     'preferred_lane',
     'lane_color',
     'pasteis_mode',
@@ -105,6 +108,7 @@ use Illuminate\Support\Facades\DB;
     'last_seen_at',
     'banned_at',
     'commit_rules_accepted_at',
+    'emails_unsubscribed_at',
 ])]
 final class User extends Authenticatable
 {
@@ -145,6 +149,7 @@ final class User extends Authenticatable
         'last_seen_at' => null,
         'banned_at' => null,
         'commit_rules_accepted_at' => null,
+        'emails_unsubscribed_at' => null,
     ];
 
     /**
@@ -185,6 +190,7 @@ final class User extends Authenticatable
             'timezone' => 'string',
             'show_local_time' => 'boolean',
             'translation_language' => 'encrypted',
+            'automatic_translation' => 'boolean',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',
@@ -196,6 +202,7 @@ final class User extends Authenticatable
             'last_seen_at' => 'date',
             'banned_at' => 'datetime',
             'commit_rules_accepted_at' => 'datetime',
+            'emails_unsubscribed_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];

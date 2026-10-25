@@ -12,6 +12,7 @@ import { LiveFollowing } from '@/components/live-following';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
+import { WordmarkText } from '@/components/wordmark-text';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { commitStateKey } from '@/lib/commit-state';
 import { useKeyLabels } from '@/lib/keyboard';
@@ -55,7 +56,7 @@ export function AppAside({
                     className="rounded-lg border bg-card p-4"
                 >
                     <h2 id="aside-sign-in" className="font-semibold">
-                        New to /dev/null?
+                        <WordmarkText>New to /dev/null?</WordmarkText>
                     </h2>
                     <p className="mt-1 text-sm text-pretty text-muted-foreground">
                         Sign in with GitHub to follow developers, star commits,
@@ -112,7 +113,7 @@ export function AppAside({
                             </span>
                         </span>
                     </Link>
-                    <dl className="mt-4 flex gap-4 text-sm">
+                    <dl className="mt-4 grid grid-cols-3 gap-4 text-center text-sm">
                         {[
                             {
                                 count: commitsCount,
@@ -136,7 +137,7 @@ export function AppAside({
                         ].map((stat) => (
                             <div
                                 key={stat.label}
-                                className="group flex flex-row-reverse gap-1.5"
+                                className="group flex min-w-0 flex-col-reverse"
                             >
                                 <dt className="text-muted-foreground">
                                     <Link
@@ -146,7 +147,7 @@ export function AppAside({
                                         {stat.label}
                                     </Link>
                                 </dt>
-                                <dd className="font-mono font-medium">
+                                <dd className="font-mono font-medium tabular-nums">
                                     <Link
                                         href={stat.href}
                                         className="group-hover:underline"

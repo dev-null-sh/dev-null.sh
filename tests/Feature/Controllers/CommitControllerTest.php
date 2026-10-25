@@ -7,6 +7,7 @@ use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Jobs\DetectCommitLanguage;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -124,6 +125,30 @@ it('requires a body', function (): void {
         ]);
 
     $response->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasErrors('body');
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('keeps the text after a NUL byte', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit.store'), [
+            'body' => 'Hello'.chr(0).', devnull!',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->body)->toBe('Hello, devnull!');
+});
+
+it('requires a body that is more than NUL bytes', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit.store'), [
+            'body' => ' '.chr(0).chr(0).' ',
+        ])
         ->assertSessionHasErrors('body');
 
     expect(Commit::query()->count())->toBe(0);
@@ -799,6 +824,7 @@ it('reloads the commit alone without loading its thread', function (): void {
 });
 
 it('builds the link preview only for full page loads', function (): void {
+    Queue::fake([DetectCommitLanguage::class]);
     $commit = Commit::factory()->create();
     Commit::factory()->for($commit, 'parent')->create();
     $queries = function (array $headers) use ($commit): int {
@@ -1213,7 +1239,7 @@ it('attaches no link preview when the author chose none', function (): void {
 
     expect($user->commits()->sole()->link_preview_id)->toBeNull();
 
-    Queue::assertNothingPushed();
+    Queue::assertNotPushed(UnfurlLink::class);
 });
 
 it('may not choose a link preview for a url that is not in the body', function (string $url): void {

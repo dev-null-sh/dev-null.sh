@@ -1,6 +1,5 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
-    ArrowUpRight,
     Building2,
     CalendarDays,
     Heart,
@@ -20,6 +19,7 @@ import { ActivityGraph } from '@/components/activity-graph';
 import { ActivityStreaks } from '@/components/activity-streaks';
 import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { EditProfileMenu } from '@/components/edit-profile-menu';
 import { FollowButton } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import {
@@ -167,16 +167,7 @@ export default function Show({
                         {isCurrentUser ? (
                             <>
                                 <ProfileActionsMenu user={user} />
-                                <Button variant="outline" asChild>
-                                    <a
-                                        href="https://github.com/settings/profile"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        Edit on GitHub
-                                        <ArrowUpRight />
-                                    </a>
-                                </Button>
+                                <EditProfileMenu />
                             </>
                         ) : (
                             <>
