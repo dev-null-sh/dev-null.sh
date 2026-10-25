@@ -185,6 +185,9 @@ export function SearchResults({
                                     previous && laneColor(previous.user.lane)
                                 }
                                 graphAfter={previous?.id}
+                                endsWithDot={
+                                    index === results.commits.length - 1
+                                }
                             />
                         );
                     })}
