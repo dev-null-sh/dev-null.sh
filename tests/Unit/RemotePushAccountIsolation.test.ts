@@ -3,6 +3,7 @@ import { existsSync, statSync } from 'node:fs';
 import { registerHooks } from 'node:module';
 import { test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { locks } from 'node:worker_threads';
 
 const resources = new URL('../../resources/js/', import.meta.url);
 
@@ -60,7 +61,7 @@ for (const cleanup of [false, true]) {
             } },
             document: { cookie: 'XSRF-TOKEN=fixture' },
             Notification: { permission: 'granted', requestPermission: async () => 'granted' },
-            navigator: { serviceWorker: { getRegistration: async () => registration } },
+            navigator: { locks, serviceWorker: { getRegistration: async () => registration } },
             fetch: async (_url: string, options: RequestInit) => {
                 if (options.method === 'GET') return Response.json({ public_key: 'BA' });
                 assert.ok(typeof options.body === 'string');
@@ -89,15 +90,17 @@ for (const cleanup of [false, true]) {
             const disabling = a.setRemoteAlerts('account-a', cleanup, 'offsite').then(() => 'resolved', () => 'rejected');
             await deletion;
             current = 'account-b';
-            await b.setRemoteAlerts('account-b', true, 'offsite');
-            assert.equal(owner, 'account-b');
+            const enrolling = b.setRemoteAlerts('account-b', true, 'offsite');
+            await new Promise<void>((resolve) => setImmediate(resolve));
             releaseDelete();
+            await enrolling;
+            assert.equal(owner, 'account-b');
             assert.equal(await disabling, cleanup ? 'rejected' : 'resolved');
             assert.equal(subscription, originalSubscription);
             assert.equal(unsubscribes, 0);
             assert.equal(b.remoteAlertsEnabled('account-b', 'offsite'), true);
             const beforeReconcile = posts;
-            await bPush.syncRemotePush('account-b', true);
+            await bPush.syncRemotePush('account-b');
             assert.equal(posts, beforeReconcile + 1);
             assert.equal(owner, 'account-b');
             assert.equal(bPush.remotePushEnabled(), true);
@@ -109,3 +112,71 @@ for (const cleanup of [false, true]) {
         }
     });
 }
+
+for (const phase of ['native', 'request'] as const) void test(`a stopped passive watcher awaiting ${phase} cannot re-enroll after another tab opts out with all channels off`, { timeout: 5_000 }, async () => {
+    const originals = new Map(['window', 'document', 'navigator', 'Notification', 'Audio', 'fetch'].map(
+        (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
+    ));
+    const storage = new Map([
+        ['remote-alerts:me:offsite', 'on'],
+        ['remote-alerts:me:notifications', 'off'],
+        ['remote-alerts:me:sound', 'off'],
+    ]);
+    let owner: string | null = 'me';
+    let resume!: () => void;
+    let nativeStarted!: () => void;
+    let postCompleted!: () => void;
+    const native = new Promise<void>((resolve) => { nativeStarted = resolve; });
+    const held = new Promise<void>((resolve) => { resume = resolve; });
+    const posted = new Promise<void>((resolve) => { postCompleted = resolve; });
+    let hold = true;
+    const events = new EventTarget();
+    const globals = {
+        window: Object.assign(new EventTarget(), { isSecureContext: true, PushManager: class {}, Notification: {}, setInterval, clearInterval, localStorage: {
+            getItem: (key: string) => storage.get(key) ?? null,
+            setItem: (key: string, value: string) => storage.set(key, value),
+            removeItem: (key: string) => storage.delete(key),
+        } }),
+        document: Object.assign(events, { cookie: '' }),
+        Notification: { permission: 'granted', requestPermission: async () => 'granted' },
+        Audio: class { pause() {} },
+        navigator: { locks, serviceWorker: { getRegistration: async () => ({ pushManager: { getSubscription: async () => {
+            if (phase === 'native' && hold) { hold = false; nativeStarted(); await held; }
+            return { endpoint: 'https://fcm.googleapis.com/wp/shared', unsubscribe: async () => true };
+        } } }) } },
+        fetch: async (_url: string, options: RequestInit) => {
+            if (options.method === 'GET') return Response.json({ public_key: 'BA' });
+            if (phase === 'request' && options.method === 'POST') { nativeStarted(); await held; }
+            owner = options.method === 'POST' ? 'me' : null;
+            if (options.method === 'POST') postCompleted();
+            return new Response(null, { status: 204 });
+        },
+    };
+    for (const [key, value] of Object.entries(globals))
+        Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
+    let watcher: ReturnType<typeof import('../../resources/js/lib/remote-notifications').createRemoteAlerts> | undefined;
+    try {
+        const a = await import(new URL(`lib/remote-notifications.ts?tab=stale-a-${phase}`, resources).href) as typeof import('../../resources/js/lib/remote-notifications');
+        const b = await import(new URL(`lib/remote-notifications.ts?tab=stale-b-${phase}`, resources).href) as typeof import('../../resources/js/lib/remote-notifications');
+        watcher = a.createRemoteAlerts('me', () => '/remotes', () => [], () => {});
+        await native;
+        const disabling = b.setRemoteAlerts('me', false, 'offsite');
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        watcher.stop();
+        resume();
+        await posted;
+        await disabling;
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        assert.equal(b.remoteAlertsEnabled('me', 'offsite'), false);
+        assert.equal(b.remoteAlertsEnabled('me', 'notifications'), false);
+        assert.equal(b.remoteAlertsEnabled('me', 'sound'), false);
+        assert.equal(owner, null);
+    } finally {
+        resume();
+        watcher?.stop();
+        for (const [key, descriptor] of originals) {
+            if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+            else Reflect.deleteProperty(globalThis, key);
+        }
+    }
+});

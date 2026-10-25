@@ -1,7 +1,7 @@
 import {
-    RemotePushRevocationError,
     remotePushEnabled,
-    remotePushSupported,
+    remotePushOptedIn,
+    setRemotePush,
     syncRemotePush,
 } from '@/lib/remote-push';
 import { readStorage, writeStorage } from '@/lib/storage';
@@ -17,8 +17,7 @@ export function remoteAlertsEnabled(
     userId: string,
     channel: RemoteAlertChannel = 'notifications',
 ): boolean {
-    if (channel === 'offsite')
-        return readStorage(preferenceKey(userId, channel)) === 'on';
+    if (channel === 'offsite') return remotePushOptedIn(userId);
 
     return (
         (readStorage(preferenceKey(userId, channel)) ||
@@ -69,28 +68,10 @@ export async function setRemoteAlerts(
     channel: RemoteAlertChannel = 'notifications',
 ): Promise<boolean> {
     if (channel === 'offsite') {
-        if (enabled) {
-            if (!remotePushSupported())
-                throw new Error(
-                    'Off-site notifications are not supported here.',
-                );
-            const permission = await Notification.requestPermission();
-            if (permission !== 'granted')
-                throw new Error('Notification permission was not granted.');
-            const previous = readStorage(preferenceKey(userId, channel));
-            writeStorage(preferenceKey(userId, channel), 'on');
-            if (readStorage(preferenceKey(userId, channel)) !== 'on')
-                return false;
-            try {
-                await syncRemotePush(userId, true, true);
-            } catch (error) {
-                if (!(error instanceof RemotePushRevocationError))
-                    writeStorage(preferenceKey(userId, channel), previous);
-                listeners.forEach((listener) => listener());
-                throw error;
-            }
-        } else {
-            await syncRemotePush(userId, false, true);
+        try {
+            return await setRemotePush(userId, enabled);
+        } finally {
+            listeners.forEach((listener) => listener());
         }
     }
 
@@ -116,9 +97,7 @@ export function createRemoteAlerts(
     reading: () => string[],
     onIncoming: (conversation: ConversationSummary) => void,
 ) {
-    void syncRemotePush(userId, remoteAlertsEnabled(userId, 'offsite')).catch(
-        () => undefined,
-    );
+    void syncRemotePush(userId).catch(() => undefined);
     let latest: Record<string, number> | null = null;
     let stopped = false;
     let lastSoundAt = 0;

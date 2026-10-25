@@ -1,7 +1,7 @@
 import { remoteAlertsEnabled, setRemoteAlerts } from '../../resources/js/lib/remote-notifications';
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
-import { remotePushEnabled, syncRemotePush } from '../../resources/js/lib/remote-push';
+import { remotePushEnabled, setRemotePush, syncRemotePush } from '../../resources/js/lib/remote-push';
 
 const endpoint = 'https://fcm.googleapis.com/wp/browser';
 const save = vi.fn(async (_url: string, _options: RequestInit) => new Response(null, { status: 204 }));
@@ -12,10 +12,14 @@ const registration = { pushManager: { getSubscription: async () => subscription,
 
 beforeEach(() => {
     subscription = null;
+    let pending: Promise<unknown> = Promise.resolve();
+    const locks = { request: (_name: string, _options: LockOptions, run: () => Promise<unknown>) => { const result = pending.then(run); pending = result.catch(() => undefined); return result; } };
     vi.stubGlobal('window', { isSecureContext: true, PushManager: class {}, Notification: {} });
+    const storage = preferenceStorage();
+    storage.set('remote-alerts:me:offsite', 'on');
     vi.stubGlobal('Notification', { permission: 'granted', requestPermission: vi.fn(async () => 'granted') });
     vi.stubGlobal('document', { cookie: 'XSRF-TOKEN=csrf%20token' });
-    vi.stubGlobal('navigator', { serviceWorker: { getRegistration: async () => registration, register: vi.fn(async () => registration), ready: Promise.resolve(registration) } });
+    vi.stubGlobal('navigator', { locks, serviceWorker: { getRegistration: async () => registration, register: vi.fn(async () => registration), ready: Promise.resolve(registration) } });
     vi.stubGlobal('fetch', async (url: string, options: RequestInit) => url.endsWith('/push-subscriptions') && options.method === 'GET'
         ? Response.json({ public_key: 'BA' }) : save(url, options));
     save.mockReset(); save.mockImplementation(async () => new Response(null, { status: 204 })); subscribe.mockClear(); unsubscribe.mockClear();
@@ -24,14 +28,14 @@ beforeEach(() => {
 afterEach(() => {vi.unstubAllGlobals();vi.restoreAllMocks();vi.useRealTimers();});
 
 test('does not subscribe or request permission on page load', async () => {
-    await syncRemotePush('me', true);
+    await syncRemotePush('me');
     assert.equal(subscribe.mock.calls.length, 0);
     assert.equal(save.mock.calls.length, 0);
     assert.equal(remotePushEnabled(), false);
 });
 
 test('creates an opt-in subscription bound to its initiating account without encryption secrets', async () => {
-    await syncRemotePush('me', true, true);
+    await setRemotePush('me', true);
     assert.equal(remotePushEnabled(), true);
     assert.equal(subscribe.mock.calls.length, 1);
     const [, options] = save.mock.calls[0];
@@ -42,7 +46,7 @@ test('creates an opt-in subscription bound to its initiating account without enc
 
 test('reassociates an existing browser subscription without creating another', async () => {
     subscription = { endpoint, unsubscribe };
-    await syncRemotePush('me', true);
+    await syncRemotePush('me');
     assert.equal(subscribe.mock.calls.length, 0);
     assert.equal(save.mock.calls.length, 1);
     assert.equal(remotePushEnabled(), true);
@@ -54,14 +58,14 @@ test('a transient passive registration failure preserves opt-in and recovers on 
     const enrolled = subscription;
     save.mockImplementationOnce(async () => new Response(null, { status: 503 }));
 
-    await assert.rejects(syncRemotePush('me', true));
+    await assert.rejects(syncRemotePush('me'));
     assert.equal(subscription, enrolled);
     assert.equal(unsubscribe.mock.calls.length, 0);
     assert.equal(save.mock.calls.filter(([, options]) => options.method === 'DELETE').length, 0);
     assert.equal(remoteAlertsEnabled('me', 'offsite'), true);
     assert.equal(remotePushEnabled(), true);
 
-    await syncRemotePush('me', true);
+    await syncRemotePush('me');
     assert.equal(save.mock.calls.at(-1)?.[1].method, 'POST');
     assert.equal(subscribe.mock.calls.length, 1);
     assert.equal(remotePushEnabled(), true);
@@ -71,7 +75,7 @@ test('a transient passive registration failure preserves opt-in and recovers on 
 test('turning notifications off revokes server delivery while retaining the shared browser subscription', async () => {
     subscription = { endpoint, unsubscribe };
     const existing = subscription;
-    await syncRemotePush('me', false, true);
+    await setRemotePush('me', false);
     assert.equal(save.mock.calls[0][1].method, 'DELETE');
     assert.equal(subscription, existing);
     assert.equal(unsubscribe.mock.calls.length, 0);
@@ -81,30 +85,30 @@ test('turning notifications off revokes server delivery while retaining the shar
 test('failed server deletion keeps the subscription so disabling can be retried', async () => {
     subscription = { endpoint, unsubscribe };
     save.mockImplementationOnce(async () => new Response(null, { status: 503 }));
-    await assert.rejects(syncRemotePush('me', false, true));
+    await assert.rejects(setRemotePush('me', false));
     assert.equal(unsubscribe.mock.calls.length, 0);
-    await syncRemotePush('me', false, true);
+    await setRemotePush('me', false);
     assert.equal(unsubscribe.mock.calls.length, 0);
 });
 
 test('missing server configuration reports failure rather than enabling background delivery', async () => {
     vi.stubGlobal('fetch', async () => Response.json({ public_key: null }));
-    await assert.rejects(syncRemotePush('me', true, true));
+    await assert.rejects(setRemotePush('me', true));
     assert.equal(remotePushEnabled(), false);
     assert.equal(subscribe.mock.calls.length, 0);
 });
 
 test('registers a service worker before the first opt-in', async () => {
     const register = vi.fn(async () => registration);
-    vi.stubGlobal('navigator', { serviceWorker: { getRegistration: async () => undefined, register, ready: Promise.resolve(registration) } });
-    await syncRemotePush('me', true, true);
+    vi.stubGlobal('navigator', { locks: navigator.locks, serviceWorker: { getRegistration: async () => undefined, register, ready: Promise.resolve(registration) } });
+    await setRemotePush('me', true);
     assert.equal(register.mock.calls.length, 1);
     assert.equal(remotePushEnabled(), true);
 });
 
-test('unsupported browsers retain their page alert fallback', async () => {
+test('unsupported browsers reject off-site enrollment and retain their page alert fallback', async () => {
     vi.stubGlobal('window', { isSecureContext: true });
-    await syncRemotePush('me', true, true);
+    await assert.rejects(setRemotePush('me', true), /not supported/);
     assert.equal(save.mock.calls.length, 0);
 });
 
@@ -122,11 +126,11 @@ test('page alerts can be re-enabled even when background delivery is unavailable
 test('a stalled browser operation times out without saving and the next attempt can recover', async () => {
     vi.useFakeTimers();
     vi.spyOn(registration.pushManager, 'getSubscription').mockImplementationOnce(() => new Promise(() => {}));
-    const rejected = assert.rejects(syncRemotePush('me', true, true), /browser did not respond/);
+    const rejected = assert.rejects(setRemotePush('me', true), /browser did not respond/);
     await vi.advanceTimersByTimeAsync(10_001);
     await rejected;
     assert.equal(save.mock.calls.length, 0);
-    await syncRemotePush('me', true, true);
+    await setRemotePush('me', true);
     assert.equal(save.mock.calls.length, 1);
     assert.equal(remotePushEnabled(), true);
 });
@@ -134,11 +138,11 @@ test('a stalled browser operation times out without saving and the next attempt 
 test('does not query native subscriptions before permission or server configuration is ready', async () => {
     const query = vi.spyOn(registration.pushManager, 'getSubscription');
     vi.stubGlobal('Notification', {permission: 'default'});
-    await syncRemotePush('me', true);
+    await syncRemotePush('me');
     assert.equal(query.mock.calls.length, 0);
     vi.stubGlobal('Notification', {permission: 'granted'});
     vi.stubGlobal('fetch', async () => Response.json({public_key: null}));
-    await assert.rejects(syncRemotePush('me', true, true));
+    await assert.rejects(setRemotePush('me', true));
     assert.equal(query.mock.calls.length, 0);
 });
 
@@ -187,6 +191,41 @@ test('blocked preference storage cannot activate off-site delivery', async () =>
     assert.equal(save.mock.calls.length, 0);
 });
 
+test('a failed browser lock preserves consent and a later opt-out can retry', async () => {
+    subscription = { endpoint, unsubscribe };
+    const lock = vi.spyOn(navigator.locks, 'request');
+    lock.mockRejectedValueOnce(new DOMException('Lock wait expired', 'AbortError'));
+    await assert.rejects(setRemoteAlerts('me', false, 'offsite'));
+    assert.equal(remoteAlertsEnabled('me', 'offsite'), true);
+    assert.equal(save.mock.calls.length, 0);
+
+    assert.equal(await setRemoteAlerts('me', false, 'offsite'), true);
+    assert.equal(remoteAlertsEnabled('me', 'offsite'), false);
+    assert.equal(save.mock.calls[0][1].method, 'DELETE');
+});
+
+test('browsers without shared locking cannot enroll off-site delivery', async () => {
+    Reflect.deleteProperty(navigator, 'locks');
+    await assert.rejects(setRemoteAlerts('me', true, 'offsite'), /not supported/);
+    assert.equal(subscribe.mock.calls.length, 0);
+    assert.equal(save.mock.calls.length, 0);
+});
+
+test('passive work queued behind opt-out reads the committed off preference', async () => {
+    subscription = { endpoint, unsubscribe };
+    let resume!: () => void;
+    const gate = new Promise<void>((resolve) => { resume = resolve; });
+    const query = vi.spyOn(registration.pushManager, 'getSubscription').mockImplementationOnce(async () => { await gate; return subscription; });
+    const disabling = setRemoteAlerts('me', false, 'offsite');
+    await vi.waitFor(() => assert.equal(query.mock.calls.length, 1));
+    const passive = syncRemotePush('me');
+    resume();
+    await Promise.all([disabling, passive]);
+
+    assert.equal(remoteAlertsEnabled('me', 'offsite'), false);
+    assert.deepEqual(save.mock.calls.map(([, options]) => options.method), ['DELETE', 'DELETE']);
+});
+
 
 test('a full account reports the enrollment limit and leaves this browser opted out', async () => {
     preferenceStorage();
@@ -200,12 +239,13 @@ test('a full account reports the enrollment limit and leaves this browser opted 
 
 for (const phase of ['permission', 'subscription', 'queue'] as const) {
     test(`an account switch during ${phase} cannot apply another account's consent`, async () => {
-        const storage = preferenceStorage();
+        preferenceStorage();
         let current = 'account-a';
         let owner: string | null = null;
         let resume!: () => void;
         const gate = new Promise<void>((resolve) => { resume = resolve; });
         let blocker: Promise<boolean> | undefined;
+        let blocked = false;
         save.mockImplementation(async (_url, options) => {
             const body = JSON.parse(options.body as string) as { user_id?: string };
             if (body.user_id !== current) return Response.json({ message: 'Your signed-in account changed.' }, { status: 403 });
@@ -217,13 +257,13 @@ for (const phase of ['permission', 'subscription', 'queue'] as const) {
         } else if (phase === 'subscription') {
             subscribe.mockImplementationOnce(async () => { await gate; return subscription = { endpoint, unsubscribe }; });
         } else {
-            vi.spyOn(navigator.serviceWorker, 'getRegistration').mockImplementationOnce(async () => { await gate; return undefined; });
+            vi.spyOn(navigator.serviceWorker, 'getRegistration').mockImplementationOnce(async () => { blocked = true; await gate; return undefined; });
             blocker = setRemoteAlerts('blocker', false, 'offsite');
         }
         const enabling = setRemoteAlerts('account-a', true, 'offsite');
         const rejected = assert.rejects(enabling);
         if (phase === 'subscription') await vi.waitFor(() => assert.equal(subscribe.mock.calls.length, 1));
-        if (phase === 'queue') await vi.waitFor(() => assert.equal(storage.get('remote-alerts:account-a:offsite'), 'on'));
+        if (phase === 'queue') await vi.waitFor(() => assert.equal(blocked, true));
         current = 'account-b';
         resume();
         if (blocker) await blocker;
