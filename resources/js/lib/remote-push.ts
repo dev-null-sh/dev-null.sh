@@ -4,9 +4,11 @@ import {
     store,
 } from '@/actions/App/Http/Controllers/PushSubscriptionController';
 
-export class RemotePushValidationError extends Error {}
+class RemotePushRejectedError extends Error {}
 
-class RemotePushAccountChangedError extends Error {}
+export class RemotePushValidationError extends RemotePushRejectedError {}
+
+export class RemotePushRevocationError extends RemotePushValidationError {}
 
 let active = false;
 let pending = Promise.resolve();
@@ -49,19 +51,19 @@ async function request(
             ? {}
             : { body: JSON.stringify({ endpoint, user_id: userId }) }),
     });
-    if (response.status === 403) {
-        const denied = (await response.json()) as { message: string };
-        if (denied.message === 'Your signed-in account changed.')
-            throw new RemotePushAccountChangedError(denied.message);
-    }
     if (response.status === 422) {
         const validation = (await response.json()) as {
             errors: { endpoint: string[] };
         };
         throw new RemotePushValidationError(validation.errors.endpoint[0]);
     }
-    if (!response.ok)
+    if (!response.ok) {
+        if (response.status >= 400 && response.status < 500)
+            throw new RemotePushRejectedError(
+                'Could not save background notifications.',
+            );
         throw new Error('Could not save background notifications.');
+    }
     return response;
 }
 
@@ -155,28 +157,25 @@ export function syncRemotePush(
                         subscription.endpoint,
                     );
                 } catch (error) {
-                    if (error instanceof RemotePushAccountChangedError) {
+                    if (error instanceof RemotePushRejectedError) {
                         active = false;
                         throw error;
                     }
                     if (create) {
                         active = false;
                         // A failed opt-in may have been saved before its response was lost.
-                        const accountChanged = await request(
-                            destroy.url(),
-                            userId,
-                            'DELETE',
-                            subscription.endpoint,
-                        ).then(
-                            () => false,
-                            (cleanupError: unknown) =>
-                                cleanupError instanceof
-                                RemotePushAccountChangedError,
-                        );
-                        if (!accountChanged)
-                            await pushResult(subscription.unsubscribe()).catch(
-                                () => undefined,
+                        try {
+                            await request(
+                                destroy.url(),
+                                userId,
+                                'DELETE',
+                                subscription.endpoint,
                             );
+                        } catch {
+                            throw new RemotePushRevocationError(
+                                'Could not turn off-site notifications off. Please try again.',
+                            );
+                        }
                     }
                     throw error;
                 }
@@ -189,7 +188,6 @@ export function syncRemotePush(
                 'DELETE',
                 subscription.endpoint,
             );
-            await pushResult(subscription.unsubscribe());
             active = false;
         }
     };

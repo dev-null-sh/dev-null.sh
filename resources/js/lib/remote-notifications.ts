@@ -1,4 +1,5 @@
 import {
+    RemotePushRevocationError,
     remotePushEnabled,
     remotePushSupported,
     syncRemotePush,
@@ -83,7 +84,8 @@ export async function setRemoteAlerts(
             try {
                 await syncRemotePush(userId, true, true);
             } catch (error) {
-                writeStorage(preferenceKey(userId, channel), previous);
+                if (!(error instanceof RemotePushRevocationError))
+                    writeStorage(preferenceKey(userId, channel), previous);
                 listeners.forEach((listener) => listener());
                 throw error;
             }
