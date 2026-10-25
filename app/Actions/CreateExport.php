@@ -12,6 +12,7 @@ use App\Models\Device;
 use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
+use App\Models\PushSubscription;
 use App\Models\User;
 use App\Models\UserTimeout;
 use App\Queries\CommitBuilder;
@@ -48,6 +49,7 @@ use stdClass;
  *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
  *     notifications: Generator<int, array<string, int|string|null>>,
  *     ssh_keys: array<mixed>,
+ *     push_subscriptions: array<int, array{id: string}>,
  *     devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>,
  *     timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>,
  *     sessions: Collection<int, stdClass>
@@ -139,6 +141,9 @@ final readonly class CreateExport
                 ->all(),
             'notifications' => $this->notifications($user),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
+            'push_subscriptions' => $user->pushSubscriptions()->get()->map(fn (PushSubscription $subscription): array => [
+                'id' => $subscription->id,
+            ])->all(),
             'devices' => $user->devices()->oldest('approved_at')->get()->map(fn (Device $device): array => [
                 'name' => $device->name,
                 'fingerprint' => $device->fingerprint,

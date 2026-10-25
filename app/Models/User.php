@@ -92,6 +92,7 @@ use Illuminate\Support\Facades\DB;
     'lane_color',
     'pasteis_mode',
     'remotes_enabled',
+    'pushSubscriptions',
     'remotes_from',
     'pull_receipts',
     'pasteis_received',
@@ -240,6 +241,14 @@ final class User extends Authenticatable
     public function sshKeys(): HasMany
     {
         return $this->hasMany(SshKey::class);
+    }
+
+    /**
+     * @return HasMany<PushSubscription, $this>
+     */
+    public function pushSubscriptions(): HasMany
+    {
+        return $this->hasMany(PushSubscription::class);
     }
 
     /**

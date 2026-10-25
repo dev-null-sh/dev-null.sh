@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import {
     useRemoteAlertsEnabled,
     useRemoteNotificationPermission,
+    useRemoteNotificationSupport,
+    useRemotePushEnabled,
 } from '@/hooks/use-chat';
 import type { RemoteAlertChannel } from '@/lib/remote-notifications';
 import { setRemoteAlerts } from '@/lib/remote-notifications';
@@ -21,12 +23,16 @@ export function RemotesSetting() {
     const alertsEnabled = useRemoteAlertsEnabled(auth.user?.id ?? null);
     const soundEnabled = useRemoteAlertsEnabled(auth.user?.id ?? null, 'sound');
     const hasPermission = useRemoteNotificationPermission();
+    const supported = useRemoteNotificationSupport();
+    const pushEnabled = useRemotePushEnabled();
+    const [savingAlerts, setSavingAlerts] = useState(false);
 
     const saveAlerts = (
         enabled: boolean,
         channel: RemoteAlertChannel = 'notifications',
     ) => {
-        if (auth.user === null) return;
+        if (auth.user === null || savingAlerts) return;
+        setSavingAlerts(true);
         void setRemoteAlerts(auth.user.id, enabled, channel)
             .then((saved) => {
                 if (!saved)
@@ -38,9 +44,12 @@ export function RemotesSetting() {
             })
             .catch(() =>
                 toast.error(
-                    'Could not enable notifications. Check your browser’s site settings.',
+                    enabled
+                        ? 'Background notifications could not be enabled. Alerts can still appear while the site is open.'
+                        : 'Could not turn notifications off. Please try again.',
                 ),
-            );
+            )
+            .finally(() => setSavingAlerts(false));
     };
 
     const toggle = () => {
@@ -119,18 +128,30 @@ export function RemotesSetting() {
                         id="remote-alerts-description"
                         className="text-sm text-muted-foreground"
                     >
-                        On this browser, while the site is open. No message
-                        previews.
+                        Notifications on supported browsers, even when the site
+                        or installed app is closed. No message previews.
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                        On iPhone and iPad, add /dev/null to your Home Screen
+                        and allow notifications from the installed app.
                     </p>
                     <Button
                         variant="outline"
                         className="min-w-44"
-                        disabled={!enabled || !alertsEnabled || hasPermission}
+                        disabled={
+                            !enabled ||
+                            !supported ||
+                            !alertsEnabled ||
+                            savingAlerts ||
+                            (hasPermission && pushEnabled)
+                        }
                         onClick={() => saveAlerts(true)}
                     >
-                        {hasPermission
-                            ? 'Permission granted'
-                            : 'Allow notifications'}
+                        {!supported
+                            ? 'Not supported here'
+                            : hasPermission && pushEnabled
+                              ? 'Notifications enabled'
+                              : 'Allow notifications'}
                     </Button>
                 </div>
                 <button
@@ -139,7 +160,7 @@ export function RemotesSetting() {
                     aria-checked={alertsEnabled}
                     aria-labelledby="remote-alerts-label"
                     aria-describedby="remote-alerts-description"
-                    disabled={!enabled}
+                    disabled={!enabled || savingAlerts}
                     onClick={() => saveAlerts(!alertsEnabled)}
                     className={cn(
                         'mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent p-0.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50',
@@ -164,7 +185,7 @@ export function RemotesSetting() {
                         id="remote-sound-description"
                         className="text-sm text-muted-foreground"
                     >
-                        Play a sound for new messages.
+                        Play a sound for new messages while the site is open.
                     </p>
                 </div>
                 <button
@@ -173,7 +194,7 @@ export function RemotesSetting() {
                     aria-checked={soundEnabled}
                     aria-labelledby="remote-sound-label"
                     aria-describedby="remote-sound-description"
-                    disabled={!enabled}
+                    disabled={!enabled || savingAlerts}
                     onClick={() => saveAlerts(!soundEnabled, 'sound')}
                     className={cn(
                         'mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent p-0.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50',

@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 return [
 
+    'web_push' => [
+        'subject' => env('WEB_PUSH_SUBJECT', 'https://dev-null.sh'),
+        'public_key' => env('WEB_PUSH_PUBLIC_KEY'),
+        'private_key' => env('WEB_PUSH_PRIVATE_KEY'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

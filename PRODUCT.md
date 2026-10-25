@@ -36,7 +36,7 @@ What exists, one line each (details in the knowledge base):
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
 - **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
 - **Remotes:** private one-to-one and group messages (orgs).
-- **Notifications:** in-app activity, plus independently controlled browser and sound alerts for Remotes while the site is open, enabled by default; only browser banners require notification permission.
+- **Notifications:** in-app activity, plus independently controlled browser and sound alerts for Remotes with opt-in Web Push delivery when the site or installed app is closed; sound plays while the site is open.
 - **Search:** developers by name, commits by meaning.
 - **Emails:** an occasional update the admins write to everyone, or to a filtered audience, with one-click unsubscribe. Never per-activity notifications.
 - **Safety:** mute, block, reports, and moderation.
@@ -51,7 +51,7 @@ Rules every feature must keep:
 - **Store as little as possible.** Assume the database has leaked: no data without a feature that needs it, sensitive content encrypted, no secrets stored, and everything about a person erased with their account and included in their export (see `.ai/guidelines/data.blade.php`). The one deliberate exception is moderation: bans and timeouts are kept by GitHub account after deletion, holding only the GitHub id, reason, and dates, so deleting an account and signing up again can't escape or reset them.
 - **Same rules on every surface.** Web, mobile API, terminal, and Action share validation, moderation, visibility, and rate limits.
 
-Deliberately excluded: sign-up or identity outside GitHub, editing commits, and email or push notifications.
+Deliberately excluded: sign-up or identity outside GitHub, editing commits, and email activity notifications.
 
 ## Brand Commitments
 

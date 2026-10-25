@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitTranslation;
+use App\Actions\CreateExport;
 use App\Actions\DeleteUser;
 use App\Ai\Agents\CommitTranslator;
 use App\Enums\ModerationReason;
@@ -133,6 +134,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'remote_pins' => [],
         'notifications' => [],
         'ssh_keys' => [],
+        'push_subscriptions' => [],
         'devices' => [],
         'timeouts' => [],
         'sessions' => [],
@@ -559,4 +561,11 @@ it('exports your remote pins without the pins of other members', function (): vo
         ['to' => 'alice', 'pinned_at' => now()->toIso8601String()],
         ['to' => 'org: Release crew', 'pinned_at' => now()->toIso8601String()],
     ]);
+});
+
+it('exports subscription metadata without delivery endpoints', function (): void {
+    $user = User::factory()->create();
+    $subscription = $user->pushSubscriptions()->create(['endpoint_hash' => 'browser', 'endpoint' => 'https://fcm.googleapis.com/wp/private']);
+    $export = resolve(CreateExport::class)->handle($user);
+    expect($export['push_subscriptions'])->toBe([['id' => $subscription->id]]);
 });

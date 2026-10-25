@@ -13,8 +13,10 @@ import type { RemoteAlertChannel } from '@/lib/remote-notifications';
 import {
     remoteAlertsEnabled,
     remoteNotificationsAllowed,
+    remoteNotificationsSupported,
     subscribeRemoteAlerts,
 } from '@/lib/remote-notifications';
+import { remotePushEnabled, subscribeRemotePush } from '@/lib/remote-push';
 
 export function useRemoteAlertsEnabled(
     userId: string | null,
@@ -85,4 +87,20 @@ export function useUnreadMessages(): number {
     return isPollingInbox && unread !== null
         ? unread
         : auth.unreadMessagesCount;
+}
+
+export function useRemotePushEnabled(): boolean {
+    return useSyncExternalStore(
+        subscribeRemotePush,
+        remotePushEnabled,
+        () => false,
+    );
+}
+
+export function useRemoteNotificationSupport(): boolean {
+    return useSyncExternalStore(
+        subscribeRemoteAlerts,
+        remoteNotificationsSupported,
+        () => false,
+    );
 }

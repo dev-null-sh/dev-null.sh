@@ -19,6 +19,7 @@ use App\Models\MessageVoice;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
+use App\Models\PushSubscription;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
@@ -343,4 +344,11 @@ it('erases the orgs a deleted user was the last one in, with the images and voic
     expect(Conversation::query()->pluck('id')->all())->toBe([$kept])
         ->and(Storage::disk()->allFiles())->toBe([$other->path])
         ->and(ConversationParticipant::query()->whereNotNull('muted_until_at')->pluck('user_id')->all())->toBe([$former->id]);
+});
+
+it('erases browser push subscriptions with the account', function (): void {
+    $user = User::factory()->create();
+    PushSubscription::factory()->create(['user_id' => $user->id]);
+    resolve(DeleteUser::class)->handle($user);
+    expect(PushSubscription::query()->count())->toBe(0);
 });

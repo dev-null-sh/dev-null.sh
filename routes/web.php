@@ -80,6 +80,7 @@ use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\ProductMetricsController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\RemoteCandidateController;
 use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
@@ -259,6 +260,10 @@ Route::middleware('auth')->group(function (): void {
         ->name('issue.store');
 
     // Session...
+    Route::get('push-subscriptions', [PushSubscriptionController::class, 'index'])->name('push-subscription.index');
+    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware('throttle:30,1')->name('push-subscription.store');
+    Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy'])->name('push-subscription.destroy');
+
     Route::post('logout', [SessionController::class, 'destroy'])
         ->name('logout');
 

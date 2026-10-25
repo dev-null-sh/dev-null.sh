@@ -1,3 +1,4 @@
+import { remotePushEnabled, syncRemotePush } from '@/lib/remote-push';
 import { readStorage, writeStorage } from '@/lib/storage';
 import type { ConversationSummary } from '@/types';
 
@@ -17,11 +18,13 @@ export function remoteAlertsEnabled(
     );
 }
 
+export function remoteNotificationsSupported(): boolean {
+    return 'Notification' in window && window.isSecureContext;
+}
+
 export function remoteNotificationsAllowed(): boolean {
     return (
-        'Notification' in window &&
-        window.isSecureContext &&
-        Notification.permission === 'granted'
+        remoteNotificationsSupported() && Notification.permission === 'granted'
     );
 }
 
@@ -67,8 +70,16 @@ export async function setRemoteAlerts(
         await Notification.requestPermission().catch(() => undefined);
     }
 
+    if (channel === 'notifications' && !enabled) {
+        await syncRemotePush(false, true);
+    }
+
     writeStorage(preferenceKey(userId, channel), enabled ? 'on' : 'off');
     listeners.forEach((listener) => listener());
+
+    if (channel === 'notifications' && enabled) {
+        await syncRemotePush(true, true);
+    }
 
     return (
         readStorage(preferenceKey(userId, channel)) === (enabled ? 'on' : 'off')
@@ -89,6 +100,7 @@ export function createRemoteAlerts(
     reading: () => string[],
     onIncoming: (conversation: ConversationSummary) => void,
 ) {
+    void syncRemotePush(remoteAlertsEnabled(userId)).catch(() => undefined);
     let latest: Record<string, number> | null = null;
     let stopped = false;
     let lastSoundAt = 0;
@@ -237,7 +249,7 @@ export function createRemoteAlerts(
                     void sound.play().catch(() => undefined);
                 }
 
-                if (!showBanner) return;
+                if (!showBanner || remotePushEnabled()) return;
 
                 const options: NotificationOptions = {
                     body: 'You have a new message in Remotes.',

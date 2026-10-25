@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\RemoteStatus;
+use App\Jobs\SendRemotePush;
 use App\Jobs\UnfurlLink;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
@@ -88,6 +89,10 @@ final readonly class CreateMessage
             }
 
             self::advance($conversation, $message, unstash: true);
+
+            if (config('services.web_push.public_key') && config('services.web_push.private_key')) {
+                dispatch(new SendRemotePush($message->id))->delay(now()->addSeconds(10))->afterCommit();
+            }
 
             ConversationParticipant::query()
                 ->where('conversation_id', $conversation->id)
