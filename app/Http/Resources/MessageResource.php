@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
  * A message as the web's thread shows it: its body, also split into prose, inline code and highlighted code blocks,
  * where it mentions people the message links to, the message it replies to only as much as its ghost shows, and when
  * they were loaded its link card, images, voice note and reactions. In an org it also says who wrote it and the event
- * it records.
+ * it records. Which message it replies to is left out wherever the model hides it, as pinned messages do.
  *
  * The app's image views and audio players can't sign requests, so each image and voice note comes with a URL signed
  * for the user, good until midnight UTC the day after tomorrow, which stays the same all day so the app can cache it.
@@ -43,7 +43,7 @@ final class MessageResource extends JsonResource
             'mentions' => collect(resolve(Mentions::class)->positions($this->body))
                 ->filter(fn (array $mention): bool => array_key_exists(Str::lower($mention['username']), $this->mentions ?? []))
                 ->values(),
-            'reply_to_id' => $this->reply_to_id,
+            'reply_to_id' => $this->when(! in_array('reply_to_id', $this->getHidden(), true), $this->reply_to_id),
             'reply_to' => $this->whenLoaded('replyTo', fn (Message $replyTo): array => [
                 'id' => $replyTo->id,
                 'user_id' => $replyTo->user_id,

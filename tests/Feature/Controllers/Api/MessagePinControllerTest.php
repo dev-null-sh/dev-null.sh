@@ -8,6 +8,8 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
 use App\Models\UserTimeout;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     config(['remotes.requests' => true, 'remotes.everyone' => true]);
@@ -126,6 +128,35 @@ it('pins only within the history the maintainer can see, but unpins whatever the
     $this->actingAs($this->nuno)->putJson(route('message-pin.update', $before))->assertOk();
 
     signedApiRequest($this->keyPair, 'DELETE', route('api-message-pin.destroy', $before))->assertOk()->assertJsonPath('pinned', []);
+});
+
+it('leaves out what a pinned message replies to, which may be from before the member history', function (): void {
+    [$nuno, $taylor] = followersOf($this->user, 2);
+    $org = createOrg($this->user, [$nuno]);
+    $question = pushToOrg($nuno, $org, 'where does the deploy key live?');
+    $answer = $this->actingAs($this->user)->postJson(route('org-message.store', $org), ['body' => 'in the vault', 'client_id' => Str::uuid()->toString(), 'reply_to_id' => $question->id])
+        ->assertCreated()
+        ->json('message.id');
+    $this->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->putJson(route('org-member.update', [$org, $taylor]), ['role' => 'maintainer'])->assertNoContent();
+    $welcome = pushToOrg($nuno, $org, 'welcome taylor');
+    signedApiRequest($this->keyPair, 'PUT', route('api-message-pin.update', $answer))->assertOk();
+    $taylorKeys = apiKeyPairFor($taylor);
+
+    $lists = [
+        signedApiRequest($taylorKeys, 'PUT', route('api-message-pin.update', $welcome))->assertOk()->json('pinned'),
+        signedApiRequest($taylorKeys, 'DELETE', route('api-message-pin.destroy', $welcome))->assertOk()->json('pinned'),
+        signedApiRequest($taylorKeys, 'GET', route('api-org-message.index', $org))->assertOk()->json('data.pinned'),
+    ];
+
+    foreach ($lists as $pinned) {
+        expect(array_column($pinned, 'id'))->toContain($answer);
+
+        foreach ($pinned as $message) {
+            expect($message)->not->toHaveKeys(['reply_to', 'reply_to_id'])
+                ->and(Arr::dot(Arr::except($message, 'user')))->not->toContain($question->id);
+        }
+    }
 });
 
 it('caps how many messages an org pins', function (): void {

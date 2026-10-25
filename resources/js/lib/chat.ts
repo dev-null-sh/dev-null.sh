@@ -27,6 +27,7 @@ import UserBlockController from '@/actions/App/Http/Controllers/UserBlockControl
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import {
     acceptedPinnedMessages,
+    isPinnedIn,
     reactionsAfterOf,
     withPinnedMessage,
     withPinnedMessageRestored,
@@ -1634,7 +1635,7 @@ export async function toggleReaction(
 /**
  * Pins a message for the whole org, or unpins it, straight away, then settles on the org's pinned messages as the
  * server holds them, once no other pin request in the org is in flight. Puts the message back where it was and throws
- * when the server refuses.
+ * when the server refuses, or answers without the message among the pinned ones.
  */
 export async function setMessagePinned(
     target: ChatTarget,
@@ -1671,6 +1672,10 @@ export async function setMessagePinned(
         // Responses can arrive out of order, so the newest one wins.
         if ((newestPinnedMessages.get(key)?.version ?? -1) <= version) {
             newestPinnedMessages.set(key, { pinned, version, sentAt });
+        }
+
+        if (isPinned && !isPinnedIn(pinned, message)) {
+            throw new Error('Another pin took the last place first.');
         }
     } catch (error) {
         updateThread(key, (thread) => ({

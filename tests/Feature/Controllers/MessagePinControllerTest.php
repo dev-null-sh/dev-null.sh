@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\UpdateMessagePin;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
@@ -136,4 +137,24 @@ it('caps how many messages an org pins', function (): void {
     $this->putJson(route('message-pin.update', $pinned->first()))->assertOk()->assertJsonCount(Conversation::MAX_PINNED_MESSAGES, 'pinned');
     $this->deleteJson(route('message-pin.destroy', $pinned->first()))->assertOk();
     $this->putJson(route('message-pin.update', $message))->assertOk()->assertJsonPath('pinned.0.id', $message->id);
+});
+
+it('leaves a message unpinned when another pin fills the org after the request was allowed', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    Message::factory()->count(Conversation::MAX_PINNED_MESSAGES - 1)->pinned()->create(['conversation_id' => $org, 'user_id' => $nuno->id]);
+    $theirs = pushToOrg($nuno, $org, 'pinned by another maintainer meanwhile');
+    $mine = pushToOrg($nuno, $org, 'mine');
+    $version = Conversation::query()->findOrFail($org)->reactions_version;
+
+    app()->resolving(UpdateMessagePin::class, fn () => Message::query()->whereKey($theirs->id)->update(['pinned_at' => now()]));
+
+    $response = $this->actingAs($mark)->putJson(route('message-pin.update', $mine))
+        ->assertOk()
+        ->assertJsonCount(Conversation::MAX_PINNED_MESSAGES, 'pinned')
+        ->assertJsonPath('reactions_version', $version);
+
+    expect($response->json('pinned.*.id'))->toContain($theirs->id)->not->toContain($mine->id)
+        ->and($mine->fresh()?->pinned_at)->toBeNull();
 });

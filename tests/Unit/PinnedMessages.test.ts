@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
     acceptedPinnedMessages,
+    isPinnedIn,
     reactionsAfterOf,
     withPinnedMessage,
     withPinnedMessageRestored,
@@ -133,4 +134,9 @@ await test('unpins a message and puts it back where it was', () => {
         [3, 2, 1],
     );
     assert.deepEqual(ids(withPinnedMessageRestored([], message(2), 1)), [2]);
+});
+
+await test('counts a pin as done only when the settled list has the message', () => {
+    assert.equal(isPinnedIn([message(2), message(1)], message(1)), true);
+    assert.equal(isPinnedIn([message(2)], message(1)), false);
 });

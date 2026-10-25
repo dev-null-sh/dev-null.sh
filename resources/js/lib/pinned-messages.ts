@@ -70,6 +70,17 @@ export function withShownReactions(
     );
 }
 
+/**
+ * Whether a pin went through. When two maintainers take the org's last place at once, the server still answers the one
+ * it turned away with the org's pinned messages, just without theirs.
+ */
+export function isPinnedIn(
+    pinned: Message[],
+    message: Pick<Message, 'id'>,
+): boolean {
+    return pinned.some((item) => item.id === message.id);
+}
+
 export function withPinnedMessage(
     pinned: Message[],
     message: Message,
