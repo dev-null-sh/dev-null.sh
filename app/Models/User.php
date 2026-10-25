@@ -73,6 +73,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, User> $blockers
  * @property-read Collection<int, Notification> $notifications
  * @property-read Collection<int, SshKey> $sshKeys
+ * @property-read Collection<int, Issue> $issues
  * @property-read Collection<int, PollVote> $pollVotes
  * @property-read Collection<int, Device> $devices
  * @property-read Collection<int, UserTimeout> $timeouts
@@ -240,6 +241,16 @@ final class User extends Authenticatable
     public function sshKeys(): HasMany
     {
         return $this->hasMany(SshKey::class);
+    }
+
+    /**
+     * The GitHub issues the user opened with /feature and /bug.
+     *
+     * @return HasMany<Issue, $this>
+     */
+    public function issues(): HasMany
+    {
+        return $this->hasMany(Issue::class);
     }
 
     /**

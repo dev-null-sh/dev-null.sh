@@ -6,6 +6,7 @@ use App\Actions\CreateCommitStar;
 use App\Actions\DeleteUserFollow;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Issue;
 use App\Models\Notification;
 use App\Models\User;
 
@@ -160,6 +161,49 @@ it('shows the level reached with its rank, in all notifications only', function 
     $this->get(route('notification.index', ['type' => 'stars']))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('notifications.data', []));
+});
+
+it("shows comments on the user's issues with the issue and a link to the comment", function (): void {
+    $user = User::factory()->create();
+    $issue = Issue::factory()->for($user)->create(['number' => 1096, 'title' => 'Issue reply notifications']);
+    $commenter = User::factory()->create();
+    Notification::factory()->issueCommented($issue, 7)->create(['actor_id' => $commenter->id]);
+
+    $this->actingAs($user)->get(route('notification.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('notifications.data.0.type', 'issue_commented')
+            ->where('notifications.data.0.actor.id', $commenter->id)
+            ->where('notifications.data.0.url', "{$issue->url}#issuecomment-7")
+            ->where('notifications.data.0.issue.number', 1096)
+            ->where('notifications.data.0.issue.title', 'Issue reply notifications')
+            ->where('notifications.data.0.commit', null));
+});
+
+it('groups comments per issue', function (): void {
+    $user = User::factory()->create();
+    $busy = Issue::factory()->for($user)->create();
+    $quiet = Issue::factory()->for($user)->create();
+    Notification::factory()->issueCommented($busy, 1)->create(['created_at' => now()->subMinutes(3)]);
+    Notification::factory()->issueCommented($busy, 2)->create(['created_at' => now()->subMinutes(2)]);
+    Notification::factory()->issueCommented($quiet, 3)->create(['created_at' => now()->subMinute()]);
+
+    $this->actingAs($user)->get(route('notification.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 2)
+            ->where('notifications.data.0.issue.number', $quiet->number)
+            ->where('notifications.data.0.event_count', 1)
+            ->where('notifications.data.1.issue.number', $busy->number)
+            ->where('notifications.data.1.event_count', 2));
+
+    $first = Notification::query()->where('issue_id', $busy->id)->oldest()->firstOrFail();
+
+    $this->getJson(route('notification-group.show', $first))
+        ->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('data.0.issue.number', $busy->number)
+        ->assertJsonPath('data.1.issue.title', $busy->title);
 });
 
 it('says whether the user follows each new follower back', function (): void {

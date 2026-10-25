@@ -6,6 +6,7 @@ import {
     Check,
     ChevronDown,
     ChevronsUp,
+    CircleDot,
     MessageSquareReply,
     Quote,
     Star,
@@ -70,7 +71,7 @@ const filterOptions: {
     {
         type: 'all',
         label: 'All',
-        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, level-ups, and moderation updates for your commits will show up here.',
+        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, level-ups, moderation updates for your commits, and comments on issues you open will show up here.',
     },
     {
         type: 'replies',
@@ -468,6 +469,10 @@ function groupNoun(notification: NotificationGroup): string {
         return 'stars';
     }
 
+    if (notification.type === 'issue_commented') {
+        return 'comments';
+    }
+
     return 'updates';
 }
 
@@ -729,6 +734,29 @@ export function NotificationContent({
     const { user } = useUser();
     const actorRef = useRef<HTMLSpanElement>(null);
     const { actor } = notification;
+
+    if (notification.type === 'issue_commented') {
+        return (
+            <IssueCommentContent
+                notification={notification}
+                isNew={isNew}
+                withoutBottomBorder={withoutBottomBorder}
+                graph={graph}
+                actorRef={actorRef}
+                now={now}
+                isOwnActivity={
+                    notification.actor_id === notification.recipient_id
+                }
+                comments={
+                    summary && 'event_count' in notification
+                        ? notification.event_count
+                        : 1
+                }
+            >
+                {children}
+            </IssueCommentContent>
+        );
+    }
     const actors =
         summary && 'actors' in notification ? notification.actors : [actor];
     const actorsCount =
@@ -1203,6 +1231,138 @@ export function NotificationContent({
                             />
                         </span>
                     )}
+                </div>
+                {children}
+            </div>
+        </div>
+    );
+}
+
+/**
+ * A comment on a GitHub issue the user opened with /feature or /bug. It links out to the comment on GitHub. A commenter
+ * who isn't on /dev/null has no profile to show, so the row says only that a comment arrived. A group of comments on one
+ * issue counts them rather than naming commenters: everyone not on /dev/null shares the reporter as their actor, so
+ * names alone would undercount them. Its comments, once expanded, name each commenter.
+ */
+function IssueCommentContent({
+    notification,
+    isNew,
+    withoutBottomBorder,
+    graph,
+    actorRef,
+    now,
+    isOwnActivity,
+    comments,
+    children,
+}: {
+    notification: Extract<Notification, { type: 'issue_commented' }>;
+    isNew: boolean;
+    withoutBottomBorder: boolean;
+    graph?: { id: string; endId: string };
+    actorRef: RefObject<HTMLSpanElement | null>;
+    now: Date;
+    isOwnActivity: boolean;
+    comments: number;
+    children?: ReactNode;
+}) {
+    const { actor, issue } = notification;
+    const lane = laneColor(actor.lane);
+    const isAnonymous = isOwnActivity || comments > 1;
+
+    return (
+        <div className="flex">
+            <GraphRail
+                lane={lane}
+                endsWithDot
+                graph={graph}
+                nodePosition="top"
+                node={
+                    <span className="flex size-9 items-center justify-center rounded-full border-2 border-(--lane) bg-card transition-colors">
+                        <CircleDot
+                            className="size-4 shrink-0"
+                            style={{ color: lane }}
+                            aria-hidden
+                        />
+                    </span>
+                }
+            />
+            <div
+                className={cn('min-w-0 flex-1 py-3 pr-4', {
+                    'border-b': !withoutBottomBorder,
+                })}
+            >
+                <div className="relative isolate min-w-0">
+                    <div className="flex h-10 items-center gap-2">
+                        {isAnonymous ? (
+                            <span
+                                className="rounded-md border px-2 py-0.5 font-mono text-xs font-medium"
+                                style={{
+                                    borderColor: `${lane}40`,
+                                    backgroundColor: `${lane}15`,
+                                    color: lane,
+                                }}
+                                data-test="issue-chip"
+                            >
+                                #{issue.number}
+                            </span>
+                        ) : (
+                            <span className="relative z-10 flex">
+                                <ActorAvatar
+                                    user={actor}
+                                    anchor={actorRef}
+                                    className="size-8 ring-2 ring-card"
+                                    linked
+                                />
+                            </span>
+                        )}
+                        <time
+                            dateTime={notification.created_at}
+                            title={formatFullDateTime(notification.created_at)}
+                            className="ml-auto min-w-[3ch] shrink-0 text-right font-mono text-[13px] text-muted-foreground"
+                        >
+                            {formatRelativeTime(notification.created_at, now)}
+                        </time>
+                    </div>
+                    <p className="mt-1 text-[15px] wrap-anywhere">
+                        {isNew && <span className="sr-only">New. </span>}
+                        {!isAnonymous && (
+                            <>
+                                <UserPreview
+                                    user={actor}
+                                    anchor={actorRef}
+                                    className="relative z-10"
+                                >
+                                    <Link
+                                        href={show(actor)}
+                                        className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
+                                        title={actor.name}
+                                    >
+                                        {actor.name}
+                                    </Link>
+                                </UserPreview>{' '}
+                            </>
+                        )}
+                        <a
+                            href={notification.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            data-notification-link
+                            className="after:absolute after:inset-0 after:z-[1] after:rounded-md after:outline-offset-4 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring"
+                        >
+                            {comments > 1
+                                ? `${formatCount(comments)} comments on your issue #${issue.number}`
+                                : isOwnActivity
+                                  ? `New comment on your issue #${issue.number}`
+                                  : `commented on your issue #${issue.number}`}
+                        </a>
+                        {isAnonymous && '.'}
+                    </p>
+                    <p
+                        className="mt-1 truncate font-mono text-[13px] text-muted-foreground"
+                        title={issue.title}
+                    >
+                        {issue.title}
+                    </p>
                 </div>
                 {children}
             </div>

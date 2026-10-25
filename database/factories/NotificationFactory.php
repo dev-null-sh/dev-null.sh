@@ -6,6 +6,7 @@ namespace Database\Factories;
 
 use App\Enums\NotificationType;
 use App\Models\Commit;
+use App\Models\Issue;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -37,6 +38,7 @@ final class NotificationFactory extends Factory
                 'key' => match ($notification->type) {
                     NotificationType::Starred => 'starred:'.$notification->commit_id.':'.$notification->actor_id,
                     NotificationType::LeveledUp => 'leveled_up:'.$notification->level,
+                    NotificationType::IssueCommented => 'issue_commented:'.$notification->url,
                     default => $notification->type->value.':'.($notification->commit_id ?? $notification->actor_id),
                 },
             ]))
@@ -49,6 +51,20 @@ final class NotificationFactory extends Factory
                     $notification->actor()->firstOrFail()->starredCommits()->syncWithoutDetaching([$notification->commit_id]);
                 }
             });
+    }
+
+    /**
+     * A comment on an issue the recipient opened, by someone who isn't on /dev/null unless an actor is given.
+     */
+    public function issueCommented(Issue $issue, int $comment = 1): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'recipient_id' => $issue->user_id,
+            'actor_id' => $issue->user_id,
+            'type' => NotificationType::IssueCommented,
+            'issue_id' => $issue->id,
+            'url' => "{$issue->url}#issuecomment-{$comment}",
+        ]);
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Models\Issue;
 use App\Models\User;
 use App\Services\GitHubApp;
 use Illuminate\Support\Str;
@@ -22,7 +23,8 @@ final readonly class CreateIssue
     }
 
     /**
-     * The issue is opened by the app, crediting the reporter, whose GitHub login is their username here.
+     * The issue is opened by the app, crediting the reporter, whose GitHub login is their username here. The reporter
+     * is remembered with it, so its comments reach them in their notifications.
      *
      * @param  array<string, string>  $environment
      * @return array{number: int, url: string}
@@ -50,11 +52,28 @@ final readonly class CreateIssue
             );
         }
 
-        return $this->github->createIssue(
-            Str::limit($title, 256, '') ?: ucfirst($type).' report',
+        $title = Str::limit($title, 256, '') ?: ucfirst($type).' report';
+
+        $issue = $this->github->createIssue(
+            $title,
             $body.$this->details($environment)."\n\n---\n\nReported by {$user->mention()} via [/dev/null](".route('user.show', $user).').',
             [$type === 'feature' ? 'enhancement' : 'bug'],
         );
+
+        // Remembered, so comments on the issue can notify the reporter here instead of only on GitHub. GitHub never hands
+        // out a number twice in one repository, so a row that already exists is left to the reporter who opened it.
+        Issue::query()->insertOrIgnore([
+            'id' => Str::uuid7()->toString(),
+            'user_id' => $user->id,
+            'repository' => config()->string('services.github.repository'),
+            'number' => $issue['number'],
+            'title' => $title,
+            'url' => $issue['url'],
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return $issue;
     }
 
     /**

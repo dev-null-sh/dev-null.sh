@@ -324,6 +324,8 @@ Open **Notifications** to read in-app activity: follows, replies, quotes, mentio
 
 Level-up notifications announce your new Unix rank under **All**, rather than one of the activity filters. Each level can notify you only once, even if you later lose and regain enough XP to reach it.
 
+Comments on GitHub issues you opened with [`/bug` or `/feature`](#bug-reports-and-feature-requests) also arrive under **All**. /dev/null checks GitHub for new comments every five minutes, so one can take that long to show up. Each comment notifies you once, even if it is later edited; comments by bots and your own comments do not notify. A commenter who is on /dev/null is shown with their name and avatar, anyone else by the issue number. Comments on the same issue are grouped, and selecting one opens that comment on GitHub. Issues opened before this existed, or by someone else, do not notify you, and a notification stays after its comment is deleted on GitHub.
+
 On phones, **Replies**, **Quotes**, and **Stars** share one row with a **More notification filters** (`…`) button for **Mentions**, **Follows**, and **Moderation**. The menu stays open while you toggle filters so you can change several at once.
 
 Pending replies, quotes, and mentions wait for approval before notifying others. Self-actions do not notify you; mentioning the parent or quoted author does not duplicate their reply or quote notification. A new follower notifies only once even if they unfollow and follow again. Deleted or unavailable sources, mutes, and blocks affect which notifications remain visible. Rejected commits can produce a moderation message with a reason, without revealing a moderator's identity.
@@ -506,9 +508,11 @@ Start a fresh commit draft with **`/bug `** or **`/feature `** to switch it into
 
 Empty issue drafts show a short Markdown template: steps and expected versus actual behavior for bugs, or the problem and proposal for features. The first top-level `# Heading` becomes the issue title and is removed from the body; the remaining Markdown is preserved. Without a heading, the first line is used as the title and the full draft remains in the body.
 
+Issues you open are remembered with your account, so comments on them reach your [notifications](#notifications); the issues are included in your data export and deleted with your account.
+
 Successful issue creation is limited to **ten issues per day per user**. Rejected drafts and failed requests do not use that allowance. If GitHub or the connection fails, the draft stays available. Check upstream before retrying an uncertain submission to avoid duplicates. Use a commit's Report control instead when reporting abusive content.
 
-Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php).
+Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue validation](app/Http/Requests/CreateIssueRequest.php), [issue controller](app/Http/Controllers/IssueController.php), [issue comment checks](app/Jobs/NotifyIssueComments.php), [issue comment notifications](app/Actions/CreateIssueCommentNotifications.php).
 
 ### Exporting your data
 

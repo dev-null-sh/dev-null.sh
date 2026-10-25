@@ -37,6 +37,7 @@ final readonly class NotificationGroupsQuery
                 'actor' => fn (BelongsTo $query): BelongsTo => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
                 'commit',
+                'issue',
             ])
             ->latest()->latest('id');
         $perPage = $through instanceof CarbonImmutable
@@ -151,7 +152,8 @@ final readonly class NotificationGroupsQuery
         // Deleted ancestors supply grouping identity only; content comes from relevant notifications. A commit's
         // recorded root is always one of its ancestors, so the walk up the thread only continues past it when the
         // recorded root is itself a reply. Follows never group across days, as a busy account gets followed so often
-        // that its follows would otherwise never stop joining a single group.
+        // that its follows would otherwise never stop joining a single group. Comments on an issue group per issue, as
+        // replies and mentions do per thread.
         $sql = <<<SQL
             WITH RECURSIVE visible AS ({$visible->toSql()}),
             threads AS (
@@ -170,10 +172,12 @@ final readonly class NotificationGroupsQuery
             topics AS (
                 SELECT visible.*,
                     CASE WHEN visible.type = 'starred' THEN 'starred'
-                        WHEN visible.type = 'replied' THEN 'replied' ELSE 'activity' END AS topic_kind,
+                        WHEN visible.type = 'replied' THEN 'replied'
+                        WHEN visible.type = 'issue_commented' THEN 'issue' ELSE 'activity' END AS topic_kind,
                     CASE WHEN visible.type = 'followed' THEN visible.recipient_id
                         WHEN visible.type = 'starred' THEN visible.commit_id
                         WHEN visible.type = 'replied' THEN visible.id
+                        WHEN visible.type = 'issue_commented' THEN visible.issue_id
                         ELSE COALESCE(ancestry.id, threads.id, visible.id) END AS topic_id,
                     CASE WHEN visible.type = 'followed' THEN DATE(visible.created_at) END AS topic_day
                 FROM visible LEFT JOIN threads ON threads.notification_id = visible.id

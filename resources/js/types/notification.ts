@@ -43,6 +43,14 @@ export type Notification =
           rank_description: string;
       })
     | (BaseNotification & {
+          type: 'issue_commented';
+          commit_id: null;
+          subject_id: null;
+          commit: null;
+          url: string;
+          issue: { number: number; title: string; url: string };
+      })
+    | (BaseNotification & {
           type: 'quoted';
           commit_id: string;
           subject_id: null;

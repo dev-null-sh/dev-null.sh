@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Issue;
 use App\Models\User;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -238,4 +239,33 @@ it('does not count rejected drafts or failed attempts towards the limit', functi
     }
 
     $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Broken.'])->assertCreated();
+});
+
+it('remembers who reported the issue, so comments on it can reach them', function (): void {
+    fakeGitHubApp(['number' => 1096, 'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/1096']);
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/feature', 'body' => "# Issue reply notifications\n\nPlease."])
+        ->assertCreated();
+
+    $this->assertDatabaseHas('issues', [
+        'user_id' => $user->id,
+        'repository' => 'dev-null-sh/dev-null.sh',
+        'number' => 1096,
+        'title' => 'Issue reply notifications',
+        'url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/1096',
+    ]);
+});
+
+it('leaves an issue it already knows to the reporter who opened it', function (): void {
+    fakeGitHubApp(['number' => 1096, 'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/1096']);
+    $reporter = User::factory()->create();
+    Issue::factory()->for($reporter)->create(['number' => 1096, 'title' => 'Original']);
+
+    $this->actingAs(User::factory()->create())->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'Again'])
+        ->assertCreated();
+
+    expect(Issue::query()->sole())
+        ->user_id->toBe($reporter->id)
+        ->title->toBe('Original');
 });

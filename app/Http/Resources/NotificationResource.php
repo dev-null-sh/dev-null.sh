@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\Commit;
+use App\Models\Issue;
 use App\Models\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -12,7 +13,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * A group of notifications, as the web shows it: the newest one, the group it leads, how many events and actors the
  * group has and how many events are unread, and in a list the first few actors. The actor says whether the user
- * follows them. A rejected commit comes with the reason the moderator gave.
+ * follows them. A rejected commit comes with the reason the moderator gave, and a comment on an issue with the issue
+ * and a link to the comment.
  *
  * @mixin Notification
  */
@@ -37,6 +39,8 @@ final class NotificationResource extends JsonResource
             'actors_count' => $this->actors_count,
             'unread_count' => $this->unread_count,
             'commit' => $this->commit instanceof Commit ? CommitResource::make($this->commit) : null,
+            'issue' => $this->issue instanceof Issue ? $this->issue->only(['number', 'title', 'url']) : null,
+            'url' => $this->url,
         ];
     }
 }
