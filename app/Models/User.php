@@ -12,21 +12,26 @@ use App\Enums\Log;
 use App\Enums\RemotesFrom;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 
 /**
  * @property-read string $id
  * @property-read string $github_id
- * @property-read string $username
+ * @property-read string $handle
  * @property-read string $name
  * @property-read string|null $email
  * @property-read string|null $avatar_url
@@ -77,12 +82,20 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, Device> $devices
  * @property-read Collection<int, UserTimeout> $timeouts
  * @property-read Ban|null $ban
+ * @property-read Profile $profile
  * @property-read int $commits_count
  * @property-read int $timeouts_count
  * @property-read int $following_count
  * @property-read int $followers_count
  */
 #[Hidden([
+    'profile',
+    'username',
+    'name',
+    'avatar_url',
+    'bio',
+    'location',
+    'website',
     'github_id',
     'email',
     'remember_token',
@@ -131,6 +144,13 @@ final class User extends Authenticatable
     public const array BOT_GITHUB_IDS = [CreateTomFriendship::GITHUB_ID, CreateWorldReply::GITHUB_ID];
 
     /**
+     * Every user shows their GitHub identity, so their profile comes with them.
+     *
+     * @var list<string>
+     */
+    protected $with = ['profile'];
+
+    /**
      * @var array<string, mixed>
      */
     protected $attributes = [
@@ -169,13 +189,7 @@ final class User extends Authenticatable
         return [
             'id' => 'string',
             'github_id' => 'string',
-            'username' => 'string',
-            'name' => 'string',
             'email' => 'string',
-            'avatar_url' => 'string',
-            'bio' => 'string',
-            'location' => 'string',
-            'website' => 'string',
             'company' => 'string',
             'has_sponsors_listing' => 'boolean',
             'preferred_lane' => 'integer',
@@ -199,7 +213,6 @@ final class User extends Authenticatable
             'live_platform' => LivePlatform::class,
             'live_url' => 'string',
             'live_ends_at' => 'datetime',
-            'github_synced_at' => 'datetime',
             'last_seen_at' => 'date',
             'banned_at' => 'datetime',
             'commit_rules_accepted_at' => 'datetime',
@@ -207,6 +220,30 @@ final class User extends Authenticatable
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The GitHub account the user signed in with never changes, so it links the user to their profile.
+     *
+     * @return BelongsTo<Profile, $this>
+     */
+    public function profile(): BelongsTo
+    {
+        return $this->belongsTo(Profile::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * Resolves "@handle" URLs through the profile, which holds the handle.
+     *
+     * @param  Model|BuilderContract|Relation<Model, Model, mixed>  $query
+     * @param  mixed  $value
+     * @param  string|null  $field
+     */
+    public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
+    {
+        return $field === 'handle'
+            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('github_id')->where('handle', $value), 'github_id')
+            : parent::resolveRouteBindingQuery($query, $value, $field);
     }
 
     /**
@@ -391,7 +428,7 @@ final class User extends Authenticatable
         /** @var list<string> $admins */
         $admins = config('app.admins');
 
-        return in_array(mb_strtolower($this->username), array_map(mb_strtolower(...), $admins), true);
+        return in_array(mb_strtolower($this->handle), array_map(mb_strtolower(...), $admins), true);
     }
 
     /**
@@ -433,20 +470,20 @@ final class User extends Authenticatable
      */
     public function openGraphIdentity(): array
     {
-        return [$this->name, $this->username, $this->avatar_url, $this->lane()];
+        return [$this->name, $this->handle, $this->avatar_url, $this->lane()];
     }
 
     public function mention(): string
     {
-        return '@'.$this->username;
+        return '@'.$this->handle;
     }
 
     /**
-     * How link previews title the user, without repeating a name that is just the username.
+     * How link previews title the user, without repeating a name that is just the handle.
      */
     public function nameWithHandle(): string
     {
-        return $this->name === $this->username ? $this->mention() : $this->name.' ('.$this->mention().')';
+        return $this->name === $this->handle ? $this->mention() : $this->name.' ('.$this->mention().')';
     }
 
     public function isFollowing(self $user): bool
@@ -556,6 +593,13 @@ final class User extends Authenticatable
     public function toArray(): array
     {
         return [
+            'id' => $this->id,
+            'handle' => $this->handle,
+            'name' => $this->name,
+            'avatar_url' => $this->avatar_url,
+            'bio' => $this->bio,
+            'location' => $this->location,
+            'website' => $this->website,
             ...parent::toArray(),
             'lane' => $this->lane(),
             'has_github_account' => $this->hasGitHubAccount(),
@@ -579,6 +623,26 @@ final class User extends Authenticatable
     public function hasGitHubAccount(): bool
     {
         return $this->github_id !== CreateTomFriendship::GITHUB_ID;
+    }
+
+    /**
+     * The GitHub identity lives on the profile: it reads through, and only the profile changes it.
+     *
+     * @param  string  $key
+     */
+    public function getAttribute($key): mixed
+    {
+        return in_array($key, Profile::USER_ATTRIBUTES, true) ? $this->profile->getAttribute($key) : parent::getAttribute($key);
+    }
+
+    /**
+     * @param  string  $key
+     */
+    public function setAttribute($key, $value): mixed
+    {
+        throw_if(in_array($key, Profile::USER_ATTRIBUTES, true), LogicException::class, "Update the {$key} of a user on their profile.");
+
+        return parent::setAttribute($key, $value);
     }
 
     private function fillCounts(int $commits): self

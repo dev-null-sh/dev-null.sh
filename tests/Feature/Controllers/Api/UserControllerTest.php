@@ -10,7 +10,7 @@ use App\Queries\UserActivityQuery;
 
 it('shows a public profile with public counts', function (): void {
     $user = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'name' => 'The Octocat',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
         'bio' => 'I am the Octocat.',
@@ -32,6 +32,7 @@ it('shows a public profile with public counts', function (): void {
     $response->assertOk()
         ->assertExactJson(['data' => [
             'id' => $user->id,
+            'handle' => 'octocat',
             'username' => 'octocat',
             'name' => 'The Octocat',
             'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
@@ -51,7 +52,7 @@ it('shows a public profile with public counts', function (): void {
 
 it('never exposes hidden fields', function (): void {
     $user = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'email' => 'octocat@github.com',
         'github_id' => '583231',
         'preferred_lane' => 3,
@@ -68,7 +69,7 @@ it('never exposes hidden fields', function (): void {
         ->assertJsonMissingPath('data.remember_token');
 });
 
-it('returns not found for unknown usernames', function (): void {
+it('returns not found for unknown handles', function (): void {
     $this->getJson('/api/v1/users/missing')->assertNotFound();
 });
 
@@ -78,7 +79,7 @@ it('shows a signed request the profile as the web shows it to its user', functio
     $viewer = User::factory()->create();
     $keyPair = apiKeyPairFor($viewer);
     $user = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'name' => 'The Octocat',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
         'bio' => 'I am the Octocat.',
@@ -101,6 +102,7 @@ it('shows a signed request the profile as the web shows it to its user', functio
         ->assertExactJson([
             'data' => [
                 'id' => $user->id,
+                'handle' => 'octocat',
                 'username' => 'octocat',
                 'name' => 'The Octocat',
                 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
@@ -261,7 +263,7 @@ it('tells a signed request it blocked the profile, as the web does', function ()
         ->assertJsonPath('code', 'user_blocked')
         // Who they blocked, as the web shows them on the blocked profile.
         ->assertJsonPath('user.id', $user->id)
-        ->assertJsonPath('user.username', $user->username)
+        ->assertJsonPath('user.handle', $user->handle)
         ->assertJsonPath('user.name', 'The Octocat')
         ->assertJsonPath('user.avatar_url', $user->avatar_url)
         ->assertJsonPath('user.lane', $user->lane())

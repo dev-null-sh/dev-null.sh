@@ -90,7 +90,7 @@ export function AchievementsDialog({
                         </span>
                     </div>
                     <DialogDescription className="font-mono text-xs text-muted-foreground">
-                        @{user.username} ·{' '}
+                        @{user.handle} ·{' '}
                         <span title={`${formatExactCount(achievements.xp)} XP`}>
                             {formatCount(achievements.xp)} XP
                         </span>{' '}

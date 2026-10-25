@@ -21,8 +21,8 @@ const { useRemoteAlerts } = await import('../../resources/js/hooks/use-chat');
 const { ConversationActions } = await import('../../resources/js/components/chat/conversation-actions');
 const { remoteNotificationsAllowed, setRemoteAlerts, subscribeRemoteAlerts } = await import('../../resources/js/lib/remote-notifications');
 
-const user = { id: 'viewer', username: 'viewer' } as User;
-const partner = { id: 'search-partner', username: 'search-partner' } as User;
+const user = { id: 'viewer', handle: 'viewer' } as User;
+const partner = { id: 'search-partner', handle: 'search-partner' } as User;
 const forever = '9999-12-31T00:00:00Z';
 const org = { id: 'stashed-org', name: 'Stashed org' };
 const target = { kind: 'org' as const, org };
@@ -119,7 +119,7 @@ test.each([false, true])('dismissal releases menu presence before saving a pin c
 test('a search-only direct remote can be muted and unmuted without opening its thread', async () => {
     const summary = { ...orgSummary, id: 'search-only', kind: 'direct' as const, partner, is_archived: false };
     const direct = { kind: 'direct' as const, partner };
-    const props = { target: direct, title: partner.username, user, isArchived: false };
+    const props = { target: direct, title: partner.handle, user, isArchived: false };
     assert.equal(muteItem(props).disabled, true);
     vi.stubGlobal('fetch', async (_url: string, options?: RequestInit) => Response.json(
         options?.method === 'PUT'
@@ -128,7 +128,7 @@ test('a search-only direct remote can be muted and unmuted without opening its t
     ));
 
     const [found] = await searchConversations('search-partner', 'open', new AbortController().signal);
-    assert.equal(chatSnapshot().threads[partner.username], undefined);
+    assert.equal(chatSnapshot().threads[partner.handle], undefined);
     assert.deepEqual(muteItem({ ...props, conversation: found }), { disabled: false, label: 'Mute' });
     await setConversationMute(direct, 'forever');
     assert.deepEqual(muteItem({ ...props, conversation: found }), { disabled: false, label: 'Unmute' });

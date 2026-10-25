@@ -51,7 +51,7 @@ export function QuotedCommit({
                     {commit.user.name}
                 </span>
                 <span className="truncate font-mono text-xs text-muted-foreground">
-                    @{commit.user.username}
+                    @{commit.user.handle}
                 </span>
                 <span aria-hidden className="text-muted-foreground">
                     ·

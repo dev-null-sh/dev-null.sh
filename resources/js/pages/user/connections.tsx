@@ -43,13 +43,13 @@ export default function Connections({
 
     return (
         <>
-            <Head title={`${title} · @${user.username}`} />
+            <Head title={`${title} · @${user.handle}`} />
 
             <div className="sticky top-0 z-10 bg-card">
                 <div className="flex h-14 items-center gap-3 border-b px-4 sm:px-6">
                     <Link
                         href={show(user)}
-                        aria-label={`Back to @${user.username}`}
+                        aria-label={`Back to @${user.handle}`}
                         className="text-muted-foreground hover:text-foreground"
                     >
                         <ArrowLeft className="size-4" />
@@ -58,7 +58,7 @@ export default function Connections({
                         {user.name}
                     </h1>
                     <p className="shrink-0 font-mono text-[13px] text-muted-foreground">
-                        @{user.username}
+                        @{user.handle}
                     </p>
                 </div>
                 <PageTabs
@@ -82,8 +82,8 @@ export default function Connections({
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed command={`fatal: no ${type} yet`}>
                         {type === 'following'
-                            ? `@${user.username} isn't following anyone yet.`
-                            : `Nobody is following @${user.username} yet.`}
+                            ? `@${user.handle} isn't following anyone yet.`
+                            : `Nobody is following @${user.handle} yet.`}
                     </EmptyFeed>
                 </div>
             ) : (
@@ -123,7 +123,7 @@ export default function Connections({
                                             {person.name}
                                         </p>
                                         <p className="truncate font-mono text-sm text-muted-foreground">
-                                            @{person.username}
+                                            @{person.handle}
                                         </p>
                                         {person.bio && (
                                             <p className="mt-1 line-clamp-2 text-sm">

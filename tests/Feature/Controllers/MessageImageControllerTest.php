@@ -63,7 +63,7 @@ it('keeps images out of the history an org member cannot see', function (): void
     [$nuno, $taylor] = followersOf($mark, 2);
     $org = createOrg($mark, [$nuno]);
     $before = storedMessageImage(pushToOrg($nuno, $org));
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
     $after = storedMessageImage(pushToOrg($nuno, $org));
 
     $this->actingAs($taylor)->get(route('message-image.show', $before))->assertNotFound();
@@ -76,7 +76,7 @@ it('serves the images of a pinned message to every org member, whatever history 
     $org = createOrg($mark, [$nuno]);
     $message = pushToOrg($nuno, $org);
     $image = storedMessageImage($message);
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
     $this->putJson(route('message-pin.update', $message))->assertOk();
 
     $this->actingAs($taylor)->get(route('message-image.show', $image))->assertOk();

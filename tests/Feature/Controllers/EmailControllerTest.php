@@ -13,7 +13,7 @@ beforeEach(function (): void {
 });
 
 it('shows admins the composer with everyone who can be emailed', function (): void {
-    $admin = User::factory()->create(['username' => 'admin', 'email' => 'admin@example.com']);
+    $admin = User::factory()->create(['handle' => 'admin', 'email' => 'admin@example.com']);
     User::factory()->create();
     User::factory()->create(['email' => null]);
     User::factory()->create(['emails_unsubscribed_at' => now()]);
@@ -34,7 +34,7 @@ it('shows admins the composer with everyone who can be emailed', function (): vo
 
 it('narrows the audience down by when people were last seen and signed up', function (string $activity, string $signup, int $recipients): void {
     $this->travelTo('2026-10-24 12:00:00');
-    $admin = User::factory()->create(['username' => 'admin', 'last_seen_at' => today(), 'created_at' => now()->subYear()]);
+    $admin = User::factory()->create(['handle' => 'admin', 'last_seen_at' => today(), 'created_at' => now()->subYear()]);
     User::factory()->create(['last_seen_at' => today()->subDays(3), 'created_at' => now()->subDays(3)]);
     User::factory()->create(['last_seen_at' => today()->subDays(45), 'created_at' => now()->subDays(60)]);
     User::factory()->create(['last_seen_at' => null, 'created_at' => now()->subYear()]);
@@ -56,7 +56,7 @@ it('narrows the audience down by when people were last seen and signed up', func
 
 it('queues the email for everyone in the audience, one each', function (): void {
     Mail::fake();
-    $admin = User::factory()->create(['username' => 'admin', 'last_seen_at' => today()]);
+    $admin = User::factory()->create(['handle' => 'admin', 'last_seen_at' => today()]);
     $recent = User::factory()->create(['last_seen_at' => today()]);
     User::factory()->create(['last_seen_at' => today()->subYear()]);
     User::factory()->create(['last_seen_at' => today(), 'emails_unsubscribed_at' => now()]);
@@ -80,7 +80,7 @@ it('queues the email for everyone in the audience, one each', function (): void 
 it('requires a subject, a body, and an audience', function (): void {
     Mail::fake();
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->post(route('email.store'), ['activity' => 'everyone'])
         ->assertSessionHasErrors(['subject', 'body', 'activity', 'signup']);
 

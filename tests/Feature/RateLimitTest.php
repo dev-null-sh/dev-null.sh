@@ -109,7 +109,7 @@ it('renders the too many requests page when exporting too often', function (): v
 });
 
 it('shares a people lookup limit per guest IP without limiting other visitors', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $search = route('user-search.index', ['q' => 'octo']);
     $preview = route('user-preview.show', $user);
     $mentionPreview = route('mention.preview', $user);
@@ -171,7 +171,7 @@ it('shares the JSON star budget across commits and replies without consuming oth
 
     $this->put(route('commit-pin.update', $ownCommit))->assertRedirect();
     $this->post(route('user-follow.store', $commit->user))->assertRedirect();
-    $this->getJson(route('user-search.index', ['q' => $commit->user->username]))->assertOk();
+    $this->getJson(route('user-search.index', ['q' => $commit->user->handle]))->assertOk();
     $this->get(route('export'))->assertOk();
 
     $this->actingAs(User::factory()->create())

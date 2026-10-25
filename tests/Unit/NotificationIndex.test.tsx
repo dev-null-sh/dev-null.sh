@@ -20,7 +20,7 @@ import type {
 const actor = {
     id: 'actor',
     name: 'Matthieu Napoli',
-    username: 'mnapoli',
+    handle: 'mnapoli',
     lane: 2,
 } as User;
 
@@ -57,7 +57,7 @@ async function renderPage(page: () => ReactElement): Promise<string> {
             component: 'notification/index',
             props: {
                 auth: {
-                    user: { id: 'recipient', username: 'nunomaduro' },
+                    user: { id: 'recipient', handle: 'nunomaduro' },
                     log: {},
                 },
                 errors: {},
@@ -114,7 +114,7 @@ const previewedNames = (body: string): number =>
         /<span class="relative z-10[^"]*">(?:<a[^>]*>)?(?:<a|<span)[^>]*title="Matthieu Napoli"/g,
     )?.length ?? 0;
 
-const other = { ...actor, id: 'other', name: 'Other', username: 'other' };
+const other = { ...actor, id: 'other', name: 'Other', handle: 'other' };
 
 void test('separates last-visit activity without a border under the preceding notification', async () => {
     const body = await render([

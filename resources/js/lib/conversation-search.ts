@@ -12,8 +12,8 @@ export function conversationsMatching(
     const needle = term.toLowerCase();
     const isMatch = (value: string | null) =>
         value?.toLowerCase().includes(needle) ?? false;
-    const isPersonMatch = ({ username, name }: User) =>
-        isMatch(username) || isMatch(name);
+    const isPersonMatch = ({ handle, name }: User) =>
+        isMatch(handle) || isMatch(name);
 
     return [
         ...found,

@@ -7,7 +7,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 it("lists a user's followers", function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $follower = User::factory()->create();
     $user->followers()->attach($follower);
     $user->following()->attach(User::factory()->create());
@@ -79,7 +79,7 @@ it('returns guests to the followers once they sign in', function (): void {
 });
 
 it('previews the list to guests without letting search engines index it', function (): void {
-    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+    $user = User::factory()->create(['handle' => 'octocat', 'name' => 'The Octocat']);
 
     $this->get(route('user-followers.index', $user))
         ->assertOk()

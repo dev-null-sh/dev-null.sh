@@ -45,10 +45,8 @@ final class DatabaseSeeder extends Seeder
             );
         });
 
-        $localDeveloper = User::query()->firstOrCreate(
-            ['github_id' => 'local'],
-            ['username' => 'local-dev', 'name' => 'Local Developer'],
-        );
+        $localDeveloper = User::query()->firstWhere('github_id', 'local')
+            ?? User::factory()->create(['github_id' => 'local', 'handle' => 'local-dev', 'name' => 'Local Developer']);
 
         Commit::factory()->for($localDeveloper)->count(3)->sequence(
             fn (): array => ['created_at' => fake()->dateTimeBetween('-3 days')],

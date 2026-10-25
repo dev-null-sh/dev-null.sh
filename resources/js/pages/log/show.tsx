@@ -684,7 +684,7 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                     </span>
                                 </UserPreview>{' '}
                                 <span className="font-mono text-[13px] text-muted-foreground">
-                                    @{commit.user.username}
+                                    @{commit.user.handle}
                                 </span>
                             </p>
                             <p className="truncate text-sm text-muted-foreground">

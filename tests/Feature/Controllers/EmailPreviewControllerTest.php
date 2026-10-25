@@ -9,7 +9,7 @@ beforeEach(function (): void {
 });
 
 it('renders the email as it arrives, with a link to unsubscribe', function (): void {
-    $html = $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $html = $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->postJson(route('email-preview.store'), ['subject' => 'What shipped', 'body' => "## New\n\n- Emails, **finally**"])
         ->assertOk()
         ->json('html');

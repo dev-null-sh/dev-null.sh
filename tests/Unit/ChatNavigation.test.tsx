@@ -14,7 +14,7 @@ const page = (ids: number[], hasOlder = true): Thread => ({
 function thread(kind: 'direct' | 'org' = 'direct'): ChatTarget {
     const id = `navigation-${++sequence}`;
     const target: ChatTarget = kind === 'direct'
-        ? { kind, partner: { id, username: id } as User }
+        ? { kind, partner: { id, handle: id } as User }
         : { kind, org: { id, name: 'Navigation' } };
     seedThread(target, kind === 'direct' ? page([101, 102]) : {
         ...page([101, 102]), members: [], typing: [], role: 'contributor', pinned: [],

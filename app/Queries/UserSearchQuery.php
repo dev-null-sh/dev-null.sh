@@ -29,17 +29,19 @@ final readonly class UserSearchQuery
         }
 
         return User::query()
+            ->select('users.*')
+            ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
             ->where(fn (Builder $query): Builder => $query
-                ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
-                ->orWhereRaw("LOWER(name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
+                ->whereRaw("LOWER(profiles.handle) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+                ->orWhereRaw("LOWER(profiles.name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
             ->when($viewer, fn (Builder $query, User $viewer): Builder => $query
-                ->whereNotIn('id', $viewer->mutedIds())
-                ->whereNotIn('id', $viewer->idsAcrossBlocks()))
+                ->whereNotIn('users.id', $viewer->mutedIds())
+                ->whereNotIn('users.id', $viewer->idsAcrossBlocks()))
             ->orderByRaw(
-                "CASE WHEN LOWER(username) = ? THEN 0 WHEN LOWER(username) LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
+                "CASE WHEN LOWER(profiles.handle) = ? THEN 0 WHEN LOWER(profiles.handle) LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(profiles.name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
                 [$term, "{$escaped}%", "{$escaped}%"],
             )
-            ->orderBy('username')
+            ->orderBy('profiles.handle')
             ->limit($limit)
             ->get()
             ->toBase();

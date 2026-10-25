@@ -41,7 +41,7 @@ final class MessageResource extends JsonResource
             'body' => $this->body,
             'body_segments' => resolve(CodeSpans::class)->highlight($this->body),
             'mentions' => collect(resolve(Mentions::class)->positions($this->body))
-                ->filter(fn (array $mention): bool => array_key_exists(Str::lower($mention['username']), $this->mentions ?? []))
+                ->filter(fn (array $mention): bool => array_key_exists(Str::lower($mention['handle']), $this->mentions ?? []))
                 ->values(),
             'reply_to_id' => $this->when(! in_array('reply_to_id', $this->getHidden(), true), $this->reply_to_id),
             'reply_to' => $this->whenLoaded('replyTo', fn (Message $replyTo): array => [

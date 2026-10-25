@@ -47,7 +47,7 @@ it('flashes the created commit', function (): void {
     $response->assertInertiaFlash('committed', [
         'id' => $commit->id,
         'body' => 'Initial commit',
-        'user' => ['username' => $user->username],
+        'user' => ['handle' => $user->handle],
     ])->assertInertiaFlash('achievementsUnlocked', ['init']);
 });
 
@@ -66,7 +66,7 @@ it('keeps the created commit flashed through the reload a deploy forces on the r
     expect($page['flash']['committed'] ?? null)->toBe([
         'id' => $user->commits()->sole()->id,
         'body' => 'Initial commit',
-        'user' => ['username' => $user->username],
+        'user' => ['handle' => $user->handle],
     ]);
 });
 
@@ -379,7 +379,7 @@ it('tells users their commit is pending review', function (): void {
 it('publishes commits of admins right away', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
 
     $response = $this->actingAs($user)
         ->fromRoute('log.show', Log::Following)
@@ -486,21 +486,21 @@ it('shows the quoted commits of a commit and its ancestors with their authors', 
 
     $root = Commit::factory()->for(Commit::factory()->state(['body' => 'Quoted by the root']), 'quotedCommit')->create();
     $commit = Commit::factory()->for($root, 'parent')->create();
-    $focused = Commit::factory()->for(Commit::factory()->for(User::factory()->state(['username' => 'octocat']))->state(['body' => 'Quoted by the focused commit']), 'quotedCommit')->create();
+    $focused = Commit::factory()->for(Commit::factory()->for(User::factory()->state(['handle' => 'octocat']))->state(['body' => 'Quoted by the focused commit']), 'quotedCommit')->create();
 
     $this->get(route('commit.show', [$commit->user, $commit]))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('commit.quoted_commit', null)
             ->where('ancestors.0.quoted_commit.body', 'Quoted by the root')
-            ->where('ancestors.0.quoted_commit.user.username', $root->quotedCommit->user->username));
+            ->where('ancestors.0.quoted_commit.user.handle', $root->quotedCommit->user->handle));
 
     $this->get(route('commit.show', [$focused->user, $focused]))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('commit.quoted_commit_id', $focused->quoted_commit_id)
             ->where('commit.quoted_commit.body', 'Quoted by the focused commit')
-            ->where('commit.quoted_commit.user.username', 'octocat')
+            ->where('commit.quoted_commit.user.handle', 'octocat')
             ->missing('commit.quoted_commit.user.email'));
 })->with(['guest' => false, 'signed in' => true]);
 
@@ -524,7 +524,7 @@ it('shows a deleted quoted commit as a tombstone', function (bool $signedIn): vo
 })->with(['guest' => false, 'signed in' => true]);
 
 it('keeps account deletion quote tombstones private and removes their notifications', function (CommitStatus $status, bool $signedIn): void {
-    $author = User::factory()->create(['username' => 'deletedquoteauthor']);
+    $author = User::factory()->create(['handle' => 'deletedquoteauthor']);
     $root = Commit::factory()->create();
     $quoted = Commit::factory()->for($author)->for($root, 'parent')->create(['body' => 'Erased quoted words']);
     Commit::factory()->for($quoted, 'parent')->create();
@@ -665,14 +665,14 @@ it('shows a commit with its ancestors and reply count', function (): void {
             ->component('commit/show')
             ->where('commit.id', $commit->id)
             ->where('commit.body', 'Focused')
-            ->where('commit.user.username', $commit->user->username)
+            ->where('commit.user.handle', $commit->user->handle)
             ->where('commit.replies_count', 2)
             ->has('replies.data', 2)
-            ->where('replies.data.0.user.username', fn (string $username): bool => $username !== '')
+            ->where('replies.data.0.user.handle', fn (string $handle): bool => $handle !== '')
             ->where('replies.next_cursor', null)
             ->has('ancestors', 1)
             ->where('ancestors.0.id', $root->id)
-            ->where('ancestors.0.user.username', $root->user->username)
+            ->where('ancestors.0.user.handle', $root->user->handle)
             ->missing('commit.user.email'));
 });
 
@@ -708,7 +708,7 @@ it('shows the thread the author wrote after the commit and leaves it out of its 
             ->where('continuation.data.0.id', $second->id)
             ->where('continuation.data.0.replies_count', 0)
             ->where('continuation.data.1.id', $third->id)
-            ->where('continuation.data.1.user.username', $author->username)
+            ->where('continuation.data.1.user.handle', $author->handle)
             ->where('continuation.position', 1)
             ->where('continuation.length', 2)
             ->where('continuation.is_capped', false)
@@ -902,7 +902,7 @@ it('shows deleted ancestors and replies as tombstones', function (): void {
             ->missing('replies.data.0.body'));
 });
 
-it('does not show a commit under another username', function (): void {
+it('does not show a commit under another handle', function (): void {
     $commit = Commit::factory()->create();
 
     $response = $this->actingAs(User::factory()->create())
@@ -912,7 +912,7 @@ it('does not show a commit under another username', function (): void {
 });
 
 it('shows guests the commit with its approved replies and a link preview', function (): void {
-    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+    $user = User::factory()->create(['handle' => 'octocat', 'name' => 'The Octocat']);
     $commit = Commit::factory()->for($user)->create(['body' => "Shipped the new parser.\n\nIt is twice as fast."]);
     $commit->stars()->attach(User::factory()->create());
     Commit::factory()->for($commit, 'parent')->create(['body' => 'A reply everyone may read']);
@@ -973,7 +973,7 @@ it('shortens long urls in the link preview description', function (): void {
 });
 
 it('escapes the commit in the link preview', function (): void {
-    $user = User::factory()->create(['username' => 'octocat', 'name' => '"><script>alert(1)</script>']);
+    $user = User::factory()->create(['handle' => 'octocat', 'name' => '"><script>alert(1)</script>']);
     $commit = Commit::factory()->for($user)->create(['body' => '<img src=x onerror=alert(1)>']);
 
     $this->get(route('commit.show', [$user, $commit]))
@@ -985,8 +985,8 @@ it('escapes the commit in the link preview', function (): void {
 });
 
 it('mentions the approved parent of a reply in the link preview', function (): void {
-    $parent = Commit::factory()->for(User::factory()->state(['username' => 'taylorotwell']))->create(['body' => 'The parent commit']);
-    $reply = Commit::factory()->for($parent, 'parent')->for(User::factory()->state(['username' => 'octocat', 'name' => 'octocat']))->create();
+    $parent = Commit::factory()->for(User::factory()->state(['handle' => 'taylorotwell']))->create(['body' => 'The parent commit']);
+    $reply = Commit::factory()->for($parent, 'parent')->for(User::factory()->state(['handle' => 'octocat', 'name' => 'octocat']))->create();
 
     $this->get(route('commit.show', [$reply->user, $reply]))
         ->assertOk()
@@ -996,9 +996,9 @@ it('mentions the approved parent of a reply in the link preview', function (): v
 });
 
 it('does not mention an unavailable parent in the link preview', function (Closure $state): void {
-    $parent = Commit::factory()->for(User::factory()->state(['username' => 'taylorotwell']))->create(['body' => 'The parent commit']);
+    $parent = Commit::factory()->for(User::factory()->state(['handle' => 'taylorotwell']))->create(['body' => 'The parent commit']);
     $state($parent);
-    $reply = Commit::factory()->for($parent, 'parent')->for(User::factory()->state(['username' => 'octocat', 'name' => 'octocat']))->create();
+    $reply = Commit::factory()->for($parent, 'parent')->for(User::factory()->state(['handle' => 'octocat', 'name' => 'octocat']))->create();
 
     $this->get(route('commit.show', [$reply->user, $reply]))
         ->assertOk()
@@ -1022,7 +1022,7 @@ it('escapes the commit in the structured data', function (): void {
 });
 
 it('previews the images of a commit before its drawn card', function (): void {
-    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+    $user = User::factory()->create(['handle' => 'octocat', 'name' => 'The Octocat']);
     $commit = Commit::factory()->for($user)->create(['body' => 'The new terminal theme']);
     $first = CommitImage::factory()->for($commit)->create(['width' => 1600, 'height' => 900, 'position' => 0]);
     $second = CommitImage::factory()->for($commit)->create(['position' => 1]);
@@ -1052,7 +1052,7 @@ it('previews the drawn card of a commit without images', function (): void {
 });
 
 it('trims long commits in the link preview title', function (): void {
-    $user = User::factory()->create(['username' => 'octocat', 'name' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat', 'name' => 'octocat']);
     $commit = Commit::factory()->for($user)->create(['body' => str_repeat('Writing PHP on purpose. ', 4).'The end is not in the title.']);
 
     $title = Str::betweenFirst((string) $this->get(route('commit.show', [$user, $commit]))->getContent(), '<meta property="og:title" content="', '"');
@@ -1073,7 +1073,7 @@ it('lets search engines show large image previews of a commit', function (): voi
 
 it('lists the approved replies of a commit as comments in the structured data', function (): void {
     $commit = Commit::factory()->create();
-    $reply = Commit::factory()->for($commit, 'parent')->for(User::factory()->state(['username' => 'taylorotwell', 'name' => 'Taylor Otwell']))->create(['body' => 'A reply everyone may read']);
+    $reply = Commit::factory()->for($commit, 'parent')->for(User::factory()->state(['handle' => 'taylorotwell', 'name' => 'Taylor Otwell']))->create(['body' => 'A reply everyone may read']);
     Commit::factory()->for($commit, 'parent')->pending()->create(['body' => 'A pending reply only its author may read']);
 
     $this->get(route('commit.show', [$commit->user, $commit]))
@@ -1140,7 +1140,7 @@ it('changes the link preview image version only when something drawn of the auth
 
     expect($version())->toBe($initial);
 
-    $commit->user->update(['name' => 'The Octocat']);
+    $commit->user->profile->update(['name' => 'The Octocat']);
 
     expect($version())->not->toBe($initial);
 });
@@ -1156,7 +1156,7 @@ it('returns not found to guests for commits that are not approved', function (Cl
     'rejected' => [fn (): Commit => Commit::factory()->rejected()->create()],
 ]);
 
-it('returns not found to guests for a commit under another username', function (): void {
+it('returns not found to guests for a commit under another handle', function (): void {
     $commit = Commit::factory()->create();
 
     $this->get(route('commit.show', [User::factory()->create(), $commit]))->assertNotFound();
@@ -1165,7 +1165,7 @@ it('returns not found to guests for a commit under another username', function (
 it('returns not found to guests for unknown commits', function (): void {
     $user = User::factory()->create();
 
-    $this->get("/@{$user->username}/commits/01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3")->assertNotFound();
+    $this->get("/@{$user->handle}/commits/01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3")->assertNotFound();
     $this->get('/@missing/commits/01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3')->assertNotFound();
 });
 

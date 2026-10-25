@@ -24,6 +24,7 @@ use Carbon\CarbonImmutable;
 use Faker\Provider\Biased;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
@@ -103,7 +104,8 @@ final class OperationsSeeder extends Seeder
             $seenDaysAgo = (int) min($user['created_at']->diffInDays($this->now->startOfDay()), fake()->biasedNumberBetween(0, 30, Biased::class.'::linearLow'));
 
             return [
-                ...User::factory()->raw(['onboarded_at' => $user['created_at'], 'commit_rules_accepted_at' => $user['created_at']]),
+                // Making the row makes the user's profile already, which the row itself doesn't hold...
+                ...Arr::except(User::factory()->raw(['onboarded_at' => $user['created_at'], 'commit_rules_accepted_at' => $user['created_at']]), 'profile'),
                 'id' => $user['id'],
                 'created_at' => $user['created_at'],
                 'updated_at' => $user['created_at'],
