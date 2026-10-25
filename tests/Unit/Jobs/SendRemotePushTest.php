@@ -14,6 +14,7 @@ use App\Services\RemotePush;
 use Illuminate\Contracts\Queue\Job;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
@@ -42,6 +43,19 @@ it('sends an authenticated empty push to every eligible browser without message 
     resolve(SendRemotePush::class, ['messageId' => $this->message->id])->handle(resolve(RemotePush::class));
     Http::assertSentCount(2);
     Http::assertSent(fn (Request $request): bool => $request->body() === '' && str_starts_with($request->header('Authorization')[0], 'vapid t=') && $request->header('TTL') === ['300']);
+});
+
+it('does not load recipients who have no push subscriptions', function (): void {
+    $this->subscription->delete();
+    $loaded = [];
+    Event::listen('eloquent.retrieved: '.User::class, function (User $user) use (&$loaded): void {
+        $loaded[] = $user->id;
+    });
+
+    new SendRemotePush($this->message->id)->handle(resolve(RemotePush::class));
+
+    expect($loaded)->not->toContain($this->recipient->id);
+    Http::assertNothingSent();
 });
 
 it('rechecks eligibility at delivery time', function (string $change): void {

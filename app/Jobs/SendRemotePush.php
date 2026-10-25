@@ -40,6 +40,7 @@ final class SendRemotePush implements ShouldQueue
             ->where('read_through_id', '<', $message->id)
             ->whereIn('status', config('remotes.requests') ? [RemoteStatus::Open, RemoteStatus::Fetched] : [RemoteStatus::Open])
             ->where(fn (Builder $query): Builder => $query->whereNull('muted_until_at')->orWhere('muted_until_at', '<=', now()))
+            ->whereHas('user.pushSubscriptions')
             ->with('user')->get();
 
         $retry = false;
