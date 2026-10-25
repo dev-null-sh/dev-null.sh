@@ -1,6 +1,6 @@
 import { Form, Link, usePage } from '@inertiajs/react';
 import { ChartBar, Clock3 } from 'lucide-react';
-import type { KeyboardEvent } from 'react';
+import type { DragEvent, KeyboardEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
@@ -205,12 +205,20 @@ function CommitComposerBody({
         maxLength: isIssue ? maxBodyLength : maxRawBodyLength,
     });
 
+    const cancelFileDrop = (event: DragEvent<HTMLElement>) => {
+        if (event.dataTransfer.types.includes('Files')) {
+            event.preventDefault();
+        }
+    };
+
     return (
         <div
             className={cn('relative flex', { 'min-h-0': isInDialog })}
-            {...(poll === null ? attachments.dropzone : {})}
+            {...(poll === null && !isIssue
+                ? attachments.dropzone
+                : { onDragOver: cancelFileDrop, onDrop: cancelFileDrop })}
         >
-            {attachments.isDraggingFiles && (
+            {!isIssue && attachments.isDraggingFiles && (
                 <ImageDropOverlay className="inset-2" />
             )}
             <GraphRail
@@ -284,7 +292,9 @@ function CommitComposerBody({
                             value={body}
                             onValueChange={issue.change}
                             onPaste={
-                                poll === null ? attachments.onPaste : undefined
+                                poll === null && !isIssue
+                                    ? attachments.onPaste
+                                    : undefined
                             }
                             onKeyDown={(event) =>
                                 preview.handleShortcut(event) ||
@@ -373,7 +383,15 @@ function CommitComposerBody({
                         />
                     )}
                     <InputError
-                        message={attachments.error ?? imageErrorFrom(errors)}
+                        message={
+                            isIssue && attachments.images.length > 0
+                                ? 'Issues carry text only: images will not be attached.'
+                                : !isIssue
+                                  ? (attachments.error ??
+                                    imageErrorFrom(errors) ??
+                                    undefined)
+                                  : undefined
+                        }
                         className="mt-1"
                     />
 
@@ -645,15 +663,21 @@ export function CommitComposer({
             poll === null &&
             !isScheduling,
         initialKind: initialIssue,
+        onStart: () => {
+            attachments.clear();
+        },
         onCreated: () => {
             drop();
+            attachments.clear();
             focusBody(id);
         },
     });
 
     const isCommittable =
         !attachments.reading &&
-        (hasImages || characterCount(body.trim()) >= minBodyLength) &&
+        (issue.command !== null
+            ? characterCount(body.trim()) >= minBodyLength
+            : hasImages || characterCount(body.trim()) >= minBodyLength) &&
         (issue.command !== null
             ? characterCount(body)
             : bodyCharacterCount(body)) <= maxBodyLength &&
