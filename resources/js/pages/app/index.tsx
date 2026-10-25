@@ -1,7 +1,6 @@
 import { Head } from '@inertiajs/react';
 import { Download } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
-import { LinkifiedText } from '@/components/linkified-text';
 import { Button } from '@/components/ui/button';
 import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
@@ -92,14 +91,16 @@ export default function Index({
                         Your remotes and orgs in a native Mac app. Push, pull,
                         and react with everyone on{' '}
                         <WordmarkText>/dev/null</WordmarkText> without keeping a
-                        tab open.
-                    </p>
-
-                    <p className="mt-5">
-                        <LinkifiedText
-                            text="https://github.com/dev-null-sh/mac-os-app"
-                            mentions={null}
-                        />
+                        tab open. Want to help build?{' '}
+                        <a
+                            href="https://github.com/dev-null-sh/mac-os-app"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline decoration-muted-foreground/50 underline-offset-4 hover:decoration-foreground"
+                        >
+                            Open a pull request
+                        </a>
+                        .
                     </p>
 
                     {release === null ? (
