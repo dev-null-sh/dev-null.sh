@@ -38,7 +38,7 @@ function elements(node: ReactNode): Element[] {
     ];
 }
 
-function pressEnter(isComposing: boolean) {
+function pressEnter(isComposing: boolean, keyCode = 13) {
     const onPick = vi.fn();
     const preventDefault = vi.fn();
     const search = elements(
@@ -51,6 +51,7 @@ function pressEnter(isComposing: boolean) {
 
     (search.props.onKeyDown as (event: unknown) => void)({
         key: 'Enter',
+        keyCode,
         nativeEvent: { isComposing },
         preventDefault,
     });
@@ -67,6 +68,13 @@ test('Enter picks the highlighted emoji', () => {
 
 test('Enter that confirms an input method candidate picks nothing', () => {
     const { onPick, preventDefault } = pressEnter(true);
+
+    assert.equal(onPick.mock.calls.length, 0);
+    assert.equal(preventDefault.mock.calls.length, 0);
+});
+
+test("Safari's Enter that confirms an input method candidate picks nothing", () => {
+    const { onPick, preventDefault } = pressEnter(false, 229);
 
     assert.equal(onPick.mock.calls.length, 0);
     assert.equal(preventDefault.mock.calls.length, 0);
