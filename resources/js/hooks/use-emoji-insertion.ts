@@ -3,9 +3,9 @@ import { useLayoutEffect, useRef } from 'react';
 import { insertAtSelection } from '@/lib/text-selection';
 
 /**
- * Inserts a picked emoji at the caret of the composer's textarea. The caret is put back once React has written the
- * new body, since writing a long value can land after an animation frame and would leave the caret at the end. Focus
- * is left alone so the picker can stay open for the next emoji.
+ * Inserts a picked emoji where the caret was in the composer's textarea. A textarea keeps its selection while the
+ * picker has the focus, so this works whether the picker was opened with the pointer or the keyboard. Once React has
+ * written the new body, the focus goes back to the textarea with the caret right after the emoji.
  */
 export function useEmojiInsertion({
     body,
@@ -17,7 +17,7 @@ export function useEmojiInsertion({
     updateBody: (body: string) => void;
     textareaRef: RefObject<HTMLTextAreaElement | null>;
     maxLength: number;
-}): (emoji: string, textarea: HTMLTextAreaElement | null) => void {
+}): (emoji: string) => void {
     const caret = useRef<number | null>(null);
 
     useLayoutEffect(() => {
@@ -27,20 +27,18 @@ export function useEmojiInsertion({
             return;
         }
 
+        element.focus();
         element.setSelectionRange(caret.current, caret.current);
         caret.current = null;
     }, [body, textareaRef]);
 
-    return (emoji, textarea) => {
+    return (emoji) => {
         const element = textareaRef.current;
-        const inserted = insertAtSelection(
-            body,
-            textarea !== null && textarea === element ? element : null,
-            emoji,
-            maxLength,
-        );
+        const inserted = insertAtSelection(body, element, emoji, maxLength);
 
         if (inserted === null) {
+            element?.focus();
+
             return;
         }
 

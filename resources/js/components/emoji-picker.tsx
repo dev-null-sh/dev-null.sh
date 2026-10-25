@@ -1,17 +1,20 @@
-import { Popover, PopoverButton, PopoverPanel } from '@headlessui/react';
 import { Smile } from 'lucide-react';
-import type { KeyboardEvent } from 'react';
 import { useRef, useState } from 'react';
 import { ActionTooltip } from '@/components/action-tooltip';
+import { EmojiPicker } from '@/components/chat/message-reactions';
 import { buttonVariants } from '@/components/ui/button';
-import type { PickableEmoji } from '@/lib/emoji-picker';
-import { popularEmoji, searchEmoji } from '@/lib/emoji-picker';
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 
+const noReactions = new Set<string>();
+
 /**
- * Pressing the button keeps the focus, and so the caret, in the textarea being written, which is handed to `onPick`
- * along with the emoji. It is null when the picker was opened from the keyboard. Clicking an emoji leaves the picker
- * open to add more; picking the first result with Enter closes it and returns to the textarea.
+ * The reactions' emoji picker, for composers. The emoji is handed over once the picker has closed, so `onPick` can put
+ * the focus back in the textarea instead of on this button.
  */
 export function EmojiPickerButton({
     disabled,
@@ -19,29 +22,18 @@ export function EmojiPickerButton({
     className,
 }: {
     disabled?: boolean;
-    onPick: (emoji: string, textarea: HTMLTextAreaElement | null) => void;
+    onPick: (emoji: string) => void;
     className?: string;
 }) {
-    const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-    const [query, setQuery] = useState('');
-    const results = query.trim() === '' ? null : searchEmoji(query);
+    const [isOpen, setIsOpen] = useState(false);
+    const pickedEmoji = useRef<string | null>(null);
 
     return (
-        <Popover>
+        <Popover open={isOpen} onOpenChange={setIsOpen}>
             <ActionTooltip label="Add emoji">
-                <PopoverButton
+                <PopoverTrigger
                     type="button"
                     disabled={disabled}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                        const active = document.activeElement;
-
-                        textareaRef.current =
-                            active instanceof HTMLTextAreaElement
-                                ? active
-                                : null;
-                        setQuery('');
-                    }}
                     aria-label="Add emoji"
                     className={cn(
                         buttonVariants({ variant: 'ghost', size: 'icon' }),
@@ -51,132 +43,31 @@ export function EmojiPickerButton({
                     data-test="emoji-picker-button"
                 >
                     <Smile className="size-5" />
-                </PopoverButton>
+                </PopoverTrigger>
             </ActionTooltip>
+            <PopoverContent
+                align="start"
+                collisionPadding={8}
+                className="flex h-[min(25rem,var(--radix-popover-content-available-height))] w-76 flex-col overflow-hidden rounded-lg p-0 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)]"
+                onCloseAutoFocus={(event) => {
+                    const emoji = pickedEmoji.current;
 
-            <PopoverPanel
-                anchor={{ to: 'bottom start', gap: 4, padding: 16 }}
-                focus
-                className="z-50 flex w-72 flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] [--anchor-max-height:22rem]"
-                data-test="emoji-picker"
-            >
-                {({ close }) => {
-                    const pick = (emoji: string) => {
-                        onPick(emoji, textareaRef.current);
-                    };
-
-                    const pickAndClose = (emoji: string) => {
-                        const textarea = textareaRef.current;
-
-                        onPick(emoji, textarea);
-                        close(textarea ?? undefined);
-                    };
-
-                    const pickFirst = (event: KeyboardEvent) => {
-                        if (event.key !== 'Enter') {
-                            return;
-                        }
-
+                    if (emoji !== null) {
                         event.preventDefault();
-
-                        const first = (results ?? popularEmoji)[0];
-
-                        if (first) {
-                            pickAndClose(first.emoji);
-                        }
-                    };
-
-                    return (
-                        <>
-                            <div className="border-b p-2">
-                                <input
-                                    type="search"
-                                    value={query}
-                                    onChange={(event) =>
-                                        setQuery(event.target.value)
-                                    }
-                                    onKeyDown={pickFirst}
-                                    placeholder="Search emoji"
-                                    aria-label="Search emoji"
-                                    autoComplete="off"
-                                    className="h-8 w-full rounded-md border bg-background px-2 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 md:text-sm"
-                                />
-                            </div>
-
-                            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2">
-                                {results === null ? (
-                                    <>
-                                        <EmojiSection
-                                            title="Popular"
-                                            emoji={popularEmoji}
-                                            onPick={pick}
-                                        />
-                                        <EmojiSection
-                                            title="All"
-                                            emoji={searchEmoji('')}
-                                            onPick={pick}
-                                            className="mt-2"
-                                        />
-                                    </>
-                                ) : results.length === 0 ? (
-                                    <p className="py-6 text-center text-sm text-muted-foreground">
-                                        No emoji found.
-                                    </p>
-                                ) : (
-                                    <EmojiGrid emoji={results} onPick={pick} />
-                                )}
-                            </div>
-                        </>
-                    );
+                        pickedEmoji.current = null;
+                        onPick(emoji);
+                    }
                 }}
-            </PopoverPanel>
+            >
+                <EmojiPicker
+                    usage={[]}
+                    reacted={noReactions}
+                    onPick={(emoji) => {
+                        pickedEmoji.current = emoji;
+                        setIsOpen(false);
+                    }}
+                />
+            </PopoverContent>
         </Popover>
-    );
-}
-
-function EmojiSection({
-    title,
-    emoji,
-    onPick,
-    className,
-}: {
-    title: string;
-    emoji: PickableEmoji[];
-    onPick: (emoji: string) => void;
-    className?: string;
-}) {
-    return (
-        <section className={className}>
-            <h3 className="px-1 pb-1 font-mono text-[11px] text-muted-foreground">
-                {title}
-            </h3>
-            <EmojiGrid emoji={emoji} onPick={onPick} />
-        </section>
-    );
-}
-
-function EmojiGrid({
-    emoji,
-    onPick,
-}: {
-    emoji: PickableEmoji[];
-    onPick: (emoji: string) => void;
-}) {
-    return (
-        <div className="grid grid-cols-8 gap-0.5">
-            {emoji.map(({ name, emoji: character }) => (
-                <button
-                    key={name}
-                    type="button"
-                    onClick={() => onPick(character)}
-                    aria-label={name.replaceAll('_', ' ')}
-                    title={`:${name}:`}
-                    className="grid size-8 place-items-center rounded-md text-xl leading-none transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
-                    data-test="emoji-picker-option"
-                >
-                    {character}
-                </button>
-            ))}
-        </div>
     );
 }
