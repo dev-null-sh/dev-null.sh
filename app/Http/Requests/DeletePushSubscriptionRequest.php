@@ -4,13 +4,18 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Models\User;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class DeletePushSubscriptionRequest extends FormRequest
 {
-    public function authorize(): bool
+    public function authorize(): Response
     {
-        return true;
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return $this->input('user_id') === $user->id ? Response::allow() : Response::deny('Your signed-in account changed.');
     }
 
     /**

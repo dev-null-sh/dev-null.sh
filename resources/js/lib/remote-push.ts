@@ -6,6 +6,8 @@ import {
 
 export class RemotePushValidationError extends Error {}
 
+class RemotePushAccountChangedError extends Error {}
+
 let active = false;
 let pending = Promise.resolve();
 
@@ -24,6 +26,7 @@ export function remotePushSupported(): boolean {
 
 async function request(
     url: string,
+    userId: string,
     method = 'GET',
     endpoint?: string,
 ): Promise<Response> {
@@ -44,8 +47,13 @@ async function request(
         },
         ...(endpoint === undefined
             ? {}
-            : { body: JSON.stringify({ endpoint }) }),
+            : { body: JSON.stringify({ endpoint, user_id: userId }) }),
     });
+    if (response.status === 403) {
+        const denied = (await response.json()) as { message: string };
+        if (denied.message === 'Your signed-in account changed.')
+            throw new RemotePushAccountChangedError(denied.message);
+    }
     if (response.status === 422) {
         const validation = (await response.json()) as {
             errors: { endpoint: string[] };
@@ -76,6 +84,7 @@ function pushResult<T>(operation: Promise<T>): Promise<T> {
 
 /** Reuse an existing subscription on load; only a user gesture may create one. */
 export function syncRemotePush(
+    userId: string,
     enabled: boolean,
     create = false,
 ): Promise<void> {
@@ -90,7 +99,9 @@ export function syncRemotePush(
             return;
         let publicKey: string | null = null;
         if (enabled) {
-            const config = (await (await request(index.url())).json()) as {
+            const config = (await (
+                await request(index.url(), userId)
+            ).json()) as {
                 public_key: string | null;
             };
             publicKey = config.public_key;
@@ -137,26 +148,47 @@ export function syncRemotePush(
             }
             if (subscription) {
                 try {
-                    await request(store.url(), 'POST', subscription.endpoint);
+                    await request(
+                        store.url(),
+                        userId,
+                        'POST',
+                        subscription.endpoint,
+                    );
                 } catch (error) {
+                    if (error instanceof RemotePushAccountChangedError) {
+                        active = false;
+                        throw error;
+                    }
                     if (create) {
                         active = false;
                         // A failed opt-in may have been saved before its response was lost.
-                        await request(
+                        const accountChanged = await request(
                             destroy.url(),
+                            userId,
                             'DELETE',
                             subscription.endpoint,
-                        ).catch(() => undefined);
-                        await pushResult(subscription.unsubscribe()).catch(
-                            () => undefined,
+                        ).then(
+                            () => false,
+                            (cleanupError: unknown) =>
+                                cleanupError instanceof
+                                RemotePushAccountChangedError,
                         );
+                        if (!accountChanged)
+                            await pushResult(subscription.unsubscribe()).catch(
+                                () => undefined,
+                            );
                     }
                     throw error;
                 }
                 active = true;
             }
         } else if (subscription) {
-            await request(destroy.url(), 'DELETE', subscription.endpoint);
+            await request(
+                destroy.url(),
+                userId,
+                'DELETE',
+                subscription.endpoint,
+            );
             await pushResult(subscription.unsubscribe());
             active = false;
         }

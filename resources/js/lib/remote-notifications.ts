@@ -81,14 +81,14 @@ export async function setRemoteAlerts(
             if (readStorage(preferenceKey(userId, channel)) !== 'on')
                 return false;
             try {
-                await syncRemotePush(true, true);
+                await syncRemotePush(userId, true, true);
             } catch (error) {
                 writeStorage(preferenceKey(userId, channel), previous);
                 listeners.forEach((listener) => listener());
                 throw error;
             }
         } else {
-            await syncRemotePush(false, true);
+            await syncRemotePush(userId, false, true);
         }
     }
 
@@ -114,7 +114,7 @@ export function createRemoteAlerts(
     reading: () => string[],
     onIncoming: (conversation: ConversationSummary) => void,
 ) {
-    void syncRemotePush(remoteAlertsEnabled(userId, 'offsite')).catch(
+    void syncRemotePush(userId, remoteAlertsEnabled(userId, 'offsite')).catch(
         () => undefined,
     );
     let latest: Record<string, number> | null = null;

@@ -7,17 +7,23 @@ namespace App\Http\Requests;
 use App\Models\PushSubscription;
 use App\Models\User;
 use App\Rules\PushEndpoint;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 final class CreatePushSubscriptionRequest extends FormRequest
 {
-    public function authorize(): bool
+    public function authorize(): Response
     {
         $user = $this->user();
         assert($user instanceof User);
 
-        return $user->remotes_enabled && config('services.web_push.public_key') && config('services.web_push.private_key');
+        if ($this->input('user_id') !== $user->id) {
+            return Response::deny('Your signed-in account changed.');
+        }
+
+        return $user->remotes_enabled && config('services.web_push.public_key') && config('services.web_push.private_key')
+            ? Response::allow() : Response::deny();
     }
 
     /**
