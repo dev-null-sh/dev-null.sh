@@ -12,16 +12,20 @@ use App\Services\RemotePush;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Queue\Attributes\Tries;
 use Illuminate\Support\Facades\Date;
 
-#[Tries(3)]
 final class SendRemotePush implements ShouldQueue
 {
     use Queueable;
 
-    public function __construct(public readonly int $messageId)
-    {
+    /**
+     * @param  list<string>|null  $subscriptionIds
+     */
+    public function __construct(
+        public readonly int $messageId,
+        public readonly ?array $subscriptionIds = null,
+        public readonly int $tries = 3,
+    ) {
         //
     }
 
@@ -43,7 +47,7 @@ final class SendRemotePush implements ShouldQueue
             ->whereHas('user.pushSubscriptions')
             ->with('user')->get();
 
-        $retry = false;
+        $failed = [];
 
         foreach ($participants as $participant) {
             $user = $participant->user;
@@ -52,15 +56,19 @@ final class SendRemotePush implements ShouldQueue
                 continue;
             }
 
-            foreach (PushSubscription::query()->where('user_id', $user->id)->lazyById() as $subscription) {
+            foreach (PushSubscription::query()->where('user_id', $user->id)
+                ->when($this->subscriptionIds !== null, fn (Builder $query): Builder => $query->whereKey($this->subscriptionIds))
+                ->lazyById() as $subscription) {
                 if (! $push->send($subscription)) {
-                    $retry = true;
+                    $failed[] = $subscription->id;
                 }
             }
         }
 
-        if ($retry) {
-            $this->release(30);
+        if ($failed !== [] && $this->attempts() < $this->tries) {
+            // A follow-up starts with a fresh queue attempt count, so carry the remaining budget.
+            dispatch(new self($this->messageId, $failed, $this->tries - $this->attempts())
+                ->onConnection($this->connection)->onQueue($this->queue))->delay(now()->addSeconds(30));
         }
     }
 }

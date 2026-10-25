@@ -11,9 +11,9 @@ use App\Models\Message;
 use App\Models\PushSubscription;
 use App\Models\User;
 use App\Services\RemotePush;
-use Illuminate\Contracts\Queue\Job;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -28,11 +28,12 @@ beforeEach(function (): void {
     $this->participant = ConversationParticipant::factory()->create(['conversation_id' => $this->message->conversation_id, 'user_id' => $this->recipient->id]);
     $this->subscription = PushSubscription::query()->create(['user_id' => $this->recipient->id, 'endpoint_hash' => hash('sha256', 'https://fcm.googleapis.com/wp/recipient'), 'endpoint' => 'https://fcm.googleapis.com/wp/recipient']);
     $this->pushStatus = 201;
+    $this->pushStatuses = [];
     $this->connectionFails = false;
-    Http::fake(['https://fcm.googleapis.com/*' => function () {
+    Http::fake(['https://fcm.googleapis.com/*' => function (Request $request) {
         throw_if($this->connectionFails, ConnectionException::class, 'unavailable');
 
-        return Http::response('', $this->pushStatus);
+        return Http::response('', $this->pushStatuses[$request->url()] ?? $this->pushStatus);
     }]);
 });
 
@@ -105,13 +106,68 @@ it('queues delivery once for a retried message and only after commit', function 
 it('retries temporary push failures without keeping or reporting the endpoint', function (int $status, bool $connectionFails): void {
     $this->pushStatus = $status;
     $this->connectionFails = $connectionFails;
-    $queued = Mockery::mock(Job::class);
-    $queued->shouldReceive('release')->once()->with(30);
+    Queue::fake();
     $job = new SendRemotePush($this->message->id);
-    $job->setJob($queued);
     $job->handle(resolve(RemotePush::class));
     $this->assertModelExists($this->subscription);
+    Queue::assertPushed(SendRemotePush::class, fn (SendRemotePush $retry): bool => $retry->messageId === $this->message->id
+        && $retry->subscriptionIds === [$this->subscription->id] && $retry->tries === 2 && $retry->delay->equalTo(now()->addSeconds(30)));
 })->with([[500, false], [429, false], [201, true]]);
+
+it('retries only failed browsers across serialized queue deliveries', function (): void {
+    $this->recipient->pushSubscriptions()->create(['endpoint_hash' => 'second', 'endpoint' => 'https://fcm.googleapis.com/wp/second']);
+    $other = User::factory()->create();
+    ConversationParticipant::factory()->create(['conversation_id' => $this->message->conversation_id, 'user_id' => $other->id]);
+    $other->pushSubscriptions()->create(['endpoint_hash' => 'other', 'endpoint' => 'https://fcm.googleapis.com/wp/other']);
+    $this->pushStatuses['https://fcm.googleapis.com/wp/recipient'] = 500;
+    dispatch(new SendRemotePush($this->message->id)->onConnection('database')->onQueue('push-retries'));
+
+    $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
+    Http::assertSentCount(3);
+
+    $this->pushStatuses['https://fcm.googleapis.com/wp/recipient'] = 201;
+    $other->pushSubscriptions()->create(['endpoint_hash' => 'new', 'endpoint' => 'https://fcm.googleapis.com/wp/new']);
+    $this->travel(31)->seconds();
+    $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
+
+    Http::assertSentCount(4);
+    expect(Http::recorded()->filter(fn (array $record): bool => $record[0]->url() === 'https://fcm.googleapis.com/wp/recipient'))->toHaveCount(2);
+    $this->assertDatabaseCount('jobs', 0);
+    $this->assertDatabaseCount('failed_jobs', 0);
+});
+
+it('stops temporary retries within the original three-attempt budget', function (int $previousAttempts): void {
+    $this->pushStatus = 500;
+    dispatch(new SendRemotePush($this->message->id)->onConnection('database')->onQueue('push-retries'));
+    DB::table('jobs')->where('queue', 'push-retries')->update(['attempts' => $previousAttempts]);
+
+    for ($attempt = $previousAttempts; $attempt < 3; $attempt++) {
+        $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
+        $this->travel(31)->seconds();
+    }
+
+    Http::assertSentCount(3 - $previousAttempts);
+    $this->assertDatabaseCount('jobs', 0);
+    $this->assertDatabaseCount('failed_jobs', 0);
+})->with([0, 1, 2]);
+
+it('rechecks eligibility and enrollment before a failed browser retry', function (string $change): void {
+    $this->pushStatus = 500;
+    dispatch(new SendRemotePush($this->message->id)->onConnection('database')->onQueue('push-retries'));
+    $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
+
+    match ($change) {
+        'read' => $this->participant->update(['read_through_id' => $this->message->id]),
+        'revoked' => $this->subscription->delete(),
+        'transferred' => $this->subscription->update(['user_id' => User::factory()->create()->id]),
+    };
+    $this->travel(31)->seconds();
+    $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'push-retries', '--once' => true])->assertSuccessful();
+
+    Http::assertSentCount(1);
+    $this->assertDatabaseCount('jobs', 0);
+    $this->assertDatabaseCount('failed_jobs', 0);
+})->with(['read', 'revoked', 'transferred']);
 
 it('uses Windows raw push headers for Microsoft Edge endpoints', function (): void {
     Http::fake(['https://wns2-example.notify.windows.com/*' => Http::response('', 201)]);
