@@ -9,6 +9,7 @@ use App\Enums\NotificationType;
 use App\Models\Event;
 use App\Models\EventAttendee;
 use App\Models\Notification;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Str;
 
 final readonly class CreateEventCancellationNotifications
@@ -21,19 +22,20 @@ final readonly class CreateEventCancellationNotifications
     {
         $hostId = $event->commit?->user_id;
 
-        Notification::query()->insertOrIgnore($event->attendees()
+        // A statement takes at most 65,535 bound values, so a large event's notifications go in chunks.
+        $event->attendees()
             ->where('response', EventResponse::Going)
-            ->get()
-            ->map(fn (EventAttendee $attendee): array => [
-                'id' => Str::uuid7()->toString(),
-                'recipient_id' => $attendee->user_id,
-                'actor_id' => $hostId,
-                'type' => NotificationType::EventCancelled->value,
-                'commit_id' => $event->commit_id,
-                'key' => 'event_cancelled:'.$event->id,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ])
-            ->all());
+            ->chunkById(500, fn (Collection $attendees): int => Notification::query()->insertOrIgnore($attendees
+                ->map(fn (EventAttendee $attendee): array => [
+                    'id' => Str::uuid7()->toString(),
+                    'recipient_id' => $attendee->user_id,
+                    'actor_id' => $hostId,
+                    'type' => NotificationType::EventCancelled->value,
+                    'commit_id' => $event->commit_id,
+                    'key' => 'event_cancelled:'.$event->id,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ])
+                ->all()));
     }
 }

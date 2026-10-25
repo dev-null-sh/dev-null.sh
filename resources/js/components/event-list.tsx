@@ -17,7 +17,7 @@ import {
     eventStateLabels,
 } from '@/lib/event';
 import { formatEventWhen } from '@/lib/event-dates';
-import { exactCountTitle, formatCount } from '@/lib/numbers';
+import { formatCount, formatExactCount } from '@/lib/numbers';
 import { cn, shortHash } from '@/lib/utils';
 import type { CursorPaginated, EventState, EventWithHost } from '@/types';
 
@@ -108,7 +108,7 @@ export function EventList({
                             </div>
                             <span
                                 className="mt-0.5 flex shrink-0 items-center gap-1 font-mono text-[13px] text-muted-foreground tabular-nums"
-                                title={`${exactCountTitle(event.going_count)} going`}
+                                title={`${formatExactCount(event.going_count)} going`}
                             >
                                 <Users className="size-3.5" />
                                 {formatCount(event.going_count)}

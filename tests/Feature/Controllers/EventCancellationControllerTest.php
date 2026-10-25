@@ -59,6 +59,15 @@ it('tells the people going, and only them, that the event is cancelled', functio
         ->key->toBe('event_cancelled:'.$event->id);
 });
 
+it('tells everyone going at a large event, past one chunk of notifications', function (): void {
+    $event = Event::factory()->create();
+    EventAttendee::factory()->for($event)->count(501)->create();
+
+    $this->actingAs($event->commit->user)->post(route('event-cancellation.store', $event));
+
+    expect(Notification::query()->where('type', NotificationType::EventCancelled)->count())->toBe(501);
+});
+
 it('tells no one when an event is over', function (): void {
     $event = Event::factory()->ended()->create();
     EventAttendee::factory()->for($event)->create();
