@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\PushSubscription;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     config(['services.web_push.public_key' => 'public', 'services.web_push.private_key' => 'private']);
@@ -27,7 +28,8 @@ it('stores an encrypted endpoint and transfers the browser to the current accoun
     $first = User::factory()->create();
     $second = User::factory()->create();
     $endpoint = 'https://fcm.googleapis.com/wp/browser-one';
-    $this->actingAs($first)->postJson(route('push-subscription.store'), ['endpoint' => $endpoint])->assertNoContent();
+    $this->actingAs($first)->withCredentials()->withCookie(config('session.cookie'), Str::random(40))
+        ->postJson(route('push-subscription.store'), ['endpoint' => $endpoint])->assertNoContent();
     $subscription = PushSubscription::query()->sole();
     expect($subscription->endpoint)->toBe($endpoint)
         ->and(DB::table('push_subscriptions')->value('endpoint'))->not->toContain($endpoint)
@@ -88,7 +90,7 @@ it('validates deletion and refuses subscriptions while remotes are off', functio
 
 it('uses current remotes consent when the authenticated user was loaded before a settings change', function (bool $enabled): void {
     $user = User::factory()->create(['remotes_enabled' => ! $enabled]);
-    $this->actingAs($user);
+    $this->actingAs($user)->withCredentials()->withCookie(config('session.cookie'), Str::random(40));
     User::query()->whereKey($user->id)->update(['remotes_enabled' => $enabled]);
 
     $response = $this->postJson(route('push-subscription.store'), ['endpoint' => 'https://fcm.googleapis.com/wp/current-consent']);
