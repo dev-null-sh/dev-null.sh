@@ -12,8 +12,10 @@ use App\Services\RemotePush;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\Attributes\Timeout;
 use Illuminate\Support\Facades\Date;
 
+#[Timeout(210)]
 final class SendRemotePush implements ShouldQueue
 {
     use Queueable;
@@ -23,6 +25,7 @@ final class SendRemotePush implements ShouldQueue
      */
     public function __construct(
         public readonly int $messageId,
+        public readonly string $userId,
         public readonly ?array $subscriptionIds = null,
         public readonly int $tries = 3,
     ) {
@@ -38,36 +41,39 @@ final class SendRemotePush implements ShouldQueue
             return;
         }
 
-        $participants = ConversationParticipant::query()->where('conversation_id', $message->conversation_id)
+        $participant = ConversationParticipant::query()->where('conversation_id', $message->conversation_id)
+            ->where('user_id', $this->userId)
             ->where('user_id', '!=', $message->user_id)
             ->where('visible_from_id', '<', $message->id)
             ->where('read_through_id', '<', $message->id)
             ->whereIn('status', config('remotes.requests') ? [RemoteStatus::Open, RemoteStatus::Fetched] : [RemoteStatus::Open])
             ->where(fn (Builder $query): Builder => $query->whereNull('muted_until_at')->orWhere('muted_until_at', '<=', now()))
             ->whereHas('user.pushSubscriptions')
-            ->with('user')->get();
+            ->with('user')->first();
+
+        if (! $participant instanceof ConversationParticipant) {
+            return;
+        }
+
+        $user = $participant->user;
+
+        if (! $user->remotes_enabled || $user->hasBlockWith($message->user) || $user->isMuting($message->user)) {
+            return;
+        }
 
         $failed = [];
 
-        foreach ($participants as $participant) {
-            $user = $participant->user;
-
-            if (! $user->remotes_enabled || $user->hasBlockWith($message->user) || $user->isMuting($message->user)) {
-                continue;
-            }
-
-            foreach (PushSubscription::query()->where('user_id', $user->id)
-                ->when($this->subscriptionIds !== null, fn (Builder $query): Builder => $query->whereKey($this->subscriptionIds))
-                ->lazyById() as $subscription) {
-                if (! $push->send($subscription)) {
-                    $failed[] = $subscription->id;
-                }
+        foreach (PushSubscription::query()->where('user_id', $user->id)
+            ->when($this->subscriptionIds !== null, fn (Builder $query): Builder => $query->whereKey($this->subscriptionIds))
+            ->orderBy('id')->limit(PushSubscription::MAX_PER_USER)->get() as $subscription) {
+            if (! $push->send($subscription)) {
+                $failed[] = $subscription->id;
             }
         }
 
         if ($failed !== [] && $this->attempts() < $this->tries) {
             // A follow-up starts with a fresh queue attempt count, so carry the remaining budget.
-            dispatch(new self($this->messageId, $failed, $this->tries - $this->attempts())
+            dispatch(new self($this->messageId, $this->userId, $failed, $this->tries - $this->attempts())
                 ->onConnection($this->connection)->onQueue($this->queue))->delay(now()->addSeconds(30));
         }
     }
