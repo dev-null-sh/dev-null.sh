@@ -1,8 +1,12 @@
-import { remotePushEnabled, syncRemotePush } from '@/lib/remote-push';
+import {
+    remotePushEnabled,
+    remotePushSupported,
+    syncRemotePush,
+} from '@/lib/remote-push';
 import { readStorage, writeStorage } from '@/lib/storage';
 import type { ConversationSummary } from '@/types';
 
-export type RemoteAlertChannel = 'notifications' | 'sound';
+export type RemoteAlertChannel = 'notifications' | 'sound' | 'offsite';
 
 const listeners = new Set<() => void>();
 const preferenceKey = (userId: string, channel: RemoteAlertChannel) =>
@@ -12,6 +16,9 @@ export function remoteAlertsEnabled(
     userId: string,
     channel: RemoteAlertChannel = 'notifications',
 ): boolean {
+    if (channel === 'offsite')
+        return readStorage(preferenceKey(userId, channel)) === 'on';
+
     return (
         (readStorage(preferenceKey(userId, channel)) ||
             readStorage(`remote-alerts:${userId}`)) !== 'off'
@@ -60,26 +67,33 @@ export async function setRemoteAlerts(
     enabled: boolean,
     channel: RemoteAlertChannel = 'notifications',
 ): Promise<boolean> {
-    if (
-        enabled &&
-        channel === 'notifications' &&
-        'Notification' in window &&
-        window.isSecureContext
-    ) {
-        // Tab titles need no permission, even when the browser declines or cannot show banners.
-        await Notification.requestPermission().catch(() => undefined);
-    }
-
-    if (channel === 'notifications' && !enabled) {
-        await syncRemotePush(false, true);
+    if (channel === 'offsite') {
+        if (enabled) {
+            if (!remotePushSupported())
+                throw new Error(
+                    'Off-site notifications are not supported here.',
+                );
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted')
+                throw new Error('Notification permission was not granted.');
+            const previous = readStorage(preferenceKey(userId, channel));
+            writeStorage(preferenceKey(userId, channel), 'on');
+            if (readStorage(preferenceKey(userId, channel)) !== 'on')
+                return false;
+            try {
+                await syncRemotePush(true, true);
+            } catch (error) {
+                writeStorage(preferenceKey(userId, channel), previous);
+                listeners.forEach((listener) => listener());
+                throw error;
+            }
+        } else {
+            await syncRemotePush(false, true);
+        }
     }
 
     writeStorage(preferenceKey(userId, channel), enabled ? 'on' : 'off');
     listeners.forEach((listener) => listener());
-
-    if (channel === 'notifications' && enabled) {
-        await syncRemotePush(true, true);
-    }
 
     return (
         readStorage(preferenceKey(userId, channel)) === (enabled ? 'on' : 'off')
@@ -100,7 +114,9 @@ export function createRemoteAlerts(
     reading: () => string[],
     onIncoming: (conversation: ConversationSummary) => void,
 ) {
-    void syncRemotePush(remoteAlertsEnabled(userId)).catch(() => undefined);
+    void syncRemotePush(remoteAlertsEnabled(userId, 'offsite')).catch(
+        () => undefined,
+    );
     let latest: Record<string, number> | null = null;
     let stopped = false;
     let lastSoundAt = 0;
@@ -231,7 +247,8 @@ export function createRemoteAlerts(
                     `${previousSoundAt}\n${consumedState}`,
                 );
                 const showBanner =
-                    remoteAlertsEnabled(userId) && remoteNotificationsAllowed();
+                    remoteAlertsEnabled(userId, 'offsite') &&
+                    remoteNotificationsAllowed();
                 const playSound = remoteAlertsEnabled(userId, 'sound');
 
                 if (incoming === undefined) {

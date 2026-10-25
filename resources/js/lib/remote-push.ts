@@ -5,16 +5,19 @@ import {
 } from '@/actions/App/Http/Controllers/PushSubscriptionController';
 
 let active = false;
-const listeners = new Set<() => void>();
 let pending = Promise.resolve();
 
 export function remotePushEnabled(): boolean {
     return active;
 }
 
-export function subscribeRemotePush(listener: () => void): () => void {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
+export function remotePushSupported(): boolean {
+    return (
+        window.isSecureContext &&
+        'Notification' in window &&
+        'PushManager' in window &&
+        'serviceWorker' in navigator
+    );
 }
 
 async function request(
@@ -75,7 +78,8 @@ export function syncRemotePush(
             !('PushManager' in window)
         )
             return;
-        if (enabled && Notification.permission !== 'granted') return;
+        if (Notification.permission !== 'granted' && (!create || enabled))
+            return;
         let publicKey: string | null = null;
         if (enabled) {
             const config = (await (await request(index.url())).json()) as {
@@ -84,7 +88,6 @@ export function syncRemotePush(
             publicKey = config.public_key;
             if (!publicKey) {
                 active = false;
-                listeners.forEach((listener) => listener());
                 if (create)
                     throw new Error(
                         'Background notifications are unavailable.',
@@ -125,7 +128,21 @@ export function syncRemotePush(
                 );
             }
             if (subscription) {
-                await request(store.url(), 'POST', subscription.endpoint);
+                try {
+                    await request(store.url(), 'POST', subscription.endpoint);
+                } catch (error) {
+                    active = false;
+                    // The server may have saved it before its response was lost.
+                    await request(
+                        destroy.url(),
+                        'DELETE',
+                        subscription.endpoint,
+                    ).catch(() => undefined);
+                    await pushResult(subscription.unsubscribe()).catch(
+                        () => undefined,
+                    );
+                    throw error;
+                }
                 active = true;
             }
         } else if (subscription) {
@@ -133,7 +150,6 @@ export function syncRemotePush(
             await pushResult(subscription.unsubscribe());
             active = false;
         }
-        listeners.forEach((listener) => listener());
     };
     const result = pending.then(sync);
     pending = result.catch(() => undefined);

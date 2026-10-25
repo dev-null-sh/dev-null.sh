@@ -12,11 +12,10 @@ import type { ChatState, ChatTarget, ThreadState } from '@/lib/chat';
 import type { RemoteAlertChannel } from '@/lib/remote-notifications';
 import {
     remoteAlertsEnabled,
-    remoteNotificationsAllowed,
     remoteNotificationsSupported,
     subscribeRemoteAlerts,
 } from '@/lib/remote-notifications';
-import { remotePushEnabled, subscribeRemotePush } from '@/lib/remote-push';
+import { remotePushSupported } from '@/lib/remote-push';
 
 export function useRemoteAlertsEnabled(
     userId: string | null,
@@ -29,22 +28,15 @@ export function useRemoteAlertsEnabled(
     );
 }
 
-export function useRemoteNotificationPermission(): boolean {
-    return useSyncExternalStore(
-        subscribeRemoteAlerts,
-        remoteNotificationsAllowed,
-        () => false,
-    );
-}
-
 export function useRemoteAlerts(userId: string | null): void {
     const notifications = useRemoteAlertsEnabled(userId);
     const sound = useRemoteAlertsEnabled(userId, 'sound');
-    const enabled = notifications || sound;
+    const offsite = useRemoteAlertsEnabled(userId, 'offsite');
+    const enabled = notifications || sound || offsite;
     useEffect(
         () =>
             enabled && userId !== null ? watchRemoteAlerts(userId) : undefined,
-        [enabled, userId],
+        [enabled, userId, offsite],
     );
 }
 
@@ -89,18 +81,10 @@ export function useUnreadMessages(): number {
         : auth.unreadMessagesCount;
 }
 
-export function useRemotePushEnabled(): boolean {
-    return useSyncExternalStore(
-        subscribeRemotePush,
-        remotePushEnabled,
-        () => false,
-    );
-}
-
 export function useRemoteNotificationSupport(): boolean {
     return useSyncExternalStore(
         subscribeRemoteAlerts,
-        remoteNotificationsSupported,
+        () => remoteNotificationsSupported() && remotePushSupported(),
         () => false,
     );
 }

@@ -2,12 +2,9 @@ import { router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { update } from '@/actions/App/Http/Controllers/UserRemotesController';
-import { Button } from '@/components/ui/button';
 import {
     useRemoteAlertsEnabled,
-    useRemoteNotificationPermission,
     useRemoteNotificationSupport,
-    useRemotePushEnabled,
 } from '@/hooks/use-chat';
 import type { RemoteAlertChannel } from '@/lib/remote-notifications';
 import { setRemoteAlerts } from '@/lib/remote-notifications';
@@ -22,9 +19,11 @@ export function RemotesSetting() {
     const [processing, setProcessing] = useState(false);
     const alertsEnabled = useRemoteAlertsEnabled(auth.user?.id ?? null);
     const soundEnabled = useRemoteAlertsEnabled(auth.user?.id ?? null, 'sound');
-    const hasPermission = useRemoteNotificationPermission();
     const supported = useRemoteNotificationSupport();
-    const pushEnabled = useRemotePushEnabled();
+    const offsiteEnabled = useRemoteAlertsEnabled(
+        auth.user?.id ?? null,
+        'offsite',
+    );
     const [savingAlerts, setSavingAlerts] = useState(false);
 
     const saveAlerts = (
@@ -45,8 +44,8 @@ export function RemotesSetting() {
             .catch(() =>
                 toast.error(
                     enabled
-                        ? 'Background notifications could not be enabled. Alerts can still appear while the site is open.'
-                        : 'Could not turn notifications off. Please try again.',
+                        ? 'Could not enable off-site notifications. Check this browser’s permissions and try again.'
+                        : 'Could not turn off-site notifications off. Please try again.',
                 ),
             )
             .finally(() => setSavingAlerts(false));
@@ -122,37 +121,14 @@ export function RemotesSetting() {
                         id="remote-alerts-label"
                         className="text-sm font-medium"
                     >
-                        Notifications
+                        On-site notifications
                     </h3>
                     <p
                         id="remote-alerts-description"
                         className="text-sm text-muted-foreground"
                     >
-                        Notifications on supported browsers, even when the site
-                        or installed app is closed. No message previews.
+                        Show message alerts inside /dev/null.
                     </p>
-                    <p className="text-sm text-muted-foreground">
-                        On iPhone and iPad, add /dev/null to your Home Screen
-                        and allow notifications from the installed app.
-                    </p>
-                    <Button
-                        variant="outline"
-                        className="min-w-44"
-                        disabled={
-                            !enabled ||
-                            !supported ||
-                            !alertsEnabled ||
-                            savingAlerts ||
-                            (hasPermission && pushEnabled)
-                        }
-                        onClick={() => saveAlerts(true)}
-                    >
-                        {!supported
-                            ? 'Not supported here'
-                            : hasPermission && pushEnabled
-                              ? 'Notifications enabled'
-                              : 'Allow notifications'}
-                    </Button>
                 </div>
                 <button
                     type="button"
@@ -172,6 +148,50 @@ export function RemotesSetting() {
                         className={cn(
                             'size-4.5 rounded-full bg-background shadow-sm transition-transform motion-reduce:transition-none',
                             alertsEnabled && 'translate-x-5',
+                        )}
+                    />
+                </button>
+            </div>
+            <div className="mt-6 flex items-start justify-between gap-6 border-t pt-6">
+                <div className="min-w-0 space-y-2">
+                    <h3
+                        id="remote-offsite-label"
+                        className="text-sm font-medium"
+                    >
+                        Off-site notifications
+                    </h3>
+                    <p
+                        id="remote-offsite-description"
+                        className="text-sm text-muted-foreground"
+                    >
+                        Send notifications to this browser or installed app,
+                        including when closed. No message previews.
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                        On iPhone and iPad, add /dev/null to your Home Screen
+                        and turn this on from the installed app.
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    role="switch"
+                    aria-checked={offsiteEnabled}
+                    aria-labelledby="remote-offsite-label"
+                    aria-describedby="remote-offsite-description"
+                    disabled={!enabled || !supported || savingAlerts}
+                    onClick={() => saveAlerts(!offsiteEnabled, 'offsite')}
+                    className={cn(
+                        'mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent p-0.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50',
+                        offsiteEnabled
+                            ? 'bg-primary'
+                            : 'bg-muted-foreground/30',
+                    )}
+                    data-test="remote-offsite-setting"
+                >
+                    <span
+                        className={cn(
+                            'size-4.5 rounded-full bg-background shadow-sm transition-transform motion-reduce:transition-none',
+                            offsiteEnabled && 'translate-x-5',
                         )}
                     />
                 </button>

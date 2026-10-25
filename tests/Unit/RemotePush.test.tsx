@@ -1,19 +1,19 @@
 import { remoteAlertsEnabled, setRemoteAlerts } from '../../resources/js/lib/remote-notifications';
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
-import { remotePushEnabled, subscribeRemotePush, syncRemotePush } from '../../resources/js/lib/remote-push';
+import { remotePushEnabled, syncRemotePush } from '../../resources/js/lib/remote-push';
 
 const endpoint = 'https://fcm.googleapis.com/wp/browser';
 const save = vi.fn(async (_url: string, _options: RequestInit) => new Response(null, { status: 204 }));
-const unsubscribe = vi.fn(async () => true);
+const unsubscribe = vi.fn(async () => {subscription = null; return true;});
 let subscription: { endpoint: string; unsubscribe: typeof unsubscribe } | null;
-const subscribe = vi.fn(async () => ({ endpoint, unsubscribe }));
+const subscribe = vi.fn(async () => subscription = { endpoint, unsubscribe });
 const registration = { pushManager: { getSubscription: async () => subscription, subscribe } };
 
 beforeEach(() => {
     subscription = null;
-    vi.stubGlobal('window', { isSecureContext: true, PushManager: class {} });
-    vi.stubGlobal('Notification', { permission: 'granted' });
+    vi.stubGlobal('window', { isSecureContext: true, PushManager: class {}, Notification: {} });
+    vi.stubGlobal('Notification', { permission: 'granted', requestPermission: vi.fn(async () => 'granted') });
     vi.stubGlobal('document', { cookie: 'XSRF-TOKEN=csrf%20token' });
     vi.stubGlobal('navigator', { serviceWorker: { getRegistration: async () => registration, register: vi.fn(async () => registration), ready: Promise.resolve(registration) } });
     vi.stubGlobal('fetch', async (url: string, options: RequestInit) => url.endsWith('/push-subscriptions') && options.method === 'GET'
@@ -31,13 +31,9 @@ test('does not subscribe or request permission on page load', async () => {
 });
 
 test('creates an opt-in subscription with only its endpoint sent to the account', async () => {
-    const changed = vi.fn();
-    const stop = subscribeRemotePush(changed);
     await syncRemotePush(true, true);
-    stop();
     assert.equal(remotePushEnabled(), true);
     assert.equal(subscribe.mock.calls.length, 1);
-    assert.equal(changed.mock.calls.length, 1);
     const [, options] = save.mock.calls[0];
     assert.equal(options.method, 'POST');
     assert.equal(options.body, JSON.stringify({ endpoint }));
@@ -95,9 +91,10 @@ test('page alerts can be re-enabled even when background delivery is unavailable
     Object.assign(window, {localStorage: {getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value)}});
     vi.stubGlobal('Notification', {permission: 'granted', requestPermission: async () => 'granted'});
     vi.stubGlobal('fetch', async () => Response.json({public_key: null}));
-    await assert.rejects(setRemoteAlerts('me', true));
+    assert.equal(await setRemoteAlerts('me', true), true);
     assert.equal(remoteAlertsEnabled('me'), true);
-    assert.equal(remotePushEnabled(), false);
+    assert.equal(remoteAlertsEnabled('me', 'offsite'), false);
+    assert.equal(save.mock.calls.length, 0);
 });
 
 test('a stalled browser operation times out without saving and the next attempt can recover', async () => {
@@ -121,4 +118,49 @@ test('does not query native subscriptions before permission or server configurat
     vi.stubGlobal('fetch', async () => Response.json({public_key: null}));
     await assert.rejects(syncRemotePush(true, true));
     assert.equal(query.mock.calls.length, 0);
+});
+
+function preferenceStorage(): Map<string, string> {
+    const storage = new Map<string, string>();
+    Object.assign(window, {localStorage: {getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key)}});
+    return storage;
+}
+
+test('off-site delivery requires a separate explicit opt-in and turning it off revokes delivery', async () => {
+    const storage = preferenceStorage();
+    assert.equal(remoteAlertsEnabled('me'), true);
+    assert.equal(remoteAlertsEnabled('me', 'offsite'), false);
+    await setRemoteAlerts('me', true);
+    assert.equal(subscribe.mock.calls.length, 0);
+    assert.equal((Notification.requestPermission as ReturnType<typeof vi.fn>).mock.calls.length, 0);
+    assert.equal(await setRemoteAlerts('me', true, 'offsite'), true);
+    assert.equal(storage.get('remote-alerts:me:offsite'), 'on');
+    assert.equal(remotePushEnabled(), true);
+    assert.equal(await setRemoteAlerts('me', false, 'offsite'), true);
+    assert.equal(remoteAlertsEnabled('me', 'offsite'), false);
+    assert.equal(remoteAlertsEnabled('me'), true);
+    assert.equal(unsubscribe.mock.calls.length, 1);
+    assert.equal(save.mock.calls.at(-1)?.[1].method, 'DELETE');
+});
+
+test('denied permission and failed enrollment leave off-site notifications off', async () => {
+    const storage = preferenceStorage();
+    vi.stubGlobal('Notification', {permission: 'denied', requestPermission: async () => 'denied'});
+    await assert.rejects(setRemoteAlerts('me', true, 'offsite'));
+    assert.equal(remoteAlertsEnabled('me', 'offsite'), false);
+    assert.equal(subscribe.mock.calls.length, 0);
+    vi.stubGlobal('Notification', {permission: 'granted', requestPermission: async () => 'granted'});
+    save.mockImplementationOnce(async () => new Response(null, {status:503}));
+    await assert.rejects(setRemoteAlerts('me', true, 'offsite'));
+    assert.equal(remoteAlertsEnabled('me', 'offsite'), false);
+    assert.equal(storage.has('remote-alerts:me:offsite'), false);
+    assert.equal(save.mock.calls.at(-1)?.[1].method, 'DELETE');
+    assert.equal(unsubscribe.mock.calls.length, 1);
+});
+
+test('blocked preference storage cannot activate off-site delivery', async () => {
+    Object.assign(window, {localStorage: {getItem: () => null, setItem() {throw new Error('blocked');}}});
+    assert.equal(await setRemoteAlerts('me', true, 'offsite'), false);
+    assert.equal(subscribe.mock.calls.length, 0);
+    assert.equal(save.mock.calls.length, 0);
 });
