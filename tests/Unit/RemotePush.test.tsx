@@ -48,6 +48,26 @@ test('reassociates an existing browser subscription without creating another', a
     assert.equal(remotePushEnabled(), true);
 });
 
+test('a transient passive registration failure preserves opt-in and recovers on the next load', async () => {
+    preferenceStorage();
+    assert.equal(await setRemoteAlerts('me', true, 'offsite'), true);
+    const enrolled = subscription;
+    save.mockImplementationOnce(async () => new Response(null, { status: 503 }));
+
+    await assert.rejects(syncRemotePush(true));
+    assert.equal(subscription, enrolled);
+    assert.equal(unsubscribe.mock.calls.length, 0);
+    assert.equal(save.mock.calls.filter(([, options]) => options.method === 'DELETE').length, 0);
+    assert.equal(remoteAlertsEnabled('me', 'offsite'), true);
+    assert.equal(remotePushEnabled(), true);
+
+    await syncRemotePush(true);
+    assert.equal(save.mock.calls.at(-1)?.[1].method, 'POST');
+    assert.equal(subscribe.mock.calls.length, 1);
+    assert.equal(remotePushEnabled(), true);
+    assert.equal(remoteAlertsEnabled('me', 'offsite'), true);
+});
+
 test('turning notifications off revokes server delivery before unsubscribing', async () => {
     subscription = { endpoint, unsubscribe };
     await syncRemotePush(false, true);

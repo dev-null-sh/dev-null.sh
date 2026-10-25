@@ -131,16 +131,18 @@ export function syncRemotePush(
                 try {
                     await request(store.url(), 'POST', subscription.endpoint);
                 } catch (error) {
-                    active = false;
-                    // The server may have saved it before its response was lost.
-                    await request(
-                        destroy.url(),
-                        'DELETE',
-                        subscription.endpoint,
-                    ).catch(() => undefined);
-                    await pushResult(subscription.unsubscribe()).catch(
-                        () => undefined,
-                    );
+                    if (create) {
+                        active = false;
+                        // A failed opt-in may have been saved before its response was lost.
+                        await request(
+                            destroy.url(),
+                            'DELETE',
+                            subscription.endpoint,
+                        ).catch(() => undefined);
+                        await pushResult(subscription.unsubscribe()).catch(
+                            () => undefined,
+                        );
+                    }
                     throw error;
                 }
                 active = true;
