@@ -4,6 +4,8 @@ import {
     store,
 } from '@/actions/App/Http/Controllers/PushSubscriptionController';
 
+export class RemotePushValidationError extends Error {}
+
 let active = false;
 let pending = Promise.resolve();
 
@@ -44,6 +46,12 @@ async function request(
             ? {}
             : { body: JSON.stringify({ endpoint }) }),
     });
+    if (response.status === 422) {
+        const validation = (await response.json()) as {
+            errors: { endpoint: string[] };
+        };
+        throw new RemotePushValidationError(validation.errors.endpoint[0]);
+    }
     if (!response.ok)
         throw new Error('Could not save background notifications.');
     return response;

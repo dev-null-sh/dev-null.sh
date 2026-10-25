@@ -26,6 +26,8 @@ final class PushSubscription extends Model
 
     use HasUuids;
 
+    public const int MAX_PER_USER = 20;
+
     /**
      * @return array<string, string>
      */

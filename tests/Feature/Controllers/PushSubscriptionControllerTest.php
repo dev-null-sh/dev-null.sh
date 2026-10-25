@@ -41,6 +41,36 @@ it('stores an encrypted endpoint and transfers the browser to the current accoun
     $this->assertModelMissing($subscription);
 });
 
+it('limits new enrollments to twenty without replacing existing browsers', function (): void {
+    $user = User::factory()->create();
+    PushSubscription::factory()->count(19)->create(['user_id' => $user->id]);
+    $endpoint = 'https://fcm.googleapis.com/wp/twentieth';
+    $this->actingAs($user)->postJson(route('push-subscription.store'), ['endpoint' => $endpoint])->assertNoContent();
+    $ids = $user->pushSubscriptions()->pluck('id')->sort()->values()->all();
+    expect($ids)->toHaveCount(20);
+
+    $newEndpoint = 'https://fcm.googleapis.com/wp/twenty-first';
+    $this->postJson(route('push-subscription.store'), ['endpoint' => $newEndpoint])
+        ->assertUnprocessable()->assertJsonPath('errors.endpoint.0', 'You have off-site notifications enabled in 20 browsers or apps. Turn them off in one before enabling another.');
+    expect($user->pushSubscriptions()->pluck('id')->sort()->values()->all())->toBe($ids);
+
+    $this->postJson(route('push-subscription.store'), ['endpoint' => $endpoint])->assertNoContent();
+    expect($user->pushSubscriptions()->count())->toBe(20);
+    $this->deleteJson(route('push-subscription.destroy'), ['endpoint' => $endpoint])->assertNoContent();
+    $this->postJson(route('push-subscription.store'), ['endpoint' => $newEndpoint])->assertNoContent();
+    expect($user->pushSubscriptions()->count())->toBe(20);
+});
+
+it('applies the limit to the current account without transferring another accounts subscription on rejection', function (): void {
+    $full = User::factory()->create();
+    PushSubscription::factory()->count(20)->create(['user_id' => $full->id]);
+    $other = PushSubscription::factory()->create();
+    $this->actingAs($full)->postJson(route('push-subscription.store'), ['endpoint' => $other->endpoint])
+        ->assertUnprocessable()->assertJsonValidationErrors('endpoint');
+    expect($other->refresh()->user_id)->not->toBe($full->id);
+    $this->actingAs(User::query()->findOrFail($other->user_id))->postJson(route('push-subscription.store'), ['endpoint' => $other->endpoint])->assertNoContent();
+});
+
 it('accepts supported browser endpoints', function (string $endpoint): void {
     $this->actingAs(User::factory()->create())->postJson(route('push-subscription.store'), ['endpoint' => $endpoint])->assertNoContent();
 })->with(['https://fcm.googleapis.com/wp/example', 'https://updates.push.services.mozilla.com/wpush/v2/example', 'https://web.push.apple.com/Qexample', 'https://wns2-example.notify.windows.com/w/?token=example']);

@@ -184,3 +184,13 @@ test('blocked preference storage cannot activate off-site delivery', async () =>
     assert.equal(subscribe.mock.calls.length, 0);
     assert.equal(save.mock.calls.length, 0);
 });
+
+
+test('a full account reports the enrollment limit and leaves this browser opted out', async () => {
+    preferenceStorage();
+    const message = 'You have off-site notifications enabled in 20 browsers or apps. Turn them off in one before enabling another.';
+    save.mockImplementationOnce(async () => Response.json({errors: {endpoint: [message]}}, {status: 422}));
+    await assert.rejects(setRemoteAlerts('me', true, 'offsite'), {message});
+    assert.equal(remoteAlertsEnabled('me', 'offsite'), false);
+    assert.equal(unsubscribe.mock.calls.length, 1);
+});

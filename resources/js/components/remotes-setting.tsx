@@ -8,6 +8,7 @@ import {
 } from '@/hooks/use-chat';
 import type { RemoteAlertChannel } from '@/lib/remote-notifications';
 import { setRemoteAlerts } from '@/lib/remote-notifications';
+import { RemotePushValidationError } from '@/lib/remote-push';
 import { cn } from '@/lib/utils';
 
 /**
@@ -41,11 +42,13 @@ export function RemotesSetting() {
                             : 'Could not save notifications. Check your browser’s site permissions and storage settings.',
                     );
             })
-            .catch(() =>
+            .catch((error: unknown) =>
                 toast.error(
-                    enabled
-                        ? 'Could not enable off-site notifications. Check this browser’s permissions and try again.'
-                        : 'Could not turn off-site notifications off. Please try again.',
+                    error instanceof RemotePushValidationError
+                        ? error.message
+                        : enabled
+                          ? 'Could not enable off-site notifications. Check this browser’s permissions and try again.'
+                          : 'Could not turn off-site notifications off. Please try again.',
                 ),
             )
             .finally(() => setSavingAlerts(false));
