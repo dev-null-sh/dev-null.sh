@@ -319,7 +319,6 @@ function Contributors({
                         {!isCurrentUser && (
                             <FollowIconButton
                                 user={{
-                                    id: contributor.login,
                                     username: contributor.login,
                                 }}
                                 isFollowing={isFollowing}
