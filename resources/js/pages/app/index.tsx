@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import { Download } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
+import { LinkifiedText } from '@/components/linkified-text';
 import { Button } from '@/components/ui/button';
 import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
@@ -92,6 +93,13 @@ export default function Index({
                         and react with everyone on{' '}
                         <WordmarkText>/dev/null</WordmarkText> without keeping a
                         tab open.
+                    </p>
+
+                    <p className="mt-5">
+                        <LinkifiedText
+                            text="https://github.com/dev-null-sh/mac-os-app"
+                            mentions={null}
+                        />
                     </p>
 
                     {release === null ? (
