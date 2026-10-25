@@ -54,7 +54,8 @@ export default function Index({
     const [sent, setSent] = useState(new Map<string, ScheduledCommit>());
     // Rows keep the order they had when the page opened, and a row sent with Commit now keeps showing what was sent
     // (submission clears it), so it stays where it was at its size instead of jumping below the outstanding ones and
-    // pulling the rows under it up. A fresh visit sorts and trims them again.
+    // pulling the rows under it up. Submitted rows sort after older ones, so the refreshed page can leave it out: it
+    // stays from what was sent. A fresh visit sorts and trims them again.
     const [order] = useState(() =>
         scheduledCommits.data.map((scheduled) => scheduled.id),
     );
@@ -63,7 +64,15 @@ export default function Index({
 
         return index === -1 ? order.length : index;
     };
-    const rows = [...scheduledCommits.data]
+    const missing = [...sent.values()]
+        .filter(
+            (before) =>
+                !scheduledCommits.data.some(
+                    (scheduled) => scheduled.id === before.id,
+                ),
+        )
+        .map((before) => ({ ...before, status: 'pending' as const }));
+    const rows = [...scheduledCommits.data, ...missing]
         .sort((a, b) => rank(a.id) - rank(b.id))
         .map((scheduled) => {
             const before = sent.get(scheduled.id);
@@ -93,6 +102,36 @@ export default function Index({
             preventScroll: true,
         });
     }, [busy]);
+
+    const commitNow = (scheduled: ScheduledCommit) => {
+        let claimed = false;
+        returnFocusTo.current = scheduled.id;
+        // Kept before the response renders, and dropped again unless the server says this request claimed it.
+        setSent((current) => new Map(current).set(scheduled.id, scheduled));
+        setBusy({ id: scheduled.id, action: 'commit' });
+        router.post(
+            ScheduledCommitSubmissionController.store(scheduled.id),
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: (page) => {
+                    claimed = page.flash.submitted === scheduled.id;
+                },
+                onFinish: () => {
+                    if (!claimed) {
+                        setSent((current) => {
+                            const next = new Map(current);
+                            next.delete(scheduled.id);
+
+                            return next;
+                        });
+                    }
+
+                    setBusy(null);
+                },
+            },
+        );
+    };
 
     const labels = {
         pending: 'Submitted for review',
@@ -184,31 +223,9 @@ export default function Index({
                                                 disabled={busy !== null}
                                                 aria-label={`Commit now instead of at ${when}`}
                                                 data-commit-now
-                                                onClick={() => {
-                                                    returnFocusTo.current =
-                                                        scheduled.id;
-                                                    setSent((current) =>
-                                                        new Map(current).set(
-                                                            scheduled.id,
-                                                            scheduled,
-                                                        ),
-                                                    );
-                                                    setBusy({
-                                                        id: scheduled.id,
-                                                        action: 'commit',
-                                                    });
-                                                    router.post(
-                                                        ScheduledCommitSubmissionController.store(
-                                                            scheduled.id,
-                                                        ),
-                                                        {},
-                                                        {
-                                                            preserveScroll: true,
-                                                            onFinish: () =>
-                                                                setBusy(null),
-                                                        },
-                                                    );
-                                                }}
+                                                onClick={() =>
+                                                    commitNow(scheduled)
+                                                }
                                             >
                                                 {busy?.id === scheduled.id &&
                                                 busy.action === 'commit'

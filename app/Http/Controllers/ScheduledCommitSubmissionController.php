@@ -16,6 +16,10 @@ final readonly class ScheduledCommitSubmissionController
     {
         $submitted = $action->handle($scheduledCommit->id, early: true);
 
+        if ($submitted) {
+            Inertia::flash('submitted', $scheduledCommit->id);
+        }
+
         Inertia::flash('toast', ['type' => $submitted ? 'success' : 'info', 'message' => $submitted
             ? 'Commit submitted. It goes through the usual review process.'
             : 'This commit was already submitted or canceled. Refresh to see its status.']);

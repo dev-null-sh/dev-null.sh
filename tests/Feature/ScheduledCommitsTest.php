@@ -501,7 +501,7 @@ it('commits a scheduled item now, before its time, through the usual review', fu
     $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now()->addDay(), 'body' => 'Shipping early']);
 
     $this->actingAs($scheduled->user)->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirect()
-        ->assertInertiaFlash('toast.type', 'success');
+        ->assertInertiaFlash('toast.type', 'success')->assertInertiaFlash('submitted', $scheduled->id);
 
     $commit = Commit::query()->sole();
     expect($commit->body)->toBe('Shipping early')
@@ -522,7 +522,7 @@ it('does not commit now a canceled item or another authors item', function (): v
     $other = ScheduledCommit::factory()->create();
 
     $this->actingAs($canceled->user)->post(route('scheduled-commit-submission.store', $canceled))->assertRedirect()
-        ->assertInertiaFlash('toast.type', 'info');
+        ->assertInertiaFlash('toast.type', 'info')->assertInertiaFlashMissing('submitted');
     $this->post(route('scheduled-commit-submission.store', $other))->assertForbidden();
     $this->actingAs(User::factory()->create(['username' => 'admin']))->post(route('scheduled-commit-submission.store', $other))->assertForbidden();
 
@@ -535,7 +535,7 @@ it('does not commit now while the author is in timeout', function (): void {
     UserTimeout::factory()->for($scheduled->user)->create();
 
     $this->actingAs($scheduled->user)->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirect()
-        ->assertInertiaFlash('timeout');
+        ->assertInertiaFlash('timeout')->assertInertiaFlashMissing('submitted');
 
     expect(Commit::query()->count())->toBe(0)
         ->and(resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id, early: true))->toBeFalse();
