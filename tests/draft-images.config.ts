@@ -54,6 +54,7 @@ export default defineConfig({
             'tests/Unit/RemotePins.test.tsx',
             'tests/Unit/RemotePreferences.test.tsx',
             'tests/Unit/ChatNavigation.test.tsx',
+            'tests/Unit/CommittedToast.test.tsx',
         ],
     },
 });
