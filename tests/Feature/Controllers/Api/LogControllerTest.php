@@ -127,6 +127,7 @@ it('shows what the web shows on a commit', function (): void {
             'site_name' => $linkPreview->site_name,
             'is_pending' => false,
             'embed' => null,
+            'snippet' => null,
         ])
         ->assertJsonPath('data.0.images', [[
             'id' => $image->id,

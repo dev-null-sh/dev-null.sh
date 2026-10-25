@@ -109,6 +109,7 @@ it('includes the link preview without internal fields', function (): void {
             'site_name' => $preview->site_name,
             'is_pending' => false,
             'embed' => null,
+            'snippet' => null,
         ]);
 });
 

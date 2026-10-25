@@ -7,11 +7,11 @@ import { cn } from '@/lib/utils';
 
 export function CodeBlock({
     html,
-    language,
+    label,
     isCopyable = true,
 }: {
     html: string;
-    language: string | null;
+    label: string | null;
     isCopyable?: boolean;
 }) {
     const codeRef = useRef<HTMLPreElement>(null);
@@ -34,7 +34,13 @@ export function CodeBlock({
             return;
         }
 
-        if (await copy(codeRef.current.textContent ?? '')) {
+        // Line numbers are drawn into the code, but aren't part of it.
+        const code = codeRef.current.cloneNode(true) as HTMLElement;
+        code.querySelectorAll('.hl-gutter').forEach((gutter) =>
+            gutter.remove(),
+        );
+
+        if (await copy(code.textContent ?? '')) {
             setIsCopied(true);
 
             return;
@@ -50,10 +56,10 @@ export function CodeBlock({
 
     return (
         <div className="my-2 rounded-md border bg-muted/60">
-            {(language || isCopyable) && (
+            {(label || isCopyable) && (
                 <div className="flex h-8 items-center justify-between gap-2 border-b pr-1 pl-3">
                     <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground select-none">
-                        {language}
+                        {label}
                     </span>
                     {isCopyable && (
                         <div className="flex shrink-0 items-center gap-0.5">

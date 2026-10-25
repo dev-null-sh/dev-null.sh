@@ -694,6 +694,17 @@ html body[data-scroll-locked] {
         font-style: italic;
     }
 
+    /* Line numbers of a GitHub snippet, kept upright and uncoloured even inside a multi-line comment or string. */
+    .hl-gutter {
+        display: inline-block;
+        min-width: 3ch;
+        margin-right: 1.5ch;
+        color: var(--muted-foreground);
+        font-style: normal;
+        text-align: right;
+        user-select: none;
+    }
+
     .hl-addition {
         color: var(--lane-1);
     }

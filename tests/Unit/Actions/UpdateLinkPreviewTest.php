@@ -23,6 +23,8 @@ beforeEach(function (): void {
             'v6.example.com' => ['2606:2800:220:1:248:1893:25c8:1946'],
             'internal.example.com' => ['10.0.0.5'],
             'mixed.example.com' => ['93.184.216.34', '10.0.0.5'],
+            'github.com' => ['140.82.121.4'],
+            'raw.githubusercontent.com' => ['185.199.108.133'],
         ];
 
         public function resolve(string $host): array
@@ -430,3 +432,68 @@ it('throws unexpected errors without marking the link as fetched', function (): 
     expect(fn () => resolve(UpdateLinkPreview::class)->handle($linkPreview))->toThrow(RuntimeException::class, 'The resolver broke.')
         ->and($linkPreview->refresh()->fetched_at)->toBeNull();
 });
+
+it('keeps the cited lines of a github permalink', function (): void {
+    $url = 'https://github.com/acme/app/blob/3f732656b1b97de366bce8ed147077ed11e25248/src/a.txt#L2';
+
+    Http::fake([
+        'https://github.com/*' => htmlResponse('<meta property="og:title" content="a.txt at main">'),
+        'https://raw.githubusercontent.com/acme/app/3f732656b1b97de366bce8ed147077ed11e25248/src/a.txt' => Http::response("one\ntwo\nthree", 200, ['Content-Type' => 'text/plain; charset=utf-8']),
+    ]);
+
+    $linkPreview = unfurl($url);
+
+    expect($linkPreview->title)->toBe('a.txt at main')
+        ->and($linkPreview->toArray()['snippet'])->toMatchArray(['path' => 'src/a.txt', 'start_line' => 2, 'end_line' => 2]);
+
+    Http::assertSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://raw.githubusercontent.com/')
+        && $request->header('Accept') === ['text/plain']);
+});
+
+it('keeps the card without a snippet when the file cannot be read as text', function (Closure|PromiseInterface $raw, string $host): void {
+    Http::fake([
+        'https://github.com/*' => htmlResponse('<meta property="og:title" content="a.txt at main">'),
+        'https://raw.githubusercontent.com/*' => $raw,
+    ]);
+
+    $linkPreview = unfurl("https://{$host}/acme/app/blob/3f732656b1b97de366bce8ed147077ed11e25248/a.txt#L1");
+
+    expect($linkPreview->title)->toBe('a.txt at main')
+        ->and($linkPreview->toArray()['snippet'])->toBeNull();
+})->with([
+    'missing' => [fn (): PromiseInterface => Http::response('404: Not Found', 404, ['Content-Type' => 'text/plain']), 'github.com'],
+    'not text' => [fn (): PromiseInterface => Http::response('{}', 200, ['Content-Type' => 'application/octet-stream']), 'github.com'],
+    'redirect' => [fn (): PromiseInterface => Http::response('', 302, ['Location' => 'https://example.com/a.txt']), 'github.com'],
+]);
+
+it('does not fetch the raw file when its host does not resolve to a public address', function (): void {
+    $this->app->instance(DnsResolver::class, new readonly class implements DnsResolver
+    {
+        public function resolve(string $host): array
+        {
+            return $host === 'raw.githubusercontent.com' ? ['10.0.0.5'] : ['140.82.121.4'];
+        }
+    });
+
+    Http::fake(['https://github.com/*' => htmlResponse('<title>a.txt</title>')]);
+
+    expect(unfurl('https://github.com/acme/app/blob/3f732656b1b97de366bce8ed147077ed11e25248/a.txt#L1')->toArray()['snippet'])->toBeNull();
+
+    Http::assertSentCount(1);
+});
+
+it('keeps the card without a snippet when the raw file may be reachable later', function (Closure|PromiseInterface $raw): void {
+    Http::fake([
+        'https://github.com/*' => htmlResponse('<title>a.txt</title>'),
+        'https://raw.githubusercontent.com/*' => $raw,
+    ]);
+
+    $linkPreview = unfurl('https://github.com/acme/app/blob/3f732656b1b97de366bce8ed147077ed11e25248/a.txt#L1');
+
+    expect($linkPreview->title)->toBe('a.txt')
+        ->and($linkPreview->toArray()['snippet'])->toBeNull();
+})->with([
+    'failed connection' => fn (): Closure => Http::failedConnection(),
+    'too many requests' => fn (): PromiseInterface => Http::response('', 429),
+    'server error' => fn (): PromiseInterface => Http::response('', 503),
+]);

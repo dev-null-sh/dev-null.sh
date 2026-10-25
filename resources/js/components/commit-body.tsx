@@ -91,7 +91,7 @@ export function BodySegments({
                             <CodeBlock
                                 key={index}
                                 html={segment.html}
-                                language={segment.language}
+                                label={segment.language}
                                 isCopyable={!isStatic}
                             />
                         );

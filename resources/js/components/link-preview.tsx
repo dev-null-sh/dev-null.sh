@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CodeBlock } from '@/components/code-block';
 import { LinkEmbed } from '@/components/link-embed';
 import { Skeleton } from '@/components/ui/skeleton';
 import { hostname } from '@/lib/urls';
@@ -131,6 +132,23 @@ export function LinkPreview({
 
     if (isWaiting) {
         return <LinkPreviewSkeleton />;
+    }
+
+    if (preview.snippet) {
+        const { path, start_line, end_line, cited_end_line, html } =
+            preview.snippet;
+        const range = (end: number) =>
+            start_line === end ? `L${start_line}` : `L${start_line}-L${end}`;
+        const label =
+            end_line < cited_end_line
+                ? `${path}#${range(end_line)} of ${range(cited_end_line)}`
+                : `${path}#${range(end_line)}`;
+
+        return (
+            <div className="mt-1" data-test="code-snippet">
+                <CodeBlock html={html} label={label} isCopyable={!isStatic} />
+            </div>
+        );
     }
 
     if (!preview.title) {
