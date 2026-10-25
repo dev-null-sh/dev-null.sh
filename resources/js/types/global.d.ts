@@ -1,3 +1,4 @@
+import type { SharedClock } from '@/lib/utils';
 import type { Auth, SuggestedUser, User } from '@/types/auth';
 import type { Commit } from '@/types/commit';
 import type {
@@ -29,6 +30,7 @@ declare module '@inertiajs/core' {
             showsWhoToFollow: boolean;
             dimsLanes: boolean;
             repliesPerPage: number;
+            clock: SharedClock;
             suggestedUsers?: SuggestedUser[];
             liveFollowing?: User[];
             [key: string]: unknown;

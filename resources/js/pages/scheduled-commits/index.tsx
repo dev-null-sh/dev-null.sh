@@ -9,7 +9,7 @@ import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
-import { dateLocale } from '@/lib/utils';
+import { formatClockDateTime, readerClock } from '@/lib/utils';
 import type { BodySegment } from '@/types';
 
 type ScheduledCommit = {
@@ -68,7 +68,7 @@ export default function Index({
                     not approval.
                 </p>
                 <p className="mt-2 font-mono text-xs text-muted-foreground">
-                    Times in {Intl.DateTimeFormat().resolvedOptions().timeZone}
+                    Times in {readerClock().timeZone}
                 </p>
             </div>
             {scheduledCommits.data.length === 0 ? (
@@ -108,12 +108,9 @@ export default function Index({
                                             dateTime={scheduled.scheduled_at}
                                             className="mt-1 block font-mono text-xs text-muted-foreground"
                                         >
-                                            {new Date(
+                                            {formatClockDateTime(
                                                 scheduled.scheduled_at,
-                                            ).toLocaleString(dateLocale, {
-                                                dateStyle: 'medium',
-                                                timeStyle: 'short',
-                                            })}
+                                            )}
                                         </time>
                                     </div>
                                     {scheduled.status === 'scheduled' && (
@@ -121,7 +118,7 @@ export default function Index({
                                             variant="outline"
                                             size="sm"
                                             disabled={canceling !== null}
-                                            aria-label={`Cancel the commit scheduled for ${new Date(scheduled.scheduled_at).toLocaleString(dateLocale, { dateStyle: 'medium', timeStyle: 'short' })}`}
+                                            aria-label={`Cancel the commit scheduled for ${formatClockDateTime(scheduled.scheduled_at)}`}
                                             onClick={() => {
                                                 setCanceling(scheduled.id);
                                                 router.delete(

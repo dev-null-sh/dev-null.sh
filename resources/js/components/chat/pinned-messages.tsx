@@ -24,7 +24,6 @@ import {
     MessageText,
     replyOf,
     snippetOf,
-    timeOf,
 } from '@/components/chat/message-parts';
 import type { Author } from '@/components/chat/message-parts';
 import {
@@ -55,7 +54,7 @@ import type { ChatTarget } from '@/lib/chat';
 import { withLeavingRows } from '@/lib/leaving-rows';
 import type { ReactionUsage } from '@/lib/reactions';
 import { readStorage, writeStorage } from '@/lib/storage';
-import { cn, formatDayLabel, laneColor } from '@/lib/utils';
+import { cn, formatClockTime, formatDayLabel, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Message, MessageReply, User } from '@/types';
 
@@ -670,7 +669,7 @@ function PinnedItem({
                             className="shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums"
                         >
                             {formatDayLabel(message.created_at)} ·{' '}
-                            {timeOf(message.created_at)}
+                            {formatClockTime(message.created_at)}
                         </time>
                         <span className="relative ml-auto flex shrink-0 items-center gap-0.5 pointer-coarse:gap-4">
                             {onReply !== null && (

@@ -262,6 +262,32 @@ it('does not dim lanes when disabled', function (): void {
     expect($shared['dimsLanes'])->toBeFalse();
 });
 
+it("shares the reader's clock their browser left in cookies, so the server shows times as the browser will", function (?string $timeZone, ?string $hourCycle, array $clock): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+
+    if ($timeZone !== null) {
+        $request->cookies->set('time_zone', $timeZone);
+    }
+
+    if ($hourCycle !== null) {
+        $request->cookies->set('hour_cycle', $hourCycle);
+    }
+
+    $shared = $middleware->share($request);
+
+    expect($shared['clock'])->toBe($clock);
+})->with([
+    'unknown on a first visit' => [null, null, ['timeZone' => null, 'hourCycle' => null]],
+    'both' => ['Pacific/Auckland', 'h23', ['timeZone' => 'Pacific/Auckland', 'hourCycle' => 'h23']],
+    'a 12-hour clock' => ['America/New_York', 'h12', ['timeZone' => 'America/New_York', 'hourCycle' => 'h12']],
+    'a former name browsers still report' => ['Asia/Calcutta', 'h12', ['timeZone' => 'Asia/Calcutta', 'hourCycle' => 'h12']],
+    'UTC' => ['UTC', 'h23', ['timeZone' => 'UTC', 'hourCycle' => 'h23']],
+    'not a time zone' => ['Mars/Olympus', 'h23', ['timeZone' => null, 'hourCycle' => 'h23']],
+    'not an hour cycle' => ['Europe/Paris', 'h25', ['timeZone' => 'Europe/Paris', 'hourCycle' => null]],
+]);
+
 it('shows 3 replies at a time unless the user picked one of the other counts', function (string $cookie, int $count): void {
     $middleware = new HandleInertiaRequests();
 

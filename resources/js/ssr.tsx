@@ -7,11 +7,20 @@ import { TimeoutDialog } from '@/components/timeout-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { pageTitle } from '@/lib/page-title';
+import { clockOf, setReaderClock } from '@/lib/utils';
+import type { SharedClock } from '@/lib/utils';
 
 createServer((page) =>
     createInertiaApp({
         page,
-        render: ReactDOMServer.renderToString,
+        // Right before rendering, which runs at once: another page set up meanwhile would set a clock of its own.
+        render: (app) => {
+            setReaderClock(
+                clockOf(page.props.clock as SharedClock | undefined),
+            );
+
+            return ReactDOMServer.renderToString(app);
+        },
         title: pageTitle,
         resolve: (name) =>
             resolvePageComponent(
