@@ -267,10 +267,11 @@ Route::middleware('auth')->group(function (): void {
 
     // Session...
     Route::get('push-subscriptions', [PushSubscriptionController::class, 'index'])->name('push-subscription.index');
-    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware(['throttle:30,1', SerializePushSubscriptions::class])->name('push-subscription.store');
+    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware(['throttle:30,1', SerializePushSubscriptions::class])->block()->name('push-subscription.store');
     Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy'])->name('push-subscription.destroy');
 
     Route::post('logout', [SessionController::class, 'destroy'])
+        ->block()
         ->name('logout');
 
     // Banned, where a banned user is sent from everywhere else...

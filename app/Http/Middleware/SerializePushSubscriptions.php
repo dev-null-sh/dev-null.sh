@@ -23,6 +23,7 @@ final readonly class SerializePushSubscriptions
         // Hold the account lock across validation and creation, including concurrent browser enrollments.
         return DB::transaction(function () use ($user, $request, $next): Response {
             User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $user->refresh();
 
             return $next($request);
         });

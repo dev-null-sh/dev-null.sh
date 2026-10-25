@@ -86,6 +86,18 @@ it('validates deletion and refuses subscriptions while remotes are off', functio
     $this->deleteJson(route('push-subscription.destroy'))->assertUnprocessable()->assertJsonValidationErrors('endpoint');
 });
 
+it('uses current remotes consent when the authenticated user was loaded before a settings change', function (bool $enabled): void {
+    $user = User::factory()->create(['remotes_enabled' => ! $enabled]);
+    $this->actingAs($user);
+    User::query()->whereKey($user->id)->update(['remotes_enabled' => $enabled]);
+
+    $response = $this->postJson(route('push-subscription.store'), ['endpoint' => 'https://fcm.googleapis.com/wp/current-consent']);
+
+    $response->assertStatus($enabled ? 204 : 403);
+
+    expect($user->pushSubscriptions()->count())->toBe($enabled ? 1 : 0);
+})->with([true, false]);
+
 it('removes only this browser on sign-out and all browsers when remotes are disabled', function (): void {
     $user = User::factory()->create();
     $this->actingAs($user)->postJson(route('push-subscription.store'), ['endpoint' => 'https://fcm.googleapis.com/wp/other'])->assertNoContent();
