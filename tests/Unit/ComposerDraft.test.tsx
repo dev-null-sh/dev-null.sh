@@ -536,6 +536,36 @@ test('typing a command and a space turns the draft into an issue, and backspace 
     );
     assert.equal(find('data-test', 'add-poll-button'), undefined);
     assert.equal(view.form.props.onBefore(), false);
+    const issueTextarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    assert.equal(issueTextarea.props.onPaste, undefined);
+    assert.equal(
+        view.fields.some(
+            (element) => element.props.onDragEnter !== undefined,
+        ),
+        false,
+    );
+    const dropzone = view.fields.find(
+        (element) => element.props.onDragOver !== undefined,
+    )!;
+    const onDragOver = dropzone.props.onDragOver as (event: unknown) => void;
+    let prevented = false;
+    onDragOver({
+        dataTransfer: { types: ['Files'] },
+        preventDefault: () => {
+            prevented = true;
+        },
+    });
+    assert.equal(prevented, true);
+    prevented = false;
+    onDragOver({
+        dataTransfer: { types: ['text/plain'] },
+        preventDefault: () => {
+            prevented = true;
+        },
+    });
+    assert.equal(prevented, false);
 
     keyDown(view, 'Backspace');
     view = render();
