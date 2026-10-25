@@ -565,6 +565,11 @@ export function EmojiPicker({
     };
 
     const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+        // Enter also confirms an input method's candidate, which is not a pick.
+        if (event.nativeEvent.isComposing) {
+            return;
+        }
+
         const moves: Record<string, number> = {
             ArrowRight: 1,
             ArrowLeft: -1,
