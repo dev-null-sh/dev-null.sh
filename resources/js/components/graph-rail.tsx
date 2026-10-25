@@ -77,19 +77,19 @@ export function GraphRail({
     // A fresh commit going on below another one, like a reply chained under the last commit of a thread, scales in once
     // the trunk has reached it.
     const waitsForTrunk = isFresh && previousLane !== undefined;
-    // The actions row is 24px tall, or 28px below md, where the secondary actions fold into a menu button. Replies hang
-    // right under it; otherwise the commit's 12px padding and 1px border sit below it.
-    const endDotBottom = !endsOnActions
-        ? 'bottom-5'
-        : hasReplyTail
-          ? 'bottom-3.5 md:bottom-3'
-          : 'bottom-[27px] md:bottom-[25px]';
+    // The actions row is 24px tall, or 28px below md, where the secondary actions fold into a menu button. It ends the
+    // rail's row: what opens below it, like the reply composer, has a row of its own.
+    const endDotBottom = endsOnActions ? 'bottom-3.5 md:bottom-3' : 'bottom-5';
 
     return (
         <div
             aria-hidden
             className={cn('relative min-h-16 w-16 shrink-0 sm:w-18', {
-                'min-h-24': endsWithDot || nodePosition === 'bottom',
+                'min-h-24':
+                    (endsWithDot && !endsOnActions) ||
+                    nodePosition === 'bottom',
+                // The commit's bottom padding and border sit in the row below.
+                'min-h-[calc(6rem-13px)]': endsWithDot && endsOnActions,
             })}
             style={{ '--lane': lane } as CSSProperties}
             onPointerEnter={
