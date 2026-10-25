@@ -435,6 +435,25 @@ function signedApiRequestWithImages(SshKeyPair $keyPair, string $method, string 
 }
 
 /**
+ * Sends an API request with a voice note the way the Mac app does: multipart, with the data as the JSON payload beside
+ * the voice note, signed with the hash of $signedVoice, which is the voice note sent unless a test says otherwise.
+ *
+ * @param  array<string, mixed>  $data
+ */
+function signedApiRequestWithVoice(SshKeyPair $keyPair, string $method, string $uri, array $data, UploadedFile $voice, ?UploadedFile $signedVoice = null): TestResponse
+{
+    $payload = json_encode($data, JSON_THROW_ON_ERROR);
+
+    return test()->call($method, $uri, files: [
+        'payload' => UploadedFile::fake()->createWithContent('payload', $payload),
+        'voice' => $voice,
+    ], server: [
+        ...signApiRequest($keyPair, $method, $uri, hash_file('sha256', ($signedVoice ?? $voice)->getPathname())."\n".$payload, namespace: SignedRequests::ImagesNamespace),
+        'CONTENT_TYPE' => 'multipart/form-data; boundary=devnull',
+    ]);
+}
+
+/**
  * Gives the user a key approved as a device, that the mobile app signs API requests with. It isn't on their GitHub
  * account, as the API doesn't need it to be.
  */

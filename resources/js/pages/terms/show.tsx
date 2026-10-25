@@ -1,4 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
+import AppController from '@/actions/App/Http/Controllers/AppController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import {
     DocumentList,
@@ -108,6 +109,27 @@ export default function Show() {
                         Any API, feed, key, or tool we provide is part of the
                         service, may be limited, changed, or revoked at any
                         time, and may only be used as we allow.
+                    </p>
+                </DocumentSection>
+
+                <DocumentSection id="apps" title="Apps">
+                    <p>
+                        Our apps, such as{' '}
+                        <Link href={AppController.index()}>
+                            /dev/null for Mac
+                        </Link>
+                        , are part of the service. We let you install and use
+                        them on devices you own or control, only to use the
+                        service, under a personal, non-exclusive,
+                        non-transferable license that ends when your access to
+                        the service ends. Get them only from dev-null.sh. Each
+                        device you approve can act as you until you revoke it in
+                        your settings, and you are responsible for what happens
+                        through it. We may update, limit, or stop offering any
+                        app, and an outdated version may stop working. Apps we
+                        haven't had notarized by Apple ask you to approve them
+                        in macOS before they first open, and you install them at
+                        your own risk.
                     </p>
                 </DocumentSection>
 

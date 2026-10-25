@@ -6,6 +6,7 @@ use App\Enums\OrgEvent;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
+use App\Models\UserTimeout;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 
@@ -139,4 +140,48 @@ it('shares the web limits of 30 pushes and 300 Remotes requests a minute', funct
 
 it('rejects requests that are not signed', function (): void {
     $this->postJson(route('api-org.store'), ['members' => ['nunomaduro']])->assertUnauthorized();
+});
+
+it('lets maintainers rename the org, as the web does', function (): void {
+    [$nuno] = followersOf($this->user, 1);
+    $org = createOrg($this->user, [$nuno], name: null);
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-org.update', $org), ['name' => ' polling crew '])->assertNoContent();
+
+    expect(Conversation::query()->findOrFail($org)->name)->toBe('polling crew')
+        ->and(Message::query()->latest('id')->firstOrFail()->event)->toBe(OrgEvent::Renamed);
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-org.update', $org), ['name' => null])->assertNoContent();
+
+    expect(Conversation::query()->findOrFail($org)->name)->toBeNull();
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-org.update', $org), ['name' => Str::repeat('a', 61)])
+        ->assertUnprocessable()
+        ->assertOnlyJsonValidationErrors('name');
+});
+
+it('keeps contributors and outsiders from renaming the org', function (): void {
+    $mark = User::factory()->create();
+    $this->user->following()->attach($mark);
+    $org = createOrg($mark, [$this->user]);
+    $elsewhere = createOrg($mark, followersOf($mark, 1));
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-org.update', $org), ['name' => 'nope'])
+        ->assertForbidden()
+        ->assertJsonPath('message', 'Only maintainers can rename the org.');
+    signedApiRequest($this->keyPair, 'PUT', route('api-org.update', $elsewhere), ['name' => 'nope'])->assertNotFound();
+
+    expect(Conversation::query()->findOrFail($org)->name)->toBe('dev/null core');
+});
+
+it('refuses renaming during a timeout', function (): void {
+    [$nuno] = followersOf($this->user, 1);
+    $org = createOrg($this->user, [$nuno]);
+    UserTimeout::factory()->for($this->user)->create();
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-org.update', $org), ['name' => 'buy my course'])
+        ->assertForbidden()
+        ->assertJsonPath('code', 'timed_out');
+
+    expect(Conversation::query()->findOrFail($org)->name)->toBe('dev/null core');
 });

@@ -1,0 +1,10 @@
+{
+    "version": "0.1",
+    "build": 888,
+    "revision": "9f0c4f2d-dirty",
+    "released_at": "2026-10-25T01:04:57Z",
+    "minimum_system_version": "14.0",
+    "notarized": false,
+    "size": 5238021,
+    "sha256": "3cb93a8824ece4f423553270ed1da65c8dc3c96e669d164c73f1c77b5395e5b7"
+}

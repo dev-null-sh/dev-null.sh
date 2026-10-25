@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\Log;
 use App\Http\Controllers\AboutController;
+use App\Http\Controllers\AppController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
@@ -171,6 +172,10 @@ Route::get('about', [AboutController::class, 'show'])->name('about.show');
 
 // Logos, colors, and backgrounds, downloadable by everyone...
 Route::get('brand', [BrandController::class, 'show'])->name('brand.show');
+
+// The apps, downloadable by everyone, where the Mac app's first page used to be too...
+Route::get('apps', [AppController::class, 'index'])->name('app.index');
+Route::get('mac', fn () => to_route('app.index', status: 301));
 
 // What was merged into production, readable by everyone...
 Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.index');
