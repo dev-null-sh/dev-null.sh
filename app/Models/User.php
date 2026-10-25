@@ -90,12 +90,6 @@ use LogicException;
  */
 #[Hidden([
     'profile',
-    'username',
-    'name',
-    'avatar_url',
-    'bio',
-    'location',
-    'website',
     'github_id',
     'email',
     'remember_token',
@@ -112,7 +106,6 @@ use LogicException;
     'pasteis_given_today',
     'pasteis_given_on',
     'pinned_commit_id',
-    'github_synced_at',
     'log',
     'onboarded_at',
     'github_follows_imported_at',

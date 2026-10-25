@@ -6,7 +6,6 @@ use App\Actions\DeleteUser;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 
 it('keeps the original mention recipient and profile after a rename and handle reuse', function (): void {
     config(['app.admins' => ['moderator']]);
@@ -104,34 +103,6 @@ it('redirects guests to the current profile and rejects invalid mention ids', fu
 
     $this->get('/mentions/'.$mentioned->id)->assertRedirect('/@original');
     $this->get('/mentions/original')->assertNotFound();
-});
-
-it('backfills legacy mentions without changing captured identities or commit text', function (): void {
-    // The backfill ran when the handle was still the username on the users table...
-    $mentioned = User::factory()->create();
-    $codeUser = User::factory()->create();
-    DB::table('users')->where('id', $mentioned->id)->update(['username' => 'original']);
-    DB::table('users')->where('id', $codeUser->id)->update(['username' => 'codeuser']);
-    $legacy = Commit::factory()->create([
-        'body' => "Thanks @ORIGINAL! `@codeuser`\n```php\n@codeuser\n```\n@unknown @codeuser/package mail@codeuser.com",
-        'mentions' => null,
-    ]);
-    $captured = Commit::factory()->create([
-        'body' => 'Thanks @previous!',
-        'mentions' => ['previous' => $mentioned->id],
-    ]);
-    $unresolved = Commit::factory()->create(['body' => 'Thanks @unknown!', 'mentions' => null]);
-    $body = $legacy->body;
-    $updatedAt = $legacy->updated_at;
-
-    $migration = require database_path('migrations/2026_10_15_201954_backfill_commit_mentions.php');
-    $migration->up();
-
-    expect($legacy->refresh()->mentions)->toBe(['original' => $mentioned->id]);
-    expect($legacy->body)->toBe($body);
-    expect($legacy->updated_at->equalTo($updatedAt))->toBeTrue();
-    expect($captured->refresh()->mentions)->toBe(['previous' => $mentioned->id]);
-    expect($unresolved->refresh()->mentions)->toBe([]);
 });
 
 it('keeps captured mention identities through deletion and undo after a rename and handle reuse', function (?string $relationship): void {

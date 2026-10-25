@@ -12,6 +12,7 @@ use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -175,7 +176,7 @@ it('does not prompt for ineligible mentions', function (string $case): void {
         'author gone' => $commit->update(['user_id' => null]),
         'self' => $commit->update(['user_id' => $tom->id]),
         'unmentioned' => $commit->update(['mentions' => []]),
-        'wrong identity' => $tom->update(['github_id' => '12345']),
+        'wrong identity' => $tom->update(['github_id' => Profile::factory()->create(['handle' => CreateTomFriendship::FALLBACK_HANDLE])->github_id]),
         'renamed' => $tom->profile->update(['handle' => 'not-tom']),
         'blocked' => $commit->user->blocking()->attach($tom),
         'blocker' => $tom->blocking()->attach($commit->user),
