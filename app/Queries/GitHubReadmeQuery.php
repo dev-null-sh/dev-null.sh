@@ -77,7 +77,7 @@ final readonly class GitHubReadmeQuery
         }
 
         $response = $this->github->request()
-            ->accept('application/vnd.github.html+json')
+            ->replaceHeaders(['Accept' => 'application/vnd.github.html+json'])
             ->get("repos/{$login}/{$login}/readme");
 
         return $response->notFound() ? '' : $this->sanitize($response->throw()->body());

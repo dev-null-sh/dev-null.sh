@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use App\Queries\GitHubReadmeQuery;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
 function fakeGitHubReadme(User $user, mixed $readme): void
@@ -32,6 +33,18 @@ it('keeps the formatting, links and proxied images of the readme', function (): 
         ->toContain('<table><tbody><tr><td>PHP</td></tr></tbody></table>')
         ->not->toContain('class=')
         ->not->toContain('id=');
+});
+
+it('asks GitHub for the readme as html only', function (): void {
+    $user = User::factory()->create();
+
+    fakeGitHubReadme($user, Http::response('<p>Hi</p>'));
+
+    resolve(GitHubReadmeQuery::class)->get($user);
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.github.com/repos/octocat/octocat/readme'
+        && $request->header('Accept') === ['application/vnd.github.html+json']
+        && $request->hasHeader('X-GitHub-Api-Version', '2022-11-28'));
 });
 
 it('removes scripts, styles, event handlers and images from elsewhere', function (): void {
