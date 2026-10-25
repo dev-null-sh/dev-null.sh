@@ -46,6 +46,23 @@ async function request(
     return response;
 }
 
+/** Native push operations cannot be aborted, but must not hold the settings queue forever. */
+function pushResult<T>(operation: Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+            () =>
+                reject(
+                    new Error('The browser did not respond. Please try again.'),
+                ),
+            10_000,
+        );
+    });
+    return Promise.race([operation, timeout]).finally(() =>
+        clearTimeout(timer),
+    );
+}
+
 /** Reuse an existing subscription on load; only a user gesture may create one. */
 export function syncRemotePush(
     enabled: boolean,
@@ -58,22 +75,14 @@ export function syncRemotePush(
             !('PushManager' in window)
         )
             return;
-        let registration = await navigator.serviceWorker.getRegistration();
-        if (!registration && create && enabled) {
-            await navigator.serviceWorker.register('/sw.js', {
-                scope: '/',
-                updateViaCache: 'none',
-            });
-            registration = await navigator.serviceWorker.ready;
-        }
-        if (!registration) return;
-        let subscription = await registration.pushManager.getSubscription();
-        if (!subscription) active = false;
-        if (enabled && Notification.permission === 'granted') {
+        if (enabled && Notification.permission !== 'granted') return;
+        let publicKey: string | null = null;
+        if (enabled) {
             const config = (await (await request(index.url())).json()) as {
                 public_key: string | null;
             };
-            if (!config.public_key) {
+            publicKey = config.public_key;
+            if (!publicKey) {
                 active = false;
                 listeners.forEach((listener) => listener());
                 if (create)
@@ -82,17 +91,38 @@ export function syncRemotePush(
                     );
                 return;
             }
+        }
+        let registration = await pushResult(
+            navigator.serviceWorker.getRegistration(),
+        );
+        if (!registration && create && enabled) {
+            await pushResult(
+                navigator.serviceWorker.register('/sw.js', {
+                    scope: '/',
+                    updateViaCache: 'none',
+                }),
+            );
+            registration = await pushResult(navigator.serviceWorker.ready);
+        }
+        if (!registration) return;
+        let subscription = await pushResult(
+            registration.pushManager.getSubscription(),
+        );
+        if (!subscription) active = false;
+        if (enabled && publicKey) {
             if (!subscription && create) {
-                const key = config.public_key
-                    .replace(/-/g, '+')
-                    .replace(/_/g, '/');
-                subscription = await registration.pushManager.subscribe({
-                    userVisibleOnly: true,
-                    applicationServerKey: Uint8Array.from(
-                        atob(key.padEnd(Math.ceil(key.length / 4) * 4, '=')),
-                        (char) => char.charCodeAt(0),
-                    ),
-                });
+                const key = publicKey.replace(/-/g, '+').replace(/_/g, '/');
+                subscription = await pushResult(
+                    registration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: Uint8Array.from(
+                            atob(
+                                key.padEnd(Math.ceil(key.length / 4) * 4, '='),
+                            ),
+                            (char) => char.charCodeAt(0),
+                        ),
+                    }),
+                );
             }
             if (subscription) {
                 await request(store.url(), 'POST', subscription.endpoint);
@@ -100,7 +130,7 @@ export function syncRemotePush(
             }
         } else if (subscription) {
             await request(destroy.url(), 'DELETE', subscription.endpoint);
-            await subscription.unsubscribe();
+            await pushResult(subscription.unsubscribe());
             active = false;
         }
         listeners.forEach((listener) => listener());

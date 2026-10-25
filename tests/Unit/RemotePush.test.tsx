@@ -21,7 +21,7 @@ beforeEach(() => {
     save.mockClear(); subscribe.mockClear(); unsubscribe.mockClear();
 });
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {vi.unstubAllGlobals();vi.restoreAllMocks();vi.useRealTimers();});
 
 test('does not subscribe or request permission on page load', async () => {
     await syncRemotePush(true);
@@ -98,4 +98,27 @@ test('page alerts can be re-enabled even when background delivery is unavailable
     await assert.rejects(setRemoteAlerts('me', true));
     assert.equal(remoteAlertsEnabled('me'), true);
     assert.equal(remotePushEnabled(), false);
+});
+
+test('a stalled browser operation times out without saving and the next attempt can recover', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(registration.pushManager, 'getSubscription').mockImplementationOnce(() => new Promise(() => {}));
+    const rejected = assert.rejects(syncRemotePush(true, true), /browser did not respond/);
+    await vi.advanceTimersByTimeAsync(10_001);
+    await rejected;
+    assert.equal(save.mock.calls.length, 0);
+    await syncRemotePush(true, true);
+    assert.equal(save.mock.calls.length, 1);
+    assert.equal(remotePushEnabled(), true);
+});
+
+test('does not query native subscriptions before permission or server configuration is ready', async () => {
+    const query = vi.spyOn(registration.pushManager, 'getSubscription');
+    vi.stubGlobal('Notification', {permission: 'default'});
+    await syncRemotePush(true);
+    assert.equal(query.mock.calls.length, 0);
+    vi.stubGlobal('Notification', {permission: 'granted'});
+    vi.stubGlobal('fetch', async () => Response.json({public_key: null}));
+    await assert.rejects(syncRemotePush(true, true));
+    assert.equal(query.mock.calls.length, 0);
 });
