@@ -1,4 +1,3 @@
-import { Form, router } from '@inertiajs/react';
 import { Ellipsis, Radio, RadioOff } from 'lucide-react';
 import { useState } from 'react';
 import { endStream, GoLiveDialog } from '@/components/go-live-dialog';

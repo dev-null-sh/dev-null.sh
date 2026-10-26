@@ -10,10 +10,12 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * The signed-in user: their public profile, plus what only they see on the web's profile settings. That is the lane
- * or custom color they chose (`null` for Automatic) and the one Automatic gives them, their GitHub Sponsors page, and when their profile
- * was last mirrored from GitHub. The version of the terms in force, when they accepted, and whether it was this version, so the app knows to ask. Their Remotes are `null` while turned off, as the web hides them, and otherwise say who
- * can push to them, whether they share pulls, what the site lets them choose, and the unread count the web's nav shows.
+ * The signed-in user: their public profile, plus what only they see on the web's profile settings. That is the lane or
+ * custom color they chose (`null` for Automatic) and the one Automatic gives them, their GitHub Sponsors page, and when
+ * their profile was last mirrored from GitHub. The version of the terms in force, when they accepted, and whether it
+ * was this version, so the app knows to ask. Their Remotes are `null` while turned off, as the web hides them, and
+ * otherwise say who can push to them, whether they share pulls, what the site lets them choose, and the unread count
+ * the web's nav shows.
  *
  * @mixin User
  */
