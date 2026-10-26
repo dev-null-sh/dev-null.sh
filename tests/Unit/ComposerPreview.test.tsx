@@ -344,7 +344,9 @@ test('shows mentions as text until the server has found them', () => {
     );
 
     assert.equal(preview.mentions, null);
-    assert.ok(markup.includes('Pairing with @alice'));
+    assert.ok(
+        markup.includes('Pairing with <span dir="ltr">@alice</span>'),
+    );
     assert.ok(!markup.includes('data-test="mention"'));
 });
 

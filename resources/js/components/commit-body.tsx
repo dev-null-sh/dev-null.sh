@@ -19,9 +19,11 @@ export function CommitBody({
     className?: string;
     isStatic?: boolean;
 }) {
+    // A body written in Arabic, Hebrew or Persian reads right to left; mentions, links and code stay left to right.
     return (
         <div
             data-commit-body
+            dir="auto"
             className={cn(
                 'overflow-clip leading-relaxed wrap-break-word whitespace-pre-wrap [overflow-clip-margin:4px]',
                 className,
@@ -81,6 +83,7 @@ export function BodySegments({
                         return (
                             <code
                                 key={index}
+                                dir="ltr"
                                 className="rounded-sm bg-muted px-1 py-0.5 font-mono text-[0.875em]"
                             >
                                 <CertificateText text={segment.code} />

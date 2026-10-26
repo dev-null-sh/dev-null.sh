@@ -74,6 +74,10 @@ const mirroredProperties = [
     'text-transform',
     'text-indent',
     'tab-size',
+    // `dir="auto"` lays a Hebrew or Arabic draft out right to left, so the mirror has to as well.
+    'direction',
+    'text-align',
+    'unicode-bidi',
 ];
 
 function triggerAt(
@@ -124,7 +128,6 @@ function triggerAt(
 function characterRect(textarea: HTMLTextAreaElement, index: number) {
     const style = window.getComputedStyle(textarea);
     const mirror = document.createElement('div');
-    const marker = document.createElement('span');
 
     mirroredProperties.forEach((property) =>
         mirror.style.setProperty(property, style.getPropertyValue(property)),
@@ -136,17 +139,29 @@ function characterRect(textarea: HTMLTextAreaElement, index: number) {
     mirror.style.whiteSpace = 'pre-wrap';
     mirror.style.overflowWrap = 'break-word';
 
-    mirror.textContent = textarea.value.slice(0, index);
-    marker.textContent = textarea.value.slice(index) || '.';
-    mirror.appendChild(marker);
+    // The mirror holds the draft exactly as typed, so it wraps where the textarea does, and a range over the character
+    // at the index measures where it sits. Its box begins on the right when the draft runs right to left.
+    const text = document.createTextNode(
+        index < textarea.value.length ? textarea.value : `${textarea.value}.`,
+    );
+    mirror.appendChild(text);
     document.body.appendChild(mirror);
 
+    const range = document.createRange();
+    range.setStart(text, index);
+    range.setEnd(text, index + 1);
+
     const rect = textarea.getBoundingClientRect();
+    const mirrorRect = mirror.getBoundingClientRect();
+    const characterBox = range.getBoundingClientRect();
+    const start =
+        style.direction === 'rtl' ? characterBox.right : characterBox.left;
     const lineHeight =
         Number.parseFloat(style.lineHeight) ||
         Number.parseFloat(style.fontSize) * 1.4;
-    const top = rect.top + marker.offsetTop - textarea.scrollTop;
-    const left = rect.left + marker.offsetLeft - textarea.scrollLeft;
+    const top =
+        rect.top + characterBox.top - mirrorRect.top - textarea.scrollTop;
+    const left = rect.left + start - mirrorRect.left - textarea.scrollLeft;
 
     mirror.remove();
 
@@ -626,6 +641,7 @@ export function MentionTextarea({
     return (
         <>
             <textarea
+                dir="auto"
                 {...props}
                 ref={setRefs}
                 value={value}
