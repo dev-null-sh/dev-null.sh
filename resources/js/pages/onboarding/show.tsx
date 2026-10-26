@@ -189,7 +189,15 @@ function InviteActions() {
                     Copied an invite, paste it anywhere
                 </span>,
             );
+
+            return;
         }
+
+        toast.error(
+            <span className="font-mono text-[13px]">
+                fatal: could not copy the invite
+            </span>,
+        );
     };
 
     return (
