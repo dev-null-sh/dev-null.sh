@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property-read string|null $description
  * @property-read string|null $image_url
  * @property-read string|null $site_name
+ * @property-read string|null $gif_url
  * @property-read CarbonInterface|null $fetched_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -51,6 +52,7 @@ final class LinkPreview extends Model
             'description' => 'string',
             'image_url' => 'string',
             'site_name' => 'string',
+            'gif_url' => 'string',
             'fetched_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',

@@ -6,9 +6,12 @@ namespace App\Actions;
 
 use App\Contracts\Services\DnsResolver;
 use App\Models\LinkPreview;
+use App\Services\LinkPreviews\LimitedResponseBody;
+use App\Services\PreviewLinkProviders\GifPreviewLink;
 use Dom\HTMLDocument;
 use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Psr7\Utils;
+use GuzzleHttp\RequestOptions;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
@@ -17,7 +20,7 @@ use Symfony\Component\HttpFoundation\IpUtils;
 use Uri\WhatWg\Url;
 
 /**
- * @phpstan-type Metadata array{title: string|null, description: string|null, image_url: string|null, site_name: string|null}
+ * @phpstan-type Metadata array{title: string|null, description: string|null, image_url: string|null, site_name: string|null, gif_url: string|null}
  */
 final readonly class UpdateLinkPreview
 {
@@ -59,9 +62,10 @@ final readonly class UpdateLinkPreview
         'description' => null,
         'image_url' => null,
         'site_name' => null,
+        'gif_url' => null,
     ];
 
-    public function __construct(private DnsResolver $dns)
+    public function __construct(private DnsResolver $dns, private GifPreviewLink $gifs)
     {
         //
     }
@@ -84,21 +88,30 @@ final readonly class UpdateLinkPreview
     private function fetchMetadata(string $url): array
     {
         $page = Url::parse($url);
+        $isGif = $this->gifs->isGifUrl($page);
 
         for ($hop = 0; $hop <= self::MAX_REDIRECTS && $page instanceof Url; $hop++) {
+            if ($isGif && ($page->getScheme() !== 'https' || $page->getPort() !== null)) {
+                return self::NO_METADATA;
+            }
+
             $address = $this->publicAddress($page);
 
             if ($address === null) {
                 return self::NO_METADATA;
             }
 
-            $response = $this->get($page, $address);
+            $response = $this->get($page, $address, $isGif);
 
             if ($response->serverError() || $response->tooManyRequests()) {
                 $response->throw();
             }
 
             if (! $response->redirect()) {
+                if ($isGif && $response->successful()) {
+                    return $this->gifMetadata($response, $page);
+                }
+
                 return $response->successful() && $this->isHtml($response)
                     ? $this->parse($this->body($response), $page)
                     : self::NO_METADATA;
@@ -141,12 +154,12 @@ final readonly class UpdateLinkPreview
      * (by that limit or by the timeout) is still used, as metadata lives at the top of the page. English is asked for
      * explicitly, as sites such as YouTube otherwise pick the language from the server's location.
      */
-    private function get(Url $url, string $address): Response
+    private function get(Url $url, string $address, bool $isGif): Response
     {
         $port = $url->getPort() ?? ($url->getScheme() === 'https' ? 443 : 80);
 
         $request = Http::withUserAgent(sprintf('Mozilla/5.0 (compatible; devnull-linkpreview/1.0; +%s)', config()->string('app.url')))
-            ->accept('text/html')
+            ->accept($isGif ? GifPreviewLink::CONTENT_TYPE : 'text/html')
             ->withHeaders(['Accept-Language' => 'en-US,en;q=0.9'])
             ->connectTimeout(3)
             ->timeout(5)
@@ -158,6 +171,11 @@ final readonly class UpdateLinkPreview
                     CURLOPT_CONNECT_TO => [sprintf('::%s:%d', str_contains($address, ':') ? "[{$address}]" : $address, $port)],
                 ],
             ]);
+
+        if ($isGif) {
+            $request->withHeaders(['Range' => sprintf('bytes=0-%d', GifPreviewLink::HEADER_BYTES - 1)])
+                ->withOptions([RequestOptions::SINK => new LimitedResponseBody(GifPreviewLink::HEADER_BYTES)]);
+        }
 
         try {
             return $request->get($url->toAsciiString());
@@ -172,6 +190,18 @@ final readonly class UpdateLinkPreview
         }
     }
 
+    /**
+     * @return Metadata
+     */
+    private function gifMetadata(Response $response, Url $page): array
+    {
+        return [...self::NO_METADATA, 'gif_url' => $this->gifs->getVerifiedUrl(
+            $page,
+            $response->header('Content-Type'),
+            $this->body($response, GifPreviewLink::HEADER_BYTES),
+        )];
+    }
+
     private function isHtml(Response $response): bool
     {
         $mediaType = mb_strtolower(mb_trim(Str::before($response->header('Content-Type'), ';')));
@@ -179,12 +209,12 @@ final readonly class UpdateLinkPreview
         return in_array($mediaType, ['text/html', 'application/xhtml+xml'], true);
     }
 
-    private function body(Response $response): string
+    private function body(Response $response, int $limit = self::MAX_BODY_BYTES): string
     {
         $body = $response->toPsrResponse()->getBody();
         $body->rewind();
 
-        return Utils::copyToString($body, self::MAX_BODY_BYTES);
+        return Utils::copyToString($body, $limit);
     }
 
     /**
@@ -205,6 +235,7 @@ final readonly class UpdateLinkPreview
             'description' => $this->text([$meta['og:description'] ?? '', $meta['twitter:description'] ?? '', $meta['description'] ?? ''], 500),
             'image_url' => $this->imageUrl([$meta['og:image:secure_url'] ?? '', $meta['og:image'] ?? '', $meta['twitter:image'] ?? ''], $page),
             'site_name' => $this->text([$meta['og:site_name'] ?? ''], 100),
+            'gif_url' => null,
         ];
     }
 
