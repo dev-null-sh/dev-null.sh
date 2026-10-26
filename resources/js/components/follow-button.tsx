@@ -270,37 +270,78 @@ export function FollowIconButton({
 }) {
     const {
         component,
-        props: { log, commits },
+        props: { log, commits, suggestedUsers },
     } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const [isFollowing, setIsFollowing] = useIsFollowing(
         user,
         initialIsFollowing,
     );
-    const Icon = isFollowing ? UserCheck : UserPlus;
+    const [isPending, setIsPending] = useSharedState<boolean>(
+        isPendingKey(user),
+        false,
+    );
+    const shownIsFollowing = isPending
+        ? (suggestedUsers?.find((suggested) => suggested.id === user.id)
+              ?.is_followed ?? isFollowing)
+        : isFollowing;
+    const Icon = shownIsFollowing ? UserCheck : UserPlus;
 
     return (
         <Tooltip>
             <TooltipTrigger asChild>
-                <Link
-                    href={
-                        isFollowing
-                            ? UserFollowController.destroy(user)
-                            : UserFollowController.store(user)
-                    }
-                    as="button"
-                    only={['auth']}
-                    preserveState
-                    preserveScroll
-                    async
-                    onHttpException={(response) =>
-                        onFollowHttpException(user, response)
-                    }
-                    onSuccess={() => {
-                        setIsFollowing(!isFollowing);
-                        router.flushAll();
+                <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => {
+                        const follows = !isFollowing;
+
+                        router.visit(
+                            follows
+                                ? UserFollowController.store(user)
+                                : UserFollowController.destroy(user),
+                            {
+                                only: ['auth'],
+                                preserveState: true,
+                                preserveScroll: true,
+                                async: true,
+                                ...followVisitOptions(component, log, commits),
+                                optimistic: (props) => ({
+                                    ...(props.suggestedUsers && {
+                                        suggestedUsers:
+                                            props.suggestedUsers.map(
+                                                (suggested) =>
+                                                    suggested.id === user.id
+                                                        ? {
+                                                              ...suggested,
+                                                              is_followed:
+                                                                  follows,
+                                                          }
+                                                        : suggested,
+                                            ),
+                                    }),
+                                }),
+                                onBefore: () => {
+                                    let starts = false;
+                                    setIsPending((current) => {
+                                        starts = !current;
+
+                                        return true;
+                                    });
+
+                                    return starts;
+                                },
+                                onFinish: () => setIsPending(false),
+                                onHttpException: (response) =>
+                                    onFollowHttpException(user, response),
+                                onSuccess: () => {
+                                    setIsFollowing(follows);
+                                    router.flushAll();
+                                },
+                            },
+                        );
                     }}
                     aria-label={
-                        isFollowing
+                        shownIsFollowing
                             ? `Unfollow @${user.username}`
                             : `Follow @${user.username}${followsYou ? ' back' : ''}`
                     }
@@ -308,17 +349,17 @@ export function FollowIconButton({
                         'shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
                         {
                             'text-primary hover:text-primary':
-                                isFollowing || (marksFollowsYou && followsYou),
+                                shownIsFollowing ||
+                                (marksFollowsYou && followsYou),
                         },
                     )}
                     {...props}
-                    {...followVisitOptions(component, log, commits)}
                 >
                     <Icon aria-hidden className="size-4" />
-                </Link>
+                </button>
             </TooltipTrigger>
             <TooltipContent>
-                {isFollowing
+                {shownIsFollowing
                     ? `Following @${user.username}`
                     : followsYou
                       ? `Follow @${user.username} back`

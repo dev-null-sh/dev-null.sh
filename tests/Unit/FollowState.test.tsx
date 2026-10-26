@@ -13,6 +13,11 @@ let log: string | undefined;
 let loadedCommits: { data: { id: string }[] } | undefined;
 let suggestedUsers: SuggestedUser[] | undefined;
 type VisitOptions = {
+    optimistic?: (props: { suggestedUsers?: SuggestedUser[] }) => {
+        suggestedUsers?: SuggestedUser[];
+    };
+    onBefore?: () => boolean;
+    onStart?: () => void;
     only?: string[];
     headers?: Record<string, string>;
     async?: boolean;
@@ -75,7 +80,10 @@ vi.doMock('@inertiajs/react', async () => ({
             }
 
             return () =>
-                navigateListeners.splice(navigateListeners.indexOf(listener), 1);
+                navigateListeners.splice(
+                    navigateListeners.indexOf(listener),
+                    1,
+                );
         },
         replaceProp: (
             _key: string,
@@ -414,6 +422,121 @@ function suggestionFollowLink(user: SuggestedUser): Props {
     return link.props;
 }
 
+function suggestionIcon(user: SuggestedUser): Props {
+    const button = find(
+        SuggestedUserRow({ user, onDismiss: () => false }),
+        (props) => props['data-test'] === 'suggested-follow-button',
+    );
+    assert.ok(button);
+    const control = find(render(button), (props) => 'aria-label' in props);
+    assert.ok(control);
+
+    return control.props;
+}
+
+function startSuggestionFollow(user: SuggestedUser): VisitOptions {
+    (suggestionIcon(user).onClick as () => void)();
+    const visit = visits.at(-1)!;
+    assert.equal(visit.onBefore?.(), true);
+    visit.onStart?.();
+    assert.ok(visit.optimistic);
+    suggestedUsers = visit.optimistic({ suggestedUsers }).suggestedUsers;
+
+    return visit;
+}
+
+test('a suggestion follows and unfollows immediately without flipping back on success', () => {
+    const user = suggestion('optimistic');
+    suggestedUsers = [user];
+    const follow = startSuggestionFollow(user);
+
+    assert.equal(suggestionIcon(user)['aria-label'], 'Unfollow @optimistic');
+    assert.equal(suggestionIcon(user).disabled, true);
+    assert.equal(
+        (suggestionFollowLink(user).onBefore as () => boolean)(),
+        false,
+    );
+    follow.onSuccess?.();
+    follow.onFinish?.();
+    assert.equal(suggestionIcon(user)['aria-label'], 'Unfollow @optimistic');
+
+    const unfollow = startSuggestionFollow(user);
+    assert.equal(visits.at(-1)?.method, 'delete');
+    assert.equal(suggestionIcon(user)['aria-label'], 'Follow @optimistic');
+    unfollow.onSuccess?.();
+    unfollow.onFinish?.();
+    assert.equal(suggestionIcon(user)['aria-label'], 'Follow @optimistic');
+});
+
+test('an optimistic suggestion prevents duplicate requests for the same person', () => {
+    const user = suggestion('pending-icon');
+    suggestedUsers = [user];
+    const follow = startSuggestionFollow(user);
+    assert.equal(suggestionIcon(user).disabled, true);
+
+    (suggestionIcon(user).onClick as () => void)();
+    assert.equal(visits.at(-1)?.onBefore?.(), false);
+    follow.onSuccess?.();
+    follow.onFinish?.();
+    assert.equal(suggestionIcon(user).disabled, false);
+});
+
+test('a failed optimistic unfollow restores the followed icon', () => {
+    const user = suggestion('failed-unfollow');
+    followFromProfile(user);
+    const baseline = [user];
+    suggestedUsers = baseline;
+    const unfollow = startSuggestionFollow(user);
+    assert.equal(suggestionIcon(user)['aria-label'], 'Follow @failed-unfollow');
+
+    suggestedUsers = baseline;
+    unfollow.onFinish?.();
+    assert.equal(
+        suggestionIcon(user)['aria-label'],
+        'Unfollow @failed-unfollow',
+    );
+    assert.equal(suggestionIcon(user).disabled, false);
+});
+
+test('rolling back a failed suggestion leaves a different successful follow intact', () => {
+    const first = suggestion('saved-optimistic');
+    const second = suggestion('failed-optimistic');
+    const baseline = [first, second];
+    suggestedUsers = baseline;
+    const saved = startSuggestionFollow(first);
+    const failed = startSuggestionFollow(second);
+    saved.onSuccess?.();
+    saved.onFinish?.();
+
+    suggestedUsers = baseline;
+    failed.onFinish?.();
+
+    assert.equal(
+        suggestionIcon(first)['aria-label'],
+        'Unfollow @saved-optimistic',
+    );
+    assert.equal(
+        suggestionIcon(second)['aria-label'],
+        'Follow @failed-optimistic',
+    );
+    assert.equal(suggestionIcon(second).disabled, false);
+});
+
+test('a block during an optimistic follow is not undone by rollback', () => {
+    const user = suggestion('optimistic-block');
+    suggestedUsers = [user];
+    const follow = startSuggestionFollow(user);
+    assert.equal(follow.onHttpException?.({ status: 403 }), false);
+    assert.equal(isSuggested(user), false);
+
+    suggestedUsers = [user];
+    follow.onFinish?.();
+    assert.equal(
+        suggestionIcon(user)['aria-label'],
+        'Follow @optimistic-block',
+    );
+});
+
 test('following several suggestions in a row sends every follow without cancelling the others', () => {
     const first = suggestion('pauline');
     const second = suggestion('brent');
@@ -542,9 +665,9 @@ function suggestionRow(user: SuggestedUser): Props {
 }
 
 function dismissSuggestion(user: SuggestedUser): boolean {
-    return (
-        suggestionRow(user).onDismiss as (onFailed: () => void) => boolean
-    )(() => {});
+    return (suggestionRow(user).onDismiss as (onFailed: () => void) => boolean)(
+        () => {},
+    );
 }
 
 function hasElementNamed(node: ReactNode, name: string): boolean {
