@@ -45,6 +45,7 @@ export type CommitImage = {
     width: number;
     height: number;
     description: string | null;
+    type?: 'image/webp' | 'image/gif';
 };
 
 export type BodySegment =

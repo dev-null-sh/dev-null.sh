@@ -13,6 +13,7 @@ test('to array', function (): void {
         'width' => 1200,
         'height' => 800,
         'description' => null,
+        'type' => 'image/webp',
         'url' => route('commit-image.show', $image),
     ]);
 });

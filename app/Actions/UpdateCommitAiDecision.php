@@ -8,6 +8,7 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Services\OpenAI;
+use Illuminate\Support\Facades\Image;
 use Illuminate\Support\Facades\Storage;
 
 final readonly class UpdateCommitAiDecision
@@ -32,7 +33,9 @@ final readonly class UpdateCommitAiDecision
     public function handle(Commit $commit): void
     {
         $images = array_values($commit->images->map(
-            fn (CommitImage $image): string => 'data:image/webp;base64,'.base64_encode((string) Storage::get($image->path)),
+            fn (CommitImage $image): string => $image->mimeType() === 'image/gif'
+                ? Image::fromStorage($image->path)->usingGd()->optimize('webp')->toDataUri()
+                : 'data:image/webp;base64,'.base64_encode((string) Storage::get($image->path)),
         )->all());
 
         $scores = $this->openAI->moderate($commit->body, $images);

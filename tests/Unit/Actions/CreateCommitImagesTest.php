@@ -8,6 +8,9 @@ use App\Models\CommitImage;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Intervention\Image\AnimationFactory;
+use Intervention\Image\Drivers\Gd\Driver as GdDriver;
+use Intervention\Image\ImageManager;
 
 beforeEach(function (): void {
     Storage::fake();
@@ -35,6 +38,36 @@ it('stores images of a commit as webp in order', function (): void {
             ->and(getimagesizefromstring((string) Storage::disk()->get($image->path))['mime'] ?? null)->toBe('image/webp');
     });
 });
+
+function animatedGif(int $width, int $height, int $frames): string
+{
+    $gd = ImageManager::usingDriver(GdDriver::class);
+
+    return $gd->createImage($width, $height, function (AnimationFactory $animation) use ($gd, $width, $height, $frames): void {
+        foreach (range(1, $frames) as $frame) {
+            $animation->add($gd->createImage($width, $height)->fill($frame % 2 === 0 ? 'f00' : '00f'), 0.2);
+        }
+    })->encodeUsingFileExtension('gif')->toString();
+}
+
+it('stores a gif as a gif, scaled down and still animated', function (): void {
+    $commit = Commit::factory()->create();
+
+    resolve(CreateCommitImages::class)->handle($commit, [UploadedFile::fake()->createWithContent('party.gif', animatedGif(1700, 850, 3))]);
+
+    $image = $commit->images->sole();
+    $stored = (string) Storage::disk()->get($image->path);
+
+    expect($image->path)->toEndWith('.gif')
+        ->and($image->mimeType())->toBe('image/gif')
+        ->and($image->only(['width', 'height']))->toBe(['width' => 1600, 'height' => 800])
+        ->and(getimagesizefromstring($stored)['mime'] ?? null)->toBe('image/gif')
+        ->and(ImageManager::usingDriver(GdDriver::class)->decodeBinary($stored)->count())->toBe(3);
+});
+
+it('refuses gifs with too many pixels across their frames', function (): void {
+    resolve(CreateCommitImages::class)->handle(Commit::factory()->create(), [UploadedFile::fake()->createWithContent('long.gif', animatedGif(480, 270, 62))]);
+})->throws(ValidationException::class);
 
 it('drops anything smuggled alongside the pixels', function (): void {
     $file = UploadedFile::fake()->image('payload.png', 10, 10);
@@ -137,11 +170,11 @@ it('refuses files that are not images, storing none of the images', function ():
     ]);
 })->throws(ValidationException::class);
 
-it('refuses formats other than jpeg, png and webp', function (string $name): void {
+it('refuses formats other than jpeg, png, webp and gif', function (string $name): void {
     $file = UploadedFile::fake()->image($name, 10, 10);
 
     resolve(CreateCommitImages::class)->handle(Commit::factory()->create(), [$file]);
-})->throws(ValidationException::class)->with(['image.bmp', 'image.gif']);
+})->throws(ValidationException::class)->with(['image.bmp']);
 
 it('refuses images too large to decode safely', function (): void {
     resolve(CreateCommitImages::class)->handle(Commit::factory()->create(), [UploadedFile::fake()->image('huge.png', 6001, 10)]);

@@ -137,8 +137,8 @@ it('includes the images of the commit in order', function (): void {
         ->assertOk()
         ->assertDontSee($first->path)
         ->assertJsonPath('data.images', [
-            ['id' => $first->id, 'width' => 1200, 'height' => 800, 'description' => 'A terminal showing a successful build.', 'url' => route('commit-image.show', $first)],
-            ['id' => $second->id, 'width' => 640, 'height' => 480, 'description' => null, 'url' => route('commit-image.show', $second)],
+            ['id' => $first->id, 'width' => 1200, 'height' => 800, 'description' => 'A terminal showing a successful build.', 'type' => 'image/webp', 'url' => route('commit-image.show', $first)],
+            ['id' => $second->id, 'width' => 640, 'height' => 480, 'description' => null, 'type' => 'image/webp', 'url' => route('commit-image.show', $second)],
         ]);
 });
 
@@ -247,7 +247,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'replies_count' => 1,
                 'link_preview' => null,
                 'images' => [
-                    ['id' => $image->id, 'width' => 1200, 'height' => 800, 'description' => null, 'url' => route('commit-image.show', $image)],
+                    ['id' => $image->id, 'width' => 1200, 'height' => 800, 'description' => null, 'type' => 'image/webp', 'url' => route('commit-image.show', $image)],
                 ],
                 'author' => $author($user),
                 'body_segments' => [
@@ -848,7 +848,7 @@ it('validates the images of a commit from a signed request as the web does', fun
 })->with([
     'more than three' => [fn (): array => array_map(fn (int $index): UploadedFile => UploadedFile::fake()->image("{$index}.png", 10, 10), range(1, 4)), [], 'images', 'The images field must not have more than 3 items.'],
     'not an image' => [fn (): array => [UploadedFile::fake()->create('notes.txt', 1, 'text/plain')], [], 'images.0', 'The images.0 field must be an image.'],
-    'a gif' => [fn (): array => [UploadedFile::fake()->image('party.gif', 10, 10)], [], 'images.0', 'The images.0 field must be a file of type: image/jpeg, image/png, image/webp.'],
+    'a bmp' => [fn (): array => [UploadedFile::fake()->image('party.bmp', 10, 10)], [], 'images.0', 'The images.0 field must be a file of type: image/jpeg, image/png, image/webp, image/gif.'],
     'larger than 10 MB' => [fn (): array => [UploadedFile::fake()->image('huge.png', 10, 10)->size(10_001)], [], 'images.0', 'The images.0 field must not be greater than 10000 kilobytes.'],
     'too many pixels' => [fn (): array => [UploadedFile::fake()->image('wide.png', 6001, 1)], [], 'images.0', 'The images.0 field has invalid image dimensions.'],
     'too long a description' => [fn (): array => [UploadedFile::fake()->image('photo.jpg', 10, 10)], ['image_descriptions' => [str_repeat('a', 1001)]], 'image_descriptions.0', 'The image description field must not be greater than 1000 characters.'],

@@ -71,7 +71,7 @@ void test('bounds oversized reads and cancels the provider stream', async () => 
 void test('rejects empty and unsupported images', async () => {
     const { images, errors } = await readPickedImages([
         new File([], 'empty.png', { type: 'image/png' }),
-        new File(['gif'], 'photo.gif', { type: 'image/gif' }),
+        new File(['bmp'], 'photo.bmp', { type: 'image/bmp' }),
     ]);
     assert.deepEqual(images, []);
     assert.match((errors[0] as Error).message, /empty/);
