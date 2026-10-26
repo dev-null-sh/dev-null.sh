@@ -76,6 +76,7 @@ final class MessageResource extends JsonResource
             'subject_id' => $this->subject_id,
             'user' => $this->whenLoaded('user', fn (User $user): UserResource => UserResource::make($user)),
             'subject' => $this->whenLoaded('subject', fn (User $subject): UserResource => UserResource::make($subject)),
+            'pinned_at' => $this->pinned_at?->toIso8601ZuluString(),
             'created_at' => $this->created_at->toIso8601ZuluString(),
         ];
     }

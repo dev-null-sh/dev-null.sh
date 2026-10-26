@@ -38,6 +38,9 @@ it('pins a message for the whole org once, and answers with the pinned messages 
     signedApiRequest($this->keyPair, 'GET', route('api-org-message.index', $org))->assertJsonPath('data.pinned', $pinned);
 
     $pinnedAt = $message->fresh()?->pinned_at;
+
+    expect($pinned[0]['pinned_at'])->toBe($pinnedAt?->toIso8601ZuluString());
+
     $this->travel(5)->minutes();
 
     signedApiRequest($this->keyPair, 'PUT', route('api-message-pin.update', $message))
