@@ -307,7 +307,7 @@ it('may reply to a commit', function (): void {
 
     $response->assertCreated()
         ->assertExactJson([
-            'committed' => ['id' => $reply->id, 'body' => 'Agreed, ship it.'],
+            'committed' => ['id' => $reply->id, 'body' => 'Agreed, ship it.', 'user' => ['username' => $user->username]],
             'parent' => ['id' => $parent->id, 'replies_count' => 1, 'continuation_id' => null],
             'toast' => [
                 'type' => 'info',

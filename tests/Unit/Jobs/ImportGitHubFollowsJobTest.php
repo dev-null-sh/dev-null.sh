@@ -12,7 +12,7 @@ it('imports the github follows of the user', function (bool $notify, int $notifi
 
     fakeGitHubFollows($user, following: [$followed]);
 
-    dispatch(new ImportGitHubFollowsJob($user, $notify));
+    dispatch_sync(new ImportGitHubFollowsJob($user, $notify));
 
     expect($user->isFollowing($followed))->toBeTrue()
         ->and(Notification::query()->count())->toBe($notifications);

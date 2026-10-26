@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
+import { DragonBallIcon } from '@/components/dragon-ball-icon';
 import {
     Dialog,
     DialogContent,
@@ -23,6 +24,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { WordmarkText } from '@/components/wordmark-text';
 import { dropConfetti } from '@/lib/confetti';
 import { formatCount, formatExactCount } from '@/lib/numbers';
 import { cn, laneTint } from '@/lib/utils';
@@ -43,6 +45,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     cookie: Cookie,
     'bot-off': BotOff,
     bomb: Bomb,
+    'dragon-ball': DragonBallIcon,
 };
 
 export function AchievementsDialog({
@@ -206,7 +209,9 @@ export function AchievementsDialog({
                                             </span>
                                         </div>
                                         <p className="mt-1.5 font-sans text-xs leading-normal text-muted-foreground">
-                                            {badge.description}
+                                            <WordmarkText>
+                                                {badge.description}
+                                            </WordmarkText>
                                         </p>
                                     </div>
 

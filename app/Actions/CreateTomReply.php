@@ -25,10 +25,6 @@ final readonly class CreateTomReply
 
     public function handle(string $commitId): void
     {
-        if (blank(config('ai.providers.opencode.key')) || blank(config('ai.providers.openai.key'))) {
-            return;
-        }
-
         $commit = Commit::query()->visibleTo(null)->with('user')->find($commitId);
 
         if (! $commit instanceof Commit) {

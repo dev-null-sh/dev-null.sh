@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Dto\NewPoll;
+use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
@@ -67,7 +68,7 @@ final readonly class CreateCommit
                 'status' => $user->isAdmin() || $hasGoodReputation ? CommitStatus::Approved : CommitStatus::Pending,
                 'link_preview_id' => $linkPreview?->id,
                 'quoted_commit_id' => $quotedCommit?->id,
-                'hot_score' => $this->theAlgorithm->score($createdAt, 0, 0),
+                'hot_score' => $this->theAlgorithm->score($createdAt, ThreadEngagement::none()),
                 'created_at' => $createdAt,
             ]);
 
@@ -93,7 +94,6 @@ final readonly class CreateCommit
 
             if ($commit->status === CommitStatus::Approved
                 && $user->github_id !== CreateTomFriendship::GITHUB_ID
-                && filled(config('ai.providers.opencode.key')) && filled(config('ai.providers.openai.key'))
             ) {
                 $tom = $this->tomQuery->get();
 
@@ -106,11 +106,11 @@ final readonly class CreateCommit
                 dispatch(new CheckUserLevel($user))->afterCommit();
             }
 
-            if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation && filled(config('services.openai.key'))) {
+            if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation) {
                 dispatch(new ModerateCommit($commit))->afterCommit();
             }
 
-            if ($commit->body !== '' && filled(config('services.openai.key'))) {
+            if ($commit->body !== '') {
                 dispatch(new EmbedCommit($commit))->afterCommit();
             }
 

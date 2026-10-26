@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function (): void {
     $this->user = User::factory()->create();
@@ -54,6 +56,7 @@ it('shows the stars and saves of each reply as the user sees them', function ():
 });
 
 it('does not query each reply, its author or its stars', function (): void {
+    Queue::fake([DetectCommitLanguage::class]);
     $parent = Commit::factory()->create();
 
     $queries = function () use ($parent): int {

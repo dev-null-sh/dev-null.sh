@@ -12,7 +12,7 @@ it('syncs the ssh keys of the user', function (): void {
 
     fakeGitHubSshKeys($user, [$publicKey]);
 
-    dispatch(new SyncGitHubSshKeysJob($user));
+    dispatch_sync(new SyncGitHubSshKeysJob($user));
 
     expect($user->sshKeys()->sole()->fingerprint)->toBe($publicKey->fingerprint());
 });

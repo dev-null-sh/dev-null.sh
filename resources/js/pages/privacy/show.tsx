@@ -1,10 +1,12 @@
 import { Head, Link } from '@inertiajs/react';
+import AppController from '@/actions/App/Http/Controllers/AppController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import {
     DocumentList,
     DocumentPage,
     DocumentSection,
 } from '@/components/document-page';
+import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import {
     COMPANY_NAME,
@@ -33,10 +35,11 @@ export default function Show() {
                 <DocumentSection id="who" title="Who we are">
                     <p>
                         {COMPANY_NAME}, a company registered in Portugal ("we",
-                        "us"), operates /dev/null and everything we offer under
-                        that name or any other, now or in the future (the
-                        "service"), and is the controller of the personal data
-                        processed in it. Contact: <Mail />.
+                        "us"), operates <WordmarkText>/dev/null</WordmarkText>{' '}
+                        and everything we offer under that name or any other,
+                        now or in the future (the "service"), and is the
+                        controller of the personal data processed in it.
+                        Contact: <Mail />.
                     </p>
                 </DocumentSection>
 
@@ -80,6 +83,26 @@ export default function Show() {
                                 only after you start recording; recording stops
                                 and the microphone is released when you stop or
                                 discard.
+                            </>,
+                            <>
+                                <strong>From our apps:</strong> when you approve
+                                a device, such as{' '}
+                                <Link href={AppController.index()}>
+                                    the Mac app
+                                </Link>
+                                , its key's fingerprint, its name (for a Mac,
+                                the computer's name), when you approved it, and
+                                when it was last used, until you revoke it. The
+                                private key stays in your device's Keychain and
+                                never reaches us. The Mac app keeps messages and
+                                images in memory only and saves just its
+                                preferences on your Mac; its notifications never
+                                show what a message says; and it uses the
+                                microphone only while you record a voice note.
+                                Its update check asks dev-null.sh for the latest
+                                version without your account or anything about
+                                your Mac, beyond what every request carries,
+                                such as your IP address.
                             </>,
                             <>
                                 <strong>From others:</strong> what other users
