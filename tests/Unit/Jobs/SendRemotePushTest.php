@@ -225,3 +225,14 @@ it('uses Windows raw push headers for Microsoft Edge endpoints', function (): vo
     new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(RemotePush::class));
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '.notify.windows.com/') && $request->header('X-WNS-Type') === ['wns/raw'] && $request->header('Content-Type') === ['application/octet-stream'] && $request->header('Urgency') === [] && $request->body() === '');
 });
+
+it('never contacts a stored endpoint the allowlist no longer accepts, and forgets it', function (): void {
+    // A row that never went through the rule, such as one from a restored backup or a hand-written fix.
+    $this->subscription->update(['endpoint' => 'http://169.254.169.254/latest/meta-data/']);
+
+    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(RemotePush::class));
+
+    Http::assertNothingSent();
+    $this->assertDatabaseMissing('push_subscriptions', ['id' => $this->subscription->id]);
+    $this->assertDatabaseCount('jobs', 0);
+});
