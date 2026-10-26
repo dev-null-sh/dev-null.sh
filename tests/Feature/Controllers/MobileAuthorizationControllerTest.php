@@ -47,6 +47,16 @@ it('asks the signed-in user to approve the app on the device', function (): void
             ->where('auth.user.id', $user->id));
 });
 
+it('reads a fingerprint whose "+" the app left unencoded', function (): void {
+    $fingerprint = 'SHA256:'.str_repeat('a+', 21).'b';
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('mobile-authorization.show', [...$this->parameters, 'fingerprint' => str_replace('+', ' ', $fingerprint)]));
+
+    $response->assertOk()
+        ->assertInertia(fn (Assert $page): Assert => $page->where('authorization.fingerprint', $fingerprint));
+});
+
 it('sends a guest through the github sign-in, then back to approve the app', function (): void {
     Queue::fake();
     fakeGitHubSponsorsListing();

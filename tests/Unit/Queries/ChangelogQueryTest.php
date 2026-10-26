@@ -16,7 +16,7 @@ function pullRequest(int $number, ?string $mergedAt, ?string $updatedAt = null, 
     return [
         'number' => $number,
         'title' => $title,
-        'html_url' => "https://github.com/nunomaduro/dev-null.sh/pull/{$number}",
+        'html_url' => "https://github.com/dev-null-sh/dev-null.sh/pull/{$number}",
         'merged_at' => $mergedAt,
         'updated_at' => $updatedAt ?? $mergedAt ?? '2026-10-01T00:00:00Z',
         'merge_commit_sha' => mb_str_pad((string) $number, 40, 'a'),
@@ -33,7 +33,7 @@ function fakeGitHub(array $pullRequests): void
 {
     usort($pullRequests, fn (array $a, array $b): int => strcmp((string) $b['updated_at'], (string) $a['updated_at']));
 
-    Http::fake(['api.github.com/repos/nunomaduro/dev-null.sh/pulls*' => fn (Request $request) => Http::response(
+    Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/pulls*' => fn (Request $request) => Http::response(
         array_slice($pullRequests, ((int) $request['page'] - 1) * 100, 100),
     )]);
 }
@@ -66,11 +66,11 @@ it('lists the pull requests merged on the three latest days with merges, newest 
             'type' => 'feat',
             'breaking' => true,
             'title' => 'Turn emoji shortcodes into emoji in remotes',
-            'url' => 'https://github.com/nunomaduro/dev-null.sh/pull/377',
+            'url' => 'https://github.com/dev-null-sh/dev-null.sh/pull/377',
             'sha' => mb_str_pad('377', 40, 'a'),
-            'commit_url' => 'https://github.com/nunomaduro/dev-null.sh/commit/'.mb_str_pad('377', 40, 'a'),
+            'commit_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/'.mb_str_pad('377', 40, 'a'),
             'merged_at' => '2026-10-18T00:53:44Z',
-            'author' => ['login' => 'xHeaven', 'avatar' => 'https://avatars.githubusercontent.com/u/377?v=4', 'lane' => null],
+            'author' => ['login' => 'xHeaven', 'avatar' => 'https://avatars.githubusercontent.com/u/377?v=4', 'username' => null, 'mention' => null, 'lane' => null],
         ])
         ->and($changelog['pullRequests'][2] ?? [])->toHaveKey('type', null);
 
@@ -154,6 +154,20 @@ it('colors each author with the lane they chose on /dev/null, found by their Git
 
     expect(array_column(array_column(resolve(ChangelogQuery::class)->get('UTC')['pullRequests'] ?? [], 'author'), 'lane'))
         ->toBe([4, '#ff2d20', null]);
+});
+
+it('links each author who is on /dev/null to their profile, found by their GitHub account', function (): void {
+    User::factory()->create(['github_id' => '1', 'username' => 'renamed-on-devnull']);
+
+    fakeGitHub([
+        pullRequest(2, '2026-10-18T12:00:00Z', login: 'renamed-on-github', githubId: 1),
+        pullRequest(1, '2026-10-18T10:00:00Z', login: 'not-on-devnull', githubId: 3),
+    ]);
+
+    $authors = array_column(resolve(ChangelogQuery::class)->get('UTC')['pullRequests'] ?? [], 'author');
+
+    expect(array_column($authors, 'username'))->toBe(['renamed-on-devnull', null])
+        ->and(array_column($authors, 'mention'))->toBe(['@renamed-on-devnull', null]);
 });
 
 it('asks GitHub for a page at most once every thirty minutes', function (): void {

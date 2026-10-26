@@ -1,11 +1,11 @@
 import { Deferred, Head, router } from '@inertiajs/react';
 import { Breakdown } from '@/components/operations/breakdown';
-import { PresetButton } from '@/components/operations/preset-button';
-import { Section } from '@/components/operations/section';
+import { Placeholder } from '@/components/operations/placeholder';
+import { RangePicker } from '@/components/operations/range-picker';
+import { Panel } from '@/components/operations/section';
 import { Stats } from '@/components/operations/stats';
 import { Status } from '@/components/operations/status';
-import { Skeleton } from '@/components/ui/skeleton';
-import AppLayout from '@/layouts/app-layout';
+import { usePicked } from '@/hooks/use-picked';
 import OperationsLayout from '@/layouts/operations/layout';
 import { formatCount } from '@/lib/numbers';
 import { formatAge } from '@/lib/operations';
@@ -19,20 +19,44 @@ const TRAFFIC_PRESETS = [
 ];
 
 const BREAKDOWNS = [
-    { key: 'pages', title: 'pages', empty: '(none)' },
-    { key: 'referrers', title: 'referrers', empty: 'direct' },
-    { key: 'countries', title: 'countries', empty: 'unknown' },
-    { key: 'devices', title: 'devices', empty: 'unknown' },
-    { key: 'browsers', title: 'browsers', empty: 'unknown' },
+    {
+        key: 'pages',
+        title: 'pages',
+        empty: '(none)',
+        expected: 10,
+        className: 'xl:col-span-3',
+    },
+    {
+        key: 'referrers',
+        title: 'referrers',
+        empty: 'direct',
+        expected: 10,
+        className: 'xl:col-span-3',
+    },
+    {
+        key: 'countries',
+        title: 'countries',
+        empty: 'unknown',
+        expected: 10,
+        className: 'xl:col-span-2',
+    },
+    {
+        key: 'devices',
+        title: 'devices',
+        empty: 'unknown',
+        expected: 3,
+        className: 'xl:col-span-2',
+    },
+    {
+        key: 'browsers',
+        title: 'browsers',
+        empty: 'unknown',
+        expected: 10,
+        className: 'sm:col-span-2 xl:col-span-2',
+    },
 ] as const;
 
 const regions = new Intl.DisplayNames(['en'], { type: 'region' });
-
-function utcDate(daysAgo = 0): string {
-    return new Date(Date.now() - daysAgo * 86_400_000)
-        .toISOString()
-        .slice(0, 10);
-}
 
 function countryName(code: string): string {
     try {
@@ -43,61 +67,30 @@ function countryName(code: string): string {
 }
 
 function TrafficRangePicker({ range }: { range: TrafficRange }) {
-    const today = utcDate();
-
-    const select = (next: TrafficRange) =>
-        router.reload({
-            data: next,
-            only: ['traffic', 'trafficRange'],
-        });
+    const { picked, pick } = usePicked<TrafficRange>();
 
     return (
-        <div className="mb-3 flex flex-wrap items-center gap-2 font-mono text-[13px]">
-            {TRAFFIC_PRESETS.map((preset) => {
-                const from = utcDate(preset.days - 1);
-
-                return (
-                    <PresetButton
-                        key={preset.label}
-                        isActive={range.from === from && range.to === today}
-                        onClick={() => select({ from, to: today })}
-                    >
-                        {preset.label}
-                    </PresetButton>
-                );
-            })}
-            <span className="flex items-center gap-1.5 sm:ml-auto">
-                <input
-                    type="date"
-                    aria-label="From"
-                    value={range.from}
-                    max={range.to}
-                    onChange={(event) =>
-                        event.target.value &&
-                        select({ ...range, from: event.target.value })
-                    }
-                    className="h-7 rounded-md border bg-transparent px-2 text-[13px]"
-                />
-                <span className="text-muted-foreground">→</span>
-                <input
-                    type="date"
-                    aria-label="To"
-                    value={range.to}
-                    min={range.from}
-                    max={today}
-                    onChange={(event) =>
-                        event.target.value &&
-                        select({ ...range, to: event.target.value })
-                    }
-                    className="h-7 rounded-md border bg-transparent px-2 text-[13px]"
-                />
-            </span>
+        <div className="mb-3">
+            <RangePicker
+                range={picked ?? range}
+                presets={TRAFFIC_PRESETS}
+                onSelect={(next) =>
+                    router.reload({
+                        data: next,
+                        only: ['traffic', 'trafficRange'],
+                        onFinish: pick(next),
+                    })
+                }
+            />
         </div>
     );
 }
 
-function TrafficValue({ traffic }: { traffic: Traffic | null | undefined }) {
-    if (!traffic) {
+/**
+ * Fathom's report, its placeholders while it loads, or a line saying it didn't answer.
+ */
+function TrafficValue({ traffic }: { traffic?: Traffic | null }) {
+    if (traffic === null) {
         return (
             <div className="rounded-lg border px-4 py-2.5 text-sm">
                 <Status isUp={false}>
@@ -116,30 +109,35 @@ function TrafficValue({ traffic }: { traffic: Traffic | null | undefined }) {
                 stats={[
                     {
                         label: 'visitors',
-                        value: formatCount(traffic.totals.visitors),
+                        value: traffic && formatCount(traffic.totals.visitors),
                     },
                     {
                         label: 'pageviews',
-                        value: formatCount(traffic.totals.pageviews),
+                        value: traffic && formatCount(traffic.totals.pageviews),
                     },
                     {
                         label: 'avg time',
-                        value: formatAge(traffic.totals.avg_duration),
+                        value:
+                            traffic && formatAge(traffic.totals.avg_duration),
                     },
                     {
                         label: 'bounce rate',
-                        value: `${Math.round(traffic.totals.bounce_rate * 100)}%`,
+                        value:
+                            traffic &&
+                            `${Math.round(traffic.totals.bounce_rate * 100)}%`,
                     },
                 ]}
             />
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
                 {BREAKDOWNS.map((breakdown) => (
                     <Breakdown
                         key={breakdown.key}
+                        className={breakdown.className}
                         title={breakdown.title}
                         unit="visitors"
                         empty={breakdown.empty}
-                        rows={traffic.breakdowns[breakdown.key].map(
+                        expectedRows={breakdown.expected}
+                        rows={traffic?.breakdowns[breakdown.key].map(
                             (row: TrafficRow) => ({
                                 name: row.name,
                                 count: row.visitors,
@@ -157,25 +155,6 @@ function TrafficValue({ traffic }: { traffic: Traffic | null | undefined }) {
     );
 }
 
-function TrafficSkeleton() {
-    return (
-        <div
-            aria-hidden
-            className="animate-in space-y-3 delay-300 duration-300 fill-mode-both fade-in"
-        >
-            <Skeleton className="h-16 w-full rounded-lg" />
-            <div className="grid gap-3 sm:grid-cols-2">
-                {BREAKDOWNS.map((breakdown) => (
-                    <Skeleton
-                        key={breakdown.key}
-                        className="h-48 w-full rounded-lg"
-                    />
-                ))}
-            </div>
-        </div>
-    );
-}
-
 export default function Show({
     traffic,
     trafficRange,
@@ -185,23 +164,32 @@ export default function Show({
 }) {
     return (
         <>
-            <Head title="Site traffic" />
+            <Head title="Traffic" />
 
-            <Section
+            <Panel
                 title="Traffic"
                 meta={
-                    traffic
-                        ? `${formatCount(traffic.current)} on the site now`
-                        : 'fathom'
+                    traffic === null ? (
+                        'fathom'
+                    ) : (
+                        <>
+                            {traffic ? (
+                                formatCount(traffic.current)
+                            ) : (
+                                <Placeholder className="w-[2ch]" />
+                            )}{' '}
+                            on the site now
+                        </>
+                    )
                 }
             >
                 <TrafficRangePicker range={trafficRange} />
-                <Deferred data="traffic" fallback={<TrafficSkeleton />}>
+                <Deferred data="traffic" fallback={<TrafficValue />}>
                     <TrafficValue traffic={traffic} />
                 </Deferred>
-            </Section>
+            </Panel>
         </>
     );
 }
 
-Show.layout = [AppLayout, OperationsLayout];
+Show.layout = OperationsLayout;

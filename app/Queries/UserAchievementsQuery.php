@@ -9,8 +9,30 @@ use App\Enums\Achievement;
 use App\Enums\UnixRank;
 use App\Models\User;
 use Illuminate\Database\Query\JoinClause;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * @phpstan-type XpContribution array{count: int, multiplier: int, xp: int}
+ * @phpstan-type UserAchievements array{
+ *     level: int,
+ *     rank: string,
+ *     xp: int,
+ *     next_level_xp: ?int,
+ *     level_progress: int,
+ *     xp_breakdown: array{
+ *         commits: XpContribution,
+ *         streak: XpContribution,
+ *         stars_received: XpContribution,
+ *         replies: XpContribution,
+ *         stars_given: XpContribution,
+ *         luddite: XpContribution,
+ *         shell_shocked: XpContribution
+ *     },
+ *     ranks: list<array{rank: string, level: int, min_xp: int, description: string, achieved: bool}>,
+ *     badges: list<array{id: string, name: string, description: string, icon: string, unlocked: bool, progress: int, target: int}>
+ * }
+ */
 final readonly class UserAchievementsQuery
 {
     public function __construct(private UserStreakQuery $streaks)
@@ -19,38 +41,19 @@ final readonly class UserAchievementsQuery
     }
 
     /**
+     * @return Collection<int, string>
+     */
+    public function unlockedBadgeNames(User $user): Collection
+    {
+        return collect($this->get($user, $user)['badges'])
+            ->filter(fn (array $badge): bool => $badge['unlocked'])
+            ->map(fn (array $badge): string => $badge['name'])
+            ->values();
+    }
+
+    /**
      * @param  array{longest: int, current: int}|null  $streaks
-     * @return array{
-     *     level: int,
-     *     rank: string,
-     *     xp: int,
-     *     next_level_xp: ?int,
-     *     level_progress: int,
-     *     xp_breakdown: array{
-     *         commits: array{count: int, multiplier: int, xp: int},
-     *         streak: array{count: int, multiplier: int, xp: int},
-     *         stars_received: array{count: int, multiplier: int, xp: int},
-     *         replies: array{count: int, multiplier: int, xp: int},
-     *         stars_given: array{count: int, multiplier: int, xp: int},
-     *         luddite: array{count: int, multiplier: int, xp: int}
-     *     },
-     *     ranks: list<array{
-     *         rank: string,
-     *         level: int,
-     *         min_xp: int,
-     *         description: string,
-     *         achieved: bool
-     *     }>,
-     *     badges: list<array{
-     *         id: string,
-     *         name: string,
-     *         description: string,
-     *         icon: string,
-     *         unlocked: bool,
-     *         progress: int,
-     *         target: int
-     *     }>
-     * }
+     * @return UserAchievements
      */
     public function get(User $user, ?User $viewer, ?array $streaks = null): array
     {
@@ -86,6 +89,7 @@ final readonly class UserAchievementsQuery
         $hasSshKey = $user->sshKeys()->exists();
         $hasUnfollowedTom = $user->followers()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists()
             && ! $user->following()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists();
+        $isShellShocked = $user->created_at->lt('2026-10-21 14:00:00 UTC');
 
         // XP breakdown: 10 per commit, 15 per streak day, 5 per star received, 5 per reply, 2 per star given
         $commitsXp = $commitsCount * 10;
@@ -94,8 +98,9 @@ final readonly class UserAchievementsQuery
         $repliesXp = $repliesCount * 5;
         $starsGivenXp = $starsGivenCount * 2;
         $ludditeXp = $hasUnfollowedTom ? -100 : 0;
+        $shellShockedXp = $isShellShocked ? 100 : 0;
 
-        $xp = max(0, $commitsXp + $streakXp + $starsReceivedXp + $repliesXp + $starsGivenXp + $ludditeXp);
+        $xp = max(0, $commitsXp + $streakXp + $starsReceivedXp + $repliesXp + $starsGivenXp + $ludditeXp + $shellShockedXp);
 
         $currentRank = UnixRank::forXp($xp);
         $nextRank = $currentRank->next();
@@ -111,6 +116,7 @@ final readonly class UserAchievementsQuery
             'replies' => ['count' => $repliesCount, 'multiplier' => 5, 'xp' => $repliesXp],
             'stars_given' => ['count' => $starsGivenCount, 'multiplier' => 2, 'xp' => $starsGivenXp],
             'luddite' => ['count' => $hasUnfollowedTom ? 1 : 0, 'multiplier' => -100, 'xp' => $ludditeXp],
+            'shell_shocked' => ['count' => $isShellShocked ? 1 : 0, 'multiplier' => 100, 'xp' => $shellShockedXp],
         ];
 
         $ranks = array_map(fn (UnixRank $rank): array => [
@@ -173,6 +179,14 @@ final readonly class UserAchievementsQuery
             Achievement::Luddite->value => [
                 'progress' => $hasUnfollowedTom ? 1 : 0,
                 'target' => Achievement::Luddite->target(),
+            ],
+            Achievement::ShellShocked->value => [
+                'progress' => $isShellShocked ? 1 : 0,
+                'target' => Achievement::ShellShocked->target(),
+            ],
+            Achievement::SuperSaiyan->value => [
+                'progress' => min($user->followers()->count(), Achievement::SuperSaiyan->target()),
+                'target' => Achievement::SuperSaiyan->target(),
             ],
         ];
 

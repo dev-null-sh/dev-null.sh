@@ -2,7 +2,10 @@ import { usePage } from '@inertiajs/react';
 import { Search, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { ConversationList } from '@/components/chat/conversation-list';
+import {
+    ConversationList,
+    ConversationListSkeleton,
+} from '@/components/chat/conversation-list';
 import { CandidateRow } from '@/components/chat/org';
 import { useChat } from '@/hooks/use-chat';
 import {
@@ -12,6 +15,7 @@ import {
     searchConversations,
 } from '@/lib/chat';
 import type { Candidate, ChatTarget } from '@/lib/chat';
+import { conversationsMatching } from '@/lib/conversation-search';
 import { cn } from '@/lib/utils';
 import type { ConversationSummary, InboxTab, User } from '@/types';
 
@@ -69,7 +73,7 @@ export function InboxPanel({
     const end = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState('');
     const [found, setFound] = useState<Found | null>(null);
-    const term = query.trim().replace(/^@/u, '');
+    const term = query.trim().replace(/^@+/u, '');
 
     useEffect(() => {
         if (term === '') {
@@ -93,13 +97,7 @@ export function InboxPanel({
                         term,
                         tab,
                         conversations: matches,
-                        developers: developers.filter(
-                            (developer) =>
-                                !matches.some(
-                                    (match) =>
-                                        match.partner?.id === developer.user.id,
-                                ),
-                        ),
+                        developers,
                     }),
                 )
                 .catch(() => undefined);
@@ -143,13 +141,24 @@ export function InboxPanel({
         }
     };
 
-    const results =
-        found !== null && found.term === term && found.tab === tab
-            ? found
-            : null;
-    const list = isSearching
-        ? (results?.conversations ?? null)
-        : { open: conversations, fetched, stashed: archived }[tab];
+    const loaded = { open: conversations, fetched, stashed: archived }[tab];
+    const earlier = found?.tab === tab ? found : null;
+    const results = earlier?.term === term ? earlier : null;
+    const list =
+        !isSearching || (loaded === null && earlier === null)
+            ? loaded
+            : conversationsMatching(
+                  term,
+                  [...(loaded ?? []), ...(earlier?.conversations ?? [])],
+                  results?.conversations,
+              );
+    const developers = (results?.developers ?? []).filter(
+        (developer) =>
+            !list?.some(
+                (conversation) =>
+                    conversation.partner?.id === developer.user.id,
+            ),
+    );
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -190,7 +199,7 @@ export function InboxPanel({
                             type="button"
                             aria-label="Clear search"
                             onClick={() => setQuery('')}
-                            className="absolute right-2 grid size-6 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground"
+                            className="absolute right-2 grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
                         >
                             <X className="size-3.5" />
                         </button>
@@ -211,32 +220,36 @@ export function InboxPanel({
                         aria-selected={tab === name}
                         onClick={() => showTab(name)}
                         className={cn(
-                            'flex flex-1 justify-center font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:-outline-offset-2',
+                            'relative flex flex-1 justify-center font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:-outline-offset-2',
                             isCompact ? 'text-sm' : 'text-[15px]',
                             { 'text-foreground': tab === name },
                         )}
                         data-test={`conversation-tab-${name}`}
                     >
-                        <span
-                            className={cn(
-                                'relative',
-                                isCompact ? 'py-2.5' : 'py-3',
-                            )}
-                        >
+                        <span className={cn(isCompact ? 'py-2.5' : 'py-3')}>
                             {label}
                             {name === 'fetched' && (requests ?? 0) > 0 && (
-                                <span className="ml-1.5 inline-flex min-w-5 justify-center rounded-full bg-primary px-1.5 font-mono text-[11px] leading-5 text-primary-foreground tabular-nums">
-                                    {requests}
-                                    <span className="sr-only"> waiting</span>
+                                <span
+                                    title={`${requests} waiting`}
+                                    className="ml-1.5 inline-flex min-w-5 justify-center rounded-sm bg-primary px-1.5 font-mono text-[11px] leading-5 text-primary-foreground tabular-nums"
+                                >
+                                    <span aria-hidden>
+                                        {(requests ?? 0) > 99
+                                            ? '99+'
+                                            : requests}
+                                    </span>
+                                    <span className="sr-only">
+                                        {requests} waiting
+                                    </span>
                                 </span>
                             )}
-                            {tab === name && (
-                                <span
-                                    aria-hidden
-                                    className="absolute inset-x-0 bottom-0 h-[3px] rounded-full bg-primary"
-                                />
-                            )}
                         </span>
+                        {tab === name && (
+                            <span
+                                aria-hidden
+                                className="absolute inset-x-0 bottom-0 h-[3px] bg-primary"
+                            />
+                        )}
                     </button>
                 ))}
             </div>
@@ -256,7 +269,7 @@ export function InboxPanel({
                     empty={
                         isSearching ? (
                             results !== null &&
-                            results.developers.length === 0 && (
+                            developers.length === 0 && (
                                 <p
                                     className="truncate px-4 py-8 text-center font-mono text-[13px] text-muted-foreground"
                                     title={`fatal: nothing matches '${term}'`}
@@ -278,6 +291,10 @@ export function InboxPanel({
                     }
                 />
 
+                {isSearching && results === null && list !== null && (
+                    <ConversationListSkeleton isCompact={isCompact} />
+                )}
+
                 {!isSearching && (
                     <div
                         ref={end}
@@ -290,33 +307,29 @@ export function InboxPanel({
                     </div>
                 )}
 
-                {isSearching &&
-                    results !== null &&
-                    results.developers.length > 0 && (
-                        <section aria-label="Start a conversation">
-                            <h3 className="px-4 pt-3 pb-1 font-mono text-xs text-muted-foreground">
-                                Start a conversation
-                            </h3>
-                            <ul>
-                                {results.developers.map(
-                                    ({ user: developer, reason }) => (
-                                        <li key={developer.id}>
-                                            <CandidateRow
-                                                user={developer}
-                                                reason={reason}
-                                                onToggle={() =>
-                                                    onOpen({
-                                                        kind: 'direct',
-                                                        partner: developer,
-                                                    })
-                                                }
-                                            />
-                                        </li>
-                                    ),
-                                )}
-                            </ul>
-                        </section>
-                    )}
+                {developers.length > 0 && (
+                    <section aria-label="Start a conversation">
+                        <h3 className="px-4 pt-3 pb-1 font-mono text-xs text-muted-foreground">
+                            Start a conversation
+                        </h3>
+                        <ul>
+                            {developers.map(({ user: developer, reason }) => (
+                                <li key={developer.id}>
+                                    <CandidateRow
+                                        user={developer}
+                                        reason={reason}
+                                        onToggle={() =>
+                                            onOpen({
+                                                kind: 'direct',
+                                                partner: developer,
+                                            })
+                                        }
+                                    />
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
             </div>
         </div>
     );

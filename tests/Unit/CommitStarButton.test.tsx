@@ -54,12 +54,14 @@ async function render(
 }
 
 for (const status of ['approved', 'pending', 'rejected'] as const) {
-    void test(`authors see only their ${status} commit's star count`, async () => {
+    void test(`authors see their ${status} commit's star count and may open who starred`, async () => {
         const body = await render({ id: 'author' }, { status });
 
-        assert.match(body, /data-test="star-count-readonly"/);
-        assert.match(body, /aria-label="2 stars"/);
-        assert.doesNotMatch(body, /<button\b/);
+        assert.match(body, /data-test="own-star-count"/);
+        assert.match(body, /aria-label="2 stars, show who starred"/);
+        assert.doesNotMatch(body, />Who</);
+        assert.doesNotMatch(body, /aria-pressed/);
+        assert.doesNotMatch(body, /disabled=""/);
     });
 }
 
@@ -67,7 +69,11 @@ void test('authors see an accessible empty star count', async () => {
     const body = await render({ id: 'author' }, { stars_count: 0 });
 
     assert.match(body, /aria-label="No stars yet"/);
-    assert.doesNotMatch(body, /<button\b/);
+    assert.match(body, /disabled=""/);
+    assert.match(
+        body,
+        /data-test="own-star-count"[^>]*><svg[^>]*>.*?<\/svg><\/button>/,
+    );
 });
 
 for (const user of [null, { id: 'viewer' }]) {
@@ -77,9 +83,25 @@ for (const user of [null, { id: 'viewer' }]) {
         assert.match(body, /data-test="star-commit-button"/);
         assert.match(body, /aria-pressed="false"/);
         assert.match(body, /aria-label="Star commit, 2 stars"/);
-        assert.doesNotMatch(body, /data-test="star-count-readonly"/);
+        assert.doesNotMatch(body, /data-test="own-star-count"/);
     });
 }
+
+void test('unstarred commits show only the star in the star control', async () => {
+    const body = await render({ id: 'viewer' }, { stars_count: 0 });
+
+    assert.match(
+        body,
+        /data-test="star-commit-button"[^>]*><svg[^>]*>.*?<\/svg><\/button>/,
+    );
+});
+
+void test('starred commits keep the count slot inside the star control', async () => {
+    const body = await render({ id: 'viewer' }, { stars_count: 1 });
+
+    assert.doesNotMatch(body, /mr-\[calc/);
+    assert.match(body, /data-test="star-count"[^>]*>1<\/span>/);
+});
 
 for (const status of ['pending', 'rejected'] as const) {
     void test(`other readers cannot star a ${status} commit`, async () => {
@@ -87,20 +109,21 @@ for (const status of ['pending', 'rejected'] as const) {
 
         assert.doesNotMatch(
             body,
-            /data-test="star-(?:commit-button|count-readonly)"/,
+            /data-test="(?:star-commit-button|own-star-count)"/,
         );
     });
 }
 
 for (const status of ['approved', 'pending', 'rejected'] as const) {
-    void test(`authors see their ${status} reply's read-only star count`, async () => {
+    void test(`authors see their ${status} reply's star count and may open who starred`, async () => {
         const body = await render(
             { id: 'author' },
             { status, parent_id: 'parent' },
         );
 
-        assert.match(body, /data-test="star-count-readonly"/);
-        assert.match(body, /aria-label="2 stars"/);
-        assert.doesNotMatch(body, /<button\b/);
+        assert.match(body, /data-test="own-star-count"/);
+        assert.match(body, /aria-label="2 stars, show who starred"/);
+        assert.doesNotMatch(body, />Who</);
+        assert.doesNotMatch(body, /aria-pressed/);
     });
 }

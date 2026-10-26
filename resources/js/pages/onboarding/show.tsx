@@ -6,19 +6,22 @@ import {
     usePage,
     useRemember,
 } from '@inertiajs/react';
-import { ArrowUpRight, Check, Copy } from 'lucide-react';
+import { ArrowUpRight, Check, Copy, RefreshCw } from 'lucide-react';
 import type { CSSProperties, ReactNode, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import OnboardingController from '@/actions/App/Http/Controllers/OnboardingController';
 import UserLaneController from '@/actions/App/Http/Controllers/UserLaneController';
+import UserProfileController from '@/actions/App/Http/Controllers/UserProfileController';
 import AppLogo from '@/components/app-logo';
 import { GitHubProfile } from '@/components/github-profile';
 import InputError from '@/components/input-error';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LaneOptions, LanePreview } from '@/components/lane-picker';
 import { Button } from '@/components/ui/button';
+import { Spinner } from '@/components/ui/spinner';
 import { SuggestedUserRow } from '@/components/who-to-follow';
+import { WordmarkText } from '@/components/wordmark-text';
 import { useClipboard } from '@/hooks/use-clipboard';
 import { useUser } from '@/hooks/use-user';
 import { useKeyLabels } from '@/lib/keyboard';
@@ -228,6 +231,10 @@ export default function Show({
         preferredLane,
     );
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
+    const [hasEditedOnGitHub, setHasEditedOnGitHub] = useRemember(
+        false,
+        'onboarding-edited-on-github',
+    );
     const keys = useKeyLabels();
     const headingRef = useRef<HTMLHeadingElement>(null);
 
@@ -281,7 +288,13 @@ export default function Show({
                 <StepContent
                     headingRef={headingRef}
                     title="This is you, according to GitHub."
-                    description="/dev/null copies your GitHub profile every time you sign in, so there's nothing to fill in. To change any of it, change it on GitHub."
+                    description={
+                        <WordmarkText>
+                            /dev/null copies your GitHub profile every time you
+                            sign in, so there's nothing to fill in. To change
+                            any of it, change it on GitHub, then sync it here.
+                        </WordmarkText>
+                    }
                     actions={
                         <>
                             <Button onClick={next}>Looks right</Button>
@@ -290,11 +303,39 @@ export default function Show({
                                     href="https://github.com/settings/profile"
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    onClick={() => setHasEditedOnGitHub(true)}
                                 >
                                     Edit on GitHub
                                     <ArrowUpRight />
                                 </a>
                             </Button>
+                            {hasEditedOnGitHub && (
+                                <Form
+                                    {...UserProfileController.update.form()}
+                                    options={{
+                                        preserveScroll: true,
+                                        preserveState: true,
+                                    }}
+                                    onSuccess={() => router.flushAll()}
+                                >
+                                    {({ processing }) => (
+                                        <Button
+                                            type="submit"
+                                            variant="outline"
+                                            disabled={processing}
+                                            aria-busy={processing}
+                                            data-test="sync-profile-button"
+                                        >
+                                            {processing ? (
+                                                <Spinner />
+                                            ) : (
+                                                <RefreshCw />
+                                            )}
+                                            Sync from GitHub
+                                        </Button>
+                                    )}
+                                </Form>
+                            )}
                         </>
                     }
                 >

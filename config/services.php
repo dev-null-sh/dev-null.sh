@@ -4,6 +4,12 @@ declare(strict_types=1);
 
 return [
 
+    'web_push' => [
+        'subject' => env('WEB_PUSH_SUBJECT', 'https://dev-null.sh'),
+        'public_key' => env('WEB_PUSH_PUBLIC_KEY'),
+        'private_key' => env('WEB_PUSH_PRIVATE_KEY'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
@@ -22,6 +28,7 @@ return [
     ],
 
     'github' => [
+        'repository' => env('GITHUB_REPOSITORY', 'dev-null-sh/dev-null.sh'),
         'client_id' => env('GITHUB_CLIENT_ID'),
         'client_secret' => env('GITHUB_CLIENT_SECRET'),
         'redirect' => env('GITHUB_REDIRECT_URI', '/auth/github/callback'),
@@ -30,10 +37,6 @@ return [
     'github_app' => [
         'id' => env('GITHUB_APP_ID'),
         'private_key' => env('GITHUB_APP_PRIVATE_KEY'),
-    ],
-
-    'openai' => [
-        'key' => env('OPENAI_API_KEY'),
     ],
 
     'postmark' => [

@@ -20,11 +20,17 @@ final class UpdateUserTimezoneRequest extends FormRequest
     {
         return [
             'timezone' => ['present', 'nullable', 'string', 'timezone:all'],
+            'show_local_time' => ['nullable', 'boolean'],
         ];
     }
 
     public function timezone(): ?string
     {
         return $this->filled('timezone') ? $this->string('timezone')->value() : null;
+    }
+
+    public function showLocalTime(): bool
+    {
+        return $this->boolean('show_local_time');
     }
 }

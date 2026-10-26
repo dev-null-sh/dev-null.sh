@@ -3,18 +3,22 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitTranslation;
+use App\Actions\CreateExport;
 use App\Actions\DeleteUser;
 use App\Ai\Agents\CommitTranslator;
+use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
-use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Device;
+use App\Models\Message;
+use App\Models\MessageVoice;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\SshKey;
 use App\Models\User;
+use App\Models\UserTimeout;
 use App\Services\CommitTranslations;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Facades\Cache;
@@ -54,11 +58,15 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'has_sponsors_listing' => true,
         'preferred_lane' => 3,
         'timezone' => 'Europe/Budapest',
+        'show_local_time' => true,
+        'translation_language' => 'ja',
+        'automatic_translation' => false,
         'lane_color' => '#1a2b3c',
         'pasteis_mode' => true,
         'pasteis_received' => 17,
         'pasteis_given_today' => 6,
         'pasteis_given_on' => '2026-10-15',
+        'last_seen_at' => now()->toDateString(),
         'remember_token' => 'never-export-this-token',
     ]);
     $original = $user->fresh()->getAttributes();
@@ -91,6 +99,9 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'has_sponsors_listing' => true,
             'preferred_lane' => 3,
             'timezone' => 'Europe/Budapest',
+            'show_local_time' => true,
+            'translation_language' => 'ja',
+            'automatic_translation' => false,
             'lane_color' => '#1a2b3c',
             'pasteis_mode' => true,
             'pasteis_received' => 17,
@@ -103,6 +114,9 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'live_platform' => null,
             'live_url' => null,
             'live_ends_at' => null,
+            'last_seen_at' => now()->toDateString(),
+            'commit_rules_accepted_at' => $user->commit_rules_accepted_at->toIso8601String(),
+            'emails_unsubscribed_at' => null,
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
@@ -110,19 +124,68 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'polls' => [],
         'poll_votes' => [],
         'stars' => [],
-        'bookmarks' => [],
         'following' => [],
         'followers' => [],
         'muting' => [],
         'blocking' => [],
+        'dismissed_suggestions' => [],
         'messages' => [],
+        'remote_mutes' => [],
+        'remote_pins' => [],
         'notifications' => [],
         'ssh_keys' => [],
+        'push_subscriptions' => [],
         'devices' => [],
+        'timeouts' => [],
         'sessions' => [],
     ]);
     expect($response->streamedContent())->not->toContain('never-export-this-token')
         ->and($user->fresh()->getAttributes())->toBe($original);
+});
+
+it('exports when the user accepted the commit rules and their timeouts, without who gave them', function (): void {
+    $user = User::factory()->create(['commit_rules_accepted_at' => now()->subWeek()]);
+    $first = UserTimeout::factory()->for($user)->ended()->create(['reason' => ModerationReason::EngagementBait, 'created_at' => now()->subDays(3)]);
+    $second = UserTimeout::factory()->for($user)->create(['reason' => ModerationReason::Spam, 'ends_at' => now()->addHour()]);
+    UserTimeout::factory()->create();
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['profile']['commit_rules_accepted_at'])->toBe(now()->subWeek()->toIso8601String())
+        ->and($data['timeouts'])->toBe([
+            [
+                'reason' => 'engagement_bait',
+                'ends_at' => $first->ends_at->toIso8601String(),
+                'created_at' => $first->created_at->toIso8601String(),
+            ],
+            [
+                'reason' => 'spam',
+                'ends_at' => $second->ends_at->toIso8601String(),
+                'created_at' => $second->created_at->toIso8601String(),
+            ],
+        ]);
+});
+
+it('exports the remotes the user muted, without the mutes of others', function (): void {
+    config(['remotes.requests' => true, 'remotes.everyone' => true]);
+    $user = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $taylor = User::factory()->withRemotes()->create();
+    sendChatMessage($nuno, $user);
+    sendChatMessage($taylor, $user);
+    $org = createOrg($user, followersOf($user, 1), 'dev/null core');
+    $this->actingAs($user)->putJson(route('conversation-mute.update', $nuno), ['duration' => 'week'])->assertOk();
+    $this->putJson(route('org-mute.update', $org), ['duration' => 'forever'])->assertOk();
+    $this->actingAs($taylor)->putJson(route('conversation-mute.update', $user), ['duration' => 'forever'])->assertOk();
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['remote_mutes'])->toBe([
+        ['to' => 'nunomaduro', 'muted_until_at' => now()->startOfSecond()->addWeek()->toIso8601String()],
+        ['to' => 'org: dev/null core', 'muted_until_at' => '9999-12-31T00:00:00+00:00'],
+    ]);
 });
 
 it('exports the pinned commit id', function (): void {
@@ -202,7 +265,7 @@ it('exports commit image urls in order', function (): void {
     ])->and($response->streamedContent())->not->toContain($first->path);
 });
 
-it('exports starred and saved commit ids, including deleted commits, but not other users stars or bookmarks', function (): void {
+it('exports starred commit ids, including deleted commits, but not other users stars', function (): void {
     $user = User::factory()->create();
     $other = User::factory()->create();
     $starred = Commit::factory()->for($other)->create();
@@ -210,16 +273,13 @@ it('exports starred and saved commit ids, including deleted commits, but not oth
     $saved = Commit::factory()->for($other)->create();
     $user->starredCommits()->attach([$starred->id, $deletedStarred->id]);
     $deletedStarred->delete();
-    Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $saved->id]);
     $otherStarred = Commit::factory()->create();
     $other->starredCommits()->attach($otherStarred);
-    Bookmark::factory()->create(['user_id' => $other->id, 'commit_id' => $otherStarred->id]);
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect(collect($data['stars'])->sort()->values()->all())->toBe(collect([$starred->id, $deletedStarred->id])->sort()->values()->all())
-        ->and($data['bookmarks'])->toBe([$saved->id])
         ->and($response->streamedContent())->not->toContain($otherStarred->id, $saved->body, $starred->body);
 });
 
@@ -302,18 +362,20 @@ it('exports received notifications without revealing moderators', function (): v
         'commit_id' => $commit->id,
         'reason' => 'Looks like spam.',
     ]);
+    Notification::factory()->for($user, 'recipient')->leveledUp(3)->create();
     Notification::factory()->for($friend, 'recipient')->for($moderator, 'actor')->create();
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
     $notifications = collect($data['notifications'])->keyBy('type');
 
-    expect($notifications)->toHaveCount(2)
+    expect($notifications)->toHaveCount(3)
         ->and($notifications['followed'])->toBe([
             'type' => 'followed',
             'actor' => 'friendly-dev',
             'commit_id' => null,
             'reason' => null,
+            'level' => null,
             'read_at' => now()->toIso8601String(),
             'created_at' => now()->toIso8601String(),
         ])
@@ -322,6 +384,16 @@ it('exports received notifications without revealing moderators', function (): v
             'actor' => null,
             'commit_id' => $commit->id,
             'reason' => 'Looks like spam.',
+            'level' => null,
+            'read_at' => null,
+            'created_at' => now()->toIso8601String(),
+        ])
+        ->and($notifications['leveled_up'])->toBe([
+            'type' => 'leveled_up',
+            'actor' => null,
+            'commit_id' => null,
+            'reason' => null,
+            'level' => 3,
             'read_at' => null,
             'created_at' => now()->toIso8601String(),
         ])
@@ -406,24 +478,29 @@ it('exports all records across chunk boundaries without omissions or duplicates'
         ->and($cacheReads)->toHaveCount(2);
 });
 
-it('exports who the user mutes and blocks, but never who mutes or blocks them', function (): void {
+it('exports who the user mutes, blocks and dismissed, but never who mutes, blocks or dismissed them', function (): void {
     $user = User::factory()->create();
     $muted = User::factory()->create(['username' => 'muted-developer']);
     $blocked = User::factory()->create(['username' => 'blocked-developer']);
+    $dismissed = User::factory()->create(['username' => 'dismissed-developer']);
     $muter = User::factory()->create(['username' => 'secret-muter']);
     $blocker = User::factory()->create(['username' => 'secret-blocker']);
+    $dismisser = User::factory()->create(['username' => 'secret-dismisser']);
 
     $user->muting()->attach($muted);
     $user->blocking()->attach($blocked);
+    $user->dismissedSuggestions()->attach($dismissed);
     $muter->muting()->attach($user);
     $blocker->blocking()->attach($user);
+    $dismisser->dismissedSuggestions()->attach($user);
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['muting'])->toBe([['username' => 'muted-developer']])
         ->and($data['blocking'])->toBe([['username' => 'blocked-developer']])
-        ->and($response->streamedContent())->not->toContain('secret-muter', 'secret-blocker', $muted->id, $blocked->id);
+        ->and($data['dismissed_suggestions'])->toBe([['username' => 'dismissed-developer']])
+        ->and($response->streamedContent())->not->toContain('secret-muter', 'secret-blocker', 'secret-dismisser', $muted->id, $blocked->id, $dismissed->id);
 });
 
 it('also limits exports to five a minute per user independently of the hourly budget', function (): void {
@@ -454,6 +531,41 @@ it('exports the messages the user sent, and not the ones they received', functio
     $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['messages'])->toBe([
-        ['to' => 'nunomaduro', 'body' => 'merged it this morning', 'created_at' => now()->toIso8601String()],
+        ['to' => 'nunomaduro', 'body' => 'merged it this morning', 'voice' => null, 'created_at' => now()->toIso8601String()],
     ]);
+});
+
+it('exports the voice notes the user sent as links', function (): void {
+    $user = User::factory()->create();
+    $voice = MessageVoice::factory()->for(Message::factory()->for($user)->state(['body' => '']))->create();
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['messages'][0]['voice'])->toBe(route('message-voice.show', $voice));
+});
+
+it('exports your remote pins without the pins of other members', function (): void {
+    config(['remotes.requests' => true, 'remotes.everyone' => true]);
+    $this->freezeSecond();
+    $user = User::factory()->withRemotes()->create();
+    $partner = User::factory()->withRemotes()->create(['username' => 'alice']);
+    sendChatMessage($partner, $user);
+    $org = createOrg($user, followersOf($user, 1), 'Release crew');
+    $this->actingAs($user)->putJson(route('conversation-pin.update', $partner), ['pinned' => true])->assertOk();
+    $this->actingAs($user)->putJson(route('org-pin.update', $org), ['pinned' => true])->assertOk();
+    $this->actingAs($partner)->putJson(route('conversation-pin.update', $user), ['pinned' => true])->assertOk();
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['remote_pins'])->toBe([
+        ['to' => 'alice', 'pinned_at' => now()->toIso8601String()],
+        ['to' => 'org: Release crew', 'pinned_at' => now()->toIso8601String()],
+    ]);
+});
+
+it('exports subscription metadata without delivery endpoints', function (): void {
+    $user = User::factory()->create();
+    $subscription = $user->pushSubscriptions()->create(['endpoint_hash' => 'browser', 'endpoint' => 'https://fcm.googleapis.com/wp/private']);
+    $export = resolve(CreateExport::class)->handle($user);
+    expect($export['push_subscriptions'])->toBe([['id' => $subscription->id]]);
 });

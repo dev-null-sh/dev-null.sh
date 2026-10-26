@@ -21,7 +21,7 @@ final readonly class UserBlockController
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => "Blocked @{$user->username}. Neither of you can message, follow, reply to, or star the other, or see each other's commits.",
+            'message' => "Blocked {$user->mention()}. Neither of you can message, follow, reply to, or star the other, or see each other's commits.",
         ]);
 
         return back();
@@ -33,7 +33,7 @@ final readonly class UserBlockController
 
         Inertia::flash('toast', [
             'type' => 'success',
-            'message' => "Unblocked @{$user->username}.",
+            'message' => "Unblocked {$user->mention()}.",
         ]);
 
         return back();

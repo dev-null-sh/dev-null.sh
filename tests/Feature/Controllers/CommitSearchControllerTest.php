@@ -6,7 +6,7 @@ use App\Models\Commit;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
-    config(['services.openai.key' => 'sk-test']);
+    config(['ai.providers.openai.key' => 'sk-test']);
 });
 
 it('returns the commits matching the query, to guests too, with what the card renders', function (): void {
@@ -23,7 +23,6 @@ it('returns the commits matching the query, to guests too, with what the card re
         ->assertJsonPath('commits.0.stars_count', 0)
         ->assertJsonPath('commits.0.starred', false)
         ->assertJsonPath('commits.0.replies_count', 0)
-        ->assertJsonPath('commits.0.is_saved', false)
         ->assertJsonPath('commits.0.user.id', $commit->user->id)
         ->assertJsonStructure(['commits' => [['body_segments', 'created_at']]])
         ->assertJsonMissingPath('commits.0.embedding');

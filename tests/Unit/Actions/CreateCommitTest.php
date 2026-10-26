@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommit;
 use App\Dto\NewPoll;
+use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Enums\PollDuration;
@@ -61,7 +62,6 @@ it('approves commits of admins right away', function (): void {
 
 it('skips ai review only when all reputation requirements are met', function (int $ageInSeconds, int $followers, ?CommitStatus $previousStatus, bool $deleted, bool $approved): void {
     $this->travelTo(now()->startOfSecond());
-    config(['services.openai.key' => 'sk-test']);
     Queue::fake();
 
     $user = User::factory()->create(['created_at' => now()->subSeconds($ageInSeconds)]);
@@ -179,7 +179,6 @@ it('does not notify about pending mentions', function (): void {
 });
 
 it('asks the ai for its decision on pending commits', function (): void {
-    config(['services.openai.key' => 'sk-test']);
     Queue::fake();
 
     $action = resolve(CreateCommit::class);
@@ -190,7 +189,7 @@ it('asks the ai for its decision on pending commits', function (): void {
 });
 
 it('does not ask the ai about commits of admins', function (): void {
-    config(['services.openai.key' => 'sk-test', 'app.admins' => ['nunomaduro']]);
+    config(['app.admins' => ['nunomaduro']]);
     Queue::fake();
 
     $action = resolve(CreateCommit::class);
@@ -201,7 +200,6 @@ it('does not ask the ai about commits of admins', function (): void {
 });
 
 it('queues ai review for a quote while preserving its images and chosen link card', function (): void {
-    config(['services.openai.key' => 'sk-test']);
     Storage::fake();
     Queue::fake([ModerateCommit::class, UnfurlLink::class, EmbedCommit::class]);
 
@@ -226,7 +224,6 @@ it('queues ai review for a quote while preserving its images and chosen link car
 });
 
 it('does not embed commits without a body', function (): void {
-    config(['services.openai.key' => 'sk-test']);
     Storage::fake();
     Queue::fake();
 
@@ -236,15 +233,16 @@ it('does not embed commits without a body', function (): void {
     Queue::assertNotPushed(EmbedCommit::class);
 });
 
-it('does not ask the ai without an api key', function (): void {
-    config(['services.openai.key' => null]);
+it('queues moderation and embedding even when the provider is misconfigured', function (): void {
+    config(['ai.providers.openai.key' => null]);
     Queue::fake();
 
     $action = resolve(CreateCommit::class);
 
     $action->handle(User::factory()->create(), 'Initial commit');
 
-    Queue::assertNotPushed(ModerateCommit::class);
+    Queue::assertPushed(ModerateCommit::class);
+    Queue::assertPushed(EmbedCommit::class);
 });
 
 it('attaches a link preview for the first url in the body', function (): void {
@@ -284,7 +282,7 @@ it('attaches no link preview when the author chose none', function (): void {
     expect($commit->refresh()->link_preview_id)->toBeNull()
         ->and(LinkPreview::query()->count())->toBe(0);
 
-    Queue::assertNothingPushed();
+    Queue::assertNotPushed(UnfurlLink::class);
 });
 
 it('attaches a link preview for a bare domain', function (): void {
@@ -343,7 +341,7 @@ it('only fetches link previews that were never fetched', function (): void {
 
     expect($commit->linkPreview)->not->toBeNull();
 
-    Queue::assertNothingPushed();
+    Queue::assertNotPushed(UnfurlLink::class);
 });
 
 it('queues the link preview for the saved commit', function (): void {
@@ -368,7 +366,7 @@ it('attaches no link preview without a url', function (): void {
     expect($commit->refresh()->link_preview_id)->toBeNull()
         ->and(LinkPreview::query()->count())->toBe(0);
 
-    Queue::assertNothingPushed();
+    Queue::assertNotPushed(UnfurlLink::class);
 });
 
 it('attaches a poll with its options in order', function (): void {
@@ -434,7 +432,7 @@ it('lifts the thread when an admin replies', function (): void {
     resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Nice one', $commit);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 0, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
 });
 
 it('lifts the quoted thread when an admin quotes', function (): void {
@@ -445,7 +443,7 @@ it('lifts the quoted thread when an admin quotes', function (): void {
     resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $commit);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 1, repliers: 0, repliersAnsweredByAuthor: 0)), 1e-9);
 });
 
 it('keeps a poll on a quote while only approved quotes lift its thread', function (bool $admin): void {
@@ -467,13 +465,12 @@ it('keeps a poll on a quote while only approved quotes lift its thread', functio
         ->and($quote->poll->options->pluck('label')->all())->toBe(['Tabs', 'Spaces'])
         ->and($quote->poll->opened_at?->toIso8601String())->toBe($admin ? now()->toIso8601String() : null)
         ->and($root->fresh()->hot_score)->toEqualWithDelta(
-            $admin ? resolve(TheAlgorithm::class)->score($root->created_at, 0, 2) : $root->hot_score,
+            $admin ? resolve(TheAlgorithm::class)->score($root->created_at, new ThreadEngagement(stargazers: 0, quoters: 1, repliers: 1, repliersAnsweredByAuthor: 0)) : $root->hot_score,
             1e-9,
         );
 })->with([false, true]);
 
-it('gives recent reports precedence over reputation while keeping the ai exemption', function (bool $reputable, bool $dismissed): void {
-    config(['services.openai.key' => 'sk-test']);
+it('ignores reports when deciding whether a commit goes live', function (bool $reputable): void {
     Queue::fake();
     $user = User::factory()->create(['created_at' => now()->subHours(2)]);
     $reported = Commit::factory()->for($user)->create();
@@ -481,17 +478,16 @@ it('gives recent reports precedence over reputation while keeping the ai exempti
         followersOf($user, 10);
     }
 
-    CommitReport::factory()->for($reported)->create(['dismissed_at' => $dismissed ? now() : null]);
+    CommitReport::factory()->for($reported)->create();
 
     $commit = resolve(CreateCommit::class)->handle($user, 'Another commit', poll: new NewPoll(['Yes', 'No'], PollDuration::OneHour));
-    $approved = $reputable && $dismissed;
 
-    expect($commit->status)->toBe($approved ? CommitStatus::Approved : CommitStatus::Pending)
-        ->and($commit->poll->opened_at !== null)->toBe($approved);
+    expect($commit->status)->toBe($reputable ? CommitStatus::Approved : CommitStatus::Pending)
+        ->and($commit->poll->opened_at !== null)->toBe($reputable);
 
     if ($reputable) {
         Queue::assertNotPushed(ModerateCommit::class);
     } else {
         Queue::assertPushed(ModerateCommit::class);
     }
-})->with([true, false])->with([true, false]);
+})->with([true, false]);

@@ -3,6 +3,7 @@ import { Pin } from 'lucide-react';
 import type { PointerEvent, ReactNode } from 'react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
+import { GraphCanvas } from '@/components/graph-canvas';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { useNow } from '@/hooks/use-now';
 import {
@@ -10,7 +11,7 @@ import {
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
 import { isDeliberateHover } from '@/lib/feed-hover';
-import { formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
+import { cn, formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 const interludeAfter = 5;
@@ -27,6 +28,7 @@ export function CommitFeed({
     isRanked = false,
     isFolded = true,
     interlude,
+    isBelowComposer = false,
 }: {
     commits: CursorPaginated<Commit>;
     empty: ReactNode;
@@ -39,12 +41,13 @@ export function CommitFeed({
     isRanked?: boolean;
     isFolded?: boolean;
     interlude?: (lane: string, isDimmed: boolean) => ReactNode;
+    isBelowComposer?: boolean;
 }) {
     const now = useNow();
     const page = usePage();
     const { dimsLanes } = page.props;
     const isModeration = page.component === 'moderation/show';
-    const isSaved = page.component === 'bookmark/index';
+    const isStarred = page.component === 'starred/index';
     const profileUserId =
         page.component === 'user/show'
             ? (page.props.user as { id: string }).id
@@ -139,8 +142,8 @@ export function CommitFeed({
                 }
                 if (restored) {
                     const belongsInFeed =
-                        (isSaved
-                            ? restored.is_saved === true
+                        (isStarred
+                            ? restored.starred === true
                             : isProfileReplies
                               ? restored.parent_id !== null
                               : restored.parent_id === null) &&
@@ -153,8 +156,8 @@ export function CommitFeed({
                             ? restoreFeedCommit(
                                   rows,
                                   restored,
-                                  isSaved
-                                      ? 'saved'
+                                  isStarred
+                                      ? 'starred'
                                       : isRanked
                                         ? 'ranked'
                                         : 'latest',
@@ -163,7 +166,7 @@ export function CommitFeed({
                     );
                 }
             }),
-        [profileUserId, isModeration, isProfileReplies, isSaved, isRanked],
+        [profileUserId, isModeration, isProfileReplies, isStarred, isRanked],
     );
 
     // A ranked commit can move to a later page while the feed scrolls, so each one is only listed once.
@@ -215,7 +218,7 @@ export function CommitFeed({
     );
 
     return (
-        <>
+        <GraphCanvas>
             {pinnedCommit && (
                 <section aria-label="Pinned commit">
                     <div className="flex">
@@ -260,11 +263,15 @@ export function CommitFeed({
                         (!previous ||
                             localDayKey(previous.created_at) !==
                                 localDayKey(commit.created_at));
+                    const stagedLane =
+                        isBelowComposer && index === 0 && !pinnedCommit
+                            ? 'var(--rail)'
+                            : undefined;
 
                     return (
                         <Fragment key={commit.id}>
                             {!isRanked && commit.id === firstSeenId && (
-                                <LastVisitMarker />
+                                <LastVisitMarker stagedLane={stagedLane} />
                             )}
                             {startsDay && (
                                 <DayMarker
@@ -272,6 +279,7 @@ export function CommitFeed({
                                         commit.created_at,
                                         now,
                                     )}
+                                    stagedLane={stagedLane}
                                 />
                             )}
                             {card(commit)}
@@ -297,14 +305,27 @@ export function CommitFeed({
                     </p>
                 </div>
             )}
-        </>
+        </GraphCanvas>
     );
 }
 
-function DayMarker({ label }: { label: string }) {
+function DayMarker({
+    label,
+    stagedLane,
+}: {
+    label: string;
+    stagedLane?: string;
+}) {
     return (
         <div className="flex">
-            <RailSegment />
+            <RailSegment
+                lane={stagedLane}
+                isDashed
+                className={cn(
+                    stagedLane &&
+                        '[view-transition-class:staged-rail] [view-transition-name:staged-rail-day]',
+                )}
+            />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
                 <h3 className="font-mono text-xs text-muted-foreground">
                     {label}
@@ -314,14 +335,21 @@ function DayMarker({ label }: { label: string }) {
     );
 }
 
-function LastVisitMarker() {
+function LastVisitMarker({ stagedLane }: { stagedLane?: string }) {
     return (
         <div
             role="separator"
             aria-label="Commits above are new since your last visit"
             className="flex"
         >
-            <RailSegment />
+            <RailSegment
+                lane={stagedLane}
+                isDashed
+                className={cn(
+                    stagedLane &&
+                        '[view-transition-class:staged-rail] [view-transition-name:staged-rail-visit]',
+                )}
+            />
             <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
                 <span className="font-mono text-xs text-muted-foreground">
                     HEAD@{'{last visit}'}

@@ -35,6 +35,19 @@ it('creates tom once, with a single welcome commit and no github account', funct
         ->and($tom->following()->count())->toBe(2);
 });
 
+it('keeps befriending newcomers under the reserved handle instead of the real tom', function (): void {
+    $tom = User::factory()->create(['username' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $owner = User::factory()->create(['username' => 'tom']);
+    $user = User::factory()->create();
+
+    resolve(CreateTomFriendship::class)->handle($user);
+
+    expect($user->following()->sole()->is($tom))->toBeTrue()
+        ->and($tom->following()->sole()->is($user))->toBeTrue()
+        ->and($owner->following()->count())->toBe(0)
+        ->and($owner->followers()->count())->toBe(0);
+});
+
 it('does not make tom follow himself or change his existing friendships', function (): void {
     $user = User::factory()->create();
     $action = resolve(CreateTomFriendship::class);

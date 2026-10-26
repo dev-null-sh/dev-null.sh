@@ -28,6 +28,7 @@ import { rememberTarget, summaryKey, targetKey, targetOf } from '@/lib/chat';
 import type { ChatTarget } from '@/lib/chat';
 import { setChatDocked, updateChatDock, useChatDock } from '@/lib/chat-dock';
 import { cn, laneColor } from '@/lib/utils';
+import { show } from '@/routes/user';
 import type { User } from '@/types';
 
 /**
@@ -131,8 +132,16 @@ function DockedChat({ user }: { user: User }) {
             <span className="flex min-w-0 items-center gap-2">
                 <span className="text-[15px] font-bold">Remotes</span>
                 {unread > 0 && (
-                    <span className="rounded-full bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums">
-                        {unread} ahead
+                    <span
+                        title={`${unread} unread messages`}
+                        className="rounded-sm bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums"
+                    >
+                        <span aria-hidden>
+                            {unread > 99 ? '99+' : unread} ahead
+                        </span>
+                        <span className="sr-only">
+                            {unread} unread messages
+                        </span>
                     </span>
                 )}
             </span>
@@ -143,10 +152,8 @@ function DockedChat({ user }: { user: User }) {
     return (
         <section
             aria-label="Docked remotes"
-            className={cn(
-                'fixed right-6 bottom-0 z-30 flex w-[360px] flex-col overflow-hidden rounded-t-xl border border-b-0 bg-card shadow-[0_-12px_40px_-12px_rgb(0_0_0/0.3)] transition-[height] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]',
-                dock.isExpanded ? 'h-[min(520px,calc(100dvh-5rem))]' : 'h-12',
-            )}
+            className="fixed right-6 bottom-0 z-30 flex h-(--chat-dock-height) w-[360px] flex-col overflow-hidden rounded-t-lg border border-b-0 bg-card shadow-[0_-12px_40px_-12px_rgb(0_0_0/0.3)] transition-[height] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+            data-chat-dock={dock.isExpanded ? 'expanded' : 'collapsed'}
             data-test="chat-dock"
         >
             {target !== null && dock.isExpanded ? (
@@ -219,8 +226,16 @@ function DockedChat({ user }: { user: User }) {
                                       )}
                             </span>
                             {unread > 0 && (
-                                <span className="rounded-full bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums">
-                                    {unread}
+                                <span
+                                    title={`${unread} unread messages`}
+                                    className="rounded-sm bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums"
+                                >
+                                    <span aria-hidden>
+                                        {unread > 99 ? '99+' : unread}
+                                    </span>
+                                    <span className="sr-only">
+                                        {unread} unread messages
+                                    </span>
                                 </span>
                             )}
                             {tools}
@@ -289,14 +304,18 @@ function DirectDockHeader({
                     { '--lane': laneColor(partner.lane) } as React.CSSProperties
                 }
             />
-            <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold">
+            <Link
+                href={show(partner)}
+                className="group min-w-0 rounded-md"
+                title={partner.name}
+            >
+                <span className="block truncate text-sm font-semibold group-hover:underline">
                     {partner.name}
                 </span>
                 <span className="block truncate font-mono text-[11px] text-muted-foreground">
                     @{partner.username}
                 </span>
-            </span>
+            </Link>
             <ConversationActions
                 target={{ kind: 'direct', partner }}
                 title={`@${partner.username}`}
