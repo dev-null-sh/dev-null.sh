@@ -294,8 +294,6 @@ export function ConversationThread({
         }
     }, [hasPinnedMessages, hasPinClearance]);
 
-    useLayoutEffect(releasePinClearance, [releasePinClearance]);
-
     const canPin = isOrg && thread?.role === 'maintainer' && isOpen;
     // Polls hand over a new list whenever any reaction changes, so the bubbles only hear about the pins themselves.
     const pinnedKey = pinnedMessages.map((message) => message.id).join();
@@ -540,6 +538,8 @@ export function ConversationThread({
         // scroller is anchored at its bottom, so what loads above the visible rows never moves them.
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [contentKey, thread?.isLoaded]);
+
+    useLayoutEffect(releasePinClearance, [releasePinClearance]);
 
     const releaseScrollAnchor = useCallback(() => {
         // Let deliberate input own the viewport until the fold settles, including delayed automatic scroll events.
