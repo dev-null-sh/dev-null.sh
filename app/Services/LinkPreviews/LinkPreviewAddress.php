@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Services;
+namespace App\Services\LinkPreviews;
 
 use App\Contracts\Services\DnsResolver;
 use Symfony\Component\HttpFoundation\IpUtils;

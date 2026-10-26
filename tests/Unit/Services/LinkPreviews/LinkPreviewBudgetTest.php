@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Services\LinkPreviewBudget;
+use App\Services\LinkPreviews\LinkPreviewBudget;
 
 it('shares one monotonic deadline across the fetch', function (): void {
     $nanoseconds = 0;

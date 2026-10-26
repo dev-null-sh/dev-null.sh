@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Services\LimitedResponseBody;
+use App\Services\LinkPreviews\LimitedResponseBody;
 
 it('retains short responses without changing their bytes', function (): void {
     $body = new LimitedResponseBody(32);

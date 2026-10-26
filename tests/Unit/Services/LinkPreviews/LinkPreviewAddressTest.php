@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use App\Contracts\Services\DnsResolver;
-use App\Services\LinkPreviewAddress;
+use App\Services\LinkPreviews\LinkPreviewAddress;
 use Uri\WhatWg\Url;
 
 it('rejects non-public and NAT64 addresses', function (string $address): void {
