@@ -248,7 +248,6 @@ it('asks again about a package whose lookup failed', function (int $packagist, i
 })->with([
     'where it is developed' => [503, 200],
     'who develops it' => [200, 500],
-    'who develops it, while rate limited' => [200, 403],
 ]);
 
 it('stops looking after twenty seconds', function (): void {
@@ -311,7 +310,7 @@ it('leaves out repositories github no longer has, that have no history, or too m
     'too large' => [403, ['message' => 'The history or contributor list is too large to list contributors for this repository via the API.']],
 ]);
 
-it('fails when github cannot list the repositories or the stars or throttles reading them, so the lookup is tried again', function (array $responses): void {
+it('fails when github cannot list the repositories or the stars or a lookup is throttled, so the lookup is tried again', function (array $responses): void {
     Http::fake($responses);
 
     expect(fn () => resolve(DependencyContributorsQuery::class)->get('jess'))->toThrow(RequestException::class);
@@ -324,5 +323,27 @@ it('fails when github cannot list the repositories or the stars or throttles rea
     'reading' => fn (): array => [
         'api.github.com/users/jess/repos*' => Http::response([['full_name' => 'jess/blog', 'fork' => false]]),
         'raw.githubusercontent.com/*' => Http::response('429: Too Many Requests', 429),
+    ],
+    'finding where a package is developed' => fn (): array => [
+        'api.github.com/users/jess/repos*' => Http::response([['full_name' => 'jess/blog', 'fork' => false]]),
+        'raw.githubusercontent.com/jess/blog/HEAD/composer.json' => Http::response(['require' => ['laravel/framework' => '^13.0']]),
+        'raw.githubusercontent.com/jess/blog/HEAD/package.json' => Http::response('404: Not Found', 404),
+        'repo.packagist.org/*' => Http::response('Too Many Requests', 429),
+    ],
+    'finding who develops it' => fn (): array => [
+        'api.github.com/users/jess/repos*' => Http::response([['full_name' => 'jess/blog', 'fork' => false]]),
+        'api.github.com/users/jess/starred*' => Http::response([]),
+        'raw.githubusercontent.com/jess/blog/HEAD/composer.json' => Http::response(['require' => ['laravel/framework' => '^13.0']]),
+        'raw.githubusercontent.com/jess/blog/HEAD/package.json' => Http::response('404: Not Found', 404),
+        'repo.packagist.org/p2/laravel/framework.json' => Http::response(packagistMetadata('laravel/framework', 'https://github.com/laravel/framework.git')),
+        'api.github.com/repos/laravel/framework/contributors*' => Http::response(['message' => 'You have exceeded a secondary rate limit.'], 429),
+    ],
+    'finding who develops it, past the rate limit' => fn (): array => [
+        'api.github.com/users/jess/repos*' => Http::response([['full_name' => 'jess/blog', 'fork' => false]]),
+        'api.github.com/users/jess/starred*' => Http::response([]),
+        'raw.githubusercontent.com/jess/blog/HEAD/composer.json' => Http::response(['require' => ['laravel/framework' => '^13.0']]),
+        'raw.githubusercontent.com/jess/blog/HEAD/package.json' => Http::response('404: Not Found', 404),
+        'repo.packagist.org/p2/laravel/framework.json' => Http::response(packagistMetadata('laravel/framework', 'https://github.com/laravel/framework.git')),
+        'api.github.com/repos/laravel/framework/contributors*' => Http::response(['message' => 'API rate limit exceeded.'], 403),
     ],
 ]);

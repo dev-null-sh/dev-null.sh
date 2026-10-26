@@ -8,6 +8,7 @@ use App\Services\GitHub;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Fluent;
@@ -150,6 +151,7 @@ final readonly class DependencyContributorsQuery
     /**
      * The GitHub repository a package is developed in, like "laravel/framework", as its registry lists it. A package
      * without one is remembered too, so it doesn't cost the next person a request; a failed request isn't, so it's retried.
+     * When the registry throttles it, the lookup fails so it is tried again later, instead of quietly finding nobody.
      */
     private function repository(string $package): ?string
     {
@@ -168,7 +170,9 @@ final readonly class DependencyContributorsQuery
 
                 return is_string($url) && preg_match(self::RepositoryUrl, $url, $matches) === 1 ? $matches['repository'] : false;
             });
-        } catch (HttpClientException) {
+        } catch (HttpClientException $httpClientException) {
+            throw_if($httpClientException instanceof RequestException && $httpClientException->response->tooManyRequests(), $httpClientException);
+
             return null;
         }
 
@@ -197,7 +201,8 @@ final readonly class DependencyContributorsQuery
     /**
      * The GitHub IDs of the people among a repository's top contributors, remembered for a day so that everyone whose
      * packages come from it shares one request. A repository GitHub no longer has, one without history, or one whose
-     * history GitHub finds too large to list has none.
+     * history GitHub finds too large to list has none. When GitHub throttles it, the lookup fails so it is tried again
+     * later, instead of quietly finding nobody.
      *
      * @return array<int, string>
      */
@@ -219,7 +224,9 @@ final readonly class DependencyContributorsQuery
                     ->values()
                     ->all();
             });
-        } catch (HttpClientException) {
+        } catch (HttpClientException $httpClientException) {
+            throw_if($httpClientException instanceof RequestException && in_array($httpClientException->response->status(), [403, 429], true), $httpClientException);
+
             return [];
         }
     }
