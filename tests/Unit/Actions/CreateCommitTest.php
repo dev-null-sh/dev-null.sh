@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommit;
 use App\Dto\NewPoll;
+use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Enums\PollDuration;
@@ -431,7 +432,7 @@ it('lifts the thread when an admin replies', function (): void {
     resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Nice one', $commit);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 0, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
 });
 
 it('lifts the quoted thread when an admin quotes', function (): void {
@@ -442,7 +443,7 @@ it('lifts the quoted thread when an admin quotes', function (): void {
     resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $commit);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 1, repliers: 0, repliersAnsweredByAuthor: 0)), 1e-9);
 });
 
 it('keeps a poll on a quote while only approved quotes lift its thread', function (bool $admin): void {
@@ -464,7 +465,7 @@ it('keeps a poll on a quote while only approved quotes lift its thread', functio
         ->and($quote->poll->options->pluck('label')->all())->toBe(['Tabs', 'Spaces'])
         ->and($quote->poll->opened_at?->toIso8601String())->toBe($admin ? now()->toIso8601String() : null)
         ->and($root->fresh()->hot_score)->toEqualWithDelta(
-            $admin ? resolve(TheAlgorithm::class)->score($root->created_at, 0, 2) : $root->hot_score,
+            $admin ? resolve(TheAlgorithm::class)->score($root->created_at, new ThreadEngagement(stargazers: 0, quoters: 1, repliers: 1, repliersAnsweredByAuthor: 0)) : $root->hot_score,
             1e-9,
         );
 })->with([false, true]);

@@ -47,6 +47,7 @@ it('flashes the created commit', function (): void {
     $response->assertInertiaFlash('committed', [
         'id' => $commit->id,
         'body' => 'Initial commit',
+        'user' => ['username' => $user->username],
     ])->assertInertiaFlash('achievementsUnlocked', ['init']);
 });
 
@@ -65,6 +66,7 @@ it('keeps the created commit flashed through the reload a deploy forces on the r
     expect($page['flash']['committed'] ?? null)->toBe([
         'id' => $user->commits()->sole()->id,
         'body' => 'Initial commit',
+        'user' => ['username' => $user->username],
     ]);
 });
 
@@ -125,6 +127,30 @@ it('requires a body', function (): void {
         ]);
 
     $response->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasErrors('body');
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('keeps the text after a NUL byte', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit.store'), [
+            'body' => 'Hello'.chr(0).', devnull!',
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->body)->toBe('Hello, devnull!');
+});
+
+it('requires a body that is more than NUL bytes', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('commit.store'), [
+            'body' => ' '.chr(0).chr(0).' ',
+        ])
         ->assertSessionHasErrors('body');
 
     expect(Commit::query()->count())->toBe(0);

@@ -1,17 +1,13 @@
 import { Head, Link, router } from '@inertiajs/react';
 import UserController from '@/actions/App/Http/Controllers/UserController';
-import {
-    ActivityCells,
-    activitySummary,
-    activityWindows,
-} from '@/components/activity-graph';
+import { ActivityCells, activityTotal } from '@/components/activity-graph';
 import type { ActivityNoun } from '@/components/activity-graph';
 import { Breakdown } from '@/components/operations/breakdown';
 import { PresetButton } from '@/components/operations/preset-button';
-import { Section } from '@/components/operations/section';
+import { Panel } from '@/components/operations/section';
 import { Stats } from '@/components/operations/stats';
 import { UserPreview } from '@/components/user-preview';
-import AppLayout from '@/layouts/app-layout';
+import { usePicked } from '@/hooks/use-picked';
 import OperationsLayout from '@/layouts/operations/layout';
 import { formatCount } from '@/lib/numbers';
 import type {
@@ -39,7 +35,28 @@ const NOUNS: Record<ActivityMetric, ActivityNoun> = {
     signups: ['signup', 'signups'],
 };
 
+type ActivityChoice = Pick<SiteActivity, 'metric' | 'scale'>;
+
+/**
+ * Sends the series and the window together, so a pick made while the one before is still loading keeps both.
+ */
 function ActivityPicker({ activity }: { activity: SiteActivity }) {
+    const { picked, pick } = usePicked<ActivityChoice>();
+    const shown = picked ?? { metric: activity.metric, scale: activity.scale };
+
+    const select = (next: Partial<ActivityChoice>) => {
+        const choice = { ...shown, ...next };
+
+        router.reload({
+            data: choice,
+            only:
+                next.scale === undefined
+                    ? ['activity']
+                    : ['activity', 'breakdowns'],
+            onFinish: pick(choice),
+        });
+    };
+
     return (
         <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 font-mono text-[13px]">
             <div
@@ -50,13 +67,8 @@ function ActivityPicker({ activity }: { activity: SiteActivity }) {
                 {ACTIVITY_METRICS.map((metric) => (
                     <PresetButton
                         key={metric}
-                        isActive={metric === activity.metric}
-                        onClick={() =>
-                            router.reload({
-                                data: { metric },
-                                only: ['activity'],
-                            })
-                        }
+                        isActive={metric === shown.metric}
+                        onClick={() => select({ metric })}
                     >
                         {metric}
                     </PresetButton>
@@ -70,13 +82,8 @@ function ActivityPicker({ activity }: { activity: SiteActivity }) {
                 {ACTIVITY_SCALES.map((preset) => (
                     <PresetButton
                         key={preset.scale}
-                        isActive={preset.scale === activity.scale}
-                        onClick={() =>
-                            router.reload({
-                                data: { scale: preset.scale },
-                                only: ['activity', 'breakdowns'],
-                            })
-                        }
+                        isActive={preset.scale === shown.scale}
+                        onClick={() => select({ scale: preset.scale })}
                     >
                         {preset.label}
                     </PresetButton>
@@ -84,6 +91,10 @@ function ActivityPicker({ activity }: { activity: SiteActivity }) {
             </div>
         </div>
     );
+}
+
+function count(total: number, [singular, plural]: ActivityNoun): string {
+    return `${formatCount(total)} ${total === 1 ? singular : plural}`;
 }
 
 const COUNTERS: { key: Counter; label: string }[] = [
@@ -104,6 +115,9 @@ export default function Show({
     activity: SiteActivity;
     breakdowns: ActivityBreakdowns;
 }) {
+    const windowLabel = ACTIVITY_SCALES.find(
+        (preset) => preset.scale === activity.scale,
+    )?.label;
     const posted = breakdowns.statuses.reduce(
         (sum, status) => sum + status.count,
         0,
@@ -111,74 +125,77 @@ export default function Show({
 
     return (
         <>
-            <Head title="Site activity" />
-
-            <Section title="Today" meta="since 00:00 UTC">
-                <Stats
-                    stats={COUNTERS.map((stat) => ({
-                        label: stat.label,
-                        value: formatCount(today[stat.key].today),
-                        note: `${formatCount(today[stat.key].yesterday)} yesterday`,
-                    }))}
-                />
-            </Section>
-
-            <Section
-                title="Overall"
-                meta={overall.since ? `since ${overall.since}` : 'all time'}
-            >
-                <Stats
-                    stats={COUNTERS.map((stat) => ({
-                        label: stat.label,
-                        value: formatCount(overall[stat.key]),
-                    }))}
-                />
-            </Section>
-
-            <Section
-                title="Activity"
-                meta={activitySummary(activity, NOUNS[activity.metric])}
-            >
-                <ActivityPicker activity={activity} />
-                <ActivityCells
-                    activity={activity}
-                    color="var(--muted-foreground)"
-                    noun={NOUNS[activity.metric]}
-                />
-            </Section>
-
-            <Section
-                title="Breakdown"
-                meta={`${formatCount(posted)} ${posted === 1 ? 'commit or reply' : 'commits and replies'} ${activityWindows[activity.scale]}`}
-            >
-                <div className="grid gap-3 sm:grid-cols-2">
-                    <Breakdown
-                        title="status"
-                        unit="commits"
-                        empty="unknown"
-                        rows={breakdowns.statuses}
+            <Head title="Activity" />
+            <div className="grid gap-4 xl:grid-cols-2">
+                <Panel title="Today" meta="since 00:00 UTC">
+                    <Stats
+                        stats={COUNTERS.map((stat) => ({
+                            label: stat.label,
+                            value: formatCount(today[stat.key].today),
+                            note: `${formatCount(today[stat.key].yesterday)} yesterday`,
+                        }))}
                     />
-                    <Breakdown
-                        title="authors"
-                        unit="commits"
-                        empty="unknown"
-                        rows={breakdowns.authors}
-                        formatName={(name) => `@${name}`}
-                        renderName={(username) => (
-                            <UserPreview user={{ username }}>
-                                <Link
-                                    href={UserController.show(username)}
-                                    className="underline-offset-4 hover:underline"
-                                >
-                                    @{username}
-                                </Link>
-                            </UserPreview>
-                        )}
+                </Panel>
+
+                <Panel
+                    title="Overall"
+                    meta={overall.since ? `since ${overall.since}` : 'all time'}
+                >
+                    <Stats
+                        stats={COUNTERS.map((stat) => ({
+                            label: stat.label,
+                            value: formatCount(overall[stat.key]),
+                        }))}
                     />
-                </div>
-            </Section>
+                </Panel>
+
+                <Panel
+                    className="xl:col-span-2"
+                    title="Activity"
+                    meta={`${count(activityTotal(activity), NOUNS[activity.metric])}, ${windowLabel}`}
+                >
+                    <ActivityPicker activity={activity} />
+                    <ActivityCells
+                        activity={activity}
+                        color="var(--muted-foreground)"
+                        noun={NOUNS[activity.metric]}
+                    />
+                </Panel>
+
+                <Panel
+                    className="xl:col-span-2"
+                    title="Breakdown"
+                    meta={`${count(posted, ['commit or reply', 'commits and replies'])}, ${windowLabel}`}
+                >
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <Breakdown
+                            title="status"
+                            unit="commits"
+                            empty="unknown"
+                            rows={breakdowns.statuses}
+                        />
+                        <Breakdown
+                            title="authors"
+                            unit="commits"
+                            empty="unknown"
+                            rows={breakdowns.authors}
+                            formatName={(name) => `@${name}`}
+                            renderName={(username) => (
+                                <UserPreview user={{ username }}>
+                                    <Link
+                                        href={UserController.show(username)}
+                                        className="underline-offset-4 hover:underline"
+                                    >
+                                        @{username}
+                                    </Link>
+                                </UserPreview>
+                            )}
+                        />
+                    </div>
+                </Panel>
+            </div>
         </>
     );
 }
 
-Show.layout = [AppLayout, OperationsLayout];
+Show.layout = OperationsLayout;

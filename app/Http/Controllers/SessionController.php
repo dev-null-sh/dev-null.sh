@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\CreateTomFriendship;
+use App\Actions\DeletePushSubscription;
 use App\Actions\UpdateOrCreateUser;
 use App\Jobs\ImportGitHubFollowsJob;
 use App\Jobs\SuggestDependencyContributorsJob;
 use App\Jobs\SyncGitHubSshKeysJob;
+use App\Models\User;
 use App\Services\GitHubAccountScreening;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -73,8 +75,13 @@ final readonly class SessionController
         return redirect()->intended(route('log.show', $user->log, absolute: false));
     }
 
-    public function destroy(Request $request): RedirectResponse
+    public function destroy(Request $request, DeletePushSubscription $deletePushSubscription): RedirectResponse
     {
+        $user = $request->user();
+        assert($user instanceof User);
+        $endpointHash = $request->session()->get('push_endpoint_hash');
+        $deletePushSubscription->handle($user, is_string($endpointHash) ? $endpointHash : '');
+
         Auth::guard('web')->logout();
 
         $request->session()->invalidate();

@@ -219,7 +219,7 @@ it('unfurls the link the sender chose into a link card', function (array $payloa
     ])->assertCreated()
         ->assertJsonPath('message.link_preview.url', $url);
 
-    $url === null ? Queue::assertNothingPushed() : Queue::assertPushed(UnfurlLink::class);
+    $url === null ? Queue::assertNotPushed(UnfurlLink::class) : Queue::assertPushed(UnfurlLink::class);
 })->with([
     'the first link by default' => [[], 'https://laravel.com/docs'],
     'another link' => [['link_preview_url' => 'https://github.com/laravel'], 'https://github.com/laravel'],

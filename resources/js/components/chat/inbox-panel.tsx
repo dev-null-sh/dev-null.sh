@@ -2,7 +2,10 @@ import { usePage } from '@inertiajs/react';
 import { Search, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
-import { ConversationList } from '@/components/chat/conversation-list';
+import {
+    ConversationList,
+    ConversationListSkeleton,
+} from '@/components/chat/conversation-list';
 import { CandidateRow } from '@/components/chat/org';
 import { useChat } from '@/hooks/use-chat';
 import {
@@ -12,6 +15,7 @@ import {
     searchConversations,
 } from '@/lib/chat';
 import type { Candidate, ChatTarget } from '@/lib/chat';
+import { conversationsMatching } from '@/lib/conversation-search';
 import { cn } from '@/lib/utils';
 import type { ConversationSummary, InboxTab, User } from '@/types';
 
@@ -69,7 +73,7 @@ export function InboxPanel({
     const end = useRef<HTMLDivElement>(null);
     const [query, setQuery] = useState('');
     const [found, setFound] = useState<Found | null>(null);
-    const term = query.trim().replace(/^@/u, '');
+    const term = query.trim().replace(/^@+/u, '');
 
     useEffect(() => {
         if (term === '') {
@@ -93,13 +97,7 @@ export function InboxPanel({
                         term,
                         tab,
                         conversations: matches,
-                        developers: developers.filter(
-                            (developer) =>
-                                !matches.some(
-                                    (match) =>
-                                        match.partner?.id === developer.user.id,
-                                ),
-                        ),
+                        developers,
                     }),
                 )
                 .catch(() => undefined);
@@ -143,13 +141,24 @@ export function InboxPanel({
         }
     };
 
-    const results =
-        found !== null && found.term === term && found.tab === tab
-            ? found
-            : null;
-    const list = isSearching
-        ? (results?.conversations ?? null)
-        : { open: conversations, fetched, stashed: archived }[tab];
+    const loaded = { open: conversations, fetched, stashed: archived }[tab];
+    const earlier = found?.tab === tab ? found : null;
+    const results = earlier?.term === term ? earlier : null;
+    const list =
+        !isSearching || (loaded === null && earlier === null)
+            ? loaded
+            : conversationsMatching(
+                  term,
+                  [...(loaded ?? []), ...(earlier?.conversations ?? [])],
+                  results?.conversations,
+              );
+    const developers = (results?.developers ?? []).filter(
+        (developer) =>
+            !list?.some(
+                (conversation) =>
+                    conversation.partner?.id === developer.user.id,
+            ),
+    );
 
     return (
         <div className="flex min-h-0 flex-1 flex-col">
@@ -260,7 +269,7 @@ export function InboxPanel({
                     empty={
                         isSearching ? (
                             results !== null &&
-                            results.developers.length === 0 && (
+                            developers.length === 0 && (
                                 <p
                                     className="truncate px-4 py-8 text-center font-mono text-[13px] text-muted-foreground"
                                     title={`fatal: nothing matches '${term}'`}
@@ -282,6 +291,10 @@ export function InboxPanel({
                     }
                 />
 
+                {isSearching && results === null && list !== null && (
+                    <ConversationListSkeleton isCompact={isCompact} />
+                )}
+
                 {!isSearching && (
                     <div
                         ref={end}
@@ -294,33 +307,29 @@ export function InboxPanel({
                     </div>
                 )}
 
-                {isSearching &&
-                    results !== null &&
-                    results.developers.length > 0 && (
-                        <section aria-label="Start a conversation">
-                            <h3 className="px-4 pt-3 pb-1 font-mono text-xs text-muted-foreground">
-                                Start a conversation
-                            </h3>
-                            <ul>
-                                {results.developers.map(
-                                    ({ user: developer, reason }) => (
-                                        <li key={developer.id}>
-                                            <CandidateRow
-                                                user={developer}
-                                                reason={reason}
-                                                onToggle={() =>
-                                                    onOpen({
-                                                        kind: 'direct',
-                                                        partner: developer,
-                                                    })
-                                                }
-                                            />
-                                        </li>
-                                    ),
-                                )}
-                            </ul>
-                        </section>
-                    )}
+                {developers.length > 0 && (
+                    <section aria-label="Start a conversation">
+                        <h3 className="px-4 pt-3 pb-1 font-mono text-xs text-muted-foreground">
+                            Start a conversation
+                        </h3>
+                        <ul>
+                            {developers.map(({ user: developer, reason }) => (
+                                <li key={developer.id}>
+                                    <CandidateRow
+                                        user={developer}
+                                        reason={reason}
+                                        onToggle={() =>
+                                            onOpen({
+                                                kind: 'direct',
+                                                partner: developer,
+                                            })
+                                        }
+                                    />
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                )}
             </div>
         </div>
     );

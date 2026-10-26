@@ -85,6 +85,12 @@ it('collapses runs of blank lines in a signed commit', function (): void {
     expect($this->user->commits()->sole()->body)->toBe("It was DNS.\n\nIt is always DNS.");
 });
 
+it('keeps the text after a NUL byte in a signed commit', function (): void {
+    postSignedCommit(signedCommit($this->keyPair, 'It was'.chr(0).' DNS.'))->assertCreated();
+
+    expect($this->user->commits()->sole()->body)->toBe('It was DNS.');
+});
+
 it('links to the commit when it is published right away', function (): void {
     config(['app.admins' => [$this->user->username]]);
 

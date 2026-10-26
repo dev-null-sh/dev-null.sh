@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Cache;
  *     partner_read_at: string|null,
  *     partner_typing: bool,
  *     is_archived: bool,
+ *     pinned_at: string|null,
  *     muted_until_at: string|null,
  *     access: PushAccess
  * }
@@ -38,10 +39,12 @@ use Illuminate\Support\Facades\Cache;
  *     has_older: bool,
  *     reactions_version: int,
  *     reaction_changes: Collection<int, ReactionChange>,
+ *     pinned: Collection<int, Message>|null,
  *     read_through_id: int,
  *     members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int, suggests_mentions: bool, is_followed: bool}>,
  *     typing: array<int, string>,
  *     is_archived: bool,
+ *     pinned_at: string|null,
  *     muted_until_at: string|null,
  *     role: OrgRole|null,
  *     access: PushAccess
@@ -50,6 +53,11 @@ use Illuminate\Support\Facades\Cache;
 final readonly class ConversationThreadQuery
 {
     public const int PAGE = 50;
+
+    public function __construct(private PinnedMessagesQuery $pinnedMessages)
+    {
+        //
+    }
 
     /**
      * A one-to-one conversation. Reads only show as pulled when both people share them, and only once the partner
@@ -80,6 +88,7 @@ final readonly class ConversationThreadQuery
             'partner_read_at' => $sharesReads ? $theirs->read_at?->toJSON() : null,
             'partner_typing' => $access === PushAccess::Open && $conversation instanceof Conversation && Cache::has(UpdateConversationTyping::key($partner, $conversation)),
             'is_archived' => $mine?->archived_at !== null,
+            'pinned_at' => $mine?->pinned_at?->toJSON(),
             'muted_until_at' => $mine?->muted_until_at?->isFuture() ? $mine->muted_until_at->toJSON() : null,
             'access' => $access,
         ];
@@ -87,6 +96,9 @@ final readonly class ConversationThreadQuery
 
     /**
      * An org the user is in, from where their history starts. Each member's reads show only when both share pulls.
+     * The messages the org pinned come whatever history the user was given, and polls get them again only once the
+     * reactions version moved past the one they sent, as pinning and unpinning move it. They are null when unchanged,
+     * and on older pages, where the thread keeps the ones it has.
      *
      * @return OrgThread
      */
@@ -115,6 +127,7 @@ final readonly class ConversationThreadQuery
             'has_older' => $hasOlder,
             'reactions_version' => $org->reactions_version,
             'reaction_changes' => $this->reactionChanges($org, $mine->visible_from_id, $reactionsAfter),
+            'pinned' => $before === null && ($reactionsAfter === null || $org->reactions_version > $reactionsAfter) ? $this->pinnedMessages->get($org) : null,
             'read_through_id' => $mine->read_through_id,
             'members' => $participants->map(fn (ConversationParticipant $participant): array => [
                 'user' => $participant->user,
@@ -128,6 +141,7 @@ final readonly class ConversationThreadQuery
                 ->values()
                 ->all(),
             'is_archived' => $mine->archived_at !== null,
+            'pinned_at' => $mine->pinned_at?->toJSON(),
             'muted_until_at' => $mine->muted_until_at?->isFuture() ? $mine->muted_until_at->toJSON() : null,
             'role' => $mine->role,
             'access' => PushAccess::Open,
