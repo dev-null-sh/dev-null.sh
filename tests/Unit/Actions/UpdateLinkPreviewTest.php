@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\UpdateLinkPreview;
 use App\Contracts\Services\DnsResolver;
 use App\Models\LinkPreview;
+use App\Services\CodeSnippets;
 use App\Services\DnsResolvers\SystemDnsResolver;
 use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Promise\Create;
@@ -46,6 +47,16 @@ function unfurl(string $url): LinkPreview
 function htmlResponse(string $html, int $status = 200): PromiseInterface
 {
     return Http::response($html, $status, ['Content-Type' => 'text/html; charset=utf-8']);
+}
+
+/**
+ * The lines kept for a link, which live in the cache and reach the card through LinkPreviewResource.
+ *
+ * @return array{path: string, start_line: int, end_line: int, cited_end_line: int, html: string}|null
+ */
+function snippetOf(LinkPreview $linkPreview): ?array
+{
+    return resolve(CodeSnippets::class)->for($linkPreview->url);
 }
 
 function expectNoMetadata(LinkPreview $linkPreview): void
@@ -444,7 +455,7 @@ it('keeps the cited lines of a github permalink', function (): void {
     $linkPreview = unfurl($url);
 
     expect($linkPreview->title)->toBe('a.txt at main')
-        ->and($linkPreview->toArray()['snippet'])->toMatchArray(['path' => 'src/a.txt', 'start_line' => 2, 'end_line' => 2]);
+        ->and(snippetOf($linkPreview))->toMatchArray(['path' => 'src/a.txt', 'start_line' => 2, 'end_line' => 2]);
 
     Http::assertSent(fn (Request $request): bool => str_starts_with($request->url(), 'https://raw.githubusercontent.com/')
         && $request->header('Accept') === ['text/plain']);
@@ -459,7 +470,7 @@ it('keeps the card without a snippet when the file cannot be read as text', func
     $linkPreview = unfurl("https://{$host}/acme/app/blob/3f732656b1b97de366bce8ed147077ed11e25248/a.txt#L1");
 
     expect($linkPreview->title)->toBe('a.txt at main')
-        ->and($linkPreview->toArray()['snippet'])->toBeNull();
+        ->and(snippetOf($linkPreview))->toBeNull();
 })->with([
     'missing' => [fn (): PromiseInterface => Http::response('404: Not Found', 404, ['Content-Type' => 'text/plain']), 'github.com'],
     'not text' => [fn (): PromiseInterface => Http::response('{}', 200, ['Content-Type' => 'application/octet-stream']), 'github.com'],
@@ -477,7 +488,7 @@ it('does not fetch the raw file when its host does not resolve to a public addre
 
     Http::fake(['https://github.com/*' => htmlResponse('<title>a.txt</title>')]);
 
-    expect(unfurl('https://github.com/acme/app/blob/3f732656b1b97de366bce8ed147077ed11e25248/a.txt#L1')->toArray()['snippet'])->toBeNull();
+    expect(snippetOf(unfurl('https://github.com/acme/app/blob/3f732656b1b97de366bce8ed147077ed11e25248/a.txt#L1')))->toBeNull();
 
     Http::assertSentCount(1);
 });
@@ -491,7 +502,7 @@ it('keeps the card without a snippet when the raw file may be reachable later', 
     $linkPreview = unfurl('https://github.com/acme/app/blob/3f732656b1b97de366bce8ed147077ed11e25248/a.txt#L1');
 
     expect($linkPreview->title)->toBe('a.txt')
-        ->and($linkPreview->toArray()['snippet'])->toBeNull();
+        ->and(snippetOf($linkPreview))->toBeNull();
 })->with([
     'failed connection' => fn (): Closure => Http::failedConnection(),
     'too many requests' => fn (): PromiseInterface => Http::response('', 429),

@@ -235,6 +235,7 @@ Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show']
     ->whereUuid('commitImage')
     ->name('commit-image.show');
 Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
+    ->middleware('throttle:link-previews')
     ->name('commit-link-preview.show');
 Route::get('commits/{commit}/status', [CommitStatusController::class, 'show'])
     ->name('commit-status.show');
@@ -377,6 +378,7 @@ Route::middleware('auth')->group(function (): void {
             ->name('conversation-pin.update');
         Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
             ->whereNumber('message')
+            ->middleware('throttle:link-previews')
             ->name('message-link-preview.show');
         Route::get('remotes/reactions', [MessageReactionController::class, 'index'])->name('message-reaction.index');
         Route::post('remotes/messages/{message}/reactions', [MessageReactionController::class, 'store'])

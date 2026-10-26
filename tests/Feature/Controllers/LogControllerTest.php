@@ -480,7 +480,6 @@ it('includes the link previews of commits', function (Log $log): void {
                 'site_name' => 'Laravel',
                 'is_pending' => false,
                 'embed' => null,
-                'snippet' => null,
             ]));
 })->with(Log::cases());
 

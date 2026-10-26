@@ -70,6 +70,14 @@ final class AppServiceProvider extends ServiceProvider
     {
         RateLimiter::for('commit-reports', fn (Request $request): Limit => Limit::perMinute(5)->by($this->userId($request)));
 
+        // A card asks for the lines a permalink cites, so a log full of them asks once per card while it renders.
+        // The commit one is public, so a reader who is not signed in is counted by address.
+        RateLimiter::for('link-previews', function (Request $request): Limit {
+            $user = $request->user();
+
+            return Limit::perMinute(120)->by($user instanceof User ? $user->id : (string) $request->ip());
+        });
+
         // Every sync costs four GitHub API requests, out of a shared hourly budget. The mobile app shares it, and gets the
         // same message with a code...
         RateLimiter::for('profile-syncs', function (Request $request): Limit {

@@ -18,7 +18,6 @@ test('to array', function (): void {
             'site_name',
             'is_pending',
             'embed',
-            'snippet',
         ]);
 });
 
