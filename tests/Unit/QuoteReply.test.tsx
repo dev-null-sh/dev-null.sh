@@ -35,7 +35,7 @@ const reply = (id: string, overrides: Partial<Commit>): Commit =>
         ...overrides,
     }) as Commit;
 
-async function renderReplies(replies: Commit[]) {
+async function renderReplies(replies: Commit[], automaticTranslation = true) {
     const commit = {
         ...original,
         replies_count: replies.length,
@@ -59,7 +59,13 @@ async function renderReplies(replies: Commit[]) {
     const result = await createInertiaApp({
         page: {
             component: 'test',
-            props: { auth: { user: null }, errors: {} },
+            props: {
+                auth: {
+                    user: automaticTranslation ? null : original.user,
+                    automaticTranslation,
+                },
+                errors: {},
+            },
             url: '/',
             version: null,
             clearHistory: false,
@@ -116,4 +122,39 @@ test('shows cached translations to guests while leaving other replies in their o
     assert.match(html, /Show original/);
     assert.doesNotMatch(html, /Body of translated/);
     assert.match(html, /Body of untranslated/);
+});
+
+test('keeps cached translations hidden until requested when automatic translation is off', async () => {
+    const html = await renderReplies(
+        [
+            reply('chinese', {
+                parent_id: 'original',
+                body: '今天发布了新版本。',
+                body_segments: [{ type: 'text', text: '今天发布了新版本。' }],
+                translation: {
+                    language: 'en',
+                    source_language: 'zh',
+                    source_name: 'Chinese',
+                    available: true,
+                    translated: {
+                        body_segments: [
+                            {
+                                type: 'text',
+                                text: 'Released a new version today.',
+                            },
+                        ],
+                        preview_segments: null,
+                    },
+                },
+            }),
+        ],
+        false,
+    );
+
+    assert.match(html, /今天发布了新版本。/);
+    assert.doesNotMatch(html, /Released a new version today/);
+    assert.doesNotMatch(html, /Translated from Chinese/);
+    assert.doesNotMatch(html, /Show original/);
+    assert.match(html, /aria-label="Translate commit"/);
+    assert.doesNotMatch(html, /disabled=""[^>]*aria-label="Translate commit"/);
 });

@@ -14,6 +14,8 @@ import UserTimezoneController from '@/actions/App/Http/Controllers/UserTimezoneC
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { useUser } from '@/hooks/use-user';
 import { browserTimeZone } from '@/lib/utils';
 
@@ -49,6 +51,7 @@ function matches(timeZone: TimeZone, query: string): boolean {
 export default function TimezonePicker() {
     const { user } = useUser();
     const [selected, setSelected] = useState<string | null>(user.timezone);
+    const [showLocalTime, setShowLocalTime] = useState(user.show_local_time);
     const [query, setQuery] = useState('');
     const detected = useSyncExternalStore(
         subscribe,
@@ -68,7 +71,7 @@ export default function TimezonePicker() {
         <section className="px-4 py-6 sm:px-6">
             <Heading
                 title="Timezone"
-                description="Hover a commit or reply time to see it in your timezone, and in the author's when they have set one. Others see yours the same way. Leave it unset to use your browser's timezone without sharing it."
+                description="Hover a commit or reply time to see it in your timezone, and in the author's when they have set one. Others see yours the same way. Leave it unset to use your browser's timezone without sharing it. Your local time only shows on your profile if you turn that on below."
             />
 
             <Form
@@ -81,6 +84,14 @@ export default function TimezonePicker() {
                             type="hidden"
                             name="timezone"
                             value={selected ?? ''}
+                        />
+
+                        <input
+                            type="hidden"
+                            name="show_local_time"
+                            value={
+                                selected !== null && showLocalTime ? '1' : '0'
+                            }
                         />
 
                         <Combobox
@@ -169,7 +180,10 @@ export default function TimezonePicker() {
                             {selected !== null && (
                                 <button
                                     type="button"
-                                    onClick={() => setSelected(null)}
+                                    onClick={() => {
+                                        setSelected(null);
+                                        setShowLocalTime(false);
+                                    }}
                                     className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
                                 >
                                     Unset
@@ -177,10 +191,38 @@ export default function TimezonePicker() {
                             )}
                         </div>
 
+                        <div className="mt-4 flex items-start gap-2">
+                            <Checkbox
+                                id="show-local-time"
+                                checked={selected !== null && showLocalTime}
+                                disabled={selected === null}
+                                onCheckedChange={(checked) =>
+                                    setShowLocalTime(checked === true)
+                                }
+                                className="mt-0.5"
+                                data-test="show-local-time-checkbox"
+                            />
+                            <Label
+                                htmlFor="show-local-time"
+                                className="block text-sm leading-snug font-normal"
+                            >
+                                Show my local time on my profile
+                                <span className="block text-muted-foreground">
+                                    Anyone who opens your profile sees the
+                                    current time in your timezone.
+                                </span>
+                            </Label>
+                        </div>
+
                         <Button
                             type="submit"
                             className="mt-5"
-                            disabled={processing || selected === user.timezone}
+                            disabled={
+                                processing ||
+                                (selected === user.timezone &&
+                                    (selected === null ||
+                                        showLocalTime === user.show_local_time))
+                            }
                             data-test="save-timezone-button"
                         >
                             Save timezone

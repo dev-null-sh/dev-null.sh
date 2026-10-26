@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
+use Laravel\Ai\Enums\Lab;
 use UnexpectedValueException;
+
+use function Laravel\Ai\agent;
 
 final readonly class OpenAI
 {
@@ -43,12 +47,6 @@ final readonly class OpenAI
      */
     private const float RELEVANCE_THRESHOLD = 0.3;
 
-    private const string MINORS_INSTRUCTIONS = <<<'TEXT'
-        You review images uploaded to /dev/null, a social network for developers, before they are published.
-        Answer whether any person in the images is, or could plausibly be, under 18 years old. That includes babies,
-        children and teenagers, whether in photos, drawings, renders or any other depiction. When unsure, answer true.
-        TEXT;
-
     private const string HARMFUL_INSTRUCTIONS = <<<'TEXT'
         You review posts on /dev/null, a social network for developers, before they are published.
         Answer whether the post is harmful: a threat, including claims of having a bomb, weapon or explosive, or of
@@ -70,8 +68,8 @@ final readonly class OpenAI
 
     public function request(): PendingRequest
     {
-        return Http::baseUrl('https://api.openai.com/v1')
-            ->withToken(config()->string('services.openai.key'))
+        return Http::baseUrl(config()->string('ai.providers.openai.url'))
+            ->withToken(config()->string('ai.providers.openai.key'))
             ->acceptJson()
             ->connectTimeout(3)
             ->timeout(15);
@@ -198,71 +196,22 @@ final readonly class OpenAI
     }
 
     /**
-     * Whether a minor may appear in any of the images. The moderation model can't tell, so a reasoning model is asked
-     * instead. Anything but a clear no, such as a refusal or an answer that can't be read, counts as a yes.
-     *
-     * @param  list<string>  $imageDataUrls
-     */
-    public function showsMinors(array $imageDataUrls): bool
-    {
-        return $this->ask('minors', self::MINORS_INSTRUCTIONS, array_map(
-            fn (string $imageDataUrl): array => ['type' => 'input_image', 'image_url' => $imageDataUrl],
-            $imageDataUrls,
-        ));
-    }
-
-    /**
      * Whether the text is harmful. The moderation model misses threats that are implied rather than spelled out, such
      * as claiming to have a bomb, so a reasoning model is asked too. Anything but a clear no counts as a yes.
      */
     public function isHarmful(string $text): bool
     {
-        return $this->ask('harmful', self::HARMFUL_INSTRUCTIONS, [['type' => 'input_text', 'text' => $text]]);
-    }
+        $answer = agent(
+            instructions: self::HARMFUL_INSTRUCTIONS,
+            schema: fn (JsonSchema $schema): array => ['harmful' => $schema->boolean()->required()],
+        )->prompt(
+            $text,
+            provider: Lab::OpenAI,
+            model: self::REVIEW_MODEL,
+            timeout: 60,
+        );
 
-    /**
-     * Asks the reasoning model a yes or no question about the content. Anything but a clear no, such as a refusal or an
-     * answer that can't be read, counts as a yes.
-     *
-     * @param  list<array<string, string>>  $content
-     */
-    private function ask(string $question, string $instructions, array $content): bool
-    {
-        /** @var list<array{type: string, content?: list<array{type: string, text?: string}>}> $output */
-        $output = $this->request()
-            ->timeout(60)
-            ->post('responses', [
-                'model' => self::REVIEW_MODEL,
-                'input' => [
-                    ['role' => 'system', 'content' => $instructions],
-                    ['role' => 'user', 'content' => $content],
-                ],
-                'text' => ['format' => [
-                    'type' => 'json_schema',
-                    'name' => $question,
-                    'strict' => true,
-                    'schema' => [
-                        'type' => 'object',
-                        'properties' => [$question => ['type' => 'boolean']],
-                        'required' => [$question],
-                        'additionalProperties' => false,
-                    ],
-                ]],
-            ])
-            ->throw()
-            ->json('output', []);
-
-        foreach ($output as $item) {
-            foreach ($item['content'] ?? [] as $part) {
-                if ($part['type'] === 'output_text') {
-                    $answer = json_decode($part['text'] ?? '', true);
-
-                    return ! is_array($answer) || ($answer[$question] ?? null) !== false;
-                }
-            }
-        }
-
-        return true;
+        return ($answer['harmful'] ?? null) !== false;
     }
 
     /**

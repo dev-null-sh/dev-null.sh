@@ -41,20 +41,18 @@ export function PageTabs({
                     }
                     aria-current={tab.isActive ? 'page' : undefined}
                     className={cn(
-                        'flex flex-1 justify-center text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                        'relative flex flex-1 justify-center text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                         { 'text-foreground': tab.isActive },
                     )}
                 >
-                    <span className="relative py-3.5">
-                        {tab.title}
-                        {tab.isActive && (
-                            <span
-                                aria-hidden
-                                className="absolute inset-x-0 bottom-0 h-[3px] bg-primary [view-transition-class:tab-indicator]"
-                                style={{ viewTransitionName: indicatorName }}
-                            />
-                        )}
-                    </span>
+                    <span className="py-3.5">{tab.title}</span>
+                    {tab.isActive && (
+                        <span
+                            aria-hidden
+                            className="absolute inset-x-0 bottom-0 h-[3px] bg-primary [view-transition-class:tab-indicator]"
+                            style={{ viewTransitionName: indicatorName }}
+                        />
+                    )}
                 </Link>
             ))}
         </nav>

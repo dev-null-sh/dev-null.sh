@@ -8,13 +8,17 @@ use App\Ai\Agents\Tom;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\TomQuery;
+use App\Services\TomToolDecision;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Laravel\Ai\Contracts\Tool;
+use Laravel\Ai\Messages\UserMessage;
 use RuntimeException;
 
 final readonly class CreateTomReply
 {
-    public function __construct(private CreateCommit $createCommit)
+    public function __construct(private CreateCommit $createCommit, private TomQuery $tomQuery, private TomToolDecision $toolDecision)
     {
         //
     }
@@ -22,14 +26,36 @@ final readonly class CreateTomReply
     public function handle(string $commitId): void
     {
         $commit = Commit::query()->visibleTo(null)->with('user')->find($commitId);
-        $tom = User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->where('username', CreateTomFriendship::USERNAME)->first();
 
-        if (! $commit instanceof Commit || ! $tom instanceof User || ! $this->replyable($commit, $tom)
-            || $commit->user?->is($tom) || ($commit->mentions[CreateTomFriendship::USERNAME] ?? null) !== $tom->id) {
+        if (! $commit instanceof Commit) {
             return;
         }
 
-        $body = mb_trim(new Tom($commit)->prompt($commit->body)->text);
+        $tom = $this->tomQuery->get();
+
+        if (! $tom instanceof User || ! $commit->isAddressedTo($tom) || ! $this->replyable($commit, $tom) || $commit->user?->is($tom)) {
+            return;
+        }
+
+        $history = new Tom($commit)->messages();
+        $tools = $this->toolDecision->decide($commit->body, $history);
+        $attempt = 0;
+        $messages = [];
+        $called = collect();
+
+        do {
+            $response = new Tom($commit, $tools, $messages)->prompt($commit->body);
+            $messages = [...$messages, new UserMessage($commit->body), ...$response->messages];
+            $called = $called->concat($response->toolResults->pluck('name'));
+            $missingTools = $tools->contains(fn (Tool $tool): bool => $called->doesntContain(class_basename($tool)));
+            $attempt++;
+        } while ($missingTools && $attempt < 3);
+
+        if ($missingTools) {
+            throw new RuntimeException('Tom skipped a selected tool after retries.');
+        }
+
+        $body = mb_trim($response->text);
 
         if ($body === '') {
             throw new RuntimeException('Tom returned an empty reply.');

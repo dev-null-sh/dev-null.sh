@@ -21,6 +21,8 @@ const draft = {
     drop: vi.fn(),
 };
 const user = { id: 'viewer', username: 'viewer', lane: 1 };
+let flash: Record<string, unknown> = {};
+let effects: (() => void)[] = [];
 const http = {
     processing: false,
     transform: vi.fn(),
@@ -29,7 +31,9 @@ const http = {
 
 vi.doMock('react', () => ({
     ...React,
-    useEffect: () => {},
+    useEffect: (effect: () => void) => {
+        effects.push(effect);
+    },
     useLayoutEffect: (effect: () => void | (() => void)) => effect(),
     useMemo: (factory: () => unknown) => factory(),
     useId: () => `preview-${cursor++}`,
@@ -58,7 +62,7 @@ vi.doMock('react', () => ({
 }));
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { user, isAdmin: false } } }),
+    usePage: () => ({ props: { auth: { user, isAdmin: false } }, flash }),
     useHttp: () => http,
 }));
 vi.doMock('../../resources/js/hooks/use-user', () => ({
@@ -118,6 +122,8 @@ function render() {
 beforeEach(() => {
     vi.clearAllMocks();
     state = [];
+    flash = {};
+    effects = [];
     draft.body = 'A restored draft https://example.com';
     draft.images = [];
     draft.descriptions = [];
@@ -133,6 +139,7 @@ test('preserves restored images and link cards and allows scheduling them', () =
     };
     assert.deepEqual(form.props.transform(data), {
         ...data,
+        commit_rules_accepted: true,
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -172,6 +179,28 @@ test('preserves restored images and link cards and allows scheduling them', () =
     } finally {
         vi.unstubAllGlobals();
     }
+});
+
+test('drops a restored draft that the reloaded page says was already committed', () => {
+    draft.body = 'Shipped it :rocket:\n\n\n\nwith  spaces kept';
+    flash = {
+        committed: { id: 'commit', body: 'Shipped it 🚀\n\nwith  spaces kept' },
+    };
+    render();
+    effects.forEach((effect) => effect());
+
+    assert.equal(draft.drop.mock.calls.length, 1);
+});
+
+test('keeps a restored draft that is not the commit the page says was committed', () => {
+    flash = { committed: { id: 'commit', body: 'Another commit' } };
+    render();
+    effects.forEach((effect) => effect());
+    flash = {};
+    render();
+    effects.forEach((effect) => effect());
+
+    assert.equal(draft.drop.mock.calls.length, 0);
 });
 
 test('removing restored images enables polls and successful posting resets the poll', () => {
@@ -233,7 +262,10 @@ test('removing restored images enables polls and successful posting resets the p
             body: draft.body,
             poll: { options: ['Tabs', 'Spaces'], duration: 1440 },
         };
-        assert.deepEqual(view.form.props.transform(data), data);
+        assert.deepEqual(view.form.props.transform(data), {
+            ...data,
+            commit_rules_accepted: true,
+        });
         view.form.props.onSuccess({
             flash: { toast: { type: 'error', message: 'Slow down' } },
         });
@@ -320,6 +352,7 @@ test('schedules in UTC with pasted images and the chosen link card', () => {
         .replace(/\.\d{3}Z$/, '+00:00');
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
+        commit_rules_accepted: true,
         scheduled_at: scheduledAt,
     });
     assert.equal(
@@ -354,30 +387,27 @@ test('schedules in UTC with pasted images and the chosen link card', () => {
     const data = { body: draft.body, link_preview_url: '' };
     assert.deepEqual(view.form.props.transform(data), {
         ...data,
+        commit_rules_accepted: true,
         images: [image],
         image_descriptions: [''],
         scheduled_at: scheduledAt,
     });
 });
 
-test('retains restored images while sensitive text requires explicit approval', () => {
+test('submits token-shaped text and restored images without secret approval', () => {
     const token = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
     draft.body = token;
     draft.images = [image];
     draft.descriptions = ['A restored screenshot'];
-    const { form, fields } = render();
-    const warning = fields.find(
-        (element) => (element.props.findings as unknown[] | undefined)?.length,
-    )!;
+    const { form } = render();
 
-    assert.equal(form.props.onBefore(), false);
+    assert.equal(form.props.onBefore(), true);
     assert.equal(draft.drop.mock.calls.length, 0);
     assert.deepEqual(draft.images, [image]);
-    (warning.props.onApprove as () => void)();
     assert.equal(form.props.onBefore(), true);
-    assert.equal(form.props.onBefore(), false);
     assert.deepEqual(form.props.transform({ body: draft.body }), {
         body: draft.body,
+        commit_rules_accepted: true,
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -412,6 +442,7 @@ test('previews restored images and descriptions while keeping them attached when
     );
     assert.deepEqual(view.form.props.transform({ body: draft.body }), {
         body: draft.body,
+        commit_rules_accepted: true,
         images: [image],
         image_descriptions: ['A restored screenshot'],
     });
@@ -521,21 +552,47 @@ test('typing a command and a space turns the draft into an issue, and backspace 
 });
 
 test('picking a suggestion with Enter starts an empty issue, and the shortcut opens it instead of committing', () => {
-    draft.body = '/';
-    focus(render());
-    keyDown(render(), 'ArrowDown');
-    const enter = keyDown(render(), 'Enter');
-    assert.equal(enter.preventDefault.mock.calls.length, 1);
-    assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['']);
-
-    draft.body = 'Search loses its filters';
-    keyDown(render(), 'Enter', { metaKey: true });
-    assert.equal(http.submit.mock.calls.length, 1);
-    const payload = http.transform.mock.calls[0][0] as () => unknown;
-    assert.deepEqual(payload(), {
-        command: '/bug',
-        body: 'Search loses its filters',
+    vi.stubGlobal('navigator', {
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/140.0.0.0',
+        language: 'en-US',
     });
+    vi.stubGlobal('window', {
+        innerWidth: 1440,
+        innerHeight: 900,
+        devicePixelRatio: 2,
+        matchMedia: () => ({ matches: true }),
+        location: { pathname: '/log' },
+    });
+
+    try {
+        draft.body = '/';
+        focus(render());
+        keyDown(render(), 'ArrowDown');
+        const enter = keyDown(render(), 'Enter');
+        assert.equal(enter.preventDefault.mock.calls.length, 1);
+        assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['']);
+
+        draft.body =
+            'Search loses its filters ghp_Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
+        keyDown(render(), 'Enter', { metaKey: true });
+        assert.equal(http.submit.mock.calls.length, 1);
+        const payload = http.transform.mock.calls[0][0] as () => unknown;
+        assert.deepEqual(payload(), {
+            command: '/bug',
+            body: draft.body,
+            environment: {
+                browser: 'Chrome 140.0.0.0',
+                os: 'macOS',
+                viewport: '1440x900',
+                pixel_ratio: '2',
+                language: 'en-US',
+                color_scheme: 'dark',
+                page: '/log',
+            },
+        });
+    } finally {
+        vi.unstubAllGlobals();
+    }
 });
 
 test('a draft that mentions a bug suggests /bug, keeps the text when used, and can be dismissed', () => {
@@ -573,6 +630,44 @@ test('a draft that mentions a bug suggests /bug, keeps the text when used, and c
         view.fields.some((element) => element.type === IssueCommandHint),
         false,
     );
+});
+
+test('switching a discounted commit to an issue enforces the literal limit for the button and shortcut', () => {
+    draft.body =
+        'bug ' + 'a'.repeat(3972) + ' https://example.com/long-path-here';
+    let view = render();
+    assert.equal(
+        view.fields.find(
+            (element) => element.props['data-test'] === 'create-commit-button',
+        )!.props.disabled,
+        false,
+    );
+    const hint = view.fields.find(
+        (element) => element.type === IssueCommandHint,
+    )!;
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        (hint.props.onUse as (kind: string) => void)('bug');
+        view = render();
+        keyDown(view, 'Enter', { metaKey: true });
+        assert.equal(http.submit.mock.calls.length, 0);
+        assert.equal(
+            view.fields.find(
+                (element) => element.props['data-test'] === 'open-issue-button',
+            )!.props.disabled,
+            true,
+        );
+
+        draft.body = 'a'.repeat(3965) + ' https://example.com/long-path-here';
+        assert.equal(
+            render().fields.find(
+                (element) => element.props['data-test'] === 'open-issue-button',
+            )!.props.disabled,
+            false,
+        );
+    } finally {
+        vi.unstubAllGlobals();
+    }
 });
 
 test('commands are not offered while the draft has images, a poll or a schedule', () => {
@@ -626,6 +721,7 @@ test('turning scheduling off clears the chosen time and commits now', () => {
     assert.equal(label(submit()), 'Commit');
     assert.deepEqual(render().form.props.transform({ body: draft.body }), {
         body: draft.body,
+        commit_rules_accepted: true,
     });
 
     (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();
@@ -676,4 +772,17 @@ test('picker clears its selection before a pending read finishes so the same fil
 
     reads.forEach((resolve) => resolve());
     await Promise.all([first, retry]);
+});
+
+test('ignores further submits while a commit is being posted', () => {
+    draft.body = 'A commit that is posted once';
+    draft.images = [];
+    draft.descriptions = [];
+    const { form } = render();
+
+    assert.equal(form.props.onBefore(), true);
+    form.props.onStart();
+    assert.equal(form.props.onBefore(), false);
+    form.props.onFinish();
+    assert.equal(form.props.onBefore(), true);
 });

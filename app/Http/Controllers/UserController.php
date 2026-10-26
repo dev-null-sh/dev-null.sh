@@ -15,6 +15,7 @@ use App\Queries\PushAccessQuery;
 use App\Queries\UserAchievementsQuery;
 use App\Queries\UserActivityQuery;
 use App\Queries\UserCommitsQuery;
+use App\Queries\UserModerationQuery;
 use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -28,7 +29,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, UserModerationQuery $moderation, PageMetadata $metadata): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -61,6 +62,7 @@ final readonly class UserController
             'activity' => fn (): array => $activity->get($user, $currentUser),
             'streaks' => $getStreaks,
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
+            'moderation' => fn (): ?array => $currentUser?->isAdmin() === true && ! $user->isAdmin() ? $moderation->get([$user])[$user->id] : null,
             'tab' => $request->tab(...),
             'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' ? null : $pinned->get($user, $currentUser),
             'commits' => Inertia::scroll(fn () => $commits->builder($user, $currentUser, $request->tab() === 'replies')

@@ -147,7 +147,4 @@ jobs:
         run: bun run build
 
       - name: Tests
-        # `--ci` keeps TIA's `locally()` mode off, so the full suite runs without fetching a baseline.
-        run: |
-          php -d memory_limit=-1 vendor/bin/pest --parallel --ci --coverage --exactly=100.0 --passthru-php="'-d' 'memory_limit=-1'"
-          bun run test:unit
+        run: composer test:unit

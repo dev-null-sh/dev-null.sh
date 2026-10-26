@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\RemoteStatus;
+use App\Jobs\SendRemotePush;
 use App\Jobs\UnfurlLink;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
@@ -23,7 +24,8 @@ final readonly class CreateMessage
 {
     public function __construct(
         private EmojiShortcodes $emojiShortcodes,
-        private CreateCommitImageFiles $createCommitImageFiles,
+        private CreateImageFiles $createImageFiles,
+        private CreateMessageVoiceFile $createMessageVoiceFile,
         private MentionedUsersQuery $mentionedUsers,
         private Urls $urls,
     ) {
@@ -47,13 +49,14 @@ final readonly class CreateMessage
 
     /**
      * Sending the same client id again, as a retry does, returns the message it already created, without storing its
-     * images twice. A new message brings the conversation back out of the stash for everyone in it. The link card is
+     * images or voice note twice. A new message brings the conversation back out of the stash for everyone in it. The link card is
      * of the first link in the body when true, of the given link when a string, or none when false.
      *
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
+     * @param  list<int>  $voiceWaveform
      */
-    public function handle(User $sender, Conversation $conversation, string $body, string $clientId, ?Message $replyTo = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true): Message
+    public function handle(User $sender, Conversation $conversation, string $body, string $clientId, ?Message $replyTo = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?UploadedFile $voice = null, array $voiceWaveform = []): Message
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -61,7 +64,7 @@ final readonly class CreateMessage
             default => $linkPreview,
         };
 
-        $message = DB::transaction(function () use ($sender, $conversation, $body, $clientId, $replyTo, $images, $imageDescriptions, $url): Message {
+        $message = DB::transaction(function () use ($sender, $conversation, $body, $clientId, $replyTo, $images, $imageDescriptions, $url, $voice, $voiceWaveform): Message {
             $linkPreview = $url === null ? null : LinkPreview::query()->firstOrCreate(['url_hash' => hash('sha256', $url)], ['url' => $url]);
 
             $message = Message::query()->createOrFirst(
@@ -79,9 +82,20 @@ final readonly class CreateMessage
                 return $message;
             }
 
-            $message->images()->createMany($this->createCommitImageFiles->handle($images, $imageDescriptions, 'message-images'));
+            $message->images()->createMany($this->createImageFiles->handle($images, $imageDescriptions, 'message-images', encrypted: true));
+
+            if ($voice instanceof UploadedFile) {
+                $message->voice()->create($this->createMessageVoiceFile->handle($voice, $voiceWaveform));
+            }
 
             self::advance($conversation, $message, unstash: true);
+
+            if (config('services.web_push.public_key') && config('services.web_push.private_key')) {
+                foreach (ConversationParticipant::query()->where('conversation_id', $conversation->id)
+                    ->where('user_id', '!=', $sender->id)->whereHas('user.pushSubscriptions')->get(['user_id']) as $participant) {
+                    dispatch(new SendRemotePush($message->id, $participant->user_id))->delay(now()->addSeconds(10))->afterCommit();
+                }
+            }
 
             ConversationParticipant::query()
                 ->where('conversation_id', $conversation->id)

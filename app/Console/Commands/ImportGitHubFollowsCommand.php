@@ -52,6 +52,6 @@ final class ImportGitHubFollowsCommand extends Command
     {
         report($exception);
 
-        $this->components->warn("Could not import the GitHub follows of @{$user->username}.");
+        $this->components->warn("Could not import the GitHub follows of {$user->mention()}.");
     }
 }
