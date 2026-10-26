@@ -279,6 +279,58 @@ export function leavingOf(
     return clip === -1 ? { opacity } : { opacity, clip };
 }
 
+/** How far a node on its way out swells before it scales out, as `node-out` in app.css. */
+export const leavingSwell = 1.25;
+
+/**
+ * How wide, in radii, the ring scaling out with a node on its way out is: wide enough to reach past the node's swell
+ * down to the scale `node-out-ring` in app.css ends on.
+ */
+export const leavingRing = 2000;
+
+/**
+ * Where the lines show: the canvas less every node, a single path to fill with the even-odd rule. Cut out by shape
+ * rather than by colour, it holds whatever colours a dark mode extension paints over the page. A node on its way out is
+ * cut out as wide as it swells; what it no longer covers as it scales out is let back in apart from this path.
+ */
+export function lineArea(
+    nodes: GraphNode[],
+    width: number,
+    height: number,
+): string {
+    return [
+        `M 0 0 H ${width} V ${height} H 0 Z`,
+        ...nodes.map((node) =>
+            circlePath(
+                node,
+                node.isLeaving ? node.radius * leavingSwell : node.radius,
+            ),
+        ),
+    ].join(' ');
+}
+
+/**
+ * The nodes standing still and those on the move, scaling out or in a collapsing row. Each group is cut out of the
+ * lines on its own, so their cut-outs add up where a moving node runs over a still one, which a single even-odd path
+ * would fill back in.
+ */
+export function cutOutGroups(
+    nodes: GraphNode[],
+    rows: LeavingRow[],
+): { still: GraphNode[]; moving: GraphNode[] } {
+    const isMoving = (node: GraphNode) =>
+        node.isLeaving === true || rows.some((row) => row.ids.has(node.id));
+
+    return {
+        still: nodes.filter((node) => !isMoving(node)),
+        moving: nodes.filter(isMoving),
+    };
+}
+
+function circlePath({ x, y }: Point, radius: number): string {
+    return `M ${x - radius} ${y} A ${radius} ${radius} 0 1 0 ${x + radius} ${y} A ${radius} ${radius} 0 1 0 ${x - radius} ${y} Z`;
+}
+
 export function sameNodes(a: GraphNode[], b: GraphNode[]): boolean {
     return JSON.stringify(a) === JSON.stringify(b);
 }
