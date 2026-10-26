@@ -5,6 +5,7 @@ import MobileAuthorizationController from '@/actions/App/Http/Controllers/Mobile
 import AppLogo from '@/components/app-logo';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { WordmarkText } from '@/components/wordmark-text';
 import { useUser } from '@/hooks/use-user';
 import { laneColor } from '@/lib/utils';
 
@@ -83,7 +84,8 @@ function Approve({
             </dl>
 
             <p className="mt-6 max-w-[48ch] text-pretty text-muted-foreground">
-                The app will be able to use /dev/null as you. You can revoke it
+                The app will be able to use{' '}
+                <WordmarkText>/dev/null</WordmarkText> as you. You can revoke it
                 any time under Settings → Devices.
             </p>
 
@@ -124,7 +126,8 @@ function Invalid({ error }: { error: string }) {
                 This sign-in link isn't valid.
             </h1>
             <p className="mt-3 max-w-[42ch] text-lg text-pretty text-muted-foreground">
-                {error} Start signing in again from the /dev/null app.
+                {error} Start signing in again from the{' '}
+                <WordmarkText>/dev/null</WordmarkText> app.
             </p>
         </Page>
     );

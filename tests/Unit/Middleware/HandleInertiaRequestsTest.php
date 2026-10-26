@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Enums\LivePlatform;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\Notification;
@@ -315,6 +316,25 @@ it('shows who to follow by default', function (string $cookie): void {
         ->and($shared)->toHaveKey('suggestedUsers');
 })->with(['', 'true']);
 
+it('leaves who to follow and live following out of the operations console, which has no aside', function (string $path): void {
+    $middleware = new HandleInertiaRequests();
+    $user = User::factory()->create();
+    $live = User::factory()->create([
+        'live_platform' => LivePlatform::YouTube,
+        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'live_ends_at' => now()->addHour(),
+    ]);
+    $user->following()->attach($live);
+
+    $request = Request::create($path, 'GET');
+    $request->setUserResolver(fn () => $user);
+
+    $shared = $middleware->share($request);
+
+    expect($shared)->not->toHaveKey('suggestedUsers')
+        ->and($shared['liveFollowing']())->toBeEmpty();
+})->with(['/operations', '/operations/events']);
+
 it('suggests the round of people the user refreshed to', function (string $cookie, int $round): void {
     $middleware = new HandleInertiaRequests();
     $user = User::factory()->create();
@@ -327,7 +347,7 @@ it('suggests the round of people the user refreshed to', function (string $cooki
     $suggested = $middleware->share($request)['suggestedUsers']();
 
     expect($suggested->pluck('id')->all())
-        ->toBe(resolve(SuggestedUsersQuery::class)->get($user, round: $round)->pluck('id')->all());
+        ->toBe(resolve(SuggestedUsersQuery::class)->get($user, round: $round, spares: 3)->pluck('id')->all());
 })->with([
     'next round' => ['1', 1],
     'not a number' => ['abc', 0],

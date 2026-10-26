@@ -30,6 +30,22 @@ it('polls only the unread count outside the inbox without acknowledging activity
     expect($notice->refresh()->read_at)->toBeNull();
 });
 
+it('polls only the unread count in a hidden inbox without acknowledging activity', function (): void {
+    $user = User::factory()->create();
+    $notice = Notification::factory()->for($user, 'recipient')->create();
+
+    $this->actingAs($user)->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'notification/index',
+        'X-Inertia-Partial-Data' => 'auth.unreadNotificationsCount,auth.unreadMessagesCount',
+    ])->get(route('notification.index'))->assertOk()
+        ->assertJsonPath('props.auth.unreadNotificationsCount', 1)
+        ->assertJsonMissingPath('props.notifications')->assertJsonMissingPath('props.readAt');
+
+    expect($notice->refresh()->read_at)->toBeNull();
+});
+
 it('filters the menu count using the current users saved notification types', function (string $type, int $expected): void {
     $user = User::factory()->create();
     $thread = Commit::factory()->for($user)->create();

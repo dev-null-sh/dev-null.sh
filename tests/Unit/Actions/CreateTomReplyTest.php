@@ -22,7 +22,6 @@ beforeEach(function (): void {
 });
 
 it('creates one reply through the normal moderation pipeline and never replaces a deleted reply', function (): void {
-    config(['services.openai.key' => 'test']);
     Queue::fake([ModerateCommit::class, EmbedCommit::class, ReplyAsTom::class]);
     Tom::fake(['A developer community, with rusty friends. :-D'])->preventStrayPrompts();
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
@@ -112,21 +111,23 @@ it('does not answer deeper replies without a mention', function (bool $approved)
     expect($commit->replies()->count())->toBe(0);
 })->with([true, false]);
 
-it('does not queue or execute Tom replies when either provider is unconfigured', function (bool $approved, string $provider): void {
+it('queues Tom replies and surfaces provider failures instead of silently skipping them', function (bool $approved, string $provider): void {
     config(['ai.providers.'.$provider.'.key' => null]);
     Queue::fake([ReplyAsTom::class]);
-    Tom::fake()->preventStrayPrompts();
+    Http::fake([
+        'api.openai.com/v1/decisions' => Http::response(['answers' => []]),
+        'opencode.ai/zen/v1/chat/completions' => Http::response([], 401),
+    ]);
     User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $user = User::factory()->create();
     config(['app.admins' => $approved ? [$user->username] : []]);
 
     $commit = resolve(CreateCommit::class)->handle($user, '@tom hello');
     resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
-    new ReplyAsTom($commit->id)->handle(resolve(CreateTomReply::class));
 
-    Queue::assertNotPushed(ReplyAsTom::class);
-    Tom::assertNeverPrompted();
-    Http::assertNothingSent();
+    Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $commit->id);
+    expect(fn () => new ReplyAsTom($commit->id)->handle(resolve(CreateTomReply::class)))
+        ->toThrow(RuntimeException::class, 'Tom reply failed for commit '.$commit->id.'.');
     expect($commit->refresh()->status)->toBe(CommitStatus::Approved);
     expect($commit->replies()->count())->toBe(0);
 })->with([true, false])->with(['openai', 'opencode']);

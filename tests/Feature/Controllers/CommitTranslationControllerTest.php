@@ -298,7 +298,8 @@ it('hides cached translations when an author views their post after it returns t
     CommitTranslator::assertPromptedTimes(1);
 });
 
-it('leaves failed translations uncached and can retry', function (): void {
+it('leaves failed translations uncached and can retry even without a provider key', function (): void {
+    config(['ai.providers.opencode.key' => null]);
     Exceptions::fake();
     $attempts = 0;
     CommitTranslator::fake(function () use (&$attempts): array {
@@ -517,4 +518,28 @@ it('uses the saved preference to hide translation for matching source languages'
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.translation.language', 'ja')
         ->where('commit.translation.available', false));
+});
+
+it('lets readers translate on demand after disabling automatic translations without affecting other readers', function (): void {
+    CommitTranslator::fake([['source_language' => 'zh', 'body' => 'Released a new version today.']])->preventStrayPrompts();
+    $reader = User::factory()->create(['automatic_translation' => false]);
+    $other = User::factory()->create();
+    $commit = Commit::factory()->create(['body' => '今天发布了新版本。']);
+
+    $this->actingAs($other)->postJson(route('commit-translation.store', $commit), ['language' => 'en'])->assertOk();
+
+    $this->actingAs($reader)->withHeader('Accept-Language', 'en')
+        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertInertia(fn ($page) => $page
+            ->where('auth.automaticTranslation', false)
+            ->where('commit.body', '今天发布了新版本。')
+            ->where('commit.translation.translated.body_segments.0.text', 'Released a new version today.'));
+
+    $this->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.translated.body_segments.0.text', 'Released a new version today.');
+
+    $this->actingAs($other)->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertInertia(fn ($page) => $page->where('auth.automaticTranslation', true));
+
+    CommitTranslator::assertPromptedTimes(1);
 });

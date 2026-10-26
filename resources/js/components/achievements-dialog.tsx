@@ -1,4 +1,5 @@
 import {
+    Bomb,
     BotOff,
     Box,
     Cookie,
@@ -15,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
+import { DragonBallIcon } from '@/components/dragon-ball-icon';
 import {
     Dialog,
     DialogContent,
@@ -22,7 +24,9 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { WordmarkText } from '@/components/wordmark-text';
 import { dropConfetti } from '@/lib/confetti';
+import { formatCount, formatExactCount } from '@/lib/numbers';
 import { cn, laneTint } from '@/lib/utils';
 import type { Achievements, Profile, User } from '@/types';
 
@@ -40,6 +44,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     key: Key,
     cookie: Cookie,
     'bot-off': BotOff,
+    bomb: Bomb,
+    'dragon-ball': DragonBallIcon,
 };
 
 export function AchievementsDialog({
@@ -84,8 +90,11 @@ export function AchievementsDialog({
                         </span>
                     </div>
                     <DialogDescription className="font-mono text-xs text-muted-foreground">
-                        @{user.username} · {achievements.xp} XP ·{' '}
-                        {unlockedCount}/{achievements.badges.length} badges
+                        @{user.username} ·{' '}
+                        <span title={`${formatExactCount(achievements.xp)} XP`}>
+                            {formatCount(achievements.xp)} XP
+                        </span>{' '}
+                        · {unlockedCount}/{achievements.badges.length} badges
                         unlocked
                     </DialogDescription>
                 </DialogHeader>
@@ -93,14 +102,26 @@ export function AchievementsDialog({
                 {/* Rank XP Progress */}
                 <div className="rounded-lg border bg-muted/30 p-3 font-mono text-xs">
                     <div className="flex items-center justify-between text-muted-foreground">
-                        <span>
+                        <span
+                            title={
+                                achievements.next_level_xp
+                                    ? `${formatExactCount(achievements.xp)} / ${formatExactCount(achievements.next_level_xp)} XP`
+                                    : `${formatExactCount(achievements.xp)} XP`
+                            }
+                        >
                             {achievements.next_level_xp
-                                ? `${achievements.xp} / ${achievements.next_level_xp} XP`
-                                : `${achievements.xp} XP`}
+                                ? `${formatCount(achievements.xp)} / ${formatCount(achievements.next_level_xp)} XP`
+                                : `${formatCount(achievements.xp)} XP`}
                         </span>
-                        <span>
+                        <span
+                            title={
+                                nextRank
+                                    ? `${formatExactCount(nextRank.min_xp - achievements.xp)} XP to ${nextRank.rank}`
+                                    : undefined
+                            }
+                        >
                             {nextRank
-                                ? `${nextRank.min_xp - achievements.xp} XP to ${nextRank.rank}`
+                                ? `${formatCount(nextRank.min_xp - achievements.xp)} XP to ${nextRank.rank}`
                                 : 'Maximum rank (UID 0)'}
                         </span>
                     </div>
@@ -188,7 +209,9 @@ export function AchievementsDialog({
                                             </span>
                                         </div>
                                         <p className="mt-1.5 font-sans text-xs leading-normal text-muted-foreground">
-                                            {badge.description}
+                                            <WordmarkText>
+                                                {badge.description}
+                                            </WordmarkText>
                                         </p>
                                     </div>
 
@@ -274,7 +297,7 @@ export function AchievementsDialog({
 
                                     <div className="shrink-0 text-right">
                                         <span className="font-medium text-foreground">
-                                            {rank.min_xp} XP
+                                            {formatCount(rank.min_xp)} XP
                                         </span>
                                         <div className="text-[10px] text-muted-foreground">
                                             {rank.achieved ? (
@@ -283,7 +306,9 @@ export function AchievementsDialog({
                                                 </span>
                                             ) : (
                                                 <span>
-                                                    Requires {rank.min_xp} XP
+                                                    Requires{' '}
+                                                    {formatCount(rank.min_xp)}{' '}
+                                                    XP
                                                 </span>
                                             )}
                                         </div>
@@ -316,7 +341,8 @@ export function AchievementsDialog({
                 {/* Dry Unix XP Formula Footnote */}
                 <p className="border-t pt-2 text-center font-mono text-[11px] text-muted-foreground">
                     XP: 10/commit · 15/day streak · 5/star received · 5/reply ·
-                    2/star given · −100/luddite (minimum 0 XP)
+                    2/star given · −100/luddite · +100/shell shocked (minimum 0
+                    XP)
                 </p>
             </DialogContent>
         </Dialog>

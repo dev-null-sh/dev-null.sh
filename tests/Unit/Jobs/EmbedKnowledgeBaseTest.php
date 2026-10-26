@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 beforeEach(function (): void {
-    config(['services.openai.key' => 'sk-test']);
+    config(['ai.providers.openai.key' => 'sk-test']);
 
     $disk = Storage::fake('local');
     $this->source = Str::after($disk->path('knowledge.md'), base_path().'/');
