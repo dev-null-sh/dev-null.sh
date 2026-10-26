@@ -11,7 +11,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
     $this->travelTo(now()->setDate(2026, 10, 17)->setTime(9, 15));
 
     $user = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'name' => 'The Octocat',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
         'bio' => 'I am the Octocat.',
@@ -37,6 +37,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
         ->assertExactJson([
             'data' => [
                 'id' => $user->id,
+                'handle' => 'octocat',
                 'username' => 'octocat',
                 'name' => 'The Octocat',
                 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
@@ -75,7 +76,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
 it('returns what the web shows only the user on their profile settings', function (): void {
     $user = User::factory()->create([
         'id' => '3a788e93-4cf7-4819-9377-94be2f329563',
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'preferred_lane' => 1,
         'has_sponsors_listing' => true,
         'github_synced_at' => '2026-10-01 09:30:00',

@@ -741,7 +741,7 @@ function Handle({ user }: { user: User }) {
                 className="size-1.5 shrink-0 rounded-full"
                 style={{ background: laneColor(user.lane) }}
             />
-            <span className="truncate">@{user.username}</span>
+            <span className="truncate">@{user.handle}</span>
         </span>
     );
 }

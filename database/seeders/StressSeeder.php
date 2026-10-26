@@ -211,19 +211,35 @@ final class StressSeeder extends Seeder
         $developers = $this->count(self::DEVELOPERS);
 
         DB::statement(<<<SQL
-            insert into users (id, github_id, username, name, bio, created_at, updated_at, preferred_lane, onboarded_at, log)
-            select pg_temp.uuid7(joined), 'stress-' || n, 'dev_' || n,
-                (array['Ada','Linus','Grace','Ken','Barbara','Dennis','Margaret','Guido','Rasmus','Taylor','Nuno','Brent'])[1 + floor(random() * 12)::int]
-                    || ' ' || (array['Lovelace','Torvalds','Hopper','Thompson','Liskov','Ritchie','Hamilton','Rossum','Lerdorf','Otwell'])[1 + floor(random() * 10)::int],
-                case when random() < 0.6 then 'Building things, mostly in production.' end,
-                joined, joined, n % 6, joined, 'following'
-            from (select n, localtimestamp - random() * interval '730 days' as joined from generate_series(1, {$developers}) as n) as developers
+            with developers as (
+                select n, localtimestamp - random() * interval '730 days' as joined from generate_series(1, {$developers}) as n
+            ), profiles as (
+                insert into profiles (id, type, github_id, handle, name, bio, created_at, updated_at)
+                select pg_temp.uuid7(joined), 'user', 'stress-' || n, 'dev_' || n,
+                    (array['Ada','Linus','Grace','Ken','Barbara','Dennis','Margaret','Guido','Rasmus','Taylor','Nuno','Brent'])[1 + floor(random() * 12)::int]
+                        || ' ' || (array['Lovelace','Torvalds','Hopper','Thompson','Liskov','Ritchie','Hamilton','Rossum','Lerdorf','Otwell'])[1 + floor(random() * 10)::int],
+                    case when random() < 0.6 then 'Building things, mostly in production.' end,
+                    joined, joined
+                from developers
+                returning github_id, created_at
+            )
+            insert into users (id, github_id, created_at, updated_at, preferred_lane, onboarded_at, log)
+            select pg_temp.uuid7(created_at), github_id, created_at, created_at, substring(github_id from 8)::int % 6, created_at, 'following'
+            from profiles
             SQL);
 
         DB::statement(<<<'SQL'
-            insert into users (id, github_id, username, name, created_at, updated_at, onboarded_at, log)
-            values (pg_temp.uuid7(localtimestamp - interval '730 days'), 'local', 'local-dev', 'Local Developer',
-                localtimestamp - interval '730 days', localtimestamp, localtimestamp - interval '730 days', 'following')
+            insert into profiles (id, type, github_id, handle, name, created_at, updated_at)
+            values (pg_temp.uuid7(localtimestamp - interval '730 days'), 'user', 'local', 'local-dev', 'Local Developer',
+                localtimestamp - interval '730 days', localtimestamp)
+            on conflict (github_id) do nothing
+            SQL);
+
+        DB::statement(<<<'SQL'
+            insert into users (id, github_id, created_at, updated_at, onboarded_at, log)
+            select pg_temp.uuid7(created_at), github_id, created_at, updated_at, created_at, 'following'
+            from profiles
+            where github_id = 'local'
             on conflict (github_id) do nothing
             SQL);
 
@@ -233,7 +249,7 @@ final class StressSeeder extends Seeder
             from users where github_id = 'local' or github_id like 'stress-%'
             SQL);
         DB::statement('alter table stress_users add primary key (n)');
-        $this->analyze('users', 'stress_users');
+        $this->analyze('profiles', 'users', 'stress_users');
     }
 
     /**

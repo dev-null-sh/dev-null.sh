@@ -37,6 +37,8 @@
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="TRENDING_TEMPERATURE" value="0"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <env name="WEB_PUSH_PUBLIC_KEY" value="" force="true"/>
+        <env name="WEB_PUSH_PRIVATE_KEY" value="" force="true"/>
         <env name="OPENAI_API_KEY" value=""/>
         <env name="OPENCODE_API_KEY" value="" force="true"/>
         <server name="OPENCODE_API_KEY" value="" force="true"/>

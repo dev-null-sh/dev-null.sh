@@ -15,14 +15,14 @@ type ErrorCopy = {
 function errorCopy(
     status: Status,
     path: string,
-    username: string | null,
+    handle: string | null,
 ): ErrorCopy {
     switch (status) {
         case 403:
             return {
                 title: 'Forbidden',
-                command: username
-                    ? `remote: Permission to ${path} denied to ${username}.`
+                command: handle
+                    ? `remote: Permission to ${path} denied to ${handle}.`
                     : `remote: Permission to ${path} denied.`,
                 headline: "You don't have access to this page.",
                 description:
@@ -66,11 +66,7 @@ function errorCopy(
 export default function ErrorPage({ status }: { status: Status }) {
     const page = usePage();
     const path = page.url.split('?')[0];
-    const copy = errorCopy(
-        status,
-        path,
-        page.props.auth.user?.username ?? null,
-    );
+    const copy = errorCopy(status, path, page.props.auth.user?.handle ?? null);
     const homeAction = useHomeAction();
     const action =
         status === 503 ? { label: 'Try again', href: home() } : homeAction;

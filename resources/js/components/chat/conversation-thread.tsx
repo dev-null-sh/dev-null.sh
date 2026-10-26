@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { ArrowDown, Mic, X } from 'lucide-react';
+import { ArrowDown, Mic, Vibrate, X } from 'lucide-react';
 import type {
     ClipboardEvent,
     FormEvent,
@@ -18,12 +18,15 @@ import {
 } from 'react';
 import { toast } from 'sonner';
 import {
+    LiftedMessage,
     MessageImages,
     MessageLinkCard,
     MessageText,
     BubbleActions,
     Repliable,
     ReplyGhost,
+    replyOf,
+    timeOf,
 } from '@/components/chat/message-parts';
 import type { Author } from '@/components/chat/message-parts';
 import {
@@ -34,6 +37,7 @@ import {
 } from '@/components/chat/message-reactions';
 import { MessageStatusGlyph } from '@/components/chat/message-status';
 import { EventLine, typingText } from '@/components/chat/org';
+import { PinnedBanner, usePinMessage } from '@/components/chat/pinned-messages';
 import { VoiceNote, VoiceNoteComposer } from '@/components/chat/voice-note';
 import {
     ImageDropOverlay,
@@ -58,6 +62,7 @@ import { useLinkCard } from '@/hooks/use-link-card';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
 import { useVoiceNote } from '@/hooks/use-voice-note';
 import {
+    ChatRequestError,
     settleRequest,
     loadMessage,
     loadOlderMessages,
@@ -65,6 +70,7 @@ import {
     pingTyping,
     retryMessage,
     sendMessage,
+    sendPing,
     setReplyingTo,
     targetKey,
     toggleReaction,
@@ -75,6 +81,7 @@ import { formatCount } from '@/lib/numbers';
 import { pullsOf, statusMessageOf } from '@/lib/pulls';
 import { doubleTapReaction } from '@/lib/reactions';
 import type { ReactionUsage } from '@/lib/reactions';
+import { isRemoteMuted, playPing } from '@/lib/remote-notifications';
 import { restoreScrollAnchor, scrollAnchorOf } from '@/lib/scroll-anchor';
 import type { ScrollAnchor } from '@/lib/scroll-anchor';
 import {
@@ -157,12 +164,15 @@ export function ConversationThread({
     onDropped?: () => void;
 }) {
     const thread = useThread(target);
-    const usage = useChat().reactionUsage ?? noUsage;
+    const chat = useChat();
+    const usage = chat.reactionUsage ?? noUsage;
     const isOrg = target.kind === 'org';
     // Renaming an org updates the thread's target, not the one this was opened with.
     const current = thread?.target ?? target;
+    const section = useRef<HTMLElement>(null);
     const scroller = useRef<HTMLDivElement>(null);
     const list = useRef<HTMLOListElement>(null);
+    const seenPing = useRef<number | null>(null);
     const headLine = useRef<HTMLDivElement>(null);
     const isPinned = useRef(true);
     const hasScrolledIn = useRef(false);
@@ -211,6 +221,104 @@ export function ConversationThread({
     const draft = useMessageDraft(user, current);
     const replyingTo = thread?.replyingTo ?? null;
     const members = thread?.members;
+    const mutePreference = chat.mutePreferences[targetKey(target)];
+    const mutedUntil =
+        mutePreference !== undefined
+            ? mutePreference.until
+            : (thread?.muted_until_at ?? null);
+    const isLoaded = thread?.isLoaded ?? false;
+
+    // A ping coming in or going out shakes the thread to MSN's ping sound. Pings already there when it opened stay still.
+    useEffect(() => {
+        if (!isLoaded) {
+            return;
+        }
+
+        const ping = messages.findLast((message) => message.event === 'ping');
+        const seen = seenPing.current;
+        seenPing.current = Math.max(seen ?? 0, ping?.id ?? 0);
+
+        if (seen === null || ping === undefined || ping.id <= seen) {
+            return;
+        }
+
+        if (ping.user_id === user.id || !isRemoteMuted(mutedUntil)) {
+            playPing(user.id);
+        }
+
+        if (
+            isVisible &&
+            !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ) {
+            section.current?.animate(
+                {
+                    transform: [0, -8, 8, -6, 6, -3, 3, 0].map(
+                        (x) => `translateX(${x}px)`,
+                    ),
+                },
+                { duration: 500, easing: 'ease-in-out' },
+            );
+        }
+    }, [messages, isLoaded, user.id, mutedUntil, isVisible]);
+
+    const pinnedMessages = thread?.pinned ?? noMessages;
+    const hasPinnedMessages = pinnedMessages.length > 0;
+    const [hasPinClearance, setHasPinClearance] = useState(hasPinnedMessages);
+
+    if (hasPinnedMessages && !hasPinClearance) {
+        setHasPinClearance(true);
+    }
+
+    const releasePinClearance = useCallback(() => {
+        const element = scroller.current;
+        const content = list.current;
+
+        if (
+            hasPinnedMessages ||
+            !hasPinClearance ||
+            element === null ||
+            content === null
+        ) {
+            return;
+        }
+
+        // Near the oldest message, removing the inset would clamp the reverse scroller and move the reading position.
+        const roomAbove =
+            element.scrollHeight - element.clientHeight + element.scrollTop;
+
+        if (
+            element.scrollTop === 0 ||
+            roomAbove >= parseFloat(getComputedStyle(content).paddingTop)
+        ) {
+            setHasPinClearance(false);
+        }
+    }, [hasPinnedMessages, hasPinClearance]);
+
+    const canPin = isOrg && thread?.role === 'maintainer' && isOpen;
+    // Polls hand over a new list whenever any reaction changes, so the bubbles only hear about the pins themselves.
+    const pinnedKey = pinnedMessages.map((message) => message.id).join();
+    const pinnedIds = useMemo(
+        () => new Set(pinnedKey === '' ? [] : pinnedKey.split(',').map(Number)),
+        [pinnedKey],
+    );
+    // Only who wrote the pinned messages matters for names, so a reaction on one doesn't re-render every row.
+    const pinnedAuthorIds = [
+        ...new Set(pinnedMessages.map((message) => message.user_id)),
+    ]
+        .toSorted()
+        .join();
+    const pinnedAuthors = useMemo(
+        () => pinnedMessages.flatMap((message) => message.user ?? []),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [pinnedAuthorIds],
+    );
+    const pins = usePinMessage(target, user.id);
+    const { pin, unpin } = pins;
+    const togglePin = useCallback(
+        (message: Message, isPinned: boolean) =>
+            isPinned ? unpin(message) : pin(message),
+        [pin, unpin],
+    );
 
     const updateScrollPosition = useCallback(() => {
         setIsScrolledBack(
@@ -254,7 +362,8 @@ export function ConversationThread({
                     : (members?.find((member) => member.user.id === userId)
                           ?.user ??
                       messages.find((message) => message.user_id === userId)
-                          ?.user);
+                          ?.user ??
+                      pinnedAuthors.find((person) => person.id === userId));
 
             return {
                 name: person?.name ?? 'Someone',
@@ -262,7 +371,7 @@ export function ConversationThread({
                 isMe: false,
             };
         },
-        [user, current, members, messages],
+        [user, current, members, messages, pinnedAuthors],
     );
 
     useEffect(() => () => jumpRequest.current?.abort(), []);
@@ -430,6 +539,8 @@ export function ConversationThread({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [contentKey, thread?.isLoaded]);
 
+    useLayoutEffect(releasePinClearance, [releasePinClearance]);
+
     const releaseScrollAnchor = useCallback(() => {
         // Let deliberate input own the viewport until the fold settles, including delayed automatic scroll events.
         anchor.current = null;
@@ -508,6 +619,7 @@ export function ConversationThread({
         }
 
         updateScrollPosition();
+        releasePinClearance();
 
         // A correction during the reply fold is not an intentional scroll, even while it is close to the bottom.
         if (
@@ -566,6 +678,7 @@ export function ConversationThread({
 
     return (
         <section
+            ref={section}
             aria-label={
                 current.kind === 'direct'
                     ? `Conversation with ${current.partner.name}`
@@ -575,6 +688,26 @@ export function ConversationThread({
             {...(isOpen ? draft.attachments.dropzone : {})}
         >
             {header}
+
+            {isOrg && (
+                <PinnedBanner
+                    messages={pinnedMessages}
+                    user={user}
+                    authorOf={authorOf}
+                    boundary={scroller}
+                    isCompact={isCompact}
+                    usage={usage}
+                    onReply={isOpen ? replyTo : null}
+                    onReact={isOpen ? react : null}
+                    onUnpin={canPin ? unpin : null}
+                    onEmptied={() => {
+                        if (!window.matchMedia('(pointer: coarse)').matches) {
+                            draft.input.current?.focus({ preventScroll: true });
+                        }
+                    }}
+                />
+            )}
+            {pins.dialog}
 
             <div
                 ref={scroller}
@@ -624,6 +757,8 @@ export function ConversationThread({
                             isCompact
                                 ? 'px-3 pt-3 text-sm'
                                 : 'px-4 pt-4 text-[15px]',
+                            // The pinned banner lies over the top, so the oldest message can still scroll clear of it.
+                            hasPinClearance && (isCompact ? 'pt-12' : 'pt-13'),
                         )}
                     >
                         {thread.isLoadingOlder && (
@@ -637,7 +772,7 @@ export function ConversationThread({
                                 <li className="py-10 text-center font-mono text-[13px] text-muted-foreground">
                                     empty history.{' '}
                                     {target.kind === 'direct'
-                                        ? `say hi to @${target.partner.username}`
+                                        ? `say hi to @${target.partner.handle}`
                                         : 'say hi to the org'}
                                 </li>
                             )}
@@ -656,6 +791,8 @@ export function ConversationThread({
                                 onReply={isOpen ? replyTo : null}
                                 usage={usage}
                                 onReact={isOpen ? react : null}
+                                pinnedIds={pinnedIds}
+                                onPin={canPin ? togglePin : null}
                             />
                         ))}
                     </ol>
@@ -724,7 +861,7 @@ export function ConversationThread({
                                 ? typingText(thread?.typing ?? [])
                                 : null
                             : thread?.partner_typing
-                              ? `@${target.partner.username} is typing…`
+                              ? `@${target.partner.handle} is typing…`
                               : null
                     }
                 />
@@ -857,6 +994,8 @@ const ThreadItem = memo(function ThreadItem({
     onReply,
     usage,
     onReact,
+    pinnedIds,
+    onPin,
 }: {
     item: Item;
     pulls: Pulls;
@@ -870,6 +1009,11 @@ const ThreadItem = memo(function ThreadItem({
     onReply: ((reply: MessageReply) => void) | null;
     usage: ReactionUsage[];
     onReact: ((messageId: number, emoji: string) => void) | null;
+    pinnedIds: Set<number>;
+    /**
+     * Pins or unpins a message, for maintainers only.
+     */
+    onPin: ((message: Message, isPinned: boolean) => void) | null;
 }) {
     if (item.kind === 'day') {
         return (
@@ -957,6 +1101,11 @@ const ThreadItem = memo(function ThreadItem({
                         onReply={onReply}
                         usage={usage}
                         onReact={onReact}
+                        isPinned={
+                            bubble.kind === 'message' &&
+                            pinnedIds.has(bubble.message.id)
+                        }
+                        onPin={onPin}
                     />
                 );
             })}
@@ -978,6 +1127,8 @@ function BubbleWithMeta({
     onReply,
     usage,
     onReact,
+    isPinned,
+    onPin,
 }: {
     bubble: Bubble;
     isMine: boolean;
@@ -992,6 +1143,8 @@ function BubbleWithMeta({
     onReply: ((reply: MessageReply) => void) | null;
     usage: ReactionUsage[];
     onReact: ((messageId: number, emoji: string) => void) | null;
+    isPinned: boolean;
+    onPin: ((message: Message, isPinned: boolean) => void) | null;
 }) {
     const [isReacting, setIsReacting] = useState(false);
     const [isTrayOpen, setIsTrayOpen] = useState(false);
@@ -1036,15 +1189,20 @@ function BubbleWithMeta({
     const side = isMine ? 'mine' : 'theirs';
     const replyToThis =
         onReply !== null && bubble.kind === 'message'
-            ? () =>
-                  onReply({
-                      id: bubble.message.id,
-                      user_id: bubble.message.user_id,
-                      body: bubble.message.body,
-                      images_count: images.length,
-                      has_voice: voice !== null,
-                  })
+            ? () => onReply(replyOf(bubble.message))
             : null;
+    // Only org messages pin. Contributors see the pin of a pinned one, and can't press it.
+    const pin =
+        target.kind !== 'org' || bubble.kind !== 'message'
+            ? null
+            : onPin !== null
+              ? {
+                    isPinned,
+                    onToggle: () => onPin(bubble.message, isPinned),
+                }
+              : isPinned
+                ? { isPinned, onToggle: null }
+                : null;
 
     const reactions =
         bubble.kind === 'message' ? bubble.message.reactions : undefined;
@@ -1095,6 +1253,12 @@ function BubbleWithMeta({
             isReacting={isTrayOpen}
             reactRef={reactButton}
             trayId={trayId}
+            pin={pin}
+            // Whichever part of the message comes first sits under the reply's quote.
+            isBelowReply={
+                reply !== null &&
+                (images.length === 0 || (message.body === '' && voice === null))
+            }
         />
     );
 
@@ -1109,9 +1273,16 @@ function BubbleWithMeta({
                     }
                     className={cn(
                         'relative flex max-w-[85%] min-w-0 flex-col gap-1',
+                        // Org bubbles leave room for a third action, the pin, whether or not it shows, so pushing a
+                        // message or a pin arriving never rewraps one.
                         isCompact
-                            ? 'max-w-[88%] pointer-fine:max-w-[calc(100%-3.5rem)]'
-                            : 'sm:max-w-[78%]',
+                            ? target.kind === 'org'
+                                ? 'max-w-[88%] pointer-fine:max-w-[calc(100%-5.5rem)]'
+                                : 'max-w-[88%] pointer-fine:max-w-[calc(100%-3.5rem)]'
+                            : cn('sm:max-w-[78%]', {
+                                  'pointer-fine:max-sm:max-w-[calc(100%-5rem)]':
+                                      target.kind === 'org',
+                              }),
                         isMine ? 'items-end' : 'items-start',
                         {
                             '[-webkit-touch-callout:none] pointer-coarse:select-none':
@@ -1196,7 +1367,7 @@ function BubbleWithMeta({
                 </div>
             </Repliable>
 
-            {reactToThis !== null && (
+            {bubble.kind === 'message' && reactToThis !== null && (
                 <ReactionSheet
                     isOpen={isReacting}
                     onOpenChange={setIsReacting}
@@ -1205,34 +1376,17 @@ function BubbleWithMeta({
                     isMine={isMine}
                     body={message.body}
                     preview={
-                        voice !== null ? (
-                            <div
-                                className={cn(
-                                    'w-fit max-w-full rounded-lg p-2 shadow-[0_12px_30px_-12px_rgb(0_0_0/0.45)]',
-                                    isMine
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'bg-muted text-foreground',
-                                )}
-                            >
-                                <VoiceNote voice={voice} />
-                            </div>
-                        ) : message.body === '' ? null : (
-                            <div
-                                className={cn(
-                                    'w-fit max-w-full rounded-lg px-3.5 py-2 text-[15px] wrap-anywhere shadow-[0_12px_30px_-12px_rgb(0_0_0/0.45)]',
-                                    isMine
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'bg-muted text-foreground',
-                                )}
-                            >
-                                <MessageText
-                                    message={message}
-                                    isMine={isOnPrimary}
-                                />
-                            </div>
-                        )
+                        <LiftedMessage
+                            message={bubble.message}
+                            isMine={isMine}
+                        />
                     }
                     onReact={reactToThis}
+                    pin={
+                        pin?.onToggle
+                            ? { isPinned, onToggle: pin.onToggle }
+                            : null
+                    }
                 />
             )}
 
@@ -1298,7 +1452,7 @@ function BubbleWithMeta({
  * The members who pulled a message, as small avatars, or "everyone" once the whole org has.
  */
 function PulledBy({ users, total }: { users: User[]; total: number }) {
-    const names = users.map((person) => `@${person.username}`).join(', ');
+    const names = users.map((person) => `@${person.handle}`).join(', ');
 
     if (users.length === total && total > 3) {
         return (
@@ -1347,13 +1501,6 @@ function MetaLine({
             {children}
         </div>
     );
-}
-
-function timeOf(date: string): string {
-    return new Date(date).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-    });
 }
 
 /**
@@ -1501,9 +1648,13 @@ function Composer({
     const id = `message-${targetKey(target).replace(':', '-')}`;
     const placeholder =
         target.kind === 'direct'
-            ? `Message @${target.partner.username}`
+            ? `Message @${target.partner.handle}`
             : `Message ${target.org.name ?? 'the org'}`;
     const lane = target.kind === 'direct' ? target.partner.lane : 0;
+    const pingLabel =
+        target.kind === 'direct'
+            ? `Ping @${target.partner.handle}`
+            : 'Ping everyone in the org';
     const { stash, attachments, linkCard, input } = draft;
     const body = stash.body;
     const [error, setError] = useState<string | null>(null);
@@ -1771,6 +1922,35 @@ function Composer({
                                         : 'Record a voice note (max. 1 min)'}
                                 </TooltipContent>
                             </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() =>
+                                            void sendPing(target).catch(
+                                                (error: unknown) =>
+                                                    showError(
+                                                        error instanceof
+                                                            ChatRequestError
+                                                            ? error.firstError()
+                                                            : 'Could not ping. Try again.',
+                                                    ),
+                                            )
+                                        }
+                                        aria-label={pingLabel}
+                                        className={cn(
+                                            '-mx-1 shrink-0 text-muted-foreground',
+                                            isCompact ? 'size-9' : 'size-10',
+                                        )}
+                                        data-test="send-ping"
+                                    >
+                                        <Vibrate className="size-5" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{pingLabel}</TooltipContent>
+                            </Tooltip>
                             <div className="relative min-w-0 flex-1">
                                 <MentionTextarea
                                     id={id}
@@ -1894,7 +2074,7 @@ function AccessBar({
                     <>
                         <p className="min-w-0 flex-1 text-sm text-muted-foreground">
                             <span className="font-mono text-foreground">
-                                @{partner.username}
+                                @{partner.handle}
                             </span>{' '}
                             wants to push to you. Merge to reply, or drop it.
                             They won&apos;t be told.
@@ -1921,9 +2101,9 @@ function AccessBar({
                     <p className="min-w-0 flex-1 font-mono text-[13px] text-muted-foreground">
                         {
                             {
-                                waiting: `pushed. waiting for @${partner.username} to merge your request`,
-                                restricted: `@${partner.username} doesn't follow you, so you can't push to them yet`,
-                                closed: `@${partner.username} isn't taking remotes`,
+                                waiting: `pushed. waiting for @${partner.handle} to merge your request`,
+                                restricted: `@${partner.handle} doesn't follow you, so you can't push to them yet`,
+                                closed: `@${partner.handle} isn't taking remotes`,
                                 open: '',
                                 request: '',
                             }[access]

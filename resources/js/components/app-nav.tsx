@@ -425,7 +425,7 @@ export function AppNav({
                                 {auth.user.name}
                             </span>
                             <span className="block truncate font-mono text-xs text-muted-foreground">
-                                @{auth.user.username}
+                                @{auth.user.handle}
                             </span>
                         </span>
                     </DropdownMenuTrigger>

@@ -310,9 +310,9 @@ it('does not grant luddite to Tom or someone he has never befriended', function 
     }
 });
 
-it('does not identify Tom by a mutable username', function (): void {
+it('does not identify Tom by a mutable handle', function (): void {
     $user = User::factory()->create();
-    $other = User::factory()->create(['username' => 'tom']);
+    $other = User::factory()->create(['handle' => 'tom']);
     $other->following()->attach($user);
 
     $result = resolve(UserAchievementsQuery::class)->get($user, null);

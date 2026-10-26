@@ -2,13 +2,13 @@ import { router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { update } from '@/actions/App/Http/Controllers/UserRemotesController';
-import { Button } from '@/components/ui/button';
 import {
     useRemoteAlertsEnabled,
-    useRemoteNotificationPermission,
+    useRemoteNotificationSupport,
 } from '@/hooks/use-chat';
 import type { RemoteAlertChannel } from '@/lib/remote-notifications';
 import { setRemoteAlerts } from '@/lib/remote-notifications';
+import { RemotePushValidationError } from '@/lib/remote-push';
 import { cn } from '@/lib/utils';
 
 /**
@@ -20,13 +20,19 @@ export function RemotesSetting() {
     const [processing, setProcessing] = useState(false);
     const alertsEnabled = useRemoteAlertsEnabled(auth.user?.id ?? null);
     const soundEnabled = useRemoteAlertsEnabled(auth.user?.id ?? null, 'sound');
-    const hasPermission = useRemoteNotificationPermission();
+    const supported = useRemoteNotificationSupport();
+    const offsiteEnabled = useRemoteAlertsEnabled(
+        auth.user?.id ?? null,
+        'offsite',
+    );
+    const [savingAlerts, setSavingAlerts] = useState(false);
 
     const saveAlerts = (
         enabled: boolean,
         channel: RemoteAlertChannel = 'notifications',
     ) => {
-        if (auth.user === null) return;
+        if (auth.user === null || savingAlerts) return;
+        setSavingAlerts(true);
         void setRemoteAlerts(auth.user.id, enabled, channel)
             .then((saved) => {
                 if (!saved)
@@ -36,11 +42,16 @@ export function RemotesSetting() {
                             : 'Could not save notifications. Check your browser’s site permissions and storage settings.',
                     );
             })
-            .catch(() =>
+            .catch((error: unknown) =>
                 toast.error(
-                    'Could not enable notifications. Check your browser’s site settings.',
+                    error instanceof RemotePushValidationError
+                        ? error.message
+                        : enabled
+                          ? 'Could not enable off-site notifications. Check this browser’s permissions and try again.'
+                          : 'Could not turn off-site notifications off. Please try again.',
                 ),
-            );
+            )
+            .finally(() => setSavingAlerts(false));
     };
 
     const toggle = () => {
@@ -113,25 +124,14 @@ export function RemotesSetting() {
                         id="remote-alerts-label"
                         className="text-sm font-medium"
                     >
-                        Notifications
+                        On-site notifications
                     </h3>
                     <p
                         id="remote-alerts-description"
                         className="text-sm text-muted-foreground"
                     >
-                        On this browser, while the site is open. No message
-                        previews.
+                        Show message alerts inside /dev/null.
                     </p>
-                    <Button
-                        variant="outline"
-                        className="min-w-44"
-                        disabled={!enabled || !alertsEnabled || hasPermission}
-                        onClick={() => saveAlerts(true)}
-                    >
-                        {hasPermission
-                            ? 'Permission granted'
-                            : 'Allow notifications'}
-                    </Button>
                 </div>
                 <button
                     type="button"
@@ -139,7 +139,7 @@ export function RemotesSetting() {
                     aria-checked={alertsEnabled}
                     aria-labelledby="remote-alerts-label"
                     aria-describedby="remote-alerts-description"
-                    disabled={!enabled}
+                    disabled={!enabled || savingAlerts}
                     onClick={() => saveAlerts(!alertsEnabled)}
                     className={cn(
                         'mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent p-0.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50',
@@ -157,6 +157,50 @@ export function RemotesSetting() {
             </div>
             <div className="mt-6 flex items-start justify-between gap-6 border-t pt-6">
                 <div className="min-w-0 space-y-2">
+                    <h3
+                        id="remote-offsite-label"
+                        className="text-sm font-medium"
+                    >
+                        Off-site notifications
+                    </h3>
+                    <p
+                        id="remote-offsite-description"
+                        className="text-sm text-muted-foreground"
+                    >
+                        Send notifications to this browser or installed app,
+                        including when closed. No message previews.
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                        On iPhone and iPad, add /dev/null to your Home Screen
+                        and turn this on from the installed app.
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    role="switch"
+                    aria-checked={offsiteEnabled}
+                    aria-labelledby="remote-offsite-label"
+                    aria-describedby="remote-offsite-description"
+                    disabled={!enabled || !supported || savingAlerts}
+                    onClick={() => saveAlerts(!offsiteEnabled, 'offsite')}
+                    className={cn(
+                        'mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent p-0.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50',
+                        offsiteEnabled
+                            ? 'bg-primary'
+                            : 'bg-muted-foreground/30',
+                    )}
+                    data-test="remote-offsite-setting"
+                >
+                    <span
+                        className={cn(
+                            'size-4.5 rounded-full bg-background shadow-sm transition-transform motion-reduce:transition-none',
+                            offsiteEnabled && 'translate-x-5',
+                        )}
+                    />
+                </button>
+            </div>
+            <div className="mt-6 flex items-start justify-between gap-6 border-t pt-6">
+                <div className="min-w-0 space-y-2">
                     <h3 id="remote-sound-label" className="text-sm font-medium">
                         Notification sound
                     </h3>
@@ -164,7 +208,7 @@ export function RemotesSetting() {
                         id="remote-sound-description"
                         className="text-sm text-muted-foreground"
                     >
-                        Play a sound for new messages.
+                        Play a sound for new messages while the site is open.
                     </p>
                 </div>
                 <button
@@ -173,7 +217,7 @@ export function RemotesSetting() {
                     aria-checked={soundEnabled}
                     aria-labelledby="remote-sound-label"
                     aria-describedby="remote-sound-description"
-                    disabled={!enabled}
+                    disabled={!enabled || savingAlerts}
                     onClick={() => saveAlerts(!soundEnabled, 'sound')}
                     className={cn(
                         'mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent p-0.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50',

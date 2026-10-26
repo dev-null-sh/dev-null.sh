@@ -313,12 +313,12 @@ function DirectDockHeader({
                     {partner.name}
                 </span>
                 <span className="block truncate font-mono text-[11px] text-muted-foreground">
-                    @{partner.username}
+                    @{partner.handle}
                 </span>
             </Link>
             <ConversationActions
                 target={{ kind: 'direct', partner }}
-                title={`@${partner.username}`}
+                title={`@${partner.handle}`}
                 user={user}
                 isArchived={isArchived}
                 onLeave={onBack}

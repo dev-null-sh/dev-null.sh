@@ -6,10 +6,10 @@ use App\Models\Commit;
 use App\Models\User;
 
 it('lists the profiles with approved commits', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     Commit::factory()->for($user)->create();
-    Commit::factory()->for(User::factory()->state(['username' => 'pending_only']))->pending()->create();
-    User::factory()->create(['username' => 'no_commits']);
+    Commit::factory()->for(User::factory()->state(['handle' => 'pending_only']))->pending()->create();
+    User::factory()->create(['handle' => 'no_commits']);
 
     $response = $this->get(route('user-sitemap.show', 1));
 

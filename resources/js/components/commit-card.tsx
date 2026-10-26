@@ -354,7 +354,7 @@ export function CommitCard({
                                         tabIndex={-1}
                                         className="shrink-4 truncate font-mono text-[13px] text-muted-foreground"
                                     >
-                                        @{commit.user.username}
+                                        @{commit.user.handle}
                                     </Link>
                                 </UserPreview>
                                 <span
@@ -448,7 +448,7 @@ export function CommitCard({
                                     className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
                                 >
                                     <CornerDownRight className="size-3" />
-                                    replying to @{commit.parent.user.username}
+                                    replying to @{commit.parent.user.handle}
                                 </Link>
                             )}
                             <div ref={bodyRef} style={translation.bodyStyle}>

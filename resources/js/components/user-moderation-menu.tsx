@@ -69,7 +69,7 @@ export function UserModerationMenu({
     user,
     moderation,
 }: {
-    user: Pick<User, 'username'>;
+    user: Pick<User, 'handle'>;
     moderation: UserModeration;
 }) {
     const [isOpen, setOpen] = useState(false);
@@ -89,7 +89,7 @@ export function UserModerationMenu({
                         variant="outline"
                         size="icon"
                         className="shrink-0"
-                        aria-label={`Moderate @${user.username}`}
+                        aria-label={`Moderate @${user.handle}`}
                         data-test="user-moderation-menu"
                     >
                         <Gavel />
@@ -171,7 +171,7 @@ function ModerationDialog({
 }: {
     open: boolean;
     kind: 'timeout' | 'ban';
-    user: Pick<User, 'username'>;
+    user: Pick<User, 'handle'>;
     moderation: UserModeration;
     onClose: () => void;
 }) {
@@ -197,8 +197,8 @@ function ModerationDialog({
             <DialogContent className="max-h-[calc(var(--visual-viewport-height,100dvh)-2rem)] overflow-y-auto">
                 <DialogTitle>
                     {isBan
-                        ? `Ban @${user.username}?`
-                        : `Put @${user.username} in timeout`}
+                        ? `Ban @${user.handle}?`
+                        : `Put @${user.handle} in timeout`}
                 </DialogTitle>
                 <DialogDescription>
                     {isBan

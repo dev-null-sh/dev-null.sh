@@ -13,7 +13,7 @@ final readonly class CommitSitemapController
     {
         return response()->view('sitemaps.urls', [
             'urls' => array_map(fn (array $commit): array => [
-                'loc' => route('commit.show', ['user' => $commit['username'], 'commit' => $commit['id']]),
+                'loc' => route('commit.show', ['user' => $commit['handle'], 'commit' => $commit['id']]),
                 'lastmod' => $commit['updated_at']->toAtomString(),
                 'images' => array_map(fn (string $id): string => route('commit-image.show', $id), $commit['image_ids']),
             ], $sitemaps->commitsOn($page)),

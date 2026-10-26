@@ -8,6 +8,7 @@ use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 
 it('answers an approved hello world once', function (): void {
@@ -22,7 +23,7 @@ it('answers an approved hello world once', function (): void {
 
     expect($reply->body)->toBe('Hello, Nuno Maduro.')
         ->and($reply->status)->toBe(CommitStatus::Approved)
-        ->and($reply->user->username)->toBe('world')
+        ->and($reply->user->handle)->toBe('world')
         ->and($reply->user->github_id)->toBe('0')
         ->and($reply->root_id)->toBe($commit->id)
         ->and($commit->user->notifications()->sole()->commit_id)->toBe($reply->id);
@@ -32,7 +33,7 @@ it('answers when an admin commits hello world', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
     $commit = resolve(CreateCommit::class)->handle(
-        User::factory()->create(['username' => 'nunomaduro', 'name' => 'Nuno Maduro']),
+        User::factory()->create(['handle' => 'nunomaduro', 'name' => 'Nuno Maduro']),
         'hello world',
     );
 
@@ -59,11 +60,11 @@ it('stays quiet for anything else', function (): void {
     resolve(CreateWorldReply::class)->handle($commit);
 
     expect($commit->replies()->count())->toBe(0)
-        ->and(User::query()->where('username', 'world')->exists())->toBeFalse();
+        ->and(User::query()->whereRelation('profile', 'handle', 'world')->exists())->toBeFalse();
 });
 
-it('does not answer itself', function (string $username): void {
-    $world = User::factory()->create(['github_id' => '0', 'username' => $username]);
+it('does not answer itself', function (string $handle): void {
+    $world = User::factory()->create(['github_id' => '0', 'handle' => $handle]);
     $commit = Commit::factory()->for($world)->create(['body' => 'hello world']);
 
     resolve(CreateWorldReply::class)->handle($commit);
@@ -77,11 +78,11 @@ it('stays quiet when the author is gone', function (): void {
     resolve(CreateWorldReply::class)->handle($commit);
 
     expect($commit->replies()->count())->toBe(0)
-        ->and(User::query()->where('username', 'world')->exists())->toBeFalse();
+        ->and(User::query()->whereRelation('profile', 'handle', 'world')->exists())->toBeFalse();
 });
 
 it('stays quiet when someone already has the name', function (): void {
-    User::factory()->create(['username' => 'world']);
+    User::factory()->create(['handle' => 'world']);
     $commit = Commit::factory()->create(['body' => 'hello world']);
 
     resolve(CreateWorldReply::class)->handle($commit);
@@ -93,9 +94,9 @@ it('stays quiet once a real account named world has taken the name back', functi
     $action = resolve(CreateWorldReply::class);
     $action->handle(Commit::factory()->create(['body' => 'hello world']));
 
-    expect(User::query()->where('github_id', '0')->update(['username' => '_renamed-0']))->toBe(1);
+    expect(Profile::query()->where('github_id', '0')->update(['handle' => '_renamed-0']))->toBe(1);
 
-    User::factory()->create(['username' => 'world']);
+    User::factory()->create(['handle' => 'world']);
 
     $commit = Commit::factory()->create(['body' => 'hello world']);
 
@@ -105,8 +106,8 @@ it('stays quiet once a real account named world has taken the name back', functi
 });
 
 it('keeps answering from its reserved handle without speaking as the real world', function (): void {
-    $world = User::factory()->create(['github_id' => '0', 'username' => 'devnull-world']);
-    $owner = User::factory()->create(['username' => 'world', 'name' => 'Real World']);
+    $world = User::factory()->create(['github_id' => '0', 'handle' => 'devnull-world']);
+    $owner = User::factory()->create(['handle' => 'world', 'name' => 'Real World']);
     $commit = Commit::factory()->for($owner)->create(['body' => 'hello world']);
 
     $action = resolve(CreateWorldReply::class);

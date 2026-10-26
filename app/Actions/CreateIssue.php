@@ -22,7 +22,7 @@ final readonly class CreateIssue
     }
 
     /**
-     * The issue is opened by the app, crediting the reporter, whose GitHub login is their username here.
+     * The issue is opened by the app, crediting the reporter, whose GitHub login is their handle here.
      *
      * @param  array<string, string>  $environment
      * @return array{number: int, url: string}

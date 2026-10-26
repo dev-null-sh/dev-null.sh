@@ -52,6 +52,7 @@ beforeEach(() => {
     time = Date.parse('2026-10-22T12:00:00Z');
     permission = 'granted';
     storage.clear();
+    storage.set('remote-alerts:me:offsite', 'on');
     shown.length = 0;
     announced.length = 0;
     play.mockClear();
@@ -287,7 +288,7 @@ test.each([
     await alerts.receive([], () => false);
     await alerts.receive([conversation(1)], () => false);
 
-    assert.equal(shown.length, Number(notifications));
+    assert.equal(shown.length, 1);
     assert.equal(announced.length, Number(notifications));
     assert.equal(play.mock.calls.length, Number(sound));
 });
@@ -364,6 +365,7 @@ test.each([true, false])('background inbox polling alerts without consuming unre
     Object.assign(window, { setTimeout, clearTimeout });
     vi.stubGlobal('document', { hidden: true, cookie: '', addEventListener() {}, removeEventListener() {} });
     await setRemoteAlerts('me', banners);
+    storage.set('remote-alerts:me:offsite', banners ? 'on' : 'off');
     let messages = [conversation(30, { kind: 'org' })];
     let unread = 1;
     const page = { props: { auth: { user: { id: 'me' }, unreadNotificationsCount: 2, unreadMessagesCount: 8 } } } as Page<SharedPageProps>;
@@ -789,7 +791,7 @@ test('an unfocused window does not mark incoming messages read before it can ale
         messages: [conversation(50).last_message!], has_older: false,
         reactions_version: 0, reaction_changes: [], read_through_id: 0,
         members: [], typing: [], is_archived: false, pinned_at: null, muted_until_at: null,
-        role: 'contributor', access: 'open',
+        role: 'contributor', access: 'open', pinned: [],
     });
 
     markThreadRead(target);
@@ -825,4 +827,19 @@ test('alerts from recent activity even when older pins occupy the visible first 
         stop();
         vi.useRealTimers();
     }
+});
+
+test('default notifications stay on-site even when this browser already has OS permission', async () => {
+    storage.delete('remote-alerts:me:offsite');
+    storage.set('remote-alerts:me', 'on');
+    const permissionRequest = vi.spyOn(FakeNotification, 'requestPermission');
+    assert.equal(remoteAlertsEnabled('me'), true);
+    assert.equal(remoteAlertsEnabled('me', 'offsite'), false);
+    await setRemoteAlerts('me', true);
+    const alerts = reader();
+    await alerts.receive([], () => false);
+    await alerts.receive([conversation(1)], () => false);
+    assert.equal(announced.length, 1);
+    assert.equal(shown.length, 0);
+    assert.equal(permissionRequest.mock.calls.length, 0);
 });
