@@ -13,6 +13,7 @@ use App\Queries\ConversationsQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
+use App\Services\AssetVersion;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -34,7 +35,7 @@ final class HandleInertiaRequests extends Middleware
      */
     public function version(Request $request): ?string
     {
-        return parent::version($request);
+        return resolve(AssetVersion::class)->get();
     }
 
     /**

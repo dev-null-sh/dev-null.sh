@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace App\Queries;
 
 use App\Models\User;
+use App\Services\AssetVersion;
 use App\Services\GitHub;
 use App\Services\PullRequestTitles;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Support\Facades\Cache;
-use Inertia\Inertia;
 
 /**
  * @phpstan-type GitHubPullRequest array{number: int, title: string, html_url: string, merged_at: string|null, updated_at: string, merge_commit_sha: string, user: array{id: int, login: string, avatar_url: string}}
@@ -26,7 +26,7 @@ final readonly class ChangelogQuery
 
     private const int Days = 3;
 
-    public function __construct(private GitHub $github, private PullRequestTitles $titles)
+    public function __construct(private GitHub $github, private PullRequestTitles $titles, private AssetVersion $assetVersion)
     {
         //
     }
@@ -93,7 +93,7 @@ final readonly class ChangelogQuery
     private function page(int $page): ?array
     {
         $repository = config()->string('services.github.repository');
-        $version = Inertia::getVersion();
+        $version = $this->assetVersion->get();
 
         /** @var list<GitHubPullRequest>|null */
         return Cache::remember("changelog:{$repository}:{$version}:page:{$page}", 1800, function () use ($repository, $page): ?array {

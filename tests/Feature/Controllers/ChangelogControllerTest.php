@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 use App\Models\User;
+use App\Queries\RepositoryInsightsQuery;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Inertia\Inertia;
 use Inertia\Testing\AssertableInertia;
 
 /**
@@ -32,6 +34,25 @@ function fakeChangelog(): void
         changelogPullRequest(374, '2026-10-14T12:00:00Z'),
     ] : [])]);
 }
+
+it('shares cached pages between queued repository insights and web requests', function (): void {
+    config(['app.asset_url' => 'https://assets.example.com']);
+    fakeChangelog();
+
+    Inertia::version(null);
+
+    expect(resolve(RepositoryInsightsQuery::class)->get('recent_changes')['pull_requests'] ?? [])->toHaveCount(3);
+
+    Http::assertSentCount(1);
+
+    $this->getJson('/changelog?timezone=UTC')
+        ->assertOk()
+        ->assertJsonCount(3, 'pullRequests');
+
+    expect(Inertia::getVersion())->toBe(hash('xxh128', 'https://assets.example.com'));
+
+    Http::assertSentCount(1);
+});
 
 it('lists the latest days of merged pull requests for anyone, with a link to every commit on production', function (bool $isSignedIn): void {
     fakeChangelog();

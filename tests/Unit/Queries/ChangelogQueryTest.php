@@ -7,7 +7,6 @@ use App\Queries\ChangelogQuery;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
-use Inertia\Inertia;
 
 /**
  * @return array<string, mixed>
@@ -200,7 +199,7 @@ it('refreshes every cached page when the asset version changes', function (): vo
         ->push([pullRequest(102, '2026-10-18T13:00:00Z'), ...array_slice($firstPage, 0, 99)])
         ->push([pullRequest(2, '2026-10-18T12:00:00Z'), pullRequest(1, '2026-10-18T12:00:00Z')])]);
 
-    Inertia::version('before-deploy');
+    config(['app.asset_url' => 'https://before-deploy.example.com']);
     $query = resolve(ChangelogQuery::class);
 
     expect(numbers($query->get('UTC')))->toHaveCount(101)->not->toContain(102)
@@ -208,7 +207,7 @@ it('refreshes every cached page when the asset version changes', function (): vo
 
     Http::assertSentCount(2);
 
-    Inertia::version('after-deploy');
+    config(['app.asset_url' => 'https://after-deploy.example.com']);
 
     expect(numbers($query->get('UTC')))->toHaveCount(102)->toContain(102, 2, 1);
 
