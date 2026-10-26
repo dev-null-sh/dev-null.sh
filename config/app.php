@@ -35,15 +35,33 @@ return [
     | Application Admins
     |--------------------------------------------------------------------------
     |
-    | The GitHub usernames listed here are admins of the application, which
-    | allows them to moderate commits. Set them as a comma separated list
-    | in your ".env" file, for example: "ADMINS=nunomaduro,taylorotwell".
+    | The GitHub accounts listed here are admins of the application, which
+    | allows them to moderate commits. Prefer "admin_github_ids" below: an
+    | account's numeric ID never changes, while its username can be renamed
+    | away and then claimed by somebody else. This list is the fallback for
+    | as long as no IDs are configured.
     |
     */
 
     'admins' => array_values(array_filter(array_map(
         trim(...),
         explode(',', (string) env('ADMINS', '')),
+    ))),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Admins, by GitHub ID
+    |--------------------------------------------------------------------------
+    |
+    | The same admins, identified by the numeric GitHub ID that never changes.
+    | Set them as a comma separated list in your ".env" file, for example:
+    | "ADMIN_GITHUB_IDS=1,2". Once this list is set, "admins" above is ignored.
+    |
+    */
+
+    'admin_github_ids' => array_values(array_filter(array_map(
+        trim(...),
+        explode(',', (string) env('ADMIN_GITHUB_IDS', '')),
     ))),
 
     /*
