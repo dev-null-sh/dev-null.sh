@@ -13,8 +13,6 @@ use Illuminate\Support\Facades\Image;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Intervention\Gif\Decoder as GifDecoder;
-use Throwable;
 
 final readonly class CreateImageFiles
 {
@@ -81,7 +79,7 @@ final readonly class CreateImageFiles
             || ! in_array($info[2], self::ALLOWED_TYPES, true)
             || $info[0] > CreateCommitImages::MAX_SOURCE_DIMENSION
             || $info[1] > CreateCommitImages::MAX_SOURCE_DIMENSION
-            || ($info[2] === IMAGETYPE_GIF && $info[0] * $info[1] * $this->frames($file) > self::MAX_GIF_PIXELS)) {
+            || ($info[2] === IMAGETYPE_GIF && max($info[0] * $info[1], 16_000) * mb_substr_count((string) file_get_contents($file->getRealPath()), "\x00\x2C") > self::MAX_GIF_PIXELS)) {
             throw $this->invalid();
         }
 
@@ -98,15 +96,6 @@ final readonly class CreateImageFiles
         }
 
         return $image;
-    }
-
-    private function frames(UploadedFile $file): int
-    {
-        try {
-            return count(GifDecoder::decode($file->getRealPath())->frames());
-        } catch (Throwable) {
-            throw $this->invalid();
-        }
     }
 
     private function invalid(): ValidationException
