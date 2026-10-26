@@ -66,6 +66,18 @@ it('does not make tom follow himself or change his existing friendships', functi
         ->and($tom->notifications()->count())->toBe(0);
 });
 
+it('keeps the day tom first befriended the user', function (): void {
+    $user = User::factory()->create();
+
+    resolve(CreateTomFriendship::class)->handle($user);
+    $befriendedAt = $user->refresh()->befriended_by_tom_at;
+
+    $this->travel(1)->days();
+    $this->artisan('tom:befriend')->assertSuccessful();
+
+    expect($user->refresh()->befriended_by_tom_at)->toEqual($befriendedAt);
+});
+
 it('befriends every existing user', function (): void {
     $users = User::factory()->count(3)->create();
 
