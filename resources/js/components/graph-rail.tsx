@@ -1,7 +1,16 @@
-import type { CSSProperties, ReactNode } from 'react';
-import { GraphAnchor, WithoutGraph } from '@/components/graph-canvas';
+import { useState } from 'react';
+import type { ComponentProps, CSSProperties, ReactNode } from 'react';
+import {
+    GraphAnchor,
+    WithoutGraph,
+    graphDash,
+    useGraphOverlay,
+    useShowsUpLive,
+} from '@/components/graph-canvas';
+import type { GraphNodeSpec } from '@/components/graph-canvas';
 import { LiveAvatarMarker } from '@/components/live-stream-card';
 import { UserAvatar } from '@/components/user-avatar';
+import { bridgeDuration } from '@/lib/graph';
 import { cn, laneStrokeStyle } from '@/lib/utils';
 import type { User } from '@/types';
 
@@ -62,6 +71,10 @@ export function GraphRail({
     onHoverChange,
     graph,
 }: Props) {
+    // A fresh commit going on below another one, like a reply chained under the last commit of a thread, scales in once
+    // the trunk has reached it.
+    const waitsForTrunk = isFresh && previousLane !== undefined;
+
     return (
         <div
             aria-hidden
@@ -134,7 +147,7 @@ export function GraphRail({
                 {hasReplyTail && (
                     <span
                         className={cn(
-                            'absolute top-8 bottom-0 left-1/2 -translate-x-1/2 border-l border-dashed border-(--lane)',
+                            'absolute top-8 bottom-0 left-1/2 w-0.5 -translate-x-1/2',
                             dimmable,
                             {
                                 'opacity-60': isDimmed,
@@ -144,37 +157,31 @@ export function GraphRail({
                                     endsWithDot || nodePosition === 'bottom',
                             },
                         )}
+                        style={laneStrokeStyle('var(--lane)', {
+                            dash: graphDash,
+                        })}
                         data-test="commit-reply-spine"
                     />
                 )}
             </WithoutGraph>
 
-            {hasTail && endsWithDot && (
-                <GraphAnchor
-                    spec={
-                        graph?.endId
-                            ? {
-                                  id: graph.endId,
-                                  lane,
-                                  after: graph.id,
-                                  dimmed: isDimmed,
-                                  ring: railDotRing,
-                              }
-                            : null
-                    }
-                    data-dimmed={isDimmed || undefined}
-                    isFresh={isFresh}
-                    className="group/rail-node absolute bottom-5 left-1/2 flex -translate-x-1/2 translate-y-1/2 rounded-full"
-                    style={
-                        isFresh
-                            ? { animationDelay: `${endDotDelay}ms` }
-                            : undefined
-                    }
-                    data-test="rail-end-dot"
-                >
-                    <RailDot />
-                </GraphAnchor>
-            )}
+            <RailEnd
+                isShown={hasTail && endsWithDot}
+                spec={
+                    graph?.endId
+                        ? {
+                              id: graph.endId,
+                              lane,
+                              after: graph.id,
+                              dimmed: isDimmed,
+                              ring: railDotRing,
+                          }
+                        : null
+                }
+                isFresh={isFresh}
+                isDimmed={isDimmed}
+                delay={endDotDelay + (waitsForTrunk ? bridgeDuration : 0)}
+            />
 
             <GraphAnchor
                 spec={
@@ -190,6 +197,11 @@ export function GraphRail({
                 }
                 data-dimmed={isDimmed || undefined}
                 isFresh={isFresh}
+                style={
+                    waitsForTrunk
+                        ? { animationDelay: `${bridgeDuration}ms` }
+                        : undefined
+                }
                 className={cn(
                     'group/rail-node absolute top-8 left-1/2 flex -translate-1/2 rounded-full',
                     {
@@ -202,6 +214,136 @@ export function GraphRail({
             >
                 {node ?? <RailDot isHollow={!isFilled || variant === 'root'} />}
             </GraphAnchor>
+        </div>
+    );
+}
+
+// Without motion, no animation would end to take a leaving end dot away.
+function prefersStillness(): boolean {
+    return (
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    );
+}
+
+/**
+ * Where a thread ends, when it ends on this commit. Once the thread goes on below it, live, the end dot scales out, the
+ * way it scaled in, as the trunk runs on through it.
+ */
+function RailEnd({
+    isShown,
+    ...dot
+}: { isShown: boolean } & Omit<
+    ComponentProps<typeof RailEndDot>,
+    'isLeaving' | 'onLeft'
+>) {
+    const isDrawing = useGraphOverlay();
+    const [wasShown, setWasShown] = useState(isShown);
+    const [isLeaving, setIsLeaving] = useState(false);
+
+    if (wasShown !== isShown) {
+        setWasShown(isShown);
+        setIsLeaving(!isShown && isDrawing && !prefersStillness());
+    }
+
+    return isShown || isLeaving ? (
+        <RailEndDot
+            {...dot}
+            isLeaving={!isShown}
+            onLeft={() => setIsLeaving(false)}
+        />
+    ) : null;
+}
+
+/**
+ * The dot a thread ends on. A fresh one pops once its line is drawn, so the line doesn't wait for it. A leaving one, as
+ * the thread goes on below it, scales out the way it scaled in, and is gone once it has. It stays a node of the canvas,
+ * linked to nothing, whose cut-out scales out with it: the trunk running on through it never shows across it.
+ */
+export function RailEndDot({
+    spec = null,
+    isFresh = false,
+    isDimmed = false,
+    delay = endDotDelay,
+    isLeaving = false,
+    onLeft,
+}: {
+    spec?: GraphNodeSpec | null;
+    isFresh?: boolean;
+    isDimmed?: boolean;
+    delay?: number;
+    isLeaving?: boolean;
+    onLeft?: () => void;
+}) {
+    return (
+        <GraphAnchor
+            spec={
+                isLeaving && spec
+                    ? {
+                          id: spec.id,
+                          lane: spec.lane,
+                          ring: spec.ring,
+                          isLeaving: true,
+                      }
+                    : spec
+            }
+            data-dimmed={isDimmed || undefined}
+            isFresh={isFresh && !isLeaving}
+            className={cn(
+                'group/rail-node absolute bottom-5 left-1/2 flex -translate-x-1/2 translate-y-1/2 rounded-full',
+                { 'motion-safe:animate-node-out': isLeaving },
+            )}
+            style={
+                isLeaving
+                    ? // Gone as the trunk reaches the commit going on below it, which then scales in.
+                      { animationDuration: `${bridgeDuration}ms` }
+                    : isFresh
+                      ? { animationDelay: `${delay}ms` }
+                      : undefined
+            }
+            onAnimationEnd={(event) => {
+                if (isLeaving && event.target === event.currentTarget) {
+                    onLeft?.();
+                }
+            }}
+            data-graph-trails
+            data-graph-leaves={isLeaving || undefined}
+            data-test="rail-end-dot"
+        >
+            <RailDot />
+        </GraphAnchor>
+    );
+}
+
+/**
+ * The body of a commit. A fresh one going on below another, like a reply chained under the last commit of a thread,
+ * fades in as the trunk draws itself to it, and shows in full as its node scales in.
+ */
+export function ChainedEntrance({
+    isFresh = false,
+    previousLane,
+    className,
+    children,
+}: {
+    isFresh?: boolean;
+    previousLane?: string;
+    className?: string;
+    children: ReactNode;
+}) {
+    const isLive = useShowsUpLive() && isFresh && previousLane !== undefined;
+
+    return (
+        <div
+            className={cn(className, {
+                'motion-safe:animate-commit-in': isLive,
+            })}
+            style={
+                isLive
+                    ? { animationDuration: `${bridgeDuration}ms` }
+                    : undefined
+            }
+        >
+            {children}
         </div>
     );
 }

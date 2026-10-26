@@ -87,7 +87,7 @@ it('lists them to guests, without anyone marked as followed', function (): void 
 });
 
 it('previews the list to guests without letting search engines index it', function (): void {
-    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+    $user = User::factory()->create(['handle' => 'octocat', 'name' => 'The Octocat']);
 
     $this->get(route('user-mutuals.index', $user))
         ->assertOk()

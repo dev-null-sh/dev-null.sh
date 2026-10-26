@@ -12,8 +12,8 @@ beforeEach(function (): void {
 });
 
 it('lists the accounts acting in bulk, with the thresholds and what moderators can do about each', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
-    $poster = User::factory()->create(['username' => 'poster']);
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $poster = User::factory()->create(['handle' => 'poster']);
     UserTimeout::factory()->for($poster)->create(['reason' => ModerationReason::Spam, 'ends_at' => now()->addHour()]);
     Commit::factory()->for($poster)->count(15)->create();
     Commit::factory()->for($admin)->count(15)->create();
@@ -35,7 +35,7 @@ it('lists the accounts acting in bulk, with the thresholds and what moderators c
 });
 
 it('scales the thresholds with the window, the last 7 days by default', function (): void {
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('bulk-activity.index'))
         ->assertInertia(fn ($page) => $page
             ->where('scale', 'week')
@@ -48,7 +48,7 @@ it('scales the thresholds with the window, the last 7 days by default', function
 });
 
 it('only counts over a day, a week or a month', function (): void {
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('bulk-activity.index', ['scale' => 'year']))
         ->assertSessionHasErrors('scale');
 });

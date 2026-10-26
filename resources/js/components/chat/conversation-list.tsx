@@ -1,4 +1,5 @@
 import { Link } from '@inertiajs/react';
+import { Pin } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
@@ -9,8 +10,9 @@ import { eventText, MemberStack, orgTitle } from '@/components/chat/org';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
 import { WordmarkText } from '@/components/wordmark-text';
+import { useChat } from '@/hooks/use-chat';
 import { useNow } from '@/hooks/use-now';
-import { summaryKey, targetOf } from '@/lib/chat';
+import { compareConversations, summaryKey, targetOf } from '@/lib/chat';
 import type { ChatTarget } from '@/lib/chat';
 import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
 import type { ConversationSummary, User } from '@/types';
@@ -37,6 +39,8 @@ export function ConversationList({
     isCompact?: boolean;
     empty: ReactNode;
 }) {
+    const { pinPreferences } = useChat();
+
     if (conversations === null) {
         return <ConversationListSkeleton isCompact={isCompact} />;
     }
@@ -47,18 +51,26 @@ export function ConversationList({
 
     return (
         <ul aria-label="Conversations">
-            {conversations.map((conversation) => (
-                <ConversationRow
-                    key={summaryKey(conversation)}
-                    conversation={conversation}
-                    user={user}
-                    isActive={summaryKey(conversation) === activeKey}
-                    onOpen={onOpen}
-                    onLeaveActive={onLeaveActive}
-                    onBlocked={onBlocked}
-                    isCompact={isCompact}
-                />
-            ))}
+            {conversations
+                .map((conversation) => {
+                    const pin = pinPreferences[summaryKey(conversation)];
+                    return pin === undefined
+                        ? conversation
+                        : { ...conversation, pinned_at: pin.at };
+                })
+                .sort(compareConversations)
+                .map((conversation) => (
+                    <ConversationRow
+                        key={summaryKey(conversation)}
+                        conversation={conversation}
+                        user={user}
+                        isActive={summaryKey(conversation) === activeKey}
+                        onOpen={onOpen}
+                        onLeaveActive={onLeaveActive}
+                        onBlocked={onBlocked}
+                        isCompact={isCompact}
+                    />
+                ))}
         </ul>
     );
 }
@@ -90,7 +102,7 @@ function ConversationRow({
     const title =
         partner === null
             ? orgTitle(conversation, conversation.members, user)
-            : `@${partner.username}`;
+            : `@${partner.handle}`;
     const isMine = lastMessage?.user_id === user.id && !lastMessage.event;
     const lastBody =
         lastMessage?.body ||
@@ -177,9 +189,7 @@ function ConversationRow({
                             {partner.name}
                         </span>
                         <span className="flex min-w-0 shrink-4 items-center gap-1 font-mono text-xs text-muted-foreground">
-                            <span className="truncate">
-                                @{partner.username}
-                            </span>
+                            <span className="truncate">@{partner.handle}</span>
                         </span>
                     </span>
                 )}
@@ -214,6 +224,12 @@ function ConversationRow({
                 </span>
             </span>
             <span className="flex min-w-14 flex-col items-end transition-opacity group-focus-within:opacity-0 group-data-[menu=open]:opacity-0 [@media(hover:hover)]:group-hover:opacity-0">
+                {conversation.pinned_at && (
+                    <span title="Pinned" className="text-muted-foreground">
+                        <Pin aria-hidden className="size-3" />
+                        <span className="sr-only">Pinned</span>
+                    </span>
+                )}
                 {ahead > 0 ? (
                     <span
                         title={`${ahead} unread messages`}
@@ -325,7 +341,11 @@ function OrgAvatar({
     );
 }
 
-function ConversationListSkeleton({ isCompact }: { isCompact: boolean }) {
+export function ConversationListSkeleton({
+    isCompact,
+}: {
+    isCompact: boolean;
+}) {
     return (
         <div
             aria-hidden

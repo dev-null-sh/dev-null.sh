@@ -211,19 +211,35 @@ final class StressSeeder extends Seeder
         $developers = $this->count(self::DEVELOPERS);
 
         DB::statement(<<<SQL
-            insert into users (id, github_id, username, name, bio, created_at, updated_at, preferred_lane, onboarded_at, log)
-            select pg_temp.uuid7(joined), 'stress-' || n, 'dev_' || n,
-                (array['Ada','Linus','Grace','Ken','Barbara','Dennis','Margaret','Guido','Rasmus','Taylor','Nuno','Brent'])[1 + floor(random() * 12)::int]
-                    || ' ' || (array['Lovelace','Torvalds','Hopper','Thompson','Liskov','Ritchie','Hamilton','Rossum','Lerdorf','Otwell'])[1 + floor(random() * 10)::int],
-                case when random() < 0.6 then 'Building things, mostly in production.' end,
-                joined, joined, n % 6, joined, 'following'
-            from (select n, localtimestamp - random() * interval '730 days' as joined from generate_series(1, {$developers}) as n) as developers
+            with developers as (
+                select n, localtimestamp - random() * interval '730 days' as joined from generate_series(1, {$developers}) as n
+            ), profiles as (
+                insert into profiles (id, type, github_id, handle, name, bio, created_at, updated_at)
+                select pg_temp.uuid7(joined), 'user', 'stress-' || n, 'dev_' || n,
+                    (array['Ada','Linus','Grace','Ken','Barbara','Dennis','Margaret','Guido','Rasmus','Taylor','Nuno','Brent'])[1 + floor(random() * 12)::int]
+                        || ' ' || (array['Lovelace','Torvalds','Hopper','Thompson','Liskov','Ritchie','Hamilton','Rossum','Lerdorf','Otwell'])[1 + floor(random() * 10)::int],
+                    case when random() < 0.6 then 'Building things, mostly in production.' end,
+                    joined, joined
+                from developers
+                returning github_id, created_at
+            )
+            insert into users (id, github_id, created_at, updated_at, preferred_lane, onboarded_at, log)
+            select pg_temp.uuid7(created_at), github_id, created_at, created_at, substring(github_id from 8)::int % 6, created_at, 'following'
+            from profiles
             SQL);
 
         DB::statement(<<<'SQL'
-            insert into users (id, github_id, username, name, created_at, updated_at, onboarded_at, log)
-            values (pg_temp.uuid7(localtimestamp - interval '730 days'), 'local', 'local-dev', 'Local Developer',
-                localtimestamp - interval '730 days', localtimestamp, localtimestamp - interval '730 days', 'following')
+            insert into profiles (id, type, github_id, handle, name, created_at, updated_at)
+            values (pg_temp.uuid7(localtimestamp - interval '730 days'), 'user', 'local', 'local-dev', 'Local Developer',
+                localtimestamp - interval '730 days', localtimestamp)
+            on conflict (github_id) do nothing
+            SQL);
+
+        DB::statement(<<<'SQL'
+            insert into users (id, github_id, created_at, updated_at, onboarded_at, log)
+            select pg_temp.uuid7(created_at), github_id, created_at, updated_at, created_at, 'following'
+            from profiles
+            where github_id = 'local'
             on conflict (github_id) do nothing
             SQL);
 
@@ -233,7 +249,7 @@ final class StressSeeder extends Seeder
             from users where github_id = 'local' or github_id like 'stress-%'
             SQL);
         DB::statement('alter table stress_users add primary key (n)');
-        $this->analyze('users', 'stress_users');
+        $this->analyze('profiles', 'users', 'stress_users');
     }
 
     /**
@@ -661,43 +677,58 @@ final class StressSeeder extends Seeder
     }
 
     /**
-     * The same score UpdateCommitHotScores gives, for every top-level commit at once. Each other developer counts once,
-     * for the most they did: three for replying anywhere in the thread or quoting any of its commits, and one for only
-     * starring the commit or one of its replies.
+     * The same score UpdateCommitHotScores gives, for every top-level commit at once: each other developer counts once
+     * for each thing they did in the thread, with the weights of the hot score.
      */
     private function seedHotScores(): void
     {
         DB::statement(<<<'SQL'
-            with engagements as (
-                select root_id as thread_id, user_id, true as replied from commits
-                where root_id is not null and status = 'approved' and deleted_at is null
-                union all
-                select quoted_commit_id, user_id, true from commits
-                where quoted_commit_id is not null and status = 'approved' and deleted_at is null
-                union all
-                select quoted.root_id, engagements.user_id, true from commits as engagements
-                join commits as quoted on quoted.id = engagements.quoted_commit_id
-                where quoted.root_id is not null and engagements.status = 'approved' and engagements.deleted_at is null and quoted.status = 'approved'
-                union all
-                select commit_id, user_id, false from stars
-                union all
-                select starred.root_id, stars.user_id, false from stars
+            with stargazers as (
+                select commit_id as thread_id, user_id from stars
+                union
+                select starred.root_id, stars.user_id from stars
                 join commits as starred on starred.id = stars.commit_id
                 where starred.root_id is not null and starred.status = 'approved' and starred.deleted_at is null
             ),
-            people as (
-                select thread_id, user_id, bool_or(replied) as replied from engagements group by thread_id, user_id
+            quoters as (
+                select quoted_commit_id as thread_id, user_id from commits
+                where quoted_commit_id is not null and status = 'approved' and deleted_at is null
+                union
+                select quoted.root_id, quotes.user_id from commits as quotes
+                join commits as quoted on quoted.id = quotes.quoted_commit_id
+                where quoted.root_id is not null and quotes.status = 'approved' and quotes.deleted_at is null and quoted.status = 'approved'
             ),
-            engaged as (
-                select roots.id, count(*) filter (where people.replied) as repliers, count(*) filter (where not people.replied) as stargazers
-                from commits as roots join people on people.thread_id = roots.id
-                where roots.parent_id is null and people.user_id is distinct from roots.user_id
+            repliers as (
+                select distinct root_id as thread_id, user_id from commits
+                where root_id is not null and status = 'approved' and deleted_at is null
+            ),
+            repliers_answered_by_author as (
+                select distinct replies.root_id as thread_id, replies.user_id from commits as replies
+                join commits as roots on roots.id = replies.root_id
+                join commits as answers on answers.parent_id = replies.id and answers.user_id = roots.user_id
+                where replies.status = 'approved' and replies.deleted_at is null and answers.status = 'approved' and answers.deleted_at is null
+            ),
+            engagements as (
+                select thread_id, user_id, 0.5 as weight from stargazers
+                union all
+                select thread_id, user_id, 1.0 from quoters
+                union all
+                select thread_id, user_id, 13.5 from repliers
+                union all
+                select thread_id, user_id, 75.0 from repliers_answered_by_author
+            ),
+            weighted as (
+                select roots.id, sum(engagements.weight) as engagement
+                from commits as roots join engagements on engagements.thread_id = roots.id
+                where roots.parent_id is null and engagements.user_id is distinct from roots.user_id
                 group by roots.id
             )
-            update commits set hot_score = round((log(2, (1 + coalesce(engaged.stargazers, 0) + 3 * coalesce(engaged.repliers, 0))::numeric)
-                + extract(epoch from commits.created_at)::numeric / 10800), 6)
+            update commits set hot_score = round((
+                log(2, 1 + coalesce(weighted.engagement, 0))
+                + extract(epoch from commits.created_at)::numeric / 21600
+            ), 6)
             from commits as roots
-            left join engaged on engaged.id = roots.id
+            left join weighted on weighted.id = roots.id
             where commits.id = roots.id and roots.parent_id is null and roots.deleted_at is null
             SQL);
     }

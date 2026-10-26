@@ -46,6 +46,19 @@ export function mapProse(
 }
 
 /**
+ * The text with its committed code blanked out to spaces of the same length, so what is found in the prose keeps its
+ * place in the text.
+ */
+export function withoutCode(text: string): string {
+    return text
+        .split(codePattern)
+        .map((part, index) =>
+            index % 2 === 0 ? part : ' '.repeat(part.length),
+        )
+        .join('');
+}
+
+/**
  * Applies the callback to the prose being typed only, leaving the code as written.
  */
 export function mapTypedProse(

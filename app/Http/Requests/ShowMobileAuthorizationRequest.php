@@ -58,6 +58,14 @@ final class ShowMobileAuthorizationRequest extends FormRequest
         return self::parameterRules();
     }
 
+    /**
+     * Apps that leave the fingerprint's "+" unencoded in the query, like the macOS app, have it read back as a space.
+     */
+    public function prepareForValidation(): void
+    {
+        $this->merge(['fingerprint' => str_replace(' ', '+', $this->string('fingerprint')->value())]);
+    }
+
     public function authorization(): MobileAuthorization
     {
         return new MobileAuthorization(

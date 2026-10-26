@@ -300,7 +300,7 @@ final class Commit extends Model
             $this->body,
             $this->replies_count,
             $this->user?->openGraphIdentity(),
-            $this->parent?->user?->username,
+            $this->parent?->user?->handle,
         ]));
     }
 }

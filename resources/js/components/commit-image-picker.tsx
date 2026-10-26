@@ -1,6 +1,8 @@
 import { ImagePlus, X } from 'lucide-react';
 import { useId, useRef, useState } from 'react';
 import { ActionTooltip } from '@/components/action-tooltip';
+import type { ShownImage } from '@/components/commit-images';
+import { ImageViewer } from '@/components/image-viewer';
 import { Button } from '@/components/ui/button';
 import {
     acceptedImageTypes,
@@ -164,6 +166,7 @@ export function ImagePickerPreviews({
 }) {
     const id = useId();
     const [describedIndex, setDescribedIndex] = useState<number | null>(null);
+    const [viewedIndex, setViewedIndex] = useState<number | null>(null);
     const urls = images.map(objectUrlFor);
 
     if (images.length === 0) {
@@ -174,15 +177,55 @@ export function ImagePickerPreviews({
         describedIndex !== null && describedIndex < images.length
             ? describedIndex
             : null;
+    const activeViewedIndex =
+        viewedIndex !== null && viewedIndex < images.length
+            ? viewedIndex
+            : null;
     const altButtonId = (index: number) => `${id}-alt-${index}`;
+    const previewButtonId = (index: number) => `${id}-preview-${index}`;
+
+    const closeViewer = () => {
+        const indexToFocus = activeViewedIndex;
+        setViewedIndex(null);
+        if (indexToFocus !== null && typeof document !== 'undefined') {
+            requestAnimationFrame(() => {
+                document.getElementById(previewButtonId(indexToFocus))?.focus();
+            });
+        }
+    };
 
     const finishDescribing = () => {
-        if (editing !== null) {
+        if (editing !== null && typeof document !== 'undefined') {
             document.getElementById(altButtonId(editing))?.focus();
         }
 
         setDescribedIndex(null);
     };
+
+    const downloadFilename = (_image: ShownImage, index: number): string => {
+        const file = images[index];
+        if (!file) {
+            return `image-${index + 1}.png`;
+        }
+
+        if (file.name && file.name.includes('.')) {
+            return file.name;
+        }
+
+        const subtype = file.type
+            ? file.type.replace(/^image\//, '').toLowerCase()
+            : '';
+        const ext = subtype === 'jpeg' ? 'jpg' : subtype || 'png';
+        const baseName = file.name || `image-${index + 1}`;
+
+        return `${baseName}.${ext}`;
+    };
+
+    const shownImages: ShownImage[] = urls.map((url, index) => ({
+        id: url,
+        url,
+        description: descriptions[index]?.trim() || null,
+    }));
 
     return (
         <div className="mt-2">
@@ -192,15 +235,32 @@ export function ImagePickerPreviews({
 
                     return (
                         <li key={url} className="relative">
-                            <img
-                                src={url}
-                                alt={`Attached image ${index + 1}`}
-                                className="size-20 rounded-md border bg-muted object-cover"
-                            />
+                            <button
+                                id={previewButtonId(index)}
+                                type="button"
+                                onClick={() => setViewedIndex(index)}
+                                aria-label={`Preview attached image ${index + 1}`}
+                                className="block cursor-pointer overflow-hidden rounded-md border bg-muted text-left transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                                data-test="preview-image-button"
+                            >
+                                <img
+                                    src={url}
+                                    alt={`Attached image ${index + 1}`}
+                                    className="size-20 object-cover"
+                                />
+                            </button>
                             <button
                                 type="button"
                                 onClick={() => {
                                     setDescribedIndex(null);
+                                    if (viewedIndex === index) {
+                                        setViewedIndex(null);
+                                    } else if (
+                                        viewedIndex !== null &&
+                                        viewedIndex > index
+                                    ) {
+                                        setViewedIndex(viewedIndex - 1);
+                                    }
                                     onRemove(index);
                                 }}
                                 aria-label={`Remove image ${index + 1}`}
@@ -238,6 +298,15 @@ export function ImagePickerPreviews({
                 })}
             </ul>
 
+            <ImageViewer
+                images={shownImages}
+                index={activeViewedIndex}
+                onView={setViewedIndex}
+                onClose={closeViewer}
+                downloadUrl={(image) => image.url}
+                downloadFilename={downloadFilename}
+            />
+
             {editing !== null && (
                 <div
                     id={`${id}-description`}
@@ -266,7 +335,7 @@ export function ImagePickerPreviews({
                         }}
                         maxLength={maxDescriptionLength}
                         placeholder="Describe the image for people who can't see it"
-                        className="mt-1 block field-sizing-content max-h-40 min-h-12 w-full resize-none bg-transparent text-sm leading-relaxed outline-none placeholder:text-muted-foreground"
+                        className="mt-1 block field-sizing-content max-h-40 min-h-12 w-full resize-none bg-transparent text-base leading-relaxed outline-none placeholder:text-muted-foreground md:text-sm"
                         data-test="image-description-input"
                     />
                     <div className="mt-1 flex items-center justify-end gap-3">

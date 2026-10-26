@@ -32,9 +32,9 @@ final readonly class UpdateUserSshKeys
             return;
         }
 
-        $username = $this->github->login($user->github_id);
+        $handle = $this->github->login($user->github_id);
 
-        if ($username === null) {
+        if ($handle === null) {
             $user->sshKeys()->delete();
 
             Cache::put($cacheKey, true, now()->addMinutes(self::FreshForMinutes));
@@ -42,8 +42,8 @@ final readonly class UpdateUserSshKeys
             return;
         }
 
-        $fingerprints = $this->publicKeys("users/{$username}/keys")
-            ->merge($this->publicKeys("users/{$username}/ssh_signing_keys"))
+        $fingerprints = $this->publicKeys("users/{$handle}/keys")
+            ->merge($this->publicKeys("users/{$handle}/ssh_signing_keys"))
             ->map(fn (SshPublicKey $publicKey): string => $publicKey->fingerprint())
             ->unique()
             ->values();
