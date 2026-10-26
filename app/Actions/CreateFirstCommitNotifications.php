@@ -24,8 +24,18 @@ final readonly class CreateFirstCommitNotifications
      */
     public function handle(Commit ...$commits): void
     {
+        // A reply is never a first commit, so replies, most of what gets committed, cost no query.
+        $topLevelIds = array_values(array_map(
+            fn (Commit $commit): string => $commit->id,
+            array_filter($commits, fn (Commit $commit): bool => $commit->parent_id === null),
+        ));
+
+        if ($topLevelIds === []) {
+            return;
+        }
+
         $firsts = Commit::query()
-            ->whereKey(array_map(fn (Commit $commit): string => $commit->id, $commits))
+            ->whereKey($topLevelIds)
             ->where('status', CommitStatus::Approved)
             ->whereNull('parent_id')
             ->whereHas('user', fn (Builder $user): Builder => $user->whereNotIn('github_id', User::BOT_GITHUB_IDS))

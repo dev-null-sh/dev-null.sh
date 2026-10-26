@@ -8,6 +8,7 @@ use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 it("notifies the author's followers about their first commit", function (): void {
     $author = User::factory()->create();
@@ -80,6 +81,15 @@ it('does not count replies as a first commit', function (): void {
     resolve(CreateFirstCommitNotifications::class)->handle($reply);
 
     expect(Notification::query()->count())->toBe(0);
+});
+
+it('looks nothing up for replies', function (): void {
+    $reply = Commit::factory()->for(Commit::factory(), 'parent')->create();
+
+    DB::enableQueryLog();
+    resolve(CreateFirstCommitNotifications::class)->handle($reply);
+
+    expect(DB::getQueryLog())->toBeEmpty();
 });
 
 it('notifies only once, about the earliest of first commits approved together', function (): void {
