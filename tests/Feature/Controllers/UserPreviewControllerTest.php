@@ -175,7 +175,7 @@ it('preserves block privacy for captured mention previews', function (): void {
 });
 
 it('includes the shared local time in the user preview', function (): void {
-    User::factory()->create(['username' => 'octocat', 'timezone' => 'Europe/Berlin', 'show_local_time' => true]);
+    User::factory()->create(['handle' => 'octocat', 'timezone' => 'Europe/Berlin', 'show_local_time' => true]);
 
     $this->actingAs(User::factory()->create())
         ->getJson('/@octocat/preview')

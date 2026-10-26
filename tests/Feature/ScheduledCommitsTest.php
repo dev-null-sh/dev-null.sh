@@ -528,7 +528,7 @@ it('does not commit now a canceled item or another authors item', function (): v
     $this->actingAs($canceled->user)->post(route('scheduled-commit-submission.store', $canceled))->assertRedirect()
         ->assertInertiaFlash('toast.type', 'info')->assertInertiaFlashMissing('submitted');
     $this->post(route('scheduled-commit-submission.store', $other))->assertForbidden();
-    $this->actingAs(User::factory()->create(['username' => 'admin']))->post(route('scheduled-commit-submission.store', $other))->assertForbidden();
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))->post(route('scheduled-commit-submission.store', $other))->assertForbidden();
 
     expect(Commit::query()->count())->toBe(0)
         ->and($other->fresh()->submitted_at)->toBeNull();
