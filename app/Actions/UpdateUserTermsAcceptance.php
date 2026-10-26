@@ -13,9 +13,6 @@ final readonly class UpdateUserTermsAcceptance
      */
     public function handle(User $user): void
     {
-        $user->update([
-            'terms_accepted_at' => now(),
-            'terms_version' => config('legal.terms_version'),
-        ]);
+        $user->update(['terms_accepted_at' => now()]);
     }
 }

@@ -59,7 +59,6 @@ use Illuminate\Support\Facades\DB;
  * @property-read CarbonInterface|null $last_seen_at
  * @property-read CarbonInterface|null $banned_at
  * @property-read CarbonInterface|null $terms_accepted_at
- * @property-read string|null $terms_version
  * @property-read CarbonInterface|null $commit_rules_accepted_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -108,7 +107,6 @@ use Illuminate\Support\Facades\DB;
     'banned_at',
     'commit_rules_accepted_at',
     'terms_accepted_at',
-    'terms_version',
 ])]
 final class User extends Authenticatable
 {
@@ -150,7 +148,6 @@ final class User extends Authenticatable
         'banned_at' => null,
         'commit_rules_accepted_at' => null,
         'terms_accepted_at' => null,
-        'terms_version' => null,
     ];
 
     /**
@@ -377,7 +374,7 @@ final class User extends Authenticatable
      */
     public function hasAcceptedCurrentTerms(): bool
     {
-        return $this->terms_accepted_at !== null && $this->terms_version === config('legal.terms_version');
+        return $this->terms_accepted_at?->gte(config()->string('legal.terms_version')) ?? false;
     }
 
     public function isOnboarded(): bool

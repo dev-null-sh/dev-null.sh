@@ -15,7 +15,7 @@ it('says whether the person accepted the terms as they stand', function (): void
         ->assertJsonPath('data.terms_accepted_at', null)
         ->assertJsonPath('data.terms_accepted', false);
 
-    $user->update(['terms_accepted_at' => now(), 'terms_version' => '2020-01-01']);
+    $user->update(['terms_accepted_at' => '2026-10-22 23:59:59']);
 
     signedApiRequest($keyPair, 'GET', route('api-current-user.show'))->assertJsonPath('data.terms_accepted', false);
 });
@@ -33,8 +33,7 @@ it('records that the terms were accepted, and answers as the current user endpoi
         ->assertJsonPath('data.terms_accepted_at', '2026-10-23T12:00:00Z')
         ->assertExactJson(signedApiRequest($keyPair, 'GET', route('api-current-user.show'))->json());
 
-    expect($user->refresh()->hasAcceptedCurrentTerms())->toBeTrue()
-        ->and($user->terms_version)->toBe(config('legal.terms_version'));
+    expect($user->refresh()->hasAcceptedCurrentTerms())->toBeTrue();
 });
 
 it('only accepts the version in force, so an old build cannot accept terms it never showed', function (mixed $version): void {

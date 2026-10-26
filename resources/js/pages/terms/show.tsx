@@ -52,10 +52,10 @@ export default function Show() {
                 <DocumentSection id="eligibility" title="Who can use it">
                     <p>
                         You must be at least 16 years old, sign in with your own
-                        GitHub or Apple account, and be allowed to use the service under the
-                        laws that apply to you, including sanctions and export
-                        laws. If you use it for an organization, you accept
-                        these terms on its behalf.
+                        GitHub or Apple account, and be allowed to use the
+                        service under the laws that apply to you, including
+                        sanctions and export laws. If you use it for an
+                        organization, you accept these terms on its behalf.
                     </p>
                 </DocumentSection>
 
@@ -152,12 +152,11 @@ export default function Show() {
                     </p>
                     <p>
                         If you break these terms, we may stop you from posting
-                        for a while (a timeout) or ban you. A ban applies to
-                        the GitHub or Apple account you signed in with, so you
-                        can't sign up again with it,
-                        even after deleting your account. We keep a record of
-                        timeouts and bans, and the account they apply to,
-                        after your account is deleted.
+                        for a while (a timeout) or ban you. A ban applies to the
+                        GitHub or Apple account you signed in with, so you can't
+                        sign up again with it, even after deleting your account.
+                        We keep a record of timeouts and bans, and the account
+                        they apply to, after your account is deleted.
                     </p>
                 </DocumentSection>
 
@@ -182,8 +181,8 @@ export default function Show() {
                 <DocumentSection id="apple" title="Apple">
                     <p>
                         If you use the iOS app, these terms are between you and
-                        us only, not Apple. Apple is not responsible for the
-                        app or its content, and has no obligation to provide
+                        us only, not Apple. Apple is not responsible for the app
+                        or its content, and has no obligation to provide
                         maintenance or support for it. If the app fails to
                         conform to a warranty, you may tell Apple, and Apple
                         will refund the purchase price, if any; Apple has no

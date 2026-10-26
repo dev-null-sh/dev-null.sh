@@ -104,10 +104,10 @@ export default function Show() {
                             <>
                                 <strong>From the iOS app:</strong> a key the app
                                 makes on your phone to sign its requests, which
-                                never leaves it, and the name of your phone.
-                                The app asks for your photos or camera only
-                                when you attach an image, and for your
-                                microphone only when you record a voice note.
+                                never leaves it, and the name of your phone. The
+                                app asks for your photos or camera only when you
+                                attach an image, and for your microphone only
+                                when you record a voice note.
                             </>,
                             <>
                                 <strong>Cookies and browser storage</strong>{' '}
@@ -229,10 +229,10 @@ export default function Show() {
                     <p>
                         You can export your data or delete your account from{' '}
                         <Link href={profileSettings()}>settings</Link>, or
-                        delete it in the iOS app under Settings. Under
-                        the GDPR, you may also have the right to access,
-                        correct, erase, restrict, or port your data, to object
-                        to its processing, and to lodge a complaint with a data
+                        delete it in the iOS app under Settings. Under the GDPR,
+                        you may also have the right to access, correct, erase,
+                        restrict, or port your data, to object to its
+                        processing, and to lodge a complaint with a data
                         protection authority, such as Portugal's CNPD. You may
                         object at any time to processing based on our legitimate
                         interests. To exercise these rights, write to <Mail />.
