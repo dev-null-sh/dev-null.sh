@@ -41,10 +41,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
-import {
-    FilteredCommit,
-    useCommitVisibility,
-} from '@/components/filtered-commit';
+import { FilteredCommit } from '@/components/filtered-commit';
 import {
     graphDash,
     graphStrokeWidth,
@@ -1052,7 +1049,7 @@ function ReplyItem({
 }
 
 function CommitReply({
-    reply: originalReply,
+    reply,
     parent,
     depth,
     links,
@@ -1068,8 +1065,6 @@ function CommitReply({
     nodeRef: (element: HTMLElement | null) => void;
     onDeleted: () => void;
 }) {
-    const visibility = useCommitVisibility(originalReply);
-    const reply = visibility.commit;
     const { auth } = usePage().props;
     const now = useNow();
     const hiddenLinkPreviewUrl = useContext(HiddenLinkPreviewContext);
@@ -1253,11 +1248,7 @@ function CommitReply({
                     )}
 
                     {reply.is_filtered ? (
-                        <FilteredCommit
-                            isReply
-                            processing={visibility.processing}
-                            onReveal={() => void visibility.reveal()}
-                        />
+                        <FilteredCommit isReply commitId={reply.id} />
                     ) : (
                         <>
                             <div ref={bodyRef} style={translation.bodyStyle}>

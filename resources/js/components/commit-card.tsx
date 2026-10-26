@@ -20,10 +20,7 @@ import {
     useThread,
 } from '@/components/commit-thread';
 import { useCommitTranslation } from '@/components/commit-translation';
-import {
-    FilteredCommit,
-    useCommitVisibility,
-} from '@/components/filtered-commit';
+import { FilteredCommit } from '@/components/filtered-commit';
 import {
     GraphDimmed,
     GraphScope,
@@ -74,7 +71,7 @@ import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
 export function CommitCard({
-    commit: originalCommit,
+    commit,
     previousLane,
     isDimmed = false,
     isPreviousDimmed = false,
@@ -121,8 +118,6 @@ export function CommitCard({
     exceptReplyId?: string;
     threadPosition?: ThreadPosition;
 }) {
-    const visibility = useCommitVisibility(originalCommit);
-    const commit = visibility.commit;
     const {
         props: { auth },
         component,
@@ -466,8 +461,7 @@ export function CommitCard({
                             {commit.is_filtered ? (
                                 <FilteredCommit
                                     isReply={commit.parent_id !== null}
-                                    processing={visibility.processing}
-                                    onReveal={() => void visibility.reveal()}
+                                    commitId={commit.id}
                                 />
                             ) : (
                                 <>

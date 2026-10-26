@@ -6,10 +6,7 @@ import { CommitChannelBadges } from '@/components/commit-channel-badges';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
-import {
-    FilteredCommit,
-    useCommitVisibility,
-} from '@/components/filtered-commit';
+import { FilteredCommit } from '@/components/filtered-commit';
 import { LinkPreview } from '@/components/link-preview';
 import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
@@ -54,25 +51,20 @@ export function QuotedCommit({
 }
 
 function AvailableQuotedCommit({
-    commit: originalCommit,
+    commit,
     isPreview,
 }: {
     commit: QuotedCommitData;
     isPreview: boolean;
 }) {
     const now = useNow();
-    const visibility = useCommitVisibility(originalCommit);
-    const commit = visibility.commit;
 
     const className = 'mt-2 block rounded-lg border px-3 py-2';
 
     if (commit.is_filtered) {
         return (
             <div className={className} data-test="quoted-commit-filtered">
-                <FilteredCommit
-                    processing={visibility.processing}
-                    onReveal={() => void visibility.reveal()}
-                />
+                <FilteredCommit commitId={commit.id} />
             </div>
         );
     }
