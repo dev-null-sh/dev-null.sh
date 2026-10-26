@@ -46,6 +46,7 @@ export default defineConfig({
             'tests/Unit/ComposerPreview.test.tsx',
             'tests/Unit/UseNow.test.tsx',
             'tests/Unit/LinkEmbedHeight.test.tsx',
+            'tests/Unit/LinkEmbedPlay.test.tsx',
             'tests/Unit/CommitRules.test.tsx',
             'tests/Unit/TimeoutRefusals.test.tsx',
             'tests/Unit/VoiceVolume.test.tsx',

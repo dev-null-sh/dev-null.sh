@@ -129,6 +129,11 @@ function Details({ preview, embed }: { preview: LinkPreview; embed: Embed }) {
     );
 }
 
+/**
+ * In a quote, the whole card links to the quoted commit and the player never starts there, so the trigger is plain
+ * content: its play badge is muted and does not react to the pointer, still saying it is a video without looking like
+ * a button.
+ */
 function PlayTrigger({
     isStatic,
     label,
@@ -215,14 +220,22 @@ export function LinkEmbed({
                                 label={label}
                                 onPlay={() => setIsPlaying(true)}
                                 style={frameStyle(embed)}
-                                className="group relative block w-full overflow-hidden"
+                                className={cn(
+                                    'relative block w-full overflow-hidden',
+                                    !isStatic && 'group',
+                                )}
                             >
                                 <Thumbnail
                                     src={poster}
                                     className="absolute inset-0 size-full"
                                 />
                                 <span className="absolute inset-0 bg-black/20 transition-colors group-hover:bg-black/10" />
-                                <span className="absolute top-1/2 left-1/2 flex size-14 -translate-1/2 items-center justify-center rounded-full bg-black/70 text-white ring-white/60 transition-transform group-hover:scale-105 group-focus-visible:ring-2">
+                                <span
+                                    className={cn(
+                                        'absolute top-1/2 left-1/2 flex size-14 -translate-1/2 items-center justify-center rounded-full bg-black/70 text-white ring-white/60 transition-transform group-hover:scale-105 group-focus-visible:ring-2',
+                                        isStatic && 'bg-black/40 text-white/60',
+                                    )}
+                                >
                                     <Icon className="ml-0.5 size-6 fill-current" />
                                 </span>
                             </PlayTrigger>
@@ -251,14 +264,19 @@ export function LinkEmbed({
                     label={label}
                     onPlay={() => setIsPlaying(true)}
                     className={cn(
-                        'group flex w-full items-center',
+                        'flex w-full items-center',
                         !isStatic &&
-                            'transition-colors hover:bg-accent focus-visible:bg-accent',
+                            'group transition-colors hover:bg-accent focus-visible:bg-accent',
                     )}
                 >
                     <span className="relative my-2 ml-2 size-20 shrink-0 overflow-hidden rounded-md">
                         <Thumbnail src={poster} className="size-full" />
-                        <span className="absolute inset-0 flex items-center justify-center bg-black/30 text-white transition-colors group-hover:bg-black/40">
+                        <span
+                            className={cn(
+                                'absolute inset-0 flex items-center justify-center bg-black/30 text-white transition-colors group-hover:bg-black/40',
+                                isStatic && 'text-white/60',
+                            )}
+                        >
                             <Icon className="size-7 fill-current" />
                         </span>
                     </span>
