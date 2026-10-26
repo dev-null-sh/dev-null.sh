@@ -1,4 +1,5 @@
 import { Link } from '@inertiajs/react';
+import { Pin } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
@@ -8,8 +9,10 @@ import { MessageStatusGlyph } from '@/components/chat/message-status';
 import { eventText, MemberStack, orgTitle } from '@/components/chat/org';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserAvatar } from '@/components/user-avatar';
+import { WordmarkText } from '@/components/wordmark-text';
+import { useChat } from '@/hooks/use-chat';
 import { useNow } from '@/hooks/use-now';
-import { summaryKey, targetOf } from '@/lib/chat';
+import { compareConversations, summaryKey, targetOf } from '@/lib/chat';
 import type { ChatTarget } from '@/lib/chat';
 import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
 import type { ConversationSummary, User } from '@/types';
@@ -36,6 +39,8 @@ export function ConversationList({
     isCompact?: boolean;
     empty: ReactNode;
 }) {
+    const { pinPreferences } = useChat();
+
     if (conversations === null) {
         return <ConversationListSkeleton isCompact={isCompact} />;
     }
@@ -46,18 +51,26 @@ export function ConversationList({
 
     return (
         <ul aria-label="Conversations">
-            {conversations.map((conversation) => (
-                <ConversationRow
-                    key={summaryKey(conversation)}
-                    conversation={conversation}
-                    user={user}
-                    isActive={summaryKey(conversation) === activeKey}
-                    onOpen={onOpen}
-                    onLeaveActive={onLeaveActive}
-                    onBlocked={onBlocked}
-                    isCompact={isCompact}
-                />
-            ))}
+            {conversations
+                .map((conversation) => {
+                    const pin = pinPreferences[summaryKey(conversation)];
+                    return pin === undefined
+                        ? conversation
+                        : { ...conversation, pinned_at: pin.at };
+                })
+                .sort(compareConversations)
+                .map((conversation) => (
+                    <ConversationRow
+                        key={summaryKey(conversation)}
+                        conversation={conversation}
+                        user={user}
+                        isActive={summaryKey(conversation) === activeKey}
+                        onOpen={onOpen}
+                        onLeaveActive={onLeaveActive}
+                        onBlocked={onBlocked}
+                        isCompact={isCompact}
+                    />
+                ))}
         </ul>
     );
 }
@@ -94,16 +107,20 @@ function ConversationRow({
     const lastBody =
         lastMessage?.body ||
         (lastMessage?.voice ? 'sent a voice note' : 'sent an image');
+    const prefix =
+        lastMessage === null || lastMessage.event
+            ? ''
+            : isMine
+              ? 'you: '
+              : partner === null
+                ? `${lastMessage.user?.name.split(' ')[0] ?? 'someone'}: `
+                : '';
     const preview =
         lastMessage === null
             ? ''
             : lastMessage.event
               ? eventText(lastMessage, user)
-              : isMine
-                ? `you: ${lastBody}`
-                : partner === null
-                  ? `${lastMessage.user?.name.split(' ')[0] ?? 'someone'}: ${lastBody}`
-                  : lastBody;
+              : lastBody;
     const className = cn(
         'relative grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 text-left transition-colors hover:bg-accent focus-visible:-outline-offset-2',
         isCompact ? 'px-3.5 py-2.5' : 'px-4 py-3',
@@ -137,18 +154,27 @@ function ConversationRow({
             )}
             <span className="min-w-0">
                 {partner === null ? (
-                    <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="flex min-w-0 items-baseline">
                         <span
                             className={cn(
-                                'truncate font-semibold',
+                                'min-w-0 flex-1 truncate font-semibold',
                                 isCompact ? 'text-sm' : 'text-[15px]',
                             )}
                             title={title}
                         >
                             {title}
                         </span>
-                        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
-                            org · {others.length + 1}
+                        <span
+                            className={cn(
+                                'grid shrink-0 grid-cols-[1fr] font-mono text-xs text-muted-foreground tabular-nums group-focus-within:grid-cols-[0fr] group-focus-within:opacity-0 group-data-[menu=open]:grid-cols-[0fr] group-data-[menu=open]:opacity-0 motion-safe:transition-[grid-template-columns,opacity] motion-safe:duration-200 motion-safe:ease-out [@media(hover:hover)]:group-hover:grid-cols-[0fr] [@media(hover:hover)]:group-hover:opacity-0',
+                                { 'grid-cols-[0fr] opacity-0': isActive },
+                            )}
+                        >
+                            <span className="min-w-0 overflow-hidden text-right">
+                                <span className="pl-1.5 whitespace-nowrap">
+                                    org · {others.length + 1}
+                                </span>
+                            </span>
                         </span>
                     </span>
                 ) : (
@@ -192,13 +218,20 @@ function ConversationRow({
                         className={cn('truncate', {
                             'font-mono text-xs': lastMessage?.event,
                         })}
-                        title={preview}
+                        title={`${prefix}${preview}`}
                     >
-                        {preview}
+                        {prefix}
+                        <WordmarkText>{preview}</WordmarkText>
                     </span>
                 </span>
             </span>
             <span className="flex min-w-14 flex-col items-end transition-opacity group-focus-within:opacity-0 group-data-[menu=open]:opacity-0 [@media(hover:hover)]:group-hover:opacity-0">
+                {conversation.pinned_at && (
+                    <span title="Pinned" className="text-muted-foreground">
+                        <Pin aria-hidden className="size-3" />
+                        <span className="sr-only">Pinned</span>
+                    </span>
+                )}
                 {ahead > 0 ? (
                     <span
                         title={`${ahead} unread messages`}
@@ -264,9 +297,10 @@ function ConversationRow({
                     title={title}
                     user={user}
                     isArchived={conversation.is_archived}
+                    conversation={conversation}
                     onLeave={isActive ? onLeaveActive : undefined}
                     onBlocked={isActive ? onLeaveActive : onBlocked}
-                    onOpenChange={setIsMenuOpen}
+                    onPresenceChange={setIsMenuOpen}
                 />
             </div>
         </li>
@@ -309,7 +343,11 @@ function OrgAvatar({
     );
 }
 
-function ConversationListSkeleton({ isCompact }: { isCompact: boolean }) {
+export function ConversationListSkeleton({
+    isCompact,
+}: {
+    isCompact: boolean;
+}) {
     return (
         <div
             aria-hidden

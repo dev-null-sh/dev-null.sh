@@ -1,6 +1,7 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     Activity,
+    AppWindow,
     BookOpen,
     Star,
     FileText,
@@ -10,6 +11,7 @@ import {
     UserRound,
 } from 'lucide-react';
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
+import AppController from '@/actions/App/Http/Controllers/AppController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
@@ -109,6 +111,16 @@ export function UserMenuContent({ user }: Props) {
                     >
                         <BookOpen className="mr-2" />
                         About
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={AppController.index()}
+                        onClick={cleanup}
+                    >
+                        <AppWindow className="mr-2" />
+                        Apps
                     </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>

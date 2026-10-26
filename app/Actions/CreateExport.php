@@ -12,6 +12,7 @@ use App\Models\Device;
 use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
+use App\Models\PushSubscription;
 use App\Models\User;
 use App\Models\UserTimeout;
 use App\Queries\CommitBuilder;
@@ -44,8 +45,11 @@ use stdClass;
  *     blocking: Generator<int, ExportUser>,
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     messages: Generator<int, ExportMessage>,
+ *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
+ *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
  *     notifications: Generator<int, array<string, int|string|null>>,
  *     ssh_keys: array<mixed>,
+ *     push_subscriptions: array<int, array{id: string}>,
  *     devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>,
  *     timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>,
  *     sessions: Collection<int, stdClass>
@@ -78,6 +82,7 @@ final readonly class CreateExport
                 'timezone' => $user->timezone,
                 'show_local_time' => $user->show_local_time,
                 'translation_language' => $user->translation_language,
+                'automatic_translation' => $user->automatic_translation ?? true,
                 'lane_color' => $user->lane_color,
                 'pasteis_mode' => $user->pasteis_mode,
                 'pasteis_received' => $user->pasteis_received,
@@ -92,6 +97,7 @@ final readonly class CreateExport
                 'live_ends_at' => $user->live_ends_at?->toIso8601String(),
                 'last_seen_at' => $user->last_seen_at?->toDateString(),
                 'commit_rules_accepted_at' => $user->commit_rules_accepted_at?->toIso8601String(),
+                'emails_unsubscribed_at' => $user->emails_unsubscribed_at?->toIso8601String(),
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
@@ -105,8 +111,39 @@ final readonly class CreateExport
             'blocking' => $this->usernames($user->blocking()),
             'dismissed_suggestions' => $this->usernames($user->dismissedSuggestions()),
             'messages' => $this->messages($user),
+            'remote_mutes' => Conversation::query()
+                ->join('conversation_participants as mine', 'mine.conversation_id', '=', 'conversations.id')
+                ->where('mine.user_id', $user->id)
+                ->whereNotNull('mine.muted_until_at')
+                ->select('conversations.*')
+                ->addSelect('mine.muted_until_at as muted_until_at')
+                ->with('participants.user')
+                ->oldest('mine.id')
+                ->get()
+                ->map(fn (Conversation $conversation): array => [
+                    'to' => $this->recipient($user, $conversation),
+                    'muted_until_at' => $conversation->muted_until_at?->toIso8601String(),
+                ])
+                ->all(),
+            'remote_pins' => Conversation::query()
+                ->join('conversation_participants as mine', 'mine.conversation_id', '=', 'conversations.id')
+                ->where('mine.user_id', $user->id)
+                ->whereNotNull('mine.pinned_at')
+                ->select('conversations.*')
+                ->addSelect('mine.pinned_at as pinned_at')
+                ->with('participants.user')
+                ->oldest('mine.id')
+                ->get()
+                ->map(fn (Conversation $conversation): array => [
+                    'to' => $this->recipient($user, $conversation),
+                    'pinned_at' => $conversation->pinned_at?->toIso8601String(),
+                ])
+                ->all(),
             'notifications' => $this->notifications($user),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
+            'push_subscriptions' => $user->pushSubscriptions()->get()->map(fn (PushSubscription $subscription): array => [
+                'id' => $subscription->id,
+            ])->all(),
             'devices' => $user->devices()->oldest('approved_at')->get()->map(fn (Device $device): array => [
                 'name' => $device->name,
                 'fingerprint' => $device->fingerprint,
@@ -217,10 +254,7 @@ final readonly class CreateExport
             ->whereIn('id', ConversationParticipant::query()->select('conversation_id')->where('user_id', $user->id))
             ->with('participants.user')
             ->get()
-            ->mapWithKeys(fn (Conversation $conversation): array => [$conversation->id => $conversation->isOrg()
-                ? 'org: '.($conversation->name ?? $conversation->id)
-                : $conversation->participants->firstWhere('user_id', '!=', $user->id)?->user->username,
-            ]);
+            ->mapWithKeys(fn (Conversation $conversation): array => [$conversation->id => $this->recipient($user, $conversation)]);
 
         foreach (Message::query()->where('user_id', $user->id)->whereNull('event')->with('voice')->lazyById(500) as $message) {
             yield [
@@ -230,6 +264,16 @@ final readonly class CreateExport
                 'created_at' => $message->created_at->toIso8601String(),
             ];
         }
+    }
+
+    /**
+     * The other person in a conversation, or the org it is.
+     */
+    private function recipient(User $user, Conversation $conversation): ?string
+    {
+        return $conversation->isOrg()
+            ? 'org: '.($conversation->name ?? $conversation->id)
+            : $conversation->participants->firstWhere('user_id', '!=', $user->id)?->user->username;
     }
 
     /**

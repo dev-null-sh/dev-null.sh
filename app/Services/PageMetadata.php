@@ -8,6 +8,9 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Queries\MacAppReleaseQuery;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Number;
 use Illuminate\Support\Str;
 
 /**
@@ -17,6 +20,8 @@ use Illuminate\Support\Str;
  * @phpstan-type CommitMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, publishedAt: string, author: string, feed: Feed, structuredData: array<string, mixed>}
  * @phpstan-type UserMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, feed: Feed, username: string, structuredData: array<string, mixed>}
  * @phpstan-type ConnectionsMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, username: string}
+ *
+ * @phpstan-import-type MacAppRelease from MacAppReleaseQuery
  */
 final readonly class PageMetadata
 {
@@ -116,6 +121,53 @@ final readonly class PageMetadata
                 'description' => $description,
                 'inLanguage' => str_replace('_', '-', app()->getLocale()),
                 'isPartOf' => ['@id' => route('home').'#website'],
+            ],
+        ];
+    }
+
+    /**
+     * The link preview and structured data of the apps page, with the Mac app described as software once it is published.
+     *
+     * @param  MacAppRelease|null  $release
+     * @return WebsiteMetadata
+     */
+    public function apps(?array $release): array
+    {
+        $url = route('app.index');
+        $page = $this->page(
+            'Apps - /dev/null',
+            '/dev/null for Mac: your remotes and orgs in a native app, with pull receipts, voice notes, reactions, and banners that never show what a message says.',
+            $url,
+        );
+
+        return [
+            ...$page,
+            'images' => [[
+                'url' => url('/images/apps/og.png'),
+                'width' => OpenGraphCanvas::WIDTH,
+                'height' => OpenGraphCanvas::HEIGHT,
+                'type' => 'image/png',
+                'alt' => '/dev/null for Mac, showing an org of developers talking in remotes',
+            ]],
+            'structuredData' => [
+                '@context' => 'https://schema.org',
+                '@graph' => [
+                    Arr::except($page['structuredData'], '@context'),
+                    ...$release === null ? [] : [[
+                        '@type' => 'SoftwareApplication',
+                        'name' => '/dev/null for Mac',
+                        'url' => $url,
+                        'operatingSystem' => "macOS {$release['minimum_system_version']} or later",
+                        'applicationCategory' => 'SocialNetworkingApplication',
+                        'softwareVersion' => $release['version'],
+                        'datePublished' => $release['released_at'],
+                        'downloadUrl' => $release['download_url'],
+                        'fileSize' => Number::fileSize($release['size'], precision: 1),
+                        'image' => url('/images/apps/mac-icon-light.webp'),
+                        'screenshot' => url('/images/apps/mac.webp'),
+                        'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'USD'],
+                    ]],
+                ],
             ],
         ];
     }

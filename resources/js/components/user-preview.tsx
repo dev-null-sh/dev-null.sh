@@ -286,7 +286,7 @@ export function UserPreview({
                             scheduleClose();
                         }}
                         data-state={isOpen ? 'open' : 'closed'}
-                        className="fixed z-50 w-76 rounded-lg border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] ease-spring data-[state=closed]:scale-70 data-[state=closed]:opacity-0 data-[state=closed]:ease-in motion-safe:transition-[opacity,scale] motion-safe:duration-560 motion-safe:data-[state=closed]:duration-160 starting:scale-70 starting:opacity-0"
+                        className="pointer-events-auto fixed z-50 w-76 rounded-lg border bg-popover p-4 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] ease-spring data-[state=closed]:scale-70 data-[state=closed]:opacity-0 data-[state=closed]:ease-in motion-safe:transition-[opacity,scale] motion-safe:duration-560 motion-safe:data-[state=closed]:duration-160 starting:scale-70 starting:opacity-0"
                         style={{
                             ...position,
                             transformOrigin: anchor

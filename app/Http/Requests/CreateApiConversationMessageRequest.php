@@ -9,6 +9,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
 use App\Queries\PushAccessQuery;
+use App\Services\VoiceNotes;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -104,5 +105,22 @@ final class CreateApiConversationMessageRequest extends FormRequest
         $descriptions = $this->array('image_descriptions');
 
         return $descriptions;
+    }
+
+    public function voice(): ?UploadedFile
+    {
+        $voice = $this->file('voice');
+
+        return $voice instanceof UploadedFile ? $voice : null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function voiceWaveform(): array
+    {
+        return $this->filled('voice_waveform')
+            ? array_map(fn (int $bar): int => $this->integer('voice_waveform.'.$bar), range(0, VoiceNotes::BARS - 1))
+            : [];
     }
 }

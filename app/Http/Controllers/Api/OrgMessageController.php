@@ -41,6 +41,8 @@ final readonly class OrgMessageController
             $request->images(),
             $request->imageDescriptions(),
             $request->linkPreview(),
+            $request->voice(),
+            $request->voiceWaveform(),
         ));
     }
 }

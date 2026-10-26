@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\RemoteStatus;
+use App\Jobs\SendRemotePush;
 use App\Jobs\UnfurlLink;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
@@ -88,6 +89,13 @@ final readonly class CreateMessage
             }
 
             self::advance($conversation, $message, unstash: true);
+
+            if (config('services.web_push.public_key') && config('services.web_push.private_key')) {
+                foreach (ConversationParticipant::query()->where('conversation_id', $conversation->id)
+                    ->where('user_id', '!=', $sender->id)->whereHas('user.pushSubscriptions')->get(['user_id']) as $participant) {
+                    dispatch(new SendRemotePush($message->id, $participant->user_id))->delay(now()->addSeconds(10))->afterCommit();
+                }
+            }
 
             ConversationParticipant::query()
                 ->where('conversation_id', $conversation->id)
