@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Contracts\PreviewLink;
+use App\Contracts\Services\PreviewLink;
 use App\Dto\LinkPreviewMetadata;
 use App\Dto\LinkPreviewRequest;
 use App\Models\LinkPreview;

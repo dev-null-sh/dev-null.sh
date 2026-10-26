@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\PreviewLinkProviders;
 
-use App\Contracts\PreviewLink;
+use App\Contracts\Services\PreviewLink;
 use App\Dto\LinkPreviewMetadata;
 use Dom\HTMLDocument;
 use GuzzleHttp\Psr7\Utils;
