@@ -59,6 +59,15 @@ it('does not load recipients who have no push subscriptions', function (): void 
     Http::assertNothingSent();
 });
 
+it('delivers a ping event as an empty push without message data', function (): void {
+    $this->message->update(['event' => OrgEvent::Ping, 'body' => '']);
+
+    new SendRemotePush($this->message->id, $this->recipient->id)->handle(resolve(RemotePush::class));
+
+    Http::assertSentCount(1);
+    Http::assertSent(fn (Request $request): bool => $request->body() === '');
+});
+
 it('rechecks eligibility at delivery time', function (string $change): void {
     match ($change) {
         'read' => $this->participant->update(['read_through_id' => $this->message->id]),
