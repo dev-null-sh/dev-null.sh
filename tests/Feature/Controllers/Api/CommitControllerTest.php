@@ -46,7 +46,6 @@ it('shows an approved commit to anyone', function (): void {
             'author' => [
                 'id' => $user->id,
                 'handle' => 'octocat',
-                'username' => 'octocat',
                 'name' => 'The Octocat',
                 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
                 'bio' => $user->bio,
@@ -222,7 +221,6 @@ it('shows a signed request the commit as its page shows it to its user', functio
     $author = fn (User $author): array => [
         'id' => $author->id,
         'handle' => $author->handle,
-        'username' => $author->handle,
         'name' => $author->name,
         'avatar_url' => $author->avatar_url,
         'bio' => $author->bio,
@@ -257,7 +255,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                     ['type' => 'code', 'code' => '@Override'],
                 ],
                 'preview_segments' => null,
-                'mentions' => [['handle' => 'nunomaduro', 'username' => 'nunomaduro', 'offset' => 4, 'length' => 11]],
+                'mentions' => [['handle' => 'nunomaduro', 'offset' => 4, 'length' => 11]],
                 'status' => 'approved',
                 'is_pinned' => false,
                 'starred' => true,

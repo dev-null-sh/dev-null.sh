@@ -38,7 +38,6 @@ it('returns the signed-in user with their unread notifications and their pastéi
             'data' => [
                 'id' => $user->id,
                 'handle' => 'octocat',
-                'username' => 'octocat',
                 'name' => 'The Octocat',
                 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
                 'bio' => 'I am the Octocat.',

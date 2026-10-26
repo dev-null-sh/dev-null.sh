@@ -33,7 +33,6 @@ it('shows a public profile with public counts', function (): void {
         ->assertExactJson(['data' => [
             'id' => $user->id,
             'handle' => 'octocat',
-            'username' => 'octocat',
             'name' => 'The Octocat',
             'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
             'bio' => 'I am the Octocat.',
@@ -103,7 +102,6 @@ it('shows a signed request the profile as the web shows it to its user', functio
             'data' => [
                 'id' => $user->id,
                 'handle' => 'octocat',
-                'username' => 'octocat',
                 'name' => 'The Octocat',
                 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
                 'bio' => 'I am the Octocat.',

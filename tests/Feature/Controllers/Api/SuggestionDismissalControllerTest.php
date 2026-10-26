@@ -44,7 +44,7 @@ it('may not dismiss themselves', function (): void {
     expect($this->user->dismissedSuggestions()->count())->toBe(0);
 });
 
-it('returns not found for unknown usernames', function (): void {
+it('returns not found for unknown handles', function (): void {
     signedApiRequest($this->keyPair, 'POST', 'api/v1/users/missing/dismiss')->assertNotFound();
 });
 

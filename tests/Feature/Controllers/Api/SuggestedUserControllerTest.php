@@ -24,7 +24,7 @@ it('suggests people to follow, with why and whether they follow the user', funct
     $response->assertOk()
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.id', $vouched->id)
-        ->assertJsonPath('data.0.username', 'octocat')
+        ->assertJsonPath('data.0.handle', 'octocat')
         ->assertJsonPath('data.0.lane', $vouched->lane())
         ->assertJsonPath('data.0.followed_by_following_count', 1)
         ->assertJsonPath('data.0.followers_count', 1)
@@ -108,7 +108,7 @@ it('suggests the people a profile follows first, as the web does beside it', fun
 
     $profile->following()->attach($followed);
 
-    signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index', ['username' => $profile->handle]))
+    signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index', ['handle' => $profile->handle]))
         ->assertOk()
         ->assertJsonPath('data.*.id', [$followed->id, $regular->id]);
 });
@@ -144,7 +144,7 @@ it('suggests what the web suggests on the same profile or commit page', function
     $people->last()->followers()->attach($people->take(3));
 
     [$webRoute, $context] = $page === 'profile'
-        ? [route('user.show', $author), ['username' => $author->handle]]
+        ? [route('user.show', $author), ['handle' => $author->handle]]
         : [route('commit.show', [$author, $root]), ['commit_id' => $root->id]];
 
     $web = null;
@@ -188,7 +188,7 @@ it('falls back to the regular suggestions beside a profile across a block, as th
 
     $regular = signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index'))->json('data.*.id');
 
-    signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index', ['username' => $profile->handle]))
+    signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index', ['handle' => $profile->handle]))
         ->assertOk()
         ->assertJsonPath('data.*.id', $regular);
 })->with([
@@ -244,10 +244,10 @@ it('refuses a page that does not exist or is not one page', function (array $que
         ->assertUnprocessable()
         ->assertJsonValidationErrors($field);
 })->with([
-    'an unknown username' => fn (): array => [['username' => 'nobody-here'], 'username'],
+    'an unknown handle' => fn (): array => [['handle' => 'nobody-here'], 'handle'],
     'an unknown commit' => fn (): array => [['commit_id' => '01a16c57-e371-73fb-a4d7-6ad455c9dd57'], 'commit_id'],
     'a commit id that is not one' => fn (): array => [['commit_id' => 'latest'], 'commit_id'],
-    'a profile and a commit' => fn (): array => [['username' => User::factory()->create()->handle, 'commit_id' => Commit::factory()->create()->id], 'commit_id'],
+    'a profile and a commit' => fn (): array => [['handle' => User::factory()->create()->handle, 'commit_id' => Commit::factory()->create()->id], 'commit_id'],
 ]);
 
 it('refuses a round that is not a whole number from zero', function (mixed $round): void {
