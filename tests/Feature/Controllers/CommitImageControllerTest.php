@@ -35,6 +35,17 @@ it('serves images of approved commits to everyone', function (array $query): voi
         ->and($response->streamedContent())->toBe(Storage::disk()->get($image->path));
 })->with(['default' => [[]], 'download disabled' => [['download' => '0']]]);
 
+it('serves a gif as a gif', function (): void {
+    $path = 'commit-images/'.fake()->uuid().'.gif';
+    Storage::disk()->put($path, (string) UploadedFile::fake()->image('image.gif', 10, 10)->getContent());
+    $image = CommitImage::factory()->for(Commit::factory())->create(['path' => $path]);
+
+    $this->get(route('commit-image.show', ['commitImage' => $image, 'download' => 1]))
+        ->assertOk()
+        ->assertDownload($image->id.'.gif')
+        ->assertHeader('Content-Type', 'image/gif');
+});
+
 it('downloads the stored image with a webp filename', function (): void {
     $image = storedCommitImage(Commit::factory()->create());
 

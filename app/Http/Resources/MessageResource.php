@@ -57,6 +57,7 @@ final class MessageResource extends JsonResource
                 'width' => $image->width,
                 'height' => $image->height,
                 'description' => $image->description,
+                'type' => $image->mimeType(),
                 'url' => url(URL::temporarySignedRoute('api-message-image.show', today()->addDays(2), [
                     'messageImage' => $image,
                     'user' => $request->user()?->id,

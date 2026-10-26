@@ -2,9 +2,14 @@ export class PickedImageError extends Error {}
 
 export const maxImages = 3;
 export const maxImageBytes = 10 * 1024 * 1024;
-export const acceptedImageTypes = ['image/jpeg', 'image/png', 'image/webp'];
+export const acceptedImageTypes = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+];
 export const invalidImageMessage =
-    'Only JPEG, PNG, or WebP images up to 10 MB.';
+    'Only JPEG, PNG, WebP, or GIF images up to 10 MB.';
 
 /**
  * Copy provider-backed files before reading metadata or creating preview URLs.

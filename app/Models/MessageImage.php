@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\IsImageFile;
 use Carbon\CarbonInterface;
 use Database\Factories\MessageImageFactory;
 use Illuminate\Database\Eloquent\Attributes\Visible;
@@ -36,6 +37,7 @@ final class MessageImage extends Model
     use HasFactory;
 
     use HasUuids;
+    use IsImageFile;
 
     /**
      * @return array<string, string>
@@ -70,6 +72,7 @@ final class MessageImage extends Model
     {
         return [
             ...parent::toArray(),
+            'type' => $this->mimeType(),
             'url' => route('message-image.show', $this),
         ];
     }

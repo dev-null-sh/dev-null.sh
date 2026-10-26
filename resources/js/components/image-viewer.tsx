@@ -78,7 +78,7 @@ export function ImageViewer({
                         url: downloadUrl(image),
                         filename:
                             downloadFilename?.(image, imageIndex) ??
-                            `${image.id}.webp`,
+                            `${image.id}.${image.type === 'image/gif' ? 'gif' : 'webp'}`,
                     },
                 }),
             })),

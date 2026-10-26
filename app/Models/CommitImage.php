@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Concerns\IsImageFile;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitImageFactory;
 use Illuminate\Database\Eloquent\Attributes\Visible;
@@ -37,6 +38,7 @@ final class CommitImage extends Model
     use HasFactory;
 
     use HasUuids;
+    use IsImageFile;
 
     /**
      * @return array<string, string>
@@ -71,6 +73,7 @@ final class CommitImage extends Model
     {
         return [
             ...parent::toArray(),
+            'type' => $this->mimeType(),
             'url' => $this->url(),
         ];
     }

@@ -18,6 +18,7 @@ export type MessageImage = {
     width: number;
     height: number;
     description: string | null;
+    type?: 'image/webp' | 'image/gif';
 };
 
 /**

@@ -19,8 +19,8 @@ final readonly class MessageImageController
     public function show(ShowApiMessageImageRequest $request, MessageImage $messageImage, EncryptedFiles $encryptedFiles): Response
     {
         return response($encryptedFiles->decrypt((string) Storage::disk()->get($messageImage->path)), headers: [
-            'Content-Type' => 'image/webp',
-            'Content-Disposition' => HeaderUtils::makeDisposition('inline', $messageImage->id.'.webp'),
+            'Content-Type' => $messageImage->mimeType(),
+            'Content-Disposition' => HeaderUtils::makeDisposition('inline', $messageImage->filename()),
             'Content-Security-Policy' => "default-src 'none'; sandbox",
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'private, max-age=3600',

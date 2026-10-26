@@ -20,7 +20,7 @@ export function commitImageAlt(
 }
 
 export type ShownImage = Pick<CommitImage, 'id' | 'url' | 'description'> &
-    Partial<Pick<CommitImage, 'width' | 'height'>>;
+    Partial<Pick<CommitImage, 'width' | 'height' | 'type'>>;
 
 /**
  * Tall images in a grid cell stay contained so they aren't blown up to fill the width.

@@ -133,6 +133,7 @@ it('shows what the web shows on a commit', function (): void {
             'width' => 640,
             'height' => 480,
             'description' => null,
+            'type' => 'image/webp',
             'url' => route('commit-image.show', $image),
         ]])
         ->assertJsonPath('data.0.author.lane', 4);

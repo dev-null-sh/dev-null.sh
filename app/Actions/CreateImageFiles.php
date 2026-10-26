@@ -20,7 +20,9 @@ final readonly class CreateImageFiles
 
     private const int QUALITY = 60;
 
-    private const array ALLOWED_TYPES = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP];
+    private const int MAX_GIF_PIXELS = 8_000_000;
+
+    private const array ALLOWED_TYPES = [IMAGETYPE_JPEG, IMAGETYPE_PNG, IMAGETYPE_WEBP, IMAGETYPE_GIF];
 
     public function __construct(private EncryptedFiles $encryptedFiles)
     {
@@ -44,11 +46,11 @@ final readonly class CreateImageFiles
 
         foreach ($optimized as $position => $image) {
             if ($encrypted) {
-                $path = $directory.'/'.Str::uuid7()->toString();
+                $path = $directory.'/'.Str::uuid7()->toString().($image->extension() === 'gif' ? '.gif' : '');
                 $stored = Storage::disk()->put($path, $this->encryptedFiles->encrypt($image->toBytes()));
                 assert($stored);
             } else {
-                $path = $image->storeAs($directory, Str::uuid7()->toString().'.webp');
+                $path = $image->storeAs($directory, Str::uuid7()->toString().'.'.$image->extension());
                 assert(is_string($path));
             }
 
@@ -76,7 +78,8 @@ final readonly class CreateImageFiles
         if ($info === false
             || ! in_array($info[2], self::ALLOWED_TYPES, true)
             || $info[0] > CreateCommitImages::MAX_SOURCE_DIMENSION
-            || $info[1] > CreateCommitImages::MAX_SOURCE_DIMENSION) {
+            || $info[1] > CreateCommitImages::MAX_SOURCE_DIMENSION
+            || ($info[2] === IMAGETYPE_GIF && max($info[0] * $info[1], 16_000) * mb_substr_count((string) file_get_contents($file->getRealPath()), "\x00\x2C") > self::MAX_GIF_PIXELS)) {
             throw $this->invalid();
         }
 
@@ -84,7 +87,7 @@ final readonly class CreateImageFiles
             ->usingGd()
             ->orient()
             ->scale(self::MAX_STORED_DIMENSION, self::MAX_STORED_DIMENSION)
-            ->optimize('webp', self::QUALITY);
+            ->optimize($info[2] === IMAGETYPE_GIF ? 'gif' : 'webp', self::QUALITY);
 
         try {
             $image->toBytes();
@@ -98,7 +101,7 @@ final readonly class CreateImageFiles
     private function invalid(): ValidationException
     {
         return ValidationException::withMessages([
-            'images' => 'Images must be JPEG, PNG, or WebP files of at most '.CreateCommitImages::MAX_SOURCE_DIMENSION.' pixels per side.',
+            'images' => 'Images must be JPEG, PNG, WebP, or GIF files of at most '.CreateCommitImages::MAX_SOURCE_DIMENSION.' pixels per side, and GIFs not too long.',
         ]);
     }
 }
