@@ -24,8 +24,6 @@ final readonly class Embed implements Arrayable
     }
 
     /**
-     * The poster stands in for the player until it is played, for when the link's own preview has no image.
-     *
      * @param  array<string, string|int>  $query
      */
     public static function video(string $provider, string $src, array $query = [], string $aspectRatio = '16 / 9', ?string $poster = null): self
@@ -39,6 +37,11 @@ final readonly class Embed implements Arrayable
     public static function fixed(string $provider, EmbedKind $kind, string $src, int $height, array $query = []): self
     {
         return new self($provider, $kind, self::withQuery($src, $query), null, $height);
+    }
+
+    public static function gif(string $provider, string $src, ?string $poster = null): self
+    {
+        return new self($provider, EmbedKind::Gif, $src, null, null, $poster);
     }
 
     /**

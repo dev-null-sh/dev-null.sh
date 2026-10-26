@@ -2,7 +2,7 @@ import type { User } from '@/types/auth';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
 
-export type EmbedKind = 'video' | 'audio' | 'code';
+export type EmbedKind = 'video' | 'audio' | 'code' | 'gif';
 
 export type Embed = {
     provider: string;
