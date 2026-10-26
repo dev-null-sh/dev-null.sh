@@ -151,7 +151,7 @@ it('suggests what the web suggests on the same profile or commit page', function
     $this->actingAs($this->user)->get($webRoute)
         ->assertOk()
         ->assertInertia(function ($inertia) use (&$web) {
-            return $inertia->loadDeferredProps(function ($reload) use (&$web) {
+            return $inertia->loadDeferredProps('default', function ($reload) use (&$web) {
                 return $reload->where('suggestedUsers', function ($users) use (&$web): bool {
                     $web = collect($users)->pluck('id')->all();
 

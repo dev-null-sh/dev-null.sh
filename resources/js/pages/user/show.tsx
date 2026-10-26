@@ -2,6 +2,7 @@ import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     Building2,
     CalendarDays,
+    GitPullRequest,
     Heart,
     Link2,
     MapPin,
@@ -66,6 +67,7 @@ export default function Show({
     isFollowing,
     followsYou,
     isMuting,
+    isContributor,
     followersYouKnow,
     canPush,
     moderation,
@@ -82,6 +84,10 @@ export default function Show({
     isFollowing: boolean;
     followsYou: boolean;
     isMuting: boolean;
+    /**
+     * Deferred, so it is only set once GitHub's contributors are read.
+     */
+    isContributor?: boolean;
     followersYouKnow: FollowersYouKnowPreview | null;
     canPush: boolean;
     moderation: UserModeration | null;
@@ -93,7 +99,7 @@ export default function Show({
     pinnedCommit: Commit | null;
     readme: string | false | null;
 }) {
-    const { auth } = usePage().props;
+    const { auth, repository } = usePage().props;
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
@@ -225,7 +231,7 @@ export default function Show({
                 <h1 className="mt-4 text-2xl font-semibold tracking-tight text-balance">
                     {user.name}
                 </h1>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <p className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
                         <span
                             aria-hidden
@@ -259,6 +265,18 @@ export default function Show({
                             Lv. {achievements.level} · {achievements.rank}
                         </span>
                     </button>
+                    {isContributor && (
+                        <a
+                            href={`https://github.com/${repository}/pulls?q=is:pr+is:merged+author:${user.handle}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[11px] font-medium text-foreground transition hover:bg-muted"
+                            title={`Pull requests by @${user.handle} merged into /dev/null`}
+                        >
+                            <GitPullRequest className="size-3" />
+                            /dev/null contributor
+                        </a>
+                    )}
                 </div>
 
                 {moderation && <UserModerationStatus moderation={moderation} />}

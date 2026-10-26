@@ -19,7 +19,7 @@ it('loads contextual profile suggestions without reusing cached suggestions', fu
         ->assertInertia(fn ($page) => $page
             ->component('user/show')
             ->missing('suggestedUsers')
-            ->loadDeferredProps(fn ($reload) => $reload
+            ->loadDeferredProps('default', fn ($reload) => $reload
                 ->has('suggestedUsers', 1)
                 ->where('suggestedUsers.0.id', $related->id)));
 

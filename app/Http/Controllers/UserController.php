@@ -10,6 +10,7 @@ use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\ShowUserRequest;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\ContributorsQuery;
 use App\Queries\FollowersYouKnowQuery;
 use App\Queries\GitHubReadmeQuery;
 use App\Queries\PinnedCommitQuery;
@@ -32,7 +33,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, UserModerationQuery $moderation, FollowersYouKnowQuery $followersYouKnow, GitHubReadmeQuery $readme, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, UserModerationQuery $moderation, FollowersYouKnowQuery $followersYouKnow, GitHubReadmeQuery $readme, ContributorsQuery $contributors, PageMetadata $metadata): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -59,6 +60,8 @@ final readonly class UserController
             'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
             'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),
             'isMuting' => fn (): bool => $currentUser?->isMuting($user) ?? false,
+            // GitHub can be slow to list the contributors when they aren't cached, so they load on their own
+            'isContributor' => Inertia::defer(fn (): bool => $contributors->includes($user), 'contributors'),
             'followersYouKnow' => fn (): ?array => $currentUser instanceof User && $currentUser->isNot($user)
                 ? $followersYouKnow->preview($user, $currentUser)
                 : null,

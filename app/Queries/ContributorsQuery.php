@@ -61,6 +61,14 @@ final readonly class ContributorsQuery
     }
 
     /**
+     * Whether the user's GitHub account is among the repository contributors. When GitHub doesn't answer, they aren't.
+     */
+    public function includes(User $user): bool
+    {
+        return in_array($user->github_id, array_column($this->accounts() ?? [], 'github_id'), true);
+    }
+
+    /**
      * The GitHub accounts behind the contributors. A failed read is kept for a minute, so an outage doesn't send every
      * visitor to GitHub.
      *

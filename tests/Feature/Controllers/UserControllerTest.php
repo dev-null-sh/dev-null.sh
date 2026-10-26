@@ -75,6 +75,30 @@ it('renders whether the user can be sponsored on github', function (): void {
             ->where('user.has_sponsors_listing', true));
 });
 
+it('defers whether the user contributes to /dev/null, matching their GitHub account', function (): void {
+    $contributor = User::factory()->create(['github_id' => (string) crc32('xHeaven')]);
+    $other = User::factory()->create();
+    fakeGitHubContributors([gitHubContributor('xHeaven', 187)]);
+
+    $this->get(route('user.show', $contributor))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->missing('isContributor')
+            ->loadDeferredProps('contributors', fn (AssertableInertia $reload): AssertableInertia => $reload->where('isContributor', true)));
+
+    $this->get(route('user.show', $other))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps('contributors', fn (AssertableInertia $reload): AssertableInertia => $reload->where('isContributor', false)));
+});
+
+it('does not show anyone as a contributor when GitHub does not answer', function (): void {
+    $user = User::factory()->create();
+    Http::fake(['api.github.com/*' => Http::response(status: 500)]);
+
+    $this->get(route('user.show', $user))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->loadDeferredProps('contributors', fn (AssertableInertia $reload): AssertableInertia => $reload->where('isContributor', false)));
+});
+
 it('does not count the user relations or activity when reloading only commits', function (string $tab): void {
     $user = User::factory()->has(Commit::factory())->create(['handle' => 'octocat']);
     Commit::factory()->for($user)->for(Commit::factory(), 'parent')->create();
