@@ -28,6 +28,7 @@ import { logLanes } from '@/lib/lane-swipe';
 import { cn } from '@/lib/utils';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
+/** Renders a log feed and preserves the reader's position as newer commits arrive. */
 export default function Show({
     log,
     commits,
