@@ -275,6 +275,17 @@ export function sameNodes(a: GraphNode[], b: GraphNode[]): boolean {
     return JSON.stringify(a) === JSON.stringify(b);
 }
 
+export type Cutout = Point & {
+    width: number;
+    height: number;
+    radius: number;
+    clip: number;
+};
+
+export function sameCutouts(a: Cutout[], b: Cutout[]): boolean {
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
 function trunkId(from: GraphNode, to: GraphNode): string {
     return `${from.id}->${to.id}`;
 }

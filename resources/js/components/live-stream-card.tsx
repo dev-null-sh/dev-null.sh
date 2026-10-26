@@ -1,7 +1,7 @@
 import { Link } from '@inertiajs/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { ArrowUpRight } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { LiveBadge } from '@/components/live-badge';
 import { Button } from '@/components/ui/button';
@@ -71,13 +71,17 @@ export function LiveStreamCard({
 /**
  * The avatar's ring turns red and a LIVE label sits on its edge, sized to the avatar it marks.
  */
-export function LiveAvatarMarker({ className }: { className?: string }) {
+export function LiveAvatarMarker({
+    className,
+    ...props
+}: ComponentProps<'span'>) {
     return (
         <LiveBadge
             className={cn(
                 'absolute -bottom-1.5 left-1/2 -translate-x-1/2 ring-2 ring-card',
                 className,
             )}
+            {...props}
         />
     );
 }

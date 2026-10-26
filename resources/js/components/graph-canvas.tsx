@@ -20,10 +20,12 @@ import {
     leavingOf,
     nodeIdentity,
     nodeStartsIn,
+    sameCutouts,
     sameNodes,
     scopedNodeId,
 } from '@/lib/graph';
 import type {
+    Cutout,
     Draw,
     GraphEdge,
     GraphNode,
@@ -214,6 +216,39 @@ export function GraphAnchor({
 
 type Size = { width: number; height: number };
 
+const cutoutSelector = '[data-graph-cutout]';
+
+function holdsCutout(node: Node): boolean {
+    return (
+        node instanceof Element &&
+        (node.matches(cutoutSelector) ||
+            node.querySelector(cutoutSelector) !== null)
+    );
+}
+
+function cutoutOf(
+    element: HTMLElement,
+    box: DOMRect,
+    container: Element,
+    clip: number,
+): Cutout {
+    const centre = layoutCentre(element, container);
+    const reach = Number(element.dataset.graphCutout) || 0;
+    const radius =
+        Number.parseFloat(getComputedStyle(element).borderTopLeftRadius) || 0;
+    const width = element.offsetWidth + reach * 2;
+    const height = element.offsetHeight + reach * 2;
+
+    return {
+        x: snap(centre.x - box.left - width / 2),
+        y: snap(centre.y - box.top - height / 2),
+        width,
+        height,
+        radius: radius + reach,
+        clip,
+    };
+}
+
 /** A leaving row, with the part of it still showing, as the canvas measures it. */
 type Leaving = LeavingRow & Size & { x: number; y: number };
 
@@ -384,6 +419,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     const observer = useRef<ResizeObserver | null>(null);
     const frame = useRef(0);
     const [nodes, setNodes] = useState<GraphNode[]>([]);
+    const [cutouts, setCutouts] = useState<Cutout[]>([]);
     const [size, setSize] = useState<Size>({ width: 0, height: 0 });
     const [leaving, setLeaving] = useState(noLeaving);
     const [isDrawing, setIsDrawing] = useState(false);
@@ -435,6 +471,16 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                     radius: element.offsetWidth / 2 + (spec.ring ?? 0),
                 };
             });
+        const cut = [
+            ...container.querySelectorAll<HTMLElement>(cutoutSelector),
+        ].map((element) =>
+            cutoutOf(
+                element,
+                box,
+                container,
+                rows.findIndex((row) => row.element.contains(element)),
+            ),
+        );
 
         setSize((current) =>
             current.width === box.width && current.height === box.height
@@ -450,6 +496,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
         setNodes((current) =>
             sameNodes(current, measured) ? current : measured,
         );
+        setCutouts((current) => (sameCutouts(current, cut) ? current : cut));
     }, [clip]);
 
     const measure = useCallback(() => {
@@ -549,6 +596,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                 records.some((record) =>
                     [...record.addedNodes, ...record.removedNodes].some(
                         (node) =>
+                            holdsCutout(node) ||
                             elements.some((element) => node.contains(element)),
                     ),
                 )
@@ -687,6 +735,19 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                                 row.ids.has(node.id),
                                             ),
                                         )}
+                                    />
+                                ))}
+                                {cutouts.map((cutout, index) => (
+                                    <rect
+                                        key={index}
+                                        x={cutout.x}
+                                        y={cutout.y}
+                                        width={cutout.width}
+                                        height={cutout.height}
+                                        rx={cutout.radius}
+                                        fill="black"
+                                        clipPath={clipOf(cutout.clip)}
+                                        data-test="graph-cutout"
                                     />
                                 ))}
                             </mask>

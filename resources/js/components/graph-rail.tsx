@@ -441,7 +441,10 @@ export function RailAvatar({
                 <UserAvatar user={user} className="size-10" />
             </span>
             {isLive && (
-                <LiveAvatarMarker className="px-1 text-[9px] leading-3.5" />
+                <LiveAvatarMarker
+                    className="px-1 text-[9px] leading-3.5"
+                    data-graph-cutout="2"
+                />
             )}
         </span>
     );
