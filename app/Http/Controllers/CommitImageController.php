@@ -13,6 +13,9 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final readonly class CommitImageController
 {
+    /**
+     * Public images on cloud storage are redirected to their signed URL; the rest are streamed from here, once the request has allowed them.
+     */
     public function show(ShowCommitImageRequest $request, CommitImage $commitImage): RedirectResponse|StreamedResponse
     {
         $url = $request->signedUrl();

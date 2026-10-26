@@ -137,6 +137,9 @@ it('does not cache images publicly', function (): void {
     expect($response->headers->get('Cache-Control'))->toContain('private')->not->toContain('public');
 });
 
+/**
+ * A real S3 disk, which signs URLs offline, so tests can read what the browser is redirected to without reaching AWS.
+ */
 function cloudDisk(?Credentials $credentials = null): AwsS3V3Adapter
 {
     $disk = Storage::build([

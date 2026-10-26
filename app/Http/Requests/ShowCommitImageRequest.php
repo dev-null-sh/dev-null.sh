@@ -56,6 +56,9 @@ final class ShowCommitImageRequest extends FormRequest
         return $this->signedUrl;
     }
 
+    /**
+     * Whether the image is wanted as a file to save rather than shown in the page.
+     */
     public function download(): bool
     {
         return $this->boolean('download');
