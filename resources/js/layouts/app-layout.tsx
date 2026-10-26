@@ -15,6 +15,7 @@ import {
 import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
 import { DeletedPageDialog } from '@/components/deleted-page-dialog';
+import { endStream, GoLiveDialog } from '@/components/go-live-dialog';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
@@ -29,6 +30,8 @@ import { useNavOpen } from '@/hooks/use-nav-open';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
 import { backgroundPollOptions } from '@/lib/background-poll';
+import type { IssueKind } from '@/lib/issue-commands';
+import type { SearchAction } from '@/lib/search-actions';
 import { cn } from '@/lib/utils';
 import type { AppLayoutProps } from '@/types';
 
@@ -41,6 +44,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
     const [isComposing, setIsComposing] = useState(false);
+    const [composingIssue, setComposingIssue] = useState<IssueKind | null>(
+        null,
+    );
+    const [isGoingLive, setIsGoingLive] = useState(false);
     const showShortcuts = useCallback(() => setIsShowingShortcuts(true), []);
     const openSearch = useCallback(() => setIsSearching(true), []);
     const isGuest = auth.user === null;
@@ -56,9 +63,27 @@ export default function AppLayout({ children }: AppLayoutProps) {
         }
 
         if (!focusVisibleComposer()) {
+            setComposingIssue(null);
             setIsComposing(true);
         }
     }, [isGuest]);
+
+    const runSearchAction = (action: SearchAction) => {
+        if (action === 'go-live') {
+            setIsGoingLive(true);
+
+            return;
+        }
+
+        if (action === 'end-stream') {
+            endStream();
+
+            return;
+        }
+
+        setComposingIssue(action === 'commit' ? null : action);
+        setIsComposing(true);
+    };
 
     useKeyboardShortcuts(
         auth.user,
@@ -138,12 +163,22 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 <SearchDialog
                     open={isSearching}
                     onOpenChange={setIsSearching}
+                    onAction={isGuest ? undefined : runSearchAction}
+                    isLive={!!auth.user?.live}
                 />
 
                 <CommitComposerDialog
                     open={isComposing}
                     onOpenChange={setIsComposing}
+                    issue={composingIssue}
                 />
+
+                {!isGuest && (
+                    <GoLiveDialog
+                        open={isGoingLive}
+                        onOpenChange={setIsGoingLive}
+                    />
+                )}
 
                 <KeyboardShortcutsDialog
                     open={isShowingShortcuts}

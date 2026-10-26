@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\CommitStatus;
+use App\Enums\ProfileType;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -15,9 +17,9 @@ final readonly class CreateTomFriendship
      */
     public const string GITHUB_ID = 'tom';
 
-    public const string USERNAME = 'tom';
+    public const string HANDLE = 'tom';
 
-    public const string FALLBACK_USERNAME = 'devnull-tom';
+    public const string FALLBACK_HANDLE = 'devnull-tom';
 
     /**
      * Like on MySpace, Tom is everyone's first friend: he follows them and they follow him, without a notification
@@ -50,13 +52,18 @@ final readonly class CreateTomFriendship
         }
 
         return DB::transaction(function (): User {
-            $tom = User::query()->create([
+            Profile::query()->create([
+                'type' => ProfileType::User,
                 'github_id' => self::GITHUB_ID,
-                'username' => self::USERNAME,
+                'handle' => self::HANDLE,
                 'name' => 'Tom',
                 'avatar_url' => asset('images/tom.webp'),
                 'bio' => "I'm here to help you get started on dev/null.",
                 'location' => 'Santa Monica, CA',
+            ]);
+
+            $tom = User::query()->create([
+                'github_id' => self::GITHUB_ID,
                 'onboarded_at' => now(),
                 'remotes_enabled' => false,
             ]);

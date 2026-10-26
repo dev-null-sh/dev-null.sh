@@ -8,7 +8,7 @@ import type { Commit } from '../../resources/js/types';
 const image = new File(['restored'], 'draft.png', { type: 'image/png' });
 const updateImages = vi.fn();
 const drop = vi.fn();
-const user = { id: 'viewer', username: 'viewer' };
+const user = { id: 'viewer', handle: 'viewer' };
 let isPreviewing = false;
 const draft = {
     key: 'stash:viewer:quote',
@@ -100,7 +100,7 @@ for (const previewing of [false, true]) {
             const commit = {
                 id: 'quoted',
                 user_id: 'author',
-                user: { username: 'author' },
+                user: { handle: 'author' },
                 status: 'approved',
             } as Commit;
             const button = CommitQuoteButton({ commit })!;
@@ -138,7 +138,7 @@ test('quotes submit restored images and clear the complete draft only on success
     const commit = {
         id: 'quoted',
         user_id: 'author',
-        user: { username: 'author' },
+        user: { handle: 'author' },
         status: 'approved',
     } as Commit;
     const button = CommitQuoteButton({ commit })!;
@@ -249,7 +249,7 @@ test('escape in the preview returns to writing without closing the quote', () =>
     const commit = {
         id: 'quoted',
         user_id: 'author',
-        user: { username: 'author' },
+        user: { handle: 'author' },
         status: 'approved',
     } as Commit;
     const button = CommitQuoteButton({ commit })!;
@@ -300,7 +300,7 @@ test('quotes let the author pick which link gets the card', () => {
     const commit = {
         id: 'quoted',
         user_id: 'author',
-        user: { username: 'author' },
+        user: { handle: 'author' },
         status: 'approved',
     } as Commit;
     const button = CommitQuoteButton({ commit })!;

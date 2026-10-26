@@ -772,7 +772,7 @@ export function ConversationThread({
                                 <li className="py-10 text-center font-mono text-[13px] text-muted-foreground">
                                     empty history.{' '}
                                     {target.kind === 'direct'
-                                        ? `say hi to @${target.partner.username}`
+                                        ? `say hi to @${target.partner.handle}`
                                         : 'say hi to the org'}
                                 </li>
                             )}
@@ -861,7 +861,7 @@ export function ConversationThread({
                                 ? typingText(thread?.typing ?? [])
                                 : null
                             : thread?.partner_typing
-                              ? `@${target.partner.username} is typing…`
+                              ? `@${target.partner.handle} is typing…`
                               : null
                     }
                 />
@@ -1452,7 +1452,7 @@ function BubbleWithMeta({
  * The members who pulled a message, as small avatars, or "everyone" once the whole org has.
  */
 function PulledBy({ users, total }: { users: User[]; total: number }) {
-    const names = users.map((person) => `@${person.username}`).join(', ');
+    const names = users.map((person) => `@${person.handle}`).join(', ');
 
     if (users.length === total && total > 3) {
         return (
@@ -1648,12 +1648,12 @@ function Composer({
     const id = `message-${targetKey(target).replace(':', '-')}`;
     const placeholder =
         target.kind === 'direct'
-            ? `Message @${target.partner.username}`
+            ? `Message @${target.partner.handle}`
             : `Message ${target.org.name ?? 'the org'}`;
     const lane = target.kind === 'direct' ? target.partner.lane : 0;
     const pingLabel =
         target.kind === 'direct'
-            ? `Ping @${target.partner.username}`
+            ? `Ping @${target.partner.handle}`
             : 'Ping everyone in the org';
     const { stash, attachments, linkCard, input } = draft;
     const body = stash.body;
@@ -2074,7 +2074,7 @@ function AccessBar({
                     <>
                         <p className="min-w-0 flex-1 text-sm text-muted-foreground">
                             <span className="font-mono text-foreground">
-                                @{partner.username}
+                                @{partner.handle}
                             </span>{' '}
                             wants to push to you. Merge to reply, or drop it.
                             They won&apos;t be told.
@@ -2101,9 +2101,9 @@ function AccessBar({
                     <p className="min-w-0 flex-1 font-mono text-[13px] text-muted-foreground">
                         {
                             {
-                                waiting: `pushed. waiting for @${partner.username} to merge your request`,
-                                restricted: `@${partner.username} doesn't follow you, so you can't push to them yet`,
-                                closed: `@${partner.username} isn't taking remotes`,
+                                waiting: `pushed. waiting for @${partner.handle} to merge your request`,
+                                restricted: `@${partner.handle} doesn't follow you, so you can't push to them yet`,
+                                closed: `@${partner.handle} isn't taking remotes`,
                                 open: '',
                                 request: '',
                             }[access]

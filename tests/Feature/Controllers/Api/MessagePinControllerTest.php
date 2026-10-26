@@ -14,9 +14,9 @@ use Illuminate\Support\Str;
 beforeEach(function (): void {
     config(['remotes.requests' => true, 'remotes.everyone' => true]);
 
-    $this->user = User::factory()->withRemotes()->create(['username' => 'octocat']);
+    $this->user = User::factory()->withRemotes()->create(['handle' => 'octocat']);
     $this->keyPair = apiKeyPairFor($this->user);
-    $this->nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $this->nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
 });
 
 it('pins a message for the whole org once, and answers with the pinned messages as the thread shows them', function (): void {
@@ -123,7 +123,7 @@ it('pins only within the history the maintainer can see, but unpins whatever the
     $this->user->following()->attach($this->nuno);
     $org = createOrg($this->nuno, [$taylor]);
     $before = pushToOrg($taylor, $org, 'from before octocat joined');
-    $this->actingAs($this->nuno)->postJson(route('org-member.store', $org), ['members' => [$this->user->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($this->nuno)->postJson(route('org-member.store', $org), ['members' => [$this->user->handle], 'share_history' => false])->assertNoContent();
     $this->putJson(route('org-member.update', [$org, $this->user]), ['role' => 'maintainer'])->assertNoContent();
 
     signedApiRequest($this->keyPair, 'PUT', route('api-message-pin.update', $before))->assertNotFound();
@@ -140,7 +140,7 @@ it('leaves out what a pinned message replies to, which may be from before the me
     $answer = $this->actingAs($this->user)->postJson(route('org-message.store', $org), ['body' => 'in the vault', 'client_id' => Str::uuid()->toString(), 'reply_to_id' => $question->id])
         ->assertCreated()
         ->json('message.id');
-    $this->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
     $this->putJson(route('org-member.update', [$org, $taylor]), ['role' => 'maintainer'])->assertNoContent();
     $welcome = pushToOrg($nuno, $org, 'welcome taylor');
     signedApiRequest($this->keyPair, 'PUT', route('api-message-pin.update', $answer))->assertOk();

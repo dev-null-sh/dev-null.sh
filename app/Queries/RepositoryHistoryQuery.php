@@ -72,8 +72,8 @@ final readonly class RepositoryHistoryQuery
         $authors = User::query()
             ->whereNotNull('onboarded_at')
             ->whereIn('github_id', collect($result['pull_requests'])->merge($result['commits'])->pluck('github_id')->filter()->unique())
-            ->get(['github_id', 'username'])
-            ->reject(fn (User $user): bool => str_starts_with($user->username, '_'))
+            ->get()
+            ->reject(fn (User $user): bool => str_starts_with($user->handle, '_'))
             ->mapWithKeys(fn (User $user): array => [$user->github_id => $user->mention()]);
 
         foreach (['pull_requests', 'commits'] as $key) {

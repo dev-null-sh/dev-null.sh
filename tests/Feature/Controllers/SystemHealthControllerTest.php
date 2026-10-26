@@ -12,7 +12,7 @@ beforeEach(function (): void {
 });
 
 it('shows the operational health of the app to admins', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
 
     Commit::factory()->pending()->count(2)->create(['created_at' => now()->subMinutes(10)]);
     LinkPreview::factory()->create();
@@ -56,7 +56,7 @@ it('shows the GitHub rate limit when GitHub credentials are configured', functio
         ]),
     ]);
 
-    $response = $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $response = $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('system-health.show'));
 
     $response->assertOk()

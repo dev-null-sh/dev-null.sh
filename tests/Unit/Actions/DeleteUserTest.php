@@ -36,6 +36,7 @@ it('may delete a user', function (): void {
 
     expect($user->exists)->toBeFalse();
     $this->assertModelMissing($user);
+    $this->assertModelMissing($user->profile);
 });
 
 it('erases the commits of a deleted user along with the replies under them', function (): void {
@@ -84,8 +85,8 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
     $mentioned = User::factory()->create();
     $commit = Commit::factory()->create();
     $reply = Commit::factory()->for($user)->for($commit, 'parent')->for(LinkPreview::factory())->create([
-        'body' => "@{$mentioned->username} have a look at https://example.com",
-        'mentions' => [$mentioned->username => $mentioned->id],
+        'body' => "@{$mentioned->handle} have a look at https://example.com",
+        'mentions' => [$mentioned->handle => $mentioned->id],
         'embedding' => embeddingVector(0),
     ]);
     $deletedReply = Commit::factory()->for($user)->for($commit, 'parent')->create();
@@ -108,7 +109,7 @@ it('erases what deleted accounts wrote from the tombstones they already left', f
     $mentioned = User::factory()->create();
     $orphan = Commit::factory()->for(LinkPreview::factory())->create([
         'user_id' => null,
-        'mentions' => [$mentioned->username => $mentioned->id],
+        'mentions' => [$mentioned->handle => $mentioned->id],
         'embedding' => embeddingVector(0),
         'deleted_at' => now(),
     ]);

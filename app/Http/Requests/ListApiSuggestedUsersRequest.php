@@ -1,0 +1,48 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests;
+
+use App\Enums\ProfileType;
+use App\Models\Commit;
+use App\Models\User;
+use App\Rules\VisibleCommit;
+use Illuminate\Contracts\Validation\ValidationRule;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Exists;
+
+/**
+ * Who to follow may be asked for the page it shows on, as the web asks for it beside a profile or a commit. The commit
+ * has to be one the user can see, as its page requires. The API calls a handle a username, as in its user resources.
+ */
+final class ListApiSuggestedUsersRequest extends FormRequest
+{
+    /**
+     * @return array<string, list<string|ValidationRule|Exists>>
+     */
+    public function rules(): array
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return [
+            'round' => ['nullable', 'integer', 'min:0'],
+            'username' => ['nullable', 'string', Rule::exists('profiles', 'handle')->where('type', ProfileType::User->value)],
+            'commit_id' => ['bail', 'nullable', 'uuid', 'prohibits:username', new VisibleCommit($user, __('That commit is no longer available.'))],
+        ];
+    }
+
+    public function context(): User|Commit|null
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return match (true) {
+            $this->filled('username') => User::query()->whereRelation('profile', 'handle', $this->string('username')->value())->firstOrFail(),
+            $this->filled('commit_id') => Commit::query()->visibleTo($user)->findOrFail($this->string('commit_id')->value()),
+            default => null,
+        };
+    }
+}

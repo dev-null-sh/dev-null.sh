@@ -53,13 +53,13 @@ function elements(node: ReactNode): Element[] {
     ];
 }
 function member(
-    username: string,
-    name = username,
+    handle: string,
+    name = handle,
     followed = false,
     suggested = true,
 ): OrgMember {
     return {
-        user: { id: username, username, name, lane: 1 } as User,
+        user: { id: handle, handle, name, lane: 1 } as User,
         role: 'contributor',
         read_through_id: 0,
         is_followed: followed,
@@ -79,7 +79,7 @@ function render(members: OrgMember[] | undefined, query = '') {
         }),
     );
 }
-function usernames(fields: Element[]) {
+function handles(fields: Element[]) {
     return fields
         .filter(
             (element) => element.props['data-test'] === 'mention-suggestion',
@@ -99,7 +99,7 @@ beforeEach(() => {
 test('suggests loaded org members immediately without scheduling a search request', () => {
     const fields = render([member('taylor'), member('jess', 'Jess', true)]);
 
-    assert.deepEqual(usernames(fields), ['jess', 'taylor']);
+    assert.deepEqual(handles(fields), ['jess', 'taylor']);
     assert.equal(effects[0](), undefined);
     assert.equal(fetchMock.mock.calls.length, 0);
 });
@@ -118,7 +118,7 @@ test('preserves matching tiers, followed priority, exclusions, and the six-resul
         member('irrelevant'),
     ];
 
-    assert.deepEqual(usernames(render(members, 'TAY')), [
+    assert.deepEqual(handles(render(members, 'TAY')), [
         'tay',
         'tay-f',
         'tay-a',
@@ -127,7 +127,7 @@ test('preserves matching tiers, followed priority, exclusions, and the six-resul
         'tay-z',
     ]);
     assert.deepEqual(
-        usernames(
+        handles(
             render(
                 [
                     member('contains', 'A Taylor'),
@@ -146,7 +146,7 @@ test('updates an open picker when members join or leave and keeps keyboard selec
     state[3] = 2;
     const fields = render([member('newcomer')]);
 
-    assert.deepEqual(usernames(fields), ['newcomer']);
+    assert.deepEqual(handles(fields), ['newcomer']);
     assert.equal(
         fields.find((element) => element.type === 'textarea')?.props[
             'aria-activedescendant'
@@ -159,7 +159,7 @@ test('updates an open picker when members join or leave and keeps keyboard selec
         ],
         true,
     );
-    assert.deepEqual(usernames(render([], 'tay')), []);
+    assert.deepEqual(handles(render([], 'tay')), []);
 });
 
 afterEach(() => {

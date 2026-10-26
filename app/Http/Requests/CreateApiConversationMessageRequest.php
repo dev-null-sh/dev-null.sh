@@ -38,10 +38,10 @@ final class CreateApiConversationMessageRequest extends FormRequest
 
         return match ($access->get($user, $partner)) {
             PushAccess::Open => Response::allow(),
-            PushAccess::Request => Response::deny("Merge @{$partner->username}'s request before replying."),
-            PushAccess::Waiting => Response::deny("@{$partner->username} hasn't merged your request yet."),
-            PushAccess::Restricted => Response::deny("@{$partner->username} doesn't follow you, so you can't push to them yet."),
-            PushAccess::Closed => Response::deny("@{$partner->username} isn't taking remotes."),
+            PushAccess::Request => Response::deny("Merge @{$partner->handle}'s request before replying."),
+            PushAccess::Waiting => Response::deny("@{$partner->handle} hasn't merged your request yet."),
+            PushAccess::Restricted => Response::deny("@{$partner->handle} doesn't follow you, so you can't push to them yet."),
+            PushAccess::Closed => Response::deny("@{$partner->handle} isn't taking remotes."),
         };
     }
 

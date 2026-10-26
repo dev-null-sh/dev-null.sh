@@ -35,7 +35,7 @@ export default function Banned({
 
             <main className="mx-auto flex min-h-svh w-full max-w-3xl items-center px-4 py-16 sm:px-8">
                 <ErrorMessage
-                    command={`remote: Permission to /dev/null denied to ${user?.username ?? 'you'}: banned.`}
+                    command={`remote: Permission to /dev/null denied to ${user?.handle ?? 'you'}: banned.`}
                     headline={<h1>Your account is banned.</h1>}
                     description={
                         <div className="grid gap-3">

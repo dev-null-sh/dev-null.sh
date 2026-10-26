@@ -180,13 +180,13 @@ export default function Show({
                             empty="unknown"
                             rows={breakdowns.authors}
                             formatName={(name) => `@${name}`}
-                            renderName={(username) => (
-                                <UserPreview user={{ username }}>
+                            renderName={(handle) => (
+                                <UserPreview user={{ handle }}>
                                     <Link
-                                        href={UserController.show(username)}
+                                        href={UserController.show(handle)}
                                         className="underline-offset-4 hover:underline"
                                     >
-                                        @{username}
+                                        @{handle}
                                     </Link>
                                 </UserPreview>
                             )}

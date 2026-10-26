@@ -10,7 +10,7 @@ beforeEach(function (): void {
 });
 
 it('draws the activity of the site to admins', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
 
     Commit::factory()->pending()->count(2)->create();
     Commit::factory()->for(Commit::factory(), 'parent')->create();
@@ -44,7 +44,7 @@ it('draws the activity of the site to admins', function (): void {
 });
 
 it('draws the activity at the chosen scale', function (): void {
-    $response = $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $response = $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('site-activity.show', ['scale' => 'day']));
 
     $response->assertOk()
@@ -56,7 +56,7 @@ it('draws the activity at the chosen scale', function (): void {
 it('draws the chosen series', function (): void {
     User::factory()->create(['created_at' => now()->subDay()]);
 
-    $response = $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $response = $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('site-activity.show', ['metric' => 'signups']));
 
     $response->assertOk()
@@ -69,14 +69,14 @@ it('draws the chosen series', function (): void {
 it('offers the traffic tab when a Fathom token is configured', function (): void {
     config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('site-activity.show'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('hasTraffic', true));
 });
 
 it('rejects unknown activity scales and series', function (array $query): void {
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('site-activity.show', $query))
         ->assertSessionHasErrors();
 })->with([

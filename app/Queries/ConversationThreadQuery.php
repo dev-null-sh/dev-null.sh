@@ -118,7 +118,7 @@ final readonly class ConversationThreadQuery
         $typingUsers = $participants
             ->reject(fn (ConversationParticipant $participant): bool => $participant->user_id === $user->id)
             ->mapWithKeys(fn (ConversationParticipant $participant): array => [
-                UpdateConversationTyping::key($participant->user, $org) => $participant->user->username,
+                UpdateConversationTyping::key($participant->user, $org) => $participant->user->handle,
             ]);
         $typingStatuses = Cache::many($typingUsers->keys()->all());
 
@@ -137,7 +137,7 @@ final readonly class ConversationThreadQuery
                 'is_followed' => (bool) $participant->getAttribute('is_followed'),
             ])->values()->toBase(),
             'typing' => $typingUsers
-                ->filter(fn (string $username, string $key): bool => (bool) ($typingStatuses[$key] ?? false))
+                ->filter(fn (string $handle, string $key): bool => (bool) ($typingStatuses[$key] ?? false))
                 ->values()
                 ->all(),
             'is_archived' => $mine->archived_at !== null,

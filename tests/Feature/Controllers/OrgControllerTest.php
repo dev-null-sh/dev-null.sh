@@ -41,7 +41,7 @@ it('identifies orgs by uuids', function (): void {
 it('says why people cannot be added', function (string $case, string $reason): void {
     $mark = User::factory()->create();
     [$nuno] = followersOf($mark, 1);
-    $candidate = User::factory()->create(['username' => 'candidate']);
+    $candidate = User::factory()->create(['handle' => 'candidate']);
 
     if ($case !== 'not a follower') {
         $candidate->following()->attach($mark);
@@ -54,7 +54,7 @@ it('says why people cannot be added', function (string $case, string $reason): v
         default => null,
     };
 
-    $this->actingAs($mark)->postJson(route('org.store'), ['members' => ['candidate', $nuno->username]])
+    $this->actingAs($mark)->postJson(route('org.store'), ['members' => ['candidate', $nuno->handle]])
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['members.0' => "@candidate {$reason}."]);
 })->with([
@@ -66,7 +66,7 @@ it('says why people cannot be added', function (string $case, string $reason): v
 
 it('lets site admins add anyone with remotes on', function (): void {
     config(['app.admins' => ['mark']]);
-    $mark = User::factory()->create(['username' => 'mark']);
+    $mark = User::factory()->create(['handle' => 'mark']);
     $nuno = User::factory()->create();
 
     createOrg($mark, [$nuno]);
@@ -77,7 +77,7 @@ it('lets site admins add anyone with remotes on', function (): void {
 it('caps an org at a hundred people', function (): void {
     $mark = User::factory()->create();
 
-    $this->actingAs($mark)->postJson(route('org.store'), ['members' => array_map(fn (User $user): string => $user->username, followersOf($mark, Conversation::MAX_MEMBERS))])
+    $this->actingAs($mark)->postJson(route('org.store'), ['members' => array_map(fn (User $user): string => $user->handle, followersOf($mark, Conversation::MAX_MEMBERS))])
         ->assertUnprocessable()->assertJsonValidationErrors('members');
 });
 
@@ -95,7 +95,7 @@ it('shows an org only to its members', function (): void {
             ->where('thread.role', 'maintainer')
             ->has('thread.members', 2)
             ->where('thread.messages.1.body', 'standup in 10?')
-            ->where('thread.messages.1.user.username', $nuno->username));
+            ->where('thread.messages.1.user.handle', $nuno->handle));
 
     $this->actingAs(User::factory()->create())->get(route('org.show', $org))->assertNotFound();
     $this->getJson(route('org-message.index', $org))->assertNotFound();

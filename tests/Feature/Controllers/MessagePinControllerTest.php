@@ -19,7 +19,7 @@ it('lets maintainers pin a message for the whole org, once', function (): void {
         ->assertJsonCount(1, 'pinned')
         ->assertJsonPath('pinned.0.id', $message->id)
         ->assertJsonPath('pinned.0.body', 'deploys go out on fridays now')
-        ->assertJsonPath('pinned.0.user.username', $nuno->username)
+        ->assertJsonPath('pinned.0.user.handle', $nuno->handle)
         ->assertJsonPath('reactions_version', $version + 1);
 
     $pinnedAt = $message->fresh()?->pinned_at;
@@ -116,7 +116,7 @@ it('pins only within the history the maintainer can see, but unpins whatever the
     [$nuno, $taylor] = followersOf($mark, 2);
     $org = createOrg($mark, [$nuno]);
     $before = pushToOrg($nuno, $org, 'from before taylor joined');
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
     $this->putJson(route('org-member.update', [$org, $taylor]), ['role' => 'maintainer'])->assertNoContent();
 
     $this->actingAs($taylor)->putJson(route('message-pin.update', $before))->assertNotFound();

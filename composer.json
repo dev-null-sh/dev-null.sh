@@ -22,12 +22,13 @@
         "nunomaduro/essentials": "^1.2.0",
         "phpseclib/phpseclib": "^4.0.2",
         "resend/resend-php": "^1.17",
+        "symfony/html-sanitizer": "^8.1.8",
         "tempest/highlight": "^2.29.0"
     },
     "require-dev": {
         "driftingly/rector-laravel": "^2.7.0",
         "fakerphp/faker": "^1.24.1",
-        "larastan/larastan": "^3.13.1",
+        "larastan/larastan": "^3.13.2",
         "laravel/boost": "^2.10.3",
         "laravel/pail": "^1.2.7",
         "laravel/pao": "^1.1.5",

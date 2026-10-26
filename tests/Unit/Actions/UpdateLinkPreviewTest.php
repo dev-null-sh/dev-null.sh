@@ -433,7 +433,7 @@ it('refuses to fetch urls that are not public http urls', function (string $url)
     'https on http port' => 'https://example.com:80/',
     'http on https port' => 'http://example.com:443/',
     'credentials' => 'https://user:secret@example.com/',
-    'username only' => 'https://user@example.com/',
+    'handle only' => 'https://user@example.com/',
     'password only' => 'https://:secret@example.com/',
     'ftp' => 'ftp://example.com/file',
     'file' => 'file:///etc/passwd',

@@ -11,7 +11,7 @@ beforeEach(function (): void {
 });
 
 it('lists the features to admins', function (): void {
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('feature.index'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -23,7 +23,7 @@ it('lists the features to admins', function (): void {
 it('offers the traffic tab when a Fathom token is configured', function (): void {
     config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('feature.index'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('hasTraffic', true));
@@ -40,7 +40,7 @@ it('requires authentication to list the features', function (): void {
 });
 
 it('lets admins switch a feature off and back on for everyone', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
 
     $this->actingAs($admin)->get(route('feature.index'))
         ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => true]]));
@@ -62,7 +62,7 @@ it('lets admins switch a feature off and back on for everyone', function (): voi
 });
 
 it('rejects missing or invalid settings without changing the feature', function (array $payload): void {
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->putJson(route('feature.update', 'translations'), $payload)
         ->assertUnprocessable()->assertJsonValidationErrors('enabled');
 
@@ -71,7 +71,7 @@ it('rejects missing or invalid settings without changing the feature', function 
 })->with([fn (): array => [], fn (): array => ['enabled' => 'yes'], fn (): array => ['enabled' => null]]);
 
 it('is a 404 for unknown features', function (): void {
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->put(route('feature.update', 'teleportation'), ['enabled' => false])
         ->assertNotFound();
 

@@ -15,7 +15,7 @@ use Illuminate\Support\Str;
 beforeEach(function (): void {
     config(['remotes.requests' => true, 'remotes.everyone' => true]);
 
-    $this->user = User::factory()->withRemotes()->create(['username' => 'octocat']);
+    $this->user = User::factory()->withRemotes()->create(['handle' => 'octocat']);
     $this->keyPair = apiKeyPairFor($this->user);
 });
 
@@ -23,7 +23,7 @@ it('loads the latest messages with the partner, as the web thread does', functio
     Queue::fake();
     Storage::fake();
 
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
     $question = sendChatMessage($nuno, $this->user, 'did @octocat see `the PR`, @ghost? https://laravel.com');
     $this->actingAs($this->user)->post(route('conversation-message.store', $nuno), [
         'body' => '',
@@ -38,7 +38,7 @@ it('loads the latest messages with the partner, as the web thread does', functio
     $response = signedApiRequest($this->keyPair, 'GET', route('api-conversation-message.index', $nuno));
 
     $response->assertOk()
-        ->assertJsonPath('data.partner.username', 'nunomaduro')
+        ->assertJsonPath('data.partner.handle', 'nunomaduro')
         ->assertJsonPath('data.partner.lane', $nuno->lane())
         ->assertJsonCount(2, 'data.messages')
         ->assertJsonPath('data.messages.0.id', $question->id)
@@ -49,7 +49,7 @@ it('loads the latest messages with the partner, as the web thread does', functio
             ['type' => 'code', 'code' => 'the PR'],
             ['type' => 'text', 'text' => ', @ghost? https://laravel.com'],
         ])
-        ->assertJsonPath('data.messages.0.mentions', [['username' => 'octocat', 'offset' => 4, 'length' => 8]])
+        ->assertJsonPath('data.messages.0.mentions', [['handle' => 'octocat', 'username' => 'octocat', 'offset' => 4, 'length' => 8]])
         ->assertJsonPath('data.messages.0.link_preview.url', 'https://laravel.com')
         ->assertJsonPath('data.messages.0.link_preview.is_pending', true)
         ->assertJsonPath('data.messages.0.reply_to', null)
@@ -201,7 +201,7 @@ it('hides people the user cannot message', function (string $who): void {
     signedApiRequest($this->keyPair, 'GET', route('api-conversation-message.index', $partner))->assertNotFound();
 })->with(['themselves', 'blocked', 'blocker', 'remotes off']);
 
-it('returns not found for unknown usernames', function (): void {
+it('returns not found for unknown handles', function (): void {
     signedApiRequest($this->keyPair, 'GET', 'api/v1/remotes/@missing/messages')->assertNotFound();
 });
 
