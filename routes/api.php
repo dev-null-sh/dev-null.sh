@@ -22,6 +22,7 @@ use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\MacAppController;
 use App\Http\Controllers\Api\MessageImageController;
@@ -64,6 +65,7 @@ use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\PreventPostingInTimeout;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Route;
 
