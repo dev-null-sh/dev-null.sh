@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Contracts\Services\DnsResolver;
+use App\Dto\GitHubPermalink;
 use App\Models\LinkPreview;
+use App\Services\CodeSnippets;
 use Dom\HTMLDocument;
 use GuzzleHttp\Exception\ResponseException;
 use GuzzleHttp\Psr7\Utils;
@@ -61,7 +63,7 @@ final readonly class UpdateLinkPreview
         'site_name' => null,
     ];
 
-    public function __construct(private DnsResolver $dns)
+    public function __construct(private DnsResolver $dns, private CodeSnippets $codeSnippets)
     {
         //
     }
@@ -69,11 +71,43 @@ final readonly class UpdateLinkPreview
     /**
      * Fetches the page behind the link and stores its Open Graph metadata. A page that can't or mustn't be fetched is
      * marked as fetched without metadata, so it is not tried again. Failures that may pass, such as connection errors,
-     * timeouts, rate limits and server errors, are thrown instead, so the caller can try again later.
+     * timeouts, rate limits and server errors, are thrown instead, so the caller can try again later. A permalink to
+     * lines of code on GitHub also gets those lines, which are shown instead of the card while they are cached.
      */
     public function handle(LinkPreview $linkPreview): void
     {
-        $linkPreview->update([...$this->fetchMetadata($linkPreview->url), 'fetched_at' => now()]);
+        $metadata = $this->fetchMetadata($linkPreview->url);
+        $permalink = GitHubPermalink::parse($linkPreview->url);
+
+        if ($permalink instanceof GitHubPermalink) {
+            $this->fetchSnippet($permalink);
+        }
+
+        $linkPreview->update([...$metadata, 'fetched_at' => now()]);
+    }
+
+    /**
+     * The raw file comes from a URL we build, on one fixed host, without following redirects: anything but a plain
+     * text file means no snippet. The snippet is an extra, so failing to fetch it never costs the link its card.
+     */
+    private function fetchSnippet(GitHubPermalink $permalink): void
+    {
+        $file = $permalink->rawUrl();
+        $address = $this->publicAddress($file);
+
+        if ($address === null) {
+            return;
+        }
+
+        try {
+            $response = $this->get($file, $address, 'text/plain');
+        } catch (ConnectionException) {
+            return;
+        }
+
+        if ($response->ok() && $this->hasMediaType($response, ['text/plain'])) {
+            $this->codeSnippets->put($permalink, $this->body($response));
+        }
     }
 
     /**
@@ -99,7 +133,7 @@ final readonly class UpdateLinkPreview
             }
 
             if (! $response->redirect()) {
-                return $response->successful() && $this->isHtml($response)
+                return $response->successful() && $this->hasMediaType($response, ['text/html', 'application/xhtml+xml'])
                     ? $this->parse($this->body($response), $page)
                     : self::NO_METADATA;
             }
@@ -141,12 +175,12 @@ final readonly class UpdateLinkPreview
      * (by that limit or by the timeout) is still used, as metadata lives at the top of the page. English is asked for
      * explicitly, as sites such as YouTube otherwise pick the language from the server's location.
      */
-    private function get(Url $url, string $address): Response
+    private function get(Url $url, string $address, string $accept = 'text/html'): Response
     {
         $port = $url->getPort() ?? ($url->getScheme() === 'https' ? 443 : 80);
 
         $request = Http::withUserAgent(sprintf('Mozilla/5.0 (compatible; devnull-linkpreview/1.0; +%s)', config()->string('app.url')))
-            ->accept('text/html')
+            ->accept($accept)
             ->withHeaders(['Accept-Language' => 'en-US,en;q=0.9'])
             ->connectTimeout(3)
             ->timeout(5)
@@ -172,11 +206,14 @@ final readonly class UpdateLinkPreview
         }
     }
 
-    private function isHtml(Response $response): bool
+    /**
+     * @param  list<string>  $mediaTypes
+     */
+    private function hasMediaType(Response $response, array $mediaTypes): bool
     {
         $mediaType = mb_strtolower(mb_trim(Str::before($response->header('Content-Type'), ';')));
 
-        return in_array($mediaType, ['text/html', 'application/xhtml+xml'], true);
+        return in_array($mediaType, $mediaTypes, true);
     }
 
     private function body(Response $response): string

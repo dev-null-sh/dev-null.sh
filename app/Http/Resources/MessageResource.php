@@ -51,7 +51,7 @@ final class MessageResource extends JsonResource
                 'images_count' => $replyTo->images->count(),
                 'has_voice' => $replyTo->voice instanceof MessageVoice,
             ]),
-            'link_preview' => $this->whenLoaded('linkPreview'),
+            'link_preview' => LinkPreviewResource::make($this->whenLoaded('linkPreview')),
             'images' => $this->whenLoaded('images', fn (): Collection => $this->images->map(fn (MessageImage $image): array => [
                 'id' => $image->id,
                 'width' => $image->width,

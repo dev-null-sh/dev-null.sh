@@ -20,6 +20,8 @@
         "Unit/FollowRequests.test.tsx",
         "Unit/FollowState.test.tsx",
         "Unit/LinkEmbedHeight.test.tsx",
+        "Unit/LinkPreviewSnippet.test.tsx",
+        "Unit/LinkPreviewSnippetFetch.test.tsx",
         "Unit/LogInsertion.test.tsx",
         "Unit/VoiceVolume.test.tsx",
         "Unit/VoiceVolumeHover.test.tsx",

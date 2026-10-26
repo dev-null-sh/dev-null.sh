@@ -21,6 +21,15 @@ export type LinkPreview = {
     site_name: string | null;
     is_pending: boolean;
     embed?: Embed | null;
+    snippet?: CodeSnippet | null;
+};
+
+export type CodeSnippet = {
+    path: string;
+    start_line: number;
+    end_line: number;
+    cited_end_line: number;
+    html: string;
 };
 
 export type PollOption = {

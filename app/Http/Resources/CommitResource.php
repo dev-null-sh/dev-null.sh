@@ -61,7 +61,7 @@ final class CommitResource extends JsonResource
             'created_at' => $this->created_at->toIso8601ZuluString(),
             'stars_count' => $this->whenCounted('stars'),
             'replies_count' => $this->whenCounted('replies'),
-            'link_preview' => $this->whenLoaded('linkPreview'),
+            'link_preview' => LinkPreviewResource::make($this->whenLoaded('linkPreview')),
             'images' => $this->whenLoaded('images', fn (): mixed => $this->status === CommitStatus::Approved || ! $this->imagesAreVisibleTo($request->user())
                 ? $this->images
                 : $this->images->map(fn (CommitImage $image): array => [...$image->toArray(), 'url' => $image->temporaryUrl()])),

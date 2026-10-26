@@ -1,10 +1,78 @@
 import { useEffect, useState } from 'react';
+import { CodeBlock } from '@/components/code-block';
 import { LinkEmbed } from '@/components/link-embed';
 import { Skeleton } from '@/components/ui/skeleton';
 import { hostname } from '@/lib/urls';
-import type { LinkPreview as LinkPreviewData } from '@/types';
+import type { CodeSnippet, LinkPreview as LinkPreviewData } from '@/types';
 
 const POLL_DELAYS = [1000, 2000, 3000, 5000, 8000, 13000];
+
+const JSON_REQUEST = {
+    headers: { Accept: 'application/json' },
+    cache: 'no-store',
+} as const satisfies RequestInit;
+
+/**
+ * A link to lines of a file at a commit, which is the only link that has a snippet to ask for.
+ * Keep in sync with app/Dto/GitHubPermalink.php.
+ */
+const PERMALINK =
+    /^https?:\/\/(?:www\.)?github\.com\/[^/]+\/[^/]+\/blob\/[0-9a-f]{40}\/[^#?]+(?:\?[^#]*)?#L\d+(?:-L\d+)?$/;
+
+/**
+ * The cited lines, which the page itself does not carry: the pages hand the model over as it is, and the snippet is
+ * added where the card is served. One request, only for a link that can have one, and the card stays put when it
+ * cannot be read.
+ */
+function useFetchedSnippet(
+    refreshUrl: string,
+    preview: LinkPreviewData,
+    isStatic: boolean,
+): CodeSnippet | null {
+    const [fetched, setFetched] = useState<CodeSnippet | null>(null);
+    const isMissing =
+        !isStatic &&
+        !preview.snippet &&
+        !preview.is_pending &&
+        PERMALINK.test(preview.url);
+
+    useEffect(() => {
+        if (!isMissing) {
+            return;
+        }
+
+        const controller = new AbortController();
+
+        const read = async () => {
+            try {
+                const response = await fetch(refreshUrl, {
+                    ...JSON_REQUEST,
+                    signal: controller.signal,
+                });
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const { link_preview } = (await response.json()) as {
+                    link_preview: LinkPreviewData | null;
+                };
+
+                if (link_preview?.snippet) {
+                    setFetched(link_preview.snippet);
+                }
+            } catch {
+                // The card is already on screen, so a failed read leaves it as it is.
+            }
+        };
+
+        void read();
+
+        return () => controller.abort();
+    }, [refreshUrl, isMissing]);
+
+    return preview.snippet ?? fetched;
+}
 
 /**
  * A link is unfurled in the background after its commit or message is posted, so a pending preview is fetched again
@@ -28,8 +96,7 @@ function useFetchedLinkPreview(
         const poll = async (attempt: number) => {
             try {
                 const response = await fetch(refreshUrl, {
-                    headers: { Accept: 'application/json' },
-                    cache: 'no-store',
+                    ...JSON_REQUEST,
                     signal: controller.signal,
                 });
 
@@ -116,6 +183,7 @@ export function LinkPreview({
         refreshUrl,
         initialPreview,
     );
+    const snippet = useFetchedSnippet(refreshUrl, preview, isStatic);
     const [isImageBroken, setIsImageBroken] = useState(false);
     const imageUrl = isImageBroken ? null : preview.image_url;
 
@@ -131,6 +199,22 @@ export function LinkPreview({
 
     if (isWaiting) {
         return <LinkPreviewSkeleton />;
+    }
+
+    if (snippet) {
+        const { path, start_line, end_line, cited_end_line, html } = snippet;
+        const range = (end: number) =>
+            start_line === end ? `L${start_line}` : `L${start_line}-L${end}`;
+        const label =
+            end_line < cited_end_line
+                ? `${path}#${range(end_line)} of ${range(cited_end_line)}`
+                : `${path}#${range(end_line)}`;
+
+        return (
+            <div className="mt-1" data-test="code-snippet">
+                <CodeBlock html={html} label={label} isCopyable={!isStatic} />
+            </div>
+        );
     }
 
     if (!preview.title) {

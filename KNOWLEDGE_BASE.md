@@ -240,9 +240,11 @@ Each link in a commit or reply counts as at most **23 characters** toward the 4,
 
 URLs and bare domains in commits and replies become clickable links. Long URLs are shortened visually; hover reveals the full destination. GitHub repository links show as `owner/repo`, and issue or pull request links as `owner/repo#123`, with the GitHub mark. Links to /dev/null commits show as the author's username and a short hash. Code keeps its literal text. The first link normally gets a preview card with available title, description, and image. In the commit, reply, and quote composers, choose another link from the body or choose no card; terminal commits and app commits always use the first link. Missing site metadata may leave a link without a rich preview.
 
+When the card's link is a GitHub permalink to lines of a file at a commit, such as `https://github.com/owner/repo/blob/<full commit SHA>/src/Foo.php#L10-L20`, the card shows those lines instead: the file path and line range as its title, then the code highlighted with its original line numbers. Up to **30 lines** are shown; a longer range shows its first 30. Only public repositories and full commit SHAs work: links to a branch or a tag keep the normal card, since the code behind them can change. The lines are kept for 30 days, after which the link shows its normal card again. A file that can't be read as text, or lines that don't exist, also keep the normal card.
+
 Supported links can also show click-to-play embedded players: YouTube, Vimeo, Loom, Twitch, Spotify, SoundCloud, Apple Music, Suno, CodePen, and asciinema. Only the link that gets the card can show a player, so choosing no card means no player. Embeds depend on server configuration and the linked URL being supported. Third-party player content loads only after you press play; those providers have their own privacy policies. This is embedding a link, not uploading a video or audio file to /dev/null.
 
-Sources: [link rendering](resources/js/components/linkified-text.tsx), [link-card selection](app/Http/Requests/CreateCommitRequest.php), [embed configuration](config/embeds.php), [embedded player](resources/js/components/link-embed.tsx).
+Sources: [link rendering](resources/js/components/linkified-text.tsx), [link-card selection](app/Http/Requests/CreateCommitRequest.php), [embed configuration](config/embeds.php), [embedded player](resources/js/components/link-embed.tsx), [code snippets](app/Services/CodeSnippets.php).
 
 ### Replies and threads
 
