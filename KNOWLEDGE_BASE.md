@@ -92,7 +92,7 @@ Livestream history: the team agreed on GitHub-only sign-in and importing profile
 
 ### First-time setup
 
-The first GitHub sign-in opens a short onboarding flow: review your mirrored profile (after editing it on GitHub, **Sync from GitHub** pulls the changes in without leaving setup), choose a color, follow suggested developers, and learn about the composer, keyboard shortcuts, and terminal commits. Skip setup at any step or finish it to continue to the app. Completed or skipped setup does not appear again. New users also start with Tom as a mutual follow; Tom is the platform's fictional welcome bot. Tag @tom in a public commit to ask about the platform or find posts on a topic.
+The first GitHub sign-in opens a short onboarding flow: review your mirrored profile (after editing it on GitHub, **Sync from GitHub** pulls the changes in without leaving setup), choose a color, see who came over from your GitHub network and follow suggested developers, and learn about the composer, keyboard shortcuts, and terminal commits. Skip setup at any step or finish it to continue to the app. The follow step shows what the one-time GitHub import brought over: the people you follow on GitHub who are already on /dev/null, whom you now follow, and your GitHub followers who are here, who now follow you. Completed or skipped setup does not appear again. New users also start with Tom as a mutual follow; Tom is the platform's fictional welcome bot. Tag @tom in a public commit to ask about the platform or find posts on a topic.
 
 Sources: [onboarding page](resources/js/pages/onboarding/show.tsx), [sign-in tests](tests/Feature/Controllers/SessionControllerTest.php).
 

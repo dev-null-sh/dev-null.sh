@@ -22,6 +22,7 @@ final readonly class OnboardingController
             'preferredLane' => $user->preferredLane(),
             'automaticLane' => $user->automaticLane(),
             'suggestions' => fn (): Collection => $suggested->get($user, limit: 5),
+            'githubImport' => fn (): ?array => $this->githubImport($request, $user),
             'commitScriptUrl' => route('cli-script.show'),
         ]);
     }
@@ -34,5 +35,31 @@ final readonly class OnboardingController
         $action->handle($user);
 
         return redirect()->intended(route('log.show', $user->log, absolute: false));
+    }
+
+    /**
+     * What the GitHub import brought over: null until the job has run. The follows it made share its timestamp, give
+     * or take the time the job took.
+     *
+     * @return array{following: Collection<int, User>, followingCount: int, followers: Collection<int, User>, followersCount: int, pendingCount: int}|null
+     */
+    private function githubImport(ShowOnboardingRequest $request, User $user): ?array
+    {
+        $importedAt = $user->github_follows_imported_at;
+
+        if ($importedAt === null) {
+            return null;
+        }
+
+        $window = [$importedAt->copy()->subSeconds(10), $importedAt];
+
+        return [
+            'following' => $user->following()->wherePivotBetween('created_at', $window)->limit(8)->get(),
+            'followingCount' => $user->following()->wherePivotBetween('created_at', $window)->count(),
+            'followers' => $user->followers()->wherePivotBetween('created_at', $window)->limit(8)->get(),
+            'followersCount' => $user->followers()->wherePivotBetween('created_at', $window)->count(),
+            // SKETCH: pending follows aren't stored yet (see the pending_follows table of feat/unclaimed-profiles).
+            'pendingCount' => app()->isLocal() ? $request->integer('pending') : 0,
+        ];
     }
 }

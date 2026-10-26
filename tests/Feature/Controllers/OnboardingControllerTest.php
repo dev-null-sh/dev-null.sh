@@ -72,6 +72,42 @@ it('leaves the suggestions out of partial reloads that do not ask for them', fun
     expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'as "followed_by_following_count"')))->toBeEmpty();
 });
 
+it('waits for the GitHub import to have run', function (): void {
+    $user = User::factory()->notOnboarded()->create(['github_follows_imported_at' => null]);
+
+    $response = $this->actingAs($user)
+        ->get(route('onboarding.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page->where('githubImport', null));
+});
+
+it('shows the follows the GitHub import brought over', function (): void {
+    $this->travelTo(now()->startOfSecond());
+
+    $user = User::factory()->notOnboarded()->create(['github_follows_imported_at' => now()]);
+    $followed = User::factory()->count(9)->create();
+    $followers = User::factory()->count(2)->create();
+    $user->following()->attach($followed->modelKeys(), ['created_at' => now()->subSeconds(3), 'updated_at' => now()]);
+    $user->followers()->attach($followers->modelKeys(), ['created_at' => now()->subSeconds(3), 'updated_at' => now()]);
+
+    // Followed after the import, from the onboarding itself...
+    $this->travel(1)->minute();
+    $user->following()->attach(User::factory()->create(), ['created_at' => now(), 'updated_at' => now()]);
+
+    $response = $this->actingAs($user)
+        ->get(route('onboarding.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('githubImport.following', 8)
+            ->where('githubImport.following', fn ($users): bool => collect($users)->pluck('id')->diff($followed->modelKeys())->isEmpty())
+            ->where('githubImport.followingCount', 9)
+            ->where('githubImport.followers', fn ($users): bool => collect($users)->pluck('id')->sort()->values()->all() === collect($followers->modelKeys())->sort()->values()->all())
+            ->where('githubImport.followersCount', 2)
+            ->where('githubImport.pendingCount', 0));
+});
+
 it('is not found once the user has onboarded', function (): void {
     $user = User::factory()->create();
 
