@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { colorsIn } from '../../resources/js/lib/colors.ts';
+import { colorsIn, cssColor } from '../../resources/js/lib/colors.ts';
 
 const values = (text: string) => colorsIn(text).map((color) => color.value);
 
@@ -69,4 +69,47 @@ await test('finds digit-only hex colors that cannot be issue numbers', () => {
 await test('ends a hex color at a zero-width character, as a hashtag ends', () => {
     assert.deepEqual(values('#fff\u200Bnext and #abc\u2060'), ['fff', 'abc']);
     assert.deepEqual(values('#fff\u200Cx'), ['fff']);
+});
+
+await test('finds CSS color functions as whole words, in order with hex colors', () => {
+    assert.deepEqual(
+        values(
+            'Use rgb(255 138 76), #fff, rgba(255, 138, 76, 0.5) or HSL(20 100% 65% / 50%)!\n>oklch(0.75 0.15 50deg) oklab(.7 -.1 .1) lab(52% 40 59) lch(52% 72 56)',
+        ),
+        [
+            'rgb(255 138 76)',
+            'fff',
+            'rgba(255, 138, 76, 0.5)',
+            'HSL(20 100% 65% / 50%)',
+            'oklch(0.75 0.15 50deg)',
+            'oklab(.7 -.1 .1)',
+            'lab(52% 40 59)',
+            'lch(52% 72 56)',
+        ],
+    );
+});
+
+await test('ignores what only looks like a CSS color function', () => {
+    for (const text of [
+        'rgb()',
+        'rgb(1 2)',
+        'rgb(a b c)',
+        'rgb(1, 2 3)',
+        'hsl(1 2 3 4)',
+        'rgb(1 2 3)px',
+        'xrgb(1 2 3)',
+        '(rgb(1 2 3))',
+        'color(srgb 1 0 0)',
+        'rgb(1\n2 3)',
+        'rgba(\n0, 0, 0, 0.5\n)',
+    ]) {
+        assert.deepEqual(values(text), [], text);
+    }
+});
+
+await test('paints a swatch with the color as written', () => {
+    assert.deepEqual(
+        colorsIn('#ff8a4c and oklch(0.75 0.15 50)').map(cssColor),
+        ['#ff8a4c', 'oklch(0.75 0.15 50)'],
+    );
 });
