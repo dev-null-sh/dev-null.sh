@@ -98,7 +98,7 @@ it('lets org members react within the history they can see, but not to org event
     [$nuno, $taylor] = followersOf($mark, 2);
     $org = createOrg($mark, [$nuno]);
     $before = pushToOrg($nuno, $org, 'before taylor joined');
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
     $after = pushToOrg($nuno, $org, 'welcome taylor');
     $event = $after->newQuery()->whereNotNull('event')->latest('id')->firstOrFail();
 
@@ -116,7 +116,7 @@ it('lets org members react to a pinned message from before their history, until 
     [$nuno, $taylor] = followersOf($mark, 2);
     $org = createOrg($mark, [$nuno]);
     $runbook = pushToOrg($nuno, $org, 'deploy runbook');
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
     $this->putJson(route('message-pin.update', $runbook))->assertOk();
 
     $this->actingAs($taylor)->postJson(route('message-reaction.store', $runbook), ['emoji' => '🙏'])

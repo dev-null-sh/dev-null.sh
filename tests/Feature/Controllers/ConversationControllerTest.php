@@ -12,7 +12,7 @@ beforeEach(function (): void {
 
 it('shows the inbox', function (): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
     sendChatMessage($nuno, $mark, 'ship it');
 
     $this->actingAs($mark)->get(route('conversation.index'))
@@ -21,13 +21,13 @@ it('shows the inbox', function (): void {
             ->component('conversation/index')
             ->where('partner', null)
             ->where('thread', null)
-            ->where('inbox.conversations.0.partner.username', 'nunomaduro')
+            ->where('inbox.conversations.0.partner.handle', 'nunomaduro')
             ->where('auth.unreadMessagesCount', 1));
 });
 
 it('opens a conversation, remembering where you were and marking it read', function (): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
     $read = sendChatMessage($nuno, $mark, 'did you see the PR?');
     $this->actingAs($mark)->putJson(route('conversation-read.update', $nuno), ['through' => $read->id]);
     sendChatMessage($nuno, $mark, 'ship it');
@@ -37,7 +37,7 @@ it('opens a conversation, remembering where you were and marking it read', funct
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('conversation/index')
-            ->where('partner.username', 'nunomaduro')
+            ->where('partner.handle', 'nunomaduro')
             ->where('thread.read_through_id', $read->id)
             ->has('thread.messages', 3)
             ->where('inbox.conversations.0.ahead', 0));
@@ -51,12 +51,12 @@ it('opens a conversation, remembering where you were and marking it read', funct
 
 it('opens an empty conversation with someone new', function (): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
 
     $this->actingAs($mark)->get(route('conversation.show', $nuno))
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
-            ->where('partner.username', 'nunomaduro')
+            ->where('partner.handle', 'nunomaduro')
             ->where('thread.messages', []));
 });
 
@@ -75,7 +75,7 @@ it('requires authentication', function (): void {
 
 it('polls the badge counts on an open conversation without marking it read', function (): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
     sendChatMessage($nuno, $mark, 'ship it');
 
     $this->actingAs($mark)->withHeaders([

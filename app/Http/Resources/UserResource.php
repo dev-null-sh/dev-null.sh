@@ -23,14 +23,15 @@ final class UserResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'username' => $this->username,
+            'handle' => $this->handle,
+            'username' => $this->handle,
             'name' => $this->name,
             'avatar_url' => $this->avatar_url,
             'bio' => $this->bio,
             'company' => $this->company,
             'location' => $this->location,
             'website' => $this->website,
-            'github_url' => "https://github.com/{$this->username}",
+            'github_url' => "https://github.com/{$this->handle}",
             'html_url' => route('user.show', $this->resource),
             'feed_url' => route('user-feed.show', $this->resource),
             'created_at' => $this->created_at->toIso8601ZuluString(),

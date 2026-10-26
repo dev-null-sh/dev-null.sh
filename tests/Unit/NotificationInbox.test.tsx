@@ -11,7 +11,7 @@ import type { NotificationGroup, User } from '../../resources/js/types';
 const timestamp = '2026-10-16T12:00:00Z';
 const actor: User = {
     id: 'actor',
-    username: 'quoter',
+    handle: 'quoter',
     name: 'Quoter',
     avatar_url: null,
     bio: null,
@@ -65,7 +65,7 @@ async function renderInbox(notifications: NotificationGroup[], type = 'all') {
             component: 'notification/index',
             props: {
                 auth: {
-                    user: { id: 'recipient', username: 'recipient' },
+                    user: { id: 'recipient', handle: 'recipient' },
                     log: {},
                 },
                 errors: {},

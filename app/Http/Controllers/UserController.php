@@ -35,7 +35,7 @@ final readonly class UserController
 
         if ($blockerId !== null) {
             return Inertia::render('user/unavailable', [
-                'username' => $user->username,
+                'handle' => $user->handle,
                 'blockedUser' => $blockerId === $currentUser->id ? $user : null,
             ]);
         }

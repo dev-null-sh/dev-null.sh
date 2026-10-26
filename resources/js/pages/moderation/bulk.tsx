@@ -216,7 +216,7 @@ function Row({
                         <p className="max-w-full truncate text-sm font-medium">
                             {user.name}{' '}
                             <span className="font-mono text-[13px] font-normal text-muted-foreground">
-                                @{user.username}
+                                @{user.handle}
                             </span>
                         </p>
                         {moderation?.ban ? (

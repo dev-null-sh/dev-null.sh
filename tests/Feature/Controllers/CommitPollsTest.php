@@ -70,9 +70,9 @@ it('keeps link card choices on quotes through approval without exposing quoted v
     Queue::fake([UnfurlLink::class]);
 
     $user = User::factory()->create();
-    $quotedAuthor = User::factory()->create(['username' => 'quoted-writer']);
+    $quotedAuthor = User::factory()->create(['handle' => 'quoted-writer']);
     $quoted = Poll::factory()->for(Commit::factory()->for($quotedAuthor))->withOptions('Private A', 'Private B')->create();
-    $voter = User::factory()->create(['username' => 'private-voter']);
+    $voter = User::factory()->create(['handle' => 'private-voter']);
     PollVote::factory()->for($quoted->options[0], 'option')->for($voter)->create();
 
     $this->actingAs($user)
@@ -274,7 +274,7 @@ it('shows the poll of a quoted commit in moderation and after undoing a deletion
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
     $quote = Commit::factory()->pending()->for($poll->commit, 'quotedCommit')->create();
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('moderation.show'))
         ->assertInertia(fn ($page) => $page->where('commits.data.0.quoted_commit.poll.options.0.label', 'Tabs'));
 
@@ -307,7 +307,7 @@ it('shows the poll of a pending commit to moderators', function (): void {
     config(['app.admins' => ['admin']]);
     Poll::factory()->for(Commit::factory()->pending())->withOptions('Tabs', 'Spaces')->unopened()->create();
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('moderation.show'))
         ->assertInertia(fn ($page) => $page
             ->where('commits.data.0.poll.closes_at', null)
@@ -336,7 +336,7 @@ it('loads the polls of the log with a bounded number of queries', function (): v
 it('shows public polls to guests while hiding open results and voter identities', function (string $endpoint, bool $closed): void {
     $factory = Poll::factory()->withOptions('Tabs', 'Spaces');
     $poll = ($closed ? $factory->closed() : $factory)->create();
-    $voter = User::factory()->create(['username' => 'private-voter']);
+    $voter = User::factory()->create(['handle' => 'private-voter']);
     PollVote::factory()->for($poll->options[0], 'option')->for($voter)->create();
 
     [$url, $path, $component] = match ($endpoint) {
@@ -371,9 +371,9 @@ it('shows public polls to guests while hiding open results and voter identities'
 
 it('keeps guest poll results private around an authorless account deletion tombstone', function (): void {
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
-    $voter = User::factory()->create(['username' => 'private-voter']);
+    $voter = User::factory()->create(['handle' => 'private-voter']);
     PollVote::factory()->for($poll->options[0], 'option')->for($voter)->create();
-    $deleted = User::factory()->create(['username' => 'deleted-author']);
+    $deleted = User::factory()->create(['handle' => 'deleted-author']);
     $parent = Commit::factory()->for($deleted)->for($poll->commit, 'parent')->create(['body' => 'Deleted reply body']);
     $reply = Commit::factory()->for($parent, 'parent')->create();
 
@@ -403,7 +403,7 @@ it('keeps poll details out of public read endpoints', function (string $endpoint
         ->withOptions('Private option A', 'Private option B')
         ->closed()
         ->create();
-    $voter = User::factory()->create(['username' => 'private-voter']);
+    $voter = User::factory()->create(['handle' => 'private-voter']);
     PollVote::factory()->for($poll->options[0], 'option')->for($voter)->create();
 
     $url = match ($endpoint) {

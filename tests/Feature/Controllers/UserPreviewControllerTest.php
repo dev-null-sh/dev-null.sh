@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
 use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 it('returns a summary of the user for the user preview', function (): void {
     $viewer = User::factory()->create();
-    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat', 'bio' => 'Hello']);
+    $user = User::factory()->create(['handle' => 'octocat', 'name' => 'The Octocat', 'bio' => 'Hello']);
 
     $user->followers()->attach($viewer);
     $user->following()->attach([$viewer->id, User::factory()->create()->id]);
@@ -33,7 +34,7 @@ it('returns a summary of the user for the user preview', function (): void {
 });
 
 it('does not count deleted commits in the user preview', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->create()->delete();
@@ -47,7 +48,7 @@ it('does not count deleted commits in the user preview', function (): void {
 
 it('loads counts without joining users', function (): void {
     $viewer = User::factory()->create();
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     DB::enableQueryLog();
 
@@ -59,7 +60,7 @@ it('loads counts without joining users', function (): void {
 });
 
 it('reports when neither user follows the other', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $response = $this->actingAs(User::factory()->create())
         ->getJson('/@octocat/preview');
@@ -71,7 +72,7 @@ it('reports when neither user follows the other', function (): void {
 
 it('reports whether the viewer mutes or blocks the user', function (string $relation, bool $isMuting, bool $isBlocking): void {
     $viewer = User::factory()->create();
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $viewer->{$relation}()->attach($user);
 
@@ -89,7 +90,7 @@ it('reports whether the viewer mutes or blocks the user', function (string $rela
 
 it('shows a neutral unavailable preview to someone the user blocked', function (): void {
     $viewer = User::factory()->create();
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $user->blocking()->attach($viewer);
 
@@ -104,7 +105,7 @@ it('shows a neutral unavailable preview to someone the user blocked', function (
         ->assertJsonMissingPath('user.followers_count');
 });
 
-it('returns not found for unknown usernames', function (): void {
+it('returns not found for unknown handles', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->getJson('/@missing/preview');
 
@@ -112,7 +113,7 @@ it('returns not found for unknown usernames', function (): void {
 });
 
 it('returns guests a summary of the user with only approved commits counted', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->pending()->create();
 
@@ -129,12 +130,12 @@ it('returns guests a summary of the user with only approved commits counted', fu
 
 it('previews the captured mention recipient after a rename and handle reuse', function (bool $authenticated): void {
     $viewer = User::factory()->create();
-    $user = User::factory()->create(['username' => 'original']);
+    $user = User::factory()->create(['handle' => 'original']);
     $user->followers()->attach($viewer);
     Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->pending()->create();
-    $user->update(['username' => 'renamed']);
-    User::factory()->create(['username' => 'original']);
+    $user->profile->update(['handle' => 'renamed']);
+    User::factory()->create(['handle' => 'original']);
 
     if ($authenticated) {
         $this->actingAs($viewer);
@@ -143,17 +144,17 @@ it('previews the captured mention recipient after a rename and handle reuse', fu
     $this->getJson('/mentions/'.$user->id.'/preview')
         ->assertOk()
         ->assertJsonPath('user.id', $user->id)
-        ->assertJsonPath('user.username', 'renamed')
+        ->assertJsonPath('user.handle', 'renamed')
         ->assertJsonPath('user.commits_count', 1)
         ->assertJsonPath('isFollowing', $authenticated)
         ->assertJsonMissingPath('user.email');
 })->with([true, false]);
 
 it('does not preview a replacement account for a deleted mention recipient', function (): void {
-    $user = User::factory()->create(['username' => 'original']);
+    $user = User::factory()->create(['handle' => 'original']);
     $id = $user->id;
-    $user->delete();
-    User::factory()->create(['username' => 'original']);
+    resolve(DeleteUser::class)->handle($user);
+    User::factory()->create(['handle' => 'original']);
 
     $this->getJson('/mentions/'.$id.'/preview')->assertNotFound();
     $this->getJson('/mentions/original/preview')->assertNotFound();

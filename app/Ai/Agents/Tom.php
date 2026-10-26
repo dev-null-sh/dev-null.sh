@@ -53,7 +53,7 @@ final class Tom implements Agent, Conversational, HasMiddleware, HasProviderOpti
         $characters = mb_strlen($this->commit->body) + $messages->sum(fn (Message $message): int => mb_strlen($message->content ?? ''));
 
         return mb_trim(view('ai.agents.tom', [
-            'botMention' => User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->first(['username'])?->mention() ?? '@'.CreateTomFriendship::USERNAME,
+            'botMention' => User::query()->firstWhere('github_id', CreateTomFriendship::GITHUB_ID)?->mention() ?? '@'.CreateTomFriendship::HANDLE,
             'mention' => $this->commit->user?->mention() ?? '@',
             'nearlyFull' => $characters >= 9600 || $messages->count() >= 10,
             'hasTools' => collect($this->selectedTools)->isNotEmpty(),

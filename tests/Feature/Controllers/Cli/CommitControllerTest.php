@@ -92,7 +92,7 @@ it('keeps the text after a NUL byte in a signed commit', function (): void {
 });
 
 it('links to the commit when it is published right away', function (): void {
-    config(['app.admins' => [$this->user->username]]);
+    config(['app.admins' => [$this->user->handle]]);
 
     $response = postSignedCommit(signedCommit($this->keyPair, 'It was DNS.'));
 

@@ -38,7 +38,7 @@ it('shares null user when guest', function (): void {
 it('shares authenticated user data', function (): void {
     $user = User::factory()->create([
         'name' => 'Test User',
-        'username' => 'test-user',
+        'handle' => 'test-user',
     ]);
 
     $middleware = new HandleInertiaRequests();
@@ -51,7 +51,7 @@ it('shares authenticated user data', function (): void {
     expect($sharedUser)->not->toBeNull()
         ->and($sharedUser->id)->toBe($user->id)
         ->and($sharedUser->name)->toBe('Test User')
-        ->and($sharedUser->username)->toBe('test-user');
+        ->and($sharedUser->handle)->toBe('test-user');
 });
 
 it('shares the authenticated user commit and follow counts', function (): void {
@@ -133,7 +133,7 @@ it('includes parent shared data', function (): void {
 it('shares whether the authenticated user is an admin', function (bool $isAdmin): void {
     config(['app.admins' => $isAdmin ? ['octocat'] : []]);
 
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $middleware = new HandleInertiaRequests();
 
@@ -156,7 +156,7 @@ it('shares guests as non admins', function (): void {
 it('shares whether there are unmoderated commits for admins', function (): void {
     config(['app.admins' => ['admin']]);
 
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
 
     $middleware = new HandleInertiaRequests();
 
@@ -175,7 +175,7 @@ it('shares whether there are unmoderated commits for admins', function (): void 
 it('does not count deleted pending commits as unmoderated', function (): void {
     config(['app.admins' => ['admin']]);
 
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     Commit::factory()->pending()->create()->delete();
 
     $request = Request::create('/', 'GET');
@@ -189,7 +189,7 @@ it('does not count deleted pending commits as unmoderated', function (): void {
 it('shares hasUnmoderatedCommits as false for non admins', function (): void {
     Commit::factory()->pending()->create();
 
-    $user = User::factory()->create(['username' => 'user']);
+    $user = User::factory()->create(['handle' => 'user']);
 
     $middleware = new HandleInertiaRequests();
 

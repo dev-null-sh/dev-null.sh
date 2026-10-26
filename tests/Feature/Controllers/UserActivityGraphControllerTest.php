@@ -6,7 +6,7 @@ use App\Models\Commit;
 use App\Models\User;
 
 it('renders the activity graph of a profile as a cacheable svg for guests', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     Commit::factory()->for($user)->create();
 
@@ -87,6 +87,6 @@ it('throttles each graph per client', function (): void {
     $this->get(route('user-activity-graph.show', User::factory()->create()))->assertOk();
 });
 
-it('returns not found for unknown usernames', function (): void {
+it('returns not found for unknown handles', function (): void {
     $this->get('/@missing/graph.svg')->assertNotFound();
 });

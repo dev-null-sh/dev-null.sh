@@ -9,7 +9,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 
 it('fits commits that would overflow the card', function (string $body): void {
-    $commit = Commit::factory()->for(User::factory()->withoutProfile())->create(['body' => $body]);
+    $commit = Commit::factory()->for(User::factory()->withBlankProfile())->create(['body' => $body]);
 
     $image = resolve(CreateCommitOpenGraphImage::class)->handle($commit->user, $commit);
 
@@ -24,7 +24,7 @@ it('fits commits that would overflow the card', function (string $body): void {
 
 it('draws the parent of a reply only when it is approved', function (CommitStatus $status, bool $isDrawn): void {
     $parent = Commit::factory()->create(['status' => $status]);
-    $reply = Commit::factory()->for($parent, 'parent')->for(User::factory()->withoutProfile())->create(['body' => 'Agreed.']);
+    $reply = Commit::factory()->for($parent, 'parent')->for(User::factory()->withBlankProfile())->create(['body' => 'Agreed.']);
     $action = resolve(CreateCommitOpenGraphImage::class);
 
     $asReply = $action->handle($reply->user, $reply);
@@ -40,7 +40,7 @@ it('draws the parent of a reply only when it is approved', function (CommitStatu
 ]);
 
 it('draws the number of approved replies', function (): void {
-    $commit = Commit::factory()->for(User::factory()->withoutProfile())->create(['body' => 'Hello, world.']);
+    $commit = Commit::factory()->for(User::factory()->withBlankProfile())->create(['body' => 'Hello, world.']);
     $action = resolve(CreateCommitOpenGraphImage::class);
 
     $withoutReplies = $action->handle($commit->user, $commit);

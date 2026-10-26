@@ -35,9 +35,10 @@ final readonly class MentionSuggestionsQuery
 
         if ($term === '' && ! $org instanceof Conversation && ! $reply instanceof Commit && ! $quote instanceof Commit) {
             return $user->following()
+                ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
                 ->whereNotIn('users.id', $user->mutedIds())
                 ->orderByPivot('created_at', 'desc')
-                ->orderBy('username')
+                ->orderBy('profiles.handle')
                 ->limit($limit)
                 ->get()
                 ->each(fn (User $followed): User => $followed->unsetRelation('pivot'))
@@ -51,24 +52,26 @@ final readonly class MentionSuggestionsQuery
             : null;
 
         return User::query()
+            ->select('users.*')
+            ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
             ->whereKeyNot($user->id)
-            ->whereNotIn('id', $user->mutedIds())
-            ->whereNotIn('id', $user->idsAcrossBlocks())
-            ->when($org, fn (Builder $query, Conversation $org): Builder => $query->whereIn('id', $org->participants()->select('user_id')))
+            ->whereNotIn('users.id', $user->mutedIds())
+            ->whereNotIn('users.id', $user->idsAcrossBlocks())
+            ->when($org, fn (Builder $query, Conversation $org): Builder => $query->whereIn('users.id', $org->participants()->select('user_id')))
             ->when($term === '' && $target instanceof Commit, fn (Builder $query): Builder => $query
                 ->where(fn (Builder $query): Builder => $query
-                    ->whereIn('id', [$target?->user_id, $root?->user_id])
-                    ->when($contributors, fn (Builder $query, QueryBuilder $contributors): Builder => $query->orWhereIn('id', (clone $contributors)->select('user_id')))
-                    ->orWhereIn('id', $user->following()->select('users.id'))))
+                    ->whereIn('users.id', [$target?->user_id, $root?->user_id])
+                    ->when($contributors, fn (Builder $query, QueryBuilder $contributors): Builder => $query->orWhereIn('users.id', (clone $contributors)->select('user_id')))
+                    ->orWhereIn('users.id', $user->following()->select('users.id'))))
             ->where(fn (Builder $query): Builder => $query
-                ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
-                ->orWhereRaw("LOWER(name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
+                ->whereRaw("LOWER(profiles.handle) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+                ->orWhereRaw("LOWER(profiles.name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
             ->when($target, fn (Builder $query): Builder => $query
                 ->orderByRaw('CASE WHEN users.id = ? THEN 0 WHEN users.id = ? THEN 1 ELSE 2 END', [$target?->user_id, $root?->user_id]))
             ->when($contributors, fn (Builder $query, QueryBuilder $contributors): Builder => $query
                 ->orderByDesc((clone $contributors)->selectRaw('COUNT(*) > 0')->whereColumn('commits.user_id', 'users.id')))
             ->orderByRaw(
-                "CASE WHEN LOWER(username) = ? THEN 0 WHEN LOWER(username) LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
+                "CASE WHEN LOWER(profiles.handle) = ? THEN 0 WHEN LOWER(profiles.handle) LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(profiles.name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
                 [$term, "{$escaped}%", "{$escaped}%"],
             )
             ->orderByDesc(fn (QueryBuilder $query): QueryBuilder => $query
@@ -82,7 +85,7 @@ final readonly class MentionSuggestionsQuery
                     ->from('follows')
                     ->where('follows.follower_id', $user->id)
                     ->whereColumn('follows.followed_id', 'users.id')))
-            ->orderBy('username')
+            ->orderBy('profiles.handle')
             ->limit($limit)
             ->get()
             ->toBase();

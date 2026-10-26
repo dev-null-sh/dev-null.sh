@@ -17,7 +17,7 @@ use Illuminate\Testing\TestResponse;
 use Tests\Support\SshKeyPair;
 
 beforeEach(function (): void {
-    $this->user = User::factory()->create(['username' => 'octocat']);
+    $this->user = User::factory()->create(['handle' => 'octocat']);
     $this->keyPair = SshKeyPair::generate();
     $this->verifier = str_repeat('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk', 2);
 
@@ -31,7 +31,7 @@ it('approves the key that redeems the code as a device, and answers like me', fu
 
     $response->assertOk()
         ->assertJsonPath('data.id', $this->user->id)
-        ->assertJsonPath('data.username', 'octocat')
+        ->assertJsonPath('data.handle', 'octocat')
         ->assertJsonPath('data.lane', $this->user->lane())
         ->assertJsonPath('data.automatic_lane', $this->user->automaticLane())
         ->assertJsonPath('data.commits_count', 0)
