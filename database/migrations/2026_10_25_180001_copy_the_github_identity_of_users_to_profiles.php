@@ -18,6 +18,7 @@ return new class extends Migration
             SELECT gen_random_uuid(), 'user', github_id, username, name, avatar_url, bio, location, website, github_synced_at, created_at, updated_at
             FROM users
             WHERE NOT EXISTS (SELECT 1 FROM profiles WHERE profiles.github_id = users.github_id)
+            ON CONFLICT (github_id) DO NOTHING
             SQL);
     }
 };
