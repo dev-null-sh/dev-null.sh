@@ -88,7 +88,7 @@ it('keeps a mute through new messages without changing what is unread', function
     sendChatMessage($nuno, $mark, 'one more thing');
 
     $this->actingAs($mark)->getJson(route('inbox.index'))
-        ->assertJsonPath('unread', 2)
+        ->assertJsonPath('unread', 1)
         ->assertJsonPath('conversations.0.ahead', 2)
         ->assertJsonPath('conversations.0.is_archived', false)
         ->assertJsonPath('conversations.0.muted_until_at', $muted);

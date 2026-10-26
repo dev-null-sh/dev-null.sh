@@ -701,16 +701,126 @@ html body[data-scroll-locked] {
     .hl-deletion {
         color: var(--destructive);
     }
+
+    /* A GitHub profile README, sanitized on the server: it keeps GitHub's layout without GitHub's stylesheet. */
+    .readme {
+        overflow-wrap: anywhere;
+        font-size: 15px;
+        line-height: 1.6;
+
+        & > * + *,
+        & article > * + * {
+            margin-top: 1em;
+        }
+
+        & h1,
+        & h2,
+        & h3,
+        & h4 {
+            margin-top: 1.5em;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        & h1 {
+            font-size: 1.5em;
+        }
+
+        & h2 {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.3em;
+            font-size: 1.25em;
+        }
+
+        & a {
+            color: var(--primary);
+        }
+
+        & a:hover {
+            text-decoration: underline;
+        }
+
+        & img {
+            display: inline-block;
+            max-width: 100%;
+            height: auto;
+        }
+
+        & ul,
+        & ol {
+            padding-left: 1.5em;
+        }
+
+        & ul {
+            list-style: disc;
+        }
+
+        & ol {
+            list-style: decimal;
+        }
+
+        & blockquote {
+            border-left: 3px solid var(--border);
+            padding-left: 1em;
+            color: var(--muted-foreground);
+        }
+
+        & code {
+            border-radius: 0.25rem;
+            background: var(--muted);
+            padding: 0.1em 0.3em;
+            font-family: var(--font-mono);
+            font-size: 0.875em;
+        }
+
+        & pre {
+            overflow-x: auto;
+            border-radius: 0.5rem;
+            background: var(--muted);
+            padding: 0.75rem 1rem;
+
+            & code {
+                background: none;
+                padding: 0;
+            }
+        }
+
+        & table {
+            display: block;
+            max-width: 100%;
+            overflow-x: auto;
+            border-collapse: collapse;
+        }
+
+        & th,
+        & td {
+            border: 1px solid var(--border);
+            padding: 0.4em 0.75em;
+        }
+
+        & hr {
+            border-color: var(--border);
+        }
+
+        & [align='center'] {
+            text-align: center;
+        }
+
+        & [align='right'] {
+            text-align: right;
+        }
+    }
 }
 
-/* Commits that just arrived on their own, until the reader moves on. */
-[data-commit] {
+/* Commits that just arrived on their own, until the reader moves on. Only they fade slowly, as this unlayered rule
+   would otherwise override the hover transition of every commit. */
+[data-commit][data-fresh] {
     transition:
         background-color 1.4s ease,
         box-shadow 1.4s ease;
 }
 
-[data-commit][data-fresh] {
+[data-commit][data-fresh=''] {
     background-color: color-mix(in oklab, var(--primary) 7%, transparent);
     box-shadow: inset 3px 0 0
         color-mix(in oklab, var(--primary) 70%, transparent);

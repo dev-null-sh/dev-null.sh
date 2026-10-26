@@ -54,7 +54,7 @@ function fakeGitHubApp(array $issue = []): void
 
 it('opens the issue as the app, crediting the reporter, with the label of the command', function (string $command, string $label): void {
     fakeGitHubApp();
-    $user = User::factory()->create(['username' => 'taylor']);
+    $user = User::factory()->create(['handle' => 'taylor']);
     $body = "Search loses its filters\n\nSteps: select PHP, then navigate back.";
 
     $this->actingAs($user)->postJson(route('issue.store'), ['command' => $command, 'body' => $body])
@@ -74,7 +74,7 @@ it('opens the issue as the app, crediting the reporter, with the label of the co
 
 it('uses the first top-level heading as the title and preserves the remaining markdown', function (string $draft, string $title, string $body): void {
     fakeGitHubApp();
-    $user = User::factory()->create(['username' => 'taylor']);
+    $user = User::factory()->create(['handle' => 'taylor']);
 
     $this->actingAs($user)->postJson(route('issue.store'), ['command' => '/bug', 'body' => $draft])
         ->assertCreated();
@@ -99,7 +99,7 @@ it('uses the first top-level heading as the title and preserves the remaining ma
 
 it('folds the environment of the reporter into the body, ahead of the credit', function (): void {
     fakeGitHubApp();
-    $user = User::factory()->create(['username' => 'taylor']);
+    $user = User::factory()->create(['handle' => 'taylor']);
 
     $this->actingAs($user)->postJson(route('issue.store'), [
         'command' => '/bug',

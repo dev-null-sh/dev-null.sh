@@ -30,8 +30,8 @@
                 <meta property="article:published_time" content="{{ $preview['publishedAt'] }}">
                 <meta property="article:author" content="{{ $preview['author'] }}">
             @endisset
-            @isset($preview['username'])
-                <meta property="profile:username" content="{{ $preview['username'] }}">
+            @isset($preview['handle'])
+                <meta property="profile:username" content="{{ $preview['handle'] }}">
             @endisset
             <meta name="twitter:card" content="summary_large_image">
             <meta name="twitter:title" content="{{ $preview['title'] }}">

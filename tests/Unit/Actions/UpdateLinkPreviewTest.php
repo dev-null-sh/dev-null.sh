@@ -316,7 +316,7 @@ it('refuses to fetch urls that are not public http urls', function (string $url)
     'host resolving to nothing' => 'https://nowhere.example.com/',
     'non-default port' => 'https://example.com:8080/',
     'credentials' => 'https://user:secret@example.com/',
-    'username only' => 'https://user@example.com/',
+    'handle only' => 'https://user@example.com/',
     'password only' => 'https://:secret@example.com/',
     'ftp' => 'ftp://example.com/file',
     'file' => 'file:///etc/passwd',

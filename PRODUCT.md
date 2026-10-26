@@ -36,7 +36,7 @@ What exists, one line each (details in the knowledge base):
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
 - **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
 - **Remotes:** private one-to-one and group messages (orgs).
-- **Notifications:** in-app activity, plus independently controlled browser and sound alerts for Remotes while the site is open, enabled by default; only browser banners require notification permission.
+- **Notifications:** in-app activity and on-site Remotes alerts by default; off-site browser and PWA notifications require a separate opt-in. Sound is controlled independently and plays while the site is open.
 - **Search:** developers by name, commits by meaning.
 - **Emails:** an occasional update the admins write to everyone, or to a filtered audience, with one-click unsubscribe. Never per-activity notifications.
 - **Safety:** mute, block, reports, and moderation.
@@ -51,7 +51,7 @@ Rules every feature must keep:
 - **Store as little as possible.** Assume the database has leaked: no data without a feature that needs it, sensitive content encrypted, no secrets stored, and everything about a person erased with their account and included in their export (see `.ai/guidelines/data.blade.php`). The one deliberate exception is moderation: bans and timeouts are kept by GitHub account after deletion, holding only the GitHub id, reason, and dates, so deleting an account and signing up again can't escape or reset them.
 - **Same rules on every surface.** Web, mobile API, terminal, and Action share validation, moderation, visibility, and rate limits.
 
-Deliberately excluded: sign-up or identity outside GitHub, editing commits, and email or push notifications.
+Deliberately excluded: sign-up or identity outside GitHub, editing commits, and email activity notifications.
 
 ## Brand Commitments
 
@@ -59,7 +59,7 @@ Deliberately excluded: sign-up or identity outside GitHub, editing commits, and 
 - Voice: dry, terminal-literate humor. Understated wit; copy may wink at Unix and `/dev/null`, but stays clear and never obscures what an action does.
 - Lore is part of the product: Tom (everyone's first friend, after MySpace Tom), pastéis (a tribute to the pastéis de nata brought to the livestream), @world, the Unix-named achievements. Extend it with restraint, never at the expense of clarity. The stories behind it are in the knowledge base.
 - Current tagline in use: "A social network for developers."
-- Vocabulary: a post is a **commit** and a timeline is a **log**, in the UI and in code (`Commit` model, `LogController`, `/log/{log}`). The git metaphor stops at those two nouns, except inside Remotes, which carries its own small vocabulary: a conversation is a **remote**, sending is a **push**, a read receipt is **pulled**, a request is **fetched** until **merged** or **dropped**, archiving is **stash** and **pop**, a group is an **org** of **maintainers** and **contributors**, and **HEAD** marks where you left off. No branches, forks, diffs, or PRs. **Star** is the engagement verb, not a git ref.
+- Vocabulary: a post is a **commit** and a timeline is a **log**, in the UI and in code (`Commit` model, `LogController`, `/log/{log}`). A GitHub account mirrored at its `/@handle` is a **profile** (`Profile` model, as GitHub's `ProfileOwner`), and the unique name GitHub calls its login is its **handle** in code and in the API. The git metaphor stops at those two nouns, except inside Remotes, which carries its own small vocabulary: a conversation is a **remote**, sending is a **push**, a read receipt is **pulled**, a request is **fetched** until **merged** or **dropped**, archiving is **stash** and **pop**, a group is an **org** of **maintainers** and **contributors**, and **HEAD** marks where you left off. No branches, forks, diffs, or PRs. **Star** is the engagement verb, not a git ref.
 
 ## Evidence on Hand
 

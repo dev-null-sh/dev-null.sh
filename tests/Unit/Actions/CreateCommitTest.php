@@ -55,7 +55,7 @@ it('approves commits of admins right away', function (): void {
 
     $action = resolve(CreateCommit::class);
 
-    $commit = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Initial commit');
+    $commit = $action->handle(User::factory()->create(['handle' => 'nunomaduro']), 'Initial commit');
 
     expect($commit->status)->toBe(CommitStatus::Approved);
 });
@@ -106,7 +106,7 @@ it('notifies the parent author about replies of admins', function (): void {
 
     $action = resolve(CreateCommit::class);
 
-    $reply = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Nice one', $parent);
+    $reply = $action->handle(User::factory()->create(['handle' => 'nunomaduro']), 'Nice one', $parent);
 
     expect($parent->user->notifications()->sole()->commit_id)->toBe($reply->id);
 });
@@ -139,7 +139,7 @@ it('notifies the quoted author about quotes of admins', function (): void {
 
     $action = resolve(CreateCommit::class);
 
-    $quote = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $quoted);
+    $quote = $action->handle(User::factory()->create(['handle' => 'nunomaduro']), 'Worth a read', quotedCommit: $quoted);
 
     expect($quoted->user->notifications()->sole())
         ->type->toBe(NotificationType::Quoted)
@@ -159,17 +159,17 @@ it('does not notify about pending quotes', function (): void {
 it('notifies mentioned users about commits of admins', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
-    $mentioned = User::factory()->create(['username' => 'taylorotwell']);
+    $mentioned = User::factory()->create(['handle' => 'taylorotwell']);
 
     $action = resolve(CreateCommit::class);
 
-    $commit = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Shipped it with @taylorotwell');
+    $commit = $action->handle(User::factory()->create(['handle' => 'nunomaduro']), 'Shipped it with @taylorotwell');
 
     expect($mentioned->notifications()->sole()->commit_id)->toBe($commit->id);
 });
 
 it('does not notify about pending mentions', function (): void {
-    User::factory()->create(['username' => 'taylorotwell']);
+    User::factory()->create(['handle' => 'taylorotwell']);
 
     $action = resolve(CreateCommit::class);
 
@@ -194,7 +194,7 @@ it('does not ask the ai about commits of admins', function (): void {
 
     $action = resolve(CreateCommit::class);
 
-    $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Initial commit');
+    $action->handle(User::factory()->create(['handle' => 'nunomaduro']), 'Initial commit');
 
     Queue::assertNotPushed(ModerateCommit::class);
 });
@@ -385,7 +385,7 @@ it('opens the poll of an admin right away', function (): void {
 
     $action = resolve(CreateCommit::class);
 
-    $commit = $action->handle(User::factory()->create(['username' => 'nunomaduro']), 'Tabs or spaces?', poll: new NewPoll(['Tabs', 'Spaces'], PollDuration::OneHour));
+    $commit = $action->handle(User::factory()->create(['handle' => 'nunomaduro']), 'Tabs or spaces?', poll: new NewPoll(['Tabs', 'Spaces'], PollDuration::OneHour));
 
     expect($commit->poll->closesAt()?->toIso8601String())->toBe(now()->addHour()->toIso8601String());
 });
@@ -429,7 +429,7 @@ it('lifts the thread when an admin replies', function (): void {
 
     $commit = Commit::factory()->create();
 
-    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Nice one', $commit);
+    resolve(CreateCommit::class)->handle(User::factory()->create(['handle' => 'nunomaduro']), 'Nice one', $commit);
 
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 0, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
@@ -440,7 +440,7 @@ it('lifts the quoted thread when an admin quotes', function (): void {
 
     $commit = Commit::factory()->create();
 
-    resolve(CreateCommit::class)->handle(User::factory()->create(['username' => 'nunomaduro']), 'Worth a read', quotedCommit: $commit);
+    resolve(CreateCommit::class)->handle(User::factory()->create(['handle' => 'nunomaduro']), 'Worth a read', quotedCommit: $commit);
 
     expect($commit->fresh()->hot_score)
         ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 1, repliers: 0, repliersAnsweredByAuthor: 0)), 1e-9);
@@ -451,7 +451,7 @@ it('keeps a poll on a quote while only approved quotes lift its thread', functio
 
     $root = Commit::factory()->create();
     $reply = Commit::factory()->for($root, 'parent')->create();
-    $user = User::factory()->create(['username' => $admin ? 'admin' : 'author']);
+    $user = User::factory()->create(['handle' => $admin ? 'admin' : 'author']);
 
     $quote = resolve(CreateCommit::class)->handle(
         $user,

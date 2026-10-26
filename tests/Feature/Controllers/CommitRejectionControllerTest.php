@@ -11,7 +11,7 @@ beforeEach(function (): void {
 });
 
 it('may reject a commit', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     $commit = Commit::factory()->pending()->create();
 
     $response = $this->actingAs($admin)

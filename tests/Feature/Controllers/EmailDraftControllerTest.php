@@ -33,7 +33,7 @@ it('drafts an email from what was merged in the time it looks back over', functi
     ]);
     EmailWriter::fake([['subject' => 'What shipped', 'body' => "## New\n\n- Emails"]])->preventStrayPrompts();
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->postJson(route('email-draft.store'), ['draft' => $draft])
         ->assertOk()
         ->assertExactJson(['subject' => 'What shipped', 'body' => "## New\n\n- Emails"]);
@@ -49,7 +49,7 @@ it('tells the writer when nothing was merged', function (): void {
     fakeMergedPullRequests([]);
     EmailWriter::fake([['subject' => 'Quiet week', 'body' => 'Nothing shipped.']]);
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->postJson(route('email-draft.store'), ['draft' => 'weekly'])
         ->assertOk();
 
@@ -60,7 +60,7 @@ it('fails when the changelog can not be read', function (): void {
     Http::fake(['api.github.com/*' => Http::response(status: 500)]);
     EmailWriter::fake()->preventStrayPrompts();
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->postJson(route('email-draft.store'), ['draft' => 'weekly'])
         ->assertInternalServerError();
 

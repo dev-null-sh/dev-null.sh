@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Models\User;
 
 it('lists the people a user follows to guests, newest follow first', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $earlier = User::factory()->create();
     $later = User::factory()->create();
     $user->following()->attach($earlier, ['created_at' => now()->subMinute()]);
@@ -82,6 +82,6 @@ it('lists no one a profile follows across a block for a signed request', functio
     'blocked' => [fn (User $viewer, User $user) => $user->blocking()->attach($viewer), 'user_unavailable', false],
 ]);
 
-it('returns not found for unknown usernames', function (): void {
+it('returns not found for unknown handles', function (): void {
     $this->getJson('/api/v1/users/missing/following')->assertNotFound();
 });

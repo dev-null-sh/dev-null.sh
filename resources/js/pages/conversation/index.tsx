@@ -85,7 +85,7 @@ export default function Index({
             <Head
                 title={
                     partner
-                        ? `@${partner.username} · Remotes`
+                        ? `@${partner.handle} · Remotes`
                         : org
                           ? `${org.name ?? 'Org'} · Remotes`
                           : 'Remotes'
@@ -283,15 +283,15 @@ function ThreadHeader({
                         {partner.name}
                     </span>
                     <span className="block truncate font-mono text-xs text-muted-foreground">
-                        @{partner.username}
+                        @{partner.handle}
                     </span>
                 </span>
             </Link>
             <ConversationActions
                 target={{ kind: 'direct', partner }}
-                title={`@${partner.username}`}
+                title={`@${partner.handle}`}
                 user={user}
-                isArchived={threads[partner.username]?.is_archived ?? false}
+                isArchived={threads[partner.handle]?.is_archived ?? false}
                 onLeave={onLeave}
                 className="ml-auto size-9"
             />

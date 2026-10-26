@@ -37,10 +37,11 @@ final readonly class CreateMentionNotifications
         }
 
         $authorIds = $commits->pluck('user_id')->unique()->values()->all();
-        $silencedAuthors = fn (BelongsToMany $authors): BelongsToMany => $authors->whereKey($authorIds)->select('users.id');
+        $silencedAuthors = fn (BelongsToMany $authors): BelongsToMany => $authors->whereKey($authorIds)->without('profile')->select('users.id');
 
         $users = User::query()
             ->whereKey($recipientsByCommit->flatten()->unique()->values()->all())
+            ->without('profile')
             ->with(['muting' => $silencedAuthors, 'blocking' => $silencedAuthors, 'blockers' => $silencedAuthors])
             ->get(['id'])
             ->keyBy('id');

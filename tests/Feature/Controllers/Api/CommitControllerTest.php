@@ -20,7 +20,7 @@ use Illuminate\Support\Facades\Storage;
 
 it('shows an approved commit to anyone', function (): void {
     $user = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'name' => 'The Octocat',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
     ]);
@@ -45,7 +45,7 @@ it('shows an approved commit to anyone', function (): void {
             'images' => [],
             'author' => [
                 'id' => $user->id,
-                'username' => 'octocat',
+                'handle' => 'octocat',
                 'name' => 'The Octocat',
                 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
                 'bio' => $user->bio,
@@ -203,7 +203,7 @@ it('limits each address to 60 requests a minute', function (): void {
 });
 
 it('shows a signed request the commit as its page shows it to its user', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $keyPair = apiKeyPairFor($user);
     $root = Commit::factory()->create(['body' => 'Who broke prod?', 'created_at' => now()->subMinute()]);
     $commit = Commit::factory()->for($user)->for($root, 'parent')->create([
@@ -220,14 +220,14 @@ it('shows a signed request the commit as its page shows it to its user', functio
 
     $author = fn (User $author): array => [
         'id' => $author->id,
-        'username' => $author->username,
+        'handle' => $author->handle,
         'name' => $author->name,
         'avatar_url' => $author->avatar_url,
         'bio' => $author->bio,
         'company' => $author->company,
         'location' => $author->location,
         'website' => $author->website,
-        'github_url' => "https://github.com/{$author->username}",
+        'github_url' => "https://github.com/{$author->handle}",
         'html_url' => route('user.show', $author),
         'feed_url' => route('user-feed.show', $author),
         'created_at' => now()->toIso8601ZuluString(),
@@ -255,7 +255,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                     ['type' => 'code', 'code' => '@Override'],
                 ],
                 'preview_segments' => null,
-                'mentions' => [['username' => 'nunomaduro', 'offset' => 4, 'length' => 11]],
+                'mentions' => [['handle' => 'nunomaduro', 'offset' => 4, 'length' => 11]],
                 'status' => 'approved',
                 'is_pinned' => false,
                 'starred' => true,
@@ -497,7 +497,7 @@ it('links the topmost ancestor to its parent when a thread is too deep to show i
 });
 
 it('creates a commit from a signed request, pending review', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $keyPair = apiKeyPairFor($user);
 
     $response = signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => '  It was DNS :tada:  ']);
@@ -525,7 +525,7 @@ it('publishes the commits of admins right away', function (): void {
     $user = User::factory()->create();
     $keyPair = apiKeyPairFor($user);
 
-    config(['app.admins' => [$user->username]]);
+    config(['app.admins' => [$user->handle]]);
 
     signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'It was DNS.'])
         ->assertCreated()
@@ -684,7 +684,7 @@ it('opens the poll of an admin right away', function (): void {
     $user = User::factory()->create();
     $keyPair = apiKeyPairFor($user);
 
-    config(['app.admins' => [$user->username]]);
+    config(['app.admins' => [$user->handle]]);
 
     signedApiRequest($keyPair, 'POST', route('api-commit.store'), [
         'body' => 'Tabs or spaces?',

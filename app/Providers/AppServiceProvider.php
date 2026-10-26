@@ -120,6 +120,15 @@ final class AppServiceProvider extends ServiceProvider
         RateLimiter::for('conversations', fn (Request $request): Limit => Limit::perMinute(300)->by($this->userId($request)));
         RateLimiter::for('messages', fn (Request $request): Limit => Limit::perMinute(30)->by($this->userId($request)));
 
+        // Pings: MSN wouldn't let you ping that often either...
+        RateLimiter::for('pings', fn (Request $request): Limit => Limit::perMinute(3)
+            ->by($this->userId($request))
+            ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
+                ['message' => 'Three pings a minute, tops. Try again in a bit.'],
+                429,
+                $headers,
+            )));
+
         // Social graph...
         RateLimiter::for('follows', fn (Request $request): Limit => Limit::perMinute(30)->by($this->userId($request)));
 

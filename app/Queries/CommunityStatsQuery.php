@@ -8,6 +8,7 @@ use App\Actions\CreateTomFriendship;
 use App\Models\Commit;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
 
 final readonly class CommunityStatsQuery
@@ -70,7 +71,7 @@ final readonly class CommunityStatsQuery
                 };
                 $pattern = '(^|[^[:alnum:]_])('.implode('|', array_map(preg_quote(...), $terms)).')($|[^[:alnum:]_])';
                 $column = $metric === 'location' ? 'location' : 'bio';
-                $users->whereRaw("{$column} ~* ?", [$pattern]);
+                $users->whereHas('profile', fn (Builder $query): Builder => $query->whereRaw("{$column} ~* ?", [$pattern]));
                 $definition = $metric === 'location'
                     ? 'Members whose public profile location mentions the requested place or its listed aliases. Not nationality or verified residence.'
                     : 'Members whose public bio mentions the requested language or its listed aliases. Not all users of that language or a measure of skill. Go and C require explicit programming phrases.';
