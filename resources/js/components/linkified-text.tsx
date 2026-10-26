@@ -1,11 +1,17 @@
 import { Link } from '@inertiajs/react';
-import type { ReactNode } from 'react';
+import { Fragment } from 'react';
+import type { ReactNode, SVGAttributes } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
+import { CertificateText } from '@/components/certificate-text';
+import { CodebergIcon } from '@/components/codeberg-icon';
 import { GitHubIcon } from '@/components/github-icon';
+import { GitLabIcon } from '@/components/gitlab-icon';
 import { UserPreview } from '@/components/user-preview';
-import { typedProse } from '@/lib/code';
+import { typedProse, withoutCode } from '@/lib/code';
+import type { Color } from '@/lib/colors';
+import { colorsIn } from '@/lib/colors';
 import { mentionPattern } from '@/lib/mentions';
 import {
     hrefFor,
@@ -43,6 +49,76 @@ const gitHubReservedPaths = new Set(
         .split(' '),
 );
 
+type ForgeItem = { kind: string; mark: string };
+
+type ForgeBrand = {
+    name: string;
+    Icon: (props: SVGAttributes<SVGElement>) => ReactNode;
+};
+
+type Forge = ForgeBrand & {
+    pattern: RegExp;
+    items: Record<string, ForgeItem>;
+    reservedPaths: Set<string>;
+};
+
+type ForgeDefinition = Omit<Forge, 'pattern' | 'reservedPaths'> & {
+    host: string;
+    owner: string;
+    // First path segments that are the forge's own pages rather than an owner, like "github.com/features/actions".
+    reservedPaths: string;
+};
+
+// A link to a repository, or to one of its issues or pull requests, nothing after its name or number, so it can show as
+// its forge writes it. Item paths are lowercased, and map to what they link to and the mark written before the number.
+function defineForge({
+    host,
+    owner,
+    reservedPaths,
+    ...forge
+}: ForgeDefinition): Forge {
+    return {
+        ...forge,
+        pattern: new RegExp(
+            `^https?://(?:www\\.)?${host}/(${owner})/([A-Za-z0-9._-]{1,100})(?:/(${Object.keys(forge.items).join('|')})/([1-9][0-9]{0,9}))?$`,
+            'i',
+        ),
+        reservedPaths: new Set(reservedPaths.trim().split(/\s+/)),
+    };
+}
+
+const issue: ForgeItem = { kind: 'issue', mark: '#' };
+const pullRequest: ForgeItem = { kind: 'pull request', mark: '#' };
+// Unlike GitHub, GitLab and Codeberg allow dots and underscores in owners. A GitLab subgroup's project stays a URL.
+const ownerPattern = '[A-Za-z0-9][A-Za-z0-9._-]{0,99}';
+
+const gitHub: ForgeBrand = { name: 'GitHub', Icon: GitHubIcon };
+
+// GitHub links are read by gitHubLinkTo, which knows more of them.
+const forges = [
+    defineForge({
+        name: 'GitLab',
+        Icon: GitLabIcon,
+        host: 'gitlab\\.com',
+        owner: ownerPattern,
+        items: {
+            '-/issues': issue,
+            '-/merge_requests': { kind: 'merge request', mark: '!' },
+        },
+        reservedPaths:
+            'admin dashboard explore groups help projects search users',
+    }),
+    defineForge({
+        name: 'Codeberg',
+        Icon: CodebergIcon,
+        host: 'codeberg\\.org',
+        owner: ownerPattern,
+        items: { issues: issue, pulls: pullRequest },
+        reservedPaths:
+            'admin api assets explore issues milestones notifications org pulls repo user',
+    }),
+];
+
 /**
  * Every link in the prose being typed, in order and once each, as the server finds them for the link card.
  */
@@ -75,13 +151,13 @@ export function hasMention(segments: BodySegment[]): boolean {
 
 // Like X, the hidden parts of a shortened URL stay in the text, so copying it or a screen reader gets the whole URL.
 function ShortenedUrl({ url }: { url: string }) {
-    const { hiddenStart, shown, hiddenEnd } = shortenUrl(url);
+    const { hiddenStart, shown, hiddenEnd, cut } = shortenUrl(url);
     const shownCharacters = Array.from(shown);
 
     return (
         <>
             {hiddenStart && <span className="text-[0px]">{hiddenStart}</span>}
-            {hiddenEnd ? (
+            {cut ? (
                 <>
                     {shownCharacters.slice(0, -1).join('')}
                     {/* The ellipsis never wraps onto a line of its own. */}
@@ -94,7 +170,12 @@ function ShortenedUrl({ url }: { url: string }) {
                     </span>
                 </>
             ) : (
-                shown
+                <>
+                    {shown}
+                    {hiddenEnd && (
+                        <span className="text-[0px]">{hiddenEnd}</span>
+                    )}
+                </>
             )}
         </>
     );
@@ -103,12 +184,12 @@ function ShortenedUrl({ url }: { url: string }) {
 // Like a shortened URL, the whole URL stays in the text, so copying it keeps the link.
 function CommitLink({
     url,
-    username,
+    handle,
     commit,
     isStatic,
 }: {
     url: string;
-    username: string;
+    handle: string;
     commit: string;
     isStatic: boolean;
 }) {
@@ -123,10 +204,10 @@ function CommitLink({
                 {/* The mark never wraps onto a line of its own. */}
                 <span className="whitespace-nowrap text-muted-foreground">
                     <AppLogoIcon className="mr-[0.2em] inline-block size-[1.15em] fill-foreground align-[-0.25em]" />
-                    {username.charAt(0)}
+                    {handle.charAt(0)}
                 </span>
                 <span className="text-muted-foreground">
-                    {username.slice(1)}/
+                    {handle.slice(1)}/
                 </span>
                 {hash}
             </span>
@@ -143,9 +224,9 @@ function CommitLink({
 
     return (
         <Link
-            href={CommitController.show({ user: username, commit })}
+            href={CommitController.show({ user: handle, commit })}
             title={url}
-            aria-label={`@${username}’s commit ${hash}`}
+            aria-label={`@${handle}’s commit ${hash}`}
             className="text-primary hover:underline"
         >
             {label}
@@ -154,15 +235,16 @@ function CommitLink({
 }
 
 /**
- * What a GitHub link points at inside a repository, as GitHub writes it after the repository's name ("#42",
- * "@4fa008f") and as a screen reader reads it ("issue #42", "commit 4fa008f").
+ * What a forge link points at inside a repository, as its forge writes it after the repository's name ("#42", "!42",
+ * "@4fa008f") and as a screen reader reads it ("issue #42", "merge request !42", "commit 4fa008f").
  */
-type GitHubItem = { suffix: string; description: string };
+type ForgeLinkItem = { suffix: string; description: string };
 
-type GitHubTarget = {
+type ForgeLinkTarget = {
+    forge: ForgeBrand;
     owner: string;
     repository: string | null;
-    item: GitHubItem | null;
+    item: ForgeLinkItem | null;
 };
 
 // A commit as GitHub shortens it; any other ref as it is.
@@ -194,7 +276,7 @@ function gitHubThread(
     kind: string,
     rest: string[],
     hash: string,
-): GitHubItem | null {
+): ForgeLinkItem | null {
     const thread = gitHubThreads[kind];
 
     if (
@@ -233,7 +315,7 @@ function gitHubFile(
     kind: 'blob' | 'tree',
     path: string[],
     hash: string,
-): GitHubItem | null {
+): ForgeLinkItem | null {
     let names: string[];
 
     try {
@@ -274,7 +356,7 @@ function gitHubFile(
           };
 }
 
-function gitHubItem(path: string[], hash: string): GitHubItem | null {
+function gitHubItem(path: string[], hash: string): ForgeLinkItem | null {
     const [first, ...rest] = path;
     const kind = first.toLowerCase();
 
@@ -335,7 +417,7 @@ function gitHubItem(path: string[], hash: string): GitHubItem | null {
  * a comparison, a release, a file or a folder in it, nothing after them but a comment's or some lines' anchor, so it
  * can show as GitHub writes it.
  */
-function gitHubLinkTo(href: string): GitHubTarget | null {
+function gitHubLinkTo(href: string): ForgeLinkTarget | null {
     let url: URL;
 
     try {
@@ -370,7 +452,9 @@ function gitHubLinkTo(href: string): GitHubTarget | null {
     }
 
     if (repository === undefined) {
-        return url.hash === '' ? { owner, repository: null, item: null } : null;
+        return url.hash === ''
+            ? { forge: gitHub, owner, repository: null, item: null }
+            : null;
     }
 
     if (!gitHubRepositoryPattern.test(repository)) {
@@ -378,28 +462,57 @@ function gitHubLinkTo(href: string): GitHubTarget | null {
     }
 
     if (path.length === 0) {
-        return url.hash === '' ? { owner, repository, item: null } : null;
+        return url.hash === ''
+            ? { forge: gitHub, owner, repository, item: null }
+            : null;
     }
 
     const item = gitHubItem(path, url.hash);
 
-    return item ? { owner, repository, item } : null;
+    return item ? { forge: gitHub, owner, repository, item } : null;
+}
+
+function forgeLinkTo(href: string): ForgeLinkTarget | null {
+    const gitHubLink = gitHubLinkTo(href);
+
+    if (gitHubLink) {
+        return gitHubLink;
+    }
+
+    for (const forge of forges) {
+        const match = forge.pattern.exec(href);
+
+        if (match && !forge.reservedPaths.has(match[1].toLowerCase())) {
+            const item = match[3] ? forge.items[match[3].toLowerCase()] : null;
+            const reference = item ? `${item.mark}${match[4]}` : '';
+
+            return {
+                forge,
+                owner: match[1],
+                repository: match[2],
+                item: item
+                    ? {
+                          suffix: reference,
+                          description: `${item.kind} ${reference}`,
+                      }
+                    : null,
+            };
+        }
+    }
+
+    return null;
 }
 
 // Like a dev/null commit link, the whole URL stays in the text, so copying it keeps the link.
-function GitHubLink({
+function ForgeLink({
     url,
     href,
-    owner,
-    repository,
-    item,
+    target: { forge, owner, repository, item },
     isStatic,
 }: {
     url: string;
     href: string;
-    owner: string;
-    repository: string | null;
-    item: GitHubItem | null;
+    target: ForgeLinkTarget;
     isStatic: boolean;
 }) {
     const name = repository === null ? owner : `${owner}/${repository}`;
@@ -416,7 +529,7 @@ function GitHubLink({
                         'text-muted-foreground': repository !== null,
                     })}
                 >
-                    <GitHubIcon className="mr-[0.2em] inline-block size-[1.15em] align-[-0.25em] text-foreground" />
+                    <forge.Icon className="mr-[0.2em] inline-block size-[1.15em] align-[-0.25em] text-foreground" />
                     {owner.charAt(0)}
                 </span>
                 {repository === null ? (
@@ -448,7 +561,7 @@ function GitHubLink({
             target="_blank"
             rel="noopener noreferrer nofollow ugc"
             title={href}
-            aria-label={`${name}${item ? ` ${item.description}` : ''} on GitHub`}
+            aria-label={`${name}${item ? ` ${item.description}` : ''} on ${forge.name}`}
             className="text-primary hover:underline"
         >
             {label}
@@ -458,7 +571,7 @@ function GitHubLink({
 
 function withPasteis(text: string, pasteisMode: boolean): ReactNode {
     if (!pasteisMode) {
-        return text;
+        return <CertificateText text={text} />;
     }
 
     return text
@@ -467,7 +580,7 @@ function withPasteis(text: string, pasteisMode: boolean): ReactNode {
         )
         .map((part, index) =>
             index % 2 === 0 ? (
-                part
+                <CertificateText key={index} text={part} />
             ) : (
                 <img
                     key={index}
@@ -482,17 +595,23 @@ function withPasteis(text: string, pasteisMode: boolean): ReactNode {
         );
 }
 
-function withWordmarks(text: string, pasteisMode: boolean): ReactNode[] {
+function withWordmarks(
+    text: string,
+    offset: number,
+    pasteisMode: boolean,
+): ReactNode[] {
     return text
         .split(
             /(?<![\p{L}\p{M}\p{N}_./-])(\/dev\/null)(?![\p{L}\p{M}\p{N}_/-])/u,
         )
         .map((part, index) =>
             index % 2 === 0 ? (
-                withPasteis(part, pasteisMode)
+                <Fragment key={`text-${offset}-${index}`}>
+                    {withPasteis(part, pasteisMode)}
+                </Fragment>
             ) : (
                 <span
-                    key={`wordmark-${index}`}
+                    key={`wordmark-${offset}-${index}`}
                     title={part}
                     className="font-semibold tracking-tight whitespace-nowrap"
                 >
@@ -502,10 +621,60 @@ function withWordmarks(text: string, pasteisMode: boolean): ReactNode[] {
         );
 }
 
+/**
+ * The hex colors found in the whole text that fall in this slice of it, as their value with a swatch of the color.
+ */
+function withColors(
+    text: string,
+    offset: number,
+    colors: Color[],
+    pasteisMode: boolean,
+): ReactNode[] {
+    const parts: ReactNode[] = [];
+    let position = 0;
+
+    for (const color of colors) {
+        const index = color.index - offset;
+
+        if (index < position || index + color.length > text.length) {
+            continue;
+        }
+
+        parts.push(
+            ...withWordmarks(
+                text.slice(position, index),
+                offset + position,
+                pasteisMode,
+            ),
+            <span
+                key={`color-${color.index}`}
+                className="whitespace-nowrap"
+                data-test="color"
+            >
+                <span
+                    aria-hidden="true"
+                    className="mr-0.5 inline-block size-[0.75em] rounded-sm border border-border align-[-0.05em]"
+                    style={{ backgroundColor: `#${color.value}` }}
+                />
+                {text.slice(index, index + color.length)}
+            </span>,
+        );
+
+        position = index + color.length;
+    }
+
+    parts.push(
+        ...withWordmarks(text.slice(position), offset + position, pasteisMode),
+    );
+
+    return parts;
+}
+
 function withMentions(
     text: string,
     offset: number,
     mentions: Commit['mentions'],
+    colors: Color[],
     pasteisMode: boolean,
     isStatic: boolean,
 ): ReactNode[] {
@@ -513,20 +682,25 @@ function withMentions(
     let position = 0;
 
     for (const match of text.matchAll(mentionPattern)) {
-        const username = match[1].toLowerCase();
+        const handle = match[1].toLowerCase();
         const userId =
-            mentions && Object.hasOwn(mentions, username)
-                ? mentions[username]
+            mentions && Object.hasOwn(mentions, handle)
+                ? mentions[handle]
                 : null;
 
         parts.push(
-            ...withWordmarks(text.slice(position, match.index), pasteisMode),
+            ...withColors(
+                text.slice(position, match.index),
+                offset + position,
+                colors,
+                pasteisMode,
+            ),
             isStatic || !userId ? (
                 match[0]
             ) : (
                 <UserPreview
                     key={`mention-${offset + match.index}`}
-                    user={{ username: match[1] }}
+                    user={{ handle: match[1] }}
                     userId={userId}
                 >
                     <Link
@@ -543,7 +717,14 @@ function withMentions(
         position = match.index + match[0].length;
     }
 
-    parts.push(...withWordmarks(text.slice(position), pasteisMode));
+    parts.push(
+        ...withColors(
+            text.slice(position),
+            offset + position,
+            colors,
+            pasteisMode,
+        ),
+    );
 
     return parts;
 }
@@ -553,13 +734,18 @@ export function LinkifiedText({
     mentions,
     pasteisMode = false,
     isStatic = false,
+    startsText = false,
 }: {
     text: string;
     mentions: Commit['mentions'];
     pasteisMode?: boolean;
     isStatic?: boolean;
+    // Whether the text is a whole body, so its start is the start of a line.
+    startsText?: boolean;
 }) {
     const parts: ReactNode[] = [];
+    // Colors are found in the prose only, for callers that pass a whole body, code included.
+    const colors = colorsIn(withoutCode(text), startsText);
     let position = 0;
 
     for (const match of text.matchAll(urlPattern)) {
@@ -571,13 +757,14 @@ export function LinkifiedText({
         }
 
         const commitLink = commitLinkPattern.exec(linkText);
-        const gitHubLink = gitHubLinkTo(href);
+        const forgeLink = forgeLinkTo(href);
 
         parts.push(
             ...withMentions(
                 text.slice(position, match.index),
                 position,
                 mentions,
+                colors,
                 pasteisMode,
                 isStatic,
             ),
@@ -585,18 +772,16 @@ export function LinkifiedText({
                 <CommitLink
                     key={match.index}
                     url={linkText}
-                    username={commitLink[1]}
+                    handle={commitLink[1]}
                     commit={commitLink[2].toLowerCase()}
                     isStatic={isStatic}
                 />
-            ) : gitHubLink ? (
-                <GitHubLink
+            ) : forgeLink ? (
+                <ForgeLink
                     key={match.index}
                     url={linkText}
                     href={href}
-                    owner={gitHubLink.owner}
-                    repository={gitHubLink.repository}
-                    item={gitHubLink.item}
+                    target={forgeLink}
                     isStatic={isStatic}
                 />
             ) : isStatic ? (
@@ -623,6 +808,7 @@ export function LinkifiedText({
             text.slice(position),
             position,
             mentions,
+            colors,
             pasteisMode,
             isStatic,
         ),

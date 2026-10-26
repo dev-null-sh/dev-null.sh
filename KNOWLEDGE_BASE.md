@@ -33,6 +33,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Pinning a commit](#pinning-a-commit)
   - [Pastéis mode and awards](#pastéis-mode-and-awards)
   - [Notifications](#notifications)
+  - [Emails from /dev/null](#emails-from-devnull)
   - [Remotes: direct messages](#remotes-direct-messages)
   - [Orgs: group chats](#orgs-group-chats)
   - [Muting and blocking](#muting-and-blocking)
@@ -45,6 +46,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [GitHub Actions integration](#github-actions-integration)
   - [Public read API and Atom feeds](#public-read-api-and-atom-feeds)
   - [Signed API and devices](#signed-api-and-devices)
+  - [Mac app](#mac-app)
   - [Bug reports and feature requests](#bug-reports-and-feature-requests)
   - [Exporting your data](#exporting-your-data)
   - [Deleting your account](#deleting-your-account)
@@ -52,6 +54,8 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [About, changelog, and policies](#about-changelog-and-policies)
   - [Tom's repository insights and community statistics](#toms-repository-insights-and-community-statistics)
   - [Hello world replies](#hello-world-replies)
+- [Easter eggs](#easter-eggs)
+  - [eMudhra certificate fingerprints](#emudhra-certificate-fingerprints)
 - [Stack and hosting](#stack-and-hosting)
   - [October 21, 2026: PHP security patches and precautionary downtime](#october-21-2026-php-security-patches-and-precautionary-downtime)
 - [Lore](#lore)
@@ -112,7 +116,7 @@ Sources: [go-live menu](resources/js/components/profile-actions-menu.tsx), [live
 
 ### Achievement badges and XP
 
-Profiles have **14 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
+Profiles have **15 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
 
 | Badge | When it unlocks |
 | --- | --- |
@@ -130,6 +134,7 @@ Profiles have **14 achievement badges**. Earned badges appear in a single row, w
 | **sweet tooth** | Receive **100 pastéis across your account**, not on a single commit. Pastéis mode does not need to be enabled, and the total survives deletion of the awarded commits. |
 | **luddite** | Stop following Tom while he still follows you. This deducts **100 XP**; following him again removes the badge and penalty. Accounts Tom has never befriended do not qualify. |
 | **shell shocked** | “Survived the php2shell downtime of Oct '26. Earns 100 XP.” — accounts created before **October 21, 2026 at 14:00 UTC** receive this badge and **100 bonus XP**. Accounts created at or after that moment do not qualify. |
+| **super-saiyan** | Have **9,000 followers or more** on /dev/null. “Y—your follower count. It... it’s over 9000!!!1!” |
 
 Commit counts include replies and quotes. Commit-based badges and XP use non-deleted commits visible to the person viewing the profile, so an author may see progress from pending or rejected commits that other viewers cannot see. Streak badges use the **longest** streak, not the current streak: missing a day does not by itself remove them. Days follow the activity graph's app-timezone grouping, not the user's selected display timezone.
 
@@ -143,15 +148,15 @@ Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and 
 
 Follow or unfollow from a developer's profile or a follow control elsewhere in the app. Following puts their commits in your Following log. Following or unfollowing from a log updates the controls, counts, and live-following sidebar without navigating away: Latest and Trending keep their loaded commits and ranking, while Following updates its commits and empty-state suggestions. You cannot follow yourself or follow across a block. GitHub follows are imported once: connections to developers already on /dev/null are added in both directions, with up to 1,000 GitHub connections checked each way. This is not continuous synchronization, so unfollowing someone on /dev/null sticks.
 
-**Who to follow** suggests developers in the side column or within the log on smaller screens, each with the first line of their bio and why they are suggested (how many people you follow follow them, or their follower count). Follow from the icon next to each suggestion; for someone who already follows you, it follows back. The X icon marks a suggestion **Not interested**: that developer is never suggested to you again, without muting them, and the next suggestion takes their place. Refresh for different suggestions, or use **… → Don't show again** to hide the block, with an immediate **Undo** option. Show or hide these suggestions in Settings → Appearance. Suggested developers must have a visible top-level commit. You can also follow back from the notifications list.
+**Who to follow** suggests developers in the side column or within the log on smaller screens, each with the first line of their bio and why they are suggested (how many people you follow follow them, or their follower count). Follow from the icon next to each suggestion; for someone who already follows you, it follows back. The X icon marks a suggestion **Not interested**: that developer is never suggested to you again, without muting them, and the next suggestion takes their place. Refresh for different suggestions, or use **… → Don't show again** to hide the block, with an immediate **Undo** option. Show or hide these suggestions in Settings → Appearance. Suggested developers must have a visible top-level commit. On profiles, suggestions prioritize the people that developer follows; on commit pages, they prioritize visible thread participants. Regular suggestions fill any remaining places. You can also follow back from the notifications list.
 
 Sources: [follow import](app/Actions/CreateUserGitHubFollows.php), [suggestions](resources/js/components/who-to-follow.tsx), [suggestion eligibility](app/Queries/SuggestedUsersQuery.php), [appearance settings](resources/js/pages/appearance/update.tsx), [notifications page](resources/js/pages/notification/index.tsx).
 
 ### Following, Latest, and Trending logs
 
-Logs are the app's timelines. **Following** contains your commits and those of developers you follow, newest first; it requires sign-in. **Latest** contains the newest public commits across the app. **Trending** favors recent public commits that attract engagement from distinct other developers across the thread, with replies and quotes weighing more than stars and diminishing returns from additional engagement. Pastéis don't affect Trending. On the web, Trending reshuffles each time you open it: higher-scoring commits are more likely to appear first, but the order varies between visits and the same draw is used while you scroll. The signed API does not redraw on each visit.
+Logs are the app's timelines. **Following** contains your commits and those of developers you follow, newest first; it requires sign-in. **Latest** contains the newest public commits across the app. **Trending** draws from the public commits of the last seven days and favors recent ones that attract engagement from distinct other developers across the thread, with diminishing returns from additional engagement. Replies weigh the most, especially replies the author answers, then quotes, then stars. Each further commit by the same author ranks a little lower, so one person does not fill the log, and when you are signed in, commits by people you follow and your own rank a little higher. Pastéis don't affect Trending. Trending reshuffles each time you open or refresh it, on the web and in the app: higher-scoring commits are more likely to appear first, but the order varies between visits, older commits sometimes come back, and the same draw is used while you scroll.
 
-Logs list top-level commits, including quotes, rather than every reply, 20 at a time as you scroll, and show your own pending commits to you. Following and Latest check for new commits every 30 seconds and offer an "N new commits" control instead of moving what you are reading, and mark where you left off. On touch screens, swipe sideways to move between logs. An empty Following log suggests three recent commits from people to follow. Muted and blocked people are filtered for signed-in viewers. The last log you opened is remembered.
+Logs list top-level commits, including quotes, rather than every reply, 20 at a time as you scroll, and show your own pending commits to you. Following and Latest check for new commits every 30 seconds and mark where you left off. Following and Latest load new commits automatically. New arrivals stay above the content you are reading, even when you start at the top or their images and link previews finish loading later. A **New commits** control appears after they load above you and stays until you return to the top or see the newest arrival below the sticky tabs. Switching away from the tab does not mark arrivals as seen. It previews up to three distinct authors from the new commits waiting above you, with a +N circle for additional authors. Each check removes deleted or no-longer-visible arrivals from the announcement and loaded feed; the control disappears if none remain. Select it to scroll to the new commits; it disappears when you reach them. On touch screens, swipe sideways to move between logs. An empty Following log suggests three recent commits from people to follow. Muted and blocked people are filtered for signed-in viewers. The last log you opened is remembered.
 
 Browser Back and Forward restore expanded replies and loaded thread continuations. Offscreen commits are measured before scroll restoration so returning to a log or discussion keeps the content in place.
 
@@ -187,7 +192,7 @@ Public commits and replies offer **Translate** when their detected language diff
 
 Pending commits are not offered for translation, even to their author.
 
-DeepSeek through OpenCode translates only the post text. The result replaces its displayed text, with **Translated from [language]** and **Show original** to switch back; the original post is never changed. Cached translations are included on subsequent page loads, including for guests. Exact duplicate text shares translations across authors, with separate text for each target language. Translations are cached for seven days, without extending that period on reads or additional target languages. Deleting a post or account clears its shared translations, which surviving duplicates can generate again. No private messages are translated.
+DeepSeek through OpenCode translates only the post text. The result replaces its displayed text, with **Translated from [language]** and **Show original** to switch back; the original post is never changed. Cached translations are shown automatically on subsequent page loads, including for guests. Signed-in readers can turn off **Automatically show translations** in **Settings → Profile** to read originals first, then choose **Translate** on demand. This private account preference applies across devices, is included in the data export, and is erased with the account. Exact duplicate text shares translations across authors, with separate text for each target language. Translations are cached for seven days, without extending that period on reads or additional target languages. Deleting a post or account clears its shared translations, which surviving duplicates can generate again. No private messages are translated.
 
 If language detection fails, the original post can still be read. A failed translation leaves the original unchanged, and you can try Translate again. If the provider returns an unsupported source-language code, you see that specific reason rather than a generic failure. Provider response contents are never shown.
 
@@ -203,13 +208,15 @@ In commits, replies, and remotes, start a line with `>` to render a quote block.
 
 Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions search the loaded member list instantly and update as membership refreshes. Suggestions are limited to the org's members, but you can still type anyone's handle yourself. Mentions link to profiles and can notify the mentioned developer after approval. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
 
-Typing **#123** in a composer looks up that exact issue or pull request in the /dev/null repository, `dev-null-sh/dev-null.sh`. The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL. A space or punctuation after the number automatically inserts the match, without treating a pause midway through a longer number as completion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
+Typing **#123** in a composer looks up that exact issue or pull request in the /dev/null repository, `dev-null-sh/dev-null.sh`. The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL, just like choosing an emoji suggestion. A space or punctuation leaves the number as typed and dismisses the suggestion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
 
-Sources: [body renderer](resources/js/components/commit-body.tsx), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
+A hex color such as `#ff8a4c` or `#fff` shows with a small swatch of the color, outside code. A color written only with digits counts when it has 6 or 8 digits or starts with a zero, which issue numbers here don't: `#000`, `#000000` and `#333333` are colors, while `#123` and `#333` stay plain text.
+
+Sources: [body renderer](resources/js/components/commit-body.tsx), [colors](resources/js/lib/colors.ts), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
 
 ### Draft previews
 
-Use the composer's eye button or **⌘/Ctrl+Shift+P** to preview a commit or reply before submitting it. Preview shows the rendered code, emoji, mentions, links, and images, and identifies the link selected for a card. Esc returns from preview to writing.
+Use the composer's eye button or **⌘/Ctrl+Shift+P** to preview a commit, reply, or quote before submitting it. Preview shows the rendered code, emoji, mentions, links, and images, and identifies the link selected for a card. Esc returns from preview to writing.
 
 Draft text is not scanned for secrets before publishing or saving locally.
 
@@ -231,7 +238,7 @@ Sources: [image picker](resources/js/components/commit-image-picker.tsx), [image
 
 Each link in a commit or reply counts as at most **23 characters** toward the 4,000-character allowance; shorter links count at their actual length. This also applies to quotes, scheduled commits, previews, and terminal and app submissions. The full URL is stored and followed directly, not through a redirect service. Prose URLs longer than **2,048 characters** are rejected, including the inferred `https://` scheme for bare domains. Code still counts literally toward the 4,000-character allowance. Bodies are additionally capped at 40,000 raw characters to bound storage and processing. Private messages and issue drafts keep their existing literal character limits.
 
-URLs and bare domains in commits and replies become clickable links. Long URLs are shortened visually; hover reveals the full destination. GitHub repository links show as `owner/repo`, and issue or pull request links as `owner/repo#123`, with the GitHub mark. Links to /dev/null commits show as the author's username and a short hash. Code keeps its literal text. The first link normally gets a preview card with available title, description, and image. In the commit and reply composers, choose another link from the body or choose no card; quotes, terminal commits, and app commits always use the first link. Missing site metadata may leave a link without a rich preview.
+URLs and bare domains in commits and replies become clickable links. Long URLs are shortened visually; hover reveals the full destination. GitHub repository links show as `owner/repo`, and issue or pull request links as `owner/repo#123`, with the GitHub mark. Links to /dev/null commits show as the author's username and a short hash. Code keeps its literal text. The first link normally gets a preview card with available title, description, and image. In the commit, reply, and quote composers, choose another link from the body or choose no card; terminal commits and app commits always use the first link. Missing site metadata may leave a link without a rich preview.
 
 Supported links can also show click-to-play embedded players: YouTube, Vimeo, Loom, Twitch, Spotify, SoundCloud, Apple Music, Suno, CodePen, and asciinema. Only the link that gets the card can show a player, so choosing no card means no player. Embeds depend on server configuration and the linked URL being supported. Third-party player content loads only after you press play; those providers have their own privacy policies. This is embedding a link, not uploading a video or audio file to /dev/null.
 
@@ -251,7 +258,7 @@ Sources: [reply validation](app/Http/Requests/CreateCommitReplyRequest.php), [co
 
 ### Quoting commits
 
-Quote a visible commit to publish a new top-level commit with your own commentary and an embedded card pointing to the original. Quotes follow normal commit limits, image support, and moderation. The quote composer has no preview, link-card choice, poll, or scheduling. Quoting is different from replying: the quote appears in logs as its own post, and it is also listed among the original's replies and counted in its reply count. The original author is notified after approval, except for self-quotes.
+Quote a visible commit to publish a new top-level commit with your own commentary and an embedded card pointing to the original. Quotes follow normal commit limits, image support, and moderation. The quote composer has a preview and link-card choice, but no poll or scheduling. Quoting is different from replying: the quote appears in logs as its own post, and it is also listed among the original's replies and counted in its reply count. The original author is notified after approval, except for self-quotes.
 
 The embedded original only shows content the viewer may see. Deleted originals appear as `[deleted]`; otherwise-inaccessible originals appear as `[unavailable]` without exposing their author or body. There is no comment-free repost action.
 
@@ -313,7 +320,7 @@ Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [
 
 ### Notifications
 
-Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, and moderation messages about rejected commits (approvals do not notify). The navigation shows unread activity and checks for more every 30 seconds. Related activity is grouped, with expandable details: stars per commit, follows per day, and replies and mentions per thread. Filters (Replies, Quotes, Stars, Mentions, Follows, Moderation) are remembered, and the unread count follows them. Opening the inbox marks all notifications read. You can follow back or unfollow from follower notifications.
+Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, and moderation messages about rejected commits (approvals do not notify). The navigation shows unread activity and checks for more every 30 seconds. While you have unread notifications or messages, the browser tab's icon shows an orange dot; a tab in the background checks about every five minutes. Related activity is grouped, with expandable details: stars per commit, follows per day, and replies and mentions per thread. Filters (Replies, Quotes, Stars, Mentions, Follows, Moderation) are remembered, and the unread count follows them. Opening the inbox marks all notifications read. You can follow back or unfollow from follower notifications.
 
 Level-up notifications announce your new Unix rank under **All**, rather than one of the activity filters. Each level can notify you only once, even if you later lose and regain enough XP to reach it.
 
@@ -323,13 +330,37 @@ Pending replies, quotes, and mentions wait for approval before notifying others.
 
 Sources: [notifications page](resources/js/pages/notification/index.tsx), [notification filtering](app/Queries/NotificationBuilder.php), [grouping](app/Queries/NotificationGroupsQuery.php), [moderation notifications](app/Actions/UpdateCommitStatuses.php).
 
+Remotes alerts are controlled under **Settings → Profile → Remotes**. **On-site notifications** and **Notification sound** are on by default. On-site alerts stay inside /dev/null and never ask for browser permission. Sound does not require notification permission and plays only while the site is running; the browser may require interaction before it can play.
+
+**Off-site notifications** are off by default. Turn that separate switch on to allow system notifications from this browser or installed PWA, including when closed. This is an explicit choice for each account and browser; an existing browser permission or an earlier on-site preference does not turn it on. On iPhone and iPad, add /dev/null to your Home Screen and turn the switch on from the installed app. The browser asks for permission only after you choose to enable off-site notifications. Declining permission or a rejected enrollment leaves them off. If /dev/null cannot confirm that a failed enrollment was removed, the switch stays on with an error so you can try turning it off again. Turning it off revokes that account's delivery registration; the browser permission and shared browser subscription can remain for reuse. On-site alerts remain independent. Up to 20 browsers or installed apps per account can have off-site notifications enabled. At the limit, existing enrollments stay active; turn off off-site notifications in one before enabling another.
+
+Off-site alerts are silent, contain no message data, and open the Remotes inbox. Delivery depends on browser and operating-system permissions, background delivery, and Focus settings. A fully quit browser may prevent delivery. Delivery registrations are removed on sign-out, account deletion, turning Remotes off, or when the push service reports that they expired. Delivery briefly waits and rechecks unread messages, membership, mutes, and blocks before sending.
+
+Choices stay saved for the signed-in account on that browser. Earlier combined alert opt-outs continue to apply to on-site alerts and sound until each is changed. Alerts never show message text. Only sound has a 10-second cooldown shared across remotes and tabs. The browser tab title shows the combined unread notification and remote message counts from navigation, such as **(2)**, caps the display at **(99+)** above 99, and removes the prefix when nothing remains unread. Counts do not depend on sound or off-site permission. While the site is open, alerts skip the remote you are actively reading in a visible, focused tab, whether on the Remotes page or in the dock. Messages in other remotes can alert while you browse any page. Existing unread messages do not trigger on-site alerts when you open the site.
+
+With **On-site notifications** enabled, a new remote alert alternates the browser tab title between its normal title and **Alice in dev/null core sent you a message**, or **Alice sent you a message** for a direct remote. It switches every second for three normal/message cycles, then keeps the message title until you view the receiving remote. All already-open tabs for your account share the alert through the browser's native BroadcastChannel API; opening that remote in a visible, focused tab restores its alert titles to the normal titles and unread counts everywhere. Focusing an unrelated page or a different remote does not dismiss it. A newer alert updates the sender without restarting the blinking, and the sound cooldown does not delay it. This uses the browser's native page title and works even without permission for notification banners. Message text is never included, and muted or actively read remotes do not trigger it.
+
+Pin a direct remote or org from its **…** menu to keep it above unpinned conversations in your inbox. Pinned conversations stay ordered by their latest message. Pins belong to your account and follow you across devices; other participants do not see them. Choose **Unpin** to return a remote to its usual place. Stashing keeps its pin, and it returns pinned when a new message pops it back into Open.
+
+To silence one direct remote or org, open its **…** menu and choose **Mute**, below **Stash**, then **For one hour**, **Until tomorrow**, **For one week**, or **Forever**. **Until tomorrow** ends at the next midnight in your account's timezone, or UTC if no timezone is set. The mute follows your account across devices, does not tell other members, and suppresses browser alerts and sound without hiding messages or changing unread counts. New messages do not cancel a mute. Timed mutes expire automatically; choose **Unmute** in the same menu to end any mute early.
+
 Livestream history: the notification requirements on [day one at 5:28:53](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=19733s) explicitly included removing stale activity after an unfollow or deleted reply. The stated goal was to avoid both spam and notifications that “no longer make sense.”
+
+### Emails from /dev/null
+
+Every now and then, the people running /dev/null email everyone with an account, usually about what shipped recently. Emails go to the address GitHub shared when you signed in. They are not notifications: activity such as replies, stars, or follows never sends an email.
+
+Every email has an **Unsubscribe** link at the bottom, and mail apps such as Gmail also show their own one-click unsubscribe button. Opening the link asks you to confirm, so a mail scanner that opens links can't unsubscribe you by accident. Unsubscribing takes effect right away and does not change anything else about your account. Banned accounts never get these emails, and your data export includes when you unsubscribed.
 
 ### Remotes: direct messages
 
 **Remotes** is /dev/null's private messaging inbox at `/remotes`. Open it from navigation or use a developer's **Remote** control. Remotes can be disabled in Settings → Profile; disabling keeps existing conversations but stops new messaging. By default, you can contact someone who follows you, provided both accounts have Remotes enabled and neither has blocked the other. The follow is only needed for the first message: once a conversation exists, both people can keep writing. Administrators have a contact-policy exception. Tom has Remotes turned off, so he cannot be messaged.
 
-Messages support up to **2,000 characters**, replies to messages, link cards, and up to three images with the same file limits and descriptions as commit attachments. An image makes message text optional. **Voice notes** of up to a minute can be recorded from the microphone button in the composer; a voice note is sent on its own (it can still reply to a message), and you can listen to it before pushing it or discard it. Voice notes are compressed with Opus in your browser, about 180 KB a minute (browsers that can't record Opus send plain 16 kHz mono audio instead). The server rebuilds each recording from its audio alone, so no metadata or tags are kept, and stores it encrypted with the app key like message bodies, only ever served to the people in the conversation, and erased with your account. On a computer, hovering the speaker next to a voice note turns its waveform into a volume ramp to drag; the volume you set applies to every voice note, from anyone, on that device, and is saved in your browser, never on the server. Phones and tablets use their volume buttons instead. The speed button after it plays a voice note at 1×, 1.5× or 2×, with the clock showing how long it takes at that speed; the speed applies only to that voice note and resets when the page reloads. Messages cannot be edited or deleted, and mentions in them do not notify anyone. React to a message with any emoji, up to 12 different ones per person per message: three quick reactions sit next to each message, a picker searches the rest, and a double-tap or double-click toggles ❤️. Typing indicators show recent activity. Read receipts, called **pull receipts**, are on by default and shared only when both relevant people enable them. Stashing a conversation archives it for you without deleting it; it pops back when anyone writes in it. On desktop, **Dock** keeps the inbox at the bottom of every page. New messages arrive by polling, not push: every few seconds while a conversation is open. Message bodies, images, and voice notes are encrypted at rest with keys derived from the app key, not end to end. Block someone from inside a conversation with its menu.
+Messages support up to **2,000 characters**, replies to messages, link cards, and up to three images with the same file limits and descriptions as commit attachments. An image makes message text optional. **Voice notes** of up to a minute can be recorded from the microphone button in the composer; a voice note is sent on its own (it can still reply to a message), and you can listen to it before pushing it or discard it. Voice notes are compressed with Opus in your browser, about 180 KB a minute (browsers that can't record Opus send plain 16 kHz mono audio instead). The server rebuilds each recording from its audio alone, so no metadata or tags are kept, and stores it encrypted with the app key like message bodies, only ever served to the people in the conversation, and erased with your account. On a computer, hovering the speaker next to a voice note turns its waveform into a volume ramp to drag; the volume you set applies to every voice note, from anyone, on that device, and is saved in your browser, never on the server. Phones and tablets use their volume buttons instead. The speed button after it plays a voice note at 1×, 1.5× or 2×, with the clock showing how long it takes at that speed; the speed applies only to that voice note and resets when the page reloads. Messages cannot be edited or deleted, and mentions in them do not notify anyone. React to a message with any emoji, up to 12 different ones per person per message: three quick reactions sit next to each message, a picker searches the rest, and a double-tap or double-click toggles ❤️. On touch screens, press and hold a reaction beneath a message to see who left it; a short tap still adds or removes your own reaction. Typing indicators show recent activity. **Ping** with the button next to the microphone, a tribute to MSN Messenger: the remote shakes and plays MSN's sound for you and everyone in it (unless their sound is off or the remote is muted), the history logs it, and it alerts like a message, browser and app notifications included. Ping one person in a direct remote that has already started, or everyone in an org at once, up to three pings a minute. Read receipts, called **pull receipts**, are on by default and shared only when both relevant people enable them. Stashing a conversation archives it for you without deleting it; it pops back when anyone writes in it. On desktop, **Dock** keeps the inbox at the bottom of every page. **Back to present** returns to the newest message after following an old reply or scrolling until at least 25 newer messages are below the conversation viewport. This works in direct remotes, orgs, and the dock. Select a person’s name in the chat header or above a group message to open their profile. New messages arrive by polling, not push: every few seconds while a conversation is open. Message bodies, images, and voice notes are encrypted at rest with keys derived from the app key, not end to end. Block someone from inside a conversation with its menu.
+
+When you are at the bottom of a chat, opening a reply moves the messages up to keep the latest one visible above the composer. Canceling restores that space, and sending keeps your new message at the bottom without scrolling the thread. Scrolling through older messages keeps your reading position when opening or canceling a reply; sending from there smoothly brings your new message into view. Reduced-motion preferences are respected.
+
+Click the quoted preview above a reply to jump to the original message, even when it is in older history that has not loaded yet. The original is briefly highlighted. **Back to present** returns to the latest messages.
 
 Unread badges in conversation rows and the desktop dock display **99+** above 99; the full count remains available on hover and to screen readers. The **Fetched** tab applies the same display cap to waiting requests.
 
@@ -343,11 +374,11 @@ Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contac
 
 An **Org** is a private group chat within Remotes, not a synchronized GitHub organization. Create one with other eligible developers; a group can contain up to **100 people including you**. Members need Remotes enabled, must follow the person adding them (unless that person is an admin), and must have no block with anyone in the org. A group's optional name can be up to **60 characters**.
 
-The creator starts as a **Maintainer**, and invited people start as **Contributors**. Maintainers can rename the group, add or remove members, and change roles. Contributors can read and send messages. When adding members, a maintainer can share existing history or only new messages. Members can leave or stash the group for themselves. At least one maintainer remains while the group has members: the last maintainer cannot be demoted, and if they leave, the longest-standing remaining member takes over. An org that everyone has left is deleted.
+The creator starts as a **Maintainer**, and invited people start as **Contributors**. Maintainers can rename the group, add or remove members, change roles, and pin up to **25 messages**. Contributors can read and send messages. When adding members, a maintainer can share existing history or only new messages. Members can leave or stash the group for themselves. At least one maintainer remains while the group has members: the last maintainer cannot be demoted, and if they leave, the longest-standing remaining member takes over. An org that everyone has left is deleted.
 
-Group messages support the same text, images, voice notes, replies, link cards, reactions, and typing indicators as direct messages. A member's read position shows only when both you and that member have pull receipts on. Any new message pops the org back for members who stashed it. Membership and history access determine what a person can read.
+Group messages support the same text, images, voice notes, replies, link cards, reactions, and typing indicators as direct messages. A member's read position shows only when both you and that member have pull receipts on. Any new message pops the org back for members who stashed it. Membership and history access determine what a person can read, except pinned messages: on the web, every member sees those in the pinned messages bar at the top of the chat, including people added without the history, and can reply and react to them.
 
-Sources: [group creation](app/Http/Requests/CreateOrgRequest.php), [invitation eligibility](app/Queries/RemoteCandidatesQuery.php), [history sharing](app/Actions/CreateOrgMembers.php), [role changes](app/Http/Requests/UpdateOrgMemberRequest.php), [leaving a group](app/Actions/DeleteOrgMember.php).
+Sources: [group creation](app/Http/Requests/CreateOrgRequest.php), [invitation eligibility](app/Queries/RemoteCandidatesQuery.php), [history sharing](app/Actions/CreateOrgMembers.php), [pinning](app/Http/Requests/UpdateMessagePinRequest.php), [role changes](app/Http/Requests/UpdateOrgMemberRequest.php), [leaving a group](app/Actions/DeleteOrgMember.php).
 
 ### Muting and blocking
 
@@ -383,7 +414,7 @@ Sources: [appearance settings](resources/js/pages/appearance/update.tsx), [lane 
 
 /dev/null is a progressive web app. Browsers that support installation (Chrome, Edge, and Safari's **Add to Home Screen** / **Add to Dock**) offer to install it from the web app manifest; the installed app opens in its own window without browser controls, uses the app icon, and follows the Light, Dark, or System appearance in its title and status bars. The app's icon menu offers shortcuts to the Following log, the Latest log, and Notifications. Where the browser supports it, links launched into the installed app reuse its existing window; installing the app does not guarantee that every browser will open links in it.
 
-A service worker caches the built assets of the current release and shows an offline page when a page cannot be reached; the page reloads on its own once the connection returns. The service worker does not cache pages or retain signed-in page content for offline access, and there is no offline reading of logs or offline posting. Browser-local preferences and [stashed drafts](#stashed-drafts) are separate from this asset cache. There are no push notifications; the installed app polls for new notifications and messages the same way the browser does.
+A service worker caches the built assets of the current release and shows an offline page when a page cannot be reached; the page reloads on its own once the connection returns. The service worker does not cache pages or retain signed-in page content for offline access, and there is no offline reading of logs or offline posting. Browser-local preferences and [stashed drafts](#stashed-drafts) are separate from this asset cache. While open, the installed app polls for new notifications and messages the same way the browser does. Remotes can also send silent, generic push notifications while the app is backgrounded or closed when you explicitly enable **Off-site notifications** under **Settings → Profile → Remotes**. This switch is off by default; activity notifications remain on-site.
 
 Sources: [web app manifest](public/site.webmanifest), [service worker](public/sw.js), [offline page](public/offline.html), [service worker registration](resources/js/lib/service-worker.ts), [document head](resources/views/app.blade.php), [manifest tests](tests/Feature/WebAppManifestTest.php).
 
@@ -449,16 +480,31 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
 - star or unstar;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
-- change Remotes settings, read and send messages with images and link cards in conversations and orgs, mark them pulled, react to messages and list your reactions, find people, and start orgs;
-- stash or reopen conversations and orgs, merge or drop message requests, and send typing indicators;
+- change Remotes settings, read and send messages with images, link cards, and voice notes in conversations and orgs, mark them pulled, react to messages and list your reactions, pin and unpin org messages as a maintainer, find people, and start orgs;
+- rename orgs, add people to them, change their roles, remove them, and leave an org, with the same maintainer rules as the web;
+- stash or reopen conversations and orgs, pin and mute them, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
 - report commits;
 - sync from GitHub and save your lane color;
 - delete your account.
 
-Signed request bodies are JSON, or multipart when they carry images, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Voice notes, pinning, scheduling, search, and translations remain web-only. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
+Signed request bodies are JSON, or multipart when they carry images or a voice note, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Scheduling, search, and translations remain web-only. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
+
+### Mac app
+
+**/dev/null for Mac** is a native Mac app for Remotes: direct remotes and orgs with replies, reactions, images, link cards, voice notes, pull receipts, and notifications. It is free, universal (Apple silicon and Intel), and requires macOS 14 or later. Download it from **/apps**, the home for /dev/null's apps, which shows the version, size, release date, and SHA-256 checksum of the current download (`/mac` redirects there, and **Settings → Devices** links to it).
+
+To install it, open `DevNull.dmg`, drag /dev/null onto Applications, and open it. The file is named `DevNull.app`, because a slash can't go in a file name; everywhere else, the app is called /dev/null. The app is signed and notarized by Apple, so macOS opens it without a warning.
+
+On first launch, choose **Sign in with GitHub**: the app opens `/mobile/authorize` in your browser, you approve its key, and the Mac shows up under **Settings → Devices** like any other device, where you can revoke it. It uses the same signed API as the phone app, with the same limits, and gets new messages by polling while it runs; there are no push notifications after you quit it.
+
+Privacy on the Mac: the device key stays in the Keychain, notification banners never show what a message says, and messages and images are kept in memory only, so besides a few preferences nothing is saved on the Mac. **Sign Out** deletes the key.
+
+Updates: **Check for Updates…** in the app menu compares the installed build with the one /apps offers and opens /apps when there is a newer one; the app also checks quietly once a day while it runs. The check is an unsigned request that sends nothing about you or your account. To update, download the new DMG and replace the app in Applications; you stay signed in. The **About /dev/null** window shows the version and build, links to the site, /apps, the privacy policy and Manage Devices, and credits.
+
+Sources: [apps page](resources/js/pages/app/index.tsx), [release endpoint](app/Http/Controllers/Api/MacAppController.php), [About window](https://github.com/dev-null-sh/mac-os-app/blob/main/Sources/DevNull/Views/AboutView.swift), [update check](https://github.com/dev-null-sh/mac-os-app/blob/main/Sources/DevNull/App/Updates.swift), [API routes](routes/api.php).
 
 ### Bug reports and feature requests
 
@@ -503,11 +549,13 @@ Commits and replies may be pending, approved, or rejected. Some posts are approv
 
 Moderators are the site administrators. They review pending commits and reported content. Authors can receive a reason when their content is rejected. Moderation is a restricted role, not a control every account receives.
 
+Ordinary photos of children are not prohibited just because a child appears in them. Images still undergo safety checks, and sexual content involving minors remains prohibited.
+
 Posts awaiting automated checks stay pending if those checks fail; a failed check never approves a post.
 
 Before you first commit, reply, quote, or schedule a commit, the web composer shows the commit rules, and keeps showing them on every attempt until you send with "Got it, commit": no engagement bait, no low-effort posts, no AI-generated posts, no spam or self-promotion, and no harassment, hate, or private information, followed by a link to the terms. Your first submission must come from the web so you can accept these rules; terminal, GitHub Action, and app posting become available afterwards.
 
-During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, send remotes, or start, rename, or add people to orgs from any surface; each attempt says how long is left and why. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
+During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, send remotes, or start, rename, add people to, or pin messages in orgs from any surface; each attempt says how long is left and why. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
 
 A **ban** sends you to a page explaining why, where you can only sign out or delete your account; the app refuses everything but deleting the account, and the terminal refuses posting. A ban belongs to the GitHub account, so deleting the /dev/null account and signing in again does not lift it. Banning someone cancels their scheduled commits, so lifting the ban later does not publish them all at once.
 
@@ -515,11 +563,11 @@ Sources: [status transitions](app/Actions/UpdateCommitStatuses.php), [timeouts](
 
 ### About, changelog, and policies
 
-The public **About** page describes the livestream project and its contributors. The **Changelog**, opened from the navigation or the side column, lists the pull requests merged into `production` on GitHub, a few days at a time. The **Brand** page at `/brand` offers the logo, wordmark, colors, typography, and wallpapers; right-clicking the logo in the navigation also copies it or links there. **Terms** and **Privacy** explain acceptable use and data handling. Public posts may be indexed or copied outside /dev/null; content and search queries can be processed by automated or AI services. Read those policies before posting sensitive information or relying on deletion to remove every external copy.
+The public **About** page describes the livestream project and lists up to 1,000 GitHub contributor accounts, excluding bots and known agents, most commits first; the list is cached for an hour and GitHub may take several hours to update its counts; when GitHub cannot be reached the page says so instead of showing the list. The **Changelog**, opened from the navigation or the side column, lists the pull requests merged into `production` on GitHub, a few days at a time. The **Brand** page at `/brand` offers the logo, wordmark, colors, typography, and wallpapers; right-clicking the logo in the navigation also copies it or links there. **Terms** and **Privacy** explain acceptable use and data handling. Public posts may be indexed or copied outside /dev/null; content and search queries can be processed by automated or AI services. Read those policies before posting sensitive information or relying on deletion to remove every external copy.
 
 To count active people, /dev/null remembers only the **last day** (not the time) you were signed in and used the site or the API; background refreshes do not count. That day is never shown to other people, is included in your export, and is deleted with your account. Daily active-people numbers are kept as anonymous counts. Visitor analytics come from **Fathom**, which counts anonymously: the browser sends a `guest-visit` event once per session when you are not signed in and a `signup` event right after an account is created, with nothing that identifies you.
 
-Sources: [last seen tracking](app/Http/Middleware/UpdateLastSeenAt.php), [Fathom events](resources/js/lib/analytics.ts), [public page routes](routes/web.php), [About](resources/js/pages/about/show.tsx), [privacy policy](resources/js/pages/privacy/show.tsx), [terms](resources/js/pages/terms/show.tsx).
+Sources: [last seen tracking](app/Http/Middleware/UpdateLastSeenAt.php), [Fathom events](resources/js/lib/analytics.ts), [public page routes](routes/web.php), [About](resources/js/pages/about/show.tsx), [contributors](app/Queries/ContributorsQuery.php), [privacy policy](resources/js/pages/privacy/show.tsx), [terms](resources/js/pages/terms/show.tsx).
 
 ### Tom's repository insights and community statistics
 
@@ -542,6 +590,18 @@ An approved commit or reply whose entire text is **hello world**, including vari
 Sources: [greeting matching](app/Services/HelloWorld.php), [world reply](app/Actions/CreateWorldReply.php).
 
 Livestream history: on [day two at 4:08:10](https://www.youtube.com/watch?v=nfmVdXZfzUE&t=14890s), the Easter egg was announced as merged, and viewers were invited to post “hello world” without tagging anyone. The plan was to surprise Nuno with the moderation queue and automatic replies; viewers were told not to spoil it in chat.
+
+## Easter eggs
+
+/dev/null has a few developer in-jokes, including the [automatic hello world greeting](#hello-world-replies) and the certificate surprise below.
+
+### eMudhra certificate fingerprints
+
+Hovering any of the eight certificate SHA-256 fingerprints listed in [Cisco Talos's eMudhra incident report](https://blog.talosintelligence.com/compromised-intermediate-certificates/) reveals `4`, including in inline code and code blocks. Matching ignores letter case. The original fingerprint returns when the pointer leaves; copying and screen readers still get the original text, and the layout does not shrink.
+
+For example, hover `E7568FE6E12331F4FD7DE61DA4C7559D0F8EB192A218D4741A3BA75184333838` to see `4`. This is a visual joke about the incident's weak private keys, not a conversion of the fingerprint or a claim that every affected key was literally `4`.
+
+Sources: [fingerprint matching](resources/js/lib/certificate-hashes.ts), [text rendering](resources/js/components/certificate-text.tsx), [code blocks](resources/js/components/code-block.tsx).
 
 ## Stack and hosting
 

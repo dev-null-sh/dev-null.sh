@@ -1,5 +1,5 @@
-import { usePage, usePoll } from '@inertiajs/react';
-import { useCallback, useState } from 'react';
+import { Head, usePage, usePoll } from '@inertiajs/react';
+import { useCallback, useEffect, useState } from 'react';
 import { AppAside } from '@/components/app-aside';
 import {
     AppNav,
@@ -19,8 +19,10 @@ import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
 import { SearchDialog } from '@/components/search-dialog';
+import { useChat, useRemoteAlerts, useUnreadMessages } from '@/hooks/use-chat';
 import { useIsComposerInView } from '@/hooks/use-composer-visibility';
 import { usePageDeletion } from '@/hooks/use-deleted-resources';
+import { useFaviconDot } from '@/hooks/use-favicon-dot';
 import { useFixedPage } from '@/hooks/use-fixed-page';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useNavOpen } from '@/hooks/use-nav-open';
@@ -66,7 +68,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
         compose,
     );
     useTabSlide();
+    const unreadMessages = useUnreadMessages();
     useFixedPage(isMessages);
+    useRemoteAlerts(auth.remotes !== null ? (auth.user?.id ?? null) : null);
+    useFaviconDot(auth.unreadNotificationsCount + unreadMessages > 0);
 
     return (
         <>
@@ -75,8 +80,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 data-nav={isLayoutOpen ? 'expanded' : 'collapsed'}
                 className="mx-auto flex min-h-svh w-full max-w-[1264px] justify-center"
             >
-                {component !== 'notification/index' && deletedPage === null && (
-                    <NotificationCountPolling onNotFound={markPageDeleted} />
+                {deletedPage === null && (
+                    <NotificationCountPolling
+                        isInbox={component === 'notification/index'}
+                        onNotFound={markPageDeleted}
+                    />
                 )}
                 <div
                     data-nav-rail
@@ -145,7 +153,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
                 {isGuest && <LocalSignInDialog />}
             </div>
+            <NotificationTitle />
         </>
+    );
+}
+
+function NotificationTitle() {
+    const {
+        url,
+        props: { auth },
+    } = usePage();
+    const { notificationTitle } = useChat();
+    const unread = useUnreadMessages() + auth.unreadNotificationsCount;
+
+    // A fresh provider takes precedence over the page's title; removing it restores that title after the alert.
+    return (
+        <Head
+            key={JSON.stringify([url, unread, notificationTitle])}
+            title={notificationTitle ?? undefined}
+        />
     );
 }
 
@@ -153,8 +179,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
  * The counts reload with the page's own URL, so they are also what first finds out that the page's commit is gone: the
  * page then stays as it was, instead of turning into a 404, and the polling stops until another page is visited.
  */
-function NotificationCountPolling({ onNotFound }: { onNotFound: () => void }) {
-    usePoll(
+function NotificationCountPolling({
+    isInbox,
+    onNotFound,
+}: {
+    isInbox: boolean;
+    onNotFound: () => void;
+}) {
+    const { start, stop } = usePoll(
         30_000,
         backgroundPollOptions({
             only: ['auth.unreadNotificationsCount', 'auth.unreadMessagesCount'],
@@ -168,8 +200,24 @@ function NotificationCountPolling({ onNotFound }: { onNotFound: () => void }) {
                 return false;
             },
         }),
-        { mode: 'rest', background: 'pause' },
+        { mode: 'rest', background: 'throttle' },
     );
+
+    useEffect(() => {
+        if (!isInbox) {
+            return;
+        }
+
+        const toggle = () => (document.hidden ? start() : stop());
+
+        toggle();
+        document.addEventListener('visibilitychange', toggle);
+
+        return () => {
+            document.removeEventListener('visibilitychange', toggle);
+            start();
+        };
+    }, [isInbox, start, stop]);
 
     return null;
 }

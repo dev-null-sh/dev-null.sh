@@ -361,6 +361,43 @@ it('rejects images sent any other way than beside a json payload', function (arr
     'with nested images' => [[], fn (UploadedFile $image, string $payload): array => ['payload' => UploadedFile::fake()->createWithContent('payload', $payload), 'images' => [[$image]]]],
 ]);
 
+it('rejects a voice note that does not match the hash that was signed', function (): void {
+    $nuno = User::factory()->withRemotes()->create();
+    $this->user->update(['remotes_enabled' => true]);
+    $nuno->following()->attach($this->user);
+    $this->user->following()->attach($nuno);
+
+    signedApiRequestWithVoice($this->keyPair, 'POST', route('api-conversation-message.store', $nuno), ['client_id' => fake()->uuid(), 'voice_waveform' => voiceNoteWaveform()], voiceNoteUpload(), voiceNoteUpload(voiceNoteWav()))
+        ->assertUnauthorized()
+        ->assertExactJson(['message' => 'Invalid signature.', 'code' => 'invalid_signature']);
+});
+
+it('rejects a voice note sent any other way than alone beside a json payload', function (Closure $files): void {
+    $voice = voiceNoteUpload();
+    $payload = '{"body":"It was DNS."}';
+    $server = [
+        ...signApiRequest($this->keyPair, 'POST', route('api-commit.store'), hash_file('sha256', $voice->getPathname())."\n".$payload, namespace: SignedRequests::ImagesNamespace),
+        'CONTENT_TYPE' => 'multipart/form-data; boundary=devnull',
+    ];
+
+    $this->call('POST', route('api-commit.store'), files: $files($voice, $payload), server: $server)
+        ->assertUnauthorized()
+        ->assertExactJson(['message' => 'Send the body of a signed request as JSON.', 'code' => 'invalid_signature']);
+})->with([
+    'with images' => fn (UploadedFile $voice, string $payload): array => ['payload' => UploadedFile::fake()->createWithContent('payload', $payload), 'voice' => $voice, 'images' => [UploadedFile::fake()->image('dns.png', 10, 10)]],
+    'in a list' => fn (UploadedFile $voice, string $payload): array => ['payload' => UploadedFile::fake()->createWithContent('payload', $payload), 'voice' => [$voice]],
+]);
+
+it('says when a voice note did not upload, which is no fault of the signature', function (): void {
+    $nuno = User::factory()->withRemotes()->create();
+    $this->user->update(['remotes_enabled' => true]);
+    $voice = voiceNoteUpload();
+
+    signedApiRequestWithVoice($this->keyPair, 'POST', route('api-conversation-message.store', $nuno), ['client_id' => fake()->uuid(), 'voice_waveform' => voiceNoteWaveform()], new UploadedFile($voice->getPathname(), 'voice-note', 'audio/webm', UPLOAD_ERR_INI_SIZE, test: true), $voice)
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['voice' => 'The voice note failed to upload.']);
+});
+
 it('says when an image did not upload, which is no fault of the signature', function (): void {
     $image = UploadedFile::fake()->image('dns.png', 10, 10);
 

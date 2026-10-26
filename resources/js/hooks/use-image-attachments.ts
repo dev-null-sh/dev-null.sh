@@ -13,6 +13,7 @@ export type UseImageAttachmentsReturn = {
     readonly images: File[];
     readonly descriptions: string[];
     readonly error: string | null;
+    readonly clearError: () => void;
     readonly reading: boolean;
     readonly isReading: () => boolean;
     readonly pick: (files: File[]) => Promise<void>;
@@ -100,6 +101,7 @@ export function useImageAttachments(
         images,
         descriptions,
         error,
+        clearError: () => setError(null),
         reading,
         isReading: () => isReadingImages(draftKey),
         pick,

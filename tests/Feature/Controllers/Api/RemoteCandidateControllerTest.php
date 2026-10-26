@@ -12,14 +12,14 @@ beforeEach(function (): void {
     $this->user = User::factory()->create();
     $this->keyPair = apiKeyPairFor($this->user);
 
-    // The reason each person matching the search can't be picked, by their username...
+    // The reason each person matching the search can't be picked, by their handle...
     $this->reasons = fn (array $query): array => collect(signedApiRequest($this->keyPair, 'GET', route('api-remote-candidate.index', $query))->assertOk()->json('candidates'))
-        ->mapWithKeys(fn (array $candidate): array => [$candidate['user']['username'] => $candidate['reason']])
+        ->mapWithKeys(fn (array $candidate): array => [$candidate['user']['handle'] => $candidate['reason']])
         ->all();
 });
 
 it('finds people to push to, as the api shows people elsewhere', function (): void {
-    $nuno = User::factory()->create(['username' => 'nunomaduro', 'bio' => 'Pest and Pint.']);
+    $nuno = User::factory()->create(['handle' => 'nunomaduro', 'bio' => 'Pest and Pint.']);
     $nuno->following()->attach($this->user);
 
     signedApiRequest($this->keyPair, 'GET', route('api-remote-candidate.index', ['q' => '@NunoMaduro', 'for' => 'remote']))
@@ -28,6 +28,7 @@ it('finds people to push to, as the api shows people elsewhere', function (): vo
         ->assertExactJson(['candidates' => [[
             'user' => [
                 'id' => $nuno->id,
+                'handle' => 'nunomaduro',
                 'username' => 'nunomaduro',
                 'name' => $nuno->name,
                 'avatar_url' => $nuno->avatar_url,
@@ -46,10 +47,10 @@ it('finds people to push to, as the api shows people elsewhere', function (): vo
 });
 
 it('says why someone cannot be pushed to', function (array $query): void {
-    $follower = User::factory()->create(['username' => 'ana_follows']);
+    $follower = User::factory()->create(['handle' => 'ana_follows']);
     $follower->following()->attach($this->user);
-    User::factory()->create(['username' => 'ana_stranger']);
-    $off = User::factory()->create(['username' => 'ana_off', 'remotes_enabled' => false]);
+    User::factory()->create(['handle' => 'ana_stranger']);
+    $off = User::factory()->create(['handle' => 'ana_off', 'remotes_enabled' => false]);
     $off->following()->attach($this->user);
 
     expect(($this->reasons)(['q' => 'ana', ...$query]))->toEqualCanonicalizing([
@@ -65,7 +66,7 @@ it('says why someone cannot be pushed to', function (array $query): void {
 it('says why someone cannot join an org', function (Closure $setUp, string $reason): void {
     [$nuno] = followersOf($this->user, 1);
     $org = createOrg($this->user, [$nuno]);
-    $candidate = User::factory()->create(['username' => 'candidate']);
+    $candidate = User::factory()->create(['handle' => 'candidate']);
     $candidate->following()->attach($this->user);
 
     $setUp($candidate, $nuno, $org);
@@ -81,16 +82,16 @@ it('says why someone cannot join an org', function (Closure $setUp, string $reas
 
 it('lets anyone who can join a new org be picked for it', function (): void {
     [$nuno] = followersOf($this->user, 1);
-    $nuno->update(['username' => 'ana_member']);
+    $nuno->profile->update(['handle' => 'ana_member']);
     $org = createOrg($this->user, [$nuno]);
-    User::factory()->create(['username' => 'ana_stranger']);
+    User::factory()->create(['handle' => 'ana_stranger']);
 
     expect(($this->reasons)(['q' => 'ana', 'org' => $org]))->toEqualCanonicalizing(['ana_member' => 'already in the org', 'ana_stranger' => "doesn't follow you"])
         ->and(($this->reasons)(['q' => 'ana', 'for' => 'org']))->toEqualCanonicalizing(['ana_member' => null, 'ana_stranger' => "doesn't follow you"]);
 });
 
 it('finds nobody without a search, and never the user themselves', function (): void {
-    $this->user->update(['username' => 'ana_me']);
+    $this->user->profile->update(['handle' => 'ana_me']);
 
     signedApiRequest($this->keyPair, 'GET', route('api-remote-candidate.index'))->assertOk()->assertExactJson(['candidates' => []]);
     signedApiRequest($this->keyPair, 'GET', route('api-remote-candidate.index', ['q' => 'ana_me']))->assertOk()->assertExactJson(['candidates' => []]);

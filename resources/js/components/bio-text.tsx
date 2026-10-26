@@ -2,8 +2,8 @@ import type { ReactNode } from 'react';
 import { mentionPattern } from '@/lib/mentions';
 
 // Like a shortened URL, the "@" stays in the text, so copying the bio keeps the mention.
-function GitHubMention({ username }: { username: string }) {
-    const href = `https://github.com/${username}`;
+function GitHubMention({ handle }: { handle: string }) {
+    const href = `https://github.com/${handle}`;
 
     return (
         <a
@@ -11,7 +11,7 @@ function GitHubMention({ username }: { username: string }) {
             target="_blank"
             rel="noopener noreferrer nofollow ugc"
             title={href}
-            aria-label={`@${username} on GitHub`}
+            aria-label={`@${handle} on GitHub`}
             className="inline-flex h-[1.55em] items-center gap-[0.3em] rounded-md border bg-muted pr-[0.55em] pl-[calc(0.2em-1px)] align-[-0.3em] text-[0.93em] font-medium whitespace-nowrap text-foreground transition-colors hover:border-primary/45 hover:bg-primary-soft hover:text-primary-hover"
             data-test="bio-mention"
         >
@@ -28,7 +28,7 @@ function GitHubMention({ username }: { username: string }) {
             </span>
             <span>
                 <span className="text-[0px]">@</span>
-                {username}
+                {handle}
             </span>
         </a>
     );
@@ -44,7 +44,7 @@ export function BioText({ bio }: { bio: string }) {
     for (const match of bio.matchAll(mentionPattern)) {
         parts.push(
             bio.slice(position, match.index),
-            <GitHubMention key={match.index} username={match[1]} />,
+            <GitHubMention key={match.index} handle={match[1]} />,
         );
         position = match.index + match[0].length;
     }

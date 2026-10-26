@@ -70,7 +70,10 @@ void test('authors see an accessible empty star count', async () => {
 
     assert.match(body, /aria-label="No stars yet"/);
     assert.match(body, /disabled=""/);
-    assert.match(body, /data-test="star-count"[^>]*><\/span>/);
+    assert.match(
+        body,
+        /data-test="own-star-count"[^>]*><svg[^>]*>.*?<\/svg><\/button>/,
+    );
 });
 
 for (const user of [null, { id: 'viewer' }]) {
@@ -84,14 +87,13 @@ for (const user of [null, { id: 'viewer' }]) {
     });
 }
 
-void test('unstarred commits reserve the count slot outside the star control', async () => {
+void test('unstarred commits show only the star in the star control', async () => {
     const body = await render({ id: 'viewer' }, { stars_count: 0 });
 
     assert.match(
         body,
-        /class="[^"]*mr-\[calc\(0\.25rem\+1ch\)\][^"]*" data-test="star-commit-button"/,
+        /data-test="star-commit-button"[^>]*><svg[^>]*>.*?<\/svg><\/button>/,
     );
-    assert.doesNotMatch(body, /data-test="star-count"/);
 });
 
 void test('starred commits keep the count slot inside the star control', async () => {

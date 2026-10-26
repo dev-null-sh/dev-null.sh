@@ -1,15 +1,21 @@
 import { Transition } from '@headlessui/react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { Copy, Search, SmilePlus } from 'lucide-react';
+import { Copy, Pin, PinOff, Search, SmilePlus } from 'lucide-react';
 import type { KeyboardEvent, PointerEvent, ReactNode, RefObject } from 'react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
     Popover,
+    PopoverAnchor,
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { emojiName, searchEmojiByUse } from '@/lib/emoji';
 import { formatCount, formatExactCount } from '@/lib/numbers';
 import type { ReactionUsage, Tap } from '@/lib/reactions';
@@ -147,50 +153,15 @@ export function ReactionChips({
                         )}
                         data-test="message-reactions"
                     >
-                        {summaries.map((summary) => {
-                            const names = summary.userIds
-                                .map(nameOf)
-                                .join(', ');
-
-                            return (
-                                <li key={summary.emoji}>
-                                    <button
-                                        type="button"
-                                        disabled={
-                                            onToggle === null || !hasReactions
-                                        }
-                                        aria-pressed={summary.isMine}
-                                        aria-label={`${shortcodeOf(summary.emoji)} ${formatExactCount(summary.count)}, from ${names}`}
-                                        title={`${names} reacted with ${shortcodeOf(summary.emoji)}`}
-                                        onClick={() =>
-                                            onToggle?.(summary.emoji)
-                                        }
-                                        className={cn(
-                                            'inline-flex h-6 items-center gap-1 rounded-md border bg-card pr-2 pl-1.5 text-[13px] leading-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none enabled:hover:border-foreground/25',
-                                            {
-                                                'border-primary/45 bg-primary-soft enabled:hover:border-primary':
-                                                    summary.isMine,
-                                            },
-                                        )}
-                                        data-test="reaction-chip"
-                                    >
-                                        <span aria-hidden>{summary.emoji}</span>
-                                        <span
-                                            aria-hidden
-                                            className={cn(
-                                                'min-w-[1ch] font-mono text-[11px] font-medium text-muted-foreground tabular-nums',
-                                                {
-                                                    'text-primary':
-                                                        summary.isMine,
-                                                },
-                                            )}
-                                        >
-                                            {formatCount(summary.count)}
-                                        </span>
-                                    </button>
-                                </li>
-                            );
-                        })}
+                        {summaries.map((summary) => (
+                            <ReactionChip
+                                key={summary.emoji}
+                                summary={summary}
+                                nameOf={nameOf}
+                                onToggle={onToggle}
+                                isLeaving={!hasReactions}
+                            />
+                        ))}
                     </ul>
                 </div>
             </div>
@@ -198,10 +169,115 @@ export function ReactionChips({
     );
 }
 
+function ReactionChip({
+    summary,
+    nameOf,
+    onToggle,
+    isLeaving,
+}: {
+    summary: ReturnType<typeof summarizeReactions>[number];
+    nameOf: (userId: string) => string;
+    onToggle: ((emoji: string) => void) | null;
+    isLeaving: boolean;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const anchor = useRef<HTMLButtonElement>(null);
+    const names = summary.userIds.map(nameOf).join(', ');
+    const touch = useTouchReactions({
+        onLongPress: () => setIsOpen(true),
+    });
+
+    return (
+        <li>
+            <Popover open={isOpen && !isLeaving} onOpenChange={setIsOpen}>
+                <Tooltip open={isOpen ? false : undefined}>
+                    <TooltipTrigger asChild>
+                        <PopoverAnchor asChild>
+                            <button
+                                ref={anchor}
+                                type="button"
+                                disabled={isLeaving}
+                                aria-pressed={summary.isMine}
+                                aria-label={`${shortcodeOf(summary.emoji)} ${formatExactCount(summary.count)}, from ${names}`}
+                                aria-description="Press and hold, or press Shift+F10, to see who reacted."
+                                aria-haspopup="dialog"
+                                aria-expanded={isOpen && !isLeaving}
+                                {...touch}
+                                onPointerDown={(event) => {
+                                    event.stopPropagation();
+                                    touch.onPointerDown?.(event);
+                                }}
+                                onKeyDown={(event) => {
+                                    if (
+                                        event.key === 'ContextMenu' ||
+                                        (event.shiftKey && event.key === 'F10')
+                                    ) {
+                                        event.preventDefault();
+                                        setIsOpen(true);
+                                    }
+                                }}
+                                onClick={() => onToggle?.(summary.emoji)}
+                                className={cn(
+                                    'inline-flex h-6 items-center gap-1 rounded-md border bg-card pr-2 pl-1.5 text-[13px] leading-none transition-colors select-none [-webkit-touch-callout:none] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none enabled:hover:border-foreground/25',
+                                    {
+                                        'border-primary/45 bg-primary-soft enabled:hover:border-primary':
+                                            summary.isMine,
+                                    },
+                                )}
+                                data-test="reaction-chip"
+                            >
+                                <span aria-hidden>{summary.emoji}</span>
+                                <span
+                                    aria-hidden
+                                    className={cn(
+                                        'min-w-[1ch] font-mono text-[11px] font-medium text-muted-foreground tabular-nums',
+                                        { 'text-primary': summary.isMine },
+                                    )}
+                                >
+                                    {formatCount(summary.count)}
+                                </span>
+                            </button>
+                        </PopoverAnchor>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        {names} reacted with {shortcodeOf(summary.emoji)}
+                    </TooltipContent>
+                </Tooltip>
+                <PopoverContent
+                    side="top"
+                    className="max-h-[min(18rem,var(--radix-popover-content-available-height))] max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain p-3"
+                    aria-label={`People who reacted with ${shortcodeOf(summary.emoji)}`}
+                    onOpenAutoFocus={(event) => event.preventDefault()}
+                    onCloseAutoFocus={(event) => event.preventDefault()}
+                    onFocusOutside={(event) => {
+                        // Lifting the held finger focuses its chip before the synthetic click is suppressed.
+                        if (anchor.current?.contains(event.target as Node)) {
+                            event.preventDefault();
+                        }
+                    }}
+                    data-test="reaction-authors"
+                >
+                    <p className="mb-2 flex items-center gap-2 text-sm font-medium">
+                        <span aria-hidden>{summary.emoji}</span>
+                        {formatExactCount(summary.count)}{' '}
+                        {summary.count === 1 ? 'reaction' : 'reactions'}
+                    </p>
+                    <ul className="space-y-1 text-sm wrap-anywhere">
+                        {summary.userIds.map((id) => (
+                            <li key={id}>{nameOf(id)}</li>
+                        ))}
+                    </ul>
+                </PopoverContent>
+            </Popover>
+        </li>
+    );
+}
+
 /**
  * The quick reactions and the picker, in a row that unfolds under the message when its react button is pressed,
  * nudging what follows down, and folds back once an emoji is picked, Escape is pressed, or anything else is clicked.
- * It stays in the tree so the fold animates both ways, and is inert while folded.
+ * It stays in the tree so the fold animates both ways, and is inert while folded. Beside its trigger, it floats over
+ * the row before the trigger's positioned parent instead, so nothing moves.
  */
 export function ReactionTray({
     id,
@@ -213,6 +289,7 @@ export function ReactionTray({
     hasReactions,
     isMine,
     onReact,
+    placement = 'below',
 }: {
     id: string;
     isOpen: boolean;
@@ -223,6 +300,7 @@ export function ReactionTray({
     hasReactions: boolean;
     isMine: boolean;
     onReact: (emoji: string) => void;
+    placement?: 'below' | 'beside';
 }) {
     const tray = useRef<HTMLDivElement>(null);
     const [isPickerOpen, setIsPickerOpen] = useState(false);
@@ -316,6 +394,12 @@ export function ReactionTray({
                 reservesFirstReaction
                     ? 'pb-7 transition-[grid-template-rows,margin-bottom,padding-bottom]'
                     : 'transition-[grid-template-rows,margin-bottom]',
+                // Lower by half the room kept under the toolbar for its shadow, so the toolbar centres on the row.
+                placement === 'beside' &&
+                    cn(
+                        'absolute top-[calc(50%+0.375rem)] right-full z-10 mr-1 mb-0 w-max -translate-y-1/2 grid-rows-[1fr] pb-0 transition-opacity',
+                        { 'opacity-0': !isOpen },
+                    ),
             )}
             data-test="reaction-tray"
         >
@@ -671,7 +755,7 @@ function EmojiCell({
  * tap that ends a long press doesn't also follow a link.
  */
 export function useTouchReactions(
-    gestures: { onLongPress: () => void; onDoubleTap: () => void } | null,
+    gestures: { onLongPress: () => void; onDoubleTap?: () => void } | null,
 ) {
     const timer = useRef<number | undefined>(undefined);
     const start = useRef<{ x: number; y: number } | null>(null);
@@ -683,6 +767,8 @@ export function useTouchReactions(
         window.clearTimeout(timer.current);
         start.current = null;
     };
+
+    useEffect(() => () => window.clearTimeout(timer.current), []);
 
     if (gestures === null) {
         return {};
@@ -749,7 +835,7 @@ export function useTouchReactions(
                 lastTap.current = null;
                 didDoubleTap.current = true;
                 navigator.vibrate?.(8);
-                gestures.onDoubleTap();
+                gestures.onDoubleTap?.();
             } else {
                 lastTap.current = tap;
             }
@@ -785,7 +871,7 @@ export function useTouchReactions(
 
 /**
  * What a long press opens on a touch screen: the message lifted above the thread with the quick reactions over it,
- * and the full picker in a sheet from the bottom.
+ * and the full picker in a sheet from the bottom. Maintainers can pin or unpin the message from it too.
  */
 export function ReactionSheet({
     isOpen,
@@ -796,6 +882,7 @@ export function ReactionSheet({
     body,
     preview,
     onReact,
+    pin = null,
 }: {
     isOpen: boolean;
     onOpenChange: (isOpen: boolean) => void;
@@ -805,6 +892,7 @@ export function ReactionSheet({
     body: string;
     preview: ReactNode;
     onReact: (emoji: string) => void;
+    pin?: { isPinned: boolean; onToggle: () => void } | null;
 }) {
     const [isPicking, setIsPicking] = useState(false);
     const [isReleased, setIsReleased] = useState(false);
@@ -958,6 +1046,25 @@ export function ReactionSheet({
                             >
                                 <Copy aria-hidden className="size-4" />
                                 Copy text
+                            </button>
+                        )}
+                        {pin !== null && !isPicking && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    close();
+                                    pin.onToggle();
+                                }}
+                                data-sheet-part
+                                className="flex w-max items-center gap-2 rounded-lg border bg-popover px-3 py-2 text-sm shadow-sm"
+                                data-test="sheet-pin"
+                            >
+                                {pin.isPinned ? (
+                                    <PinOff aria-hidden className="size-4" />
+                                ) : (
+                                    <Pin aria-hidden className="size-4" />
+                                )}
+                                {pin.isPinned ? 'Unpin message' : 'Pin message'}
                             </button>
                         )}
                     </div>

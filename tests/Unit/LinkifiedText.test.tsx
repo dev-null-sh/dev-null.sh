@@ -5,14 +5,17 @@ import type { ComponentProps, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { test } from 'vite-plus/test';
 import { BodyCounter } from '../../resources/js/components/body-counter';
+import { ConversationList } from '../../resources/js/components/chat/conversation-list';
 import { MessageText } from '../../resources/js/components/chat/message-parts';
 import { CommitBody } from '../../resources/js/components/commit-body';
 import {
     LinkifiedText,
     typedLinks,
 } from '../../resources/js/components/linkified-text';
+import { WordmarkText } from '../../resources/js/components/wordmark-text';
 import { bodySegments } from '../../resources/js/lib/code';
 import { bodyCharacterCount } from '../../resources/js/lib/commit';
+import type { User } from '../../resources/js/types';
 
 test('counts each prose URL once per occurrence, without discounting code or oversized links', () => {
     const cases: [string, number][] = [
@@ -265,6 +268,26 @@ for (const [text, trailing] of [
     });
 }
 
+test('hides the slash after a bare host without an ellipsis while retaining the full URL', () => {
+    const slashed = 'https://www.example.com/';
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text={slashed} mentions={null} />,
+    );
+
+    assert.ok(markup.includes(`href="${slashed}"`));
+    assert.ok(markup.includes('>example.com<span class="text-[0px]">/</span>'));
+    assert.ok(!markup.includes('…'));
+    assert.equal(markup.replace(/<[^>]+>/g, ''), slashed);
+});
+
+test('keeps the trailing slash of a path', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text="https://laravel.com/docs/" mentions={null} />,
+    );
+
+    assert.ok(markup.includes('>laravel.com/docs/<'));
+});
+
 test('keeps every distinct card URL in order without joining prose across code', () => {
     assert.deepEqual(
         typedLinks(
@@ -293,7 +316,7 @@ test('renders /dev/null as the wordmark while keeping its text', () => {
     assert.equal(markup.replace(/<[^>]+>/g, ''), text);
 });
 
-test('leaves /dev/null inside longer paths, words, URLs and usernames as text', () => {
+test('leaves /dev/null inside longer paths, words, URLs and handles as text', () => {
     const text =
         '/dev/nullable /dev/null/log a/dev/null /dev/null_1 /DEV/NULL https://example.com/dev/null @devnull';
     const markup = renderToStaticMarkup(
@@ -653,6 +676,252 @@ for (const link of [
     'https://notgithub.com/laravel/framework',
 ]) {
     test(`keeps other GitHub links as URLs: ${link}`, () => {
+        const markup = renderToStaticMarkup(
+            <LinkifiedText text={link} mentions={null} />,
+        );
+
+        assert.ok(!markup.includes('aria-label'));
+        assert.ok(markup.includes(`href="${link}"`));
+    });
+}
+
+test('shows a hex color with a swatch of it', () => {
+    const html = renderToStaticMarkup(
+        <LinkifiedText text="Brand orange is #ff8a4c." mentions={null} />,
+    );
+
+    assert.ok(html.includes('data-test="color"'));
+    assert.ok(html.includes('background-color:#ff8a4c'));
+    assert.equal(html.replace(/<[^>]*>/g, ''), 'Brand orange is #ff8a4c.');
+});
+
+test('shows no swatch for a color in code when given a whole body', () => {
+    const html = renderToStaticMarkup(
+        <LinkifiedText
+            text={'see `#fff` and\n```\n#abc\n```\nthen #ff8a4c'}
+            mentions={null}
+        />,
+    );
+
+    assert.equal(html.match(/data-test="color"/g)?.length, 1);
+    assert.ok(html.includes('background-color:#ff8a4c'));
+});
+
+test('shows swatches next to links, mentions and wordmarks', () => {
+    const html = renderToStaticMarkup(
+        <LinkifiedText
+            text="#fff on /dev/null by @Alice at https://example.com/#abc, then #abc"
+            mentions={{ alice: '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b' }}
+        />,
+    );
+
+    assert.equal(html.match(/data-test="color"/g)?.length, 2);
+    assert.ok(html.includes('data-test="mention"'));
+    assert.ok(html.includes('href="https://example.com/#abc"'));
+});
+
+test('shows a swatch for a color that starts a quoted line at the start of a whole body', () => {
+    const colors = (text: string) =>
+        renderToStaticMarkup(
+            <LinkifiedText text={text} mentions={null} startsText />,
+        ).match(/data-test="color"/g)?.length ?? 0;
+
+    assert.equal(colors('>#fff'), 1);
+    assert.equal(colors('line\n>#fff'), 1);
+    assert.equal(colors('>>#fff'), 0);
+    assert.equal(colors('`x`>#fff'), 0);
+});
+
+test('styles every standalone brand mention in UI copy without changing its text', () => {
+    const text = 'Welcome to /dev/null. /dev/null was updated.';
+    const html = renderToStaticMarkup(<WordmarkText>{text}</WordmarkText>);
+
+    assert.equal(html.replace(/<[^>]*>/g, ''), text);
+    assert.equal(html.match(/-webkit-text-stroke/g)?.length, 2);
+    assert.equal(html.match(/whitespace-nowrap/g)?.length, 2);
+});
+
+test('leaves paths, URLs, and longer names unchanged in UI copy', () => {
+    const text =
+        'https://example.com/dev/null /dev/nullish /dev/null/file x/dev/null /dev/null-é';
+
+    assert.equal(
+        renderToStaticMarkup(<WordmarkText>{text}</WordmarkText>),
+        text,
+    );
+});
+
+test('leaves literal code plain while styling surrounding brand mentions', () => {
+    const text =
+        '/dev/null tip: Use `cat > /dev/null` for output.\n```sh\ncat > /dev/null\n```\nBack to /dev/null.';
+    const html = renderToStaticMarkup(<WordmarkText>{text}</WordmarkText>);
+
+    assert.equal(html.match(/-webkit-text-stroke/g)?.length, 2);
+    assert.ok(html.includes('`cat &gt; /dev/null`'));
+    assert.ok(html.includes('```sh\ncat &gt; /dev/null\n```'));
+});
+
+for (const kind of ['direct', 'org'] as const) {
+    for (const outgoing of [false, true]) {
+        test(`keeps fenced code plain in ${outgoing ? 'outgoing' : 'incoming'} ${kind} previews`, () => {
+            const user: User = {
+                id: 'viewer',
+                name: 'Alex Morgan',
+                handle: 'alex',
+                avatar_url: null,
+                bio: null,
+                company: null,
+                location: null,
+                website: null,
+                lane: 0,
+                timezone: null,
+                show_local_time: false,
+                has_sponsors_listing: false,
+                has_github_account: true,
+                created_at: '2026-10-23T10:00:00Z',
+                updated_at: '2026-10-23T10:00:00Z',
+            };
+            const partner = {
+                ...user,
+                id: 'sender',
+                name: 'Sam Rivera',
+                handle: 'sam',
+            };
+            const sender = outgoing ? user : partner;
+            const body = '```sh\ncat > /dev/null\n```\nBack to /dev/null.';
+            const prefix = outgoing ? 'you: ' : kind === 'org' ? 'Sam: ' : '';
+            const html = renderPage(
+                <ConversationList
+                    user={user}
+                    empty={null}
+                    conversations={[
+                        {
+                            id: 'conversation',
+                            kind,
+                            name: 'Developers',
+                            partner: kind === 'direct' ? partner : null,
+                            members: [{ user: partner, role: null }],
+                            last_message: {
+                                id: 1,
+                                user_id: sender.id,
+                                user: sender,
+                                client_id: 'message',
+                                body,
+                                created_at: user.created_at,
+                            },
+                            last_message_at: null,
+                            ahead: 0,
+                            partner_read_through_id: 0,
+                            partner_read_at: null,
+                            is_archived: false,
+                        },
+                    ]}
+                />,
+            );
+
+            assert.equal(html.match(/-webkit-text-stroke/g)?.length, 1);
+            assert.ok(html.includes('cat &gt; /dev/null\n```'));
+            assert.ok(
+                html.includes(`title="${prefix}${body.replace('>', '&gt;')}"`),
+            );
+        });
+    }
+}
+
+test('gives the text on each side of a color its own key', () => {
+    const element = LinkifiedText({
+        text: 'Brand #ff8a4c, white',
+        mentions: {},
+    }) as ReactElement<{ children: unknown }>;
+    const parts = [element.props.children].flat(Infinity) as ReactElement[];
+    const keys = parts.map((part) => part.key);
+
+    assert.equal(parts.length, 3);
+    assert.equal(new Set(keys).size, keys.length, keys.join(', '));
+});
+
+for (const [url, label, shown] of [
+    [
+        'https://gitlab.com/gitlab-org/gitlab',
+        'gitlab-org/gitlab on GitLab',
+        'gitlab-org/gitlab',
+    ],
+    [
+        'https://gitlab.com/gitlab-org/gitlab/-/issues/42',
+        'gitlab-org/gitlab issue #42 on GitLab',
+        'gitlab-org/gitlab#42',
+    ],
+    [
+        'https://gitlab.com/gitlab-org/gitlab/-/merge_requests/42',
+        'gitlab-org/gitlab merge request !42 on GitLab',
+        'gitlab-org/gitlab!42',
+    ],
+    [
+        'https://codeberg.org/forgejo/forgejo',
+        'forgejo/forgejo on Codeberg',
+        'forgejo/forgejo',
+    ],
+    [
+        'https://codeberg.org/forgejo/forgejo/issues/42',
+        'forgejo/forgejo issue #42 on Codeberg',
+        'forgejo/forgejo#42',
+    ],
+    [
+        'https://codeberg.org/forgejo/forgejo/pulls/42',
+        'forgejo/forgejo pull request #42 on Codeberg',
+        'forgejo/forgejo#42',
+    ],
+    [
+        'https://codeberg.org/some.user/my_repo',
+        'some.user/my_repo on Codeberg',
+        'some.user/my_repo',
+    ],
+]) {
+    test(`shows a link to another forge as its forge writes it: ${url}`, () => {
+        const text = `see ${url}.`;
+        const markup = renderToStaticMarkup(
+            <LinkifiedText text={text} mentions={null} />,
+        );
+
+        assert.ok(markup.includes(`href="${url}"`));
+        assert.ok(markup.includes(`aria-label="${label}"`));
+        assert.equal(markup.replace(/<[^>]+>/g, ''), `see ${url}${shown}.`);
+        assert.equal(
+            markup
+                .replace(/<span aria-hidden="true"[^>]*>.*?<\/span><\/a>/g, '')
+                .replace(/<[^>]+>/g, ''),
+            text,
+        );
+    });
+}
+
+test('shows a link to another forge without a link when static', () => {
+    const url = 'https://codeberg.org/forgejo/forgejo';
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text={url} mentions={null} isStatic />,
+    );
+
+    assert.ok(!markup.includes('<a'));
+    assert.ok(markup.includes(`title="${url}"`));
+    assert.equal(markup.replace(/<[^>]+>/g, ''), `${url}forgejo/forgejo`);
+});
+
+for (const link of [
+    'https://gitlab.com/gitlab-org',
+    'https://gitlab.com/gitlab-org/frontend/gitlab-ui',
+    'https://gitlab.com/gitlab-org/gitlab/-/tree/master',
+    'https://gitlab.com/gitlab-org/gitlab/issues/42',
+    'https://gitlab.com/gitlab-org/gitlab/-/pulls/42',
+    'https://gitlab.com/explore/projects',
+    'https://gitlab.com/users/sign_in',
+    'https://codeberg.org/forgejo',
+    'https://codeberg.org/forgejo/forgejo/pull/42',
+    'https://codeberg.org/forgejo/forgejo/src/branch/forgejo',
+    'https://codeberg.org/user/login',
+    'https://codeberg.org/explore/repos',
+    'https://notcodeberg.org/forgejo/forgejo',
+]) {
+    test(`keeps other forge links as URLs: ${link}`, () => {
         const markup = renderToStaticMarkup(
             <LinkifiedText text={link} mentions={null} />,
         );

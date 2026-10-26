@@ -12,6 +12,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
+import { WordmarkText } from '@/components/wordmark-text';
 import { clearRecentSearches } from '@/hooks/use-recent-searches';
 import { formatFullDate } from '@/lib/utils';
 import { logout } from '@/routes';
@@ -34,7 +35,7 @@ export default function Banned({
 
             <main className="mx-auto flex min-h-svh w-full max-w-3xl items-center px-4 py-16 sm:px-8">
                 <ErrorMessage
-                    command={`remote: Permission to /dev/null denied to ${user?.username ?? 'you'}: banned.`}
+                    command={`remote: Permission to /dev/null denied to ${user?.handle ?? 'you'}: banned.`}
                     headline={<h1>Your account is banned.</h1>}
                     description={
                         <div className="grid gap-3">
@@ -78,9 +79,9 @@ export default function Banned({
                                 <DialogTitle>Delete your account?</DialogTitle>
                                 <DialogDescription>
                                     Your profile, commits, replies, and follows
-                                    go to /dev/null, along with every reply
-                                    others left under your commits. This can't
-                                    be undone.
+                                    go to <WordmarkText>/dev/null</WordmarkText>
+                                    , along with every reply others left under
+                                    your commits. This can't be undone.
                                 </DialogDescription>
 
                                 <Form

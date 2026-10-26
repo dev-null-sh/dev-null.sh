@@ -28,7 +28,7 @@ it('calculates initial rank and zero progress for a new user without activity', 
         ->and($result['ranks'])->toHaveCount(6)
         ->and($result['xp_breakdown']['commits']['xp'])->toBe(0)
         ->and($result['xp_breakdown']['shell_shocked']['xp'])->toBe(0)
-        ->and($result['badges'])->toHaveCount(14);
+        ->and($result['badges'])->toHaveCount(15);
 
     foreach ($result['badges'] as $badge) {
         expect($badge['unlocked'])->toBeFalse()
@@ -275,6 +275,29 @@ it('tracks sweet tooth from the account total without requiring surviving commit
     'above threshold' => [125, 100, true],
 ]);
 
+it('unlocks super-saiyan at 9000 current followers without adding xp', function (): void {
+    $user = User::factory()->create();
+    $followers = User::factory()->count(9001)->create();
+    $user->following()->attach($followers);
+    $query = resolve(UserAchievementsQuery::class);
+
+    foreach ([[0, 0, false], [8999, 8999, false], [9000, 9000, true], [9001, 9000, true], [8999, 8999, false]] as [$count, $progress, $unlocked]) {
+        $user->followers()->sync($followers->take($count)->modelKeys());
+
+        $result = $query->get($user, null);
+
+        expect(collect($result['badges'])->firstWhere('id', 'super_saiyan'))->toBe([
+            'id' => 'super_saiyan',
+            'name' => 'super-saiyan',
+            'description' => 'Y—your follower count. It... it’s over 9000!!!1!',
+            'icon' => 'dragon-ball',
+            'unlocked' => $unlocked,
+            'progress' => $progress,
+            'target' => 9000,
+        ])->and($result['xp'])->toBe(0);
+    }
+});
+
 it('does not grant luddite to Tom or someone he has never befriended', function (): void {
     $tom = User::factory()->create(['github_id' => CreateTomFriendship::GITHUB_ID]);
     $user = User::factory()->create();
@@ -287,9 +310,9 @@ it('does not grant luddite to Tom or someone he has never befriended', function 
     }
 });
 
-it('does not identify Tom by a mutable username', function (): void {
+it('does not identify Tom by a mutable handle', function (): void {
     $user = User::factory()->create();
-    $other = User::factory()->create(['username' => 'tom']);
+    $other = User::factory()->create(['handle' => 'tom']);
     $other->following()->attach($user);
 
     $result = resolve(UserAchievementsQuery::class)->get($user, null);

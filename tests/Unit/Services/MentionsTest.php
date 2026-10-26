@@ -7,14 +7,14 @@ use App\Services\Mentions;
 it('finds mentions, lowercased and once each, in order', function (): void {
     $mentions = resolve(Mentions::class);
 
-    expect($mentions->usernames('@NunoMaduro and @taylorotwell, thanks! cc @nunomaduro'))
+    expect($mentions->handles('@NunoMaduro and @taylorotwell, thanks! cc @nunomaduro'))
         ->toBe(['nunomaduro', 'taylorotwell']);
 });
 
-it('finds mentions next to punctuation', function (string $text, array $usernames): void {
+it('finds mentions next to punctuation', function (string $text, array $handles): void {
     $mentions = resolve(Mentions::class);
 
-    expect($mentions->usernames($text))->toBe($usernames);
+    expect($mentions->handles($text))->toBe($handles);
 })->with([
     'sentence end' => ['Thanks @nuno.', ['nuno']],
     'question' => ['Right, @nuno?', ['nuno']],
@@ -27,7 +27,7 @@ it('finds mentions next to punctuation', function (string $text, array $username
 it('ignores what only looks like a mention', function (string $text): void {
     $mentions = resolve(Mentions::class);
 
-    expect($mentions->usernames($text))->toBe([]);
+    expect($mentions->handles($text))->toBe([]);
 })->with([
     'email' => ['Mail me at nuno@laravel.com'],
     'scoped package' => ['npm i @inertiajs/react'],
@@ -41,16 +41,16 @@ it('ignores what only looks like a mention', function (string $text): void {
     'no at symbol' => ['plain text without any mention'],
 ]);
 
-it('allows usernames of up to 39 characters', function (): void {
+it('allows handles of up to 39 characters', function (): void {
     $mentions = resolve(Mentions::class);
 
-    expect($mentions->usernames('@'.str_repeat('a', 39)))->toBe([str_repeat('a', 39)]);
+    expect($mentions->handles('@'.str_repeat('a', 39)))->toBe([str_repeat('a', 39)]);
 });
 
 it('skips mentions in code', function (): void {
     $mentions = resolve(Mentions::class);
 
-    expect($mentions->usernames("thanks @taylorotwell for `@Override`\n```java\n@Deprecated\nvoid run() {}\n```"))
+    expect($mentions->handles("thanks @taylorotwell for `@Override`\n```java\n@Deprecated\nvoid run() {}\n```"))
         ->toBe(['taylorotwell']);
 });
 
@@ -58,9 +58,9 @@ it('finds where every mention is, keeping its case', function (): void {
     $mentions = resolve(Mentions::class);
 
     expect($mentions->positions('@NunoMaduro and @taylorotwell, thanks! cc @nunomaduro'))->toBe([
-        ['username' => 'NunoMaduro', 'offset' => 0, 'length' => 11],
-        ['username' => 'taylorotwell', 'offset' => 16, 'length' => 13],
-        ['username' => 'nunomaduro', 'offset' => 42, 'length' => 11],
+        ['handle' => 'NunoMaduro', 'username' => 'NunoMaduro', 'offset' => 0, 'length' => 11],
+        ['handle' => 'taylorotwell', 'username' => 'taylorotwell', 'offset' => 16, 'length' => 13],
+        ['handle' => 'nunomaduro', 'username' => 'nunomaduro', 'offset' => 42, 'length' => 11],
     ]);
 });
 
@@ -68,7 +68,7 @@ it('counts offsets in characters, not bytes', function (): void {
     $mentions = resolve(Mentions::class);
 
     expect($mentions->positions('Café 🎉 with @nuno.'))->toBe([
-        ['username' => 'nuno', 'offset' => 12, 'length' => 5],
+        ['handle' => 'nuno', 'username' => 'nuno', 'offset' => 12, 'length' => 5],
     ]);
 });
 
@@ -82,8 +82,8 @@ it('skips mentions in inline code and code blocks when finding where they are', 
     $mentions = resolve(Mentions::class);
 
     expect($mentions->positions("thanks @taylorotwell for `@Override`, @nuno\n```java\n@Deprecated\nvoid run() {}\n```\ncc @jess-archer"))->toBe([
-        ['username' => 'taylorotwell', 'offset' => 7, 'length' => 13],
-        ['username' => 'nuno', 'offset' => 38, 'length' => 5],
-        ['username' => 'jess-archer', 'offset' => 85, 'length' => 12],
+        ['handle' => 'taylorotwell', 'username' => 'taylorotwell', 'offset' => 7, 'length' => 13],
+        ['handle' => 'nuno', 'username' => 'nuno', 'offset' => 38, 'length' => 5],
+        ['handle' => 'jess-archer', 'username' => 'jess-archer', 'offset' => 85, 'length' => 12],
     ]);
 });

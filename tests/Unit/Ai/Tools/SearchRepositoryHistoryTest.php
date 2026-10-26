@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Actions\UpdateStaleUsernames;
+use App\Actions\UpdateStaleHandles;
 use App\Ai\Tools\SearchRepositoryHistory;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
@@ -10,9 +10,9 @@ use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Tools\Request as ToolRequest;
 
 it('searches bounded upstream history and distinguishes authors from mergers without leaking raw identities', function (): void {
-    User::factory()->create(['github_id' => '123', 'username' => 'alice-local']);
-    User::factory()->create(['github_id' => '999', 'username' => 'alice']);
-    User::factory()->notOnboarded()->create(['github_id' => '456', 'username' => 'bob']);
+    User::factory()->create(['github_id' => '123', 'handle' => 'alice-local']);
+    User::factory()->create(['github_id' => '999', 'handle' => 'alice']);
+    User::factory()->notOnboarded()->create(['github_id' => '456', 'handle' => 'bob']);
     Http::fake([
         'api.github.com/search/issues*' => Http::response([
             'incomplete_results' => false,
@@ -56,7 +56,7 @@ it('searches bounded upstream history and distinguishes authors from mergers wit
 });
 
 it('resolves current onboarded members even when GitHub history is cached', function (): void {
-    $author = User::factory()->notOnboarded()->create(['github_id' => '123', 'username' => 'alice']);
+    $author = User::factory()->notOnboarded()->create(['github_id' => '123', 'handle' => 'alice']);
     Http::fake([
         'api.github.com/search/issues*' => Http::response(['items' => []]),
         'api.github.com/search/commits*' => Http::response(['items' => [[
@@ -69,17 +69,18 @@ it('resolves current onboarded members even when GitHub history is cached', func
 
     expect(json_decode(new SearchRepositoryHistory()->handle($request), true)['commits'][0]['mention'])->toBeNull();
 
-    $author->update(['onboarded_at' => now(), 'username' => 'alice-renamed']);
-    User::factory()->create(['github_id' => '456', 'username' => 'alice']);
+    $author->update(['onboarded_at' => now()]);
+    $author->profile->update(['handle' => 'alice-renamed']);
+    User::factory()->create(['github_id' => '456', 'handle' => 'alice']);
     expect(json_decode(new SearchRepositoryHistory()->handle($request), true)['commits'][0]['mention'])->toBe('@alice-renamed');
 
-    resolve(UpdateStaleUsernames::class)->handle('alice-renamed', '789');
+    resolve(UpdateStaleHandles::class)->handle('alice-renamed', '789');
     $result = new SearchRepositoryHistory()->handle($request);
-    expect($author->refresh()->username)->toBe('_renamed-123');
+    expect($author->refresh()->handle)->toBe('_renamed-123');
     expect($result)->not->toContain('_renamed-123', 'github_id');
     expect(json_decode($result, true)['commits'][0])->toMatchArray(['mention' => null, 'commit_author' => 'alice']);
 
-    $author->update(['username' => 'alice-restored']);
+    $author->profile->update(['handle' => 'alice-restored']);
     expect(json_decode(new SearchRepositoryHistory()->handle($request), true)['commits'][0]['mention'])->toBe('@alice-restored');
 
     $author->delete();

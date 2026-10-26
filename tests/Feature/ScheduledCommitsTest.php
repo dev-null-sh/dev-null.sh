@@ -30,7 +30,7 @@ beforeEach(function (): void {
 });
 
 it('schedules a poll that opens with its commit at the due time', function (bool $admin): void {
-    $user = User::factory()->create(['username' => $admin ? 'admin' : 'someone']);
+    $user = User::factory()->create(['handle' => $admin ? 'admin' : 'someone']);
     $this->actingAs($user)->post(route('scheduled-commit.store'), [
         'body' => 'Tabs or spaces?',
         'scheduled_at' => now()->addHour()->toIso8601String(),
@@ -227,7 +227,7 @@ it('shares the existing commit rate limit', function (): void {
 
 it('keeps schedules out of logs profiles activity previews and moderation until due', function (): void {
     $user = User::factory()->create();
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     $scheduled = ScheduledCommit::factory()->for($user)->create(['body' => 'Private future parser release.']);
 
     foreach ([$user, $admin, User::factory()->create()] as $viewer) {
@@ -265,12 +265,12 @@ it('only lists the current authors schedules and forbids canceling another autho
         ->component('scheduled-commits/index')->has('scheduledCommits.data', 1)->where('scheduledCommits.data.0.id', $mine->id))
         ->assertDontSee($other->body);
     $this->delete(route('scheduled-commit.destroy', $other))->assertForbidden();
-    $this->actingAs(User::factory()->create(['username' => 'admin']))->delete(route('scheduled-commit.destroy', $mine))->assertForbidden();
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))->delete(route('scheduled-commit.destroy', $mine))->assertForbidden();
     expect($other->fresh()->canceled_at)->toBeNull();
 });
 
 it('keeps scheduled content private in the public API and feed until approved delivery', function (bool $admin): void {
-    $user = User::factory()->create(['username' => $admin ? 'admin' : 'octocat']);
+    $user = User::factory()->create(['handle' => $admin ? 'admin' : 'octocat']);
     $scheduled = ScheduledCommit::factory()->for($user)->create(['body' => 'Private future release :rocket:']);
 
     $this->getJson(route('api-user-commit.index', $user))->assertOk()->assertJsonCount(0, 'data');
@@ -298,7 +298,7 @@ it('submits once at the due time using the authors current approval privileges',
     $user = User::factory()->create();
     $scheduled = ScheduledCommit::factory()->for($user)->create();
     if ($admin) {
-        $user->update(['username' => 'admin']);
+        $user->profile->update(['handle' => 'admin']);
     }
 
     $action = resolve(UpdateScheduledCommitSubmittedAt::class);

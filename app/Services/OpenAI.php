@@ -8,7 +8,6 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Enums\Lab;
-use Laravel\Ai\Files\Image;
 use UnexpectedValueException;
 
 use function Laravel\Ai\agent;
@@ -47,12 +46,6 @@ final readonly class OpenAI
      * Keep plausible connections, not just confident matches; discard candidates below 30% relevance probability.
      */
     private const float RELEVANCE_THRESHOLD = 0.3;
-
-    private const string MINORS_INSTRUCTIONS = <<<'TEXT'
-        You review images uploaded to /dev/null, a social network for developers, before they are published.
-        Answer whether any person in the images is, or could plausibly be, under 18 years old. That includes babies,
-        children and teenagers, whether in photos, drawings, renders or any other depiction. When unsure, answer true.
-        TEXT;
 
     private const string HARMFUL_INSTRUCTIONS = <<<'TEXT'
         You review posts on /dev/null, a social network for developers, before they are published.
@@ -203,45 +196,22 @@ final readonly class OpenAI
     }
 
     /**
-     * Whether a minor may appear in any of the images. The moderation model can't tell, so a reasoning model is asked
-     * instead. Anything but a clear no, such as a refusal or an answer that can't be read, counts as a yes.
-     *
-     * @param  list<string>  $imageDataUrls
-     */
-    public function showsMinors(array $imageDataUrls): bool
-    {
-        return $this->ask('minors', self::MINORS_INSTRUCTIONS, 'Review these images.', $imageDataUrls);
-    }
-
-    /**
      * Whether the text is harmful. The moderation model misses threats that are implied rather than spelled out, such
      * as claiming to have a bomb, so a reasoning model is asked too. Anything but a clear no counts as a yes.
      */
     public function isHarmful(string $text): bool
     {
-        return $this->ask('harmful', self::HARMFUL_INSTRUCTIONS, $text);
-    }
-
-    /**
-     * Asks the reasoning model a yes or no question about the content. Anything but a clear no, such as a refusal or an
-     * answer that can't be read, counts as a yes.
-     *
-     * @param  list<string>  $imageDataUrls
-     */
-    private function ask(string $question, string $instructions, string $text, array $imageDataUrls = []): bool
-    {
         $answer = agent(
-            instructions: $instructions,
-            schema: fn (JsonSchema $schema): array => [$question => $schema->boolean()->required()],
+            instructions: self::HARMFUL_INSTRUCTIONS,
+            schema: fn (JsonSchema $schema): array => ['harmful' => $schema->boolean()->required()],
         )->prompt(
             $text,
-            attachments: array_map(Image::fromUrl(...), $imageDataUrls),
             provider: Lab::OpenAI,
             model: self::REVIEW_MODEL,
             timeout: 60,
         );
 
-        return ($answer[$question] ?? null) !== false;
+        return ($answer['harmful'] ?? null) !== false;
     }
 
     /**
