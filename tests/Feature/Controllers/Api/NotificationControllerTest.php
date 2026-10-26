@@ -28,7 +28,6 @@ it('lists the notifications of the user, newest first', function (): void {
     $user = fn (User $user): array => [
         'id' => $user->id,
         'handle' => $user->handle,
-        'username' => $user->handle,
         'name' => $user->name,
         'avatar_url' => $user->avatar_url,
         'bio' => $user->bio,

@@ -10,6 +10,7 @@ use App\Http\Requests\DeleteUserRequest;
 use App\Http\Requests\ShowUserRequest;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\GitHubReadmeQuery;
 use App\Queries\PinnedCommitQuery;
 use App\Queries\PushAccessQuery;
 use App\Queries\UserAchievementsQuery;
@@ -20,6 +21,7 @@ use App\Queries\UserStreakQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -29,7 +31,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, UserModerationQuery $moderation, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, UserModerationQuery $moderation, GitHubReadmeQuery $readme, PageMetadata $metadata): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -64,10 +66,14 @@ final readonly class UserController
             'achievements' => fn (): array => $achievements->get($user, $currentUser, $getStreaks()),
             'moderation' => fn (): ?array => $currentUser?->isAdmin() === true && ! $user->isAdmin() ? $moderation->get([$user])[$user->id] : null,
             'tab' => $request->tab(...),
-            'pinnedCommit' => fn (): ?Commit => $request->tab() === 'replies' ? null : $pinned->get($user, $currentUser),
-            'commits' => Inertia::scroll(fn () => $commits->builder($user, $currentUser, $request->tab() === 'replies')
-                ->cursorPaginate(20)
-                ->appends(['tab' => $request->tab()])),
+            'pinnedCommit' => fn (): ?Commit => $request->tab() === 'commits' ? $pinned->get($user, $currentUser) : null,
+            'readme' => fn (): string|false|null => $request->tab() === 'readme' ? $readme->get($user) : null,
+            // The README tab shows no commits, so it doesn't look for any.
+            'commits' => Inertia::scroll(fn () => $request->tab() === 'readme'
+                ? new CursorPaginator([], 20)
+                : $commits->builder($user, $currentUser, $request->tab() === 'replies')
+                    ->cursorPaginate(20)
+                    ->appends(['tab' => $request->tab()])),
         ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->user($getCountedUser())]);
     }
 

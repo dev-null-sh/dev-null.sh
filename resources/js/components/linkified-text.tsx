@@ -1,11 +1,13 @@
 import { Link } from '@inertiajs/react';
-import type { ReactNode } from 'react';
 import { Fragment } from 'react';
+import type { ReactNode, SVGAttributes } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
 import { CertificateText } from '@/components/certificate-text';
+import { CodebergIcon } from '@/components/codeberg-icon';
 import { GitHubIcon } from '@/components/github-icon';
+import { GitLabIcon } from '@/components/gitlab-icon';
 import { UserPreview } from '@/components/user-preview';
 import { typedProse, withoutCode } from '@/lib/code';
 import type { Color } from '@/lib/colors';
@@ -17,26 +19,105 @@ import {
     urlPattern,
     withoutTrailingPunctuation,
 } from '@/lib/urls';
-import { shortHash } from '@/lib/utils';
+import { cn, shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
 import type { BodySegment, Commit } from '@/types';
 
 // A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
 const commitLinkPattern =
     /^https?:\/\/(?:www\.)?dev-null\.sh\/@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/commits\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
-// A link to a GitHub repository, or to one of its issues or pull requests, nothing after its name or number, so it can
-// show as GitHub writes it.
-const gitHubLinkPattern =
-    /^https?:\/\/(?:www\.)?github\.com\/([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/([A-Za-z0-9._-]{1,100})(?:\/(issues|pull)\/([1-9][0-9]{0,9}))?$/i;
+const gitHubHostPattern = /^(?:www\.)?github\.com$/i;
+const gitHubOwnerPattern =
+    /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
+const gitHubRepositoryPattern = /^[A-Za-z0-9._-]{1,100}$/;
+const gitHubNumberPattern = /^[1-9][0-9]{0,9}$/;
+const gitHubShaPattern = /^[0-9a-f]{7,40}$/i;
+// Two refs compared, "base...head" or "base..head", each a branch, a tag or a commit.
+const gitHubComparisonPattern =
+    /^([A-Za-z0-9_][A-Za-z0-9._/-]*?)(\.{2,3})([A-Za-z0-9_][A-Za-z0-9._/-]*)$/;
+const gitHubTagPattern =
+    /^[A-Za-z0-9_][A-Za-z0-9._+-]*(?:\/[A-Za-z0-9._+-]+)*$/;
 // First path segments that are GitHub's own pages rather than an owner, like "github.com/features/actions".
 const gitHubReservedPaths = new Set(
     [
-        'about apps codespaces collections customer-stories enterprise events explore features issues login marketplace',
-        'new notifications orgs organizations pricing pulls search security settings site sponsors topics trending users',
+        'about account apps blog codespaces collections contact copilot customer-stories dashboard education enterprise',
+        'enterprises events explore features git-guides home issues join login logout marketplace mobile models new',
+        'notifications orgs organizations partners premium-support pricing pulls readme resources search security',
+        'settings signup site solutions sponsors stars team topics trending users watching',
     ]
         .join(' ')
         .split(' '),
 );
+
+type ForgeItem = { kind: string; mark: string };
+
+type ForgeBrand = {
+    name: string;
+    Icon: (props: SVGAttributes<SVGElement>) => ReactNode;
+};
+
+type Forge = ForgeBrand & {
+    pattern: RegExp;
+    items: Record<string, ForgeItem>;
+    reservedPaths: Set<string>;
+};
+
+type ForgeDefinition = Omit<Forge, 'pattern' | 'reservedPaths'> & {
+    host: string;
+    owner: string;
+    // First path segments that are the forge's own pages rather than an owner, like "github.com/features/actions".
+    reservedPaths: string;
+};
+
+// A link to a repository, or to one of its issues or pull requests, nothing after its name or number, so it can show as
+// its forge writes it. Item paths are lowercased, and map to what they link to and the mark written before the number.
+function defineForge({
+    host,
+    owner,
+    reservedPaths,
+    ...forge
+}: ForgeDefinition): Forge {
+    return {
+        ...forge,
+        pattern: new RegExp(
+            `^https?://(?:www\\.)?${host}/(${owner})/([A-Za-z0-9._-]{1,100})(?:/(${Object.keys(forge.items).join('|')})/([1-9][0-9]{0,9}))?$`,
+            'i',
+        ),
+        reservedPaths: new Set(reservedPaths.trim().split(/\s+/)),
+    };
+}
+
+const issue: ForgeItem = { kind: 'issue', mark: '#' };
+const pullRequest: ForgeItem = { kind: 'pull request', mark: '#' };
+// Unlike GitHub, GitLab and Codeberg allow dots and underscores in owners. A GitLab subgroup's project stays a URL.
+const ownerPattern = '[A-Za-z0-9][A-Za-z0-9._-]{0,99}';
+
+const gitHub: ForgeBrand = { name: 'GitHub', Icon: GitHubIcon };
+
+// GitHub links are read by gitHubLinkTo, which knows more of them.
+const forges = [
+    defineForge({
+        name: 'GitLab',
+        Icon: GitLabIcon,
+        host: 'gitlab\\.com',
+        owner: ownerPattern,
+        items: {
+            '-/issues': issue,
+            '-/merge_requests': { kind: 'merge request', mark: '!' },
+        },
+        reservedPaths:
+            'admin dashboard explore groups help projects search users',
+    }),
+    defineForge({
+        name: 'Codeberg',
+        Icon: CodebergIcon,
+        host: 'codeberg\\.org',
+        owner: ownerPattern,
+        items: { issues: issue, pulls: pullRequest },
+        reservedPaths:
+            'admin api assets explore issues milestones notifications org pulls repo user',
+    }),
+];
 
 /**
  * Every link in the prose being typed, in order and once each, as the server finds them for the link card.
@@ -153,50 +234,288 @@ function CommitLink({
     );
 }
 
-type GitHubItem = { kind: 'issue' | 'pull request'; number: string };
+/**
+ * What a forge link points at inside a repository, as its forge writes it after the repository's name ("#42", "!42",
+ * "@4fa008f") and as a screen reader reads it ("issue #42", "merge request !42", "commit 4fa008f").
+ */
+type ForgeLinkItem = { suffix: string; description: string };
 
-function gitHubLinkTo(href: string): {
+type ForgeLinkTarget = {
+    forge: ForgeBrand;
     owner: string;
-    repository: string;
-    item: GitHubItem | null;
-} | null {
-    const match = gitHubLinkPattern.exec(href);
+    repository: string | null;
+    item: ForgeLinkItem | null;
+};
 
-    if (!match || gitHubReservedPaths.has(match[1].toLowerCase())) {
+// A commit as GitHub shortens it; any other ref as it is.
+function shortRef(ref: string): string {
+    return gitHubShaPattern.test(ref) ? ref.slice(0, 7) : ref;
+}
+
+const gitHubThreads: Record<string, string> = {
+    issues: 'issue',
+    pull: 'pull request',
+    discussions: 'discussion',
+};
+
+// The anchors GitHub gives a comment or a review in an issue, a pull request or a discussion.
+const gitHubThreadAnchors: Record<string, [RegExp, string][]> = {
+    issues: [[/^#issuecomment-[1-9][0-9]*$/, 'comment']],
+    pull: [
+        [/^#(?:issuecomment-|discussion_r)[1-9][0-9]*$/, 'comment'],
+        [/^#pullrequestreview-[1-9][0-9]*$/, 'review'],
+    ],
+    discussions: [[/^#discussioncomment-[1-9][0-9]*$/, 'comment']],
+};
+
+/**
+ * An issue, a pull request or a discussion, or one of their comments or reviews, as GitHub writes it: "#42", or
+ * "#42 (comment)".
+ */
+function gitHubThread(
+    kind: string,
+    rest: string[],
+    hash: string,
+): ForgeLinkItem | null {
+    const thread = gitHubThreads[kind];
+
+    if (
+        thread === undefined ||
+        rest.length !== 1 ||
+        !gitHubNumberPattern.test(rest[0])
+    ) {
         return null;
     }
 
-    return {
-        owner: match[1],
-        repository: match[2],
-        item: match[3]
-            ? {
-                  kind:
-                      match[3].toLowerCase() === 'pull'
-                          ? 'pull request'
-                          : 'issue',
-                  number: match[4],
-              }
-            : null,
-    };
+    const reference = `${thread} #${rest[0]}`;
+
+    if (hash === '') {
+        return { suffix: `#${rest[0]}`, description: reference };
+    }
+
+    const anchor = gitHubThreadAnchors[kind].find(([pattern]) =>
+        pattern.test(hash),
+    )?.[1];
+
+    return anchor
+        ? {
+              suffix: `#${rest[0]} (${anchor})`,
+              description: `${anchor} on ${reference}`,
+          }
+        : null;
+}
+
+const gitHubLinesPattern = /^#L([1-9][0-9]*)(?:-L([1-9][0-9]*))?$/;
+
+/**
+ * A file, maybe some of its lines, or a folder, by its last name only so it stays short: "TheAlgorithm.php",
+ * "TheAlgorithm.php:10-20" or "Services/". The branch or commit it was read at only stays in the URL.
+ */
+function gitHubFile(
+    kind: 'blob' | 'tree',
+    path: string[],
+    hash: string,
+): ForgeLinkItem | null {
+    let names: string[];
+
+    try {
+        names = path.map((segment) => decodeURIComponent(segment));
+    } catch {
+        return null;
+    }
+
+    const name = names[names.length - 1];
+    const full = names.join('/');
+
+    if (kind === 'tree') {
+        return hash === ''
+            ? { suffix: `:${name}/`, description: `folder ${full}` }
+            : null;
+    }
+
+    if (hash === '') {
+        return { suffix: `:${name}`, description: `file ${full}` };
+    }
+
+    const lines = gitHubLinesPattern.exec(hash);
+
+    if (!lines) {
+        return null;
+    }
+
+    const [, first, last = first] = lines;
+
+    return last === first
+        ? {
+              suffix: `:${name}:${first}`,
+              description: `file ${full}, line ${first}`,
+          }
+        : {
+              suffix: `:${name}:${first}-${last}`,
+              description: `file ${full}, lines ${first} to ${last}`,
+          };
+}
+
+function gitHubItem(path: string[], hash: string): ForgeLinkItem | null {
+    const [first, ...rest] = path;
+    const kind = first.toLowerCase();
+
+    // Own keys only: a path segment like "constructor" names no thread.
+    if (Object.hasOwn(gitHubThreads, kind)) {
+        return gitHubThread(kind, rest, hash);
+    }
+
+    // After the branch or commit, the path, every segment named.
+    if (
+        (kind === 'blob' || kind === 'tree') &&
+        rest.length >= 2 &&
+        rest.every((segment) => segment !== '')
+    ) {
+        return gitHubFile(kind, rest.slice(1), hash);
+    }
+
+    if (hash !== '') {
+        return null;
+    }
+
+    if (
+        kind === 'commit' &&
+        rest.length === 1 &&
+        gitHubShaPattern.test(rest[0])
+    ) {
+        const commit = shortRef(rest[0]);
+
+        return { suffix: `@${commit}`, description: `commit ${commit}` };
+    }
+
+    const tag = rest.slice(1).join('/');
+
+    if (
+        kind === 'releases' &&
+        rest[0] === 'tag' &&
+        gitHubTagPattern.test(tag)
+    ) {
+        return { suffix: `@${tag}`, description: `release ${tag}` };
+    }
+
+    const comparison =
+        kind === 'compare'
+            ? gitHubComparisonPattern.exec(rest.join('/'))
+            : null;
+
+    if (comparison && !comparison[3].includes('..')) {
+        const refs = `${shortRef(comparison[1])}${comparison[2]}${shortRef(comparison[3])}`;
+
+        return { suffix: `@${refs}`, description: `comparison ${refs}` };
+    }
+
+    return null;
+}
+
+/**
+ * A link to a GitHub profile or organization, to a repository, or to an issue, a pull request, a discussion, a commit,
+ * a comparison, a release, a file or a folder in it, nothing after them but a comment's or some lines' anchor, so it
+ * can show as GitHub writes it.
+ */
+function gitHubLinkTo(href: string): ForgeLinkTarget | null {
+    let url: URL;
+
+    try {
+        url = new URL(href);
+    } catch {
+        return null;
+    }
+
+    const segments = url.pathname.slice(1).split('/');
+
+    if (
+        !gitHubHostPattern.test(url.hostname) ||
+        url.username !== '' ||
+        url.password !== '' ||
+        url.port !== '' ||
+        url.search !== ''
+    ) {
+        return null;
+    }
+
+    // An organization's own page names it like its profile does.
+    const [owner, repository, ...path] =
+        segments.length === 2 && segments[0].toLowerCase() === 'orgs'
+            ? segments.slice(1)
+            : segments;
+
+    if (
+        !gitHubOwnerPattern.test(owner) ||
+        gitHubReservedPaths.has(owner.toLowerCase())
+    ) {
+        return null;
+    }
+
+    if (repository === undefined) {
+        return url.hash === ''
+            ? { forge: gitHub, owner, repository: null, item: null }
+            : null;
+    }
+
+    if (!gitHubRepositoryPattern.test(repository)) {
+        return null;
+    }
+
+    if (path.length === 0) {
+        return url.hash === ''
+            ? { forge: gitHub, owner, repository, item: null }
+            : null;
+    }
+
+    const item = gitHubItem(path, url.hash);
+
+    return item ? { forge: gitHub, owner, repository, item } : null;
+}
+
+function forgeLinkTo(href: string): ForgeLinkTarget | null {
+    const gitHubLink = gitHubLinkTo(href);
+
+    if (gitHubLink) {
+        return gitHubLink;
+    }
+
+    for (const forge of forges) {
+        const match = forge.pattern.exec(href);
+
+        if (match && !forge.reservedPaths.has(match[1].toLowerCase())) {
+            const item = match[3] ? forge.items[match[3].toLowerCase()] : null;
+            const reference = item ? `${item.mark}${match[4]}` : '';
+
+            return {
+                forge,
+                owner: match[1],
+                repository: match[2],
+                item: item
+                    ? {
+                          suffix: reference,
+                          description: `${item.kind} ${reference}`,
+                      }
+                    : null,
+            };
+        }
+    }
+
+    return null;
 }
 
 // Like a dev/null commit link, the whole URL stays in the text, so copying it keeps the link.
-function GitHubLink({
+function ForgeLink({
     url,
     href,
-    owner,
-    repository,
-    item,
+    target: { forge, owner, repository, item },
     isStatic,
 }: {
     url: string;
     href: string;
-    owner: string;
-    repository: string;
-    item: GitHubItem | null;
+    target: ForgeLinkTarget;
     isStatic: boolean;
 }) {
+    const name = repository === null ? owner : `${owner}/${repository}`;
     const label = (
         <>
             <span className="text-[0px]">{url}</span>
@@ -205,13 +524,25 @@ function GitHubLink({
                 className="font-mono text-[0.92em] wrap-anywhere select-none"
             >
                 {/* The mark never wraps onto a line of its own. */}
-                <span className="whitespace-nowrap text-muted-foreground">
-                    <GitHubIcon className="mr-[0.2em] inline-block size-[1.15em] align-[-0.25em] text-foreground" />
+                <span
+                    className={cn('whitespace-nowrap', {
+                        'text-muted-foreground': repository !== null,
+                    })}
+                >
+                    <forge.Icon className="mr-[0.2em] inline-block size-[1.15em] align-[-0.25em] text-foreground" />
                     {owner.charAt(0)}
                 </span>
-                <span className="text-muted-foreground">{owner.slice(1)}/</span>
-                {repository}
-                {item && `#${item.number}`}
+                {repository === null ? (
+                    owner.slice(1)
+                ) : (
+                    <>
+                        <span className="text-muted-foreground">
+                            {owner.slice(1)}/
+                        </span>
+                        {repository}
+                        {item?.suffix}
+                    </>
+                )}
             </span>
         </>
     );
@@ -230,7 +561,7 @@ function GitHubLink({
             target="_blank"
             rel="noopener noreferrer nofollow ugc"
             title={href}
-            aria-label={`${owner}/${repository}${item ? ` ${item.kind} #${item.number}` : ''} on GitHub`}
+            aria-label={`${name}${item ? ` ${item.description}` : ''} on ${forge.name}`}
             className="text-primary hover:underline"
         >
             {label}
@@ -426,7 +757,7 @@ export function LinkifiedText({
         }
 
         const commitLink = commitLinkPattern.exec(linkText);
-        const gitHubLink = gitHubLinkTo(href);
+        const forgeLink = forgeLinkTo(href);
 
         parts.push(
             ...withMentions(
@@ -445,14 +776,12 @@ export function LinkifiedText({
                     commit={commitLink[2].toLowerCase()}
                     isStatic={isStatic}
                 />
-            ) : gitHubLink ? (
-                <GitHubLink
+            ) : forgeLink ? (
+                <ForgeLink
                     key={match.index}
                     url={linkText}
                     href={href}
-                    owner={gitHubLink.owner}
-                    repository={gitHubLink.repository}
-                    item={gitHubLink.item}
+                    target={forgeLink}
                     isStatic={isStatic}
                 />
             ) : isStatic ? (

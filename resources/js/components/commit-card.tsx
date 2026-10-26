@@ -16,6 +16,7 @@ import {
     ShowThreadLink,
     ThreadActions,
     ThreadReplies,
+    ThreadReplyComposer,
     useThread,
 } from '@/components/commit-thread';
 import { useCommitTranslation } from '@/components/commit-translation';
@@ -272,6 +273,7 @@ export function CommitCard({
                     lane={laneColor(commit.user.lane)}
                     previousLane={previousLane}
                     endsWithDot={endsWithDot}
+                    endsOnActions
                     nodePosition={railNodePosition}
                     hasTail={hasRailTail && railNodePosition !== 'bottom'}
                     hasReplyTail={
@@ -324,10 +326,7 @@ export function CommitCard({
                 <ChainedEntrance
                     isFresh={isFresh}
                     previousLane={previousLane}
-                    className={cn(
-                        'min-w-0 pr-4',
-                        hasVisibleReplies ? 'pt-3' : 'border-b py-3',
-                    )}
+                    className="min-w-0 pt-3 pr-4"
                 >
                     <div
                         inert={wasDeleted}
@@ -542,6 +541,7 @@ export function CommitCard({
                                 <ThreadActions
                                     thread={thread}
                                     hasKeyboardShortcuts
+                                    hasComposer={false}
                                     actions={
                                         <>
                                             <CommitStarButton
@@ -562,52 +562,78 @@ export function CommitCard({
                                     }
                                 />
                             )}
-
-                            {actions}
-
-                            {deletion === 'deleting' && (
-                                <p
-                                    className="mt-3 flex min-h-12 items-center rounded-md bg-destructive/8 px-3 py-2 font-mono text-sm text-muted-foreground"
-                                    role="status"
-                                >
-                                    rm {hash} → /dev/null
-                                </p>
-                            )}
-
-                            {deletion === 'confirming' && (
-                                <div
-                                    role="group"
-                                    aria-label="Confirm delete"
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Escape') {
-                                            cancelDeletion();
-                                        }
-                                    }}
-                                    className="mt-3 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
-                                >
-                                    <span className="mr-auto">
-                                        Delete this commit? You can undo for 30
-                                        seconds.
-                                    </span>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        autoFocus
-                                        onClick={cancelDeletion}
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={deleteCommit}
-                                        data-test="confirm-delete-commit-button"
-                                    >
-                                        Delete
-                                    </Button>
-                                </div>
-                            )}
                         </div>
+                    </div>
+                </ChainedEntrance>
+                {/* What opens below the actions row gets a row of its own, so the rail's row, and its end dot, end on the actions. */}
+                <RailSegment
+                    lane={
+                        hasRailTail && !endsWithDot
+                            ? laneColor(commit.user.lane)
+                            : undefined
+                    }
+                    isDimmed={isDimmed}
+                />
+                <ChainedEntrance
+                    isFresh={isFresh}
+                    previousLane={previousLane}
+                    className={cn('min-w-0 pr-4', {
+                        'border-b pb-3': !hasVisibleReplies,
+                    })}
+                >
+                    <div
+                        inert={wasDeleted}
+                        className={cn('transition-opacity duration-200', {
+                            'opacity-70': isDimmed,
+                            'opacity-50': wasDeleted,
+                        })}
+                    >
+                        <ThreadReplyComposer thread={thread} />
+
+                        {actions}
+
+                        {deletion === 'deleting' && (
+                            <p
+                                className="mt-3 flex min-h-12 items-center rounded-md bg-destructive/8 px-3 py-2 font-mono text-sm text-muted-foreground"
+                                role="status"
+                            >
+                                rm {hash} → /dev/null
+                            </p>
+                        )}
+
+                        {deletion === 'confirming' && (
+                            <div
+                                role="group"
+                                aria-label="Confirm delete"
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Escape') {
+                                        cancelDeletion();
+                                    }
+                                }}
+                                className="mt-3 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
+                            >
+                                <span className="mr-auto">
+                                    Delete this commit? You can undo for 30
+                                    seconds.
+                                </span>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    autoFocus
+                                    onClick={cancelDeletion}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={deleteCommit}
+                                    data-test="confirm-delete-commit-button"
+                                >
+                                    Delete
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 </ChainedEntrance>
                 {commit.replies_count !== undefined && (

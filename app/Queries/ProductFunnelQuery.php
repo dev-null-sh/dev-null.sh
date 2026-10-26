@@ -12,11 +12,13 @@ use Illuminate\Support\Facades\DB;
  * @phpstan-import-type ActivationDay from ActivationByDayQuery
  *
  * @phpstan-type AcquisitionDay array{date: string, signups: int, visitors: int|null, converted: int|null, complete: bool}
+ * @phpstan-type DeviceConversion array{device: string, visitors: int, converted: int}
  * @phpstan-type FunnelRates array{conversion: float|null, activation: float|null, retention: float|null}
  * @phpstan-type ProductFunnel array{
  *     visitors: int|null,
  *     signups: int,
  *     acquisition_by_day: list<AcquisitionDay>,
+ *     conversion_by_device: list<DeviceConversion>|null,
  *     activated: int,
  *     activation_eligible: int,
  *     activation_by_day: list<array{date: string, activated: int, eligible: int, complete: bool}>,
@@ -112,6 +114,7 @@ final readonly class ProductFunnelQuery
                 ->where('created_at', '<', $to->addDay()->startOfDay())
                 ->count(),
             'acquisition_by_day' => $this->acquisitionByDay($from, $to),
+            'conversion_by_device' => $this->conversionByDevice($from, $to),
             'activated' => $activation['activated'],
             'activation_eligible' => $activation['eligible'],
             'activation_by_day' => array_map(fn (array $day): array => [
@@ -173,6 +176,29 @@ final readonly class ProductFunnelQuery
             'converted' => $converted === null ? null : $converted[$date] ?? 0,
             'complete' => $date < CarbonImmutable::today()->toDateString(),
         ], $dates);
+    }
+
+    /**
+     * Visitors not signed in and signups from Fathom for each type of device, most visitors first, so a change in the
+     * mix of devices can be told apart from a change in how each converts. Null when Fathom isn't set up or didn't
+     * answer.
+     *
+     * @return list<DeviceConversion>|null
+     */
+    private function conversionByDevice(CarbonImmutable $from, CarbonImmutable $to): ?array
+    {
+        $visitors = $this->traffic->eventVisitorsBy($from, $to, self::GUEST_VISIT_EVENT, 'device_type');
+        $converted = $visitors === null ? null : $this->traffic->eventVisitorsBy($from, $to, self::SIGNUP_EVENT, 'device_type');
+
+        if ($visitors === null || $converted === null) {
+            return null;
+        }
+
+        return array_map(fn (string $device): array => [
+            'device' => $device,
+            'visitors' => $visitors[$device] ?? 0,
+            'converted' => $converted[$device] ?? 0,
+        ], array_keys($visitors + $converted));
     }
 
     /**

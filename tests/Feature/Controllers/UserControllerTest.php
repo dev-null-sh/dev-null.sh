@@ -8,6 +8,7 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 
@@ -701,3 +702,36 @@ it('offers guests and the profile owner no remote', function (): void {
     $this->actingAs($user)->get(route('user.show', $user))
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canPush', false));
 });
+
+it('shows the github profile readme on the readme tab, without looking for commits', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+    Commit::factory()->for($user)->create();
+
+    Http::fake([
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => 'octocat']),
+        'api.github.com/repos/octocat/octocat/readme' => Http::response('<div id="readme"><article class="markdown-body"><h2>Hi there</h2></article></div>'),
+    ]);
+
+    $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('tab', 'readme')
+        ->where('readme', '<div><article><h2>Hi there</h2></article></div>')
+        ->where('pinnedCommit', null)
+        ->where('commits.data', []));
+});
+
+it('tells the readme tab when github did not answer', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+
+    Http::fake(["api.github.com/user/{$user->github_id}" => Http::response(status: 502)]);
+
+    $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('readme', false));
+});
+
+it('does not ask github for the readme on the other tabs', function (string $tab): void {
+    Http::preventStrayRequests();
+    $user = User::factory()->create(['handle' => 'octocat']);
+
+    $this->get(route('user.show', ['user' => $user, 'tab' => $tab]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('readme', null));
+})->with(['commits', 'replies']);

@@ -98,13 +98,13 @@ Sources: [onboarding page](resources/js/pages/onboarding/show.tsx), [sign-in tes
 
 ### Profiles and GitHub sync
 
-Every developer has a profile at `/@{username}`, with their GitHub identity, bio and other public profile information, commit/following/follower counts, a **Follows you** badge when they follow you, and an activity graph. Across a block in either direction, the profile is shown as unavailable. The Commits tab lists top-level commits; Replies lists that developer's replies with parent context. Follow and follower counts open the corresponding people lists. The profile links to GitHub and, when available, GitHub Sponsors. Share uses the device's share sheet when supported, or copies the profile link.
+Every developer has a profile at `/@{handle}`, with their GitHub identity, bio and other public profile information, commit/following/follower counts, a **Follows you** badge when they follow you, and an activity graph. Across a block in either direction, the profile is shown as unavailable. The Commits tab lists top-level commits; Replies lists that developer's replies with parent context; README shows the README of their GitHub profile repository (the one named after their username), as GitHub renders it, refreshed daily. It keeps only plain formatting, links, and images hosted by GitHub: no scripts, styles, or classes. When GitHub doesn't answer, the tab says so rather than showing no README. Follow and follower counts open the corresponding people lists. The profile links to GitHub and, when available, GitHub Sponsors. Share uses the device's share sheet when supported, or copies the profile link.
 
 Change your name, avatar, bio, company, location, or website on GitHub, not on /dev/null. Settings → Profile and the **Edit profile** menu on your own profile offer **Edit on GitHub** and **Sync from GitHub**. Profile details also refresh on sign-in. Manual sync is limited to once a minute. The GitHub Sponsors link is refreshed on sign-in only. A GitHub username rename is picked up on sign-in or sync; if a stale account still holds the new username because its owner also renamed, that account moves to a `_renamed-<github id>` placeholder until its owner signs in or syncs again. Accounts are matched by GitHub id and never merged.
 
 Profiles also show [achievement badges and an XP-based Unix rank](#achievement-badges-and-xp). Click a badge or rank to inspect unlock requirements and progress.
 
-Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](resources/js/pages/user-profile/edit.tsx), [profile sharing](resources/js/components/profile-share-button.tsx), [identity sync](app/Actions/UpdateOrCreateUser.php).
+Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](resources/js/pages/user-profile/edit.tsx), [profile sharing](resources/js/components/profile-share-button.tsx), [profile README](app/Queries/GitHubReadmeQuery.php), [identity sync](app/Actions/UpdateOrCreateUser.php).
 
 ### Going live
 
@@ -362,7 +362,7 @@ When you are at the bottom of a chat, opening a reply moves the messages up to k
 
 Click the quoted preview above a reply to jump to the original message, even when it is in older history that has not loaded yet. The original is briefly highlighted. **Back to present** returns to the latest messages.
 
-Unread badges in conversation rows and the desktop dock display **99+** above 99; the full count remains available on hover and to screen readers. The **Fetched** tab applies the same display cap to waiting requests.
+The **Remotes** badge in the navigation and the desktop dock counts conversations with unread messages, plus waiting requests, not the messages themselves: three new messages in one conversation count once. Unread badges in conversation rows and the desktop dock display **99+** above 99; the full count remains available on hover and to screen readers. The **Fetched** tab applies the same display cap to waiting requests.
 
 Link cards are fetched by /dev/null's server. Unlike message bodies and attachments, the card's URL and page metadata are stored without encryption, using the same link-preview storage as public commits.
 
@@ -420,7 +420,7 @@ Sources: [web app manifest](public/site.webmanifest), [service worker](public/sw
 
 ### Activity graphs and README embeds
 
-Profiles display commit activity with current and longest streaks. The profile graph adapts to how long someone has been committing: the last 24 hours, 7 days, 30 days, or a year. Hovering a cell highlights that period's commits. Settings → Profile includes a live preview and copyable Markdown for embedding your /dev/null activity graph in a GitHub profile README. The graph is public at `/@{username}/graph.svg`, uses your lane color, and supports `?theme=light`, `dark`, or `auto` (light by default). The SVG is cached for an hour, so a new commit may not appear in an external embed immediately.
+Profiles display commit activity with current and longest streaks. The profile graph adapts to how long someone has been committing: the last 24 hours, 7 days, 30 days, or a year. Hovering a cell highlights that period's commits. Settings → Profile includes a live preview and copyable Markdown for embedding your /dev/null activity graph in a GitHub profile README. The graph is public at `/@{handle}/graph.svg`, uses your lane color, and supports `?theme=light`, `dark`, or `auto` (light by default). The SVG is cached for an hour, so a new commit may not appear in an external embed immediately.
 
 Sources: [graph embed settings](resources/js/components/activity-graph-embed.tsx), [graph controller](app/Http/Controllers/UserActivityGraphController.php), [graph route and cache](routes/web.php).
 
@@ -462,9 +462,9 @@ Sources: [workflow instructions](resources/js/pages/terminal/show.tsx), [GitHub 
 
 ### Public read API and Atom feeds
 
-The read-only JSON API at `/api/v1` requires no authentication or token. Read a public profile at `/api/v1/users/{username}`, that user's commits at `/api/v1/users/{username}/commits`, or one commit at `/api/v1/commits/{commit}`. `/api/v1/users/{username}/followers` and `/following` list people the way the profile's people lists do, newest follow first; a signed request also gets each person's lane and whether you follow each other. Add `?replies=1` to the user-commits endpoint to read their replies instead of top-level commits. Lists use cursor pagination: 20 commits or 30 people per page. Only public approved, non-deleted content is returned, not private profile data such as email. Unsigned requests are limited to **60 requests per minute per IP** and cannot create posts, follow, or star; terminal posting and the [signed API](#signed-api-and-devices) are separate signed interfaces.
+The read-only JSON API at `/api/v1` requires no authentication or token. Read a public profile at `/api/v1/users/{handle}`, that user's commits at `/api/v1/users/{handle}/commits`, or one commit at `/api/v1/commits/{commit}`. `/api/v1/users/{handle}/followers` and `/following` list people the way the profile's people lists do, newest follow first; a signed request also gets each person's lane and whether you follow each other. Add `?replies=1` to the user-commits endpoint to read their replies instead of top-level commits. Lists use cursor pagination: 20 commits or 30 people per page. Only public approved, non-deleted content is returned, not private profile data such as email. Unsigned requests are limited to **60 requests per minute per IP** and cannot create posts, follow, or star; terminal posting and the [signed API](#signed-api-and-devices) are separate signed interfaces.
 
-Subscribe in a feed reader to `/@{username}/feed.atom` for a profile's latest **50 approved top-level commits**, including image enclosures. Feeds are public and can be cached for five minutes.
+Subscribe in a feed reader to `/@{handle}/feed.atom` for a profile's latest **50 approved top-level commits**, including image enclosures. Feeds are public and can be cached for five minutes.
 
 Sources: [API routes](routes/api.php), [API controllers](app/Http/Controllers/Api), [feed generation](app/Actions/CreateUserFeed.php), [rate limits](app/Providers/AppServiceProvider.php).
 
@@ -478,6 +478,7 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - commit, reply, and quote, with images, and delete your commits;
 - preview commit drafts without publishing them;
 - follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
+- read who to follow, also as it is suggested beside a profile or a commit, and mark a suggestion not interested;
 - star or unstar;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
 - change Remotes settings, read and send messages with images, link cards, and voice notes in conversations and orgs, mark them pulled, react to messages and list your reactions, pin and unpin org messages as a maintainer, find people, and start orgs;

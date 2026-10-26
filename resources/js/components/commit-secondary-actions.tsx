@@ -12,18 +12,28 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 export function CommitSecondaryActions({
     commit,
     keyShortcut,
+    isReply = false,
 }: {
     commit: Commit;
     keyShortcut?: string;
+    isReply?: boolean;
 }) {
     return (
         <div className="ml-auto flex items-center gap-0.5">
-            <div className="hidden items-center gap-0.5 md:flex">
+            <div
+                className={cn(
+                    'hidden items-center gap-0.5 transition-opacity md:flex md:opacity-0 md:focus-within:opacity-100 [@media(hover:none)]:opacity-100',
+                    isReply
+                        ? 'md:reply-hover:opacity-100'
+                        : 'md:commit-hover:opacity-100 md:commit-focus-within:opacity-100',
+                )}
+            >
                 <CopyLinkButton commit={commit} keyShortcut={keyShortcut} />
                 <CommitReportButton commit={commit} />
             </div>

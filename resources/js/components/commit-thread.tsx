@@ -563,10 +563,15 @@ export function ThreadActions({
     thread,
     actions,
     hasKeyboardShortcuts = false,
+    hasComposer = true,
+    isReply = false,
 }: {
     thread: Thread;
     actions?: ReactNode;
     hasKeyboardShortcuts?: boolean;
+    /** False when the caller renders the reply composer itself, as ThreadReplyComposer. */
+    hasComposer?: boolean;
+    isReply?: boolean;
 }) {
     const { auth } = usePage().props;
     const { commit } = thread;
@@ -659,19 +664,26 @@ export function ThreadActions({
                     <CommitSecondaryActions
                         commit={commit}
                         keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
+                        isReply={isReply}
                     />
                 )}
             </div>
 
-            {thread.isReplying && !isDeleted(commit) && (
-                <ReplyComposer
-                    parent={commit}
-                    onCancel={thread.cancelReply}
-                    onReplied={thread.onReplied}
-                />
-            )}
+            {hasComposer && <ThreadReplyComposer thread={thread} />}
         </>
     );
+}
+
+export function ThreadReplyComposer({ thread }: { thread: Thread }) {
+    const { commit } = thread;
+
+    return thread.isReplying && !isDeleted(commit) ? (
+        <ReplyComposer
+            parent={commit}
+            onCancel={thread.cancelReply}
+            onReplied={thread.onReplied}
+        />
+    ) : null;
 }
 
 export function ThreadSpine({
@@ -1289,6 +1301,7 @@ function CommitReply({
                     ) : (
                         <ThreadActions
                             thread={thread}
+                            isReply
                             actions={
                                 <>
                                     <CommitStarButton
