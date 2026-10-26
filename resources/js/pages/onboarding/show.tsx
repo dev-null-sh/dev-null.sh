@@ -167,7 +167,7 @@ function ImportRow({
             className="flex items-center gap-3 p-4 motion-safe:animate-in motion-safe:duration-500 motion-safe:fill-mode-both motion-safe:fade-in motion-safe:slide-in-from-bottom-1"
             style={{ animationDelay: `${delay}ms` }}
         >
-            <div className="flex w-[104px] shrink-0">{visual}</div>
+            <div className="hidden w-[104px] shrink-0 sm:flex">{visual}</div>
             <div className="min-w-0 flex-1 text-[15px] text-pretty">
                 {children}
             </div>
