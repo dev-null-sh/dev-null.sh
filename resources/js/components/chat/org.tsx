@@ -110,7 +110,7 @@ function handleOf(person: User | null | undefined, user: User): string {
 }
 
 /**
- * What a logged org change says, from the reader's point of view.
+ * What a logged org change or ping says, from the reader's point of view.
  */
 export function eventText(message: Message, user: User): string {
     const actor = handleOf(message.user, user);
@@ -137,6 +137,13 @@ export function eventText(message: Message, user: User): string {
             return `${actor} made ${subject} a contributor`;
         case 'inherited':
             return `${actor} inherited maintainer`;
+        case 'ping':
+            if (message.user_id === user.id) {
+                return 'you sent a ping';
+            }
+
+            // Direct threads leave the author out: there, it can only be the partner.
+            return message.user ? `${actor} sent a ping` : 'you got a ping';
         default:
             return message.body;
     }

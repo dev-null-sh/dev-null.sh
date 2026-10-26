@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
+import { DragonBallIcon } from '@/components/dragon-ball-icon';
 import {
     Dialog,
     DialogContent,
@@ -44,6 +45,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     cookie: Cookie,
     'bot-off': BotOff,
     bomb: Bomb,
+    'dragon-ball': DragonBallIcon,
 };
 
 export function AchievementsDialog({

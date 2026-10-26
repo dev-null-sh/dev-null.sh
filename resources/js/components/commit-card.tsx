@@ -1,7 +1,7 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { MouseEvent, PointerEvent, ReactNode } from 'react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useContext, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { FoldedCommitBody } from '@/components/commit-body';
@@ -32,6 +32,7 @@ import {
     RailSegment,
     railDotRing,
 } from '@/components/graph-rail';
+import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import { LinkPreview } from '@/components/link-preview';
 import { LiveStreamTrigger } from '@/components/live-stream-card';
 import { QuotedCommit } from '@/components/quoted-commit';
@@ -120,6 +121,7 @@ export function CommitCard({
         component,
     } = usePage();
     const now = useNow();
+    const hiddenLinkPreviewUrl = useContext(HiddenLinkPreviewContext);
     const { bodyRef, ...translation } = useCommitTranslation(commit);
     const nodeRef = useRef<HTMLAnchorElement>(null);
     const graphNodeRef = useGraphNode({
@@ -481,14 +483,16 @@ export function CommitCard({
                                     commit={commit.quoted_commit ?? null}
                                 />
                             )}
-                            {commit.link_preview && (
-                                <LinkPreview
-                                    refreshUrl={CommitLinkPreviewController.show.url(
-                                        commit.id,
-                                    )}
-                                    preview={commit.link_preview}
-                                />
-                            )}
+                            {commit.link_preview &&
+                                commit.link_preview.url !==
+                                    hiddenLinkPreviewUrl && (
+                                    <LinkPreview
+                                        refreshUrl={CommitLinkPreviewController.show.url(
+                                            commit.id,
+                                        )}
+                                        preview={commit.link_preview}
+                                    />
+                                )}
                             {isFocused && (
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
                                     <TimestampTooltip

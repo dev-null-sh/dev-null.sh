@@ -70,13 +70,13 @@ export function hasMention(segments: BodySegment[]): boolean {
 
 // Like X, the hidden parts of a shortened URL stay in the text, so copying it or a screen reader gets the whole URL.
 function ShortenedUrl({ url }: { url: string }) {
-    const { hiddenStart, shown, hiddenEnd } = shortenUrl(url);
+    const { hiddenStart, shown, hiddenEnd, cut } = shortenUrl(url);
     const shownCharacters = Array.from(shown);
 
     return (
         <>
             {hiddenStart && <span className="text-[0px]">{hiddenStart}</span>}
-            {hiddenEnd ? (
+            {cut ? (
                 <>
                     {shownCharacters.slice(0, -1).join('')}
                     {/* The ellipsis never wraps onto a line of its own. */}
@@ -89,7 +89,12 @@ function ShortenedUrl({ url }: { url: string }) {
                     </span>
                 </>
             ) : (
-                shown
+                <>
+                    {shown}
+                    {hiddenEnd && (
+                        <span className="text-[0px]">{hiddenEnd}</span>
+                    )}
+                </>
             )}
         </>
     );

@@ -22,7 +22,7 @@ Developers who left X or Bluesky, or are thinking about it, and want a feed with
 
 ## Operating Context
 
-- Surfaces: the web app (also installable as a PWA), the mobile app through a signed JSON API, the terminal script and GitHub Action, a public read-only API, Atom feeds, and an activity graph SVG for GitHub READMEs.
+- Surfaces: the web app (also installable as a PWA), the mobile app and the Mac app (Remotes, downloadable from /apps) through a signed JSON API, the terminal script and GitHub Action, a public read-only API, Atom feeds, and an activity graph SVG for GitHub READMEs.
 - Guests can read the Latest and Trending logs, profiles, approved commits and their threads, and search. Everything that writes or is personal (Following log, notifications, Saved, Remotes, Settings) needs sign-in.
 - Site admins (`ADMINS`) moderate (`/moderation`) and run the site (`/operations`).
 - Exact behavior, limits, and edge cases for every feature live in [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md) and in the code; this file only records what must stay true.
@@ -36,8 +36,9 @@ What exists, one line each (details in the knowledge base):
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
 - **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
 - **Remotes:** private one-to-one and group messages (orgs).
-- **Notifications:** in-app activity, plus independently controlled browser and sound alerts for Remotes while the site is open, enabled by default; only browser banners require notification permission.
+- **Notifications:** in-app activity and on-site Remotes alerts by default; off-site browser and PWA notifications require a separate opt-in. Sound is controlled independently and plays while the site is open.
 - **Search:** developers by name, commits by meaning.
+- **Emails:** an occasional update the admins write to everyone, or to a filtered audience, with one-click unsubscribe. Never per-activity notifications.
 - **Safety:** mute, block, reports, and moderation.
 - **Bots:** Tom answers questions about /dev/null from the knowledge base, the public repository, and aggregate community statistics; World answers "hello world". They use @tom and @world until those GitHub owners sign in, then keep working as @devnull-tom and @devnull-world.
 - **Data:** JSON export and account deletion.
@@ -50,7 +51,7 @@ Rules every feature must keep:
 - **Store as little as possible.** Assume the database has leaked: no data without a feature that needs it, sensitive content encrypted, no secrets stored, and everything about a person erased with their account and included in their export (see `.ai/guidelines/data.blade.php`). The one deliberate exception is moderation: bans and timeouts are kept by GitHub account after deletion, holding only the GitHub id, reason, and dates, so deleting an account and signing up again can't escape or reset them.
 - **Same rules on every surface.** Web, mobile API, terminal, and Action share validation, moderation, visibility, and rate limits.
 
-Deliberately excluded: sign-up or identity outside GitHub, editing commits, and email or push notifications.
+Deliberately excluded: sign-up or identity outside GitHub, editing commits, and email activity notifications.
 
 ## Brand Commitments
 

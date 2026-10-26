@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { ArrowDown, Mic, X } from 'lucide-react';
+import { ArrowDown, Mic, Vibrate, X } from 'lucide-react';
 import type {
     ClipboardEvent,
     FormEvent,
@@ -51,12 +51,14 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserPreview } from '@/components/user-preview';
 import { useChat, useThread } from '@/hooks/use-chat';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
 import { useVoiceNote } from '@/hooks/use-voice-note';
 import {
+    ChatRequestError,
     settleRequest,
     loadMessage,
     loadOlderMessages,
@@ -64,6 +66,7 @@ import {
     pingTyping,
     retryMessage,
     sendMessage,
+    sendPing,
     setReplyingTo,
     targetKey,
     toggleReaction,
@@ -74,6 +77,7 @@ import { formatCount } from '@/lib/numbers';
 import { pullsOf, statusMessageOf } from '@/lib/pulls';
 import { doubleTapReaction } from '@/lib/reactions';
 import type { ReactionUsage } from '@/lib/reactions';
+import { isRemoteMuted, playPing } from '@/lib/remote-notifications';
 import { restoreScrollAnchor, scrollAnchorOf } from '@/lib/scroll-anchor';
 import type { ScrollAnchor } from '@/lib/scroll-anchor';
 import {
@@ -156,12 +160,15 @@ export function ConversationThread({
     onDropped?: () => void;
 }) {
     const thread = useThread(target);
-    const usage = useChat().reactionUsage ?? noUsage;
+    const chat = useChat();
+    const usage = chat.reactionUsage ?? noUsage;
     const isOrg = target.kind === 'org';
     // Renaming an org updates the thread's target, not the one this was opened with.
     const current = thread?.target ?? target;
+    const section = useRef<HTMLElement>(null);
     const scroller = useRef<HTMLDivElement>(null);
     const list = useRef<HTMLOListElement>(null);
+    const seenPing = useRef<number | null>(null);
     const headLine = useRef<HTMLDivElement>(null);
     const isPinned = useRef(true);
     const hasScrolledIn = useRef(false);
@@ -210,6 +217,45 @@ export function ConversationThread({
     const draft = useMessageDraft(user, current);
     const replyingTo = thread?.replyingTo ?? null;
     const members = thread?.members;
+    const mutePreference = chat.mutePreferences[targetKey(target)];
+    const mutedUntil =
+        mutePreference !== undefined
+            ? mutePreference.until
+            : (thread?.muted_until_at ?? null);
+    const isLoaded = thread?.isLoaded ?? false;
+
+    // A ping coming in or going out shakes the thread to MSN's ping sound. Pings already there when it opened stay still.
+    useEffect(() => {
+        if (!isLoaded) {
+            return;
+        }
+
+        const ping = messages.findLast((message) => message.event === 'ping');
+        const seen = seenPing.current;
+        seenPing.current = Math.max(seen ?? 0, ping?.id ?? 0);
+
+        if (seen === null || ping === undefined || ping.id <= seen) {
+            return;
+        }
+
+        if (ping.user_id === user.id || !isRemoteMuted(mutedUntil)) {
+            playPing(user.id);
+        }
+
+        if (
+            isVisible &&
+            !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ) {
+            section.current?.animate(
+                {
+                    transform: [0, -8, 8, -6, 6, -3, 3, 0].map(
+                        (x) => `translateX(${x}px)`,
+                    ),
+                },
+                { duration: 500, easing: 'ease-in-out' },
+            );
+        }
+    }, [messages, isLoaded, user.id, mutedUntil, isVisible]);
 
     const updateScrollPosition = useCallback(() => {
         setIsScrolledBack(
@@ -565,6 +611,7 @@ export function ConversationThread({
 
     return (
         <section
+            ref={section}
             aria-label={
                 current.kind === 'direct'
                     ? `Conversation with ${current.partner.name}`
@@ -909,24 +956,29 @@ const ThreadItem = memo(function ThreadItem({
             })}
         >
             {item.author !== null && (
-                <Link
-                    href={show(item.author)}
-                    className="group flex max-w-full min-w-0 items-center gap-1.5 rounded-sm px-1.5 pb-0.5 text-xs text-muted-foreground"
-                    title={item.author.name}
+                <UserPreview
+                    user={item.author}
+                    className="flex max-w-full min-w-0 px-1.5 pb-0.5"
                 >
-                    <UserAvatar
-                        user={item.author}
-                        className="size-4 ring-1 ring-(--lane)"
-                        style={
-                            {
-                                '--lane': laneColor(item.author.lane),
-                            } as React.CSSProperties
-                        }
-                    />
-                    <span className="truncate font-medium text-foreground group-hover:underline">
-                        {item.author.name}
-                    </span>
-                </Link>
+                    <Link
+                        href={show(item.author)}
+                        className="flex min-w-0 items-center gap-1.5 rounded-sm text-xs text-muted-foreground"
+                        title={item.author.name}
+                    >
+                        <UserAvatar
+                            user={item.author}
+                            className="size-4 ring-1 ring-(--lane)"
+                            style={
+                                {
+                                    '--lane': laneColor(item.author.lane),
+                                } as React.CSSProperties
+                            }
+                        />
+                        <span className="truncate font-medium text-foreground hover:underline">
+                            {item.author.name}
+                        </span>
+                    </Link>
+                </UserPreview>
             )}
             {item.bubbles.map((bubble, index) => {
                 const key =
@@ -1498,6 +1550,10 @@ function Composer({
             ? `Message @${target.partner.username}`
             : `Message ${target.org.name ?? 'the org'}`;
     const lane = target.kind === 'direct' ? target.partner.lane : 0;
+    const pingLabel =
+        target.kind === 'direct'
+            ? `Ping @${target.partner.username}`
+            : 'Ping everyone in the org';
     const { stash, attachments, linkCard, input } = draft;
     const body = stash.body;
     const [error, setError] = useState<string | null>(null);
@@ -1764,6 +1820,35 @@ function Composer({
                                         ? 'Voice notes go on their own'
                                         : 'Record a voice note (max. 1 min)'}
                                 </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() =>
+                                            void sendPing(target).catch(
+                                                (error: unknown) =>
+                                                    showError(
+                                                        error instanceof
+                                                            ChatRequestError
+                                                            ? error.firstError()
+                                                            : 'Could not ping. Try again.',
+                                                    ),
+                                            )
+                                        }
+                                        aria-label={pingLabel}
+                                        className={cn(
+                                            '-mx-1 shrink-0 text-muted-foreground',
+                                            isCompact ? 'size-9' : 'size-10',
+                                        )}
+                                        data-test="send-ping"
+                                    >
+                                        <Vibrate className="size-5" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{pingLabel}</TooltipContent>
                             </Tooltip>
                             <div className="relative min-w-0 flex-1">
                                 <MentionTextarea

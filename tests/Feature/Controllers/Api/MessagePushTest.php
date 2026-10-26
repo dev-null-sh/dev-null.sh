@@ -11,6 +11,7 @@ use App\Models\Message;
 use App\Models\User;
 use App\Models\UserTimeout;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 beforeEach(function (): void {
@@ -94,7 +95,7 @@ it('replies to a message and picks the link card', function (): void {
         'link_preview_url' => 'https://pestphp.com',
     ])->assertCreated()
         ->assertJsonPath('data.reply_to_id', $question->id)
-        ->assertJsonPath('data.reply_to', ['id' => $question->id, 'user_id' => $this->nuno->id, 'body' => 'docs?', 'images_count' => 0])
+        ->assertJsonPath('data.reply_to', ['id' => $question->id, 'user_id' => $this->nuno->id, 'body' => 'docs?', 'images_count' => 0, 'has_voice' => false])
         ->assertJsonPath('data.link_preview.url', 'https://pestphp.com')
         ->assertJsonPath('data.link_preview.is_pending', true);
 
@@ -215,3 +216,58 @@ it('rejects requests that are not signed', function (): void {
     $this->postJson(route('api-conversation-message.store', $this->nuno), ['body' => 'hi', 'client_id' => Str::uuid()->toString()])
         ->assertUnauthorized();
 });
+
+it('pushes a voice note, signed beside its payload, and answers with a url signed for the user', function (): void {
+    Storage::fake();
+    $question = sendChatMessage($this->nuno, $this->user);
+
+    $response = signedApiRequestWithVoice($this->keyPair, 'POST', route('api-conversation-message.store', $this->nuno), [
+        'client_id' => Str::uuid()->toString(),
+        'reply_to_id' => $question->id,
+        'voice_waveform' => voiceNoteWaveform(),
+    ], voiceNoteUpload(voiceNoteWav(1500)))->assertCreated();
+
+    $voice = Message::query()->latest('id')->firstOrFail()->voice;
+
+    $response->assertJsonPath('data.body', '')
+        ->assertJsonPath('data.reply_to.id', $question->id)
+        ->assertJsonPath('data.reply_to.has_voice', false)
+        ->assertJsonPath('data.voice.id', $voice?->id)
+        ->assertJsonPath('data.voice.duration_ms', 1500)
+        ->assertJsonPath('data.voice.waveform', voiceNoteWaveform())
+        ->assertJsonMissingPath('data.voice.path');
+
+    expect($response->json('data.voice.url'))->toStartWith(route('api-message-voice.show', $voice).'?expires=');
+});
+
+it('pushes a voice note to an org', function (): void {
+    Storage::fake();
+    $this->user->following()->attach($this->nuno);
+    $org = createOrg($this->nuno, [$this->user]);
+
+    signedApiRequestWithVoice($this->keyPair, 'POST', route('api-org-message.store', $org), [
+        'client_id' => Str::uuid()->toString(),
+        'voice_waveform' => voiceNoteWaveform(),
+    ], voiceNoteUpload())
+        ->assertCreated()
+        ->assertJsonPath('data.voice.duration_ms', 2000);
+
+    $this->actingAs($this->nuno)->getJson(route('org-message.index', $org))->assertJsonPath('messages.1.voice.duration_ms', 2000);
+});
+
+it('rejects a voice note the web would reject', function (array $payload, string $recording, string $error): void {
+    Storage::fake();
+
+    signedApiRequestWithVoice($this->keyPair, 'POST', route('api-conversation-message.store', $this->nuno), [
+        'client_id' => Str::uuid()->toString(),
+        ...$payload,
+    ], voiceNoteUpload($recording))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors($error);
+
+    expect(Message::query()->exists())->toBeFalse();
+})->with([
+    'with a body' => [['body' => 'hi', 'voice_waveform' => [50]], '', 'voice'],
+    'without a waveform' => [[], '', 'voice_waveform'],
+    'not a recording' => [['voice_waveform' => [50]], 'not audio', 'voice'],
+]);

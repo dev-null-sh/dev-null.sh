@@ -6,6 +6,7 @@ namespace App\Queries;
 
 use App\Enums\ConversationKind;
 use App\Enums\InboxTab;
+use App\Enums\OrgEvent;
 use App\Enums\OrgRole;
 use App\Enums\RemoteStatus;
 use App\Models\Conversation;
@@ -104,7 +105,7 @@ final readonly class ConversationsQuery
                     ->whereColumn('messages.conversation_id', 'conversations.id')
                     ->whereColumn('messages.id', '>', 'mine.read_through_id')
                     ->where('messages.user_id', '!=', $user->id)
-                    ->whereNull('messages.event'),
+                    ->where(fn (Builder $query): Builder => $query->whereNull('messages.event')->orWhere('messages.event', OrgEvent::Ping)),
                 'ahead',
             )
             ->selectSub(
@@ -113,7 +114,7 @@ final readonly class ConversationsQuery
                     ->whereColumn('messages.conversation_id', 'conversations.id')
                     ->whereColumn('messages.id', '>', 'mine.visible_from_id')
                     ->where('messages.user_id', '!=', $user->id)
-                    ->whereNull('messages.event'),
+                    ->where(fn (Builder $query): Builder => $query->whereNull('messages.event')->orWhere('messages.event', OrgEvent::Ping)),
                 'last_incoming_message_id',
             )
             ->with(['lastMessage.user', 'lastMessage.subject', 'lastMessage.voice', 'lastIncomingMessage:id,user_id', 'lastIncomingMessage.user:id,name', 'partner', 'participants.user'])
@@ -172,7 +173,7 @@ final readonly class ConversationsQuery
                 ->whereNull('mine.archived_at'))
             ->whereColumn('messages.id', '>', 'mine.read_through_id')
             ->where('messages.user_id', '!=', $user->id)
-            ->whereNull('messages.event')
+            ->where(fn (Builder $query): Builder => $query->whereNull('messages.event')->orWhere('messages.event', OrgEvent::Ping))
             ->whereNotIn('messages.user_id', $user->idsAcrossBlocks())
             ->count();
 

@@ -485,7 +485,7 @@ it('includes the link previews of commits', function (Log $log): void {
 
 it('includes the quoted commits with their authors', function (Log $log): void {
     $user = User::factory()->create();
-    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'octocat']))->create(['body' => 'The quoted commit', 'created_at' => now()->subHour()]);
+    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'octocat']))->create(['body' => 'The quoted commit', 'created_at' => now()->subDay()]);
     $hidden = Commit::factory()->create(['body' => 'A rejected quoted commit']);
     $deleted = Commit::factory()->create(['body' => 'A deleted quoted commit']);
     Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create(['created_at' => now()->subMinutes(3)]);

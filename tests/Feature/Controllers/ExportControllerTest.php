@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommitReport;
 use App\Actions\CreateCommitTranslation;
+use App\Actions\CreateExport;
 use App\Actions\DeleteUser;
 use App\Ai\Agents\CommitTranslator;
 use App\Enums\ModerationReason;
@@ -119,6 +120,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'live_ends_at' => null,
             'last_seen_at' => now()->toDateString(),
             'commit_rules_accepted_at' => $user->commit_rules_accepted_at->toIso8601String(),
+            'emails_unsubscribed_at' => null,
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
@@ -137,6 +139,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'remote_pins' => [],
         'notifications' => [],
         'ssh_keys' => [],
+        'push_subscriptions' => [],
         'devices' => [],
         'timeouts' => [],
         'sessions' => [],
@@ -579,4 +582,11 @@ it('exports only reports and private attachment references submitted by the user
         ->and($data['reports'][0]['attachments'][0]['description'])->toBe('Private screenshot')
         ->and($response->streamedContent())->not->toContain($report->images[0]['path'], 'Someone else reported me');
     $this->get($data['reports'][0]['attachments'][0]['url'])->assertOk();
+});
+
+it('exports subscription metadata without delivery endpoints', function (): void {
+    $user = User::factory()->create();
+    $subscription = $user->pushSubscriptions()->create(['endpoint_hash' => 'browser', 'endpoint' => 'https://fcm.googleapis.com/wp/private']);
+    $export = resolve(CreateExport::class)->handle($user);
+    expect($export['push_subscriptions'])->toBe([['id' => $subscription->id]]);
 });

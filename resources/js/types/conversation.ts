@@ -68,7 +68,7 @@ export type ConversationKind = 'direct' | 'org';
 export type OrgRole = 'maintainer' | 'contributor';
 
 /**
- * What happened in an org, logged between its messages.
+ * What happened in a remote, logged between its messages: an org's membership changes, and pings.
  */
 export type OrgEvent =
     | 'created'
@@ -78,7 +78,8 @@ export type OrgEvent =
     | 'renamed'
     | 'promoted'
     | 'demoted'
-    | 'inherited';
+    | 'inherited'
+    | 'ping';
 
 export type OrgRef = { id: string; name: string | null };
 

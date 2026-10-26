@@ -255,6 +255,8 @@
     --animate-rail-draw: rail-draw 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-graph-draw: graph-draw 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-commit-in: commit-in 300ms linear both;
+    --animate-apps-shot-in: apps-shot-in 600ms cubic-bezier(0.16, 1, 0.3, 1)
+        both;
     --animate-star-pop: star-pop 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275)
         both;
 
@@ -299,6 +301,13 @@
         100% {
             transform: scale(0);
             box-shadow: 0 0 0 0 var(--lane);
+        }
+    }
+
+    @keyframes apps-shot-in {
+        from {
+            opacity: 0;
+            transform: translateY(12px);
         }
     }
 

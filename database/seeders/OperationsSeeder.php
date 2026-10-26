@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
 use App\Enums\Feature;
 use App\Enums\ModerationReason;
@@ -197,7 +198,7 @@ final class OperationsSeeder extends Seeder
             'body' => fake()->sentence(fake()->numberBetween(4, 18)),
             'status' => CommitStatus::Approved->value,
             'mentions' => '[]',
-            'hot_score' => $this->algorithm->score($createdAt, 0, 0),
+            'hot_score' => $this->algorithm->score($createdAt, ThreadEngagement::none()),
             'created_at' => $createdAt,
             'updated_at' => $createdAt,
         ];

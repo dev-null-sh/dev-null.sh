@@ -22,8 +22,9 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
  *
  * A request with images is sent as multipart, like a commit with images from the `devnull commit` script: the JSON
  * body goes in a payload part, the images in images[], and the signed message carries one more line before the body,
- * the comma-separated SHA-256 of each image in the order they are attached. It is signed under its own namespace, so
- * the signature states which format it covers.
+ * the comma-separated SHA-256 of each image in the order they are attached. A voice note goes the same way, alone in a
+ * voice part, and that line is its SHA-256. It is signed under its own namespace, so the signature states which format
+ * it covers.
  *
  * A key signs in as a user once that user approved it as a device on the web. The key doesn't have to be on their
  * GitHub account: the approval is the proof. So a key made for something else, like committing from CI, can't sign in.
@@ -51,13 +52,13 @@ final readonly class SignedRequests
 
     /**
      * Checks the signature, its timestamp and its nonce, which it spends, and returns the key that signed the request,
-     * whether or not it is approved as a device yet. A request with images reads its fields from its payload from
+     * whether or not it is approved as a device yet. A request with files reads its fields from its payload from
      * then on.
      */
     public function verifySignature(Request $request): SshPublicKey
     {
-        $withImages = $request->files->count() > 0;
-        $body = $withImages ? $this->payload($request) : $this->body($request);
+        $withFiles = $request->files->count() > 0;
+        $body = $withFiles ? $this->payload($request) : $this->body($request);
 
         throw_if($body === null, InvalidArgumentException::class, 'Send the body of a signed request as JSON.');
 
@@ -65,14 +66,14 @@ final readonly class SignedRequests
         $nonce = $request->headers->get('X-Devnull-Nonce', '') ?? '';
 
         $publicKey = $this->sshSignatures->verify(
-            implode("\n", [$timestamp, $nonce, $request->getMethod(), $request->getRequestUri(), ...($withImages ? [implode(',', $this->imageHashes($request))] : []), $body]),
+            implode("\n", [$timestamp, $nonce, $request->getMethod(), $request->getRequestUri(), ...($withFiles ? [implode(',', $this->fileHashes($request))] : []), $body]),
             $request->headers->get('X-SSH-Signature', '') ?? '',
-            $withImages ? self::ImagesNamespace : self::Namespace,
+            $withFiles ? self::ImagesNamespace : self::Namespace,
         );
 
         $this->sshSignatures->checkFreshness($timestamp, $nonce);
 
-        if ($withImages) {
+        if ($withFiles) {
             $this->readPayload($request, $body);
         }
 
@@ -116,19 +117,20 @@ final readonly class SignedRequests
     }
 
     /**
-     * The JSON body of a request with images, or null unless it came as a payload part beside a list of images, with
-     * no other fields or files.
+     * The JSON body of a request with images or a voice note, or null unless it came as a payload part beside a list of
+     * images or a single voice note, with no other fields or files.
      */
     private function payload(Request $request): ?string
     {
         $files = $request->files->all();
         $payload = $files['payload'] ?? null;
         $images = $files['images'] ?? null;
+        $voice = $files['voice'] ?? null;
 
         $isMultipart = $request->request->count() === 0
             && count($files) === 2
             && $payload instanceof UploadedFile && $payload->isValid()
-            && is_array($images) && array_is_list($images) && array_all($images, fn (mixed $image): bool => $image instanceof UploadedFile);
+            && (is_array($images) && array_is_list($images) && array_all($images, fn (mixed $image): bool => $image instanceof UploadedFile) || $voice instanceof UploadedFile);
 
         $contents = $isMultipart ? file_get_contents($payload->getPathname()) : false;
 
@@ -136,21 +138,22 @@ final readonly class SignedRequests
     }
 
     /**
-     * An image PHP couldn't take, too big for its upload limit for one, can't be hashed, and is a validation error,
-     * as on the web, rather than a bad signature.
+     * An image or voice note PHP couldn't take, too big for its upload limit for one, can't be hashed, and is a
+     * validation error, as on the web, rather than a bad signature.
      *
      * @return list<string>
      */
-    private function imageHashes(Request $request): array
+    private function fileHashes(Request $request): array
     {
-        /** @var list<UploadedFile> $images */
-        $images = $request->files->all()['images'];
+        /** @var array{images: list<UploadedFile>}|array{voice: UploadedFile} $files */
+        $files = $request->files->all();
+        [$field, $attribute, $uploads] = isset($files['images']) ? ['images', 'image', $files['images']] : ['voice', 'voice note', [$files['voice']]];
 
-        return array_map(function (UploadedFile $image): string {
-            throw_unless($image->isValid(), ValidationException::withMessages(['images' => __('validation.uploaded', ['attribute' => 'image'])]));
+        return array_map(function (UploadedFile $file) use ($field, $attribute): string {
+            throw_unless($file->isValid(), ValidationException::withMessages([$field => __('validation.uploaded', ['attribute' => $attribute])]));
 
-            return (string) hash_file('sha256', $image->getPathname());
-        }, $images);
+            return (string) hash_file('sha256', $file->getPathname());
+        }, $uploads);
     }
 
     /**

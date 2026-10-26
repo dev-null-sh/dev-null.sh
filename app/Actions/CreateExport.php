@@ -13,6 +13,7 @@ use App\Models\Device;
 use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
+use App\Models\PushSubscription;
 use App\Models\User;
 use App\Models\UserTimeout;
 use App\Queries\CommitBuilder;
@@ -32,7 +33,30 @@ use Traversable;
  * @phpstan-type ExportPollVote array{commit_id: string, option: string, created_at: string}
  * @phpstan-type ExportMessage array{to: string|null, body: string, voice: string|null, created_at: string}
  * @phpstan-type ExportUser array{username: string}
- * @phpstan-type UserExport array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, ExportPoll>, poll_votes: Generator<int, ExportPollVote>, stars: Generator<int, string>, following: Generator<int, ExportUser>, followers: Generator<int, ExportUser>, muting: Generator<int, ExportUser>, blocking: Generator<int, ExportUser>, dismissed_suggestions: Generator<int, ExportUser>, messages: Generator<int, ExportMessage>, reports: Traversable<int, array<string, mixed>>, remote_pins: array<int, array{to: string|null, pinned_at: string|null}>, remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>, notifications: Generator<int, array<string, int|string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>, sessions: Collection<int, stdClass>}
+ * @phpstan-type UserExport array{
+ *     schema_version: int,
+ *     exported_at: string,
+ *     profile: array<string, bool|int|string|null>,
+ *     commits: Generator<int, array<string, mixed>>,
+ *     polls: Generator<int, ExportPoll>,
+ *     poll_votes: Generator<int, ExportPollVote>,
+ *     stars: Generator<int, string>,
+ *     following: Generator<int, ExportUser>,
+ *     followers: Generator<int, ExportUser>,
+ *     muting: Generator<int, ExportUser>,
+ *     blocking: Generator<int, ExportUser>,
+ *     dismissed_suggestions: Generator<int, ExportUser>,
+ *     messages: Generator<int, ExportMessage>,
+ *     reports: Traversable<int, array<string, mixed>>,
+ *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
+ *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
+ *     notifications: Generator<int, array<string, int|string|null>>,
+ *     ssh_keys: array<mixed>,
+ *     push_subscriptions: array<int, array{id: string}>,
+ *     devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>,
+ *     timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>,
+ *     sessions: Collection<int, stdClass>
+ * }
  */
 final readonly class CreateExport
 {
@@ -76,6 +100,7 @@ final readonly class CreateExport
                 'live_ends_at' => $user->live_ends_at?->toIso8601String(),
                 'last_seen_at' => $user->last_seen_at?->toDateString(),
                 'commit_rules_accepted_at' => $user->commit_rules_accepted_at?->toIso8601String(),
+                'emails_unsubscribed_at' => $user->emails_unsubscribed_at?->toIso8601String(),
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
@@ -126,6 +151,9 @@ final readonly class CreateExport
                 ->all(),
             'notifications' => $this->notifications($user),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
+            'push_subscriptions' => $user->pushSubscriptions()->get()->map(fn (PushSubscription $subscription): array => [
+                'id' => $subscription->id,
+            ])->all(),
             'devices' => $user->devices()->oldest('approved_at')->get()->map(fn (Device $device): array => [
                 'name' => $device->name,
                 'fingerprint' => $device->fingerprint,

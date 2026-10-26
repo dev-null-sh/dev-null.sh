@@ -49,17 +49,20 @@ export function Field({
 
 /**
  * A hairline-bordered group on the console's grid: a title with optional mono meta and actions, then its content.
+ * A filling panel stretches its content down to the bottom, as tall as the grid row it sits in.
  */
 export function Panel({
     title,
     meta,
     actions,
+    fill = false,
     className,
     children,
 }: {
     title: string;
     meta?: ReactNode;
     actions?: ReactNode;
+    fill?: boolean;
     className?: string;
     children: ReactNode;
 }) {
@@ -68,7 +71,11 @@ export function Panel({
     return (
         <section
             aria-labelledby={id}
-            className={cn('min-w-0 rounded-lg border bg-card', className)}
+            className={cn(
+                'min-w-0 rounded-lg border bg-card',
+                fill && 'flex flex-col',
+                className,
+            )}
         >
             <div className="flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 border-b px-4 py-2.5">
                 <div className="flex min-w-0 flex-[1_1_14rem] items-baseline gap-x-3">
@@ -93,7 +100,9 @@ export function Panel({
                     </div>
                 )}
             </div>
-            <div className="p-4">{children}</div>
+            <div className={cn('p-4', fill && 'flex flex-1 flex-col')}>
+                {children}
+            </div>
         </section>
     );
 }

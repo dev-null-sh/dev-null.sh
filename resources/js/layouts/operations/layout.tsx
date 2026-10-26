@@ -10,6 +10,7 @@ import {
     Globe,
     HeartPulse,
     LayoutDashboard,
+    Mail,
     Pause,
     Play,
     RefreshCw,
@@ -19,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { PropsWithChildren } from 'react';
+import EmailController from '@/actions/App/Http/Controllers/EmailController';
 import FeatureController from '@/actions/App/Http/Controllers/FeatureController';
 import ForecastController from '@/actions/App/Http/Controllers/ForecastController';
 import LogController from '@/actions/App/Http/Controllers/LogController';
@@ -50,7 +52,8 @@ export type OperationsPage =
     | 'operations/metrics'
     | 'operations/activity'
     | 'operations/traffic'
-    | 'operations/features';
+    | 'operations/features'
+    | 'operations/emails';
 
 /**
  * The props each page polls and refreshes, listed since a plain reload would skip the deferred ones. Pages that move
@@ -79,11 +82,13 @@ export const PAGE_PROPS: Record<OperationsPage, string[]> = {
     'operations/activity': ['today', 'overall', 'activity', 'breakdowns'],
     'operations/traffic': ['traffic', 'trafficRange'],
     'operations/features': ['features'],
+    'operations/emails': ['recipients'],
 };
 
 const ON_DEMAND: OperationsPage[] = [
     'operations/forecasts',
     'operations/metrics',
+    'operations/emails',
 ];
 
 /**
@@ -180,6 +185,13 @@ function navGroups(
                     description: 'Turn features on and off for everyone',
                     href: FeatureController.index(),
                     icon: Flag,
+                },
+                {
+                    page: 'operations/emails',
+                    title: 'Emails',
+                    description: 'Write to everyone, or the people you pick',
+                    href: EmailController.create(),
+                    icon: Mail,
                 },
             ],
         },

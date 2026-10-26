@@ -8,6 +8,9 @@ export default defineConfig({
         },
     },
     test: {
+        env: {
+            VITE_APP_NAME: '/dev/null',
+        },
         include: [
             'tests/Unit/CommitPhoto.test.tsx',
             'tests/Unit/CommitSize.test.tsx',
@@ -20,6 +23,7 @@ export default defineConfig({
             'tests/Unit/GuestFollow.test.tsx',
             'tests/Unit/DraftStash.test.tsx',
             'tests/Unit/DraftImageReads.test.tsx',
+            'tests/Unit/DraftImagePreview.test.tsx',
             'tests/Unit/ImageAttachments.test.tsx',
             'tests/Unit/ComposerDraft.test.tsx',
             'tests/Unit/QuoteDraft.test.tsx',
@@ -50,9 +54,11 @@ export default defineConfig({
             'tests/Unit/VoiceNoteSpeed.test.tsx',
             'tests/Unit/OrgMentionSuggestions.test.tsx',
             'tests/Unit/RemoteNotifications.test.tsx',
+            'tests/Unit/RemotePush.test.tsx',
             'tests/Unit/RemotePins.test.tsx',
             'tests/Unit/RemotePreferences.test.tsx',
             'tests/Unit/ChatNavigation.test.tsx',
+            'tests/Unit/CommittedToast.test.tsx',
         ],
     },
 });

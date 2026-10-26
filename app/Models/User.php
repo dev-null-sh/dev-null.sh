@@ -60,6 +60,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read CarbonInterface|null $last_seen_at
  * @property-read CarbonInterface|null $banned_at
  * @property-read CarbonInterface|null $commit_rules_accepted_at
+ * @property-read CarbonInterface|null $emails_unsubscribed_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, Commit> $commits
@@ -91,6 +92,7 @@ use Illuminate\Support\Facades\DB;
     'lane_color',
     'pasteis_mode',
     'remotes_enabled',
+    'pushSubscriptions',
     'remotes_from',
     'pull_receipts',
     'pasteis_received',
@@ -107,6 +109,7 @@ use Illuminate\Support\Facades\DB;
     'last_seen_at',
     'banned_at',
     'commit_rules_accepted_at',
+    'emails_unsubscribed_at',
 ])]
 final class User extends Authenticatable
 {
@@ -147,6 +150,7 @@ final class User extends Authenticatable
         'last_seen_at' => null,
         'banned_at' => null,
         'commit_rules_accepted_at' => null,
+        'emails_unsubscribed_at' => null,
     ];
 
     /**
@@ -199,6 +203,7 @@ final class User extends Authenticatable
             'last_seen_at' => 'date',
             'banned_at' => 'datetime',
             'commit_rules_accepted_at' => 'datetime',
+            'emails_unsubscribed_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -236,6 +241,14 @@ final class User extends Authenticatable
     public function sshKeys(): HasMany
     {
         return $this->hasMany(SshKey::class);
+    }
+
+    /**
+     * @return HasMany<PushSubscription, $this>
+     */
+    public function pushSubscriptions(): HasMany
+    {
+        return $this->hasMany(PushSubscription::class);
     }
 
     /**

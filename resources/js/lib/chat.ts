@@ -7,6 +7,7 @@ import ConversationMergeController from '@/actions/App/Http/Controllers/Conversa
 import ConversationMessageController from '@/actions/App/Http/Controllers/ConversationMessageController';
 import ConversationMuteController from '@/actions/App/Http/Controllers/ConversationMuteController';
 import ConversationPinController from '@/actions/App/Http/Controllers/ConversationPinController';
+import ConversationPingController from '@/actions/App/Http/Controllers/ConversationPingController';
 import ConversationReadController from '@/actions/App/Http/Controllers/ConversationReadController';
 import ConversationTypingController from '@/actions/App/Http/Controllers/ConversationTypingController';
 import InboxController from '@/actions/App/Http/Controllers/InboxController';
@@ -17,6 +18,7 @@ import OrgMemberController from '@/actions/App/Http/Controllers/OrgMemberControl
 import OrgMessageController from '@/actions/App/Http/Controllers/OrgMessageController';
 import OrgMuteController from '@/actions/App/Http/Controllers/OrgMuteController';
 import OrgPinController from '@/actions/App/Http/Controllers/OrgPinController';
+import OrgPingController from '@/actions/App/Http/Controllers/OrgPingController';
 import OrgReadController from '@/actions/App/Http/Controllers/OrgReadController';
 import OrgTypingController from '@/actions/App/Http/Controllers/OrgTypingController';
 import RemoteCandidateController from '@/actions/App/Http/Controllers/RemoteCandidateController';
@@ -217,6 +219,7 @@ function urls(target: ChatTarget) {
             pop: ConversationArchiveController.destroy.url(partner),
             mute: ConversationMuteController.update.url(partner),
             pin: ConversationPinController.update.url(partner),
+            ping: ConversationPingController.store.url(partner),
         };
     }
 
@@ -233,6 +236,7 @@ function urls(target: ChatTarget) {
         pop: OrgArchiveController.destroy.url(org),
         mute: OrgMuteController.update.url(org),
         pin: OrgPinController.update.url(org),
+        ping: OrgPingController.store.url(org),
     };
 }
 
@@ -987,7 +991,10 @@ export function watchRemoteAlerts(userId: string): () => void {
                 conversation.kind === 'org'
                     ? ` in ${conversation.name || 'an unnamed org'}`
                     : '';
-            const title = `${sender}${remote} sent you a message`;
+            const title =
+                conversation.last_message?.event === 'ping'
+                    ? `${sender}${remote} sent you a ping`
+                    : `${sender}${remote} sent you a message`;
             const alert = { key: summaryKey(conversation), title };
             channel?.postMessage(alert);
             showTitle(alert);
@@ -1375,6 +1382,26 @@ export function sendMessage(target: ChatTarget, draft: MessageDraft): void {
         pending: [...thread.pending, pending],
     }));
     void deliver(target, pending);
+}
+
+/**
+ * Pings the partner, or everyone in an org. The stored ping lands in the thread like a message, and the thread shakes
+ * as it arrives.
+ */
+export async function sendPing(target: ChatTarget): Promise<void> {
+    const key = targetKey(target);
+    const { message } = await request<{ message: Message }>(
+        urls(target).ping,
+        'POST',
+    );
+
+    lastActivity.set(key, Date.now());
+    updateThread(key, (thread) => ({
+        messages: mergeMessages(thread.messages, [message]),
+        read_through_id: Math.max(thread.read_through_id, message.id),
+        head: Math.max(thread.head, message.id),
+    }));
+    touchInbox(target, message);
 }
 
 async function loadReactionUsage(): Promise<void> {

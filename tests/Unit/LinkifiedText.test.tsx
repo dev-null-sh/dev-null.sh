@@ -268,6 +268,26 @@ for (const [text, trailing] of [
     });
 }
 
+test('hides the slash after a bare host without an ellipsis while retaining the full URL', () => {
+    const slashed = 'https://www.example.com/';
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text={slashed} mentions={null} />,
+    );
+
+    assert.ok(markup.includes(`href="${slashed}"`));
+    assert.ok(markup.includes('>example.com<span class="text-[0px]">/</span>'));
+    assert.ok(!markup.includes('…'));
+    assert.equal(markup.replace(/<[^>]+>/g, ''), slashed);
+});
+
+test('keeps the trailing slash of a path', () => {
+    const markup = renderToStaticMarkup(
+        <LinkifiedText text="https://laravel.com/docs/" mentions={null} />,
+    );
+
+    assert.ok(markup.includes('>laravel.com/docs/<'));
+});
+
 test('keeps every distinct card URL in order without joining prose across code', () => {
     assert.deepEqual(
         typedLinks(

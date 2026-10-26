@@ -7,6 +7,7 @@ use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Ai\Agents\CommitTranslator;
+use App\Dto\ThreadEngagement;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -20,6 +21,7 @@ use App\Models\MessageVoice;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
+use App\Models\PushSubscription;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
@@ -239,9 +241,9 @@ it('lowers the threads the deleted user starred or replied to', function (): voi
     resolve(DeleteUser::class)->handle($user);
 
     expect($starred->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($starred->created_at, 0, 0), 1e-9)
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($starred->created_at, ThreadEngagement::none()), 1e-9)
         ->and($repliedTo->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($repliedTo->created_at, 0, 1), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($repliedTo->created_at, new ThreadEngagement(stargazers: 0, quoters: 0, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
 });
 
 it('lowers the threads the deleted user quoted', function (): void {
@@ -253,7 +255,7 @@ it('lowers the threads the deleted user quoted', function (): void {
     resolve(DeleteUser::class)->handle($user);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, ThreadEngagement::none()), 1e-9);
 });
 
 it('erases however many commits a user has without listing them in its queries', function (): void {
@@ -359,3 +361,10 @@ it('erases private report attachments when the reporter or reported author is de
     Storage::disk()->assertMissing($path);
     $this->assertModelMissing($report);
 })->with([true, false]);
+
+it('erases browser push subscriptions with the account', function (): void {
+    $user = User::factory()->create();
+    PushSubscription::factory()->create(['user_id' => $user->id]);
+    resolve(DeleteUser::class)->handle($user);
+    expect(PushSubscription::query()->count())->toBe(0);
+});
