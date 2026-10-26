@@ -106,7 +106,7 @@ function handleOf(person: User | null | undefined, user: User): string {
         return 'someone';
     }
 
-    return person.id === user.id ? 'you' : `@${person.username}`;
+    return person.id === user.id ? 'you' : `@${person.handle}`;
 }
 
 /**
@@ -171,16 +171,16 @@ export function EventLine({ message, user }: { message: Message; user: User }) {
 /**
  * Who is typing in an org, by handle, without running past one line.
  */
-export function typingText(usernames: string[]): string {
-    if (usernames.length === 1) {
-        return `@${usernames[0]} is typing…`;
+export function typingText(handles: string[]): string {
+    if (handles.length === 1) {
+        return `@${handles[0]} is typing…`;
     }
 
-    if (usernames.length === 2) {
-        return `@${usernames[0]} and @${usernames[1]} are typing…`;
+    if (handles.length === 2) {
+        return `@${handles[0]} and @${handles[1]} are typing…`;
     }
 
-    return `${usernames.length} people are typing…`;
+    return `${handles.length} people are typing…`;
 }
 
 /**
@@ -512,7 +512,7 @@ function MemberRow({
                     )}
                 </Link>
                 <span className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
-                    <span className="truncate">@{member.user.username}</span>
+                    <span className="truncate">@{member.user.handle}</span>
                 </span>
             </span>
             <span
@@ -533,7 +533,7 @@ function MemberRow({
                     ) : (
                         <DropdownMenu modal={false}>
                             <DropdownMenuTrigger
-                                aria-label={`Manage @${member.user.username}`}
+                                aria-label={`Manage @${member.user.handle}`}
                                 className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent"
                                 data-test="org-member-actions"
                             >
@@ -677,16 +677,16 @@ export function OrgPeopleDialog({
         }
 
         setIsSaving(true);
-        const usernames = picked.map((person) => person.username);
+        const handles = picked.map((person) => person.handle);
 
         try {
             if (mode.kind === 'create') {
-                const org = await createOrg(name, usernames);
+                const org = await createOrg(name, handles);
 
                 isCreated.current = true;
                 onDone(org);
             } else {
-                await addOrgMembers(mode.org, usernames, sharesHistory);
+                await addOrgMembers(mode.org, handles, sharesHistory);
                 onDone(mode.org);
             }
 
@@ -796,7 +796,7 @@ export function OrgPeopleDialog({
                                         key={person.id}
                                         type="button"
                                         onClick={() => toggle(person)}
-                                        aria-label={`Remove @${person.username}`}
+                                        aria-label={`Remove @${person.handle}`}
                                         className="flex h-7 max-w-40 items-center gap-1.5 rounded-md bg-muted pr-2 pl-1 text-xs hover:bg-accent"
                                     >
                                         <UserAvatar
@@ -804,7 +804,7 @@ export function OrgPeopleDialog({
                                             className="size-5"
                                         />
                                         <span className="truncate font-mono">
-                                            @{person.username}
+                                            @{person.handle}
                                         </span>
                                         <X className="size-3 shrink-0" />
                                     </button>
@@ -936,7 +936,7 @@ export function CandidateRow({
                     {user.name}
                 </span>
                 <span className="flex min-w-0 items-center gap-1 font-mono text-xs text-muted-foreground">
-                    <span className="truncate">@{user.username}</span>
+                    <span className="truncate">@{user.handle}</span>
                     {isDisabled && (
                         <span
                             className="truncate"

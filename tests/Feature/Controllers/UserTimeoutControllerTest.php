@@ -20,8 +20,8 @@ beforeEach(function (): void {
 });
 
 it('may put a user in timeout', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
-    $user = User::factory()->create(['username' => 'octocat']);
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     config(['app.admins' => ['admin']]);
 
@@ -38,7 +38,7 @@ it('may put a user in timeout', function (): void {
 });
 
 it('validates the reason and duration of a timeout', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     $user = User::factory()->create();
 
     config(['app.admins' => ['admin']]);
@@ -51,14 +51,14 @@ it('validates the reason and duration of a timeout', function (): void {
 });
 
 it('may not be given by someone who is not an admin, nor to an admin', function (string $actor, string $target): void {
-    User::factory()->create(['username' => 'admin']);
-    User::factory()->create(['username' => 'other-admin']);
-    User::factory()->create(['username' => 'someone']);
-    User::factory()->create(['username' => 'octocat']);
+    User::factory()->create(['handle' => 'admin']);
+    User::factory()->create(['handle' => 'other-admin']);
+    User::factory()->create(['handle' => 'someone']);
+    User::factory()->create(['handle' => 'octocat']);
 
     config(['app.admins' => ['admin', 'other-admin']]);
 
-    $this->actingAs(User::query()->where('username', $actor)->sole())
+    $this->actingAs(User::query()->whereRelation('profile', 'handle', $actor)->sole())
         ->post(route('user-timeout.store', ['user' => $target]), ['reason' => 'spam', 'duration' => 60])
         ->assertForbidden();
 
@@ -72,8 +72,8 @@ it('may not be given by someone who is not an admin, nor to an admin', function 
 ]);
 
 it('ends a timeout early, and still counts it', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
-    $user = User::factory()->create(['username' => 'octocat']);
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     UserTimeout::factory()->for($user)->create();
     UserTimeout::factory()->for($user)->create(['ends_at' => now()->addDays(7)]);
     UserTimeout::factory()->for($user)->ended()->create();
@@ -91,8 +91,8 @@ it('ends a timeout early, and still counts it', function (): void {
 });
 
 it('shows admins the timeouts and ban of a user on their profile', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
-    $user = User::factory()->create(['username' => 'octocat']);
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     UserTimeout::factory()->for($user)->create(['reason' => ModerationReason::LowEffort, 'ends_at' => now()->addHour()]);
     UserTimeout::factory()->for($user)->ended()->create();
 
@@ -115,15 +115,15 @@ it('shows admins the timeouts and ban of a user on their profile', function (): 
 });
 
 it('hides moderation from everyone but admins, and from the profiles of admins', function (string $viewer, string $profile): void {
-    User::factory()->create(['username' => 'admin']);
-    User::factory()->create(['username' => 'other-admin']);
-    User::factory()->create(['username' => 'someone']);
-    $user = User::factory()->create(['username' => 'octocat']);
+    User::factory()->create(['handle' => 'admin']);
+    User::factory()->create(['handle' => 'other-admin']);
+    User::factory()->create(['handle' => 'someone']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     UserTimeout::factory()->for($user)->create();
 
     config(['app.admins' => ['admin', 'other-admin']]);
 
-    $this->actingAs(User::query()->where('username', $viewer)->sole())
+    $this->actingAs(User::query()->whereRelation('profile', 'handle', $viewer)->sole())
         ->get(route('user.show', ['user' => $profile]))
         ->assertInertia(fn ($page) => $page->where('moderation', null));
 })->with([
@@ -182,12 +182,12 @@ it('stops a user in timeout from starting, renaming, or growing orgs, and from m
     UserTimeout::factory()->for($user)->create();
 
     $this->actingAs($user)
-        ->postJson(route('org.store'), ['name' => 'buy my course', 'members' => [$member->username]])
+        ->postJson(route('org.store'), ['name' => 'buy my course', 'members' => [$member->handle]])
         ->assertForbidden()
         ->assertJsonPath('timeout.reason', 'Spam or self-promotion');
 
     $this->putJson(route('org.update', $org), ['name' => 'buy my course'])->assertForbidden();
-    $this->postJson(route('org-member.store', $org), ['members' => [$newcomer->username], 'share_history' => false])->assertForbidden();
+    $this->postJson(route('org-member.store', $org), ['members' => [$newcomer->handle], 'share_history' => false])->assertForbidden();
     $this->postJson(route('org-message.store', $org), ['body' => 'hello', 'client_id' => Str::uuid()->toString()])->assertForbidden();
     $this->putJson(route('message-pin.update', $message))->assertForbidden();
 

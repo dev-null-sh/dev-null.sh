@@ -485,7 +485,7 @@ it('includes the link previews of commits', function (Log $log): void {
 
 it('includes the quoted commits with their authors', function (Log $log): void {
     $user = User::factory()->create();
-    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'octocat']))->create(['body' => 'The quoted commit', 'created_at' => now()->subDay()]);
+    $quoted = Commit::factory()->for(User::factory()->state(['handle' => 'octocat']))->create(['body' => 'The quoted commit', 'created_at' => now()->subDay()]);
     $hidden = Commit::factory()->create(['body' => 'A rejected quoted commit']);
     $deleted = Commit::factory()->create(['body' => 'A deleted quoted commit']);
     Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create(['created_at' => now()->subMinutes(3)]);
@@ -504,7 +504,7 @@ it('includes the quoted commits with their authors', function (Log $log): void {
             ->where('commits.data.1.quoted_commit_id', $hidden->id)
             ->where('commits.data.1.quoted_commit', null)
             ->where('commits.data.2.quoted_commit.body', 'The quoted commit')
-            ->where('commits.data.2.quoted_commit.user.username', 'octocat'))
+            ->where('commits.data.2.quoted_commit.user.handle', 'octocat'))
         ->assertDontSee('A rejected quoted commit')
         ->assertDontSee('A deleted quoted commit');
 })->with(Log::cases());
@@ -612,7 +612,7 @@ it('does not suggest users to follow once they are hidden', function (): void {
 it('leaves the commit just committed to its rank on the ranked log', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
     Commit::factory()->count(20)->create(['hot_score' => 1e12]);
 
     $response = $this->actingAs($user)
@@ -629,7 +629,7 @@ it('leaves the commit just committed to its rank on the ranked log', function ()
 it('puts the commit just committed on top of the latest log', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
     Commit::factory()->count(20)->create(['created_at' => now()->subHour()]);
 
     $response = $this->actingAs($user)

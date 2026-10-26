@@ -26,7 +26,7 @@ it('records a ping from a maintainer or contributor with its sender', function (
     $response->assertJsonPath('data.id', $ping->id)
         ->assertJsonPath('data.event', 'ping')
         ->assertJsonPath('data.body', '')
-        ->assertJsonPath('data.user.username', $this->user->username);
+        ->assertJsonPath('data.user.handle', $this->user->handle);
     expect($ping->event)->toBe(OrgEvent::Ping)
         ->and($ping->conversation_id)->toBe($org)
         ->and(Conversation::query()->findOrFail($org)->last_message_id)->toBe($ping->id);

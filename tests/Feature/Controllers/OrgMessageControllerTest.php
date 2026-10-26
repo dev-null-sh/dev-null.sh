@@ -20,10 +20,10 @@ it('lets members push, read, and see who pulled', function (): void {
     $this->getJson(route('inbox.index'))->assertJsonPath('unread', 0);
 
     $members = collect($this->actingAs($mark)->getJson(route('org-message.index', $org))->assertOk()->json('members'))
-        ->mapWithKeys(fn (array $member): array => [$member['user']['username'] => $member['read_through_id']]);
+        ->mapWithKeys(fn (array $member): array => [$member['user']['handle'] => $member['read_through_id']]);
 
-    expect($members[$nuno->username])->toBe($message->id)
-        ->and($members[$taylor->username])->toBeLessThan($message->id);
+    expect($members[$nuno->handle])->toBe($message->id)
+        ->and($members[$taylor->handle])->toBeLessThan($message->id);
 });
 
 it('hides pulls from people who do not share them', function (): void {
@@ -44,7 +44,7 @@ it('shows who is typing', function (): void {
 
     $this->actingAs($nuno)->putJson(route('org-typing.update', $org))->assertNoContent();
 
-    $this->actingAs($mark)->getJson(route('org-message.index', $org))->assertJsonPath('typing', [$nuno->username]);
+    $this->actingAs($mark)->getJson(route('org-message.index', $org))->assertJsonPath('typing', [$nuno->handle]);
     $this->actingAs($nuno)->getJson(route('org-message.index', $org))->assertJsonPath('typing', []);
 });
 
@@ -64,7 +64,7 @@ it('checks all org typing indicators in one cache read', function (): void {
     $this->actingAs($mark)
         ->getJson(route('org-message.index', $org))
         ->assertOk()
-        ->assertJsonPath('typing', [$nuno->username, $taylor->username]);
+        ->assertJsonPath('typing', [$nuno->handle, $taylor->handle]);
 });
 
 it('stashes an org for one member', function (): void {
@@ -81,7 +81,7 @@ it('stashes an org for one member', function (): void {
 it('finds orgs by name or by a member', function (string $term): void {
     $mark = User::factory()->create();
     [$nuno] = followersOf($mark, 1);
-    $nuno->update(['username' => 'nunomaduro']);
+    $nuno->profile->update(['handle' => 'nunomaduro']);
     createOrg($mark, [$nuno], name: 'polling crew');
 
     $this->actingAs($mark)->getJson(route('inbox.index', ['q' => $term]))->assertJsonCount(1, 'conversations');
@@ -100,7 +100,7 @@ it('replies only to messages in the history the member can see', function (): vo
     [$nuno, $taylor] = followersOf($mark, 2);
     $org = createOrg($mark, [$nuno]);
     $before = pushToOrg($nuno, $org, 'from before taylor joined');
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
     $after = pushToOrg($nuno, $org, 'welcome taylor');
 
     $this->actingAs($taylor)->postJson(route('org-message.store', $org), ['body' => 'hi', 'client_id' => Str::uuid()->toString(), 'reply_to_id' => $before->id])
@@ -152,9 +152,9 @@ it('pushes voice notes to the org', function (): void {
 });
 
 it('refreshes org mention eligibility without hiding members or restricting typed mentions', function (): void {
-    $viewer = User::factory()->create(['username' => 'viewer']);
+    $viewer = User::factory()->create(['handle' => 'viewer']);
     [$followed, $muted, $blocked, $blocker, $ordinary] = followersOf($viewer, 5);
-    $outsider = User::factory()->create(['username' => 'outside']);
+    $outsider = User::factory()->create(['handle' => 'outside']);
     $org = createOrg($viewer, [$followed, $muted, $blocked, $blocker, $ordinary]);
     $viewer->following()->attach($followed);
     $viewer->muting()->attach($muted);
@@ -194,7 +194,7 @@ it('returns current suggestion members on incremental polls after a join or depa
     $this->actingAs($viewer)->getJson(route('org-message.index', $org))
         ->assertJsonPath('members.*.user.id', [$viewer->id, $original->id]);
 
-    $this->postJson(route('org-member.store', $org), ['members' => [$joining->username], 'share_history' => true])->assertNoContent();
+    $this->postJson(route('org-member.store', $org), ['members' => [$joining->handle], 'share_history' => true])->assertNoContent();
     $this->deleteJson(route('org-member.destroy', [$org, $original]))->assertNoContent();
 
     $this->getJson(route('org-message.index', [$org, 'after' => 0]))
@@ -208,7 +208,7 @@ it('hands every member the pinned messages, latest pinned first, whatever histor
     [$nuno, $taylor] = followersOf($mark, 2);
     $org = createOrg($mark, [$nuno]);
     $runbook = pushToOrg($nuno, $org, 'deploy runbook');
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
     $welcome = pushToOrg($nuno, $org, 'welcome taylor');
     $this->actingAs($mark)->putJson(route('message-pin.update', $welcome))->assertOk();
     $this->travel(1)->minutes();
@@ -218,7 +218,7 @@ it('hands every member the pinned messages, latest pinned first, whatever histor
         ->assertOk()
         ->assertJsonPath('pinned.*.id', [$runbook->id, $welcome->id])
         ->assertJsonPath('pinned.0.body', 'deploy runbook')
-        ->assertJsonPath('pinned.0.user.username', $nuno->username)
+        ->assertJsonPath('pinned.0.user.handle', $nuno->handle)
         ->assertJsonPath('pinned.0.pinned_at', now()->startOfSecond()->toJSON());
 
     expect($thread->json('messages.*.id'))->toContain($welcome->id)->not->toContain($runbook->id);
@@ -251,7 +251,7 @@ it('leaves out what a pinned message replies to, which may be from before the me
     $answer = $this->actingAs($mark)->postJson(route('org-message.store', $org), ['body' => 'in the vault', 'client_id' => Str::uuid()->toString(), 'reply_to_id' => $question->id])
         ->assertCreated()
         ->json('message.id');
-    $this->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
 
     expect($this->putJson(route('message-pin.update', $answer))->assertOk()->json('pinned.0'))->not->toHaveKeys(['reply_to', 'reply_to_id']);
 
@@ -266,7 +266,7 @@ it('lets members reply to a pinned message from before their history', function 
     [$nuno, $taylor] = followersOf($mark, 2);
     $org = createOrg($mark, [$nuno]);
     $runbook = pushToOrg($nuno, $org, 'deploy runbook');
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
     $this->putJson(route('message-pin.update', $runbook))->assertOk();
 
     $this->actingAs($taylor)->postJson(route('org-message.store', $org), ['body' => 'thanks!', 'client_id' => Str::uuid()->toString(), 'reply_to_id' => $runbook->id])

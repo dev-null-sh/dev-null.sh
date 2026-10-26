@@ -360,9 +360,9 @@ export default function OperationsLayout({ children }: PropsWithChildren) {
                             {user && (
                                 <span
                                     className="block truncate font-mono text-xs text-muted-foreground"
-                                    title={`@${user.username}`}
+                                    title={`@${user.handle}`}
                                 >
-                                    @{user.username}
+                                    @{user.handle}
                                 </span>
                             )}
                         </span>

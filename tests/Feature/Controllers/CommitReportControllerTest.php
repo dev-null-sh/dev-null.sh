@@ -71,7 +71,7 @@ it('includes link previews in the moderator report context', function (): void {
     $commit = Commit::factory()->create(['link_preview_id' => $preview->id]);
     CommitReport::factory()->create(['commit_id' => $commit->id]);
 
-    $this->actingAs(User::factory()->create(['username' => 'moderator-demo']))
+    $this->actingAs(User::factory()->create(['handle' => 'moderator-demo']))
         ->get(route('reported-commit.index'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('reports.data.0.commit.link_preview.url', $preview->url));
@@ -80,7 +80,7 @@ it('includes link previews in the moderator report context', function (): void {
 it('includes images in the moderator report context without querying per report', function (): void {
     $reports = CommitReport::factory()->count(2)->create();
     $images = $reports->map(fn (CommitReport $report): CommitImage => CommitImage::factory()->for($report->commit)->create());
-    $moderator = User::factory()->create(['username' => 'moderator-demo']);
+    $moderator = User::factory()->create(['handle' => 'moderator-demo']);
 
     DB::enableQueryLog();
 
@@ -93,7 +93,7 @@ it('includes images in the moderator report context without querying per report'
 });
 
 it('includes reported polls with viewer specific results and card state', function (bool $voted, bool $closed): void {
-    $moderator = User::factory()->create(['username' => 'moderator-demo']);
+    $moderator = User::factory()->create(['handle' => 'moderator-demo']);
     $factory = Poll::factory()->withOptions('Tabs', 'Spaces');
     $poll = ($closed ? $factory->closed() : $factory)->create();
     PollVote::factory()->for($poll->options[0], 'option')->for($voted ? $moderator : User::factory())->create();
@@ -122,7 +122,7 @@ it('includes visible quoted context in reports without exposing ai advice or del
         $quoted->delete();
     }
 
-    $this->actingAs(User::factory()->create(['username' => 'moderator-demo']))
+    $this->actingAs(User::factory()->create(['handle' => 'moderator-demo']))
         ->get(route('reported-commit.index'))->assertOk()
         ->assertInertia(function ($page) use ($quoted, $deleted): void {
             $page->where('reports.data.0.commit.quoted_commit.id', $quoted->id)
@@ -144,7 +144,7 @@ it('includes visible quoted context in reports without exposing ai advice or del
 })->with([false, true]);
 
 it('hides quoted context the report reviewer cannot see', function (string $state): void {
-    $moderator = User::factory()->create(['username' => 'moderator-demo']);
+    $moderator = User::factory()->create(['handle' => 'moderator-demo']);
     $quoted = Commit::factory()->create(['status' => in_array($state, ['pending', 'rejected'], true) ? $state : CommitStatus::Approved]);
     $quote = Commit::factory()->for($quoted, 'quotedCommit')->create();
     CommitReport::factory()->for($quote)->create();
@@ -164,7 +164,7 @@ it('does not report hidden targets even for their authors or moderators', functi
     $commit = Commit::factory()->create(['status' => $status]);
     $user = match ($viewer) {
         'author' => $commit->user,
-        'moderator' => User::factory()->create(['username' => 'moderator-demo']),
+        'moderator' => User::factory()->create(['handle' => 'moderator-demo']),
         default => User::factory()->create(),
     };
 
@@ -213,7 +213,7 @@ it('can report a muted author from their directly accessible commit', function (
 });
 
 it('hides blocked parent context in the reports queue in either direction', function (bool $moderatorBlocks): void {
-    $moderator = User::factory()->create(['username' => 'moderator-demo']);
+    $moderator = User::factory()->create(['handle' => 'moderator-demo']);
     $parent = Commit::factory()->create();
     $reply = Commit::factory()->for($parent, 'parent')->create();
     CommitReport::factory()->for($reply)->create();
@@ -281,7 +281,7 @@ it('restricts the reports queue and resolution to moderators including the repor
 });
 
 it('lists only unresolved reports on live published content oldest first without reporter identity', function (): void {
-    $admin = User::factory()->create(['username' => 'moderator-demo']);
+    $admin = User::factory()->create(['handle' => 'moderator-demo']);
     $older = CommitReport::factory()->create(['created_at' => now()->subHour(), 'details' => 'Review this context.']);
     $newer = CommitReport::factory()->create();
     CommitReport::factory()->create(['dismissed_at' => now()]);
@@ -300,13 +300,13 @@ it('lists only unresolved reports on live published content oldest first without
 it('does not expose hidden parent context in the reports queue', function (string $status): void {
     $parent = Commit::factory()->create(['status' => $status, 'body' => 'Hidden parent context']);
     CommitReport::factory()->for(Commit::factory()->for($parent, 'parent'))->create();
-    $admin = User::factory()->create(['username' => 'moderator-demo']);
+    $admin = User::factory()->create(['handle' => 'moderator-demo']);
     $this->actingAs($admin)->get(route('reported-commit.index'))->assertOk()
         ->assertInertia(fn ($page) => $page->has('reports.data', 1)->where('reports.data.0.commit.parent', null));
 })->with(['pending', 'rejected']);
 
 it('paginates private reports without skipping equal timestamps', function (): void {
-    $admin = User::factory()->create(['username' => 'moderator-demo']);
+    $admin = User::factory()->create(['handle' => 'moderator-demo']);
     CommitReport::factory()->count(21)->create();
     $this->actingAs($admin)->get(route('reported-commit.index'))->assertOk();
     $headers = ['X-Inertia' => 'true', 'X-Inertia-Version' => Inertia::getVersion()];
@@ -335,7 +335,7 @@ it('does not accept spoofed ownership target or dismissal fields', function (): 
 
 it('dismisses idempotently without hiding the commit', function (): void {
     $report = CommitReport::factory()->create();
-    $admin = User::factory()->create(['username' => 'moderator-demo']);
+    $admin = User::factory()->create(['handle' => 'moderator-demo']);
     $this->actingAs($admin)->fromRoute('reported-commit.index')->delete(route('commit-report.destroy', $report))->assertRedirectToRoute('reported-commit.index');
     $this->delete(route('commit-report.destroy', $report))->assertRedirect();
     expect($report->refresh()->dismissed_at)->not->toBeNull()
@@ -347,7 +347,7 @@ it('dismisses idempotently without hiding the commit', function (): void {
 it('rejects the original using existing moderation and removes all its reports from the queue', function (): void {
     $report = CommitReport::factory()->create();
     CommitReport::factory()->for($report->commit)->create();
-    $admin = User::factory()->create(['username' => 'moderator-demo']);
+    $admin = User::factory()->create(['handle' => 'moderator-demo']);
     $this->actingAs($admin)->fromRoute('reported-commit.index')->post(route('commit-rejection.store', $report->commit))->assertRedirectToRoute('reported-commit.index');
     expect($report->commit->refresh()->status)->toBe(CommitStatus::Rejected);
     $this->get(route('reported-commit.index'))->assertInertia(fn ($page) => $page->has('reports.data', 0));
@@ -362,7 +362,7 @@ it('rejects the original using existing moderation and removes all its reports f
 it('does not resolve reports on deleted content', function (): void {
     $report = CommitReport::factory()->create();
     $report->commit->delete();
-    $this->actingAs(User::factory()->create(['username' => 'moderator-demo']))->delete(route('commit-report.destroy', $report))->assertNotFound();
+    $this->actingAs(User::factory()->create(['handle' => 'moderator-demo']))->delete(route('commit-report.destroy', $report))->assertNotFound();
 });
 
 it('cascades reports when the commit or either account is hard deleted', function (string $target): void {
@@ -397,7 +397,7 @@ it('removes reports on account deletion tombstones while keeping reports on surv
         ->and(CommitReport::query()->sole()->id)->toBe($keptReport->id)
         ->and($survivingReply->fresh()->parent_id)->toBe($tombstone->id);
 
-    $this->actingAs(User::factory()->create(['username' => 'moderator-demo']))
+    $this->actingAs(User::factory()->create(['handle' => 'moderator-demo']))
         ->get(route('reported-commit.index'))->assertOk()
         ->assertInertia(fn ($page) => $page->has('reports.data', 1)
             ->where('reports.data.0.id', $keptReport->id)

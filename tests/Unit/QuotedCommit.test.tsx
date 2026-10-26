@@ -26,7 +26,7 @@ const commit = {
     preview_segments: null,
     status: 'approved',
     created_at: '2026-10-16T11:51:00.000000Z',
-    user: { id: 'author', name: 'Matthieu Napoli', username: 'mnapoli' },
+    user: { id: 'author', name: 'Matthieu Napoli', handle: 'mnapoli' },
 } as QuotedCommitData;
 
 const poll = {

@@ -11,8 +11,8 @@ beforeEach(function (): void {
 });
 
 it('lists the events of the last 24 hours to admins by default', function (): void {
-    $admin = User::factory()->create(['username' => 'admin', 'created_at' => now()->subWeek()]);
-    User::factory()->create(['username' => 'newcomer', 'created_at' => now()->subHour()]);
+    $admin = User::factory()->create(['handle' => 'admin', 'created_at' => now()->subWeek()]);
+    User::factory()->create(['handle' => 'newcomer', 'created_at' => now()->subHour()]);
     failedJob(failedAt: now()->subMinutes(10));
     failedJob(failedAt: now()->subDays(2));
 
@@ -33,9 +33,9 @@ it('lists the events of the last 24 hours to admins by default', function (): vo
 });
 
 it('filters the events by window, source, level and search', function (): void {
-    $admin = User::factory()->create(['username' => 'admin', 'created_at' => now()->subMonth()]);
-    User::factory()->create(['username' => 'early_bird', 'created_at' => now()->subDays(5)]);
-    User::factory()->create(['username' => 'night_owl', 'created_at' => now()->subDays(5)]);
+    $admin = User::factory()->create(['handle' => 'admin', 'created_at' => now()->subMonth()]);
+    User::factory()->create(['handle' => 'early_bird', 'created_at' => now()->subDays(5)]);
+    User::factory()->create(['handle' => 'night_owl', 'created_at' => now()->subDays(5)]);
     failedJob(failedAt: now()->subDays(5));
 
     $response = $this->actingAs($admin)
@@ -52,7 +52,7 @@ it('filters the events by window, source, level and search', function (): void {
 });
 
 it('rejects unknown filters', function (array $query, string $field): void {
-    $response = $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $response = $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('operations-event.index', $query));
 
     $response->assertRedirect()

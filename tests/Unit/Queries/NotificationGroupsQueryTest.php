@@ -9,8 +9,10 @@ use App\Actions\DeleteCommit;
 use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Enums\ProfileType;
 use App\Models\Commit;
 use App\Models\Notification;
+use App\Models\Profile;
 use App\Models\User;
 use App\Queries\NotificationGroupsQuery;
 use Carbon\CarbonInterface;
@@ -100,8 +102,12 @@ function mentionsAt(User $user, Commit $commit, array $mentioners, array $moment
 function followsAt(User $user, array $moments): void
 {
     $followers = array_map(fn (CarbonInterface $at): array => [
-        'id' => $id = (string) Str::uuid7(), 'github_id' => $id, 'username' => $id, 'name' => 'Follower', 'created_at' => $at, 'updated_at' => $at,
+        'id' => $id = (string) Str::uuid7(), 'github_id' => $id, 'created_at' => $at, 'updated_at' => $at,
     ], $moments);
+    Profile::query()->insert(array_map(fn (array $follower): array => [
+        'id' => (string) Str::uuid7(), 'type' => ProfileType::User, 'github_id' => $follower['github_id'], 'handle' => $follower['id'], 'name' => 'Follower',
+        'created_at' => $follower['created_at'], 'updated_at' => $follower['created_at'],
+    ], $followers));
     User::query()->insert($followers);
     DB::table('follows')->insert(array_map(fn (array $follower): array => [
         'follower_id' => $follower['id'], 'followed_id' => $user->id, 'created_at' => $follower['created_at'], 'updated_at' => $follower['created_at'],
@@ -298,7 +304,7 @@ it('loads any number of groups with the same number of queries', function (int $
 
     resolve(NotificationGroupsQuery::class)->paginate($user);
 
-    expect(DB::getQueryLog())->toHaveCount(5);
+    expect(DB::getQueryLog())->toHaveCount(7);
 })->with([1, 5]);
 
 it('skips loading stacked actors when nothing is grouped', function (): void {
@@ -310,7 +316,7 @@ it('skips loading stacked actors when nothing is grouped', function (): void {
 
     $group = resolve(NotificationGroupsQuery::class)->paginate($user)->items()[0];
 
-    expect(DB::getQueryLog())->toHaveCount(3)
+    expect(DB::getQueryLog())->toHaveCount(4)
         ->and($group->actors->sole()->is($group->actor))->toBeTrue();
 });
 

@@ -18,8 +18,8 @@ use Illuminate\Support\Str;
  * @phpstan-type Feed array{url: string, title: string}
  * @phpstan-type WebsiteMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
  * @phpstan-type CommitMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, publishedAt: string, author: string, feed: Feed, structuredData: array<string, mixed>}
- * @phpstan-type UserMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, feed: Feed, username: string, structuredData: array<string, mixed>}
- * @phpstan-type ConnectionsMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, username: string}
+ * @phpstan-type UserMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, feed: Feed, handle: string, structuredData: array<string, mixed>}
+ * @phpstan-type ConnectionsMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, handle: string}
  *
  * @phpstan-import-type MacAppRelease from MacAppReleaseQuery
  */
@@ -273,7 +273,7 @@ final readonly class PageMetadata
             'robots' => self::INDEXABLE,
             'images' => [$this->profileImage($user, $title)],
             'feed' => $this->feed($user),
-            'username' => $user->username,
+            'handle' => $user->handle,
             'structuredData' => [
                 '@context' => 'https://schema.org',
                 '@type' => 'ProfilePage',
@@ -285,7 +285,7 @@ final readonly class PageMetadata
                     ...$user->bio !== null ? ['description' => $user->bio] : [],
                     ...$user->avatar_url !== null ? ['image' => $user->avatar_url] : [],
                     'sameAs' => [
-                        "https://github.com/{$user->username}",
+                        "https://github.com/{$user->handle}",
                         ...filled($user->website) ? [$user->website] : [],
                     ],
                     'interactionStatistic' => [
@@ -318,7 +318,7 @@ final readonly class PageMetadata
             'url' => route($type === 'followers' ? 'user-followers.index' : 'user-following.index', $user),
             'robots' => self::NOT_INDEXABLE,
             'images' => [$this->profileImage($user, $title)],
-            'username' => $user->username,
+            'handle' => $user->handle,
         ];
     }
 

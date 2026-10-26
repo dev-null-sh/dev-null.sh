@@ -31,7 +31,7 @@ final class SearchCommits implements Tool
             ->get(mb_substr($request->string('query')->value(), 0, 200), null, limit: 5)
             ->filter(fn (Commit $commit): bool => $commit->user instanceof User)
             ->map(fn (Commit $commit): array => [
-                'author' => $commit->user?->username,
+                'author' => $commit->user?->handle,
                 'body' => mb_substr($commit->body, 0, 2000),
                 'url' => route('commit.show', [$commit->user, $commit]),
                 'posted_at' => $commit->created_at->toIso8601String(),

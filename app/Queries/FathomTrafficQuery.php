@@ -116,6 +116,27 @@ final readonly class FathomTrafficQuery
     }
 
     /**
+     * The people who sent the event in the range for each value of a Fathom field, device_type say, most first, or
+     * null when Fathom isn't set up or didn't answer. An empty name is an unknown value. Cached for five minutes, like
+     * the report.
+     *
+     * @return array<string, int>|null
+     */
+    public function eventVisitorsBy(CarbonImmutable $from, CarbonImmutable $to, string $event, string $field): ?array
+    {
+        return $this->count("event-by-{$field}:{$event}:{$from->toDateString()}:{$to->toDateString()}", fn (): array => $this->aggregate($from, $to, [
+            'aggregates' => 'unique_conversions',
+            'field_grouping' => $field,
+            'sort_by' => 'unique_conversions:desc',
+        ], $event)
+            ->collect()
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->mapInto(Fluent::class)
+            ->mapWithKeys(fn (Fluent $row): array => [$row->string($field)->value() => $row->integer('unique_conversions')])
+            ->all());
+    }
+
+    /**
      * Once Fathom fails to answer, the rest of the request stops asking it, so a slow Fathom is only waited on once.
      *
      * @template T of int|array<string, int>
