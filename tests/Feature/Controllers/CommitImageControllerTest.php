@@ -216,3 +216,15 @@ it('streams images when the storage credentials expire before a signed url would
 
     $this->get(route('commit-image.show', $image))->assertNotFound();
 });
+
+it('streams images when cloud storage would sign a plain http url', function (): void {
+    $image = CommitImage::factory()->for(Commit::factory())->create();
+
+    $disk = Mockery::mock(AwsS3V3Adapter::class);
+    $disk->shouldReceive('getClient')->andReturn(cloudDisk()->getClient());
+    $disk->shouldReceive('temporaryUrl')->andReturn('http://minio.test/images/'.$image->path.'?X-Amz-Signature=abc');
+    $disk->shouldReceive('exists')->with($image->path)->andReturnFalse();
+    Storage::set(config('filesystems.default'), $disk);
+
+    $this->get(route('commit-image.show', $image))->assertNotFound();
+});
