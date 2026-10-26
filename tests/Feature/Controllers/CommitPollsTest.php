@@ -9,12 +9,13 @@ use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Enums\NotificationType;
 use App\Enums\PollDuration;
+use App\Jobs\DetectCommitLanguage;
 use App\Jobs\UnfurlLink;
-use App\Models\Bookmark;
 use App\Models\Commit;
 use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\User;
+use App\Services\Features;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -65,13 +66,13 @@ it('keeps a poll when its link card is chosen or removed', function (?string $li
     }
 })->with(['chosen' => 'https://example.com/second', 'removed' => null]);
 
-it('keeps polls and link card choices on quotes through approval without exposing quoted votes', function (?string $linkPreviewUrl): void {
+it('keeps link card choices on quotes through approval without exposing quoted votes', function (?string $linkPreviewUrl): void {
     Queue::fake([UnfurlLink::class]);
 
     $user = User::factory()->create();
-    $quotedAuthor = User::factory()->create(['username' => 'quoted-writer']);
+    $quotedAuthor = User::factory()->create(['handle' => 'quoted-writer']);
     $quoted = Poll::factory()->for(Commit::factory()->for($quotedAuthor))->withOptions('Private A', 'Private B')->create();
-    $voter = User::factory()->create(['username' => 'private-voter']);
+    $voter = User::factory()->create(['handle' => 'private-voter']);
     PollVote::factory()->for($quoted->options[0], 'option')->for($voter)->create();
 
     $this->actingAs($user)
@@ -80,7 +81,6 @@ it('keeps polls and link card choices on quotes through approval without exposin
             'body' => 'Compare @quoted-writer https://example.com/first and https://example.com/second',
             'quoted_commit_id' => $quoted->commit_id,
             'link_preview_url' => $linkPreviewUrl,
-            'poll' => ['options' => ['First', 'Second'], 'duration' => PollDuration::OneDay->value],
         ])
         ->assertSessionHasNoErrors()
         ->assertRedirectToRoute('log.show', Log::Following);
@@ -88,14 +88,14 @@ it('keeps polls and link card choices on quotes through approval without exposin
     $quote = $user->commits()->sole();
 
     expect($quote->quoted_commit_id)->toBe($quoted->commit_id)
-        ->and($quote->poll->opened_at)->toBeNull()
+        ->and($quote->poll)->toBeNull()
         ->and($quote->linkPreview?->url)->toBe($linkPreviewUrl);
 
     resolve(UpdateCommitStatus::class)->handle($quote, CommitStatus::Approved);
 
     $notification = $quotedAuthor->notifications()->sole();
 
-    expect($quote->poll->refresh()->opened_at?->toIso8601String())->toBe(now()->toIso8601String())
+    expect($quote->refresh()->status)->toBe(CommitStatus::Approved)
         ->and($user->notifications()->exists())->toBeFalse()
         ->and($notification->type)->toBe(NotificationType::Quoted)
         ->and($notification->actor_id)->toBe($user->id)
@@ -107,8 +107,7 @@ it('keeps polls and link card choices on quotes through approval without exposin
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('auth.user', null)
-            ->where('commit.poll.options.0.label', 'First')
-            ->where('commit.poll.total_votes', null)
+            ->where('commit.poll', null)
             ->where('commit.quoted_commit.id', $quoted->commit_id)
             ->where('commit.quoted_commit.poll.options.0.label', 'Private A')
             ->where('commit.quoted_commit.poll.total_votes', null))
@@ -163,6 +162,24 @@ it('may not attach a poll to a reply', function (): void {
         ->assertSessionHasErrors('poll');
 
     expect($parent->replies()->count())->toBe(0);
+});
+
+it('may not attach a poll to a quote', function (): void {
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Tabs or spaces?',
+            'quoted_commit_id' => $quoted->id,
+            'poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => PollDuration::OneDay->value],
+        ])
+        ->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasErrors(['poll' => 'The poll field prohibits quoted commit id from being present.']);
+
+    expect($user->commits()->exists())->toBeFalse()
+        ->and(Poll::query()->exists())->toBeFalse();
 });
 
 it('may not attach a poll to a commit with images', function (): void {
@@ -257,7 +274,7 @@ it('shows the poll of a quoted commit in moderation and after undoing a deletion
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
     $quote = Commit::factory()->pending()->for($poll->commit, 'quotedCommit')->create();
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('moderation.show'))
         ->assertInertia(fn ($page) => $page->where('commits.data.0.quoted_commit.poll.options.0.label', 'Tabs'));
 
@@ -268,13 +285,13 @@ it('shows the poll of a quoted commit in moderation and after undoing a deletion
         ->assertInertiaFlash('restored.quoted_commit.poll.options.0.label', 'Tabs');
 });
 
-it('shows polls on profiles and saved commits', function (): void {
+it('shows polls on profiles and starred commits', function (): void {
     $user = User::factory()->create();
     $author = User::factory()->create();
     $pinned = Poll::factory()->for(Commit::factory()->for($author))->withOptions('Tabs', 'Spaces')->create();
     $latest = Poll::factory()->for(Commit::factory()->for($author))->withOptions('Vim', 'Emacs')->create();
     $author->update(['pinned_commit_id' => $pinned->commit_id]);
-    Bookmark::factory()->create(['user_id' => $user->id, 'commit_id' => $latest->commit_id]);
+    $user->starredCommits()->attach($latest->commit);
 
     $this->actingAs($user)
         ->get(route('user.show', $author))
@@ -282,7 +299,7 @@ it('shows polls on profiles and saved commits', function (): void {
             ->where('pinnedCommit.poll.options.0.label', 'Tabs')
             ->where('commits.data.0.poll.options.0.label', 'Vim'));
 
-    $this->get(route('bookmark.index'))
+    $this->get(route('starred.index'))
         ->assertInertia(fn ($page) => $page->where('commits.data.0.poll.options.0.label', 'Vim'));
 });
 
@@ -290,7 +307,7 @@ it('shows the poll of a pending commit to moderators', function (): void {
     config(['app.admins' => ['admin']]);
     Poll::factory()->for(Commit::factory()->pending())->withOptions('Tabs', 'Spaces')->unopened()->create();
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('moderation.show'))
         ->assertInertia(fn ($page) => $page
             ->where('commits.data.0.poll.closes_at', null)
@@ -298,6 +315,8 @@ it('shows the poll of a pending commit to moderators', function (): void {
 });
 
 it('loads the polls of the log with a bounded number of queries', function (): void {
+    Queue::fake([DetectCommitLanguage::class]);
+    resolve(Features::class)->all();
     $user = User::factory()->create(['log' => Log::Trending, 'last_seen_at' => today()]);
     Poll::factory()->withOptions('Tabs', 'Spaces')->create();
     $this->actingAs($user);
@@ -317,7 +336,7 @@ it('loads the polls of the log with a bounded number of queries', function (): v
 it('shows public polls to guests while hiding open results and voter identities', function (string $endpoint, bool $closed): void {
     $factory = Poll::factory()->withOptions('Tabs', 'Spaces');
     $poll = ($closed ? $factory->closed() : $factory)->create();
-    $voter = User::factory()->create(['username' => 'private-voter']);
+    $voter = User::factory()->create(['handle' => 'private-voter']);
     PollVote::factory()->for($poll->options[0], 'option')->for($voter)->create();
 
     [$url, $path, $component] = match ($endpoint) {
@@ -352,9 +371,9 @@ it('shows public polls to guests while hiding open results and voter identities'
 
 it('keeps guest poll results private around an authorless account deletion tombstone', function (): void {
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
-    $voter = User::factory()->create(['username' => 'private-voter']);
+    $voter = User::factory()->create(['handle' => 'private-voter']);
     PollVote::factory()->for($poll->options[0], 'option')->for($voter)->create();
-    $deleted = User::factory()->create(['username' => 'deleted-author']);
+    $deleted = User::factory()->create(['handle' => 'deleted-author']);
     $parent = Commit::factory()->for($deleted)->for($poll->commit, 'parent')->create(['body' => 'Deleted reply body']);
     $reply = Commit::factory()->for($parent, 'parent')->create();
 
@@ -384,7 +403,7 @@ it('keeps poll details out of public read endpoints', function (string $endpoint
         ->withOptions('Private option A', 'Private option B')
         ->closed()
         ->create();
-    $voter = User::factory()->create(['username' => 'private-voter']);
+    $voter = User::factory()->create(['handle' => 'private-voter']);
     PollVote::factory()->for($poll->options[0], 'option')->for($voter)->create();
 
     $url = match ($endpoint) {

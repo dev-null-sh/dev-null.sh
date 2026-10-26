@@ -48,7 +48,6 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, Commit> $replies
  * @property-read int $replies_count
  * @property-read int|null $repliers_count
- * @property-read bool $is_saved
  * @property-read string|null $continuation_id
  * @property-read LinkPreview|null $linkPreview
  * @property-read Poll|null $poll
@@ -191,7 +190,6 @@ final class Commit extends Model
     {
         return $this->status === CommitStatus::Pending
             && $this->ai_decision === null
-            && filled(config('services.openai.key'))
             && $this->created_at->greaterThan(now()->subMinutes(self::CHECKING_MINUTES));
     }
 
@@ -222,14 +220,6 @@ final class Commit extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');
-    }
-
-    /**
-     * @return HasMany<Bookmark, $this>
-     */
-    public function bookmarks(): HasMany
-    {
-        return $this->hasMany(Bookmark::class);
     }
 
     /**
@@ -310,7 +300,7 @@ final class Commit extends Model
             $this->body,
             $this->replies_count,
             $this->user?->openGraphIdentity(),
-            $this->parent?->user?->username,
+            $this->parent?->user?->handle,
         ]));
     }
 }

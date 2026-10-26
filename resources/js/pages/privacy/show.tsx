@@ -1,10 +1,12 @@
 import { Head, Link } from '@inertiajs/react';
+import AppController from '@/actions/App/Http/Controllers/AppController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import {
     DocumentList,
     DocumentPage,
     DocumentSection,
 } from '@/components/document-page';
+import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import {
     COMPANY_NAME,
@@ -33,10 +35,11 @@ export default function Show() {
                 <DocumentSection id="who" title="Who we are">
                     <p>
                         {COMPANY_NAME}, a company registered in Portugal ("we",
-                        "us"), operates /dev/null and everything we offer under
-                        that name or any other, now or in the future (the
-                        "service"), and is the controller of the personal data
-                        processed in it. Contact: <Mail />.
+                        "us"), operates <WordmarkText>/dev/null</WordmarkText>{' '}
+                        and everything we offer under that name or any other,
+                        now or in the future (the "service"), and is the
+                        controller of the personal data processed in it.
+                        Contact: <Mail />.
                     </p>
                 </DocumentSection>
 
@@ -52,6 +55,25 @@ export default function Show() {
                                 who you follow and who follows you.
                             </>,
                             <>
+                                <strong>
+                                    From Apple, when you sign in with Apple in
+                                    the iOS app:
+                                </strong>{' '}
+                                your Apple account identifier, and the name and
+                                email address you choose to share, which may be
+                                Apple's private relay address.
+                            </>,
+                            <>
+                                <strong>
+                                    From the commit script, when you run it:
+                                </strong>{' '}
+                                the public SSH keys in your SSH agent and{' '}
+                                <code>~/.ssh</code>, without their comments, to
+                                find the one on your GitHub account. They are
+                                only compared in memory against the fingerprints
+                                we store, and are never stored or logged.
+                            </>,
+                            <>
                                 <strong>What you post and do:</strong> commits,
                                 replies, quotes, images, polls, votes, stars,
                                 follows, mutes, blocks, reports, settings, and
@@ -59,6 +81,37 @@ export default function Show() {
                                 messages you send us, and data derived from all
                                 of this, such as rankings and moderation
                                 signals.
+                            </>,
+                            <>
+                                <strong>Private messages:</strong> messages,
+                                images, and voice notes you send in Remotes,
+                                which only the people in the conversation can
+                                see. They are encrypted at rest, are not used by
+                                AI features, and are erased with your account.
+                                Voice notes are recorded with your microphone
+                                only after you start recording; recording stops
+                                and the microphone is released when you stop or
+                                discard.
+                            </>,
+                            <>
+                                <strong>From our apps:</strong> when you approve
+                                a device, such as{' '}
+                                <Link href={AppController.index()}>
+                                    the Mac app
+                                </Link>
+                                , its key's fingerprint, its name (for a Mac,
+                                the computer's name), when you approved it, and
+                                when it was last used, until you revoke it. The
+                                private key stays in your device's Keychain and
+                                never reaches us. The Mac app keeps messages and
+                                images in memory only and saves just its
+                                preferences on your Mac; its notifications never
+                                show what a message says; and it uses the
+                                microphone only while you record a voice note.
+                                Its update check asks dev-null.sh for the latest
+                                version without your account or anything about
+                                your Mac, beyond what every request carries,
+                                such as your IP address.
                             </>,
                             <>
                                 <strong>From others:</strong> what other users
@@ -72,6 +125,14 @@ export default function Show() {
                                 used it.
                             </>,
                             <>
+                                <strong>From the iOS app:</strong> a key the app
+                                makes on your phone to sign its requests, which
+                                never leaves it, and the name of your phone. The
+                                app asks for your photos or camera only when you
+                                attach an image, and for your microphone only
+                                when you record a voice note.
+                            </>,
+                            <>
                                 <strong>Cookies and browser storage</strong>{' '}
                                 needed for the service to work, such as for
                                 sign-in, security, and preferences.
@@ -83,8 +144,8 @@ export default function Show() {
                         others give us about you, or that is generated when you
                         use the service. New features may involve other data,
                         which this policy covers once it is updated to describe
-                        it. Signing in with GitHub is required to use the
-                        service.
+                        it. Signing in with GitHub, or with Apple in the iOS
+                        app, is required to use the service.
                     </p>
                 </DocumentSection>
 
@@ -96,9 +157,9 @@ export default function Show() {
                         archive, or reuse public content, and we can't control
                         or remove those copies. Deleted content may still appear
                         in replies, quotes, search engines, and copies others
-                        made. Don't post anything you don't want public. You are
-                        responsible for any personal data of others that you
-                        post.
+                        made. Private messages are not public. Don't post
+                        anything you don't want public. You are responsible for
+                        any personal data of others that you post.
                     </p>
                 </DocumentSection>
 
@@ -178,15 +239,23 @@ export default function Show() {
                         the law, and defending legal claims. Deleted content may
                         remain in backups and logs for a period.
                     </p>
+                    <p>
+                        If a moderator put you in timeout or banned you, we keep
+                        a record of it after you delete your account: your
+                        GitHub account id, the reason, and when it happened. It
+                        stops a banned GitHub account from signing up again, and
+                        keeps a timeout from ending early by signing up again.
+                    </p>
                 </DocumentSection>
 
                 <DocumentSection id="rights" title="Your rights">
                     <p>
                         You can export your data or delete your account from{' '}
-                        <Link href={profileSettings()}>settings</Link>. Under
-                        the GDPR, you may also have the right to access,
-                        correct, erase, restrict, or port your data, to object
-                        to its processing, and to lodge a complaint with a data
+                        <Link href={profileSettings()}>settings</Link>, or
+                        delete it in the iOS app under Settings. Under the GDPR,
+                        you may also have the right to access, correct, erase,
+                        restrict, or port your data, to object to its
+                        processing, and to lodge a complaint with a data
                         protection authority, such as Portugal's CNPD. You may
                         object at any time to processing based on our legitimate
                         interests. To exercise these rights, write to <Mail />.

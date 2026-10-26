@@ -85,7 +85,7 @@ export default function Index({
             <Head
                 title={
                     partner
-                        ? `@${partner.username} · Remotes`
+                        ? `@${partner.handle} · Remotes`
                         : org
                           ? `${org.name ?? 'Org'} · Remotes`
                           : 'Remotes'
@@ -140,7 +140,7 @@ export default function Index({
                                         type="button"
                                         aria-label="New org"
                                         onClick={() => setIsStartingOrg(true)}
-                                        className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                        className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                                         data-test="new-org"
                                     >
                                         <UsersRound className="size-[18px]" />
@@ -154,7 +154,7 @@ export default function Index({
                                         type="button"
                                         aria-label="New remote"
                                         onClick={() => setIsPicking(true)}
-                                        className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                                        className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                                         data-test="new-message"
                                     >
                                         <SquarePen className="size-[18px]" />
@@ -241,7 +241,7 @@ function BackToRemotes() {
         <Link
             href={ConversationController.index()}
             aria-label="All remotes"
-            className="-ml-2 grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:hidden"
+            className="-ml-2 grid size-9 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:hidden"
         >
             <ChevronLeft className="size-5" />
         </Link>
@@ -283,15 +283,15 @@ function ThreadHeader({
                         {partner.name}
                     </span>
                     <span className="block truncate font-mono text-xs text-muted-foreground">
-                        @{partner.username}
+                        @{partner.handle}
                     </span>
                 </span>
             </Link>
             <ConversationActions
                 target={{ kind: 'direct', partner }}
-                title={`@${partner.username}`}
+                title={`@${partner.handle}`}
                 user={user}
-                isArchived={threads[partner.username]?.is_archived ?? false}
+                isArchived={threads[partner.handle]?.is_archived ?? false}
                 onLeave={onLeave}
                 className="ml-auto size-9"
             />

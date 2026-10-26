@@ -10,9 +10,16 @@ export type FlashToast = {
     message: string;
 };
 
+export type TimeoutFlash = {
+    reason: string;
+    remaining: string;
+    ends_at: string;
+};
+
 export type CommittedFlash = {
     id: string;
     body: string;
+    user: { handle: string };
 };
 
 export type DeletedFlash = DeletedCommit & {

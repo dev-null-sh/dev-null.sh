@@ -9,8 +9,12 @@ use App\Models\Message;
 use App\Models\User;
 use App\Services\OpenAI;
 use App\Services\SignedCommits;
+use App\Services\SignedRequests;
 use Carbon\CarbonInterface;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
@@ -128,24 +132,48 @@ function fakeGitHubAccount(User $user, array $account = []): void
         "api.github.com/user/{$user->github_id}" => Http::response($account),
     ]);
 
-    fakeGitHubSshKeys(User::factory()->make(['github_id' => $user->github_id, 'username' => $account['login']]));
+    fakeGitHubSshKeys($user, handle: $account['login']);
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function gitHubContributor(string $login, int $commits, string $type = 'User', ?int $id = null): array
+{
+    return ['login' => $login, 'id' => $id ?? crc32($login), 'contributions' => $commits, 'type' => $type];
+}
+
+/**
+ * Serves the contributors of the repository like GitHub does: most commits first, a page at a time.
+ *
+ * @param  list<array<string, mixed>>  $contributors
+ */
+function fakeGitHubContributors(array $contributors): void
+{
+    Http::fake(['api.github.com/repos/'.config()->string('services.github.repository').'/contributors*' => function (Request $request) use ($contributors): PromiseInterface {
+        $perPage = (int) $request['per_page'];
+
+        return Http::response(array_slice($contributors, ((int) $request['page'] - 1) * $perPage, $perPage));
+    }]);
 }
 
 /**
  * @param  list<SshPublicKey>  $keys
  * @param  list<SshPublicKey>  $signingKeys
  */
-function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = []): void
+function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = [], ?string $handle = null): void
 {
+    $handle ??= $user->handle;
+
     $toResponse = fn (array $publicKeys): array => array_map(
         fn (SshPublicKey $publicKey): array => ['id' => 1, 'key' => $publicKey->toOpenSsh()],
         $publicKeys,
     );
 
     Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
-        "api.github.com/users/{$user->username}/keys*" => Http::response($toResponse($keys)),
-        "api.github.com/users/{$user->username}/ssh_signing_keys*" => Http::response($toResponse($signingKeys)),
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $handle]),
+        "api.github.com/users/{$handle}/keys*" => Http::response($toResponse($keys)),
+        "api.github.com/users/{$handle}/ssh_signing_keys*" => Http::response($toResponse($signingKeys)),
     ]);
 }
 
@@ -156,14 +184,14 @@ function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = []
 function fakeGitHubFollows(User $user, array $following = [], array $followers = []): void
 {
     $toResponse = fn (array $users): array => array_map(
-        fn (User $user): array => ['id' => (int) $user->github_id, 'login' => $user->username],
+        fn (User $user): array => ['id' => (int) $user->github_id, 'login' => $user->handle],
         $users,
     );
 
     Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
-        "api.github.com/users/{$user->username}/following*" => Http::response($toResponse($following)),
-        "api.github.com/users/{$user->username}/followers*" => Http::response($toResponse($followers)),
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->handle]),
+        "api.github.com/users/{$user->handle}/following*" => Http::response($toResponse($following)),
+        "api.github.com/users/{$user->handle}/followers*" => Http::response($toResponse($followers)),
     ]);
 }
 
@@ -256,6 +284,70 @@ function sendChatMessage(User $sender, User $recipient, string $body = 'hello'):
 }
 
 /**
+ * A WAV recording of a steady tone, in the voice note format unless told otherwise, with any extra chunks a recorder
+ * might add (such as metadata) before the samples.
+ */
+function voiceNoteWav(int $milliseconds = 2000, int $sampleRate = 16000, int $channels = 1, int $amplitude = 8000, string $chunks = ''): string
+{
+    $frames = intdiv($sampleRate * $milliseconds, 1000);
+    $samples = str_repeat(pack('v', $amplitude & 0xFFFF).pack('v', -$amplitude & 0xFFFF), intdiv($frames * $channels, 2));
+    $format = pack('vvVVvv', 1, $channels, $sampleRate, $sampleRate * $channels * 2, $channels * 2, 16);
+
+    return 'RIFF'.pack('V', 4 + 24 + mb_strlen($chunks, '8bit') + 8 + mb_strlen($samples, '8bit')).'WAVE'
+        .'fmt '.pack('V', 16).$format
+        .$chunks
+        .'data'.pack('V', mb_strlen($samples, '8bit')).$samples;
+}
+
+/**
+ * A WebM recording of Opus packets the way browsers record them live: the segment and its cluster of unknown size,
+ * followed by tags the server must drop. Each packet is 20 ms of CELT, read from its first byte, with filler after it.
+ */
+function voiceNoteWebm(int $milliseconds = 2000, string $codec = 'A_OPUS', int $channels = 1, string $toc = "\xF8", int $flags = 0x80, int $tracks = 1, bool $blockGroups = false): string
+{
+    $blocks = collect(range(0, intdiv($milliseconds, 20) - 1))
+        ->map(function (int $packet) use ($toc, $flags, $blockGroups): string {
+            $block = "\x81".pack('n', $packet * 20).chr($flags).$toc.str_repeat("\x5A", 40);
+
+            return $blockGroups ? ebmlElement(0xA0, ebmlElement(0xA1, $block)) : ebmlElement(0xA3, $block);
+        })
+        ->implode('');
+
+    $entry = ebmlElement(0xAE, ebmlElement(0xD7, "\x01").ebmlElement(0x83, "\x02").ebmlElement(0x86, $codec).ebmlElement(0x63A2, 'OpusHead'.pack('CCvVvC', 1, $channels, 0, 48000, 0, 0)));
+
+    return ebmlElement(0x1A45DFA3, ebmlElement(0x4282, 'webm'))
+        .ebmlElement(0x18538067,
+            ebmlElement(0x1549A966, ebmlElement(0x4D80, 'Chrome'))
+            .ebmlElement(0x1654AE6B, str_repeat($entry, $tracks))
+            .ebmlElement(0x1F43B675, ebmlElement(0xE7, "\x00").$blocks, unknownSize: true)
+            .ebmlElement(0x1254C367, ebmlElement(0x7373, ebmlElement(0x67C8, ebmlElement(0x45A3, 'TITLE').ebmlElement(0x4487, 'secret title')))),
+            unknownSize: true,
+        );
+}
+
+function ebmlElement(int $id, string $data, bool $unknownSize = false): string
+{
+    return mb_ltrim(pack('N', $id), "\0", '8bit')
+        .($unknownSize ? "\x01".str_repeat("\xFF", 7) : "\x01".mb_substr(pack('J', mb_strlen($data, '8bit')), 1, null, '8bit'))
+        .$data;
+}
+
+function voiceNoteUpload(string $recording = ''): UploadedFile
+{
+    return UploadedFile::fake()->createWithContent('voice-note', $recording === '' ? voiceNoteWebm() : $recording);
+}
+
+/**
+ * The waveform a browser sends along with a voice note.
+ *
+ * @return list<int>
+ */
+function voiceNoteWaveform(): array
+{
+    return array_fill(0, 48, 50);
+}
+
+/**
  * People who follow the maintainer, so they can be added to an org.
  *
  * @return list<User>
@@ -274,7 +366,7 @@ function createOrg(User $maintainer, array $members, ?string $name = 'dev/null c
 {
     return test()->actingAs($maintainer)->postJson(route('org.store'), [
         'name' => $name,
-        'members' => array_map(fn (User $member): string => $member->username, $members),
+        'members' => array_map(fn (User $member): string => $member->handle, $members),
     ])->assertCreated()->json('org.id');
 }
 
@@ -320,6 +412,47 @@ function signedApiRequest(SshKeyPair $keyPair, string $method, string $uri, ?arr
     $body = $data === null ? '' : json_encode($data, JSON_THROW_ON_ERROR);
 
     return test()->call($method, $uri, server: signApiRequest($keyPair, $method, $uri, $body, $timestamp, $nonce, $namespace), content: $body);
+}
+
+/**
+ * Sends an API request with images the way the mobile app does: multipart, with the data as the JSON payload beside the
+ * images, signed with the hashes of $signedImages, which are the images sent unless a test says otherwise.
+ *
+ * @param  array<string, mixed>  $data
+ * @param  list<UploadedFile>  $images
+ * @param  list<UploadedFile>|null  $signedImages
+ */
+function signedApiRequestWithImages(SshKeyPair $keyPair, string $method, string $uri, array $data, array $images, ?array $signedImages = null, string $namespace = SignedRequests::ImagesNamespace): TestResponse
+{
+    $payload = json_encode($data, JSON_THROW_ON_ERROR);
+    $hashes = implode(',', array_map(fn (UploadedFile $image): string => (string) hash_file('sha256', $image->getPathname()), $signedImages ?? $images));
+
+    return test()->call($method, $uri, files: [
+        'payload' => UploadedFile::fake()->createWithContent('payload', $payload),
+        'images' => $images,
+    ], server: [
+        ...signApiRequest($keyPair, $method, $uri, $hashes."\n".$payload, namespace: $namespace),
+        'CONTENT_TYPE' => 'multipart/form-data; boundary=devnull',
+    ]);
+}
+
+/**
+ * Sends an API request with a voice note the way the Mac app does: multipart, with the data as the JSON payload beside
+ * the voice note, signed with the hash of $signedVoice, which is the voice note sent unless a test says otherwise.
+ *
+ * @param  array<string, mixed>  $data
+ */
+function signedApiRequestWithVoice(SshKeyPair $keyPair, string $method, string $uri, array $data, UploadedFile $voice, ?UploadedFile $signedVoice = null): TestResponse
+{
+    $payload = json_encode($data, JSON_THROW_ON_ERROR);
+
+    return test()->call($method, $uri, files: [
+        'payload' => UploadedFile::fake()->createWithContent('payload', $payload),
+        'voice' => $voice,
+    ], server: [
+        ...signApiRequest($keyPair, $method, $uri, hash_file('sha256', ($signedVoice ?? $voice)->getPathname())."\n".$payload, namespace: SignedRequests::ImagesNamespace),
+        'CONTENT_TYPE' => 'multipart/form-data; boundary=devnull',
+    ]);
 }
 
 /**

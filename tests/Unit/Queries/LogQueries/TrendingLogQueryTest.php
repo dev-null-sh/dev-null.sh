@@ -85,3 +85,47 @@ it('ranks commits that draw stars and replies above newer ones', function (): vo
 
     expect($commits->modelKeys())->toBe([$starred->id, $newer->id]);
 });
+
+it('spreads the commits of one author among the commits of others', function (): void {
+    $author = User::factory()->create();
+    $first = Commit::factory()->for($author)->create();
+    $second = Commit::factory()->for($author)->create(['created_at' => now()->subMinute()]);
+    $third = Commit::factory()->for($author)->create(['created_at' => now()->subMinutes(2)]);
+    $other = Commit::factory()->create(['created_at' => now()->subHour()]);
+
+    $commits = resolve(TrendingLogQuery::class)->builder(User::factory()->create())->get();
+
+    expect($commits->modelKeys())->toBe([$first->id, $other->id, $second->id, $third->id]);
+});
+
+it('ranks commits of the people the viewer follows above newer commits of others', function (): void {
+    $viewer = User::factory()->create();
+    $followed = User::factory()->create();
+    $viewer->following()->attach($followed);
+
+    $other = Commit::factory()->create();
+    $own = Commit::factory()->for($viewer)->create(['created_at' => now()->subHour()]);
+    $followedCommit = Commit::factory()->for($followed)->create(['created_at' => now()->subMinutes(61)]);
+
+    $commits = resolve(TrendingLogQuery::class)->builder($viewer)->get();
+
+    expect($commits->modelKeys())->toBe([$own->id, $followedCommit->id, $other->id]);
+});
+
+it('ranks commits by their score alone for a guest', function (): void {
+    $newer = Commit::factory()->create();
+    $older = Commit::factory()->create(['created_at' => now()->subHour()]);
+
+    $commits = resolve(TrendingLogQuery::class)->builder(null)->get();
+
+    expect($commits->modelKeys())->toBe([$newer->id, $older->id]);
+});
+
+it('leaves out commits older than seven days', function (): void {
+    $recent = Commit::factory()->create(['created_at' => now()->subDays(7)->addMinute()]);
+    Commit::factory()->create(['created_at' => now()->subDays(7)->subMinute()]);
+
+    $commits = resolve(TrendingLogQuery::class)->builder(User::factory()->create())->get();
+
+    expect($commits->modelKeys())->toBe([$recent->id]);
+});

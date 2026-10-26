@@ -3,6 +3,7 @@ import { Pin } from 'lucide-react';
 import type { PointerEvent, ReactNode } from 'react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
+import { GraphCanvas } from '@/components/graph-canvas';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { useNow } from '@/hooks/use-now';
 import {
@@ -46,7 +47,7 @@ export function CommitFeed({
     const page = usePage();
     const { dimsLanes } = page.props;
     const isModeration = page.component === 'moderation/show';
-    const isSaved = page.component === 'bookmark/index';
+    const isStarred = page.component === 'starred/index';
     const profileUserId =
         page.component === 'user/show'
             ? (page.props.user as { id: string }).id
@@ -141,8 +142,8 @@ export function CommitFeed({
                 }
                 if (restored) {
                     const belongsInFeed =
-                        (isSaved
-                            ? restored.is_saved === true
+                        (isStarred
+                            ? restored.starred === true
                             : isProfileReplies
                               ? restored.parent_id !== null
                               : restored.parent_id === null) &&
@@ -155,8 +156,8 @@ export function CommitFeed({
                             ? restoreFeedCommit(
                                   rows,
                                   restored,
-                                  isSaved
-                                      ? 'saved'
+                                  isStarred
+                                      ? 'starred'
                                       : isRanked
                                         ? 'ranked'
                                         : 'latest',
@@ -165,7 +166,7 @@ export function CommitFeed({
                     );
                 }
             }),
-        [profileUserId, isModeration, isProfileReplies, isSaved, isRanked],
+        [profileUserId, isModeration, isProfileReplies, isStarred, isRanked],
     );
 
     // A ranked commit can move to a later page while the feed scrolls, so each one is only listed once.
@@ -217,7 +218,7 @@ export function CommitFeed({
     );
 
     return (
-        <>
+        <GraphCanvas>
             {pinnedCommit && (
                 <section aria-label="Pinned commit">
                     <div className="flex">
@@ -304,7 +305,7 @@ export function CommitFeed({
                     </p>
                 </div>
             )}
-        </>
+        </GraphCanvas>
     );
 }
 

@@ -7,7 +7,7 @@ use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
-    config(['services.openai.key' => 'sk-test']);
+    config(['ai.providers.openai.key' => 'sk-test']);
 });
 
 it('embeds every commit missing an embedding, in one request', function (): void {

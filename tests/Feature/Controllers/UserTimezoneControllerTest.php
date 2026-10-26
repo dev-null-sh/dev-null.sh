@@ -20,6 +20,52 @@ it('may choose a timezone', function (): void {
     expect($user->refresh()->timezone)->toBe('Europe/Budapest');
 });
 
+it('may opt in to showing the local time', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('user-profile.edit')
+        ->put(route('user-timezone.update'), ['timezone' => 'Europe/Budapest', 'show_local_time' => true])
+        ->assertRedirectToRoute('user-profile.edit');
+
+    expect($user->refresh())
+        ->timezone->toBe('Europe/Budapest')
+        ->show_local_time->toBeTrue();
+});
+
+it('may opt out of showing the local time', function (): void {
+    $user = User::factory()->create(['timezone' => 'Europe/Budapest', 'show_local_time' => true]);
+
+    $this->actingAs($user)
+        ->fromRoute('user-profile.edit')
+        ->put(route('user-timezone.update'), ['timezone' => 'Europe/Budapest', 'show_local_time' => false]);
+
+    expect($user->refresh()->show_local_time)->toBeFalse();
+});
+
+it('never shows the local time without a timezone', function (): void {
+    $user = User::factory()->create(['timezone' => 'Europe/Budapest', 'show_local_time' => true]);
+
+    $this->actingAs($user)
+        ->fromRoute('user-profile.edit')
+        ->put(route('user-timezone.update'), ['timezone' => null, 'show_local_time' => true]);
+
+    expect($user->refresh())
+        ->timezone->toBeNull()
+        ->show_local_time->toBeFalse();
+});
+
+it('rejects a show_local_time that is not a boolean', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('user-profile.edit')
+        ->put(route('user-timezone.update'), ['timezone' => 'Europe/Budapest', 'show_local_time' => 'maybe'])
+        ->assertSessionHasErrors('show_local_time');
+
+    expect($user->refresh()->timezone)->toBeNull();
+});
+
 it('may clear the timezone', function (mixed $timezone): void {
     $user = User::factory()->create(['timezone' => 'Europe/Budapest']);
 

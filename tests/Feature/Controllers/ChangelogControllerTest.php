@@ -15,7 +15,7 @@ function changelogPullRequest(int $number, string $mergedAt): array
     return [
         'number' => $number,
         'title' => 'feat: turn emoji shortcodes into emoji in remotes',
-        'html_url' => "https://github.com/nunomaduro/dev-null.sh/pull/{$number}",
+        'html_url' => "https://github.com/dev-null-sh/dev-null.sh/pull/{$number}",
         'merged_at' => $mergedAt,
         'updated_at' => $mergedAt,
         'merge_commit_sha' => 'c897f86700000000000000000000000000000000',
@@ -40,7 +40,7 @@ it('lists the latest days of merged pull requests for anyone, with a link to eve
 
     $request->getJson('/changelog?timezone=UTC')
         ->assertOk()
-        ->assertJsonPath('commitsUrl', 'https://github.com/nunomaduro/dev-null.sh/commits/production')
+        ->assertJsonPath('commitsUrl', 'https://github.com/dev-null-sh/dev-null.sh/commits/production')
         ->assertJsonPath('pullRequests.0.number', 377)
         ->assertJsonPath('pullRequests.0.type', 'feat')
         ->assertJsonPath('pullRequests.0.title', 'Turn emoji shortcodes into emoji in remotes')
@@ -81,8 +81,24 @@ it('says the changelog is unavailable when GitHub cannot be reached', function (
 });
 
 it('opens the changelog as a page', function (): void {
+    config(['services.github.repository' => 'example/upstream']);
+
     $this->get('/changelog')
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('repository', 'example/upstream')
             ->component('changelog/show'));
+});
+
+it('uses the configured upstream for the changelog and commit links', function (): void {
+    config(['services.github.repository' => 'example/upstream']);
+    Http::fake(['api.github.com/repos/example/upstream/pulls*' => Http::response([
+        [...changelogPullRequest(377, '2026-10-17T23:30:00Z'), 'html_url' => 'https://github.com/example/upstream/pull/377'],
+    ])]);
+
+    $this->getJson('/changelog?timezone=UTC')
+        ->assertOk()
+        ->assertJsonPath('commitsUrl', 'https://github.com/example/upstream/commits/production')
+        ->assertJsonPath('pullRequests.0.url', 'https://github.com/example/upstream/pull/377')
+        ->assertJsonPath('pullRequests.0.commit_url', 'https://github.com/example/upstream/commit/c897f86700000000000000000000000000000000');
 });

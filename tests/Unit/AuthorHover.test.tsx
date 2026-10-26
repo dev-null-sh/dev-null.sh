@@ -56,7 +56,7 @@ const surfaces = {
         GraphRail({ lane: 'red', onHoverChange }).props,
     'profile preview trigger': (onHoverChange: (hovering: boolean) => void) => {
         const preview = UserPreview({
-            user: { username: 'author' },
+            user: { handle: 'author' },
             children: 'Author',
             onHoverChange,
         });
@@ -70,7 +70,7 @@ const surfaces = {
     'profile preview panel': (onHoverChange: (hovering: boolean) => void) => {
         showPreview = true;
         const preview = UserPreview({
-            user: { id: 'author', username: 'author' } as User,
+            user: { id: 'author', handle: 'author' } as User,
             children: 'Author',
             onHoverChange,
         });
@@ -120,7 +120,7 @@ for (const [name, render] of Object.entries(surfaces)) {
 function renderPreviewPanel() {
     showPreview = true;
     const preview = UserPreview({
-        user: { id: 'author', username: 'author' } as User,
+        user: { id: 'author', handle: 'author' } as User,
         children: 'Author',
     });
     showPreview = false;
@@ -181,10 +181,11 @@ test('suggested user row wraps the author in a user preview anchored to their av
     const user = {
         id: 'author',
         name: 'Author',
-        username: 'author',
+        handle: 'author',
         avatar_url: null,
         lane: 1,
         timezone: null,
+        show_local_time: false,
         followed_by_following_count: 15,
         followers_count: 20,
     } as SuggestedUser;
@@ -216,7 +217,7 @@ test('suggested user row wraps the author in a user preview anchored to their av
 const actor = {
     id: 'actor',
     name: 'Actor',
-    username: 'actor',
+    handle: 'actor',
     avatar_url: null,
     lane: 1,
 } as User;

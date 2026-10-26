@@ -13,7 +13,7 @@ use Laravel\Ai\Exceptions\EmbeddingsCountMismatchException;
 use Laravel\Ai\Prompts\EmbeddingsPrompt;
 
 beforeEach(function (): void {
-    config(['services.openai.key' => 'sk-test', 'ai.providers.openai.key' => 'sk-test']);
+    config(['ai.providers.openai.key' => 'sk-test']);
 });
 
 it('returns the commits nearest in meaning, closest first', function (): void {
@@ -119,7 +119,6 @@ it('loads the commits as the feeds do, so the card renders them', function (): v
         ->and($result->stars_count)->toBe(1)
         ->and($result->starred)->toBeTrue()
         ->and($result->replies_count)->toBe(0)
-        ->and($result->is_saved)->toBeFalse()
         ->and($result->relationLoaded('poll'))->toBeTrue()
         ->and($result->poll->options)->toHaveCount(2);
 });

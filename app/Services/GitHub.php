@@ -35,7 +35,7 @@ final readonly class GitHub
     }
 
     /**
-     * Looks the account up by its immutable ID: a username can be renamed and then claimed by someone else.
+     * Looks the account up by its immutable ID: a handle can be renamed and then claimed by someone else.
      * Null when the account no longer exists.
      */
     public function login(string $githubId): ?string

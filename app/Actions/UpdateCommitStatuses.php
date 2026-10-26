@@ -85,7 +85,7 @@ final readonly class UpdateCommitStatuses
 
                 $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
 
-                if (filled(config('ai.providers.opencode.key')) && ($tom = $this->tomQuery->get()) instanceof User) {
+                if (($tom = $this->tomQuery->get()) instanceof User) {
                     foreach ($commits as $commit) {
                         if ($commit->user?->github_id !== CreateTomFriendship::GITHUB_ID
                             && $commit->isAddressedTo($tom)) {

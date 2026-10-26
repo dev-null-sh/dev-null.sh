@@ -1,6 +1,5 @@
-import { Bookmark, Ellipsis, Flag, LinkIcon } from 'lucide-react';
+import { Ellipsis, Flag, LinkIcon } from 'lucide-react';
 import { useState } from 'react';
-import { BookmarkButton, useBookmark } from '@/components/bookmark-button';
 import {
     CommitReportButton,
     CommitReportDialog,
@@ -19,33 +18,32 @@ import type { Commit } from '@/types';
 export function CommitSecondaryActions({
     commit,
     keyShortcut,
+    isReply = false,
 }: {
     commit: Commit;
     keyShortcut?: string;
+    isReply?: boolean;
 }) {
-    const hasBookmark = commit.is_saved !== undefined;
-
     return (
         <div className="ml-auto flex items-center gap-0.5">
-            <div className="hidden items-center gap-0.5 md:flex">
-                {hasBookmark && <BookmarkButton commit={commit} />}
+            <div
+                className={cn(
+                    'hidden items-center gap-0.5 transition-opacity md:flex md:opacity-0 md:focus-within:opacity-100 [@media(hover:none)]:opacity-100',
+                    isReply
+                        ? 'md:reply-hover:opacity-100'
+                        : 'md:commit-hover:opacity-100 md:commit-focus-within:opacity-100',
+                )}
+            >
                 <CopyLinkButton commit={commit} keyShortcut={keyShortcut} />
                 <CommitReportButton commit={commit} />
             </div>
-            <CommitActionsMenu commit={commit} hasBookmark={hasBookmark} />
+            <CommitActionsMenu commit={commit} />
         </div>
     );
 }
 
-function CommitActionsMenu({
-    commit,
-    hasBookmark,
-}: {
-    commit: Commit;
-    hasBookmark: boolean;
-}) {
+function CommitActionsMenu({ commit }: { commit: Commit }) {
     const [isReporting, setIsReporting] = useState(false);
-    const bookmark = useBookmark(commit);
     const { copyLink } = useCopyLink(commit);
     const canReport = useCanReport(commit);
 
@@ -63,19 +61,6 @@ function CommitActionsMenu({
                     </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                    {hasBookmark && bookmark.isAvailable && (
-                        <DropdownMenuItem
-                            disabled={bookmark.isProcessing}
-                            onSelect={bookmark.toggle}
-                        >
-                            <Bookmark
-                                className={cn({
-                                    'fill-current': bookmark.isSaved,
-                                })}
-                            />
-                            {bookmark.isSaved ? 'Unsave commit' : 'Save commit'}
-                        </DropdownMenuItem>
-                    )}
                     <DropdownMenuItem onSelect={copyLink}>
                         <LinkIcon />
                         Copy link
