@@ -6,6 +6,7 @@ use App\Actions\CreateCommitRestoration;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteCommitContent;
 use App\Actions\UpdateCommitHotScores;
+use App\Dto\ThreadEngagement;
 use App\Jobs\EraseDeletedCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -94,7 +95,7 @@ it('lowers the thread when a reply is deleted', function (): void {
     resolve(DeleteCommit::class)->handle($reply);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, ThreadEngagement::none()), 1e-9);
 });
 
 it('lowers the quoted thread when a quote is deleted', function (): void {
@@ -105,7 +106,7 @@ it('lowers the quoted thread when a quote is deleted', function (): void {
     resolve(DeleteCommit::class)->handle($quote);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, ThreadEngagement::none()), 1e-9);
 });
 
 it('keeps reports while applying the undo window to images', function (bool $undo): void {

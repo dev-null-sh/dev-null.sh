@@ -28,7 +28,7 @@ const commit: Commit = {
     starred: false,
     user: {
         id: 'user-1',
-        username: 'octocat',
+        handle: 'octocat',
         name: 'Octocat',
         avatar_url: null,
         bio: null,

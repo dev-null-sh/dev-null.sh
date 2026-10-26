@@ -46,13 +46,13 @@ it('opens the sign in modal on the home page without a previous page', function 
         ->assertInertiaFlash('localSignIn', true);
 });
 
-it('creates a user for a new username and signs them in', function (): void {
+it('creates a user for a new handle and signs them in', function (): void {
     registerRoutes('local');
 
-    $this->post(route('local-login.store'), ['_token' => session()->token(), 'username' => 'octocat'])
+    $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'])
         ->assertRedirectToRoute('log.show', Log::Following);
 
-    $user = User::query()->where('username', 'octocat')->sole();
+    $user = User::query()->whereRelation('profile', 'handle', 'octocat')->sole();
 
     expect($user)
         ->github_id->toBe('local:octocat')
@@ -61,12 +61,12 @@ it('creates a user for a new username and signs them in', function (): void {
     $this->assertAuthenticatedAs($user);
 });
 
-it('signs in as the existing user of a username', function (): void {
+it('signs in as the existing user of a handle', function (): void {
     registerRoutes('local');
 
-    $user = User::factory()->create(['username' => 'octocat', 'log' => Log::Trending]);
+    $user = User::factory()->create(['handle' => 'octocat', 'log' => Log::Trending]);
 
-    $this->post(route('local-login.store'), ['_token' => session()->token(), 'username' => 'octocat'])
+    $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'])
         ->assertRedirectToRoute('log.show', Log::Trending);
 
     $this->assertAuthenticatedAs($user);
@@ -81,7 +81,7 @@ it('signs in as the seeded local developer', function (): void {
 
     $localDeveloper = User::query()->where('github_id', 'local')->sole();
 
-    $this->post(route('local-login.store'), ['_token' => session()->token(), 'username' => $localDeveloper->username])
+    $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => $localDeveloper->handle])
         ->assertSessionHasNoErrors();
 
     $this->assertAuthenticatedAs($localDeveloper);
@@ -94,7 +94,7 @@ it('signs in as the seeded local developer', function (): void {
 it('loads the signed in page in full, as signing in with GitHub does', function (): void {
     registerRoutes('local');
 
-    $this->post(route('local-login.store'), ['_token' => session()->token(), 'username' => 'octocat'], ['X-Inertia' => 'true'])
+    $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'], ['X-Inertia' => 'true'])
         ->assertConflict()
         ->assertHeader('X-Inertia-Location', route('log.show', Log::Following));
 });
@@ -106,15 +106,15 @@ it('returns to the page the guest was reading', function (): void {
 
     $this->get(route('user.show', $user))->assertOk();
 
-    $this->post(route('local-login.store'), ['_token' => session()->token(), 'username' => 'octocat'])
+    $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => 'octocat'])
         ->assertRedirect(route('user.show', $user));
 });
 
-it('refuses an invalid username', function (string $username): void {
+it('refuses an invalid handle', function (string $handle): void {
     registerRoutes('local');
 
-    $this->post(route('local-login.store'), ['_token' => session()->token(), 'username' => $username])
-        ->assertSessionHasErrors('username');
+    $this->post(route('local-login.store'), ['_token' => session()->token(), 'handle' => $handle])
+        ->assertSessionHasErrors('handle');
 
     $this->assertGuest();
 })->with(['', '-octocat', 'octocat-', 'octo--cat', 'octo/cat', str_repeat('a', 40)]);

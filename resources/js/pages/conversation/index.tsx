@@ -5,7 +5,7 @@ import {
     SquarePen,
     UsersRound,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import { ConversationActions } from '@/components/chat/conversation-actions';
@@ -24,7 +24,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useChat, useInbox } from '@/hooks/use-chat';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
-import { seedInbox, seedThread, targetKey, watchRemotesPage } from '@/lib/chat';
+import { seedInbox, seedThread, targetKey } from '@/lib/chat';
 import type { ChatTarget } from '@/lib/chat';
 import { setChatDocked, useChatDock } from '@/lib/chat-dock';
 import { cn, laneColor } from '@/lib/utils';
@@ -64,7 +64,6 @@ export default function Index({
     }
 
     useInbox();
-    useEffect(watchRemotesPage, []);
 
     // Keeps the inbox's tab and search while moving between conversations.
     const visit = (href: Parameters<typeof router.visit>[0]) =>
@@ -86,7 +85,7 @@ export default function Index({
             <Head
                 title={
                     partner
-                        ? `@${partner.username} · Remotes`
+                        ? `@${partner.handle} · Remotes`
                         : org
                           ? `${org.name ?? 'Org'} · Remotes`
                           : 'Remotes'
@@ -284,15 +283,15 @@ function ThreadHeader({
                         {partner.name}
                     </span>
                     <span className="block truncate font-mono text-xs text-muted-foreground">
-                        @{partner.username}
+                        @{partner.handle}
                     </span>
                 </span>
             </Link>
             <ConversationActions
                 target={{ kind: 'direct', partner }}
-                title={`@${partner.username}`}
+                title={`@${partner.handle}`}
                 user={user}
-                isArchived={threads[partner.username]?.is_archived ?? false}
+                isArchived={threads[partner.handle]?.is_archived ?? false}
                 onLeave={onLeave}
                 className="ml-auto size-9"
             />

@@ -8,7 +8,7 @@
         "lint": "NODE_OPTIONS='--experimental-strip-types' vp fmt resources/ && NODE_OPTIONS='--experimental-strip-types' vp lint --fix",
         "test:lint": "NODE_OPTIONS='--experimental-strip-types' vp fmt --check resources/ && NODE_OPTIONS='--experimental-strip-types' vp lint",
         "test:types": "tsc --noEmit && tsc --noEmit --project tests/tsconfig.json",
-        "test:unit": "node --experimental-strip-types --test tests/Unit/*.test.ts"
+        "test:unit": "php artisan wayfinder:generate --with-form && node --experimental-strip-types --test tests/Unit/*.test.ts"
     },
     "dependencies": {
         "@daypicker/react": "^10.0.2",
@@ -46,22 +46,22 @@
         "@laravel/vite-plugin-wayfinder": "^0.1.11",
         "@rolldown/plugin-babel": "^0.2.4",
         "@types/node": "^26.6.5",
-        "fontaine": "^1.0.2",
+        "fontaine": "^1.0.3",
         "npm-check-updates": "^23.1.1",
         "playwright": "^1.64.1",
         "tw-animate-css": "^1.4.0",
-        "vite": "npm:@voidzero-dev/vite-plus-core@1.3.0",
-        "vite-plus": "1.3.0"
+        "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0",
+        "vite-plus": "1.4.0"
     },
     "optionalDependencies": {
         "@laravel/multiplex": "^0.4.5",
-        "@rollup/rollup-linux-x64-gnu": "4.64.12",
+        "@rollup/rollup-linux-x64-gnu": "4.65.0",
         "@tailwindcss/oxide-linux-x64-gnu": "^4.3.3",
         "lightningcss-linux-x64-gnu": "^1.33.0"
     },
     "overrides": {
         "react": "^19.3.1",
-        "vite": "npm:@voidzero-dev/vite-plus-core@1.3.0"
+        "vite": "npm:@voidzero-dev/vite-plus-core@1.4.0"
     },
     "devEngines": {
         "packageManager": {

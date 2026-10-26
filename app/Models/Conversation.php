@@ -38,6 +38,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read int $partner_read_through_id
  * @property-read CarbonInterface|null $partner_read_at
  * @property-read CarbonInterface|null $archived_at
+ * @property-read CarbonInterface|null $pinned_at
  * @property-read CarbonInterface|null $muted_until_at
  */
 final class Conversation extends Model
@@ -51,6 +52,11 @@ final class Conversation extends Model
      * An org holds the maintainer and up to ninety-nine others.
      */
     public const int MAX_MEMBERS = 100;
+
+    /**
+     * An org pins up to twenty-five messages at a time.
+     */
+    public const int MAX_PINNED_MESSAGES = 25;
 
     /**
      * Two people share exactly one conversation, whichever of them started it.
@@ -113,6 +119,7 @@ final class Conversation extends Model
             'partner_read_through_id' => 'integer',
             'partner_read_at' => 'datetime',
             'archived_at' => 'datetime',
+            'pinned_at' => 'datetime',
             'muted_until_at' => 'datetime',
         ];
     }

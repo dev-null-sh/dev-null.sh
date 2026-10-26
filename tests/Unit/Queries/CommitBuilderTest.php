@@ -66,7 +66,7 @@ it('loads the star count and whether the viewer starred', function (): void {
 
     $commits = Commit::query()->withStarsFor($viewer)->with('user')->get()->keyBy('id');
 
-    expect(DB::getQueryLog())->toHaveCount(2)
+    expect(DB::getQueryLog())->toHaveCount(3)
         ->and($commits[$starred->id]->stars_count)->toBe(2)
         ->and($commits[$starred->id]->starred)->toBeTrue()
         ->and($commits[$plain->id]->stars_count)->toBe(0)

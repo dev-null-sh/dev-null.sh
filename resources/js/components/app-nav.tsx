@@ -425,12 +425,16 @@ export function AppNav({
                                 {auth.user.name}
                             </span>
                             <span className="block truncate font-mono text-xs text-muted-foreground">
-                                @{auth.user.username}
+                                @{auth.user.handle}
                             </span>
                         </span>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
-                        className="w-60"
+                        className={
+                            iconsOnly
+                                ? 'w-60'
+                                : 'w-(--radix-dropdown-menu-trigger-width)'
+                        }
                         side="top"
                         align="start"
                     >

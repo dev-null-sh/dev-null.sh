@@ -34,7 +34,7 @@ final class CurrentUserResource extends JsonResource
             'pasteis_received' => $this->pasteis_received,
             'preferred_lane' => $this->preferredLane(),
             'automatic_lane' => $this->automaticLane(),
-            'sponsors_url' => $this->has_sponsors_listing ? "https://github.com/sponsors/{$this->username}" : null,
+            'sponsors_url' => $this->has_sponsors_listing ? "https://github.com/sponsors/{$this->handle}" : null,
             'github_synced_at' => $this->github_synced_at?->toIso8601ZuluString(),
             'terms_version' => config('legal.terms_version'),
             'terms_accepted_at' => $this->terms_accepted_at?->toIso8601ZuluString(),

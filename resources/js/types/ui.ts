@@ -19,6 +19,7 @@ export type TimeoutFlash = {
 export type CommittedFlash = {
     id: string;
     body: string;
+    user: { handle: string };
 };
 
 export type DeletedFlash = DeletedCommit & {

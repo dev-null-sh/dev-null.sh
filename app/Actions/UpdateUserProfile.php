@@ -20,7 +20,7 @@ final readonly class UpdateUserProfile
     public function __construct(
         private GitHub $github,
         private UpdateUserSshKeys $updateUserSshKeys,
-        private UpdateStaleUsernames $updateStaleUsernames,
+        private UpdateStaleHandles $updateStaleHandles,
     ) {
         //
     }
@@ -28,7 +28,7 @@ final readonly class UpdateUserProfile
     public function handle(User $user): bool
     {
         try {
-            // Look the account up by its immutable ID: a username can be renamed and then claimed by someone else.
+            // Look the account up by its immutable ID: a handle can be renamed and then claimed by someone else.
             /** @var array<array-key, mixed> $account */
             $account = $this->github->request()->get("user/{$user->github_id}")->throw()->json();
 
@@ -37,13 +37,15 @@ final readonly class UpdateUserProfile
             $profile = GitHubProfile::fromAccount($account);
 
             DB::transaction(function () use ($user, $profile): void {
-                $this->updateStaleUsernames->handle($profile->username, $user->github_id);
+                $this->updateStaleHandles->handle($profile->handle, $user->github_id);
 
-                // The email is left alone: the public API only has the public one, sign-in also knows the private one.
-                $user->update([
+                $user->profile->update([
                     ...$profile->attributes(),
                     'github_synced_at' => now(),
                 ]);
+
+                // The email is left alone: the public API only has the public one, sign-in also knows the private one.
+                $user->update(['company' => $profile->company]);
             });
         } catch (ConnectionException|RequestException|UniqueConstraintViolationException $exception) {
             report($exception);
