@@ -6,10 +6,16 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import {
     Popover,
+    PopoverAnchor,
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { emojiName, searchEmojiByUse } from '@/lib/emoji';
 import { formatCount, formatExactCount } from '@/lib/numbers';
 import type { ReactionUsage, Tap } from '@/lib/reactions';
@@ -147,54 +153,123 @@ export function ReactionChips({
                         )}
                         data-test="message-reactions"
                     >
-                        {summaries.map((summary) => {
-                            const names = summary.userIds
-                                .map(nameOf)
-                                .join(', ');
-
-                            return (
-                                <li key={summary.emoji}>
-                                    <button
-                                        type="button"
-                                        disabled={
-                                            onToggle === null || !hasReactions
-                                        }
-                                        aria-pressed={summary.isMine}
-                                        aria-label={`${shortcodeOf(summary.emoji)} ${formatExactCount(summary.count)}, from ${names}`}
-                                        title={`${names} reacted with ${shortcodeOf(summary.emoji)}`}
-                                        onClick={() =>
-                                            onToggle?.(summary.emoji)
-                                        }
-                                        className={cn(
-                                            'inline-flex h-6 items-center gap-1 rounded-md border bg-card pr-2 pl-1.5 text-[13px] leading-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none enabled:hover:border-foreground/25',
-                                            {
-                                                'border-primary/45 bg-primary-soft enabled:hover:border-primary':
-                                                    summary.isMine,
-                                            },
-                                        )}
-                                        data-test="reaction-chip"
-                                    >
-                                        <span aria-hidden>{summary.emoji}</span>
-                                        <span
-                                            aria-hidden
-                                            className={cn(
-                                                'min-w-[1ch] font-mono text-[11px] font-medium text-muted-foreground tabular-nums',
-                                                {
-                                                    'text-primary':
-                                                        summary.isMine,
-                                                },
-                                            )}
-                                        >
-                                            {formatCount(summary.count)}
-                                        </span>
-                                    </button>
-                                </li>
-                            );
-                        })}
+                        {summaries.map((summary) => (
+                            <ReactionChip
+                                key={summary.emoji}
+                                summary={summary}
+                                nameOf={nameOf}
+                                onToggle={onToggle}
+                                isLeaving={!hasReactions}
+                            />
+                        ))}
                     </ul>
                 </div>
             </div>
         </Transition>
+    );
+}
+
+function ReactionChip({
+    summary,
+    nameOf,
+    onToggle,
+    isLeaving,
+}: {
+    summary: ReturnType<typeof summarizeReactions>[number];
+    nameOf: (userId: string) => string;
+    onToggle: ((emoji: string) => void) | null;
+    isLeaving: boolean;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const anchor = useRef<HTMLButtonElement>(null);
+    const names = summary.userIds.map(nameOf).join(', ');
+    const touch = useTouchReactions({
+        onLongPress: () => setIsOpen(true),
+    });
+
+    return (
+        <li>
+            <Popover open={isOpen && !isLeaving} onOpenChange={setIsOpen}>
+                <Tooltip open={isOpen ? false : undefined}>
+                    <TooltipTrigger asChild>
+                        <PopoverAnchor asChild>
+                            <button
+                                ref={anchor}
+                                type="button"
+                                disabled={isLeaving}
+                                aria-pressed={summary.isMine}
+                                aria-label={`${shortcodeOf(summary.emoji)} ${formatExactCount(summary.count)}, from ${names}`}
+                                aria-description="Press and hold, or press Shift+F10, to see who reacted."
+                                aria-haspopup="dialog"
+                                aria-expanded={isOpen && !isLeaving}
+                                {...touch}
+                                onPointerDown={(event) => {
+                                    event.stopPropagation();
+                                    touch.onPointerDown?.(event);
+                                }}
+                                onKeyDown={(event) => {
+                                    if (
+                                        event.key === 'ContextMenu' ||
+                                        (event.shiftKey && event.key === 'F10')
+                                    ) {
+                                        event.preventDefault();
+                                        setIsOpen(true);
+                                    }
+                                }}
+                                onClick={() => onToggle?.(summary.emoji)}
+                                className={cn(
+                                    'inline-flex h-6 items-center gap-1 rounded-md border bg-card pr-2 pl-1.5 text-[13px] leading-none transition-colors select-none [-webkit-touch-callout:none] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none enabled:hover:border-foreground/25',
+                                    {
+                                        'border-primary/45 bg-primary-soft enabled:hover:border-primary':
+                                            summary.isMine,
+                                    },
+                                )}
+                                data-test="reaction-chip"
+                            >
+                                <span aria-hidden>{summary.emoji}</span>
+                                <span
+                                    aria-hidden
+                                    className={cn(
+                                        'min-w-[1ch] font-mono text-[11px] font-medium text-muted-foreground tabular-nums',
+                                        { 'text-primary': summary.isMine },
+                                    )}
+                                >
+                                    {formatCount(summary.count)}
+                                </span>
+                            </button>
+                        </PopoverAnchor>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                        {names} reacted with {shortcodeOf(summary.emoji)}
+                    </TooltipContent>
+                </Tooltip>
+                <PopoverContent
+                    side="top"
+                    className="max-h-[min(18rem,var(--radix-popover-content-available-height))] max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain p-3"
+                    aria-label={`People who reacted with ${shortcodeOf(summary.emoji)}`}
+                    onOpenAutoFocus={(event) => event.preventDefault()}
+                    onCloseAutoFocus={(event) => event.preventDefault()}
+                    onFocusOutside={(event) => {
+                        // Lifting the held finger focuses its chip before the synthetic click is suppressed.
+                        if (anchor.current?.contains(event.target as Node)) {
+                            event.preventDefault();
+                        }
+                    }}
+                    data-test="reaction-authors"
+                >
+                    <p className="mb-2 flex items-center gap-2 text-sm font-medium">
+                        <span aria-hidden>{summary.emoji}</span>
+                        {formatExactCount(summary.count)}{' '}
+                        {summary.count === 1 ? 'reaction' : 'reactions'}
+                    </p>
+                    <ul className="space-y-1 text-sm wrap-anywhere">
+                        {summary.userIds.map((id) => (
+                            <li key={id}>{nameOf(id)}</li>
+                        ))}
+                    </ul>
+                </PopoverContent>
+            </Popover>
+        </li>
     );
 }
 
@@ -671,7 +746,7 @@ function EmojiCell({
  * tap that ends a long press doesn't also follow a link.
  */
 export function useTouchReactions(
-    gestures: { onLongPress: () => void; onDoubleTap: () => void } | null,
+    gestures: { onLongPress: () => void; onDoubleTap?: () => void } | null,
 ) {
     const timer = useRef<number | undefined>(undefined);
     const start = useRef<{ x: number; y: number } | null>(null);
@@ -683,6 +758,8 @@ export function useTouchReactions(
         window.clearTimeout(timer.current);
         start.current = null;
     };
+
+    useEffect(() => () => window.clearTimeout(timer.current), []);
 
     if (gestures === null) {
         return {};
@@ -749,7 +826,7 @@ export function useTouchReactions(
                 lastTap.current = null;
                 didDoubleTap.current = true;
                 navigator.vibrate?.(8);
-                gestures.onDoubleTap();
+                gestures.onDoubleTap?.();
             } else {
                 lastTap.current = tap;
             }

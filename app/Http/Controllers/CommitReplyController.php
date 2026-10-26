@@ -33,6 +33,7 @@ final readonly class CommitReplyController
             'committed' => [
                 'id' => $reply->id,
                 'body' => $reply->body,
+                'user' => ['username' => $user->username],
             ],
             'parent' => [
                 'id' => $parent->id,

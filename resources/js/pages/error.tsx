@@ -1,5 +1,6 @@
 import { Head, usePage } from '@inertiajs/react';
 import { ErrorMessage, useHomeAction } from '@/components/error-message';
+import { WordmarkText } from '@/components/wordmark-text';
 import { home } from '@/routes';
 
 type Status = 403 | 404 | 429 | 500 | 503;
@@ -81,7 +82,11 @@ export default function ErrorPage({ status }: { status: Status }) {
             <main className="mx-auto flex min-h-svh w-full max-w-3xl items-center px-4 py-16 sm:px-8">
                 <ErrorMessage
                     command={copy.command}
-                    headline={<h1>{copy.headline}</h1>}
+                    headline={
+                        <h1>
+                            <WordmarkText>{copy.headline}</WordmarkText>
+                        </h1>
+                    }
                     description={<p>{copy.description}</p>}
                     action={action}
                 />

@@ -11,5 +11,9 @@ final readonly class UpdateUserRemotes
     public function handle(User $user, bool $enabled): void
     {
         $user->update(['remotes_enabled' => $enabled]);
+
+        if (! $enabled) {
+            $user->pushSubscriptions()->delete();
+        }
     }
 }

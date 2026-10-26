@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import { App } from '@inertiajs/react';
 import type { ComponentProps, KeyboardEvent, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { test } from 'vite-plus/test';
+import { test, vi } from 'vite-plus/test';
 import { CommitBody } from '../../resources/js/components/commit-body';
 import { CommitComposer } from '../../resources/js/components/commit-composer';
 import { revokeObjectUrls } from '../../resources/js/components/commit-image-picker';
 import {
     ComposerPollPreview,
     ComposerPreviewBody,
+    PreviewToggle,
     useComposerPreview,
     type ComposerPreview,
 } from '../../resources/js/components/composer-preview';
@@ -459,3 +460,37 @@ for (const pasteisMode of [false, true]) {
         });
     }
 }
+
+test('clicking Preview moves focus into the preview, where Escape returns to writing', () => {
+    const preview = previewFor({ isSubmittable: true });
+    const focus = vi.fn();
+    const getElementById = vi.fn(() => ({ focus }));
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
+        callback(),
+    );
+    vi.stubGlobal('document', { getElementById });
+
+    try {
+        const toggles: ReactElement<{
+            children: ReactElement<{ onClick: () => void }>;
+        }>[] = [];
+
+        function Toggle() {
+            toggles.push(
+                PreviewToggle({ preview }) as (typeof toggles)[number],
+            );
+
+            return null;
+        }
+
+        renderToStaticMarkup(<Toggle />);
+        const tooltip = toggles[0];
+        assert.ok(tooltip);
+        tooltip.props.children.props.onClick();
+
+        assert.deepEqual(getElementById.mock.calls, [[preview.previewId]]);
+        assert.equal(focus.mock.calls.length, 1);
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});

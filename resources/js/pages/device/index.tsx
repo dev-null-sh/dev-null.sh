@@ -1,7 +1,9 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { useRef, useState } from 'react';
+import AppController from '@/actions/App/Http/Controllers/AppController';
 import DeviceController from '@/actions/App/Http/Controllers/DeviceController';
 import { Button } from '@/components/ui/button';
+import { WordmarkText } from '@/components/wordmark-text';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
@@ -39,9 +41,16 @@ export default function Index({ devices }: { devices: Device[] }) {
                         Approved devices
                     </h2>
                     <p className="mt-1 max-w-prose text-sm text-pretty text-muted-foreground">
-                        Each one can use /dev/null as you through the app, since
-                        you approved it here on the web. Revoke any you don't
-                        use or don't recognize.
+                        Each one can use <WordmarkText>/dev/null</WordmarkText>{' '}
+                        as you through the app, since you approved it here on
+                        the web. Revoke any you don't use or don't recognize.{' '}
+                        <Link
+                            href={AppController.index()}
+                            className="underline decoration-rail underline-offset-4 hover:decoration-current"
+                        >
+                            Get the Mac app
+                        </Link>
+                        .
                     </p>
                 </header>
 
@@ -51,8 +60,9 @@ export default function Index({ devices }: { devices: Device[] }) {
                             fatal: no devices approved yet
                         </p>
                         <p className="mx-auto mt-1 max-w-sm text-sm text-pretty text-muted-foreground">
-                            Sign in from the /dev/null app and approve it here
-                            to add one.
+                            Sign in from the{' '}
+                            <WordmarkText>/dev/null</WordmarkText> app and
+                            approve it here to add one.
                         </p>
                     </div>
                 ) : (

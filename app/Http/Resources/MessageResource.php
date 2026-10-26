@@ -6,6 +6,7 @@ namespace App\Http\Resources;
 
 use App\Models\Message;
 use App\Models\MessageImage;
+use App\Models\MessageVoice;
 use App\Models\User;
 use App\Services\CodeSpans;
 use App\Services\Mentions;
@@ -18,10 +19,11 @@ use Illuminate\Support\Str;
 /**
  * A message as the web's thread shows it: its body, also split into prose, inline code and highlighted code blocks,
  * where it mentions people the message links to, the message it replies to only as much as its ghost shows, and when
- * they were loaded its link card, images and reactions. In an org it also says who wrote it and the event it records.
+ * they were loaded its link card, images, voice note and reactions. In an org it also says who wrote it and the event
+ * it records.
  *
- * The app's image views can't sign requests, so each image comes with a URL signed for the user, good until midnight
- * UTC the day after tomorrow, which stays the same all day so the app can cache the image.
+ * The app's image views and audio players can't sign requests, so each image and voice note comes with a URL signed
+ * for the user, good until midnight UTC the day after tomorrow, which stays the same all day so the app can cache it.
  *
  * @mixin Message
  */
@@ -47,6 +49,7 @@ final class MessageResource extends JsonResource
                 'user_id' => $replyTo->user_id,
                 'body' => $replyTo->body,
                 'images_count' => $replyTo->images->count(),
+                'has_voice' => $replyTo->voice instanceof MessageVoice,
             ]),
             'link_preview' => $this->whenLoaded('linkPreview'),
             'images' => $this->whenLoaded('images', fn (): Collection => $this->images->map(fn (MessageImage $image): array => [
@@ -59,6 +62,15 @@ final class MessageResource extends JsonResource
                     'user' => $request->user()?->id,
                 ], absolute: false)),
             ])),
+            'voice' => $this->whenLoaded('voice', fn (MessageVoice $voice): array => [
+                'id' => $voice->id,
+                'duration_ms' => $voice->duration_ms,
+                'waveform' => $voice->waveform,
+                'url' => url(URL::temporarySignedRoute('api-message-voice.show', today()->addDays(2), [
+                    'messageVoice' => $voice,
+                    'user' => $request->user()?->id,
+                ], absolute: false)),
+            ]),
             'reactions' => $this->whenLoaded('reactions'),
             'event' => $this->event,
             'subject_id' => $this->subject_id,

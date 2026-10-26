@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitTranslation;
+use App\Actions\CreateExport;
 use App\Actions\DeleteUser;
 use App\Ai\Agents\CommitTranslator;
 use App\Enums\ModerationReason;
@@ -59,6 +60,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'timezone' => 'Europe/Budapest',
         'show_local_time' => true,
         'translation_language' => 'ja',
+        'automatic_translation' => false,
         'lane_color' => '#1a2b3c',
         'pasteis_mode' => true,
         'pasteis_received' => 17,
@@ -99,6 +101,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'timezone' => 'Europe/Budapest',
             'show_local_time' => true,
             'translation_language' => 'ja',
+            'automatic_translation' => false,
             'lane_color' => '#1a2b3c',
             'pasteis_mode' => true,
             'pasteis_received' => 17,
@@ -113,6 +116,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'live_ends_at' => null,
             'last_seen_at' => now()->toDateString(),
             'commit_rules_accepted_at' => $user->commit_rules_accepted_at->toIso8601String(),
+            'emails_unsubscribed_at' => null,
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
@@ -126,8 +130,11 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'blocking' => [],
         'dismissed_suggestions' => [],
         'messages' => [],
+        'remote_mutes' => [],
+        'remote_pins' => [],
         'notifications' => [],
         'ssh_keys' => [],
+        'push_subscriptions' => [],
         'devices' => [],
         'timeouts' => [],
         'sessions' => [],
@@ -158,6 +165,27 @@ it('exports when the user accepted the commit rules and their timeouts, without 
                 'created_at' => $second->created_at->toIso8601String(),
             ],
         ]);
+});
+
+it('exports the remotes the user muted, without the mutes of others', function (): void {
+    config(['remotes.requests' => true, 'remotes.everyone' => true]);
+    $user = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $taylor = User::factory()->withRemotes()->create();
+    sendChatMessage($nuno, $user);
+    sendChatMessage($taylor, $user);
+    $org = createOrg($user, followersOf($user, 1), 'dev/null core');
+    $this->actingAs($user)->putJson(route('conversation-mute.update', $nuno), ['duration' => 'week'])->assertOk();
+    $this->putJson(route('org-mute.update', $org), ['duration' => 'forever'])->assertOk();
+    $this->actingAs($taylor)->putJson(route('conversation-mute.update', $user), ['duration' => 'forever'])->assertOk();
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['remote_mutes'])->toBe([
+        ['to' => 'nunomaduro', 'muted_until_at' => now()->startOfSecond()->addWeek()->toIso8601String()],
+        ['to' => 'org: dev/null core', 'muted_until_at' => '9999-12-31T00:00:00+00:00'],
+    ]);
 });
 
 it('exports the pinned commit id', function (): void {
@@ -514,4 +542,30 @@ it('exports the voice notes the user sent as links', function (): void {
     $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['messages'][0]['voice'])->toBe(route('message-voice.show', $voice));
+});
+
+it('exports your remote pins without the pins of other members', function (): void {
+    config(['remotes.requests' => true, 'remotes.everyone' => true]);
+    $this->freezeSecond();
+    $user = User::factory()->withRemotes()->create();
+    $partner = User::factory()->withRemotes()->create(['username' => 'alice']);
+    sendChatMessage($partner, $user);
+    $org = createOrg($user, followersOf($user, 1), 'Release crew');
+    $this->actingAs($user)->putJson(route('conversation-pin.update', $partner), ['pinned' => true])->assertOk();
+    $this->actingAs($user)->putJson(route('org-pin.update', $org), ['pinned' => true])->assertOk();
+    $this->actingAs($partner)->putJson(route('conversation-pin.update', $user), ['pinned' => true])->assertOk();
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['remote_pins'])->toBe([
+        ['to' => 'alice', 'pinned_at' => now()->toIso8601String()],
+        ['to' => 'org: Release crew', 'pinned_at' => now()->toIso8601String()],
+    ]);
+});
+
+it('exports subscription metadata without delivery endpoints', function (): void {
+    $user = User::factory()->create();
+    $subscription = $user->pushSubscriptions()->create(['endpoint_hash' => 'browser', 'endpoint' => 'https://fcm.googleapis.com/wp/private']);
+    $export = resolve(CreateExport::class)->handle($user);
+    expect($export['push_subscriptions'])->toBe([['id' => $subscription->id]]);
 });

@@ -30,6 +30,8 @@ use Illuminate\Support\Facades\Cache;
  *     partner_read_at: string|null,
  *     partner_typing: bool,
  *     is_archived: bool,
+ *     pinned_at: string|null,
+ *     muted_until_at: string|null,
  *     access: PushAccess
  * }
  * @phpstan-type OrgThread array{
@@ -41,6 +43,8 @@ use Illuminate\Support\Facades\Cache;
  *     members: Collection<int, array{user: User, role: OrgRole|null, read_through_id: int, suggests_mentions: bool, is_followed: bool}>,
  *     typing: array<int, string>,
  *     is_archived: bool,
+ *     pinned_at: string|null,
+ *     muted_until_at: string|null,
  *     role: OrgRole|null,
  *     access: PushAccess
  * }
@@ -78,6 +82,8 @@ final readonly class ConversationThreadQuery
             'partner_read_at' => $sharesReads ? $theirs->read_at?->toJSON() : null,
             'partner_typing' => $access === PushAccess::Open && $conversation instanceof Conversation && Cache::has(UpdateConversationTyping::key($partner, $conversation)),
             'is_archived' => $mine?->archived_at !== null,
+            'pinned_at' => $mine?->pinned_at?->toJSON(),
+            'muted_until_at' => $mine?->muted_until_at?->isFuture() ? $mine->muted_until_at->toJSON() : null,
             'access' => $access,
         ];
     }
@@ -125,6 +131,8 @@ final readonly class ConversationThreadQuery
                 ->values()
                 ->all(),
             'is_archived' => $mine->archived_at !== null,
+            'pinned_at' => $mine->pinned_at?->toJSON(),
+            'muted_until_at' => $mine->muted_until_at?->isFuture() ? $mine->muted_until_at->toJSON() : null,
             'role' => $mine->role,
             'access' => PushAccess::Open,
         ];
