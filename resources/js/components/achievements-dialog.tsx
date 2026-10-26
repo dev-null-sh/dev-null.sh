@@ -112,6 +112,7 @@ export function AchievementsDialog({
                 only: ['xpLog'],
                 onStart: () => setHasFailed(false),
                 onError: () => setHasFailed(true),
+                onNetworkError: () => setHasFailed(true),
             });
         }
     }, [open, tab, xpLog]);

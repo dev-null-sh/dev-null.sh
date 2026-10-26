@@ -27,7 +27,8 @@ final readonly class UserXpLogQuery
      */
     public function get(User $user, ?User $viewer): array
     {
-        $since = CarbonImmutable::now()->subDays(self::DAYS)->startOfDay();
+        // Today is the first of the 90 days.
+        $since = CarbonImmutable::now()->subDays(self::DAYS - 1)->startOfDay();
         $visible = $user->commits()->visibleTo($viewer);
 
         /** @var Collection<int, object{day: string, commits: int|string, replies: int|string}> $commits */

@@ -71,3 +71,13 @@ it('shows pending commits to their author only and leaves old days out', functio
         ]],
     ])->and($query->get($user, null))->toBe([]);
 });
+
+it('covers 90 calendar days, today included', function (): void {
+    $user = User::factory()->create(['created_at' => '2026-05-01 10:00:00']);
+    Commit::factory()->for($user)->create(['created_at' => '2026-07-25 09:00:00']); // day 90, counting today
+    Commit::factory()->for($user)->create(['created_at' => '2026-07-24 23:59:00']); // day 91, outside the log
+
+    $dates = array_column(resolve(UserXpLogQuery::class)->get($user, $user), 'date');
+
+    expect($dates)->toBe(['2026-07-25']);
+});
