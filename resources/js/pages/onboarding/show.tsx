@@ -111,7 +111,10 @@ function ImportStat({
     return (
         <div className="min-w-0 p-4">
             <p className="flex items-baseline gap-2">
-                <span className="font-mono text-3xl font-semibold tracking-tight tabular-nums">
+                <span
+                    className="font-mono text-3xl font-semibold tracking-tight tabular-nums"
+                    style={{ minWidth: `${formatCount(count).length}ch` }}
+                >
                     {formatCount(value)}
                 </span>
                 <span className="text-[15px] font-semibold">{label}</span>
@@ -210,48 +213,17 @@ function InviteActions() {
 }
 
 /**
- * What the GitHub import brought over. The import runs in a queued job right after signing in, so it may still be
- * running: the step asks again until it's done.
+ * What the GitHub import brought over, or a line saying it is still running.
  */
 function GitHubImportCard({
     githubImport,
+    hasGivenUp,
     handle,
 }: {
     githubImport: GitHubImport | null;
+    hasGivenUp: boolean;
     handle: string;
 }) {
-    const isImporting = githubImport === null;
-    const [hasGivenUp, setHasGivenUp] = useState(false);
-    const { stop } = usePoll(
-        1500,
-        { only: ['githubImport'] },
-        { autoStart: isImporting },
-    );
-
-    const wasImporting = useRef(isImporting);
-
-    useEffect(() => {
-        if (!isImporting) {
-            stop();
-
-            // The suggestions were picked before the import, so they may suggest people it just followed.
-            if (wasImporting.current) {
-                wasImporting.current = false;
-                router.reload({ only: ['suggestions'] });
-            }
-
-            return;
-        }
-
-        // A failed import leaves nothing to wait for: the suggestions are enough.
-        const timeout = setTimeout(() => {
-            stop();
-            setHasGivenUp(true);
-        }, 10_000);
-
-        return () => clearTimeout(timeout);
-    }, [isImporting, stop]);
-
     if (githubImport === null) {
         return hasGivenUp ? null : (
             <div className="mb-6 flex items-center gap-3 rounded-lg border bg-card p-4 font-mono text-[13px] text-muted-foreground">
@@ -564,6 +536,38 @@ export default function Show({
     const headingRef = useRef<HTMLHeadingElement>(null);
 
     const importedFollowingCount = githubImport?.followingCount ?? 0;
+    const isImporting = githubImport === null;
+    const [hasGivenUp, setHasGivenUp] = useState(false);
+    const wasImporting = useRef(isImporting);
+    // The import runs in a queued job right after signing in, so it usually lands while the first steps are open,
+    // before the follow step shows it...
+    const { stop } = usePoll(
+        1500,
+        { only: ['githubImport'] },
+        { autoStart: isImporting },
+    );
+
+    useEffect(() => {
+        if (!isImporting) {
+            stop();
+
+            // The suggestions were picked before the import, so they may suggest people it just followed.
+            if (wasImporting.current) {
+                wasImporting.current = false;
+                router.reload({ only: ['suggestions'] });
+            }
+
+            return;
+        }
+
+        // A failed import leaves nothing to wait for: the suggestions are enough.
+        const timeout = setTimeout(() => {
+            stop();
+            setHasGivenUp(true);
+        }, 15_000);
+
+        return () => clearTimeout(timeout);
+    }, [isImporting, stop]);
 
     const next = () => setStep(step + 1);
     const back = () => setStep(step - 1);
@@ -747,6 +751,7 @@ export default function Show({
                 >
                     <GitHubImportCard
                         githubImport={githubImport}
+                        hasGivenUp={hasGivenUp}
                         handle={currentUser.handle}
                     />
                     {importedFollowingCount > 0 && suggestions.length > 0 && (

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateTomFriendship;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
@@ -86,6 +87,8 @@ it('shows the follows the GitHub import brought over', function (): void {
     $this->travelTo(now()->startOfSecond());
 
     $user = User::factory()->notOnboarded()->create(['github_follows_imported_at' => now()]);
+    // Tom's friendship is made at sign-up too, right before the import...
+    resolve(CreateTomFriendship::class)->handle($user);
     $followed = User::factory()->count(9)->create();
     $followers = User::factory()->count(2)->create();
     $user->following()->attach($followed->modelKeys(), ['created_at' => now()->subSeconds(3), 'updated_at' => now()]);
@@ -100,7 +103,7 @@ it('shows the follows the GitHub import brought over', function (): void {
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->has('githubImport.following', 8)
+            ->has('githubImport.following', 5)
             ->where('githubImport.following', fn ($users): bool => collect($users)->pluck('id')->diff($followed->modelKeys())->isEmpty())
             ->where('githubImport.followingCount', 9)
             ->where('githubImport.followers', fn ($users): bool => collect($users)->pluck('id')->sort()->values()->all() === collect($followers->modelKeys())->sort()->values()->all())
