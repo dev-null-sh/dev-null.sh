@@ -62,7 +62,7 @@ function EventTitle({ event }: { event: StoryEvent }) {
     const face = event.commit?.author ?? event.person;
 
     if (face) {
-        return <Link href={`/@${face.login}`}>{event.title}</Link>;
+        return <Link href={`/home/${face.login}`}>{event.title}</Link>;
     }
 
     if (event.href === undefined) {
@@ -223,7 +223,7 @@ function Founders() {
             {storyFounders.map((founder) => (
                 <li key={founder.login}>
                     <Link
-                        href={`/@${founder.login}`}
+                        href={`/home/${founder.login}`}
                         className="flex flex-col items-center gap-2 rounded-md border px-3 py-4 text-center no-underline! transition-colors hover:bg-muted"
                     >
                         <img

@@ -126,7 +126,7 @@ it('turns off the remotes of the tom who already exists', function (): void {
 it('renders tom on his profile without a github link', function (): void {
     resolve(CreateTomFriendship::class)->handle(User::factory()->create());
 
-    $this->get('/@tom')
+    $this->get('/home/tom')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('user/show')
