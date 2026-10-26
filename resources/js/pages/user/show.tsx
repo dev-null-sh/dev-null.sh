@@ -67,7 +67,7 @@ export default function Show({
     isFollowing,
     followsYou,
     isMuting,
-    isContributor,
+    contributorLogin,
     followersYouKnow,
     canPush,
     moderation,
@@ -85,9 +85,10 @@ export default function Show({
     followsYou: boolean;
     isMuting: boolean;
     /**
-     * Deferred, so it is only set once GitHub's contributors are read.
+     * The GitHub login of a contributor to /dev/null, null for everyone else. Deferred, so it is only set once GitHub's
+     * contributors are read.
      */
-    isContributor?: boolean;
+    contributorLogin?: string | null;
     followersYouKnow: FollowersYouKnowPreview | null;
     canPush: boolean;
     moderation: UserModeration | null;
@@ -265,13 +266,13 @@ export default function Show({
                             Lv. {achievements.level} · {achievements.rank}
                         </span>
                     </button>
-                    {isContributor && (
+                    {contributorLogin && (
                         <a
-                            href={`https://github.com/${repository}/pulls?q=is:pr+is:merged+author:${user.handle}`}
+                            href={`https://github.com/${repository}/pulls?q=is:pr+is:merged+author:${contributorLogin}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[11px] font-medium text-foreground transition hover:bg-muted"
-                            title={`Pull requests by @${user.handle} merged into /dev/null`}
+                            title={`Pull requests by @${contributorLogin} merged into /dev/null`}
                         >
                             <GitPullRequest className="size-3" />
                             /dev/null contributor

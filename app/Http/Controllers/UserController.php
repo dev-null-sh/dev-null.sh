@@ -61,7 +61,7 @@ final readonly class UserController
             'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),
             'isMuting' => fn (): bool => $currentUser?->isMuting($user) ?? false,
             // GitHub can be slow to list the contributors when they aren't cached, so they load on their own
-            'isContributor' => Inertia::defer(fn (): bool => $contributors->includes($user), 'contributors'),
+            'contributorLogin' => Inertia::defer(fn (): ?string => $contributors->login($user), 'contributors'),
             'followersYouKnow' => fn (): ?array => $currentUser instanceof User && $currentUser->isNot($user)
                 ? $followersYouKnow->preview($user, $currentUser)
                 : null,

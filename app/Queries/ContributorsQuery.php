@@ -61,11 +61,12 @@ final readonly class ContributorsQuery
     }
 
     /**
-     * Whether the user's GitHub account is among the repository contributors. When GitHub doesn't answer, they aren't.
+     * The GitHub login of the user's account when it is among the repository contributors, as GitHub reports it now,
+     * which a rename the user hasn't synced yet leaves ahead of their handle. Null when it isn't, or GitHub didn't answer.
      */
-    public function includes(User $user): bool
+    public function login(User $user): ?string
     {
-        return in_array($user->github_id, array_column($this->accounts() ?? [], 'github_id'), true);
+        return array_column($this->accounts() ?? [], 'login', 'github_id')[$user->github_id] ?? null;
     }
 
     /**

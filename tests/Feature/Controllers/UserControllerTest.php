@@ -75,19 +75,19 @@ it('renders whether the user can be sponsored on github', function (): void {
             ->where('user.has_sponsors_listing', true));
 });
 
-it('defers whether the user contributes to /dev/null, matching their GitHub account', function (): void {
-    $contributor = User::factory()->create(['github_id' => (string) crc32('xHeaven')]);
+it('defers the GitHub login of contributors to /dev/null, matching their GitHub account', function (): void {
+    $contributor = User::factory()->create(['github_id' => (string) crc32('xHeaven'), 'handle' => 'before-rename']);
     $other = User::factory()->create();
     fakeGitHubContributors([gitHubContributor('xHeaven', 187)]);
 
     $this->get(route('user.show', $contributor))
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
-            ->missing('isContributor')
-            ->loadDeferredProps('contributors', fn (AssertableInertia $reload): AssertableInertia => $reload->where('isContributor', true)));
+            ->missing('contributorLogin')
+            ->loadDeferredProps('contributors', fn (AssertableInertia $reload): AssertableInertia => $reload->where('contributorLogin', 'xHeaven')));
 
     $this->get(route('user.show', $other))
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
-            ->loadDeferredProps('contributors', fn (AssertableInertia $reload): AssertableInertia => $reload->where('isContributor', false)));
+            ->loadDeferredProps('contributors', fn (AssertableInertia $reload): AssertableInertia => $reload->where('contributorLogin', null)));
 });
 
 it('does not show anyone as a contributor when GitHub does not answer', function (): void {
@@ -96,7 +96,7 @@ it('does not show anyone as a contributor when GitHub does not answer', function
 
     $this->get(route('user.show', $user))
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
-            ->loadDeferredProps('contributors', fn (AssertableInertia $reload): AssertableInertia => $reload->where('isContributor', false)));
+            ->loadDeferredProps('contributors', fn (AssertableInertia $reload): AssertableInertia => $reload->where('contributorLogin', null)));
 });
 
 it('does not count the user relations or activity when reloading only commits', function (string $tab): void {
