@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\Log;
 use App\Http\Controllers\AboutController;
+use App\Http\Controllers\AppController;
 use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
@@ -37,23 +38,31 @@ use App\Http\Controllers\ConversationDropController;
 use App\Http\Controllers\ConversationMergeController;
 use App\Http\Controllers\ConversationMessageController;
 use App\Http\Controllers\ConversationMuteController;
+use App\Http\Controllers\ConversationPinController;
+use App\Http\Controllers\ConversationPingController;
 use App\Http\Controllers\ConversationReadController;
 use App\Http\Controllers\ConversationTypingController;
 use App\Http\Controllers\DeviceController;
+use App\Http\Controllers\EmailController;
+use App\Http\Controllers\EmailDraftController;
+use App\Http\Controllers\EmailPreviewController;
 use App\Http\Controllers\ExportController;
 use App\Http\Controllers\FailedJobController;
 use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
+use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
+use App\Http\Controllers\LinkController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
 use App\Http\Controllers\MentionSuggestionController;
 use App\Http\Controllers\MessageImageController;
 use App\Http\Controllers\MessageLinkPreviewController;
+use App\Http\Controllers\MessagePinController;
 use App\Http\Controllers\MessageReactionController;
 use App\Http\Controllers\MessageVoiceController;
 use App\Http\Controllers\MobileAuthorizationController;
@@ -63,15 +72,19 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
+use App\Http\Controllers\OperationsEventController;
 use App\Http\Controllers\OrgArchiveController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
 use App\Http\Controllers\OrgMessageController;
 use App\Http\Controllers\OrgMuteController;
+use App\Http\Controllers\OrgPinController;
+use App\Http\Controllers\OrgPingController;
 use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\ProductMetricsController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\RemoteCandidateController;
 use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
@@ -82,8 +95,11 @@ use App\Http\Controllers\SiteActivityController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StarredCommitController;
 use App\Http\Controllers\SuggestionDismissalController;
+use App\Http\Controllers\SystemHealthController;
 use App\Http\Controllers\TermsController;
+use App\Http\Controllers\TestEmailController;
 use App\Http\Controllers\TrafficController;
+use App\Http\Controllers\UnsubscriptionController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserAutomaticTranslationController;
 use App\Http\Controllers\UserBanController;
@@ -110,7 +126,10 @@ use App\Http\Controllers\UserTranslationLanguageController;
 use App\Http\Middleware\PreventPostingInTimeout;
 use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\RequireCommitRules;
+use App\Http\Middleware\SerializePushSessions;
+use App\Http\Middleware\SerializePushSubscriptions;
 use App\Http\Middleware\ThrottleCommits;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -123,7 +142,7 @@ Route::middleware('guest')->group(function (): void {
 
     // Session...
     if (app()->isLocal()) {
-        // Locally, signing in asks for any username in a modal, without GitHub...
+        // Locally, signing in asks for any handle in a modal, without GitHub...
         Route::get('login', [LocalSessionController::class, 'create'])->name('login');
         Route::post('login/local', [LocalSessionController::class, 'store'])->name('local-login.store');
     } else {
@@ -145,26 +164,37 @@ Route::get('log/{log}', [LogController::class, 'show'])->name('log.show');
 Route::get('terms', [TermsController::class, 'show'])->name('terms.show');
 Route::get('privacy', [PrivacyController::class, 'show'])->name('privacy.show');
 
+// Unsubscribing from the admins' emails, from the signed link in each one...
+Route::get('emails/unsubscribe/{user}', [UnsubscriptionController::class, 'show'])->whereUuid('user')->name('unsubscription.show');
+Route::post('emails/unsubscribe/{user}', [UnsubscriptionController::class, 'store'])
+    ->whereUuid('user')
+    ->withoutMiddleware(PreventRequestForgery::class)
+    ->name('unsubscription.store');
+
 // How /dev/null was built, readable by everyone...
 Route::get('about', [AboutController::class, 'show'])->name('about.show');
 
 // Logos, colors, and backgrounds, downloadable by everyone...
 Route::get('brand', [BrandController::class, 'show'])->name('brand.show');
 
+// The apps, downloadable by everyone, where the Mac app's first page used to be too...
+Route::get('apps', [AppController::class, 'index'])->name('app.index');
+Route::get('mac', fn () => to_route('app.index', status: 301));
+
 // What was merged into production, readable by everyone...
 Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.index');
 
 // Public pages, readable by guests and crawlers...
 Route::middleware(RememberIntendedUrl::class)->group(function (): void {
-    Route::get('@{user:username}', [UserController::class, 'show'])->name('user.show');
-    Route::get('@{user:username}/following', [UserFollowingController::class, 'index'])
+    Route::get('@{user:handle}', [UserController::class, 'show'])->name('user.show');
+    Route::get('@{user:handle}/following', [UserFollowingController::class, 'index'])
         ->name('user-following.index');
-    Route::get('@{user:username}/followers', [UserFollowersController::class, 'index'])
+    Route::get('@{user:handle}/followers', [UserFollowersController::class, 'index'])
         ->name('user-followers.index');
-    Route::get('@{user:username}/commits/{commit}', [CommitController::class, 'show'])
+    Route::get('@{user:handle}/commits/{commit}', [CommitController::class, 'show'])
         ->scopeBindings()
         ->name('commit.show');
-    Route::get('@{user:username}/commits/{commit}/photos/{photo}', [CommitPhotoController::class, 'show'])
+    Route::get('@{user:handle}/commits/{commit}/photos/{photo}', [CommitPhotoController::class, 'show'])
         ->scopeBindings()
         ->whereNumber('photo')
         ->name('commit-photo.show');
@@ -189,22 +219,22 @@ Route::get('mentions/{user}/preview', [UserPreviewController::class, 'show'])
     ->middleware('throttle:people')
     ->whereUuid('user')
     ->name('mention.preview');
-Route::get('@{user:username}/preview', [UserPreviewController::class, 'show'])
+Route::get('@{user:handle}/preview', [UserPreviewController::class, 'show'])
     ->middleware('throttle:people')
     ->name('user-preview.show');
-Route::get('@{user:username}/og.png', [UserOpenGraphImageController::class, 'show'])
+Route::get('@{user:handle}/og.png', [UserOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
-Route::get('@{user:username}/feed.atom', [UserFeedController::class, 'show'])
+Route::get('@{user:handle}/feed.atom', [UserFeedController::class, 'show'])
     ->middleware('cache.headers:public;max_age=300;etag')
     ->name('user-feed.show');
 
 // User activity graph, embedded in READMEs...
-Route::get('@{user:username}/graph.svg', [UserActivityGraphController::class, 'show'])
+Route::get('@{user:handle}/graph.svg', [UserActivityGraphController::class, 'show'])
     ->middleware(['throttle:activity-graph', 'cache.headers:public;max_age=3600;etag'])
     ->name('user-activity-graph.show');
 
 // Commit...
-Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
+Route::get('@{user:handle}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
     ->scopeBindings()
     ->name('commit-open-graph-image.show');
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
@@ -240,7 +270,12 @@ Route::middleware('auth')->group(function (): void {
         ->name('issue.store');
 
     // Session...
+    Route::get('push-subscriptions', [PushSubscriptionController::class, 'index'])->name('push-subscription.index');
+    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->middleware(['throttle:30,1', SerializePushSessions::class, SerializePushSubscriptions::class])->name('push-subscription.store');
+    Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy'])->middleware(SerializePushSessions::class)->name('push-subscription.destroy');
+
     Route::post('logout', [SessionController::class, 'destroy'])
+        ->middleware(SerializePushSessions::class)
         ->name('logout');
 
     // Banned, where a banned user is sent from everywhere else...
@@ -252,6 +287,9 @@ Route::middleware('auth')->group(function (): void {
 
     // Private starred commits...
     Route::get('starred', [StarredCommitController::class, 'index'])->name('starred.index');
+
+    // Every commit about a link, a prototype only reachable by its URL...
+    Route::get('links', [LinkController::class, 'index'])->name('link.index');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');
@@ -308,22 +346,22 @@ Route::middleware('auth')->group(function (): void {
 
     // Messages...
     Route::get('remotes', [ConversationController::class, 'index'])->name('conversation.index');
-    Route::get('remotes/@{partner:username}', [ConversationController::class, 'show'])->name('conversation.show');
+    Route::get('remotes/@{partner:handle}', [ConversationController::class, 'show'])->name('conversation.show');
     Route::get('remotes/orgs/{org}', [OrgController::class, 'show'])->whereUuid('org')->name('org.show');
     Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])->whereUuid('messageImage')->name('message-image.show');
     Route::get('remotes/voices/{messageVoice}', [MessageVoiceController::class, 'show'])->whereUuid('messageVoice')->name('message-voice.show');
 
     Route::middleware('throttle:conversations')->group(function (): void {
         Route::get('remotes/inbox', [InboxController::class, 'index'])->name('inbox.index');
-        Route::get('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'index'])
+        Route::get('remotes/@{partner:handle}/messages', [ConversationMessageController::class, 'index'])
             ->name('conversation-message.index');
-        Route::put('remotes/@{partner:username}/read', [ConversationReadController::class, 'update'])
+        Route::put('remotes/@{partner:handle}/read', [ConversationReadController::class, 'update'])
             ->name('conversation-read.update');
-        Route::put('remotes/@{partner:username}/typing', [ConversationTypingController::class, 'update'])
+        Route::put('remotes/@{partner:handle}/typing', [ConversationTypingController::class, 'update'])
             ->name('conversation-typing.update');
-        Route::post('remotes/@{partner:username}/merge', [ConversationMergeController::class, 'store'])
+        Route::post('remotes/@{partner:handle}/merge', [ConversationMergeController::class, 'store'])
             ->name('conversation-merge.store');
-        Route::post('remotes/@{partner:username}/drop', [ConversationDropController::class, 'store'])
+        Route::post('remotes/@{partner:handle}/drop', [ConversationDropController::class, 'store'])
             ->name('conversation-drop.store');
         Route::put('remotes/preferences', [UserRemotePreferencesController::class, 'update'])
             ->name('user-remote-preferences.update');
@@ -336,15 +374,18 @@ Route::middleware('auth')->group(function (): void {
         Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])->whereUuid('org')->name('org-archive.store');
         Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])->whereUuid('org')->name('org-archive.destroy');
         Route::put('remotes/orgs/{org}/mute', [OrgMuteController::class, 'update'])->whereUuid('org')->name('org-mute.update');
+        Route::put('remotes/orgs/{org}/pin', [OrgPinController::class, 'update'])->whereUuid('org')->name('org-pin.update');
         Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])->whereUuid('org')->middleware([PreventPostingInTimeout::class, 'throttle:messages'])->name('org-member.store');
-        Route::put('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'update'])->whereUuid('org')->withoutScopedBindings()->name('org-member.update');
-        Route::delete('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'destroy'])->whereUuid('org')->withoutScopedBindings()->name('org-member.destroy');
-        Route::post('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'store'])
+        Route::put('remotes/orgs/{org}/members/{member:handle}', [OrgMemberController::class, 'update'])->whereUuid('org')->withoutScopedBindings()->name('org-member.update');
+        Route::delete('remotes/orgs/{org}/members/{member:handle}', [OrgMemberController::class, 'destroy'])->whereUuid('org')->withoutScopedBindings()->name('org-member.destroy');
+        Route::post('remotes/@{partner:handle}/archive', [ConversationArchiveController::class, 'store'])
             ->name('conversation-archive.store');
-        Route::delete('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'destroy'])
+        Route::delete('remotes/@{partner:handle}/archive', [ConversationArchiveController::class, 'destroy'])
             ->name('conversation-archive.destroy');
-        Route::put('remotes/@{partner:username}/mute', [ConversationMuteController::class, 'update'])
+        Route::put('remotes/@{partner:handle}/mute', [ConversationMuteController::class, 'update'])
             ->name('conversation-mute.update');
+        Route::put('remotes/@{partner:handle}/pin', [ConversationPinController::class, 'update'])
+            ->name('conversation-pin.update');
         Route::get('remotes/messages/{message}/link-preview', [MessageLinkPreviewController::class, 'show'])
             ->whereNumber('message')
             ->name('message-link-preview.show');
@@ -357,9 +398,25 @@ Route::middleware('auth')->group(function (): void {
             ->name('message-reaction.destroy');
     });
 
-    Route::post('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'store'])
+    Route::put('remotes/messages/{message}/pin', [MessagePinController::class, 'update'])
+        ->whereNumber('message')
+        ->middleware([PreventPostingInTimeout::class, 'throttle:pins'])
+        ->name('message-pin.update');
+    Route::delete('remotes/messages/{message}/pin', [MessagePinController::class, 'destroy'])
+        ->whereNumber('message')
+        ->middleware('throttle:pins')
+        ->name('message-pin.destroy');
+
+    Route::post('remotes/@{partner:handle}/messages', [ConversationMessageController::class, 'store'])
         ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
         ->name('conversation-message.store');
+    Route::post('remotes/@{partner:handle}/ping', [ConversationPingController::class, 'store'])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:pings'])
+        ->name('conversation-ping.store');
+    Route::post('remotes/orgs/{org}/ping', [OrgPingController::class, 'store'])
+        ->whereUuid('org')
+        ->middleware([PreventPostingInTimeout::class, 'throttle:pings'])
+        ->name('org-ping.store');
     Route::post('remotes/orgs/{org}/messages', [OrgMessageController::class, 'store'])
         ->whereUuid('org')
         ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
@@ -380,6 +437,9 @@ Route::middleware('auth')->group(function (): void {
 
     // Operations...
     Route::get('operations', [OperationsController::class, 'show'])->name('operations.show');
+    Route::get('operations/health', [SystemHealthController::class, 'show'])->name('system-health.show');
+    Route::get('operations/events', [OperationsEventController::class, 'index'])->name('operations-event.index');
+    Route::get('operations/forecasts', [ForecastController::class, 'show'])->name('forecast.show');
     Route::get('operations/features', [FeatureController::class, 'index'])->name('feature.index');
     Route::get('operations/activity', [SiteActivityController::class, 'show'])->name('site-activity.show');
     Route::get('operations/traffic', [TrafficController::class, 'show'])->name('traffic.show');
@@ -392,6 +452,13 @@ Route::middleware('auth')->group(function (): void {
         ->whereUuid('failedJob')
         ->name('failed-job.destroy');
     Route::put('operations/features/{feature}', [FeatureController::class, 'update'])->name('feature.update');
+    Route::get('operations/emails', [EmailController::class, 'create'])->name('email.create');
+    Route::post('operations/emails', [EmailController::class, 'store'])->name('email.store');
+    Route::post('operations/emails/test', [TestEmailController::class, 'store'])->name('test-email.store');
+    Route::post('operations/emails/preview', [EmailPreviewController::class, 'store'])->name('email-preview.store');
+    Route::post('operations/emails/draft', [EmailDraftController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('email-draft.store');
 
     // Mention Suggestions...
     Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
@@ -452,39 +519,39 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('user', [UserController::class, 'destroy'])->name('user.destroy');
 
     // User Follow...
-    Route::post('@{user:username}/follow', [UserFollowController::class, 'store'])
+    Route::post('@{user:handle}/follow', [UserFollowController::class, 'store'])
         ->middleware('throttle:follows')
         ->name('user-follow.store');
-    Route::delete('@{user:username}/follow', [UserFollowController::class, 'destroy'])
+    Route::delete('@{user:handle}/follow', [UserFollowController::class, 'destroy'])
         ->middleware('throttle:follows')
         ->name('user-follow.destroy');
 
     // User Mute...
-    Route::post('@{user:username}/mute', [UserMuteController::class, 'store'])
+    Route::post('@{user:handle}/mute', [UserMuteController::class, 'store'])
         ->name('user-mute.store');
-    Route::delete('@{user:username}/mute', [UserMuteController::class, 'destroy'])
+    Route::delete('@{user:handle}/mute', [UserMuteController::class, 'destroy'])
         ->name('user-mute.destroy');
 
     // User Block...
-    Route::post('@{user:username}/block', [UserBlockController::class, 'store'])
+    Route::post('@{user:handle}/block', [UserBlockController::class, 'store'])
         ->name('user-block.store');
-    Route::delete('@{user:username}/block', [UserBlockController::class, 'destroy'])
+    Route::delete('@{user:handle}/block', [UserBlockController::class, 'destroy'])
         ->name('user-block.destroy');
 
     // Suggestion Dismissal...
-    Route::post('@{user:username}/dismiss', [SuggestionDismissalController::class, 'store'])
+    Route::post('@{user:handle}/dismiss', [SuggestionDismissalController::class, 'store'])
         ->name('suggestion-dismissal.store');
 
     // User Timeout, given by moderators...
-    Route::post('@{user:username}/timeout', [UserTimeoutController::class, 'store'])
+    Route::post('@{user:handle}/timeout', [UserTimeoutController::class, 'store'])
         ->name('user-timeout.store');
-    Route::delete('@{user:username}/timeout', [UserTimeoutController::class, 'destroy'])
+    Route::delete('@{user:handle}/timeout', [UserTimeoutController::class, 'destroy'])
         ->name('user-timeout.destroy');
 
     // User Ban, given by moderators...
-    Route::post('@{user:username}/ban', [UserBanController::class, 'store'])
+    Route::post('@{user:handle}/ban', [UserBanController::class, 'store'])
         ->name('user-ban.store');
-    Route::delete('@{user:username}/ban', [UserBanController::class, 'destroy'])
+    Route::delete('@{user:handle}/ban', [UserBanController::class, 'destroy'])
         ->name('user-ban.destroy');
 });
 

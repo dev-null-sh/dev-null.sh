@@ -7,9 +7,11 @@ import {
     BellOff,
     Ellipsis,
     LogOut,
+    Pin,
+    PinOff,
     UserRound,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { rememberBlock } from '@/components/follow-button';
 import { Button } from '@/components/ui/button';
@@ -35,6 +37,7 @@ import {
     removeOrgMember,
     setConversationArchived,
     setConversationMute,
+    setConversationPinned,
     targetKey,
 } from '@/lib/chat';
 import type { ChatTarget, MuteDuration } from '@/lib/chat';
@@ -83,9 +86,16 @@ export function ConversationActions({
     const [isBlocking, setIsBlocking] = useState(false);
     const [isChoosingMute, setIsChoosingMute] = useState(false);
     const [isSavingMute, setIsSavingMute] = useState(false);
+    const [isSavingPin, setIsSavingPin] = useState(false);
+    const pendingPin = useRef<boolean | null>(null);
     const chat = useChat();
     const now = useNow();
     const key = targetKey(target);
+    const pin = chat.pinPreferences[key];
+    const isPinned =
+        (pin !== undefined ? pin.at : conversation?.pinned_at) != null;
+    const hasConversation =
+        conversation !== undefined || !!chat.threads[key]?.messages.length;
     const preference = chat.mutePreferences[key];
     const until =
         preference !== undefined
@@ -117,6 +127,16 @@ export function ConversationActions({
             toast.error('Could not update the mute. Try again.');
         } finally {
             setIsSavingMute(false);
+        }
+    };
+
+    const savePin = async (pinned: boolean) => {
+        try {
+            await setConversationPinned(target, pinned);
+        } catch {
+            toast.error('Could not update the pin. Try again.');
+        } finally {
+            setIsSavingPin(false);
         }
     };
 
@@ -197,8 +217,15 @@ export function ConversationActions({
                 <DropdownMenuContent
                     align="end"
                     className="w-56"
+                    onCloseAutoFocus={() => {
+                        closeAutoFocus();
+                        const pinned = pendingPin.current;
+                        pendingPin.current = null;
+                        if (pinned !== null) {
+                            void savePin(pinned);
+                        }
+                    }}
                     onClick={(event) => event.stopPropagation()}
-                    onCloseAutoFocus={closeAutoFocus}
                 >
                     {target.kind === 'direct' && (
                         <DropdownMenuItem asChild>
@@ -208,6 +235,16 @@ export function ConversationActions({
                             </Link>
                         </DropdownMenuItem>
                     )}
+                    <DropdownMenuItem
+                        disabled={isSavingPin || !hasConversation}
+                        onSelect={() => {
+                            setIsSavingPin(true);
+                            pendingPin.current = !isPinned;
+                        }}
+                    >
+                        {isPinned ? <PinOff /> : <Pin />}
+                        {isPinned ? 'Unpin' : 'Pin'}
+                    </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => void archive()}>
                         {isArchived ? <ArchiveRestore /> : <Archive />}
                         {isArchived ? 'Pop' : 'Stash'}

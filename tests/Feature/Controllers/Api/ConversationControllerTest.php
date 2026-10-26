@@ -12,8 +12,8 @@ beforeEach(function (): void {
 });
 
 it('lists conversations by latest message, with what is unread, as the web inbox does', function (): void {
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro', 'name' => 'Nuno Maduro']);
-    $taylor = User::factory()->withRemotes()->create(['username' => 'taylorotwell']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro', 'name' => 'Nuno Maduro']);
+    $taylor = User::factory()->withRemotes()->create(['handle' => 'taylorotwell']);
 
     $this->travel(-5)->minutes();
     $thanks = sendChatMessage($this->user, $taylor, 'thanks!');
@@ -27,7 +27,7 @@ it('lists conversations by latest message, with what is unread, as the web inbox
         ->assertJsonCount(2, 'data')
         ->assertJsonPath('data.0.kind', 'direct')
         ->assertJsonPath('data.0.name', null)
-        ->assertJsonPath('data.0.partner.username', 'nunomaduro')
+        ->assertJsonPath('data.0.partner.handle', 'nunomaduro')
         ->assertJsonPath('data.0.partner.name', 'Nuno Maduro')
         ->assertJsonPath('data.0.partner.lane', $nuno->lane())
         ->assertJsonPath('data.0.members', null)
@@ -38,7 +38,7 @@ it('lists conversations by latest message, with what is unread, as the web inbox
         ->assertJsonPath('data.0.last_incoming_message_id', $latest->id)
         ->assertJsonPath('data.0.last_incoming_sender', 'Nuno Maduro')
         ->assertJsonPath('data.0.is_archived', false)
-        ->assertJsonPath('data.1.partner.username', 'taylorotwell')
+        ->assertJsonPath('data.1.partner.handle', 'taylorotwell')
         ->assertJsonPath('data.1.last_message.id', $thanks->id)
         ->assertJsonPath('data.1.ahead', 0)
         ->assertJsonPath('data.1.last_incoming_message_id', null)
@@ -70,9 +70,9 @@ it('lists orgs with their name and members', function (): void {
         ->assertJsonPath('data.0.kind', 'org')
         ->assertJsonPath('data.0.name', 'dev/null core')
         ->assertJsonPath('data.0.partner', null)
-        ->assertJsonPath('data.0.members.0.user.username', $this->user->username)
+        ->assertJsonPath('data.0.members.0.user.handle', $this->user->handle)
         ->assertJsonPath('data.0.members.0.role', 'maintainer')
-        ->assertJsonPath('data.0.members.1.user.username', $nuno->username)
+        ->assertJsonPath('data.0.members.1.user.handle', $nuno->handle)
         ->assertJsonPath('data.0.members.1.role', 'contributor')
         ->assertJsonPath('data.0.last_message.event', 'created');
 });
@@ -80,11 +80,11 @@ it('lists orgs with their name and members', function (): void {
 it('points at the newest incoming org message even when an event follows it', function (): void {
     $mark = User::factory()->withRemotes()->create(['name' => 'Mark']);
     [$nuno, $taylor] = followersOf($mark, 2);
-    $nuno->update(['name' => 'Nuno Maduro']);
+    $nuno->profile->update(['name' => 'Nuno Maduro']);
     $this->user->following()->attach($mark);
     $org = createOrg($mark, [$this->user, $nuno]);
     $shipIt = pushToOrg($nuno, $org, 'ship it');
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => true])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => true])->assertNoContent();
 
     signedApiRequest($this->keyPair, 'GET', route('api-conversation.index'))
         ->assertOk()
@@ -104,7 +104,7 @@ it('only exposes incoming org message ids from the history shared with a new mem
     $beforeJoining = pushToOrg($mark, $org, 'before joining');
 
     $this->actingAs($mark)->postJson(route('org-member.store', $org), [
-        'members' => [$this->user->username],
+        'members' => [$this->user->handle],
         'share_history' => $sharesHistory,
     ])->assertNoContent();
 
@@ -124,7 +124,7 @@ it('only exposes incoming org message ids from the history shared with a new mem
 
 it('lists the stashed and fetched tabs', function (): void {
     $nuno = User::factory()->withRemotes()->create();
-    $stranger = User::factory()->withRemotes()->create(['username' => 'stranger']);
+    $stranger = User::factory()->withRemotes()->create(['handle' => 'stranger']);
     $this->user->update(['remotes_from' => 'following']);
 
     $this->user->following()->attach($nuno);
@@ -144,7 +144,7 @@ it('lists the stashed and fetched tabs', function (): void {
 
     signedApiRequest($this->keyPair, 'GET', route('api-conversation.index', ['tab' => 'fetched']))
         ->assertOk()
-        ->assertJsonPath('data.0.partner.username', 'stranger');
+        ->assertJsonPath('data.0.partner.handle', 'stranger');
 });
 
 it('has no fetched tab while requests are off', function (): void {
@@ -156,8 +156,8 @@ it('has no fetched tab while requests are off', function (): void {
 });
 
 it('searches conversations by name or handle', function (string $term): void {
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro', 'name' => 'Nuno Maduro']);
-    $taylor = User::factory()->withRemotes()->create(['username' => 'taylorotwell', 'name' => 'Taylor Otwell']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro', 'name' => 'Nuno Maduro']);
+    $taylor = User::factory()->withRemotes()->create(['handle' => 'taylorotwell', 'name' => 'Taylor Otwell']);
 
     sendChatMessage($nuno, $this->user);
     sendChatMessage($taylor, $this->user);
@@ -165,7 +165,7 @@ it('searches conversations by name or handle', function (string $term): void {
     signedApiRequest($this->keyPair, 'GET', route('api-conversation.index', ['q' => $term]))
         ->assertOk()
         ->assertJsonCount(1, 'data')
-        ->assertJsonPath('data.0.partner.username', 'nunomaduro');
+        ->assertJsonPath('data.0.partner.handle', 'nunomaduro');
 })->with(['@NunoMad', 'nuno ma']);
 
 it('pages through conversations, 30 at a time', function (): void {

@@ -14,7 +14,7 @@ it('gives the local developer people to follow and followers', function (): void
 
     $localDeveloper = User::query()->where('github_id', 'local')->sole();
 
-    expect($localDeveloper->username)->toBe('local-dev')
+    expect($localDeveloper->handle)->toBe('local-dev')
         ->and($localDeveloper->following()->count())->toBe(3)
         ->and($localDeveloper->followers()->count())->toBe(5);
 });

@@ -112,7 +112,7 @@ export function rememberBlock(user: Pick<User, 'id'>): void {
  * The server only refuses a follow across a block, which a suggestion can't know about until it tries, so it toasts instead of swapping in the 403 page.
  */
 export function onFollowHttpException(
-    user: Pick<User, 'id' | 'username'>,
+    user: Pick<User, 'id' | 'handle'>,
     response: { status: number },
 ): boolean {
     if (response.status !== 403) {
@@ -120,7 +120,7 @@ export function onFollowHttpException(
     }
 
     rememberBlock(user);
-    toast.error(`You can't follow @${user.username}.`);
+    toast.error(`You can't follow @${user.handle}.`);
 
     return false;
 }
@@ -165,7 +165,7 @@ export function FollowButton({
     onSuccess,
     ...props
 }: {
-    user: Pick<User, 'id' | 'username'>;
+    user: Pick<User, 'id' | 'handle'>;
     isFollowing: boolean;
     followsYou?: boolean;
     size?: ComponentProps<typeof Button>['size'];
@@ -191,7 +191,7 @@ export function FollowButton({
                 size={size}
                 className={className}
                 onClick={signIn}
-                aria-label={`Follow @${user.username}`}
+                aria-label={`Follow @${user.handle}`}
                 data-test="follow-button"
             >
                 Follow
@@ -224,8 +224,8 @@ export function FollowButton({
                 }
                 aria-label={
                     isFollowing
-                        ? `Unfollow @${user.username}`
-                        : `${followsYou ? 'Follow back' : 'Follow'} @${user.username}`
+                        ? `Unfollow @${user.handle}`
+                        : `${followsYou ? 'Follow back' : 'Follow'} @${user.handle}`
                 }
                 data-test="follow-button"
                 onClick={(event) => {
@@ -262,7 +262,7 @@ export function FollowIconButton({
     marksFollowsYou = false,
     ...props
 }: {
-    user: Pick<User, 'id' | 'username'>;
+    user: Pick<User, 'id' | 'handle'>;
     isFollowing: boolean;
     followsYou?: boolean;
     marksFollowsYou?: boolean;
@@ -301,8 +301,8 @@ export function FollowIconButton({
                     }}
                     aria-label={
                         isFollowing
-                            ? `Unfollow @${user.username}`
-                            : `Follow @${user.username}${followsYou ? ' back' : ''}`
+                            ? `Unfollow @${user.handle}`
+                            : `Follow @${user.handle}${followsYou ? ' back' : ''}`
                     }
                     className={cn(
                         'shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
@@ -319,10 +319,10 @@ export function FollowIconButton({
             </TooltipTrigger>
             <TooltipContent>
                 {isFollowing
-                    ? `Following @${user.username}`
+                    ? `Following @${user.handle}`
                     : followsYou
-                      ? `Follow @${user.username} back`
-                      : `Follow @${user.username}`}
+                      ? `Follow @${user.handle} back`
+                      : `Follow @${user.handle}`}
             </TooltipContent>
         </Tooltip>
     );

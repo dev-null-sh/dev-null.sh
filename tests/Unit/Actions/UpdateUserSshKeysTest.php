@@ -64,12 +64,12 @@ it('ignores unsupported keys', function (): void {
     $user = User::factory()->create();
 
     Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
-        "api.github.com/users/{$user->username}/keys*" => Http::response([
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->handle]),
+        "api.github.com/users/{$user->handle}/keys*" => Http::response([
             ['id' => 1, 'key' => 'ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBA=='],
             ['id' => 2, 'key' => mb_trim(sshFixture('ed25519.pub'))],
         ]),
-        "api.github.com/users/{$user->username}/ssh_signing_keys*" => Http::response([]),
+        "api.github.com/users/{$user->handle}/ssh_signing_keys*" => Http::response([]),
     ]);
 
     resolve(UpdateUserSshKeys::class)->handle($user);
@@ -77,17 +77,17 @@ it('ignores unsupported keys', function (): void {
     expect($user->sshKeys()->sole()->fingerprint)->toBe(SshPublicKey::fromOpenSsh(sshFixture('ed25519.pub'))->fingerprint());
 });
 
-it('looks the account up by its github id, so a renamed username cannot be claimed', function (): void {
-    $user = User::factory()->create(['github_id' => '583231', 'username' => 'old-username']);
+it('looks the account up by its github id, so a renamed handle cannot be claimed', function (): void {
+    $user = User::factory()->create(['github_id' => '583231', 'handle' => 'old-handle']);
     $publicKey = SshKeyPair::generate()->publicKey;
 
-    fakeGitHubSshKeys(User::factory()->make(['github_id' => '583231', 'username' => 'octocat']), [$publicKey]);
+    fakeGitHubSshKeys($user, [$publicKey], handle: 'octocat');
 
     resolve(UpdateUserSshKeys::class)->handle($user);
 
     expect($user->sshKeys()->sole()->fingerprint)->toBe($publicKey->fingerprint());
 
-    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'old-username'));
+    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'old-handle'));
 });
 
 it('removes all keys when the github account is gone', function (): void {
@@ -197,9 +197,9 @@ it('does not count a failed sync as synced', function (): void {
 
     Http::fakeSequence("api.github.com/user/{$user->github_id}")
         ->push(['message' => 'Server Error'], 500)
-        ->push(['login' => $user->username]);
+        ->push(['login' => $user->handle]);
     Http::fake([
-        "api.github.com/users/{$user->username}/*" => Http::response([]),
+        "api.github.com/users/{$user->handle}/*" => Http::response([]),
     ]);
 
     $action = resolve(UpdateUserSshKeys::class);

@@ -138,6 +138,19 @@ it('counts the people who sent an event on each day', function (): void {
     Http::assertSent(fn (Request $request): bool => $request->data()['date_grouping'] === 'day');
 });
 
+it('counts the people who sent an event for each value of a field, most first', function (): void {
+    Http::fake(['api.usefathom.com/v1/aggregations*' => Http::response([
+        ['unique_conversions' => '9', 'device_type' => 'Phone'],
+        ['unique_conversions' => '7', 'device_type' => 'Desktop'],
+    ])]);
+
+    expect(resolve(FathomTrafficQuery::class)->eventVisitorsBy(CarbonImmutable::parse('2026-10-16'), CarbonImmutable::parse('2026-10-18'), 'signup', 'device_type'))
+        ->toBe(['Phone' => 9, 'Desktop' => 7]);
+
+    Http::assertSent(fn (Request $request): bool => $request->data()['field_grouping'] === 'device_type'
+        && $request->data()['sort_by'] === 'unique_conversions:desc');
+});
+
 it('has no counts without Fathom, and stops asking it for the rest of the request once it cannot be reached', function (): void {
     $from = CarbonImmutable::parse('2026-10-01');
     $to = CarbonImmutable::parse('2026-10-18');

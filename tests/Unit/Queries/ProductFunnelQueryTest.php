@@ -201,6 +201,7 @@ it('has no visitors or conversion without Fathom', function (): void {
 
     expect(($this->funnel)())
         ->visitors->toBeNull()
+        ->conversion_by_device->toBeNull()
         ->rates->conversion->toBeNull();
 });
 
@@ -220,6 +221,21 @@ it('tells acquisition for each day, signups from the database and conversion fro
         ['date' => '2026-10-17', 'signups' => 2, 'visitors' => 400, 'converted' => 3, 'complete' => true],
         ['date' => '2026-10-18', 'signups' => 1, 'visitors' => 0, 'converted' => 0, 'complete' => true],
         ['date' => '2026-10-19', 'signups' => 0, 'visitors' => 50, 'converted' => 0, 'complete' => false],
+    ]);
+});
+
+it('tells conversion for each type of device, most visitors first', function (): void {
+    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
+
+    Http::fake(fn (Request $request) => Http::response(isset($request->data()['field_grouping']) ? match ($request->data()['entity_name']) {
+        'guest-visit' => [['unique_conversions' => '400', 'device_type' => 'Phone'], ['unique_conversions' => '100', 'device_type' => 'Desktop']],
+        'signup' => [['unique_conversions' => '9', 'device_type' => 'Desktop'], ['unique_conversions' => '4', 'device_type' => 'Phone'], ['unique_conversions' => '1', 'device_type' => 'Tablet']],
+    } : [['unique_conversions' => '0']]));
+
+    expect(($this->funnel)()['conversion_by_device'])->toBe([
+        ['device' => 'Phone', 'visitors' => 400, 'converted' => 4],
+        ['device' => 'Desktop', 'visitors' => 100, 'converted' => 9],
+        ['device' => 'Tablet', 'visitors' => 0, 'converted' => 1],
     ]);
 });
 

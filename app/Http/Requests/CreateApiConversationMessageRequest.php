@@ -9,6 +9,7 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
 use App\Queries\PushAccessQuery;
+use App\Services\VoiceNotes;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -37,10 +38,10 @@ final class CreateApiConversationMessageRequest extends FormRequest
 
         return match ($access->get($user, $partner)) {
             PushAccess::Open => Response::allow(),
-            PushAccess::Request => Response::deny("Merge @{$partner->username}'s request before replying."),
-            PushAccess::Waiting => Response::deny("@{$partner->username} hasn't merged your request yet."),
-            PushAccess::Restricted => Response::deny("@{$partner->username} doesn't follow you, so you can't push to them yet."),
-            PushAccess::Closed => Response::deny("@{$partner->username} isn't taking remotes."),
+            PushAccess::Request => Response::deny("Merge @{$partner->handle}'s request before replying."),
+            PushAccess::Waiting => Response::deny("@{$partner->handle} hasn't merged your request yet."),
+            PushAccess::Restricted => Response::deny("@{$partner->handle} doesn't follow you, so you can't push to them yet."),
+            PushAccess::Closed => Response::deny("@{$partner->handle} isn't taking remotes."),
         };
     }
 
@@ -104,5 +105,22 @@ final class CreateApiConversationMessageRequest extends FormRequest
         $descriptions = $this->array('image_descriptions');
 
         return $descriptions;
+    }
+
+    public function voice(): ?UploadedFile
+    {
+        $voice = $this->file('voice');
+
+        return $voice instanceof UploadedFile ? $voice : null;
+    }
+
+    /**
+     * @return list<int>
+     */
+    public function voiceWaveform(): array
+    {
+        return $this->filled('voice_waveform')
+            ? array_map(fn (int $bar): int => $this->integer('voice_waveform.'.$bar), range(0, VoiceNotes::BARS - 1))
+            : [];
     }
 }

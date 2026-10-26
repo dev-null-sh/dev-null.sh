@@ -7,7 +7,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
-    $this->user = User::factory()->create(['github_id' => '583231', 'username' => 'old-username', 'bio' => 'Old bio']);
+    $this->user = User::factory()->create(['github_id' => '583231', 'handle' => 'old-handle', 'bio' => 'Old bio']);
     $this->keyPair = apiKeyPairFor($this->user);
 });
 
@@ -20,7 +20,7 @@ it('syncs the profile from github, and answers like me', function (): void {
 
     $response->assertOk()
         ->assertJsonPath('data.id', $this->user->id)
-        ->assertJsonPath('data.username', 'octocat')
+        ->assertJsonPath('data.handle', 'octocat')
         ->assertJsonPath('data.name', 'The Octocat')
         ->assertJsonPath('data.bio', 'New bio')
         ->assertJsonPath('data.company', '@github')
@@ -32,7 +32,7 @@ it('syncs the profile from github, and answers like me', function (): void {
         ->assertJsonPath('unread_notifications_count', 1);
 
     expect($this->user->refresh())
-        ->username->toBe('octocat')
+        ->handle->toBe('octocat')
         ->bio->toBe('New bio')
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 });
@@ -51,7 +51,7 @@ it('answers with a code when github could not be synced, as the web words it', f
         ]);
 
     expect($this->user->refresh())
-        ->username->toBe('old-username')
+        ->handle->toBe('old-handle')
         ->github_synced_at->toBeNull();
 });
 

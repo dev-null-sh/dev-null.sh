@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 
 it('lists the public top-level commits of a user, newest first', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $older = Commit::factory()->for($user)->create(['created_at' => now()->subDay()]);
     $newer = Commit::factory()->for($user)->create();
@@ -25,14 +25,14 @@ it('lists the public top-level commits of a user, newest first', function (): vo
 
     $response->assertOk()
         ->assertJsonPath('data.*.id', [$newer->id, $older->id])
-        ->assertJsonPath('data.0.author.username', 'octocat')
+        ->assertJsonPath('data.0.author.handle', 'octocat')
         ->assertJsonPath('data.0.html_url', route('commit.show', [$user, $newer]))
         ->assertJsonPath('meta.next_cursor', null)
         ->assertJsonPath('links.next', null);
 });
 
 it('lists the public replies of a user', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $parent = Commit::factory()->create();
 
     Commit::factory()->for($user)->create();
@@ -47,7 +47,7 @@ it('lists the public replies of a user', function (): void {
 });
 
 it('pages through commits with a cursor', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $commits = Commit::factory()->for($user)->count(25)->sequence(
         fn ($sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
@@ -70,19 +70,19 @@ it('pages through commits with a cursor', function (): void {
 });
 
 it('validates the replies filter', function (): void {
-    User::factory()->create(['username' => 'octocat']);
+    User::factory()->create(['handle' => 'octocat']);
 
     $this->getJson('/api/v1/users/octocat/commits?replies=maybe')
         ->assertUnprocessable()
         ->assertJsonValidationErrors('replies');
 });
 
-it('returns not found for unknown usernames', function (): void {
+it('returns not found for unknown handles', function (): void {
     $this->getJson('/api/v1/users/missing/commits')->assertNotFound();
 });
 
 it('loads a page of commits without a query per commit', function (string $replies): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $create = fn (int $count) => Commit::factory()->for($user)->count($count)
         ->for(LinkPreview::factory()->fetched())
@@ -110,7 +110,7 @@ it('loads a page of commits without a query per commit', function (string $repli
 it('lists for a signed request the commits of a profile as the web shows them to its user', function (): void {
     $viewer = User::factory()->create();
     $keyPair = apiKeyPairFor($viewer);
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $older = Commit::factory()->for($user)->create(['created_at' => now()->subMinute()]);
     $newer = Commit::factory()->for($user)->create();
@@ -204,7 +204,7 @@ it('keeps the replies filter in the link to the next page of a signed request', 
 it('loads a page of commits for a signed request without a query per commit', function (string $replies): void {
     Queue::fake([DetectCommitLanguage::class]);
     $keyPair = apiKeyPairFor(User::factory()->create());
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $create = fn (int $count) => Commit::factory()->for($user)->count($count)
         ->for(LinkPreview::factory()->fetched())

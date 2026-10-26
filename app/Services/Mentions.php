@@ -14,7 +14,7 @@ final readonly class Mentions
     }
 
     /**
-     * Finds the GitHub usernames mentioned as "@username" in the text, lowercased and once each, in order. A mention
+     * Finds the GitHub handles mentioned as "@handle" in the text, lowercased and once each, in order. A mention
      * can't follow a letter, digit, "_", ".", "/", "@" or "-" (so emails are not mentions), and can't run into a path
      * or a domain (so "@inertiajs/react" and "@vue.js" are not mentions either), and a mention in code doesn't count
      * (so "@Override" or "@param" never notify anyone). Keep the rules in sync with
@@ -22,7 +22,7 @@ final readonly class Mentions
      *
      * @return list<string>
      */
-    public function usernames(string $text): array
+    public function handles(string $text): array
     {
         if (! str_contains($text, '@')) {
             return [];
@@ -34,11 +34,11 @@ final readonly class Mentions
     }
 
     /**
-     * Finds where each "@username" is in the text, by the same rules and also skipping code, so a client can link it
-     * to the profile like the web does. The username keeps its case, and the offset and length count characters in
-     * the whole text and include the "@".
+     * Finds where each "@handle" is in the text, by the same rules and also skipping code, so a client can link it
+     * to the profile like the web does. The handle keeps its case, and the offset and length count characters in
+     * the whole text and include the "@". The handle is also the username, which clients read before handles.
      *
-     * @return list<array{username: string, offset: int, length: int}>
+     * @return list<array{handle: string, username: string, offset: int, length: int}>
      */
     public function positions(string $text): array
     {
@@ -51,6 +51,7 @@ final readonly class Mentions
 
                 foreach ($matches as $match) {
                     $positions[] = [
+                        'handle' => $match[1][0],
                         'username' => $match[1][0],
                         'offset' => $offset + mb_strlen(mb_strcut($part, 0, $match[0][1])),
                         'length' => mb_strlen($match[0][0]),

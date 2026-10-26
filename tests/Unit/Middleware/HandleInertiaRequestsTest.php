@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Enums\LivePlatform;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\Notification;
@@ -37,7 +38,7 @@ it('shares null user when guest', function (): void {
 it('shares authenticated user data', function (): void {
     $user = User::factory()->create([
         'name' => 'Test User',
-        'username' => 'test-user',
+        'handle' => 'test-user',
     ]);
 
     $middleware = new HandleInertiaRequests();
@@ -50,7 +51,7 @@ it('shares authenticated user data', function (): void {
     expect($sharedUser)->not->toBeNull()
         ->and($sharedUser->id)->toBe($user->id)
         ->and($sharedUser->name)->toBe('Test User')
-        ->and($sharedUser->username)->toBe('test-user');
+        ->and($sharedUser->handle)->toBe('test-user');
 });
 
 it('shares the authenticated user commit and follow counts', function (): void {
@@ -132,7 +133,7 @@ it('includes parent shared data', function (): void {
 it('shares whether the authenticated user is an admin', function (bool $isAdmin): void {
     config(['app.admins' => $isAdmin ? ['octocat'] : []]);
 
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $middleware = new HandleInertiaRequests();
 
@@ -155,7 +156,7 @@ it('shares guests as non admins', function (): void {
 it('shares whether there are unmoderated commits for admins', function (): void {
     config(['app.admins' => ['admin']]);
 
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
 
     $middleware = new HandleInertiaRequests();
 
@@ -174,7 +175,7 @@ it('shares whether there are unmoderated commits for admins', function (): void 
 it('does not count deleted pending commits as unmoderated', function (): void {
     config(['app.admins' => ['admin']]);
 
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     Commit::factory()->pending()->create()->delete();
 
     $request = Request::create('/', 'GET');
@@ -188,7 +189,7 @@ it('does not count deleted pending commits as unmoderated', function (): void {
 it('shares hasUnmoderatedCommits as false for non admins', function (): void {
     Commit::factory()->pending()->create();
 
-    $user = User::factory()->create(['username' => 'user']);
+    $user = User::factory()->create(['handle' => 'user']);
 
     $middleware = new HandleInertiaRequests();
 
@@ -314,6 +315,25 @@ it('shows who to follow by default', function (string $cookie): void {
     expect($shared['showsWhoToFollow'])->toBeTrue()
         ->and($shared)->toHaveKey('suggestedUsers');
 })->with(['', 'true']);
+
+it('leaves who to follow and live following out of the operations console, which has no aside', function (string $path): void {
+    $middleware = new HandleInertiaRequests();
+    $user = User::factory()->create();
+    $live = User::factory()->create([
+        'live_platform' => LivePlatform::YouTube,
+        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'live_ends_at' => now()->addHour(),
+    ]);
+    $user->following()->attach($live);
+
+    $request = Request::create($path, 'GET');
+    $request->setUserResolver(fn () => $user);
+
+    $shared = $middleware->share($request);
+
+    expect($shared)->not->toHaveKey('suggestedUsers')
+        ->and($shared['liveFollowing']())->toBeEmpty();
+})->with(['/operations', '/operations/events']);
 
 it('suggests the round of people the user refreshed to', function (string $cookie, int $round): void {
     $middleware = new HandleInertiaRequests();
