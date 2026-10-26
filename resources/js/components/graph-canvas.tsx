@@ -935,7 +935,11 @@ function EdgeDefs({
     }
 
     return (
-        <mask id={`${id}-draw`} maskUnits="userSpaceOnUse">
+        <mask
+            id={`${id}-draw`}
+            maskUnits="userSpaceOnUse"
+            style={{ maskType: 'alpha' }}
+        >
             <path
                 ref={startAt}
                 d={edge.d}
