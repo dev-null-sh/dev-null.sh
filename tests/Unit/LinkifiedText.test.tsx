@@ -316,7 +316,7 @@ test('renders /dev/null as the wordmark while keeping its text', () => {
     assert.equal(markup.replace(/<[^>]+>/g, ''), text);
 });
 
-test('leaves /dev/null inside longer paths, words, URLs and usernames as text', () => {
+test('leaves /dev/null inside longer paths, words, URLs and handles as text', () => {
     const text =
         '/dev/nullable /dev/null/log a/dev/null /dev/null_1 /DEV/NULL https://example.com/dev/null @devnull';
     const markup = renderToStaticMarkup(
@@ -615,7 +615,7 @@ for (const kind of ['direct', 'org'] as const) {
             const user: User = {
                 id: 'viewer',
                 name: 'Alex Morgan',
-                username: 'alex',
+                handle: 'alex',
                 avatar_url: null,
                 bio: null,
                 company: null,
@@ -633,7 +633,7 @@ for (const kind of ['direct', 'org'] as const) {
                 ...user,
                 id: 'sender',
                 name: 'Sam Rivera',
-                username: 'sam',
+                handle: 'sam',
             };
             const sender = outgoing ? user : partner;
             const body = '```sh\ncat > /dev/null\n```\nBack to /dev/null.';

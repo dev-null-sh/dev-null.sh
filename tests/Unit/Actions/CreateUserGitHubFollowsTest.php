@@ -101,11 +101,11 @@ it('reads every page of the follows', function (): void {
     $strangers = array_map(fn (int $id): array => ['id' => $id, 'login' => "stranger-{$id}"], range(1, 100));
 
     Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
-        "api.github.com/users/{$user->username}/following*" => Http::sequence()
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->handle]),
+        "api.github.com/users/{$user->handle}/following*" => Http::sequence()
             ->push($strangers)
-            ->push([['id' => (int) $followed->github_id, 'login' => $followed->username]]),
-        "api.github.com/users/{$user->username}/followers*" => Http::response([]),
+            ->push([['id' => (int) $followed->github_id, 'login' => $followed->handle]]),
+        "api.github.com/users/{$user->handle}/followers*" => Http::response([]),
     ]);
 
     resolve(CreateUserGitHubFollows::class)->handle($user);
@@ -135,7 +135,7 @@ it('leaves the follows to import again when github fails', function (): void {
     $user = User::factory()->create();
 
     Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->handle]),
         '*' => Http::response(['message' => 'Server Error'], 500),
     ]);
 

@@ -103,12 +103,12 @@ function ShortenedUrl({ url }: { url: string }) {
 // Like a shortened URL, the whole URL stays in the text, so copying it keeps the link.
 function CommitLink({
     url,
-    username,
+    handle,
     commit,
     isStatic,
 }: {
     url: string;
-    username: string;
+    handle: string;
     commit: string;
     isStatic: boolean;
 }) {
@@ -123,10 +123,10 @@ function CommitLink({
                 {/* The mark never wraps onto a line of its own. */}
                 <span className="whitespace-nowrap text-muted-foreground">
                     <AppLogoIcon className="mr-[0.2em] inline-block size-[1.15em] fill-foreground align-[-0.25em]" />
-                    {username.charAt(0)}
+                    {handle.charAt(0)}
                 </span>
                 <span className="text-muted-foreground">
-                    {username.slice(1)}/
+                    {handle.slice(1)}/
                 </span>
                 {hash}
             </span>
@@ -143,9 +143,9 @@ function CommitLink({
 
     return (
         <Link
-            href={CommitController.show({ user: username, commit })}
+            href={CommitController.show({ user: handle, commit })}
             title={url}
-            aria-label={`@${username}’s commit ${hash}`}
+            aria-label={`@${handle}’s commit ${hash}`}
             className="text-primary hover:underline"
         >
             {label}
@@ -351,10 +351,10 @@ function withMentions(
     let position = 0;
 
     for (const match of text.matchAll(mentionPattern)) {
-        const username = match[1].toLowerCase();
+        const handle = match[1].toLowerCase();
         const userId =
-            mentions && Object.hasOwn(mentions, username)
-                ? mentions[username]
+            mentions && Object.hasOwn(mentions, handle)
+                ? mentions[handle]
                 : null;
 
         parts.push(
@@ -369,7 +369,7 @@ function withMentions(
             ) : (
                 <UserPreview
                     key={`mention-${offset + match.index}`}
-                    user={{ username: match[1] }}
+                    user={{ handle: match[1] }}
                     userId={userId}
                 >
                     <Link
@@ -441,7 +441,7 @@ export function LinkifiedText({
                 <CommitLink
                     key={match.index}
                     url={linkText}
-                    username={commitLink[1]}
+                    handle={commitLink[1]}
                     commit={commitLink[2].toLowerCase()}
                     isStatic={isStatic}
                 />

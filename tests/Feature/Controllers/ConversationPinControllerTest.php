@@ -61,9 +61,9 @@ it('paginates pins before newer unpinned remotes without skipping or repeating r
 
     $first = $this->getJson(route('inbox.index'))->assertOk()->assertJsonPath('has_more', true)->json('conversations');
     expect(array_column(array_slice($first, 0, 3), 'partner'))->sequence(
-        fn ($partner) => $partner->username->toBe($partners[1]->username),
-        fn ($partner) => $partner->username->toBe($partners[0]->username),
-        fn ($partner) => $partner->username->toBe($partners[34]->username),
+        fn ($partner) => $partner->handle->toBe($partners[1]->handle),
+        fn ($partner) => $partner->handle->toBe($partners[0]->handle),
+        fn ($partner) => $partner->handle->toBe($partners[34]->handle),
     );
     $next = $this->getJson(route('inbox.index', ['before' => $first[29]['id']]))
         ->assertOk()->assertJsonPath('has_more', false)->json('conversations');

@@ -137,12 +137,13 @@ final readonly class OperationsEventsQuery
     private function signups(CarbonImmutable $since): Builder
     {
         return DB::table('users')
+            ->leftJoin('profiles', 'profiles.github_id', '=', 'users.github_id')
             ->selectRaw(<<<'SQL'
-                'signups' as source, 'signup' as kind, id::text as row_id, created_at as at, 'info' as level,
-                'Signed up' as message, null::text as detail, username as actor, null::text as author, null::text as commit_id
+                'signups' as source, 'signup' as kind, users.id::text as row_id, users.created_at as at, 'info' as level,
+                'Signed up' as message, null::text as detail, profiles.handle as actor, null::text as author, null::text as commit_id
                 SQL)
-            ->whereNotIn('github_id', User::BOT_GITHUB_IDS)
-            ->where('created_at', '>=', $since);
+            ->whereNotIn('users.github_id', User::BOT_GITHUB_IDS)
+            ->where('users.created_at', '>=', $since);
     }
 
     /**
@@ -163,10 +164,11 @@ final readonly class OperationsEventsQuery
     {
         return DB::table('commit_reports')
             ->join('users', 'users.id', '=', 'commit_reports.reporter_id')
+            ->leftJoin('profiles', 'profiles.github_id', '=', 'users.github_id')
             ->selectRaw(<<<'SQL'
                 'reports' as source, 'report' as kind, commit_reports.id::text as row_id, commit_reports.created_at as at,
                 'warning' as level, 'Commit reported: ' || coalesce(?::jsonb->>commit_reports.reason, commit_reports.reason) as message,
-                null::text as detail, users.username as actor, null::text as author, null::text as commit_id
+                null::text as detail, profiles.handle as actor, null::text as author, null::text as commit_id
                 SQL, [json_encode(CommitReport::REASONS)])
             ->where('commit_reports.created_at', '>=', $since);
     }
@@ -190,13 +192,15 @@ final readonly class OperationsEventsQuery
     {
         return DB::table('notifications')
             ->join('users as actors', 'actors.id', '=', 'notifications.actor_id')
+            ->leftJoin('profiles as actor_profiles', 'actor_profiles.github_id', '=', 'actors.github_id')
             ->leftJoin('commits', 'commits.id', '=', 'notifications.commit_id')
             ->leftJoin('users as authors', 'authors.id', '=', 'commits.user_id')
+            ->leftJoin('profiles as author_profiles', 'author_profiles.github_id', '=', 'authors.github_id')
             ->selectRaw(<<<'SQL'
                 'moderation' as source, notifications.type as kind, notifications.id::text as row_id,
                 notifications.created_at as at, 'notice' as level,
                 case when notifications.type = ? then 'Commit approved' else 'Commit rejected' end as message,
-                notifications.reason as detail, actors.username as actor, authors.username as author,
+                notifications.reason as detail, actor_profiles.handle as actor, author_profiles.handle as author,
                 notifications.commit_id::text as commit_id
                 SQL, [NotificationType::Approved->value])
             ->whereIn('notifications.type', [NotificationType::Approved, NotificationType::Rejected])
@@ -207,9 +211,10 @@ final readonly class OperationsEventsQuery
     {
         return DB::table('commits')
             ->join('users', 'users.id', '=', 'commits.user_id')
+            ->leftJoin('profiles', 'profiles.github_id', '=', 'users.github_id')
             ->selectRaw(<<<'SQL'
                 'moderation' as source, 'held' as kind, commits.id::text as row_id, commits.created_at as at, 'notice' as level,
-                'Commit held for review' as message, null::text as detail, users.username as actor, null::text as author,
+                'Commit held for review' as message, null::text as detail, profiles.handle as actor, null::text as author,
                 null::text as commit_id
                 SQL)
             ->where('commits.status', CommitStatus::Pending)
@@ -218,16 +223,16 @@ final readonly class OperationsEventsQuery
     }
 
     /**
-     * Bans and timeouts are kept by GitHub account, so the person is only named while they still have an account.
+     * Bans and timeouts are kept by GitHub account, so the person is only named while they still have a profile.
      */
     private function bans(CarbonImmutable $since): Builder
     {
         return DB::table('bans')
-            ->leftJoin('users', 'users.github_id', '=', 'bans.github_id')
+            ->leftJoin('profiles', 'profiles.github_id', '=', 'bans.github_id')
             ->selectRaw(<<<'SQL'
                 'bans' as source, 'ban' as kind, bans.id::text as row_id, bans.created_at as at, 'error' as level,
                 'Account banned' as message, coalesce(?::jsonb->>bans.reason, bans.reason) as detail,
-                users.username as actor, null::text as author, null::text as commit_id
+                profiles.handle as actor, null::text as author, null::text as commit_id
                 SQL, [json_encode(ModerationReason::options())])
             ->where('bans.created_at', '>=', $since);
     }
@@ -235,11 +240,11 @@ final readonly class OperationsEventsQuery
     private function timeouts(CarbonImmutable $since): Builder
     {
         return DB::table('user_timeouts')
-            ->leftJoin('users', 'users.github_id', '=', 'user_timeouts.github_id')
+            ->leftJoin('profiles', 'profiles.github_id', '=', 'user_timeouts.github_id')
             ->selectRaw(<<<'SQL'
                 'timeouts' as source, 'timeout' as kind, user_timeouts.id::text as row_id, user_timeouts.created_at as at,
                 'warning' as level, 'Timed out until ' || to_char(user_timeouts.ends_at, 'YYYY-MM-DD HH24:MI') || ' UTC' as message,
-                coalesce(?::jsonb->>user_timeouts.reason, user_timeouts.reason) as detail, users.username as actor,
+                coalesce(?::jsonb->>user_timeouts.reason, user_timeouts.reason) as detail, profiles.handle as actor,
                 null::text as author, null::text as commit_id
                 SQL, [json_encode(ModerationReason::options())])
             ->where('user_timeouts.created_at', '>=', $since);

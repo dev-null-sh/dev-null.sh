@@ -199,7 +199,7 @@ function QuoteComposer({
                 <ImageDropOverlay className="fixed" />
             )}
             <DialogTitle className="text-base">
-                Quote @{commit.user.username}
+                Quote @{commit.user.handle}
             </DialogTitle>
             <DialogDescription className="sr-only">
                 Write a commit of your own. This commit is embedded below it.

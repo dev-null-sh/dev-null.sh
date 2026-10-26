@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 
 it('only lets you push to people who follow you while requests are off', function (): void {
     $mark = User::factory()->create();
-    $nuno = User::factory()->create(['username' => 'nunomaduro']);
+    $nuno = User::factory()->create(['handle' => 'nunomaduro']);
 
     $this->actingAs($mark)->getJson(route('conversation-message.index', $nuno))->assertJsonPath('access', 'restricted');
     $this->postJson(route('conversation-message.store', $nuno), ['body' => 'hi', 'client_id' => Str::uuid()->toString()])
@@ -53,7 +53,7 @@ it('keeps fetched requests out of reach while requests are off', function (): vo
 
 it('lets site admins push to anyone with remotes on', function (): void {
     config(['app.admins' => ['mark']]);
-    $mark = User::factory()->create(['username' => 'mark']);
+    $mark = User::factory()->create(['handle' => 'mark']);
     $nuno = User::factory()->create();
     $off = User::factory()->create(['remotes_enabled' => false]);
 

@@ -18,7 +18,7 @@ it('shows Fathom traffic for the last seven days to admins', function (): void {
         'api.usefathom.com/v1/aggregations*' => Http::response([['uniques' => '120', 'pageviews' => '480']]),
     ]);
 
-    $response = $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $response = $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('traffic.show'));
 
     $response->assertOk()
@@ -39,7 +39,7 @@ it('shows Fathom traffic for the chosen dates', function (): void {
         'api.usefathom.com/v1/aggregations*' => Http::response([]),
     ]);
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('traffic.show', ['from' => '2026-01-01', 'to' => '2026-01-31']))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -51,7 +51,7 @@ it('shows Fathom traffic for the chosen dates', function (): void {
 });
 
 it('rejects dates that are malformed, in the future, or out of order', function (array $query): void {
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('traffic.show', $query))
         ->assertSessionHasErrors();
 })->with([
@@ -63,7 +63,7 @@ it('rejects dates that are malformed, in the future, or out of order', function 
 it('is a 404 without a Fathom token', function (): void {
     config(['services.fathom.token' => null]);
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('traffic.show'))
         ->assertNotFound();
 });

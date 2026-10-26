@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Models\User;
 
 beforeEach(function (): void {
-    $this->user = User::factory()->withRemotes()->create(['username' => 'octocat']);
+    $this->user = User::factory()->withRemotes()->create(['handle' => 'octocat']);
     $this->keyPair = apiKeyPairFor($this->user);
 });
 
@@ -22,18 +22,18 @@ it('loads an org with its members, events and who is typing, as the web thread d
         ->assertJsonPath('data.org', ['id' => $org, 'name' => 'dev/null core'])
         ->assertJsonCount(2, 'data.messages')
         ->assertJsonPath('data.messages.0.event', 'created')
-        ->assertJsonPath('data.messages.0.user.username', 'octocat')
+        ->assertJsonPath('data.messages.0.user.handle', 'octocat')
         ->assertJsonPath('data.messages.0.subject', null)
         ->assertJsonPath('data.messages.1.id', $message->id)
         ->assertJsonPath('data.messages.1.body', 'ship it')
-        ->assertJsonPath('data.messages.1.user.username', $nuno->username)
+        ->assertJsonPath('data.messages.1.user.handle', $nuno->handle)
         ->assertJsonPath('data.messages.1.user.lane', $nuno->lane())
-        ->assertJsonPath('data.members.0.user.username', 'octocat')
+        ->assertJsonPath('data.members.0.user.handle', 'octocat')
         ->assertJsonPath('data.members.0.role', 'maintainer')
-        ->assertJsonPath('data.members.1.user.username', $nuno->username)
+        ->assertJsonPath('data.members.1.user.handle', $nuno->handle)
         ->assertJsonPath('data.members.1.role', 'contributor')
         ->assertJsonPath('data.members.2.read_through_id', $message->id)
-        ->assertJsonPath('data.typing', [$taylor->username])
+        ->assertJsonPath('data.typing', [$taylor->handle])
         ->assertJsonPath('data.role', 'maintainer')
         ->assertJsonPath('data.is_archived', false)
         ->assertJsonPath('data.access', 'open');
@@ -43,13 +43,13 @@ it('names who an event is about', function (): void {
     [$nuno, $taylor] = followersOf($this->user, 2);
     $org = createOrg($this->user, [$nuno]);
 
-    $this->actingAs($this->user)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => true])->assertNoContent();
+    $this->actingAs($this->user)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => true])->assertNoContent();
 
     signedApiRequest($this->keyPair, 'GET', route('api-org-message.index', ['org' => $org, 'after' => 0]))
         ->assertOk()
         ->assertJsonPath('data.messages.1.event', 'added')
         ->assertJsonPath('data.messages.1.subject_id', $taylor->id)
-        ->assertJsonPath('data.messages.1.subject.username', $taylor->username);
+        ->assertJsonPath('data.messages.1.subject.handle', $taylor->handle);
 });
 
 it('starts where the member history starts', function (): void {
@@ -57,7 +57,7 @@ it('starts where the member history starts', function (): void {
     $org = createOrg($this->user, [$nuno]);
     pushToOrg($nuno, $org, 'before taylor');
 
-    $this->actingAs($this->user)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($this->user)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
 
     signedApiRequest(apiKeyPairFor($taylor), 'GET', route('api-org-message.index', $org))
         ->assertOk()

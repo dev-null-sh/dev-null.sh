@@ -83,7 +83,7 @@ function DismissButton({
     user: SuggestedUser;
     onDismiss: () => void;
 }) {
-    const label = `Not interested. @${user.username} won't be suggested again.`;
+    const label = `Not interested. @${user.handle} won't be suggested again.`;
 
     return (
         <Tooltip>
@@ -101,7 +101,7 @@ function DismissButton({
             <TooltipContent>
                 Not interested
                 <span className="block opacity-70">
-                    @{user.username} won't be suggested again.
+                    @{user.handle} won't be suggested again.
                 </span>
             </TooltipContent>
         </Tooltip>
@@ -196,7 +196,7 @@ export function SuggestedUserRow({
                                         }}
                                     />
                                     <span className="truncate">
-                                        @{user.username}
+                                        @{user.handle}
                                     </span>
                                 </span>
                                 {!isStacked && (

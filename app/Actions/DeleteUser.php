@@ -64,6 +64,7 @@ final readonly class DeleteUser
             $this->deleteOrgs->handle($this->emptyOrgs($user));
 
             $user->delete();
+            $user->profile->delete();
 
             foreach ($translationKeys as $key) {
                 Cache::forget($key);

@@ -14,8 +14,8 @@ beforeEach(function (): void {
 
 it('lists conversations by latest message with what is unread', function (array $query): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
-    $taylor = User::factory()->withRemotes()->create(['username' => 'taylorotwell']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
+    $taylor = User::factory()->withRemotes()->create(['handle' => 'taylorotwell']);
     sendChatMessage($mark, $taylor, 'thanks!');
     sendChatMessage($nuno, $mark, 'did you see the PR?');
     $latest = sendChatMessage($nuno, $mark, 'ship it');
@@ -27,12 +27,12 @@ it('lists conversations by latest message with what is unread', function (array 
         ->assertJsonPath('unread', 2);
 
     expect($response->json('conversations'))->toHaveCount(2)
-        ->and($response->json('conversations.0.partner.username'))->toBe('nunomaduro')
+        ->and($response->json('conversations.0.partner.handle'))->toBe('nunomaduro')
         ->and($response->json('conversations.0.ahead'))->toBe(2)
         ->and($response->json('conversations.0.last_message.body'))->toBe('ship it')
         ->and($response->json('conversations.0.last_incoming_message_id'))->toBe($latest->id)
         ->and($response->json('conversations.0.last_incoming_sender'))->toBe($nuno->name)
-        ->and($response->json('conversations.1.partner.username'))->toBe('taylorotwell')
+        ->and($response->json('conversations.1.partner.handle'))->toBe('taylorotwell')
         ->and($response->json('conversations.1.ahead'))->toBe(0)
         ->and($response->json('conversations.1.last_message.user_id'))->toBe($mark->id)
         ->and($response->json('conversations.1.last_incoming_message_id'))->toBeNull();
@@ -120,8 +120,8 @@ it('baselines fetched but not dropped or other peoples messages', function (Remo
 
 it('baselines old stashes and newer conversations independently of search results', function (): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
-    $taylor = User::factory()->withRemotes()->create(['username' => 'taylorotwell']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
+    $taylor = User::factory()->withRemotes()->create(['handle' => 'taylorotwell']);
     $stashed = sendChatMessage($nuno, $mark, 'old stash');
     $this->actingAs($mark)->postJson(route('conversation-archive.store', $nuno))->assertNoContent();
     $latest = sendChatMessage($taylor, $mark, 'new conversation');
@@ -163,7 +163,7 @@ it("keeps the newest incoming org message past later events and the viewer's own
         ->assertJsonPath('conversations.0.last_incoming_sender', null);
 
     $shipIt = pushToOrg($mark, $org, 'ship it');
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$jess->username], 'share_history' => true])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$jess->handle], 'share_history' => true])->assertNoContent();
 
     $this->actingAs($nuno)->getJson(route('inbox.index', ['notification_baseline' => 1]))
         ->assertJsonPath('unread', 1)
@@ -212,7 +212,7 @@ it('only exposes incoming org message ids from the history shared with a new mem
     $beforeJoining = pushToOrg($mark, $org, 'before joining');
 
     $this->actingAs($mark)->postJson(route('org-member.store', $org), [
-        'members' => [$jess->username],
+        'members' => [$jess->handle],
         'share_history' => $sharesHistory,
     ])->assertNoContent();
 
@@ -263,8 +263,8 @@ it('requires authentication', function (): void {
 
 it('searches conversations by name or handle', function (string $term): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro', 'name' => 'Nuno Maduro']);
-    $taylor = User::factory()->withRemotes()->create(['username' => 'taylorotwell', 'name' => 'Taylor Otwell']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro', 'name' => 'Nuno Maduro']);
+    $taylor = User::factory()->withRemotes()->create(['handle' => 'taylorotwell', 'name' => 'Taylor Otwell']);
     sendChatMessage($nuno, $mark, 'ship it');
     sendChatMessage($taylor, $mark, 'thanks!');
 
@@ -272,7 +272,7 @@ it('searches conversations by name or handle', function (string $term): void {
         ->assertOk()
         ->assertJsonMissingPath('notification_baseline');
 
-    expect(collect($response->json('conversations'))->pluck('partner.username')->all())->toBe(['nunomaduro']);
+    expect(collect($response->json('conversations'))->pluck('partner.handle')->all())->toBe(['nunomaduro']);
 })->with(['nuno', '@NunoMad', 'maduro']);
 
 it('validates the inbox filters', function (array $query, string $error): void {

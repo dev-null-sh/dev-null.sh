@@ -213,14 +213,14 @@ const invalidatedInboxTabs = new Set<InboxTab>();
 
 export function targetKey(target: ChatTarget): string {
     return target.kind === 'direct'
-        ? target.partner.username
+        ? target.partner.handle
         : `org:${target.org.id}`;
 }
 
 export function summaryKey(summary: ConversationSummary): string {
     return summary.kind === 'org' || summary.partner === null
         ? `org:${summary.id}`
-        : summary.partner.username;
+        : summary.partner.handle;
 }
 
 export function targetOf(summary: ConversationSummary): ChatTarget {
@@ -231,7 +231,7 @@ export function targetOf(summary: ConversationSummary): ChatTarget {
 
 function urls(target: ChatTarget) {
     if (target.kind === 'direct') {
-        const partner = { partner: target.partner.username };
+        const partner = { partner: target.partner.handle };
 
         return {
             show: ConversationController.show.url(partner),
@@ -1928,7 +1928,7 @@ export async function settleRequest(
     partner: User,
     isMerging: boolean,
 ): Promise<boolean> {
-    const key = partner.username;
+    const key = partner.handle;
 
     try {
         await request(
@@ -2111,12 +2111,12 @@ export async function blockPartner(partner: User): Promise<boolean> {
     }
 
     const threads = { ...state.threads };
-    delete threads[partner.username];
+    delete threads[partner.handle];
 
     update({
-        conversations: withoutKey(state.conversations, partner.username),
-        fetched: withoutKey(state.fetched, partner.username),
-        archived: withoutKey(state.archived, partner.username),
+        conversations: withoutKey(state.conversations, partner.handle),
+        fetched: withoutKey(state.fetched, partner.handle),
+        archived: withoutKey(state.archived, partner.handle),
         threads,
     });
 
@@ -2176,7 +2176,7 @@ export async function setOrgMemberRole(
     await request(
         OrgMemberController.update.url({
             org: org.id,
-            member: member.username,
+            member: member.handle,
         }),
         'PUT',
         { role },
@@ -2195,7 +2195,7 @@ export async function removeOrgMember(
     await request(
         OrgMemberController.destroy.url({
             org: org.id,
-            member: member.username,
+            member: member.handle,
         }),
         'DELETE',
     );

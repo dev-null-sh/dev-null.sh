@@ -21,7 +21,7 @@ beforeEach(function (): void {
 
 it('lists the latest commits of everyone, newest first', function (): void {
     $author = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'name' => 'The Octocat',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
     ]);
@@ -59,6 +59,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'images' => [],
         'author' => [
             'id' => $author->id,
+            'handle' => 'octocat',
             'username' => 'octocat',
             'name' => 'The Octocat',
             'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
@@ -105,7 +106,7 @@ it('sends the excerpt the web shows of a long commit in a list', function (): vo
 });
 
 it('shows what the web shows on a commit', function (): void {
-    $author = User::factory()->create(['username' => 'octocat', 'preferred_lane' => 4]);
+    $author = User::factory()->create(['handle' => 'octocat', 'preferred_lane' => 4]);
     $linkPreview = LinkPreview::factory()->fetched()->create(['url' => 'https://laravel.com']);
     $commit = Commit::factory()->for($author)->for($linkPreview)->create(['body' => 'Ask @NunoMaduro about https://laravel.com']);
     $image = CommitImage::factory()->for($commit)->create(['width' => 640, 'height' => 480]);
@@ -118,7 +119,7 @@ it('shows what the web shows on a commit', function (): void {
         ->assertJsonPath('data.0.stars_count', 2)
         ->assertJsonPath('data.0.starred', true)
         ->assertJsonPath('data.0.is_pinned', true)
-        ->assertJsonPath('data.0.mentions', [['username' => 'NunoMaduro', 'offset' => 4, 'length' => 11]])
+        ->assertJsonPath('data.0.mentions', [['handle' => 'NunoMaduro', 'username' => 'NunoMaduro', 'offset' => 4, 'length' => 11]])
         ->assertJsonPath('data.0.link_preview', [
             'url' => 'https://laravel.com',
             'title' => $linkPreview->title,

@@ -117,7 +117,7 @@ final readonly class ConversationsQuery
                     ->where(fn (Builder $query): Builder => $query->whereNull('messages.event')->orWhere('messages.event', OrgEvent::Ping)),
                 'last_incoming_message_id',
             )
-            ->with(['lastMessage.user', 'lastMessage.subject', 'lastMessage.voice', 'lastIncomingMessage:id,user_id', 'lastIncomingMessage.user:id,name', 'partner', 'participants.user'])
+            ->with(['lastMessage.user', 'lastMessage.subject', 'lastMessage.voice', 'lastIncomingMessage:id,user_id', 'lastIncomingMessage.user:id,github_id', 'partner', 'participants.user'])
             ->when($pinnedFirst, fn (Builder $query): Builder => $query->orderByRaw($pinned.' DESC', [$pinIds]))
             ->orderByDesc('mine.last_message_at')
             ->orderByDesc('conversations.id')
@@ -237,8 +237,8 @@ final readonly class ConversationsQuery
     {
         return User::query()
             ->select('id')
-            ->where(fn (Builder $query): Builder => $query
-                ->whereRaw("LOWER(username) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+            ->whereHas('profile', fn (Builder $query): Builder => $query
+                ->whereRaw("LOWER(handle) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
                 ->orWhereRaw("LOWER(name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]));
     }
 }

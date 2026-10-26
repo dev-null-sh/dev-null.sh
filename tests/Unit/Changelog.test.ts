@@ -24,7 +24,7 @@ function pullRequest(
         author: {
             login,
             avatar: `https://avatars.githubusercontent.com/u/${number}`,
-            username: null,
+            handle: null,
             mention: null,
             lane: null,
         },

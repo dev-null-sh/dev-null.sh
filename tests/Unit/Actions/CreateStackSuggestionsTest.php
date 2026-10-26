@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 it('remembers who is behind the stack of the user for a week', function (): void {
-    $user = User::factory()->create(['username' => 'jess']);
+    $user = User::factory()->create(['handle' => 'jess']);
     $contributor = User::factory()->create();
 
     Http::fake([

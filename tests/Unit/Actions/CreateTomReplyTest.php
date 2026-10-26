@@ -25,7 +25,7 @@ it('creates one reply through the normal moderation pipeline and never replaces 
     Queue::fake([ModerateCommit::class, EmbedCommit::class, ReplyAsTom::class]);
     Tom::fake(['A developer community, with rusty friends. :-D'])->preventStrayPrompts();
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $root = Commit::factory()->create();
     $commit = Commit::factory()->for($root, 'parent')->create(['body' => '@tom what is this place?', 'mentions' => ['tom' => $tom->id]]);
 
@@ -50,7 +50,7 @@ it('creates one reply through the normal moderation pipeline and never replaces 
 
 it('queues a mention only after approval and ignores code mentions', function (): void {
     Queue::fake([ReplyAsTom::class]);
-    User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $user = User::factory()->create();
     $commit = resolve(CreateCommit::class)->handle($user, '@ToM how did this start?');
     $code = resolve(CreateCommit::class)->handle($user, 'This is code: `@tom`');
@@ -63,15 +63,15 @@ it('queues a mention only after approval and ignores code mentions', function ()
     Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $commit->id);
 });
 
-it('answers direct replies without a mention only after approval', function (bool $approved, string $username): void {
+it('answers direct replies without a mention only after approval', function (bool $approved, string $handle): void {
     Queue::fake([ReplyAsTom::class]);
     Tom::fake(['Glad to help.']);
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
-    $tom = User::factory()->create(['username' => $username, 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => $handle, 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $root = Commit::factory()->create();
     $answer = Commit::factory()->for($root, 'parent')->for($tom)->create();
     $user = User::factory()->create();
-    config(['app.admins' => $approved ? [$user->username] : []]);
+    config(['app.admins' => $approved ? [$user->handle] : []]);
 
     $commit = resolve(CreateCommit::class)->handle($user, 'Thanks for explaining!', parent: $answer);
 
@@ -96,11 +96,11 @@ it('answers direct replies without a mention only after approval', function (boo
 it('does not answer deeper replies without a mention', function (bool $approved): void {
     Queue::fake([ReplyAsTom::class]);
     Tom::fake()->preventStrayPrompts();
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $root = Commit::factory()->for($tom)->create();
     $parent = Commit::factory()->for($root, 'parent')->create();
     $user = User::factory()->create();
-    config(['app.admins' => $approved ? [$user->username] : []]);
+    config(['app.admins' => $approved ? [$user->handle] : []]);
 
     $commit = resolve(CreateCommit::class)->handle($user, 'I agree with you.', parent: $parent);
     resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
@@ -118,9 +118,9 @@ it('queues Tom replies and surfaces provider failures instead of silently skippi
         'api.openai.com/v1/decisions' => Http::response(['answers' => []]),
         'opencode.ai/zen/v1/chat/completions' => Http::response([], 401),
     ]);
-    User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $user = User::factory()->create();
-    config(['app.admins' => $approved ? [$user->username] : []]);
+    config(['app.admins' => $approved ? [$user->handle] : []]);
 
     $commit = resolve(CreateCommit::class)->handle($user, '@tom hello');
     resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
@@ -165,7 +165,7 @@ it('keeps a Tom reply reserved beyond its full provider budget and job timeout',
 it('does not prompt for ineligible mentions', function (string $case): void {
     Tom::fake()->preventStrayPrompts();
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
 
     match ($case) {
@@ -176,7 +176,7 @@ it('does not prompt for ineligible mentions', function (string $case): void {
         'self' => $commit->update(['user_id' => $tom->id]),
         'unmentioned' => $commit->update(['mentions' => []]),
         'wrong identity' => $tom->update(['github_id' => '12345']),
-        'renamed' => $tom->update(['username' => 'not-tom']),
+        'renamed' => $tom->profile->update(['handle' => 'not-tom']),
         'blocked' => $commit->user->blocking()->attach($tom),
         'blocker' => $tom->blocking()->attach($commit->user),
     };
@@ -193,7 +193,7 @@ it('does not ask Tom to answer when the tool decision fails', function (bool $ma
         ? Http::response(['answers' => [['name' => 'SearchCommits', 'type' => 'predicate', 'probability' => [1]]]])
         : Http::response('sensitive provider response', 500)]);
     Tom::fake()->preventStrayPrompts();
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
 
     expect(fn () => new ReplyAsTom($commit->id)->handle(resolve(CreateTomReply::class)))
@@ -206,7 +206,7 @@ it('does not ask Tom to answer when the tool decision fails', function (bool $ma
 
 it('discards a generated answer if its parent changes while the model is running', function (string $change): void {
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
     Tom::fake(function () use ($commit, $tom, $change): string {
         match ($change) {
@@ -226,7 +226,7 @@ it('discards a generated answer if its parent changes while the model is running
 
 it('retries failed or blank responses without retaining provider content', function (?string $response): void {
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
     Tom::fake(fn (): string => $response ?? throw new RuntimeException('sensitive provider response'));
 
@@ -248,10 +248,10 @@ it('queues and answers mentions of the reserved tom handle after approval', func
     Queue::fake([ReplyAsTom::class]);
     Tom::fake(['Still here. :-D'])->preventStrayPrompts();
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
-    $tom = User::factory()->create(['username' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
-    $owner = User::factory()->create(['username' => 'tom']);
+    $tom = User::factory()->create(['handle' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $owner = User::factory()->create(['handle' => 'tom']);
     $user = User::factory()->create();
-    config(['app.admins' => $approved ? [$user->username] : []]);
+    config(['app.admins' => $approved ? [$user->handle] : []]);
 
     $commit = resolve(CreateCommit::class)->handle($user, '@Devnull-Tom hello');
     resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
@@ -270,10 +270,10 @@ it('still answers a captured mention when tom is renamed before approval', funct
     Queue::fake([ReplyAsTom::class]);
     Tom::fake(['I remember.'])->preventStrayPrompts();
     Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), '@tom hello');
-    $tom->update(['username' => 'devnull-tom']);
-    User::factory()->create(['username' => 'tom']);
+    $tom->profile->update(['handle' => 'devnull-tom']);
+    User::factory()->create(['handle' => 'tom']);
 
     resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
 
@@ -286,10 +286,10 @@ it('still answers a captured mention when tom is renamed before approval', funct
 it('does not queue or answer a mention of the real tom', function (bool $approved): void {
     Queue::fake([ReplyAsTom::class]);
     Tom::fake()->preventStrayPrompts();
-    User::factory()->create(['username' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
-    User::factory()->create(['username' => 'tom']);
+    User::factory()->create(['handle' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    User::factory()->create(['handle' => 'tom']);
     $user = User::factory()->create();
-    config(['app.admins' => $approved ? [$user->username] : []]);
+    config(['app.admins' => $approved ? [$user->handle] : []]);
 
     $commit = resolve(CreateCommit::class)->handle($user, '@tom hello');
     resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);

@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Cache;
 
 /**
  * @phpstan-type GitHubPullRequest array{number: int, title: string, html_url: string, merged_at: string|null, updated_at: string, merge_commit_sha: string, user: array{id: int, login: string, avatar_url: string}}
- * @phpstan-type ChangelogPullRequest array{number: int, type: string|null, breaking: bool, title: string, url: string, sha: string, commit_url: string, merged_at: string, author: array{login: string, avatar: string, username: string|null, mention: string|null, lane: int|string|null}}
+ * @phpstan-type ChangelogPullRequest array{number: int, type: string|null, breaking: bool, title: string, url: string, sha: string, commit_url: string, merged_at: string, author: array{login: string, avatar: string, handle: string|null, mention: string|null, lane: int|string|null}}
  */
 final readonly class ChangelogQuery
 {
@@ -132,7 +132,7 @@ final readonly class ChangelogQuery
 
     /**
      * Authors who are on /dev/null keep the lane they chose there, and link to their profile. They are found by their
-     * GitHub account, since a username can change on either side.
+     * GitHub account, since a handle can change on either side.
      *
      * @param  array<int, GitHubPullRequest>  $merged
      * @return array{pullRequests: list<ChangelogPullRequest>, olderBefore: string|null}
@@ -162,14 +162,14 @@ final readonly class ChangelogQuery
 
     /**
      * @param  array{id: int, login: string, avatar_url: string}  $author
-     * @return array{login: string, avatar: string, username: string|null, mention: string|null, lane: int|string|null}
+     * @return array{login: string, avatar: string, handle: string|null, mention: string|null, lane: int|string|null}
      */
     private function author(array $author, ?User $user): array
     {
         return [
             'login' => $author['login'],
             'avatar' => $author['avatar_url'],
-            'username' => $user?->username,
+            'handle' => $user?->handle,
             'mention' => $user?->mention(),
             'lane' => $user?->lane(),
         ];

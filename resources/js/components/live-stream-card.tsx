@@ -94,7 +94,7 @@ export function LiveStreamTrigger({
     className,
     children,
 }: {
-    user: Pick<User, 'name' | 'username' | 'avatar_url' | 'live'>;
+    user: Pick<User, 'name' | 'handle' | 'avatar_url' | 'live'>;
     hoverCard?: boolean;
     showProfile?: boolean;
     className?: string;
@@ -181,7 +181,7 @@ function LiveStreamSheet({
     open,
     onOpenChange,
 }: {
-    user: Pick<User, 'name' | 'username' | 'avatar_url'>;
+    user: Pick<User, 'name' | 'handle' | 'avatar_url'>;
     stream: LiveStream;
     showProfile: boolean;
     open: boolean;
@@ -221,7 +221,7 @@ function LiveStreamSheet({
                                     {user.name}
                                 </p>
                                 <p className="truncate font-mono text-[13px] text-muted-foreground">
-                                    @{user.username}
+                                    @{user.handle}
                                 </p>
                             </div>
                             <Button variant="secondary" asChild>

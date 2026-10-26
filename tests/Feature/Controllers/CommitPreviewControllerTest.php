@@ -6,7 +6,7 @@ use App\Models\User;
 
 it('renders a draft the way the commit it becomes is rendered', function (): void {
     $user = User::factory()->create();
-    User::factory()->create(['username' => 'nunomaduro']);
+    User::factory()->create(['handle' => 'nunomaduro']);
     $body = "  shipped :rocket with @nunomaduro\n```php\n\$name = 'devnull';\n```\nrun `composer test` :fire  ";
 
     $preview = $this->actingAs($user)->postJson(route('commit-preview.store'), ['body' => $body]);
@@ -21,7 +21,7 @@ it('renders a draft the way the commit it becomes is rendered', function (): voi
 
 it('links the mentions of a draft to the people the commit would link', function (): void {
     $user = User::factory()->create();
-    $alice = User::factory()->create(['username' => 'Alice']);
+    $alice = User::factory()->create(['handle' => 'Alice']);
 
     $preview = $this->actingAs($user)->postJson(route('commit-preview.store'), [
         'body' => "Pairing with @alice and @nobody-here\n`@alice` in code is not a mention",

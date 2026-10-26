@@ -32,7 +32,7 @@ final readonly class CreateStackSuggestions
     public function handle(User $user): void
     {
         $ids = User::query()
-            ->whereIn('github_id', $this->dependencyContributors->get($user->username))
+            ->whereIn('github_id', $this->dependencyContributors->get($user->handle))
             ->whereKeyNot($user->id)
             ->pluck('id')
             ->all();

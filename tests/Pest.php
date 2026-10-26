@@ -132,7 +132,7 @@ function fakeGitHubAccount(User $user, array $account = []): void
         "api.github.com/user/{$user->github_id}" => Http::response($account),
     ]);
 
-    fakeGitHubSshKeys(User::factory()->make(['github_id' => $user->github_id, 'username' => $account['login']]));
+    fakeGitHubSshKeys($user, handle: $account['login']);
 }
 
 /**
@@ -161,17 +161,19 @@ function fakeGitHubContributors(array $contributors): void
  * @param  list<SshPublicKey>  $keys
  * @param  list<SshPublicKey>  $signingKeys
  */
-function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = []): void
+function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = [], ?string $handle = null): void
 {
+    $handle ??= $user->handle;
+
     $toResponse = fn (array $publicKeys): array => array_map(
         fn (SshPublicKey $publicKey): array => ['id' => 1, 'key' => $publicKey->toOpenSsh()],
         $publicKeys,
     );
 
     Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
-        "api.github.com/users/{$user->username}/keys*" => Http::response($toResponse($keys)),
-        "api.github.com/users/{$user->username}/ssh_signing_keys*" => Http::response($toResponse($signingKeys)),
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $handle]),
+        "api.github.com/users/{$handle}/keys*" => Http::response($toResponse($keys)),
+        "api.github.com/users/{$handle}/ssh_signing_keys*" => Http::response($toResponse($signingKeys)),
     ]);
 }
 
@@ -182,14 +184,14 @@ function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = []
 function fakeGitHubFollows(User $user, array $following = [], array $followers = []): void
 {
     $toResponse = fn (array $users): array => array_map(
-        fn (User $user): array => ['id' => (int) $user->github_id, 'login' => $user->username],
+        fn (User $user): array => ['id' => (int) $user->github_id, 'login' => $user->handle],
         $users,
     );
 
     Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
-        "api.github.com/users/{$user->username}/following*" => Http::response($toResponse($following)),
-        "api.github.com/users/{$user->username}/followers*" => Http::response($toResponse($followers)),
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->handle]),
+        "api.github.com/users/{$user->handle}/following*" => Http::response($toResponse($following)),
+        "api.github.com/users/{$user->handle}/followers*" => Http::response($toResponse($followers)),
     ]);
 }
 
@@ -364,7 +366,7 @@ function createOrg(User $maintainer, array $members, ?string $name = 'dev/null c
 {
     return test()->actingAs($maintainer)->postJson(route('org.store'), [
         'name' => $name,
-        'members' => array_map(fn (User $member): string => $member->username, $members),
+        'members' => array_map(fn (User $member): string => $member->handle, $members),
     ])->assertCreated()->json('org.id');
 }
 
