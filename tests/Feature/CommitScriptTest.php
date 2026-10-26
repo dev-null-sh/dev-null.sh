@@ -101,18 +101,41 @@ it('commits with a key from ~/.ssh', function (): void {
 
     expect($result->exitCode())->toBe(0)
         ->and($result->output())->toBe("Committed.\n")
-        ->and(($this->calls)())->toContain("ssh-keygen -Y sign -n devnull-commit -f {$this->sandbox}/home/.ssh/id_ed25519 ")
+        ->and(($this->calls)())->toContain("ssh-keygen -Y sign -n devnull-commit-v2 -f {$this->sandbox}/home/.ssh/id_ed25519 ")
         ->and(File::get("{$this->sandbox}/sent-candidates"))->toBe($this->publicKey->toOpenSsh()."\n")
-        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n\nIt was DNS\.$/')
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n\ncli\n0\nIt was DNS\.$/')
         ->and(mb_substr_count(($this->calls)(), '--header Content-Type: text/plain; charset=utf-8'))->toBe(2)
-        ->and(($this->calls)())->toContain('--header Content-Type: text/plain; charset=utf-8 --header X-SSH-Signature: ');
+        ->and(($this->calls)())->toContain('--header Content-Type: text/plain; charset=utf-8 --header X-Devnull-Commit-Version: 2 --header X-SSH-Signature: ');
 });
 
 it('replies to a commit', function (): void {
     $result = ($this->runScript)($this->script, ['--reply', '0be0130', 'Agreed!']);
 
     expect($result->exitCode())->toBe(0)
-        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n0be0130\nAgreed!$/');
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n0be0130\ncli\n0\nAgreed!$/');
+});
+
+it('signs its source and AI declarations', function (): void {
+    $result = ($this->runScript)($this->script, ['--source', 'ci', '--ai', 'Generated release summary.']);
+
+    expect($result->exitCode())->toBe(0)
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n\nci\n1\nGenerated release summary\.$/');
+});
+
+it('rejects unsupported sources without sending anything', function (): void {
+    $result = ($this->runScript)($this->script, ['--source', 'bot', 'Summary.']);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->errorOutput())->toBe("devnull: --source must be cli or ci.\n")
+        ->and(($this->calls)())->toBe('');
+});
+
+it('explains the source and AI options without posting', function (): void {
+    $result = ($this->runScript)($this->script, ['--help']);
+
+    expect($result->exitCode())->toBe(0)
+        ->and($result->output())->toContain('--source cli|ci', '--ai')
+        ->and(($this->calls)())->toBe('');
 });
 
 it('requires a commit to reply to', function (): void {
@@ -146,7 +169,7 @@ it('signs through the ssh agent when it has the key', function (): void {
     $result = ($this->runScript)($this->script);
 
     expect($result->exitCode())->toBe(0)
-        ->and(($this->calls)())->toMatch('#ssh-keygen -Y sign -n devnull-commit -f '.preg_quote($this->sandbox, '#').'/tmp/devnull\.\w{10}/key\.pub #');
+        ->and(($this->calls)())->toMatch('#ssh-keygen -Y sign -n devnull-commit-v2 -f '.preg_quote($this->sandbox, '#').'/tmp/devnull\.\w{10}/key\.pub #');
 });
 
 it('only deletes its own temporary files', function (): void {
@@ -175,16 +198,18 @@ it('commits with images', function (): void {
 
     $result = ($this->runScript)($this->script, ['--reply', '0be0130', '--image', "{$this->sandbox}/home/first.png", '--image', "{$this->sandbox}/home/a b,c;d\"e.png", 'Shipped!']);
 
-    [, , $replyTo, $hashes, $message] = explode("\n", File::get("{$this->sandbox}/signed"), 5);
+    [, , $replyTo, $hashes, $source, $isAi, $message] = explode("\n", File::get("{$this->sandbox}/signed"), 7);
 
     expect($result->exitCode())->toBe(0)
         ->and($result->output())->toBe("Committed.\n")
         ->and($replyTo)->toBe('0be0130')
+        ->and($source)->toBe('cli')
+        ->and($isAi)->toBe('0')
         ->and($hashes)->toBe(hash('sha256', 'first image').','.hash('sha256', 'second image'))
         ->and($message)->toBe('Shipped!')
         ->and(File::get("{$this->sandbox}/sent-image-1"))->toBe('first image')
         ->and(File::get("{$this->sandbox}/sent-image-2"))->toBe('second image')
-        ->and(($this->calls)())->toContain('-n devnull-commit-images')
+        ->and(($this->calls)())->toContain('-n devnull-commit-images-v2')
         ->toContain('--max-time 600 --speed-limit 1024 --speed-time 60 ')
         ->toContain('--form payload=@commit --form images[]=@image-1 --form images[]=@image-2')
         ->and(mb_substr_count(($this->calls)(), 'Content-Type'))->toBe(1)

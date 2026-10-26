@@ -19,12 +19,13 @@ final readonly class LinkCommitsQuery
         return Commit::query()
             ->where('link_preview_id', $link->id)
             ->visibleTo($user)
+            ->withoutFilteredChannelsFor($user)
             ->withVisibleReplyCount($user)
             ->withReplyPreviews($user)
             ->withCardDataFor($user)
             ->with([
                 'parent' => function (BelongsTo $parent) use ($user): void {
-                    $parent->getQuery()->withTrashed()->visibleTo($user)->with('user');
+                    $parent->getQuery()->withTrashed()->visibleTo($user)->withVisibilityFor($user)->with('user');
                 },
             ])
             ->orderBy('commits.created_at')->orderBy('commits.id');

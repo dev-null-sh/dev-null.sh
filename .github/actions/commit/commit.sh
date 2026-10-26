@@ -28,7 +28,12 @@ main() {
     || fail "Could not load the ssh-key input: it must be a private Ed25519 or RSA key without a passphrase."
   unset DEVNULL_SSH_KEY
 
-  local arguments=()
+  local arguments=(--source ci)
+  case "${DEVNULL_AI:-false}" in
+    true) arguments+=(--ai) ;;
+    false) ;;
+    *) fail "The ai input must be true or false." ;;
+  esac
   if [ -n "${DEVNULL_REPLY_TO:-}" ]; then
     arguments+=(--reply "$DEVNULL_REPLY_TO")
   fi

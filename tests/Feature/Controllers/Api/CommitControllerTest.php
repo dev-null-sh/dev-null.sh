@@ -33,6 +33,8 @@ it('shows an approved commit to anyone', function (): void {
 
     $response->assertOk()
         ->assertExactJson(['data' => [
+            'channels' => [],
+            'is_filtered' => false,
             'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
             'short_hash' => 'e3f4a5b',
             'body' => 'Shipped the public API',
@@ -237,6 +239,8 @@ it('shows a signed request the commit as its page shows it to its user', functio
     $response->assertOk()
         ->assertExactJson([
             'data' => [
+                'channels' => [],
+                'is_filtered' => false,
                 'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
                 'short_hash' => 'e3f4a5b',
                 'body' => 'Ask @nunomaduro about `@Override`',
@@ -266,6 +270,8 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'poll' => null,
             ],
             'ancestors' => [[
+                'channels' => [],
+                'is_filtered' => false,
                 'id' => $root->id,
                 'short_hash' => mb_substr(str_replace('-', '', $root->id), -7),
                 'body' => 'Who broke prod?',
@@ -531,6 +537,38 @@ it('publishes the commits of admins right away', function (): void {
         ->assertCreated()
         ->assertJsonPath('data.status', 'approved');
 });
+
+it('stores explicit source and AI declarations from signed clients', function (?string $source, bool $isAi): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'Release summary.', 'source' => $source, 'is_ai' => $isAi])
+        ->assertCreated();
+
+    $commit = $user->commits()->sole();
+
+    expect($commit->source?->value)->toBe($source)
+        ->and($commit->is_ai)->toBe($isAi);
+})->with([
+    'AI client' => [null, true],
+    'terminal' => ['cli', false],
+    'AI workflow' => ['ci', true],
+]);
+
+it('rejects invalid source and AI declarations', function (array $declaration, string $field): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'Summary.', ...$declaration])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors($field);
+
+    expect($user->commits()->exists())->toBeFalse();
+})->with([
+    'bot is reserved' => [['source' => 'bot'], 'source'],
+    'AI is not a source' => [['source' => 'ai'], 'source'],
+    'AI flag must be boolean' => [['is_ai' => 'maybe'], 'is_ai'],
+]);
 
 it('replies to a commit from a signed request', function (): void {
     $user = User::factory()->create();

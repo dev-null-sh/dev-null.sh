@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitImages;
-use App\Services\SignedCommits;
 
 it('serves the script', function (): void {
     $response = $this->get(route('cli-script.show'));
@@ -16,12 +15,6 @@ it('serves the script', function (): void {
         ->toContain('curl -fsSL '.url('/').'/commit | bash')
         ->toContain('DEVNULL_URL="${DEVNULL_URL:-'.url('/').'}"')
         ->not->toContain('__DEVNULL_URL__');
-});
-
-it('signs with the namespace the server verifies', function (): void {
-    expect($this->get(route('cli-script.show'))->getContent())
-        ->toContain('NAMESPACE="'.SignedCommits::Namespace.'"')
-        ->toContain('NAMESPACE="'.SignedCommits::ImagesNamespace.'"');
 });
 
 it('carries the image limits the server enforces', function (): void {

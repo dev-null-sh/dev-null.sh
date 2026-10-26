@@ -15,6 +15,7 @@ final readonly class LatestLogQuery implements LogQuery
     {
         return Commit::query()
             ->visibleTo($user)
+            ->withoutFilteredChannelsFor($user)
             ->withoutMutedAuthorsFor($user)
             ->topLevel()
             ->withVisibleReplyCount($user)

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Dto\SshPublicKey;
+use App\Enums\CommitSource;
 use App\Jobs\UnfurlLink;
 use App\Models\SshKey;
 use App\Models\User;
@@ -97,11 +98,14 @@ it('commits with the key from the secret, signed so devnull accepts it', functio
     $this->call('POST', route('cli-commit.store'), server: [
         'CONTENT_TYPE' => 'text/plain; charset=utf-8',
         'HTTP_X_SSH_SIGNATURE' => File::get("{$this->sandbox}/sent-signature"),
+        'HTTP_X_DEVNULL_COMMIT_VERSION' => '2',
     ], content: File::get("{$this->sandbox}/sent-commit"))->assertCreated();
 
     $commit = $user->commits()->sole();
 
-    expect($commit->body)->toBe("Released v2.0.0.\n\nhttps://github.com/nunomaduro/pest/releases/tag/v2.0.0");
+    expect($commit->body)->toBe("Released v2.0.0.\n\nhttps://github.com/nunomaduro/pest/releases/tag/v2.0.0")
+        ->and($commit->source)->toBe(CommitSource::Ci)
+        ->and($commit->is_ai)->toBeFalse();
 
     Queue::assertPushed(UnfurlLink::class, fn (UnfurlLink $job): bool => $job->linkPreview->is($commit->linkPreview));
 });
@@ -110,7 +114,22 @@ it('replies to a commit', function (): void {
     $result = ($this->runAction)(['DEVNULL_REPLY_TO' => '0be0130', 'DEVNULL_BODY' => 'Agreed!']);
 
     expect($result->exitCode())->toBe(0)
-        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n0be0130\nAgreed!$/');
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n0be0130\nci\n0\nAgreed!$/');
+});
+
+it('declares generated workflow content as AI', function (): void {
+    $result = ($this->runAction)(['DEVNULL_AI' => 'true', 'DEVNULL_BODY' => 'Generated release summary.']);
+
+    expect($result->exitCode())->toBe(0)
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toMatch('/^\d+\n[0-9a-f]{32}\n\nci\n1\nGenerated release summary\.$/');
+});
+
+it('rejects an invalid AI input', function (): void {
+    $result = ($this->runAction)(['DEVNULL_AI' => 'maybe']);
+
+    expect($result->exitCode())->toBe(1)
+        ->and($result->output())->toBe("::error title=devnull::The ai input must be true or false.\n")
+        ->and(File::exists("{$this->sandbox}/sent-commit"))->toBeFalse();
 });
 
 it('attaches the images, one path per line, signed so devnull accepts them', function (): void {
@@ -128,7 +147,7 @@ it('attaches the images, one path per line, signed so devnull accepts them', fun
     expect($result->exitCode())->toBe(0)
         ->and(File::get("{$this->sandbox}/sent-image-1"))->toBe($first)
         ->and(File::get("{$this->sandbox}/sent-image-2"))->toBe($second)
-        ->and(File::get("{$this->sandbox}/sent-commit"))->toEndWith("\n".hash('sha256', $first).','.hash('sha256', $second)."\n--reply is not an option here");
+        ->and(File::get("{$this->sandbox}/sent-commit"))->toEndWith("\n".hash('sha256', $first).','.hash('sha256', $second)."\nci\n0\n--reply is not an option here");
 
     $user = User::factory()->create();
     SshKey::factory()->for($user)->withPublicKey($this->publicKey)->create();
@@ -143,6 +162,7 @@ it('attaches the images, one path per line, signed so devnull accepts them', fun
         ],
     ], server: [
         'HTTP_X_SSH_SIGNATURE' => File::get("{$this->sandbox}/sent-signature"),
+        'HTTP_X_DEVNULL_COMMIT_VERSION' => '2',
     ])->assertCreated();
 
     $commit = $user->commits()->sole();

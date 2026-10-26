@@ -8,7 +8,6 @@ use App\Http\Requests\ShowNotificationGroupRequest;
 use App\Http\Resources\NotificationResource;
 use App\Models\Notification;
 use App\Models\User;
-use App\Queries\CommitBuilder;
 use App\Queries\NotificationGroupsQuery;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -26,7 +25,7 @@ final readonly class NotificationGroupController
             ->with([
                 'commit.user',
                 'commit.parent' => fn (BelongsTo $query): BelongsTo => $query
-                    ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($user))
+                    ->visibleTo($user)->withVisibilityFor($user)
                     ->with('user'),
             ])
             ->latest()

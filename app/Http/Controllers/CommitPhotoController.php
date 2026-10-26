@@ -22,13 +22,14 @@ final readonly class CommitPhotoController
 {
     public function show(ShowCommitPhotoRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, int $photo, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies): RedirectResponse|Response
     {
-        if (! $currentUser instanceof User) {
+        if (! $currentUser instanceof User || $commit->isFilteredFor($currentUser)) {
             return to_route('commit.show', [$user, $commit]);
         }
 
         $focusedCommit = null;
         $getCommit = function () use (&$focusedCommit, $commit, $currentUser): Commit {
             return $focusedCommit ??= Commit::query()
+                ->withVisibilityFor($currentUser)
                 ->withVisibleReplyCount($currentUser)
                 ->withContinuationId($currentUser)
                 ->with(['user', 'linkPreview', 'images'])

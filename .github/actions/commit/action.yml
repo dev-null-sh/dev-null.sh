@@ -17,6 +17,10 @@ inputs:
     description: Paths of JPEG, PNG or WebP files to attach, one per line, up to 3.
     required: false
     default: ''
+  ai:
+    description: Whether an AI agent generated this commit on your behalf.
+    required: false
+    default: 'false'
   url:
     description: The devnull to commit to.
     required: false
@@ -32,5 +36,6 @@ runs:
         DEVNULL_SSH_KEY: ${{ inputs.ssh-key }}
         DEVNULL_REPLY_TO: ${{ inputs.reply-to }}
         DEVNULL_IMAGES: ${{ inputs.images }}
+        DEVNULL_AI: ${{ inputs.ai }}
         DEVNULL_URL: ${{ inputs.url }}
       run: bash "$GITHUB_ACTION_PATH/commit.sh"

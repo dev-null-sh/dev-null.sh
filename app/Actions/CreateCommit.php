@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Dto\NewPoll;
 use App\Dto\ThreadEngagement;
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
@@ -47,7 +48,7 @@ final readonly class CreateCommit
      * @param  list<UploadedFile>  $images
      * @param  array<int, string|null>  $imageDescriptions
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, ?CommitSource $source = null, bool $isAi = false): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -55,12 +56,14 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $source, $isAi): Commit {
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
 
             $commit = $user->commits()->create([
+                'source' => $source,
+                'is_ai' => $isAi,
                 'body' => $this->emojiShortcodes->replace($body),
                 'mentions' => $this->mentionedUsers->get($body),
                 'parent_id' => $parent?->id,

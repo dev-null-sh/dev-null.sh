@@ -5,6 +5,7 @@
         "allowImportingTsExtensions": true
     },
     "include": [
+        "Unit/CommitVisibility.test.tsx",
         "Unit/**/*.test.ts",
         "Unit/CommitPhoto.test.tsx",
         "Unit/DraftStash.test.tsx",

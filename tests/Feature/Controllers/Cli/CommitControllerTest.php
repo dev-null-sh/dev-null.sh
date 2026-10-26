@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Enums\ModerationReason;
 use App\Http\Middleware\AuthenticateSshSignature;
@@ -25,11 +26,12 @@ use Tests\Support\SshKeyPair;
 /**
  * @param  array{payload: string, signature: string}  $commit
  */
-function postSignedCommit(array $commit): TestResponse
+function postSignedCommit(array $commit, bool $withSource = false): TestResponse
 {
     return test()->call('POST', route('cli-commit.store'), server: [
         'CONTENT_TYPE' => 'text/plain; charset=utf-8',
         'HTTP_X_SSH_SIGNATURE' => $commit['signature'],
+        'HTTP_X_DEVNULL_COMMIT_VERSION' => $withSource ? '2' : '',
     ], content: $commit['payload']);
 }
 
@@ -76,7 +78,30 @@ it('creates a commit signed with an ssh key', function (): void {
         ->assertCookieMissing(config('session.cookie'));
 
     expect($commit->body)->toBe('It was DNS.')
+        ->and($commit->source)->toBeNull()
+        ->and($commit->is_ai)->toBeFalse()
         ->and($commit->status)->toBe(CommitStatus::Pending);
+});
+
+it('stores the signed source and AI declaration', function (CommitSource $source, bool $isAi): void {
+    postSignedCommit(signedCommit($this->keyPair, 'Release summary.', source: $source, isAi: $isAi), withSource: true)->assertCreated();
+
+    $commit = $this->user->commits()->sole();
+
+    expect($commit->source)->toBe($source)
+        ->and($commit->is_ai)->toBe($isAi)
+        ->and($commit->body)->toBe('Release summary.');
+})->with([
+    'terminal' => [CommitSource::Cli, false],
+    'AI terminal' => [CommitSource::Cli, true],
+    'workflow' => [CommitSource::Ci, false],
+    'AI workflow' => [CommitSource::Ci, true],
+]);
+
+it('cannot remove the source declaration by stripping its version header', function (): void {
+    postSignedCommit(signedCommit($this->keyPair, 'Release summary.', source: CommitSource::Ci, isAi: true))->assertUnauthorized();
+
+    expect($this->user->commits()->exists())->toBeFalse();
 });
 
 it('collapses runs of blank lines in a signed commit', function (): void {

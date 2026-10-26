@@ -2,6 +2,8 @@ import type { User } from '@/types/auth';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
 
+export type CommitChannel = 'cli' | 'ci' | 'ai' | 'bot';
+
 export type EmbedKind = 'video' | 'audio' | 'code';
 
 export type Embed = {
@@ -65,6 +67,8 @@ export type CommitTranslation = {
 
 export type Commit = {
     id: string;
+    channels?: CommitChannel[];
+    is_filtered?: boolean;
     user_id: string;
     parent_id: string | null;
     hot_score: number;
@@ -100,6 +104,8 @@ export type Commit = {
 export type QuotedCommit = Pick<
     Commit,
     | 'id'
+    | 'channels'
+    | 'is_filtered'
     | 'user_id'
     | 'body'
     | 'body_segments'

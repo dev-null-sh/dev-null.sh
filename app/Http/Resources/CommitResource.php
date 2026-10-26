@@ -52,8 +52,32 @@ final class CommitResource extends JsonResource
 
         $isSigned = $request->user() instanceof User;
 
+        if ($this->isFiltered) {
+            return [
+                'id' => $this->id,
+                'parent_id' => $this->parent_id,
+                'html_url' => route('commit.show', [$this->user, $this->resource]),
+                'created_at' => $this->created_at->toIso8601ZuluString(),
+                'author' => UserResource::make($this->user),
+                'channels' => $this->channels(),
+                'is_filtered' => true,
+                'body' => '',
+                'body_segments' => [],
+                'preview_segments' => null,
+                'deleted_at' => null,
+                'replies_count' => $this->whenCounted('replies'),
+                'continuation_id' => $this->whenHas('continuation_id'),
+                'reply_preview' => $this->whenLoaded('replyPreview', fn (Collection $replies): array => [
+                    'data' => self::collection($replies),
+                    'next_cursor' => data_get($this->getAttribute('reply_preview'), 'next_cursor'),
+                ]),
+            ];
+        }
+
         $commit = [
             'id' => $this->id,
+            'channels' => $this->channels(),
+            'is_filtered' => false,
             'short_hash' => mb_substr(str_replace('-', '', $this->id), -7),
             'body' => $this->body,
             'parent_id' => $isSigned ? $this->parent_id : $this->parent?->id,

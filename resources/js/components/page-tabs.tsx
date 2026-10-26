@@ -9,12 +9,14 @@ export function PageTabs({
     prefetch = true,
     only,
     reset,
+    scrollable = false,
 }: {
     label: string;
     preserveScroll?: boolean;
     prefetch?: boolean;
     only?: InertiaLinkProps['only'];
     reset?: string[];
+    scrollable?: boolean;
     tabs: {
         title: string;
         href: NonNullable<InertiaLinkProps['href']>;
@@ -24,7 +26,21 @@ export function PageTabs({
     const indicatorName = `tab-indicator-${label.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}`;
 
     return (
-        <nav aria-label={label} className="flex border-b">
+        <nav
+            aria-label={label}
+            className={cn('flex border-b', scrollable && 'overflow-x-auto')}
+            ref={(nav) => {
+                const active = nav?.querySelector<HTMLElement>(
+                    '[aria-current="page"]',
+                );
+                if (scrollable && nav && active) {
+                    nav.scrollLeft =
+                        active.offsetLeft -
+                        nav.offsetLeft -
+                        (nav.clientWidth - active.offsetWidth) / 2;
+                }
+            }}
+        >
             {tabs.map((tab) => (
                 <Link
                     key={tab.title}
@@ -42,6 +58,7 @@ export function PageTabs({
                     aria-current={tab.isActive ? 'page' : undefined}
                     className={cn(
                         'relative flex flex-1 justify-center text-[15px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
+                        scrollable && 'min-w-max shrink-0 px-3',
                         { 'text-foreground': tab.isActive },
                     )}
                 >

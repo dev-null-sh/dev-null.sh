@@ -37,6 +37,7 @@ final readonly class AuthenticateSshSignature
                 $withImages ? $this->payloadFile($request) : $request->getContent(),
                 $request->headers->get('X-SSH-Signature', '') ?? '',
                 $withImages ? fn (): array => $this->imageHashes($request) : null,
+                $request->header('X-Devnull-Commit-Version') === '2',
             );
         } catch (InvalidArgumentException $invalidArgumentException) {
             abort(401, $invalidArgumentException->getMessage());
@@ -49,6 +50,8 @@ final readonly class AuthenticateSshSignature
         $request->merge([
             'body' => $commit['body'],
             'reply_to' => $commit['reply_to'],
+            'source' => $commit['source']?->value,
+            'is_ai' => $commit['is_ai'],
         ]);
 
         // The body comes out of the signed payload only now, after the global middleware took NUL bytes out of the inputs.

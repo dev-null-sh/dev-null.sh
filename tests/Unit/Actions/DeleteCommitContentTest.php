@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\CreateCommitRestoration;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteCommitContent;
+use App\Enums\CommitSource;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
@@ -73,7 +74,7 @@ it('keeps the images of a commit deleted again within its new undo window', func
 });
 
 it('erases the content once the undo window has closed', function (): void {
-    $commit = Commit::factory()->create(['body' => 'Hello @taylor', 'mentions' => ['taylor'], 'link_preview_id' => LinkPreview::factory()]);
+    $commit = Commit::factory()->create(['source' => CommitSource::Cli, 'is_ai' => true, 'body' => 'Hello @taylor', 'mentions' => ['taylor'], 'link_preview_id' => LinkPreview::factory()]);
     $poll = Poll::factory()->withOptions('Yes', 'No')->create(['commit_id' => $commit->id]);
     resolve(DeleteCommit::class)->handle($commit);
     $this->travel(30)->seconds();
@@ -82,6 +83,8 @@ it('erases the content once the undo window has closed', function (): void {
 
     $commit = Commit::withTrashed()->findOrFail($commit->id);
     expect($commit)
+        ->source->toBeNull()
+        ->is_ai->toBeFalse()
         ->body->toBe('')
         ->mentions->toBeNull()
         ->link_preview_id->toBeNull()

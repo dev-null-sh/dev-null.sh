@@ -121,7 +121,10 @@ final readonly class NotificationGroupsQuery
 
     private function visible(User $user): NotificationBuilder
     {
-        return Notification::query()->where('recipient_id', $user->id)->relevant()->select('notifications.*');
+        return Notification::query()->where('recipient_id', $user->id)->relevant()
+            ->where(fn (Builder $query): Builder => $query->whereNull('commit_id')
+                ->orWhereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->withoutFilteredChannelsFor($user)))
+            ->select('notifications.*');
     }
 
     private function group(NotificationBuilder $visible, string $type = 'all', ?Notification $member = null): NotificationBuilder

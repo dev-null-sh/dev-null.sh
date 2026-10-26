@@ -23,7 +23,7 @@ const rules = [
         'One-word commits, "gm", "test", copy-pasted memes, and the same post over and over. Commit something a developer would want to read.',
     ],
     [
-        'No AI-generated posts',
+        'No undisclosed AI-generated posts',
         "Write your own commits. Generated threads, hot takes, and summaries passed off as your own don't belong here. Sharing code or output you got from a tool is fine; say so.",
     ],
     [

@@ -9,7 +9,6 @@ use App\Http\Requests\ListNotificationsRequest;
 use App\Http\Resources\NotificationResource;
 use App\Models\Notification;
 use App\Models\User;
-use App\Queries\CommitBuilder;
 use App\Queries\NotificationGroupsQuery;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Collection;
@@ -36,7 +35,7 @@ final readonly class NotificationController
         new Collection($items)->loadMissing([
             'commit.user',
             'commit.parent' => fn (BelongsTo $query): BelongsTo => $query
-                ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($user))
+                ->visibleTo($user)->withVisibilityFor($user)
                 ->with('user'),
         ]);
 

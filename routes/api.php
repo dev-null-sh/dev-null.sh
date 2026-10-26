@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\CommitPreviewController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CommitReportController;
 use App\Http\Controllers\Api\CommitStarController;
+use App\Http\Controllers\Api\CommitVisibilityController;
 use App\Http\Controllers\Api\ConversationArchiveController;
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\ConversationDropController;
@@ -44,6 +45,7 @@ use App\Http\Controllers\Api\RemoteCandidateController;
 use App\Http\Controllers\Api\StarredCommitController;
 use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
+use App\Http\Controllers\Api\UserCommitVisibilityController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserFollowController;
 use App\Http\Controllers\Api\UserFollowersController;
@@ -111,8 +113,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
+        Route::get('commits/{commit}/visibility', [CommitVisibilityController::class, 'show'])->name('api-commit-visibility.show');
+
         Route::get('me', [CurrentUserController::class, 'show'])->name('api-current-user.show');
         Route::delete('me', [CurrentUserController::class, 'destroy'])->name('api-current-user.destroy');
+
+        Route::get('me/commit-visibility', [UserCommitVisibilityController::class, 'show'])->name('api-user-commit-visibility.show');
+        Route::patch('me/commit-visibility', [UserCommitVisibilityController::class, 'update'])->name('api-user-commit-visibility.update');
 
         // Pastéis...
         Route::put('me/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('api-user-pasteis-mode.update');

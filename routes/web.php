@@ -32,6 +32,7 @@ use App\Http\Controllers\CommitStarController;
 use App\Http\Controllers\CommitStarCountController;
 use App\Http\Controllers\CommitStatusController;
 use App\Http\Controllers\CommitTranslationController;
+use App\Http\Controllers\CommitVisibilityController;
 use App\Http\Controllers\ConversationArchiveController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\ConversationDropController;
@@ -104,6 +105,7 @@ use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserAutomaticTranslationController;
 use App\Http\Controllers\UserBanController;
 use App\Http\Controllers\UserBlockController;
+use App\Http\Controllers\UserCommitVisibilityController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
@@ -240,6 +242,8 @@ Route::get('@{user:username}/commits/{commit}/og.png', [CommitOpenGraphImageCont
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('commits/{commit}/visibility', [CommitVisibilityController::class, 'show'])->middleware('auth')->name('commit-visibility.show');
+
 Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
     ->name('commit-link-preview.show');
 Route::get('commits/{commit}/status', [CommitStatusController::class, 'show'])
@@ -498,6 +502,9 @@ Route::middleware('auth')->group(function (): void {
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');
+
+    Route::get('settings/visibility', [UserCommitVisibilityController::class, 'edit'])->name('user-commit-visibility.edit');
+    Route::put('settings/visibility', [UserCommitVisibilityController::class, 'update'])->name('user-commit-visibility.update');
 
     // Terminal...
     Route::get('settings/terminal', fn () => Inertia::render('terminal/show', ['url' => url('/')]))->name('terminal.show');

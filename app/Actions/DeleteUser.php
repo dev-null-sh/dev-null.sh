@@ -59,7 +59,7 @@ final readonly class DeleteUser
             }
 
             $user->commits()->delete();
-            $user->commits()->withTrashed()->update(['user_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
+            $user->commits()->withTrashed()->update(['user_id' => null, 'body' => '', 'source' => null, 'is_ai' => false, 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
 
             $this->deleteOrgs->handle($this->emptyOrgs($user));
 

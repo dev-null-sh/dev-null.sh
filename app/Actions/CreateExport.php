@@ -34,7 +34,7 @@ use stdClass;
  * @phpstan-type UserExport array{
  *     schema_version: int,
  *     exported_at: string,
- *     profile: array<string, bool|int|string|null>,
+ *     profile: array<string, bool|int|string|list<string>|null>,
  *     commits: Generator<int, array<string, mixed>>,
  *     polls: Generator<int, ExportPoll>,
  *     poll_votes: Generator<int, ExportPollVote>,
@@ -81,6 +81,7 @@ final readonly class CreateExport
                 'preferred_lane' => $user->preferred_lane,
                 'timezone' => $user->timezone,
                 'show_local_time' => $user->show_local_time,
+                'hidden_commit_channels' => $user->hidden_commit_channels,
                 'translation_language' => $user->translation_language,
                 'automatic_translation' => $user->automatic_translation ?? true,
                 'lane_color' => $user->lane_color,
@@ -166,7 +167,7 @@ final readonly class CreateExport
     {
         $commits = $user->commits()
             ->withTrashed()
-            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
+            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'source', 'is_ai', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
             ->with('images:id,commit_id')
             ->lazyById(500);
 
@@ -183,6 +184,8 @@ final readonly class CreateExport
                     'body' => $commit->body,
                     'cached_translations' => $cached[$translations->key($commit)],
                     'status' => $commit->status->value,
+                    'source' => $commit->source?->value,
+                    'is_ai' => $commit->is_ai,
                     'pasteis_count' => $commit->pasteis_count,
                     'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
                     'created_at' => $commit->created_at->toIso8601String(),

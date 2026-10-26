@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Dto\NewPoll;
+use App\Enums\CommitSource;
 use App\Enums\PollDuration;
 use App\Models\Commit;
 use App\Models\User;
@@ -46,6 +47,8 @@ final class CreateApiCommitRequest extends FormRequest
 
         return [
             'body' => CreateCommitRequest::bodyRules($this->hasFile('images')),
+            'source' => ['nullable', new Enum(CommitSource::class)],
+            'is_ai' => ['sometimes', 'boolean'],
             'parent_id' => ['bail', 'nullable', 'uuid', new VisibleCommit($user)],
             'quoted_commit_id' => ['bail', 'nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, __('That commit is no longer available to quote.'))],
             'poll' => [...$attachmentRules['poll'], 'prohibits:quoted_commit_id'],

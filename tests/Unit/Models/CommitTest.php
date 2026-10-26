@@ -32,6 +32,8 @@ test('to array', function (): void {
             'body_segments',
             'preview_segments',
             'is_checking',
+            'is_filtered',
+            'channels',
         ]);
 });
 

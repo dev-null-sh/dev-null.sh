@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Pagination\Cursor;
+use Illuminate\Support\Collection as BaseCollection;
 
 /**
  * @extends Builder<Commit>
@@ -28,6 +29,7 @@ final class CommitBuilder extends Builder
     private const array COLUMNS_BUT_EMBEDDING = [
         'id', 'user_id', 'body', 'created_at', 'updated_at', 'status', 'parent_id', 'deleted_at', 'link_preview_id',
         'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count',
+        'source', 'is_ai',
     ];
 
     /**
@@ -81,6 +83,32 @@ final class CommitBuilder extends Builder
         return $user instanceof User ? $this->where(fn (Builder $query): Builder => $query
             ->whereNull($this->qualifyColumn('user_id'))
             ->orWhereNotIn($this->qualifyColumn('user_id'), $user->mutedIds())) : $this;
+    }
+
+    public function withoutFilteredChannelsFor(?User $viewer): self
+    {
+        if (! $viewer instanceof User || $viewer->hidden_commit_channels === []) {
+            return $this;
+        }
+
+        $sources = array_values(array_intersect($viewer->hidden_commit_channels, ['cli', 'ci']));
+
+        return $this->where(fn (self $query): self => $query
+            ->where($this->qualifyColumn('user_id'), $viewer->id)
+            ->orWhere(fn (self $query): self => $query
+                ->when($sources !== [], fn (self $query): self => $query->where(fn (self $query): self => $query
+                    ->whereNull($this->qualifyColumn('source'))
+                    ->orWhereNotIn($this->qualifyColumn('source'), $sources)))
+                ->when(in_array('ai', $viewer->hidden_commit_channels, true), fn (self $query): self => $query->where($this->qualifyColumn('is_ai'), false))));
+    }
+
+    public function withVisibilityFor(?User $viewer): self
+    {
+        return $this->afterQuery(function (BaseCollection $commits) use ($viewer): void {
+            foreach ($commits->whereInstanceOf(Commit::class) as $commit) {
+                $commit->isFiltered = $commit->isFilteredFor($viewer);
+            }
+        });
     }
 
     /**
@@ -194,7 +222,8 @@ final class CommitBuilder extends Builder
         return $this->with([
             'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withTrashed()
-                ->where(fn (self $query): self => $query->visibleTo($viewer))
+                ->visibleTo($viewer)
+                ->withVisibilityFor($viewer)
                 ->with(['user', 'linkPreview', 'images'])
                 ->withPollFor($viewer),
         ]);
@@ -271,6 +300,7 @@ final class CommitBuilder extends Builder
     public function withCardDataFor(?User $viewer): self
     {
         return $this
+            ->withVisibilityFor($viewer)
             ->with(['user', 'linkPreview', 'images'])
             ->withQuotedCommitFor($viewer)
             ->withStarsFor($viewer)

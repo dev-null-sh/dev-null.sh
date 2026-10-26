@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Dto\SshPublicKey;
+use App\Enums\CommitSource;
 use App\Jobs\UnfurlLink;
 use App\Models\Device;
 use App\Models\Message;
@@ -206,7 +207,7 @@ function fakeGitHubSponsorsListing(bool $hasSponsorsListing = false): void
  * @param  list<string>  $imageHashes
  * @return array{payload: string, signature: string}
  */
-function signedCommit(SshKeyPair $keyPair, string $body, ?int $timestamp = null, ?string $nonce = null, string $replyTo = '', array $imageHashes = []): array
+function signedCommit(SshKeyPair $keyPair, string $body, ?int $timestamp = null, ?string $nonce = null, string $replyTo = '', array $imageHashes = [], ?CommitSource $source = null, bool $isAi = false): array
 {
     $lines = [
         $timestamp ?? now()->getTimestamp(),
@@ -218,11 +219,18 @@ function signedCommit(SshKeyPair $keyPair, string $body, ?int $timestamp = null,
         $lines[] = implode(',', $imageHashes);
     }
 
+    if ($source instanceof CommitSource) {
+        $lines[] = $source->value;
+        $lines[] = $isAi ? '1' : '0';
+    }
+
     $lines[] = $body;
 
     $payload = implode("\n", $lines);
 
-    $namespace = $imageHashes === [] ? SignedCommits::Namespace : SignedCommits::ImagesNamespace;
+    $namespace = $source instanceof CommitSource
+        ? ($imageHashes === [] ? SignedCommits::SourceNamespace : SignedCommits::ImagesSourceNamespace)
+        : ($imageHashes === [] ? SignedCommits::Namespace : SignedCommits::ImagesNamespace);
 
     return ['payload' => $payload, 'signature' => $keyPair->sign($payload, $namespace)];
 }

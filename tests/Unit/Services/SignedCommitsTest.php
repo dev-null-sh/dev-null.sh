@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\CommitSource;
 use App\Models\SshKey;
 use App\Models\User;
 use App\Services\SignedCommits;
@@ -35,6 +36,36 @@ it('verifies a signed reply', function (): void {
     expect($commit['reply_to'])->toBe('0be0130')
         ->and($commit['body'])->toBe('Agreed!');
 });
+
+it('verifies signed source declarations with or without images', function (bool $withImages): void {
+    $hashes = $withImages ? [hash('sha256', 'release image')] : [];
+    ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, "Summary.\nWith details.", replyTo: '0be0130', imageHashes: $hashes, source: CommitSource::Ci, isAi: true);
+
+    $commit = resolve(SignedCommits::class)->verify($payload, $signature, $withImages ? fn (): array => $hashes : null, withSource: true);
+
+    expect($commit['source'])->toBe(CommitSource::Ci)
+        ->and($commit['is_ai'])->toBeTrue()
+        ->and($commit['reply_to'])->toBe('0be0130')
+        ->and($commit['body'])->toBe("Summary.\nWith details.");
+})->with([false, true]);
+
+it('rejects altered source and AI declarations', function (string $source, string $isAi): void {
+    ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'Summary.', source: CommitSource::Ci, isAi: true);
+    $changed = str_replace("\nci\n1\n", "\n{$source}\n{$isAi}\n", $payload);
+
+    expect(fn (): array => resolve(SignedCommits::class)->verify($changed, $signature, withSource: true))
+        ->toThrow(InvalidArgumentException::class, 'Invalid signature.');
+})->with([
+    'source' => ['cli', '1'],
+    'AI declaration' => ['ci', '0'],
+]);
+
+it('rejects malformed source declarations even when signed', function (string $declaration): void {
+    $payload = now()->getTimestamp()."\n".bin2hex(random_bytes(16))."\n\n{$declaration}\nSummary.";
+
+    expect(fn (): array => resolve(SignedCommits::class)->verify($payload, $this->keyPair->sign($payload, SignedCommits::SourceNamespace), withSource: true))
+        ->toThrow(InvalidArgumentException::class, 'Malformed payload.');
+})->with(['bot\n0', "bot\n0", "ci\ntrue", "cli\n", 'cli']);
 
 it('verifies a signed commit with images', function (): void {
     $hashes = [hash('sha256', 'first image'), hash('sha256', 'second image')];

@@ -18,12 +18,13 @@ final readonly class StarredCommitsQuery
             ->select('commits.*')
             ->addSelect('stars.created_at as starred_order')
             ->visibleTo($user)
+            ->withoutFilteredChannelsFor($user)
             ->withVisibleReplyCount($user)
             ->withReplyPreviews($user)
             ->withCardDataFor($user)
             ->with([
                 'parent' => function (BelongsTo $parent) use ($user): void {
-                    $parent->getQuery()->withTrashed()->visibleTo($user)->with('user');
+                    $parent->getQuery()->withTrashed()->visibleTo($user)->withVisibilityFor($user)->with('user');
                 },
             ])
             ->orderByDesc('starred_order')->orderByDesc('commits.id');

@@ -7,6 +7,7 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Ai\Agents\CommitTranslator;
 use App\Dto\ThreadEngagement;
+use App\Enums\CommitSource;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Conversation;
@@ -87,8 +88,10 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
         'body' => "@{$mentioned->username} have a look at https://example.com",
         'mentions' => [$mentioned->username => $mentioned->id],
         'embedding' => embeddingVector(0),
+        'source' => CommitSource::Ci,
+        'is_ai' => true,
     ]);
-    $deletedReply = Commit::factory()->for($user)->for($commit, 'parent')->create();
+    $deletedReply = Commit::factory()->for($user)->for($commit, 'parent')->create(['source' => CommitSource::Cli, 'is_ai' => true]);
     Commit::factory()->for($reply, 'parent')->create();
     Commit::factory()->for($deletedReply, 'parent')->create();
     $deletedReply->delete();
@@ -101,7 +104,9 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
         ->and($tombstones->pluck('body')->all())->toBe(['', ''])
         ->and($tombstones->pluck('mentions')->all())->toBe([null, null])
         ->and($tombstones->pluck('embedding')->all())->toBe([null, null])
-        ->and($tombstones->pluck('link_preview_id')->all())->toBe([null, null]);
+        ->and($tombstones->pluck('link_preview_id')->all())->toBe([null, null])
+        ->and($tombstones->pluck('source')->all())->toBe([null, null])
+        ->and($tombstones->pluck('is_ai')->all())->toBe([false, false]);
 });
 
 it('erases what deleted accounts wrote from the tombstones they already left', function (): void {

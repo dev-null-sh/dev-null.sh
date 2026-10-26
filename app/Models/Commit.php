@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Queries\CommitBuilder;
 use App\Services\CommitBodies;
@@ -29,6 +30,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string|null $root_id
  * @property-read float $hot_score
  * @property-read string $body
+ * @property-read CommitSource|null $source
+ * @property-read bool $is_ai
  * @property-read array<string, string>|null $mentions
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
@@ -59,6 +62,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'ai_decision',
     'ai_categories',
     'embedding',
+    'source',
+    'is_ai',
 ])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -88,10 +93,13 @@ final class Commit extends Model
 
     public const int PREVIEW_LINES = 8;
 
+    public bool $isFiltered = false;
+
     /**
      * @var array<string, mixed>
      */
     protected $attributes = [
+        'is_ai' => false,
         'pasteis_count' => 0,
     ];
 
@@ -113,6 +121,8 @@ final class Commit extends Model
             'hot_score' => 'float',
             'pasteis_count' => 'integer',
             'body' => 'string',
+            'source' => CommitSource::class,
+            'is_ai' => 'boolean',
             'mentions' => 'array',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
@@ -141,11 +151,47 @@ final class Commit extends Model
             return array_intersect_key($this->attributesToArray(), array_flip($keys));
         }
 
+        if ($this->isFiltered) {
+            return [
+                ...parent::toArray(),
+                'is_filtered' => true,
+                'channels' => $this->channels(),
+                'body' => '',
+                'body_segments' => [],
+                'preview_segments' => null,
+                'mentions' => null,
+                'images' => [],
+                'poll' => null,
+                'link_preview' => null,
+                'link_preview_id' => null,
+                'quoted_commit' => null,
+                'translation' => null,
+                'is_checking' => false,
+            ];
+        }
+
         if ($this->segments === null || $this->isDirty('body')) {
             $this->segments = resolve(CommitBodies::class)->segments($this->body);
         }
 
-        return [...parent::toArray(), ...$this->segments, 'is_checking' => $this->isBeingChecked()];
+        return [...parent::toArray(), ...$this->segments, 'is_checking' => $this->isBeingChecked(), 'is_filtered' => false, 'channels' => $this->channels()];
+    }
+
+    /** @return list<string> */
+    public function channels(): array
+    {
+        if ($this->relationLoaded('user') && in_array($this->user?->github_id, User::BOT_GITHUB_IDS, true)) {
+            return $this->parent_id === null ? [] : ['bot'];
+        }
+
+        return array_values(array_filter([$this->source?->value, $this->is_ai ? 'ai' : null]));
+    }
+
+    public function isFilteredFor(?User $viewer): bool
+    {
+        return $viewer instanceof User && $viewer->id !== $this->user_id
+            && (($this->source !== null && in_array($this->source->value, $viewer->hidden_commit_channels, true))
+                || ($this->is_ai && in_array('ai', $viewer->hidden_commit_channels, true)));
     }
 
     /**

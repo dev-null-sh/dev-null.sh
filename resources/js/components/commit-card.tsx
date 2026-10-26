@@ -5,6 +5,7 @@ import { useCallback, useContext, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { CommitChannelBadges } from '@/components/commit-channel-badges';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
@@ -19,6 +20,10 @@ import {
     useThread,
 } from '@/components/commit-thread';
 import { useCommitTranslation } from '@/components/commit-translation';
+import {
+    FilteredCommit,
+    useCommitVisibility,
+} from '@/components/filtered-commit';
 import {
     GraphDimmed,
     GraphScope,
@@ -69,7 +74,7 @@ import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
 
 export function CommitCard({
-    commit,
+    commit: originalCommit,
     previousLane,
     isDimmed = false,
     isPreviousDimmed = false,
@@ -116,6 +121,8 @@ export function CommitCard({
     exceptReplyId?: string;
     threadPosition?: ThreadPosition;
 }) {
+    const visibility = useCommitVisibility(originalCommit);
+    const commit = visibility.commit;
     const {
         props: { auth },
         component,
@@ -382,6 +389,10 @@ export function CommitCard({
                                     </Link>
                                 </TimestampTooltip>
 
+                                <CommitChannelBadges
+                                    channels={commit.channels}
+                                />
+
                                 <ThreadPositionBadge
                                     threadPosition={threadPosition}
                                 />
@@ -452,47 +463,64 @@ export function CommitCard({
                                     replying to @{commit.parent.user.username}
                                 </Link>
                             )}
-                            <div ref={bodyRef} style={translation.bodyStyle}>
-                                <FoldedCommitBody
-                                    segments={translation.segments}
-                                    mentions={commit.mentions}
-                                    previewSegments={
-                                        isFolded && !isFocused
-                                            ? translation.previewSegments
-                                            : null
-                                    }
-                                    className={cn(
-                                        'mt-0.5',
-                                        isFocused
-                                            ? 'text-[17px]'
-                                            : 'text-[15px]',
+                            {commit.is_filtered ? (
+                                <FilteredCommit
+                                    isReply={commit.parent_id !== null}
+                                    processing={visibility.processing}
+                                    onReveal={() => void visibility.reveal()}
+                                />
+                            ) : (
+                                <>
+                                    <div
+                                        ref={bodyRef}
+                                        style={translation.bodyStyle}
+                                    >
+                                        <FoldedCommitBody
+                                            segments={translation.segments}
+                                            mentions={commit.mentions}
+                                            previewSegments={
+                                                isFolded && !isFocused
+                                                    ? translation.previewSegments
+                                                    : null
+                                            }
+                                            className={cn(
+                                                'mt-0.5',
+                                                isFocused
+                                                    ? 'text-[17px]'
+                                                    : 'text-[15px]',
+                                            )}
+                                        />
+                                    </div>
+                                    {translation.notice}
+                                    {showImages && (
+                                        <CommitImages commit={commit} />
                                     )}
-                                />
-                            </div>
-                            {translation.notice}
-                            {showImages && <CommitImages commit={commit} />}
-                            {commit.poll && (
-                                <CommitPoll
-                                    key={`${commit.poll.id}-${commit.poll.has_voted}-${commit.poll.total_votes}`}
-                                    commit={commit}
-                                    poll={commit.poll}
-                                />
-                            )}
-                            {commit.quoted_commit_id !== null && (
-                                <QuotedCommit
-                                    commit={commit.quoted_commit ?? null}
-                                />
-                            )}
-                            {commit.link_preview &&
-                                commit.link_preview.url !==
-                                    hiddenLinkPreviewUrl && (
-                                    <LinkPreview
-                                        refreshUrl={CommitLinkPreviewController.show.url(
-                                            commit.id,
+                                    {commit.poll && (
+                                        <CommitPoll
+                                            key={`${commit.poll.id}-${commit.poll.has_voted}-${commit.poll.total_votes}`}
+                                            commit={commit}
+                                            poll={commit.poll}
+                                        />
+                                    )}
+                                    {commit.quoted_commit_id !== null && (
+                                        <QuotedCommit
+                                            commit={
+                                                commit.quoted_commit ?? null
+                                            }
+                                        />
+                                    )}
+                                    {commit.link_preview &&
+                                        commit.link_preview.url !==
+                                            hiddenLinkPreviewUrl && (
+                                            <LinkPreview
+                                                refreshUrl={CommitLinkPreviewController.show.url(
+                                                    commit.id,
+                                                )}
+                                                preview={commit.link_preview}
+                                            />
                                         )}
-                                        preview={commit.link_preview}
-                                    />
-                                )}
+                                </>
+                            )}
                             {isFocused && (
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
                                     <TimestampTooltip
@@ -520,30 +548,9 @@ export function CommitCard({
                             {!isFocused && <ShowThreadLink thread={thread} />}
 
                             {commit.replies_count === undefined ? (
-                                <div className="mt-1 -ml-2 flex flex-wrap items-center justify-between gap-0.5 text-[13px] not-has-[button]:hidden">
-                                    <div className="flex flex-wrap items-center gap-0.5">
-                                        <CommitStarButton
-                                            commit={commit}
-                                            className="px-2 py-0.5"
-                                        />
-                                        <CommitPastelButton
-                                            commit={commit}
-                                            className="px-2 py-0.5"
-                                        />
-                                        <CommitQuoteButton
-                                            commit={commit}
-                                            keyShortcut="q"
-                                        />
-                                        {translation.button}
-                                    </div>
-                                    <CommitSecondaryActions commit={commit} />
-                                </div>
-                            ) : (
-                                <ThreadActions
-                                    thread={thread}
-                                    hasKeyboardShortcuts
-                                    actions={
-                                        <>
+                                !commit.is_filtered && (
+                                    <div className="mt-1 -ml-2 flex flex-wrap items-center justify-between gap-0.5 text-[13px] not-has-[button]:hidden">
+                                        <div className="flex flex-wrap items-center gap-0.5">
                                             <CommitStarButton
                                                 commit={commit}
                                                 className="px-2 py-0.5"
@@ -557,13 +564,40 @@ export function CommitCard({
                                                 keyShortcut="q"
                                             />
                                             {translation.button}
-                                            {threadActions}
-                                        </>
+                                        </div>
+                                        <CommitSecondaryActions
+                                            commit={commit}
+                                        />
+                                    </div>
+                                )
+                            ) : (
+                                <ThreadActions
+                                    thread={thread}
+                                    hasKeyboardShortcuts
+                                    actions={
+                                        !commit.is_filtered && (
+                                            <>
+                                                <CommitStarButton
+                                                    commit={commit}
+                                                    className="px-2 py-0.5"
+                                                />
+                                                <CommitPastelButton
+                                                    commit={commit}
+                                                    className="px-2 py-0.5"
+                                                />
+                                                <CommitQuoteButton
+                                                    commit={commit}
+                                                    keyShortcut="q"
+                                                />
+                                                {translation.button}
+                                                {threadActions}
+                                            </>
+                                        )
                                     }
                                 />
                             )}
 
-                            {actions}
+                            {!commit.is_filtered && actions}
 
                             {deletion === 'deleting' && (
                                 <p

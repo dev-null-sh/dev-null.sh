@@ -120,6 +120,7 @@ final readonly class TheAlgorithm
             ->topLevel()
             ->where('commits.created_at', '>=', now()->subDays(self::CANDIDATE_MAX_AGE_DAYS))
             ->visibleTo($viewer)
+            ->withoutFilteredChannelsFor($viewer)
             ->withoutMutedAuthorsFor($viewer)
             ->select('commits.id as drawn_id')
             ->selectRaw(

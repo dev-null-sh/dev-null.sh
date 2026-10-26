@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
+use App\Enums\CommitSource;
 use App\Http\Requests\CreateApiCommitRequest;
 use App\Http\Requests\DeleteApiCommitRequest;
 use App\Http\Requests\ShowApiCommitRequest;
@@ -45,7 +46,7 @@ final readonly class CommitController
      */
     public function store(CreateApiCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, CommitPageQuery $page): JsonResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit(), $request->images(), $request->imageDescriptions(), poll: $request->poll());
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit(), $request->images(), $request->imageDescriptions(), poll: $request->poll(), source: $request->enum('source', CommitSource::class), isAi: $request->boolean('is_ai'));
 
         return CommitResource::make($page->get($commit, $user))
             ->response()

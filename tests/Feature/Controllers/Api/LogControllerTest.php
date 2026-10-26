@@ -48,6 +48,8 @@ it('lists the latest commits of everyone, newest first', function (): void {
 
     expect(collect($response->json('data.1'))->except('reply_preview')->all())->toBe([
         'id' => $older->id,
+        'channels' => [],
+        'is_filtered' => false,
         'short_hash' => mb_substr(str_replace('-', '', $older->id), -7),
         'body' => 'It was DNS.',
         'parent_id' => null,

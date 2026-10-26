@@ -5,10 +5,12 @@
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- 'Hello world!'
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --reply 0be0130 'Agreed!'
 #   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --image shipped.png 'Shipped!'
+#   curl -fsSL __DEVNULL_URL__/commit | bash -s -- --ai 'An agent wrote this update.'
 #
 # `--reply` takes the hash of a commit (as shown on /dev/null) or its link. `--image` takes the
 # path of a JPEG, PNG or WebP file of up to 10 MB, up to 3 times. A `--` ends the options,
-# for a message that starts with one of them.
+# for a message that starts with one of them. Terminal commits are labeled cli; workflows use
+# `--source ci`. Agents posting on your behalf must add `--ai` to disclose generated content.
 #
 # There is no login: your commit is signed locally with an SSH key that is on your GitHub
 # account, and /dev/null checks the signature against the public keys GitHub publishes for you.
@@ -17,7 +19,7 @@
 #   1. Lists your public keys (`ssh-add -L` and ~/.ssh/*.pub) and asks /dev/null which one is
 #      on your GitHub account. Public keys are public: GitHub publishes them too.
 #   2. Signs your message (and the SHA-256 of each image) with that key, using `ssh-keygen -Y sign`
-#      with the "devnull-commit" namespace ("devnull-commit-images" when images are attached): the
+#      with the "devnull-commit-v2" namespace ("devnull-commit-images-v2" when images are attached): the
 #      signature is only valid for /dev/null commits, it can't be used to sign git commits or to
 #      log in anywhere.
 #   3. Sends the message, the images, and the signature to /dev/null.
@@ -35,7 +37,7 @@ umask 077
 
 main() {
   DEVNULL_URL="${DEVNULL_URL:-__DEVNULL_URL__}"
-  NAMESPACE="devnull-commit"
+  NAMESPACE="devnull-commit-v2"
 
   case "$DEVNULL_URL" in
     https://*) PROTOCOLS="=https" ;;
@@ -49,9 +51,23 @@ main() {
   done
 
   local reply_to=""
+  local source="cli" is_ai=0
   local images=()
   while :; do
     case "${1:-}" in
+      --help)
+        printf '%s\n' "Usage: curl -fsSL $DEVNULL_URL/commit | bash -s -- [--reply <hash or link>] [--image <path>] [--source cli|ci] [--ai] 'Your commit'" \
+          'Terminal commits use cli. Workflows use --source ci. Agents posting on your behalf must declare --ai.'
+        return
+        ;;
+      --source)
+        case "${2:-}" in cli|ci) source="$2" ;; *) fail "--source must be cli or ci." ;; esac
+        shift 2
+        ;;
+      --ai)
+        is_ai=1
+        shift
+        ;;
       --reply)
         [ -n "${2:-}" ] || fail "Usage: curl -fsSL $DEVNULL_URL/commit | bash -s -- --reply <commit hash or link> 'Your reply'"
         [ -z "$reply_to" ] || fail "--reply can only be given once."
@@ -74,7 +90,7 @@ main() {
   local has_images=false
   if [ "${#images[@]}" -gt 0 ]; then
     has_images=true
-    NAMESPACE="devnull-commit-images"
+    NAMESPACE="devnull-commit-images-v2"
   fi
 
   # It goes on its own line of the signed payload.
@@ -167,9 +183,9 @@ main() {
   local nonce
   nonce="$(od -An -N16 -tx1 /dev/urandom | tr -d ' \n')"
   if $has_images; then
-    printf '%s\n%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$hashes" "$message" > "$TMP_DIR/commit"
+    printf '%s\n%s\n%s\n%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$hashes" "$source" "$is_ai" "$message" > "$TMP_DIR/commit"
   else
-    printf '%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$message" > "$TMP_DIR/commit"
+    printf '%s\n%s\n%s\n%s\n%s\n%s' "$(date +%s)" "$nonce" "$reply_to" "$source" "$is_ai" "$message" > "$TMP_DIR/commit"
   fi
 
   # Passphrase prompts go to /dev/tty: keep ssh-keygen away from stdin, which is this script.
@@ -190,10 +206,10 @@ main() {
   # runs from inside the private directory, so curl's --form parser, which gives , ; and " special
   # meaning, only ever sees the fixed file names, never a path.
   if $has_images; then
-    (cd "$TMP_DIR" && request --max-time 600 --speed-limit 1024 --speed-time 60 --header "X-SSH-Signature: $signature" \
+    (cd "$TMP_DIR" && request --max-time 600 --speed-limit 1024 --speed-time 60 --header 'X-Devnull-Commit-Version: 2' --header "X-SSH-Signature: $signature" \
       --form "payload=@commit" "${image_fields[@]}" "$DEVNULL_URL/api/cli/commits") || exit 1
   else
-    request --header 'Content-Type: text/plain; charset=utf-8' --header "X-SSH-Signature: $signature" \
+    request --header 'Content-Type: text/plain; charset=utf-8' --header 'X-Devnull-Commit-Version: 2' --header "X-SSH-Signature: $signature" \
       --data-binary @"$TMP_DIR/commit" "$DEVNULL_URL/api/cli/commits"
   fi
   sanitize < "$TMP_DIR/response"

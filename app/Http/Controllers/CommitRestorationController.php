@@ -23,8 +23,8 @@ final readonly class CommitRestorationController
             'user',
             'linkPreview',
             'images',
-            'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibleReplyCount($user)->withContinuationId($user)->with(['user', 'linkPreview', 'images'])->withPollFor($user),
-            'parent' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibleReplyCount($user)->withContinuationId($user)->with('user'),
+            'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibilityFor($user)->withVisibleReplyCount($user)->withContinuationId($user)->with(['user', 'linkPreview', 'images'])->withPollFor($user),
+            'parent' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibilityFor($user)->withVisibleReplyCount($user)->withContinuationId($user)->with('user'),
         ])->findOrFail($commit->id);
 
         Inertia::flash('restored', $restored->setAttribute('is_pinned', $restored->user?->pinned_commit_id === $restored->id));

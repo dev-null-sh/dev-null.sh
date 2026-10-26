@@ -49,6 +49,7 @@ use Illuminate\Support\Facades\DB;
  * @property-read string|null $translation_language
  * @property-read string|null $timezone
  * @property-read bool $show_local_time
+ * @property-read list<string> $hidden_commit_channels
  * @property-read LivePlatform|null $live_platform
  * @property-read string|null $live_url
  * @property-read CarbonInterface|null $live_ends_at
@@ -88,6 +89,7 @@ use Illuminate\Support\Facades\DB;
     'remember_token',
     'translation_language',
     'automatic_translation',
+    'hidden_commit_channels',
     'preferred_lane',
     'lane_color',
     'pasteis_mode',
@@ -134,6 +136,7 @@ final class User extends Authenticatable
      * @var array<string, mixed>
      */
     protected $attributes = [
+        'hidden_commit_channels' => '[]',
         'log' => Log::Following->value,
         'translation_language' => null,
         'show_local_time' => false,
@@ -167,6 +170,7 @@ final class User extends Authenticatable
     public function casts(): array
     {
         return [
+            'hidden_commit_channels' => 'array',
             'id' => 'string',
             'github_id' => 'string',
             'username' => 'string',

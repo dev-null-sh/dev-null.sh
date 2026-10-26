@@ -64,6 +64,11 @@ final class HandleInertiaRequests extends Middleware
     {
         $isAdmin = $request->user()?->isAdmin() ?? false;
         $user = $request->user();
+
+        if ($user instanceof User) {
+            Inertia::encryptHistory();
+        }
+
         $showsWhoToFollow = $user instanceof User && $request->cookie('who_to_follow') !== 'false';
         $context = match (true) {
             $request->routeIs('user.show') => $request->route('user'),

@@ -58,6 +58,8 @@ it('lists the notifications of the user, newest first', function (): void {
             'unread_count' => 0,
             'commit' => [
                 'id' => $reply->id,
+                'channels' => [],
+                'is_filtered' => false,
                 'short_hash' => mb_substr(str_replace('-', '', $reply->id), -7),
                 'body' => $reply->body,
                 'parent_id' => $reply->parent_id,
@@ -73,6 +75,8 @@ it('lists the notifications of the user, newest first', function (): void {
                 'deleted_at' => null,
                 'parent' => [
                     'id' => $reply->parent->id,
+                    'channels' => [],
+                    'is_filtered' => false,
                     'short_hash' => mb_substr(str_replace('-', '', $reply->parent->id), -7),
                     'body' => $reply->parent->body,
                     'parent_id' => null,

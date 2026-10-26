@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Enums\CommitSource;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitByReferenceQuery;
@@ -37,6 +38,8 @@ final class CreateCliCommitRequest extends FormRequest
         return [
             'body' => CreateCommitRequest::bodyRules(),
             'reply_to' => ['nullable', 'string', new CommitReference($user)],
+            'source' => ['nullable', new Enum(CommitSource::class)],
+            'is_ai' => ['required', 'boolean'],
             'images' => $attachmentRules['images'],
             'images.*' => $attachmentRules['images.*'],
         ];

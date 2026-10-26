@@ -14,6 +14,7 @@ export default function SettingsLayout({ children }: PropsWithChildren) {
                 </h1>
                 <PageTabs
                     label="Settings"
+                    scrollable
                     tabs={settingsTabs.map((tab) => ({
                         ...tab,
                         isActive: isCurrentUrl(tab.href),

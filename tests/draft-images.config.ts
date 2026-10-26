@@ -12,6 +12,7 @@ export default defineConfig({
             VITE_APP_NAME: '/dev/null',
         },
         include: [
+            'tests/Unit/CommitVisibility.test.tsx',
             'tests/Unit/CommitPhoto.test.tsx',
             'tests/Unit/CommitSize.test.tsx',
             'tests/Unit/ThreadHistory.test.tsx',

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Actions\CreateCommitImages;
+use App\Enums\CommitSource;
 use App\Models\User;
 use Closure;
 use InvalidArgumentException;
@@ -15,13 +16,18 @@ use InvalidArgumentException;
  * The signed payload is "<unix timestamp>\n<nonce>\n<commit to reply to, or empty>\n<body>". A commit
  * with images is signed under its own namespace, so the signature states which format it covers, and
  * carries one more line before the body: the comma-separated SHA-256 of each image, in the order
- * they are attached, so the signature covers the images as well as the text.
+ * they are attached, so the signature covers the images as well as the text. Version two adds the source and
+ * AI declaration before the body, under distinct namespaces so removing the version cannot remove the declaration.
  */
 final readonly class SignedCommits
 {
     public const string Namespace = 'devnull-commit';
 
     public const string ImagesNamespace = 'devnull-commit-images';
+
+    public const string SourceNamespace = 'devnull-commit-v2';
+
+    public const string ImagesSourceNamespace = 'devnull-commit-images-v2';
 
     public function __construct(private SshSignatures $sshSignatures)
     {
@@ -30,18 +36,34 @@ final readonly class SignedCommits
 
     /**
      * @param  (Closure(): list<string>)|null  $imageHashes
-     * @return array{user: User, reply_to: string|null, body: string}
+     * @return array{user: User, reply_to: string|null, body: string, source: CommitSource|null, is_ai: bool}
      */
-    public function verify(string $payload, string $signature, ?Closure $imageHashes = null): array
+    public function verify(string $payload, string $signature, ?Closure $imageHashes = null, bool $withSource = false): array
     {
         $withImages = $imageHashes instanceof Closure;
 
-        $publicKey = $this->sshSignatures->verify($payload, $signature, $withImages ? self::ImagesNamespace : self::Namespace);
+        $namespace = $withSource
+            ? ($withImages ? self::ImagesSourceNamespace : self::SourceNamespace)
+            : ($withImages ? self::ImagesNamespace : self::Namespace);
+        $publicKey = $this->sshSignatures->verify($payload, $signature, $namespace);
 
-        $lines = $withImages ? 5 : 4;
+        $lines = ($withImages ? 5 : 4) + ($withSource ? 2 : 0);
         $parts = explode("\n", $payload, $lines);
 
         throw_if(count($parts) !== $lines || ! mb_check_encoding($payload, 'UTF-8'), InvalidArgumentException::class, 'Malformed payload.');
+
+        $source = null;
+        $isAi = false;
+
+        if ($withSource) {
+            [$declaredSource, $declaredAi, $body] = array_splice($parts, $withImages ? 4 : 3);
+            $source = CommitSource::tryFrom($declaredSource);
+
+            throw_if($source === null || ! in_array($declaredAi, ['0', '1'], true), InvalidArgumentException::class, 'Malformed payload.');
+
+            $isAi = $declaredAi === '1';
+            $parts[] = $body;
+        }
 
         if ($withImages) {
             [$timestamp, $nonce, $replyTo, $signedHashes, $body] = $parts;
@@ -76,6 +98,8 @@ final readonly class SignedCommits
             'user' => $user,
             'reply_to' => $replyTo === '' ? null : $replyTo,
             'body' => mb_trim($body),
+            'source' => $source,
+            'is_ai' => $isAi,
         ];
     }
 }

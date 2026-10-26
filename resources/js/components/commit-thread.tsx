@@ -22,6 +22,7 @@ import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyCon
 import { ActionTooltip } from '@/components/action-tooltip';
 import { BodyCounter } from '@/components/body-counter';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { CommitChannelBadges } from '@/components/commit-channel-badges';
 import {
     ImageDropOverlay,
     ImagePickerButton,
@@ -40,6 +41,10 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import {
+    FilteredCommit,
+    useCommitVisibility,
+} from '@/components/filtered-commit';
 import {
     graphDash,
     graphStrokeWidth,
@@ -570,6 +575,7 @@ export function ThreadActions({
 }) {
     const { auth } = usePage().props;
     const { commit } = thread;
+    const isFiltered = !isDeleted(commit) && commit.is_filtered === true;
     const hasStash = useHasStash(auth.user?.id ?? null, `reply-${commit.id}`);
     const hasReplyShortcut = hasKeyboardShortcuts && !thread.isReplying;
 
@@ -579,7 +585,7 @@ export function ThreadActions({
                 <div className="flex flex-wrap items-center gap-0.5 max-md:contents">
                     {actions}
 
-                    {!isDeleted(commit) && (
+                    {!isDeleted(commit) && !isFiltered && (
                         <ActionTooltip
                             label="Reply"
                             shortcut={hasReplyShortcut ? 'r' : undefined}
@@ -655,7 +661,7 @@ export function ThreadActions({
                     )}
                 </div>
 
-                {!isDeleted(commit) && (
+                {!isDeleted(commit) && !isFiltered && (
                     <CommitSecondaryActions
                         commit={commit}
                         keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
@@ -663,7 +669,7 @@ export function ThreadActions({
                 )}
             </div>
 
-            {thread.isReplying && !isDeleted(commit) && (
+            {thread.isReplying && !isDeleted(commit) && !isFiltered && (
                 <ReplyComposer
                     parent={commit}
                     onCancel={thread.cancelReply}
@@ -1046,7 +1052,7 @@ function ReplyItem({
 }
 
 function CommitReply({
-    reply,
+    reply: originalReply,
     parent,
     depth,
     links,
@@ -1062,6 +1068,8 @@ function CommitReply({
     nodeRef: (element: HTMLElement | null) => void;
     onDeleted: () => void;
 }) {
+    const visibility = useCommitVisibility(originalReply);
+    const reply = visibility.commit;
     const { auth } = usePage().props;
     const now = useNow();
     const hiddenLinkPreviewUrl = useContext(HiddenLinkPreviewContext);
@@ -1213,6 +1221,7 @@ function CommitReply({
                                 </time>
                             </Link>
                         </TimestampTooltip>
+                        <CommitChannelBadges channels={reply.channels} />
                         <CommitStatusBadge commit={reply} size="small" />
                         {isOwn && (
                             <Tooltip>
@@ -1243,25 +1252,38 @@ function CommitReply({
                         </p>
                     )}
 
-                    <div ref={bodyRef} style={translation.bodyStyle}>
-                        <FoldedCommitBody
-                            segments={translation.segments}
-                            mentions={reply.mentions}
-                            previewSegments={translation.previewSegments}
-                            className="text-[15px]"
+                    {reply.is_filtered ? (
+                        <FilteredCommit
+                            isReply
+                            processing={visibility.processing}
+                            onReveal={() => void visibility.reveal()}
                         />
-                    </div>
-                    {translation.notice}
-                    <CommitImages commit={reply} />
-                    {reply.link_preview &&
-                        reply.link_preview.url !== hiddenLinkPreviewUrl && (
-                            <LinkPreview
-                                refreshUrl={CommitLinkPreviewController.show.url(
-                                    reply.id,
+                    ) : (
+                        <>
+                            <div ref={bodyRef} style={translation.bodyStyle}>
+                                <FoldedCommitBody
+                                    segments={translation.segments}
+                                    mentions={reply.mentions}
+                                    previewSegments={
+                                        translation.previewSegments
+                                    }
+                                    className="text-[15px]"
+                                />
+                            </div>
+                            {translation.notice}
+                            <CommitImages commit={reply} />
+                            {reply.link_preview &&
+                                reply.link_preview.url !==
+                                    hiddenLinkPreviewUrl && (
+                                    <LinkPreview
+                                        refreshUrl={CommitLinkPreviewController.show.url(
+                                            reply.id,
+                                        )}
+                                        preview={reply.link_preview}
+                                    />
                                 )}
-                                preview={reply.link_preview}
-                            />
-                        )}
+                        </>
+                    )}
                     <ShowThreadLink thread={thread} />
 
                     {isConfirming ? (
@@ -1288,19 +1310,21 @@ function CommitReply({
                         </div>
                     ) : (
                         <ThreadActions
-                            thread={thread}
+                            thread={{ ...thread, commit: reply }}
                             actions={
-                                <>
-                                    <CommitStarButton
-                                        commit={reply}
-                                        className="px-2 py-0.5"
-                                    />
-                                    <CommitPastelButton
-                                        commit={reply}
-                                        className="px-2 py-0.5"
-                                    />
-                                    {translation.button}
-                                </>
+                                !reply.is_filtered && (
+                                    <>
+                                        <CommitStarButton
+                                            commit={reply}
+                                            className="px-2 py-0.5"
+                                        />
+                                        <CommitPastelButton
+                                            commit={reply}
+                                            className="px-2 py-0.5"
+                                        />
+                                        {translation.button}
+                                    </>
+                                )
                             }
                         />
                     )}

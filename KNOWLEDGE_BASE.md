@@ -17,6 +17,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Following, Latest, and Trending logs](#following-latest-and-trending-logs)
   - [Searching developers and commits](#searching-developers-and-commits)
   - [Writing commits](#writing-commits)
+  - [Commit badges and visibility](#commit-badges-and-visibility)
   - [Translating commits](#translating-commits)
   - [Code, emoji, and mentions](#code-emoji-and-mentions)
   - [Draft previews](#draft-previews)
@@ -183,6 +184,23 @@ A **commit** is a post on /dev/null, not a Git commit in a repository. Open the 
 Commits, replies, quotes, scheduling, terminal submissions, and app (signed API) commits share a limit of 10 attempts per minute per user. Posts go through [moderation](#moderation), so a newly submitted commit may be pending rather than public immediately.
 
 Sources: [composer](resources/js/components/commit-composer.tsx), [commit model](app/Models/Commit.php), [commit validation](app/Http/Requests/CreateCommitRequest.php), [text normalization](app/Services/CommitBodies.php), [submission throttle](app/Http/Middleware/ThrottleCommits.php).
+
+### Commit badges and visibility
+
+Small badges identify a commit's source or how its content was produced:
+
+- **cli** means it was posted through the terminal client.
+- **ci** means it was posted through a workflow. A workflow that invokes the terminal script gets **ci**, without a second **cli** badge.
+- **ai** means an AI agent generated content on a person's behalf. It can appear alongside **cli** or **ci**.
+- **bot** identifies Tom's and World's replies. Their replies are excluded from **ai**, and **bot** has no visibility setting.
+
+Website, API, and native-app submissions have no separate source badges by default. Sources and AI content are declared by the submitting client, not guessed from the text. Existing commits and submissions from older clients remain unclassified.
+
+Under **Settings → Visibility**, choose whether to show terminal, workflow, and AI-generated commits. All three are shown by default. These preferences belong to your account and apply across devices, including logs, profiles, search, starred commits, notifications, and signed API responses. A commit matching any category you hide is filtered, while your own commits remain visible to you.
+
+Filtered top-level commits disappear from lists. In a thread, filtered replies keep their place, with a message explaining that your visibility settings hid them; visible replies beneath them remain accessible. Quoted commits and direct links show a placeholder too. Choose **Show reply** or **Show commit** to reveal that individual commit temporarily without changing your saved preferences. These are personal reading preferences, not privacy controls: the public commit remains available to other people.
+
+Sources: [commit model](app/Models/Commit.php), [visibility settings](resources/js/pages/commit-visibility/edit.tsx), [badges](resources/js/components/commit-channel-badges.tsx), [filtered commits](resources/js/components/filtered-commit.tsx), [visibility settings action](app/Actions/UpdateUserCommitVisibility.php).
 
 Livestream history: the team settled on calling posts **commits** and their list a **log** on [day one at 2:56:00](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=10560s). At [3:02:19](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=10939s), they agreed to rename the post model too, rather than changing only the UI. These are naming decisions, not timestamps proving the rename had finished.
 
@@ -446,6 +464,8 @@ Source: [shortcut reference](resources/js/components/keyboard-shortcuts-dialog.t
 
 Settings → Terminal shows how to post using the `/commit` shell script. It signs the submission locally with an Ed25519 or RSA SSH key whose public half is on your GitHub account, as an authentication or a signing key, and /dev/null verifies that signature. No browser login or API token is required for that submission; your private key is not uploaded. The script can create commits, reply with `--reply` using a commit hash or link, and attach up to three images with `--image`, without descriptions.
 
+Terminal submissions are labeled **cli** by default. Add **`--ai`** when an agent generates a commit on your behalf. Workflows that call the script directly should add **`--source ci`**; combine it with **`--ai`** when the workflow publishes generated content. Use **`--help`** to see the options. These declarations are signed with the commit.
+
 Before posting from the terminal or a GitHub Action, accept the [commit rules](#moderation) by making your first submission through the web composer. Terminal posts then follow the same moderation and 10-per-minute submission limit as browser posts, and always need 1–4,000 characters of text, even with images. Their first link supplies the default link card. Review a downloaded script before running it, and never paste a private key into a commit.
 
 Sources: [terminal instructions](resources/js/pages/terminal/show.tsx), [CLI routes](routes/api.php), [signature verification](app/Http/Middleware/AuthenticateSshSignature.php).
@@ -455,6 +475,8 @@ Livestream history: terminal posting was reported working on [day one at 6:32:47
 ### GitHub Actions integration
 
 Use `dev-null-sh/dev-null.sh/.github/actions/commit@production` to publish updates from a GitHub workflow, for example when a release is published. Settings → Terminal includes a workflow example. The action accepts a commit body, an SSH private key supplied through a GitHub Actions secret, an optional `reply-to` reference, optional image paths (up to three), and an optional `url` for another /dev/null instance.
+
+The action labels its commits **ci** automatically. Set its optional **`ai`** input to **`'true'`** when an agent generated the content on your behalf; it defaults to **`'false'`**. Generated workflow content carries both **ci** and **ai**.
 
 Generate a dedicated CI key, add its public half to GitHub as a signing or authentication key, and store the private half only in the repository's encrypted secrets. The action supports Ed25519 or RSA keys without a passphrase. It reports the created commit's link and whether it is pending review as a workflow annotation; it has no step outputs, and a refused submission fails the job. The usual moderation and submission limits still apply.
 
@@ -486,7 +508,10 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - switch Pastéis mode and give pastéis;
 - report commits;
 - sync from GitHub and save your lane color;
+- read and update your commit visibility preferences, and reveal an individually filtered commit;
 - delete your account.
+
+Signed commit creation accepts optional **`source`** (`cli` or `ci`) and **`is_ai`** (a boolean) declarations. Without a source declaration, API and app commits have no source badge. **bot** is reserved for Tom and World. Read or update the hidden categories through **`GET`** or **`PATCH /api/v1/me/commit-visibility`**, using **`hidden_commit_channels`** with any of `cli`, `ci`, and `ai`. A signed **`GET /api/v1/commits/{commit}/visibility`** reveals an individual filtered commit without changing those preferences; normal visibility and block rules still apply.
 
 Signed request bodies are JSON, or multipart when they carry images or a voice note, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Scheduling, search, and translations remain web-only. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
 
@@ -553,7 +578,7 @@ Ordinary photos of children are not prohibited just because a child appears in t
 
 Posts awaiting automated checks stay pending if those checks fail; a failed check never approves a post.
 
-Before you first commit, reply, quote, or schedule a commit, the web composer shows the commit rules, and keeps showing them on every attempt until you send with "Got it, commit": no engagement bait, no low-effort posts, no AI-generated posts, no spam or self-promotion, and no harassment, hate, or private information, followed by a link to the terms. Your first submission must come from the web so you can accept these rules; terminal, GitHub Action, and app posting become available afterwards.
+Before you first commit, reply, quote, or schedule a commit, the web composer shows the commit rules, and keeps showing them on every attempt until you send with "Got it, commit": no engagement bait, no low-effort posts, no undisclosed AI-generated posts, no spam or self-promotion, and no harassment, hate, or private information, followed by a link to the terms. Disclose generated content rather than presenting it as your own writing. Your first submission must come from the web so you can accept these rules; terminal, GitHub Action, and app posting become available afterwards.
 
 During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, send remotes, or start, rename, add people to, or pin messages in orgs from any surface; each attempt says how long is left and why. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
 
