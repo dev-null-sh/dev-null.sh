@@ -67,6 +67,9 @@ final readonly class AuthenticateSignedRequest
             throw new ApiException(ApiErrorCode::DeviceNotApproved, __("This key isn't approved for the /dev/null app. Sign in again in the app."));
         }
 
+        // A banned user can still delete their account from the app, and nothing else...
+        throw_if($device->user->isBanned() && ! $request->routeIs('api-current-user.destroy'), ApiException::banned());
+
         Auth::setUser($device->user);
 
         return $next($request);

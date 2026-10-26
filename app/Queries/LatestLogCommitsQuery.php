@@ -25,4 +25,19 @@ final readonly class LatestLogCommitsQuery
             ->when($user, fn (CommitBuilder $query, User $user): CommitBuilder => $query->where($query->qualifyColumn('user_id'), '!=', $user->id))
             ->count();
     }
+
+    /**
+     * @param  list<string>  $pending
+     * @return list<string>
+     */
+    public function missing(Log $log, ?User $user, array $pending): array
+    {
+        if ($pending === [] || $log->isRanked()) {
+            return [];
+        }
+
+        $visible = $log->query()->builder($user)->whereKey($pending)->toBase()->select('commits.id')->reorder()->pluck('commits.id');
+
+        return array_values(collect($pending)->reject(fn (string $id): bool => $visible->contains($id))->all());
+    }
 }

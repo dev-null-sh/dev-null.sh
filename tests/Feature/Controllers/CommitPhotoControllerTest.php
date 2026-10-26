@@ -116,7 +116,7 @@ it('does not show a photo of a deleted commit', function (): void {
     $response->assertNotFound();
 });
 
-it('does not show a photo of a commit under another username', function (): void {
+it('does not show a photo of a commit under another handle', function (): void {
     $commit = commitWithPhotos();
 
     $response = $this->actingAs(User::factory()->create())

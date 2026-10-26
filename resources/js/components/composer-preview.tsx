@@ -32,7 +32,7 @@ export type ComposerPreview = ReturnType<typeof useComposerPreview>;
 /**
  * Switches a composer between writing and previewing its draft as the commit it becomes. The draft is rendered right
  * away, and its code blocks are highlighted and its mentions linked once the server, the only place code is
- * highlighted and usernames are looked up, sends them back.
+ * highlighted and handles are looked up, sends them back.
  */
 export function useComposerPreview({
     body,
@@ -152,7 +152,7 @@ export function PreviewToggle({
                 type="button"
                 variant="ghost"
                 size="icon"
-                onClick={() => preview.toggle()}
+                onClick={() => preview.toggle(true)}
                 aria-pressed={preview.isPreviewing}
                 aria-label="Preview"
                 aria-keyshortcuts="Meta+Shift+P Control+Shift+P"
@@ -189,6 +189,7 @@ export function ComposerPreviewBody({
             aria-label="Preview"
             onKeyDown={preview.onPreviewKeyDown}
             className={cn('min-w-0 outline-none', className)}
+            data-composer-preview
             data-test="composer-preview"
         >
             {preview.segments.length > 0 ? (

@@ -5,7 +5,10 @@ declare(strict_types=1);
 use App\Enums\OrgEvent;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\MessageImage;
+use App\Models\MessageVoice;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 
 it('adds people with or without the history', function (bool $sharesHistory, int $visible): void {
     $mark = User::factory()->create();
@@ -13,7 +16,7 @@ it('adds people with or without the history', function (bool $sharesHistory, int
     $org = createOrg($mark, [$nuno]);
     pushToOrg($mark, $org, 'before taylor joined');
 
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => $sharesHistory])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => $sharesHistory])->assertNoContent();
 
     $messages = collect($this->actingAs($taylor)->getJson(route('org-message.index', $org))->json('messages'));
 
@@ -31,13 +34,13 @@ it('lets only maintainers add, up to a hundred', function (): void {
     [$last, $extra] = array_slice($followers, -2);
     $org = createOrg($mark, array_slice($followers, 0, -2));
 
-    $this->actingAs($followers[0])->postJson(route('org-member.store', $org), ['members' => [$last->username], 'share_history' => true])->assertForbidden();
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$last->username, $extra->username], 'share_history' => true])
+    $this->actingAs($followers[0])->postJson(route('org-member.store', $org), ['members' => [$last->handle], 'share_history' => true])->assertForbidden();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$last->handle, $extra->handle], 'share_history' => true])
         ->assertUnprocessable()->assertJsonValidationErrors('members');
     $this->postJson(route('org-member.store', $org), ['members' => ['nobody-by-that-name'], 'share_history' => true])
         ->assertUnprocessable()->assertJsonValidationErrors('members.0');
-    $this->postJson(route('org-member.store', $org), ['members' => [$last->username], 'share_history' => true])->assertNoContent();
-    $this->postJson(route('org-member.store', $org), ['members' => [$extra->username], 'share_history' => true])
+    $this->postJson(route('org-member.store', $org), ['members' => [$last->handle], 'share_history' => true])->assertNoContent();
+    $this->postJson(route('org-member.store', $org), ['members' => [$extra->handle], 'share_history' => true])
         ->assertUnprocessable()->assertJsonValidationErrors(['members.0' => 'the org is full ('.Conversation::MAX_MEMBERS.')']);
 });
 
@@ -96,5 +99,27 @@ it('hides membership changes from people outside the org', function (): void {
 
     $this->actingAs($stranger)->deleteJson(route('org-member.destroy', [$org, $nuno]))->assertNotFound();
     $this->putJson(route('org-member.update', [$org, $nuno]), ['role' => 'maintainer'])->assertNotFound();
-    $this->postJson(route('org-member.store', $org), ['members' => [$stranger->username], 'share_history' => true])->assertNotFound();
+    $this->postJson(route('org-member.store', $org), ['members' => [$stranger->handle], 'share_history' => true])->assertNotFound();
+});
+
+it('erases the images and voice notes of an org everyone has left', function (): void {
+    Storage::fake();
+
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    $image = MessageImage::factory()->for(pushToOrg($mark, $org))->create();
+    $voice = MessageVoice::factory()->for(pushToOrg($nuno, $org))->create();
+    Storage::disk()->put($image->path, 'image');
+    Storage::disk()->put($voice->path, 'voice');
+    $elsewhere = MessageVoice::factory()->create();
+    Storage::disk()->put($elsewhere->path, 'voice');
+
+    $this->actingAs($nuno)->deleteJson(route('org-member.destroy', [$org, $nuno]))->assertNoContent();
+
+    expect(Storage::disk()->allFiles())->toHaveCount(3);
+
+    $this->actingAs($mark)->deleteJson(route('org-member.destroy', [$org, $mark]))->assertNoContent();
+
+    expect(Storage::disk()->allFiles())->toBe([$elsewhere->path]);
 });

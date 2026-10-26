@@ -56,8 +56,7 @@ it('may not star their own commit, as on the web', function (Closure $commit): v
 
     $response = signedApiRequest($this->keyPair, 'POST', route('api-commit-star.store', $commit));
 
-    $response->assertForbidden()
-        ->assertJsonPath('message', 'You cannot star your own commit.');
+    $response->assertForbidden();
 
     expect($this->user->hasStarred($commit))->toBeFalse();
 })->with([

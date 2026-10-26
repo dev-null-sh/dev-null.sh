@@ -12,20 +12,26 @@ use App\Enums\Log;
 use App\Enums\RemotesFrom;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 
 /**
  * @property-read string $id
  * @property-read string $github_id
- * @property-read string $username
+ * @property-read string $handle
  * @property-read string $name
  * @property-read string|null $email
  * @property-read string|null $avatar_url
@@ -44,8 +50,10 @@ use Illuminate\Support\Facades\DB;
  * @property-read int $pasteis_given_today
  * @property-read CarbonInterface|null $pasteis_given_on
  * @property-read string|null $pinned_commit_id
+ * @property-read bool|null $automatic_translation
  * @property-read string|null $translation_language
  * @property-read string|null $timezone
+ * @property-read bool $show_local_time
  * @property-read LivePlatform|null $live_platform
  * @property-read string|null $live_url
  * @property-read CarbonInterface|null $live_ends_at
@@ -55,6 +63,10 @@ use Illuminate\Support\Facades\DB;
  * @property-read string|null $remember_token
  * @property-read CarbonInterface|null $github_synced_at
  * @property-read CarbonInterface|null $last_seen_at
+ * @property-read CarbonInterface|null $banned_at
+ * @property-read CarbonInterface|null $terms_accepted_at
+ * @property-read CarbonInterface|null $commit_rules_accepted_at
+ * @property-read CarbonInterface|null $emails_unsubscribed_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Collection<int, Commit> $commits
@@ -69,26 +81,32 @@ use Illuminate\Support\Facades\DB;
  * @property-read Collection<int, SshKey> $sshKeys
  * @property-read Collection<int, PollVote> $pollVotes
  * @property-read Collection<int, Device> $devices
+ * @property-read Collection<int, UserTimeout> $timeouts
+ * @property-read Ban|null $ban
+ * @property-read Profile $profile
  * @property-read int $commits_count
+ * @property-read int $timeouts_count
  * @property-read int $following_count
  * @property-read int $followers_count
  */
 #[Hidden([
+    'profile',
     'github_id',
     'email',
     'remember_token',
     'translation_language',
+    'automatic_translation',
     'preferred_lane',
     'lane_color',
     'pasteis_mode',
     'remotes_enabled',
+    'pushSubscriptions',
     'remotes_from',
     'pull_receipts',
     'pasteis_received',
     'pasteis_given_today',
     'pasteis_given_on',
     'pinned_commit_id',
-    'github_synced_at',
     'log',
     'onboarded_at',
     'github_follows_imported_at',
@@ -96,6 +114,10 @@ use Illuminate\Support\Facades\DB;
     'live_url',
     'live_ends_at',
     'last_seen_at',
+    'banned_at',
+    'commit_rules_accepted_at',
+    'terms_accepted_at',
+    'emails_unsubscribed_at',
 ])]
 final class User extends Authenticatable
 {
@@ -117,11 +139,19 @@ final class User extends Authenticatable
     public const array BOT_GITHUB_IDS = [CreateTomFriendship::GITHUB_ID, CreateWorldReply::GITHUB_ID];
 
     /**
+     * Every user shows their GitHub identity, so their profile comes with them.
+     *
+     * @var list<string>
+     */
+    protected $with = ['profile'];
+
+    /**
      * @var array<string, mixed>
      */
     protected $attributes = [
         'log' => Log::Following->value,
         'translation_language' => null,
+        'show_local_time' => false,
         'pasteis_mode' => false,
         'remotes_enabled' => true,
         'remotes_from' => RemotesFrom::Following->value,
@@ -133,6 +163,10 @@ final class User extends Authenticatable
         'live_url' => null,
         'live_ends_at' => null,
         'last_seen_at' => null,
+        'banned_at' => null,
+        'commit_rules_accepted_at' => null,
+        'terms_accepted_at' => null,
+        'emails_unsubscribed_at' => null,
     ];
 
     /**
@@ -151,13 +185,7 @@ final class User extends Authenticatable
         return [
             'id' => 'string',
             'github_id' => 'string',
-            'username' => 'string',
-            'name' => 'string',
             'email' => 'string',
-            'avatar_url' => 'string',
-            'bio' => 'string',
-            'location' => 'string',
-            'website' => 'string',
             'company' => 'string',
             'has_sponsors_listing' => 'boolean',
             'preferred_lane' => 'integer',
@@ -171,7 +199,9 @@ final class User extends Authenticatable
             'pasteis_given_on' => 'date',
             'pinned_commit_id' => 'string',
             'timezone' => 'string',
+            'show_local_time' => 'boolean',
             'translation_language' => 'encrypted',
+            'automatic_translation' => 'boolean',
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',
@@ -179,11 +209,38 @@ final class User extends Authenticatable
             'live_platform' => LivePlatform::class,
             'live_url' => 'string',
             'live_ends_at' => 'datetime',
-            'github_synced_at' => 'datetime',
             'last_seen_at' => 'date',
+            'banned_at' => 'datetime',
+            'commit_rules_accepted_at' => 'datetime',
+            'terms_accepted_at' => 'datetime',
+            'emails_unsubscribed_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    /**
+     * The GitHub account the user signed in with never changes, so it links the user to their profile.
+     *
+     * @return BelongsTo<Profile, $this>
+     */
+    public function profile(): BelongsTo
+    {
+        return $this->belongsTo(Profile::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * Resolves "@handle" URLs through the profile, which holds the handle.
+     *
+     * @param  Model|BuilderContract|Relation<Model, Model, mixed>  $query
+     * @param  mixed  $value
+     * @param  string|null  $field
+     */
+    public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
+    {
+        return $field === 'handle'
+            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('github_id')->where('handle', $value), 'github_id')
+            : parent::resolveRouteBindingQuery($query, $value, $field);
     }
 
     /**
@@ -192,18 +249,6 @@ final class User extends Authenticatable
     public function commits(): HasMany
     {
         return $this->hasMany(Commit::class);
-    }
-
-    /**
-     * Reports keep an author in moderation for seven days, even if the reported commit is deleted.
-     */
-    public function hasRecentReports(): bool
-    {
-        return CommitReport::query()
-            ->whereNull('dismissed_at')
-            ->where('created_at', '>=', now()->subWeek())
-            ->whereIn('commit_id', $this->commits()->withTrashed()->select('id'))
-            ->exists();
     }
 
     /**
@@ -233,11 +278,56 @@ final class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<PushSubscription, $this>
+     */
+    public function pushSubscriptions(): HasMany
+    {
+        return $this->hasMany(PushSubscription::class);
+    }
+
+    /**
      * @return HasMany<Device, $this>
      */
     public function devices(): HasMany
     {
         return $this->hasMany(Device::class);
+    }
+
+    /**
+     * Timeouts go by GitHub account, like bans, so they outlive the user and still apply if the same account signs up
+     * again.
+     *
+     * @return HasMany<UserTimeout, $this>
+     */
+    public function timeouts(): HasMany
+    {
+        return $this->hasMany(UserTimeout::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * The timeout the user is in right now, the one that ends last if moderators gave more than one.
+     */
+    public function activeTimeout(): ?UserTimeout
+    {
+        return $this->timeouts()->where('ends_at', '>', now())->latest('ends_at')->first();
+    }
+
+    /**
+     * Bans go by GitHub account, so they outlive the user and still apply if the same account signs up again.
+     *
+     * @return HasOne<Ban, $this>
+     */
+    public function ban(): HasOne
+    {
+        return $this->hasOne(Ban::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * Read from the user rather than the ban, since it's checked on every request.
+     */
+    public function isBanned(): bool
+    {
+        return $this->banned_at !== null;
     }
 
     /**
@@ -280,6 +370,14 @@ final class User extends Authenticatable
     /**
      * @return BelongsToMany<User, $this>
      */
+    public function dismissedSuggestions(): BelongsToMany
+    {
+        return $this->belongsToMany(self::class, 'suggestion_dismissals', 'user_id', 'dismissed_id')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
     public function mutedBy(): BelongsToMany
     {
         return $this->belongsToMany(self::class, 'mutes', 'muted_id', 'muter_id')->withTimestamps();
@@ -317,6 +415,14 @@ final class User extends Authenticatable
         return '';
     }
 
+    /**
+     * Whether they have accepted the terms and privacy policy as they stand now.
+     */
+    public function hasAcceptedCurrentTerms(): bool
+    {
+        return $this->terms_accepted_at?->gte(config()->string('legal.terms_version')) ?? false;
+    }
+
     public function isOnboarded(): bool
     {
         return $this->onboarded_at !== null;
@@ -327,7 +433,7 @@ final class User extends Authenticatable
         /** @var list<string> $admins */
         $admins = config('app.admins');
 
-        return in_array(mb_strtolower($this->username), array_map(mb_strtolower(...), $admins), true);
+        return in_array(mb_strtolower($this->handle), array_map(mb_strtolower(...), $admins), true);
     }
 
     /**
@@ -369,20 +475,20 @@ final class User extends Authenticatable
      */
     public function openGraphIdentity(): array
     {
-        return [$this->name, $this->username, $this->avatar_url, $this->lane()];
+        return [$this->name, $this->handle, $this->avatar_url, $this->lane()];
     }
 
     public function mention(): string
     {
-        return '@'.$this->username;
+        return '@'.$this->handle;
     }
 
     /**
-     * How link previews title the user, without repeating a name that is just the username.
+     * How link previews title the user, without repeating a name that is just the handle.
      */
     public function nameWithHandle(): string
     {
-        return $this->name === $this->username ? $this->mention() : $this->name.' ('.$this->mention().')';
+        return $this->name === $this->handle ? $this->mention() : $this->name.' ('.$this->mention().')';
     }
 
     public function isFollowing(self $user): bool
@@ -492,6 +598,13 @@ final class User extends Authenticatable
     public function toArray(): array
     {
         return [
+            'id' => $this->id,
+            'handle' => $this->handle,
+            'name' => $this->name,
+            'avatar_url' => $this->avatar_url,
+            'bio' => $this->bio,
+            'location' => $this->location,
+            'website' => $this->website,
             ...parent::toArray(),
             'lane' => $this->lane(),
             'has_github_account' => $this->hasGitHubAccount(),
@@ -515,6 +628,26 @@ final class User extends Authenticatable
     public function hasGitHubAccount(): bool
     {
         return $this->github_id !== CreateTomFriendship::GITHUB_ID;
+    }
+
+    /**
+     * The GitHub identity lives on the profile: it reads through, and only the profile changes it.
+     *
+     * @param  string  $key
+     */
+    public function getAttribute($key): mixed
+    {
+        return in_array($key, Profile::USER_ATTRIBUTES, true) ? $this->profile->getAttribute($key) : parent::getAttribute($key);
+    }
+
+    /**
+     * @param  string  $key
+     */
+    public function setAttribute($key, $value): mixed
+    {
+        throw_if(in_array($key, Profile::USER_ATTRIBUTES, true), LogicException::class, "Update the {$key} of a user on their profile.");
+
+        return parent::setAttribute($key, $value);
     }
 
     private function fillCounts(int $commits): self

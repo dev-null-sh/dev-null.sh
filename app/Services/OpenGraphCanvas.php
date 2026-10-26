@@ -173,13 +173,13 @@ final readonly class OpenGraphCanvas
     }
 
     /**
-     * The user's name as Geist can draw it, or their username when nothing is left.
+     * The user's name as Geist can draw it, or their handle when nothing is left.
      */
     public function name(User $user): string
     {
         $name = $this->clean($user->name);
 
-        return $name === '' ? $user->username : $name;
+        return $name === '' ? $user->handle : $name;
     }
 
     /**

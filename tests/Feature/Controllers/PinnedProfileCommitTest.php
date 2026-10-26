@@ -61,7 +61,6 @@ it('shows a pinned commit once above the log with visible reply counts and uncha
 
     $viewer = User::factory()->create();
     $pinned->stars()->attach($viewer);
-    $pinned->bookmarks()->create(['user_id' => $viewer->id]);
 
     $this->actingAs($viewer)->get(route('user.show', $user))
         ->assertOk()
@@ -71,20 +70,18 @@ it('shows a pinned commit once above the log with visible reply counts and uncha
             ->where('pinnedCommit.replies_count', 1)
             ->where('pinnedCommit.stars_count', 1)
             ->where('pinnedCommit.starred', true)
-            ->where('pinnedCommit.is_saved', true)
             ->missing('pinnedCommit.user.pinned_commit_id')
             ->missing('user.pinned_commit_id')
             ->where('user.commits_count', 2)
             ->where('activity.scale', 'day')
             ->where('activity.buckets', fn ($buckets): bool => collect($buckets)->sum('count') === 2)
             ->has('commits.data', 1)
-            ->where('commits.data.0.is_saved', false)
             ->where('commits.data.0.id', $normal->id));
 });
 
 it('includes the quoted commit of a pinned quote', function (bool $signedIn): void {
     $user = User::factory()->create();
-    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'taylorotwell']))->create(['body' => 'The quoted commit']);
+    $quoted = Commit::factory()->for(User::factory()->state(['handle' => 'taylorotwell']))->create(['body' => 'The quoted commit']);
     $pinned = Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create();
     $user->update(['pinned_commit_id' => $pinned->id]);
 
@@ -97,7 +94,7 @@ it('includes the quoted commit of a pinned quote', function (bool $signedIn): vo
         ->assertInertia(fn ($page) => $page
             ->where('pinnedCommit.id', $pinned->id)
             ->where('pinnedCommit.quoted_commit.body', 'The quoted commit')
-            ->where('pinnedCommit.quoted_commit.user.username', 'taylorotwell'));
+            ->where('pinnedCommit.quoted_commit.user.handle', 'taylorotwell'));
 })->with(['guest' => false, 'signed in' => true]);
 
 it('keeps cursor ordering and excludes a pin on every page including tied timestamps', function (): void {
@@ -150,7 +147,7 @@ it('only shows a pending or rejected pin to its owner', function (string $status
             ->where('user.commits_count', 1)
             ->has('commits.data', 0));
 
-    $viewer = User::factory()->create(['username' => 'admin']);
+    $viewer = User::factory()->create(['handle' => 'admin']);
     config(['app.admins' => ['admin']]);
 
     $this->actingAs($viewer)->get(route('user.show', $user))
@@ -226,7 +223,6 @@ it('shows guests an approved pinned commit', function (): void {
         ->assertInertia(fn ($page) => $page
             ->component('user/show')
             ->where('pinnedCommit.id', $pinned->id)
-            ->where('pinnedCommit.is_saved', false)
             ->has('commits.data', 0));
 });
 

@@ -11,6 +11,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * A user's public profile, with their counts when they were loaded. A signed request also gets the lane, the color
  * the web draws them in, and in a list of people, whether its user follows each one and whether each one follows them.
+ * Who to follow also says how many people the user follows follow each one.
  *
  * @mixin User
  */
@@ -23,14 +24,14 @@ final class UserResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'username' => $this->username,
+            'handle' => $this->handle,
             'name' => $this->name,
             'avatar_url' => $this->avatar_url,
             'bio' => $this->bio,
             'company' => $this->company,
             'location' => $this->location,
             'website' => $this->website,
-            'github_url' => "https://github.com/{$this->username}",
+            'github_url' => "https://github.com/{$this->handle}",
             'html_url' => route('user.show', $this->resource),
             'feed_url' => route('user-feed.show', $this->resource),
             'created_at' => $this->created_at->toIso8601ZuluString(),
@@ -40,6 +41,7 @@ final class UserResource extends JsonResource
             'lane' => $this->when($request->user() instanceof User, fn (): int|string => $this->lane()),
             'is_followed' => $this->whenHas('is_followed'),
             'follows_you' => $this->whenHas('follows_you'),
+            'followed_by_following_count' => $this->whenHas('followed_by_following_count'),
         ];
     }
 }

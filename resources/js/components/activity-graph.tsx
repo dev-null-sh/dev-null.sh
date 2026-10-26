@@ -1,6 +1,6 @@
-import type { CSSProperties, MouseEvent } from 'react';
+import type { CSSProperties, MouseEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
-import { formatCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import type { Activity, ActivityBucket, ActivityScale } from '@/types';
 
@@ -116,11 +116,18 @@ function stripLabel(
     scale: ActivityScale,
     index: number,
     length: number,
-): string | null {
+): ReactNode {
     if (scale === 'week') {
         const day = utcDay(bucket.date);
 
-        return `${weekdayNames[day.getUTCDay()]} ${day.getUTCDate()}`;
+        return (
+            <>
+                <span className="max-sm:block">
+                    {weekdayNames[day.getUTCDay()]}
+                </span>{' '}
+                {day.getUTCDate()}
+            </>
+        );
     }
 
     if (scale === 'day') {
@@ -183,7 +190,10 @@ export function ActivityGraph({
                         'No commits yet'
                     ) : (
                         <>
-                            <span className="font-mono text-foreground">
+                            <span
+                                className="font-mono text-foreground"
+                                title={exactCountTitle(total)}
+                            >
                                 {formatCount(total)}
                             </span>{' '}
                             {total === 1 ? 'commit' : 'commits'}{' '}

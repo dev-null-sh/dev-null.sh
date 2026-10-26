@@ -31,13 +31,13 @@ export function LocalSignInDialog() {
             <DialogContent className="sm:max-w-sm">
                 <DialogTitle>Sign in locally</DialogTitle>
                 <DialogDescription>
-                    Sign in as any username. A new one creates the user.
+                    Sign in as any handle. A new one creates the user.
                 </DialogDescription>
 
                 <Form action="/login/local" method="post" className="space-y-3">
                     {({ errors, processing }) => (
                         <>
-                            <label htmlFor="local-username" className="sr-only">
+                            <label htmlFor="local-handle" className="sr-only">
                                 Username
                             </label>
                             <div className="flex h-11 items-center rounded-lg border bg-background focus-within:border-ring">
@@ -45,8 +45,8 @@ export function LocalSignInDialog() {
                                     @
                                 </span>
                                 <input
-                                    id="local-username"
-                                    name="username"
+                                    id="local-handle"
+                                    name="handle"
                                     type="text"
                                     required
                                     autoFocus
@@ -55,12 +55,12 @@ export function LocalSignInDialog() {
                                     spellCheck={false}
                                     maxLength={39}
                                     placeholder="local-dev"
-                                    aria-invalid={!!errors.username}
+                                    aria-invalid={!!errors.handle}
                                     className="size-full bg-transparent pr-3 pl-1 font-mono text-base outline-none placeholder:text-muted-foreground md:text-[15px]"
-                                    data-test="local-sign-in-username"
+                                    data-test="local-sign-in-handle"
                                 />
                             </div>
-                            <InputError message={errors.username} />
+                            <InputError message={errors.handle} />
                             <DialogFooter>
                                 <Button type="submit" disabled={processing}>
                                     Sign in

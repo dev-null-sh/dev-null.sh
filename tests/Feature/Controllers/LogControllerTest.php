@@ -6,11 +6,16 @@ use App\Actions\UpdateCommitHotScores;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Services\Features;
+use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 
 it('renders own commits and commits of followed users newest first', function (): void {
     $user = User::factory()->create();
@@ -480,7 +485,7 @@ it('includes the link previews of commits', function (Log $log): void {
 
 it('includes the quoted commits with their authors', function (Log $log): void {
     $user = User::factory()->create();
-    $quoted = Commit::factory()->for(User::factory()->state(['username' => 'octocat']))->create(['body' => 'The quoted commit', 'created_at' => now()->subHour()]);
+    $quoted = Commit::factory()->for(User::factory()->state(['handle' => 'octocat']))->create(['body' => 'The quoted commit', 'created_at' => now()->subDay()]);
     $hidden = Commit::factory()->create(['body' => 'A rejected quoted commit']);
     $deleted = Commit::factory()->create(['body' => 'A deleted quoted commit']);
     Commit::factory()->for($user)->for($quoted, 'quotedCommit')->create(['created_at' => now()->subMinutes(3)]);
@@ -499,7 +504,7 @@ it('includes the quoted commits with their authors', function (Log $log): void {
             ->where('commits.data.1.quoted_commit_id', $hidden->id)
             ->where('commits.data.1.quoted_commit', null)
             ->where('commits.data.2.quoted_commit.body', 'The quoted commit')
-            ->where('commits.data.2.quoted_commit.user.username', 'octocat'))
+            ->where('commits.data.2.quoted_commit.user.handle', 'octocat'))
         ->assertDontSee('A rejected quoted commit')
         ->assertDontSee('A deleted quoted commit');
 })->with(Log::cases());
@@ -522,6 +527,8 @@ it('includes the images and link previews of quoted commits', function (Log $log
 })->with(Log::cases());
 
 it('loads the quoted commits of a log without a query per commit', function (Log $log): void {
+    Queue::fake([DetectCommitLanguage::class]);
+    resolve(Features::class)->all();
     $user = User::factory()->create(['log' => $log, 'last_seen_at' => today()]);
 
     $queries = function () use ($user, $log): int {
@@ -562,7 +569,9 @@ it('defers suggested users to follow', function (): void {
                 ->where('suggestedUsers.0.bio', $suggested->bio)
                 ->missing('suggestedUsers.0.email')));
 
-    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers');
+    expect(collect($response->viewData('page')['deferredProps'] ?? [])->flatten())->toContain('suggestedUsers')
+        ->and($response->viewData('page')['mergeProps'] ?? [])->toContain('suggestedUsers')
+        ->and($response->viewData('page')['matchPropsOn'] ?? [])->toContain('suggestedUsers.id');
 });
 
 it('keeps the suggested users the client already loaded when navigating', function (): void {
@@ -603,7 +612,7 @@ it('does not suggest users to follow once they are hidden', function (): void {
 it('leaves the commit just committed to its rank on the ranked log', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
     Commit::factory()->count(20)->create(['hot_score' => 1e12]);
 
     $response = $this->actingAs($user)
@@ -620,7 +629,7 @@ it('leaves the commit just committed to its rank on the ranked log', function ()
 it('puts the commit just committed on top of the latest log', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
     Commit::factory()->count(20)->create(['created_at' => now()->subHour()]);
 
     $response = $this->actingAs($user)
@@ -695,4 +704,135 @@ it('preloads as many of the newest replies as the viewer shows at a time', funct
     'by default' => [null, 3],
     'when picked' => ['10', 10],
     'all of them' => ['25', 12],
+]);
+
+it('retains the loaded Following range when a follow request supplies its boundary', function (): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->for($viewer)->count(30)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+
+    $this->actingAs($viewer)->get(route('log.show', Log::Following), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'commits',
+        'X-Inertia-Reset' => 'commits',
+        'X-Log-Through' => $loaded[24]->id,
+    ])->assertOk()
+        ->assertJsonCount(25, 'props.commits.data')
+        ->assertJsonPath('props.commits.data.24.id', $loaded[24]->id)
+        ->assertJsonPath('scrollProps.commits.reset', true);
+});
+
+it('retains the loaded Latest range when new commits arrive on top of it', function (): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->for($viewer)->count(30)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subHour()->subMinutes($sequence->index)],
+    )->create();
+    $arrived = Commit::factory()->count(3)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+
+    $this->actingAs($viewer)->get(route('log.show', Log::Latest), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'commits',
+        'X-Inertia-Reset' => 'commits',
+        'X-Log-Through' => $loaded[24]->id,
+    ])->assertOk()
+        ->assertJsonCount(28, 'props.commits.data')
+        ->assertJsonPath('props.commits.data.0.id', $arrived[0]->id)
+        ->assertJsonPath('props.commits.data.27.id', $loaded[24]->id);
+});
+
+it('does not hold a ranked log to a loaded range', function (): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->for($viewer)->count(30)->create();
+
+    $this->actingAs($viewer)->get(route('log.show', Log::Trending), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'commits',
+        'X-Log-Through' => $loaded[24]->id,
+    ])->assertOk()->assertJsonCount(20, 'props.commits.data');
+});
+
+it('ignores a missing or inaccessible range boundary', function (string $boundary): void {
+    $viewer = User::factory()->create();
+    $loaded = Commit::factory()->for($viewer)->count(25)->create();
+    $hidden = Commit::factory()->pending()->create();
+    $id = $boundary === 'missing' ? (string) Str::uuid() : $hidden->id;
+
+    $this->actingAs($viewer)->get(route('log.show', Log::Following), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'commits',
+        'X-Log-Through' => $id,
+    ])->assertOk()->assertJsonCount(20, 'props.commits.data');
+})->with(['missing', 'inaccessible']);
+
+it('rejects an invalid range boundary', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->withHeader('X-Log-Through', 'invalid')
+        ->getJson(route('log.show', Log::Following))
+        ->assertUnprocessable()->assertJsonValidationErrors('through');
+});
+
+it('polls only the count while loaded commits provide their authors', function (): void {
+    $viewer = User::factory()->create();
+    $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
+    $author = User::factory()->create();
+    Commit::factory()->count(2)->for($author)->create();
+    Commit::factory()->for($viewer)->create();
+
+    $this->actingAs($viewer)->get(route('log.show', [Log::Latest, 'since' => $older->id]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount',
+    ])->assertOk()
+        ->assertJsonPath('props.newCommitsCount', 2)
+        ->assertJsonMissingPath('props.newCommitAuthors');
+});
+
+it('resets the pending count when reloading without a since cursor', function (): void {
+    $this->actingAs(User::factory()->create())->get(route('log.show', Log::Latest), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount',
+    ])->assertOk()
+        ->assertJsonPath('props.newCommitsCount', 0)
+        ->assertJsonMissingPath('props.newCommitAuthors');
+});
+
+it('reconciles pending arrivals even when no newer commits exist', function (Log $log): void {
+    $viewer = User::factory()->create();
+    $author = User::factory()->create();
+    $viewer->following()->attach($author);
+    $pending = Commit::factory()->for($author)->count(4)->create();
+    $pending[0]->delete();
+    $response = $this->actingAs($viewer)->get(route('log.show', [
+        $log, 'since' => $pending[3]->id, 'pending' => $pending->modelKeys(),
+    ]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount,removedCommitIds',
+    ]);
+    $response->assertOk()->assertJsonPath('props.newCommitsCount', 0)
+        ->assertJsonPath('props.removedCommitIds', [$pending[0]->id])
+        ->assertJsonMissingPath('props.commits');
+})->with([Log::Following, Log::Latest]);
+
+it('rejects malformed pending commit identifiers', function (array $pending, string $field): void {
+    $this->actingAs(User::factory()->create())->getJson(route('log.show', [Log::Latest, ...$pending]))
+        ->assertUnprocessable()->assertJsonValidationErrors($field);
+})->with([
+    [['pending' => 'bad'], 'pending'],
+    [['pending' => ['bad']], 'pending.0'],
 ]);

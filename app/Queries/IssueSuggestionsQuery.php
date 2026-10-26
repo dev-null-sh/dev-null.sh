@@ -16,7 +16,8 @@ final readonly class IssueSuggestionsQuery
     }
 
     /**
-     * GitHub's issues endpoint also returns pull requests; their numbers share a single sequence.
+     * GitHub's issues endpoint also returns pull requests; their numbers share a single sequence. A reference GitHub
+     * couldn't find is cached too, so asking for it again doesn't spend another request.
      *
      * @return array{number: int, title: string, url: string}|null
      */
@@ -24,15 +25,15 @@ final readonly class IssueSuggestionsQuery
     {
         $repository = config()->string('services.github.repository');
 
-        /** @var array{number: int, title: string, url: string}|null */
-        return Cache::remember("issue-suggestion:{$repository}:{$number}", 300, function () use ($repository, $number): ?array {
+        /** @var array{number: int, title: string, url: string}|false $issue */
+        $issue = Cache::remember("issue-suggestion:{$repository}:{$number}", 300, function () use ($repository, $number): array|false {
             try {
                 $issue = $this->github->request()
                     ->get("repos/{$repository}/issues/{$number}")
                     ->throw()
                     ->fluent();
             } catch (HttpClientException) {
-                return null;
+                return false;
             }
 
             return [
@@ -41,5 +42,7 @@ final readonly class IssueSuggestionsQuery
                 'url' => $issue->string('html_url')->value(),
             ];
         });
+
+        return $issue === false ? null : $issue;
     }
 }

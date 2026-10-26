@@ -6,6 +6,7 @@ import { createInertiaApp } from '@inertiajs/react';
 import type { ReactElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
+import { laneColor } from '../../resources/js/lib/utils';
 import Index, {
     NotificationContent,
 } from '../../resources/js/pages/notification/index';
@@ -19,7 +20,7 @@ import type {
 const actor = {
     id: 'actor',
     name: 'Matthieu Napoli',
-    username: 'mnapoli',
+    handle: 'mnapoli',
     lane: 2,
 } as User;
 
@@ -56,7 +57,7 @@ async function renderPage(page: () => ReactElement): Promise<string> {
             component: 'notification/index',
             props: {
                 auth: {
-                    user: { id: 'recipient', username: 'nunomaduro' },
+                    user: { id: 'recipient', handle: 'nunomaduro' },
                     log: {},
                 },
                 errors: {},
@@ -113,7 +114,46 @@ const previewedNames = (body: string): number =>
         /<span class="relative z-10[^"]*">(?:<a[^>]*>)?(?:<a|<span)[^>]*title="Matthieu Napoli"/g,
     )?.length ?? 0;
 
-const other = { ...actor, id: 'other', name: 'Other', username: 'other' };
+const other = { ...actor, id: 'other', name: 'Other', handle: 'other' };
+
+void test('separates last-visit activity without a border under the preceding notification', async () => {
+    const body = await render([
+        { ...notification, read_at: '2026-10-16T12:00:00.000000Z' },
+        {
+            ...notification,
+            id: 'earlier',
+            group_id: 'earlier',
+            read_at: '2026-10-15T12:00:00.000000Z',
+            created_at: '2026-10-15T11:51:00.000000Z',
+        },
+    ]);
+    const [before, after] = body.split('role="separator"');
+
+    assert.match(before, /class="min-w-0 flex-1 py-3 pr-4"/);
+    assert.match(after, /class="my-3 flex bg-muted\/40"/);
+    assert.match(after, /class="flex flex-1 items-center py-4 pr-4"/);
+    assert.match(after, /class="min-w-0 flex-1 py-3 pr-4 border-b"/);
+});
+
+void test('colors each notification rail by actor and ends it in a dot', async () => {
+    const nextActor = { ...other, lane: 5 };
+    const body = await render([
+        notification,
+        {
+            ...notification,
+            id: 'next',
+            group_id: 'next',
+            actor: nextActor,
+            created_at: '2026-10-16T11:50:00.000000Z',
+        },
+    ]);
+
+    assert.ok(body.includes(`--lane:${laneColor(actor.lane)}`));
+    assert.ok(body.includes(`--lane:${laneColor(nextActor.lane)}`));
+    assert.equal(body.match(/group\/rail-node absolute bottom-5/g)?.length, 2);
+    assert.doesNotMatch(body, /data-test="rail-previous"/);
+    assert.match(body, /border-\(--lane\)/);
+});
 
 void test('renders a code block highlighted in a notification', async () => {
     const body = await render([notification]);

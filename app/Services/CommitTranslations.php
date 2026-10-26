@@ -15,6 +15,9 @@ use Locale;
 use ResourceBundle;
 use Throwable;
 
+/**
+ * @phpstan-type CachedTranslations array{source_language: string, translations: array<string, string>, expires_at: int}
+ */
 final readonly class CommitTranslations
 {
     public const int TTL_SECONDS = 604800;
@@ -24,12 +27,9 @@ final readonly class CommitTranslations
         //
     }
 
-    /**
-     * Translations need a provider key and an administrator who has not switched them off.
-     */
     public function enabled(): bool
     {
-        return filled(config('ai.providers.opencode.key')) && $this->features->enabled(Feature::Translations);
+        return $this->features->enabled(Feature::Translations);
     }
 
     public function key(Commit $commit): string
@@ -55,10 +55,10 @@ final readonly class CommitTranslations
         return in_array($language, $this->languages(), true) ? $language : 'en';
     }
 
-    /** @return array{source_language: string, translations: array<string, string>, expires_at: int}|null */
+    /** @return CachedTranslations|null */
     public function cached(Commit $commit): ?array
     {
-        /** @var array{source_language: string, translations: array<string, string>, expires_at: int}|null $cached */
+        /** @var CachedTranslations|null $cached */
         $cached = Cache::get($this->key($commit));
 
         return $cached;
@@ -85,7 +85,7 @@ final readonly class CommitTranslations
             return null;
         }
 
-        /** @var array{source_language: string, translations: array<string, string>, expires_at: int}|null $cached */
+        /** @var CachedTranslations|null $cached */
         $cached = Cache::memo()->get($this->key($commit));
 
         if ($cached === null) {
