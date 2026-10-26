@@ -302,7 +302,7 @@ function Contributors({ contributors }: { contributors: StoryContributor[] }) {
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
             {contributors.map((contributor) => (
                 <li key={contributor.login}>
-                    {contributor.username === null ? (
+                    {contributor.handle === null ? (
                         <a
                             href={`https://github.com/${contributor.login}`}
                             target="_blank"
@@ -313,12 +313,12 @@ function Contributors({ contributors }: { contributors: StoryContributor[] }) {
                         </a>
                     ) : (
                         <UserPreview
-                            user={{ username: contributor.username }}
+                            user={{ handle: contributor.handle }}
                             className="block"
                         >
                             <Link
-                                href={show({ username: contributor.username })}
-                                aria-label={`@${contributor.username} on /dev/null`}
+                                href={show({ handle: contributor.handle })}
+                                aria-label={`@${contributor.handle} on /dev/null`}
                                 className={className}
                             >
                                 <ContributorCard contributor={contributor} />

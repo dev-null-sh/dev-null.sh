@@ -11,8 +11,8 @@ it('lists everyone with a commit, as GitHub counts them', function (): void {
     fakeGitHubContributors([gitHubContributor('xHeaven', 187), gitHubContributor('jubianchi', 1)]);
 
     expect(resolve(ContributorsQuery::class)->get())->toBe([
-        ['login' => 'xHeaven', 'commits' => 187, 'username' => null],
-        ['login' => 'jubianchi', 'commits' => 1, 'username' => null],
+        ['login' => 'xHeaven', 'commits' => 187, 'handle' => null],
+        ['login' => 'jubianchi', 'commits' => 1, 'handle' => null],
     ]);
 });
 
@@ -24,7 +24,7 @@ it('leaves out the bots and the agents, whatever case they are written in', func
         gitHubContributor('dependabot', 4, 'Bot'),
     ]);
 
-    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'xHeaven', 'commits' => 187, 'username' => null]]);
+    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'xHeaven', 'commits' => 187, 'handle' => null]]);
 });
 
 it('reads every page GitHub has, up to a thousand people', function (int $contributors, int $expected, int $requests): void {
@@ -57,7 +57,7 @@ it('skips what GitHub sends without a login, an account or a count', function ()
         gitHubContributor('xHeaven', 187),
     ]);
 
-    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'xHeaven', 'commits' => 187, 'username' => null]]);
+    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'xHeaven', 'commits' => 187, 'handle' => null]]);
 });
 
 it('asks GitHub again an hour later, not before', function (): void {
@@ -128,6 +128,6 @@ it('discards a partial list after a later page fails and recovers when the failu
 
     $this->travel(61)->seconds();
 
-    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'recovered', 'commits' => 12, 'username' => null]]);
+    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'recovered', 'commits' => 12, 'handle' => null]]);
     Http::assertSentCount(3);
 });

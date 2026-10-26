@@ -12,7 +12,7 @@ use Illuminate\Support\Fluent;
 
 /**
  * @phpstan-type Account array{login: string, github_id: string, commits: int}
- * @phpstan-type Contributor array{login: string, commits: int, username: string|null}
+ * @phpstan-type Contributor array{login: string, commits: int, handle: string|null}
  */
 final readonly class ContributorsQuery
 {
@@ -35,8 +35,8 @@ final readonly class ContributorsQuery
     }
 
     /**
-     * The repository contributors, most commits first, as GitHub counts them, each with their /dev/null username, or
-     * null when they aren't on it. They are found by their GitHub account, since a username can change on either side.
+     * The repository contributors, most commits first, as GitHub counts them, each with their /dev/null handle, or
+     * null when they aren't on it. They are found by their GitHub account, since a handle can change on either side.
      *
      * @return list<Contributor>|null
      */
@@ -48,15 +48,15 @@ final readonly class ContributorsQuery
             return null;
         }
 
-        $usernames = User::query()
+        $handles = User::query()
             ->whereIn('github_id', array_column($accounts, 'github_id'))
             ->get()
-            ->mapWithKeys(fn (User $user): array => [$user->github_id => $user->username]);
+            ->mapWithKeys(fn (User $user): array => [$user->github_id => $user->handle]);
 
         return array_map(fn (array $account): array => [
             'login' => $account['login'],
             'commits' => $account['commits'],
-            'username' => $usernames->get($account['github_id']),
+            'handle' => $handles->get($account['github_id']),
         ], $accounts);
     }
 

@@ -36,12 +36,12 @@ export type StoryPerson = {
 };
 
 /**
- * Someone with a commit on production. The username is theirs on /dev/null, or null when they aren't on it.
+ * Someone with a commit on production. The handle is theirs on /dev/null, or null when they aren't on it.
  */
 export type StoryContributor = {
     login: string;
     commits: number;
-    username: string | null;
+    handle: string | null;
 };
 
 export const storyBefore: StoryEvent[] = [
