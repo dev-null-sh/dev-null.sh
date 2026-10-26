@@ -704,7 +704,7 @@ it('offers guests and the profile owner no remote', function (): void {
 });
 
 it('shows the github profile readme on the readme tab, without looking for commits', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     Commit::factory()->for($user)->create();
 
     Http::fake([
@@ -720,7 +720,7 @@ it('shows the github profile readme on the readme tab, without looking for commi
 });
 
 it('tells the readme tab when github did not answer', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     Http::fake(["api.github.com/user/{$user->github_id}" => Http::response(status: 502)]);
 
@@ -730,7 +730,7 @@ it('tells the readme tab when github did not answer', function (): void {
 
 it('does not ask github for the readme on the other tabs', function (string $tab): void {
     Http::preventStrayRequests();
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $this->get(route('user.show', ['user' => $user, 'tab' => $tab]))->assertOk()->assertInertia(fn ($page) => $page
         ->where('readme', null));

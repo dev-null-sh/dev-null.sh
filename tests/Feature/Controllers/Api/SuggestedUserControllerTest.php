@@ -13,7 +13,7 @@ beforeEach(function (): void {
 
 it('suggests people to follow, with why and whether they follow the user', function (): void {
     $friend = User::factory()->create();
-    $vouched = User::factory()->has(Commit::factory())->create(['username' => 'octocat']);
+    $vouched = User::factory()->has(Commit::factory())->create(['handle' => 'octocat']);
 
     $this->user->following()->attach($friend);
     $friend->following()->attach($vouched);
@@ -108,7 +108,7 @@ it('suggests the people a profile follows first, as the web does beside it', fun
 
     $profile->following()->attach($followed);
 
-    signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index', ['username' => $profile->username]))
+    signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index', ['username' => $profile->handle]))
         ->assertOk()
         ->assertJsonPath('data.*.id', [$followed->id, $regular->id]);
 });
@@ -144,7 +144,7 @@ it('suggests what the web suggests on the same profile or commit page', function
     $people->last()->followers()->attach($people->take(3));
 
     [$webRoute, $context] = $page === 'profile'
-        ? [route('user.show', $author), ['username' => $author->username]]
+        ? [route('user.show', $author), ['username' => $author->handle]]
         : [route('commit.show', [$author, $root]), ['commit_id' => $root->id]];
 
     $web = null;
@@ -188,7 +188,7 @@ it('falls back to the regular suggestions beside a profile across a block, as th
 
     $regular = signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index'))->json('data.*.id');
 
-    signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index', ['username' => $profile->username]))
+    signedApiRequest($this->keyPair, 'GET', route('api-suggested-user.index', ['username' => $profile->handle]))
         ->assertOk()
         ->assertJsonPath('data.*.id', $regular);
 })->with([
@@ -247,7 +247,7 @@ it('refuses a page that does not exist or is not one page', function (array $que
     'an unknown username' => fn (): array => [['username' => 'nobody-here'], 'username'],
     'an unknown commit' => fn (): array => [['commit_id' => '01a16c57-e371-73fb-a4d7-6ad455c9dd57'], 'commit_id'],
     'a commit id that is not one' => fn (): array => [['commit_id' => 'latest'], 'commit_id'],
-    'a profile and a commit' => fn (): array => [['username' => User::factory()->create()->username, 'commit_id' => Commit::factory()->create()->id], 'commit_id'],
+    'a profile and a commit' => fn (): array => [['username' => User::factory()->create()->handle, 'commit_id' => Commit::factory()->create()->id], 'commit_id'],
 ]);
 
 it('refuses a round that is not a whole number from zero', function (mixed $round): void {
