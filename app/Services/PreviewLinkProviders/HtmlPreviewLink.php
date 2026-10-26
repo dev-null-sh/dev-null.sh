@@ -2,15 +2,22 @@
 
 declare(strict_types=1);
 
-namespace App\Services\LinkPreviews;
+namespace App\Services\PreviewLinkProviders;
 
+use App\Contracts\PreviewLink;
 use App\Dto\LinkPreviewMetadata;
 use Dom\HTMLDocument;
+use GuzzleHttp\Psr7\Utils;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Str;
 use Uri\WhatWg\Url;
 
-final readonly class LinkPreviewParser
+final readonly class HtmlPreviewLink implements PreviewLink
 {
+    public const int MAX_BODY_BYTES = 1_048_576;
+
+    public const string CONTENT_TYPE = 'text/html';
+
     private const int MAX_IMAGE_URL_LENGTH = 2048;
 
     private const int MAX_TITLE_LENGTH = 300;
@@ -19,7 +26,21 @@ final readonly class LinkPreviewParser
 
     private const int MAX_SITE_NAME_LENGTH = 100;
 
-    public function parse(string $html, Url $page): LinkPreviewMetadata
+    public function metadata(Response $response, Url $finalUrl): LinkPreviewMetadata
+    {
+        $mediaType = mb_strtolower(mb_trim(Str::before($response->header('Content-Type'), ';')));
+
+        if (! in_array($mediaType, [self::CONTENT_TYPE, 'application/xhtml+xml'], true)) {
+            return new LinkPreviewMetadata;
+        }
+
+        $body = $response->toPsrResponse()->getBody();
+        $body->rewind();
+
+        return $this->parse(Utils::copyToString($body, self::MAX_BODY_BYTES), $finalUrl);
+    }
+
+    private function parse(string $html, Url $page): LinkPreviewMetadata
     {
         $document = HTMLDocument::createFromString($html, LIBXML_NOERROR);
         $meta = [];
