@@ -95,3 +95,36 @@ test('form requests are named after the controller method they serve', function 
         expect($file->getFilenameWithoutExtension())->toMatch('/^(List|Show|Create|Update|Delete)[A-Z]\w*Request$/');
     }
 });
+
+/*
+ * Mass assignment protection is off application-wide, so a model fills whatever it is handed. Every write builds
+ * its own array today; this keeps it that way, because one `->update($request->all())` would let a caller set a
+ * column no form request validates, like the one that decides who is an admin.
+ *
+ * It looks at what the write is handed first, which is the shape the mistake takes. A request copied into a
+ * variable first is beyond a file scan, and review still has to catch that one.
+ */
+test('nothing fills a model straight from a request', function (): void {
+    $writes = '/(?:->|::)(?:create|forceCreate|update|fill|forceFill)\(\s*(?:request\(\)|\$this->request|\$request)\s*->\s*(?:(?:all|validated|input)\(\)|(?:except|only)\()/';
+
+    // Strings and comments are blanked first, with PHP's own lexer, so that prose quoting the pattern, or a raw SQL
+    // statement, is never mistaken for a write.
+    $code = function (string $source): string {
+        $stripped = '';
+
+        foreach (token_get_all($source) as $token) {
+            $stripped .= is_array($token)
+                ? (in_array($token[0], [T_CONSTANT_ENCAPSED_STRING, T_ENCAPSED_AND_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true) ? '""' : $token[1])
+                : $token;
+        }
+
+        return $stripped;
+    };
+
+    foreach (File::allFiles(app_path()) as $file) {
+        expect($code($file->getContents()))->not->toMatch(
+            $writes,
+            "{$file->getRelativePathname()} hands a request straight to a model. Build the array by hand, from what the form request validated.",
+        );
+    }
+});
