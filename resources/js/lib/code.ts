@@ -3,7 +3,7 @@ import type { BodySegment } from '@/types';
 // Keep in sync with app/Services/CodeSpans.php: a fenced code block, from a line starting with ``` or more (and maybe
 // a language) to a line that is only ``` or more, or inline code between two backticks on one line.
 const committedCode = String.raw`(?<![^\n])\`{3,}[^\`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?\`{3,}[ \t]*(?![^\r\n])|\`[^\`\r\n]+\``;
-const codePattern = new RegExp(`(${committedCode})`);
+export const codePattern = new RegExp(`(${committedCode})`);
 // While typing, a block or inline code that isn't closed yet also runs to the end of the text.
 const typedCodePattern = new RegExp(
     `(${committedCode}|${String.raw`(?<![^\n])\`\`\`[\s\S]*$|\`[^\`\r\n]*$`})`,
@@ -42,6 +42,19 @@ export function mapProse(
     return text
         .split(codePattern)
         .map((part, index) => (index % 2 === 0 ? callback(part) : part))
+        .join('');
+}
+
+/**
+ * The text with its committed code blanked out to spaces of the same length, so what is found in the prose keeps its
+ * place in the text.
+ */
+export function withoutCode(text: string): string {
+    return text
+        .split(codePattern)
+        .map((part, index) =>
+            index % 2 === 0 ? part : ' '.repeat(part.length),
+        )
         .join('');
 }
 

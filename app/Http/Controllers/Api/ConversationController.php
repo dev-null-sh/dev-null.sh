@@ -14,7 +14,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 final readonly class ConversationController
 {
     /**
-     * A page of the web's inbox, newest first, for the Open, Fetched or Stashed tab, matching a name or handle, and
+     * A page of the web's inbox, pinned first then newest first, for the Open, Fetched or Stashed tab, matching a name or handle, and
      * continuing before a conversation, with the unread count the web's nav shows and how many requests are fetched.
      */
     public function index(ListApiConversationsRequest $request, #[CurrentUser] User $user, ConversationsQuery $conversations): AnonymousResourceCollection

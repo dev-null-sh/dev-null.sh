@@ -6,20 +6,35 @@ import ConversationDropController from '@/actions/App/Http/Controllers/Conversat
 import ConversationMergeController from '@/actions/App/Http/Controllers/ConversationMergeController';
 import ConversationMessageController from '@/actions/App/Http/Controllers/ConversationMessageController';
 import ConversationMuteController from '@/actions/App/Http/Controllers/ConversationMuteController';
+import ConversationPinController from '@/actions/App/Http/Controllers/ConversationPinController';
+import ConversationPingController from '@/actions/App/Http/Controllers/ConversationPingController';
 import ConversationReadController from '@/actions/App/Http/Controllers/ConversationReadController';
 import ConversationTypingController from '@/actions/App/Http/Controllers/ConversationTypingController';
 import InboxController from '@/actions/App/Http/Controllers/InboxController';
+import MessagePinController from '@/actions/App/Http/Controllers/MessagePinController';
 import MessageReactionController from '@/actions/App/Http/Controllers/MessageReactionController';
 import OrgArchiveController from '@/actions/App/Http/Controllers/OrgArchiveController';
 import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import OrgMemberController from '@/actions/App/Http/Controllers/OrgMemberController';
 import OrgMessageController from '@/actions/App/Http/Controllers/OrgMessageController';
 import OrgMuteController from '@/actions/App/Http/Controllers/OrgMuteController';
+import OrgPinController from '@/actions/App/Http/Controllers/OrgPinController';
+import OrgPingController from '@/actions/App/Http/Controllers/OrgPingController';
 import OrgReadController from '@/actions/App/Http/Controllers/OrgReadController';
 import OrgTypingController from '@/actions/App/Http/Controllers/OrgTypingController';
 import RemoteCandidateController from '@/actions/App/Http/Controllers/RemoteCandidateController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
+import {
+    acceptedPinnedMessages,
+    isPinnedIn,
+    reactionsAfterOf,
+    withPinnedMessage,
+    withPinnedMessageRestored,
+    withoutPinnedMessage,
+    withShownReactions,
+} from '@/lib/pinned-messages';
+import type { PinnedMessages } from '@/lib/pinned-messages';
 import type { ReactionUsage } from '@/lib/reactions';
 import { withReactionUse } from '@/lib/reactions';
 import {
@@ -88,7 +103,17 @@ export type ThreadState = {
     members: OrgMember[];
     typing: string[];
     role: OrgRole | null;
+    /**
+     * The org's pinned messages, latest pinned first, which everyone in the org sees whatever history they were given.
+     * Whether the user pinned the conversation itself in their inbox is pinned_at.
+     */
+    pinned: Message[];
+    /**
+     * The reactions version the pinned messages are current with, which only moves when a list of them is taken.
+     */
+    pinnedMessagesVersion: number | null;
     is_archived: boolean;
+    pinned_at: string | null;
     muted_until_at: string | null;
     access: PushAccess;
     pending: PendingMessage[];
@@ -125,6 +150,7 @@ export type ChatState = {
     notificationTitle: string | null;
     threads: Record<string, ThreadState>;
     mutePreferences: Record<string, { until: string | null; version: number }>;
+    pinPreferences: Record<string, { at: string | null; version: number }>;
     /**
      * The emoji the user reacts with, most used first, loaded once something shows a conversation.
      */
@@ -158,6 +184,7 @@ let state: ChatState = {
     notificationTitle: null,
     threads: {},
     mutePreferences: {},
+    pinPreferences: {},
     reactionUsage: null,
 };
 const listeners = new Set<() => void>();
@@ -166,12 +193,23 @@ const lastActivity = new Map<string, number>();
 const lastTypingPing = new Map<string, number>();
 const reactionsInFlight = new Map<number, number>();
 const reactionsSettledAt = new Map<number, number>();
+const messagePinsInFlight = new Map<string, number>();
+/**
+ * The newest pinned messages a pin request handed back while others in the org were still in flight.
+ */
+const newestPinnedMessages = new Map<
+    string,
+    { pinned: Message[]; version: number; sentAt: number }
+>();
 let inboxWatchers = 0;
 let inboxTimer: number | undefined;
 let isLoadingReactionUsage = false;
 let remoteAlerts: ReturnType<typeof createRemoteAlerts> | null = null;
 let isFetchingInbox = false;
 let muteVersion = 0;
+let pinVersion = 0;
+let inboxRevision = 0;
+const invalidatedInboxTabs = new Set<InboxTab>();
 
 export function targetKey(target: ChatTarget): string {
     return target.kind === 'direct'
@@ -208,6 +246,8 @@ function urls(target: ChatTarget) {
             stash: ConversationArchiveController.store.url(partner),
             pop: ConversationArchiveController.destroy.url(partner),
             mute: ConversationMuteController.update.url(partner),
+            pin: ConversationPinController.update.url(partner),
+            ping: ConversationPingController.store.url(partner),
         };
     }
 
@@ -223,6 +263,8 @@ function urls(target: ChatTarget) {
         stash: OrgArchiveController.store.url(org),
         pop: OrgArchiveController.destroy.url(org),
         mute: OrgMuteController.update.url(org),
+        pin: OrgPinController.update.url(org),
+        ping: OrgPingController.store.url(org),
     };
 }
 
@@ -263,6 +305,43 @@ function withMutePreferences(
         }
     }
     return next;
+}
+
+function withPinPreferences(
+    preferences: [string, string | null][],
+    version = ++pinVersion,
+): ChatState['pinPreferences'] {
+    const next = { ...state.pinPreferences };
+    for (const [key, at] of preferences) {
+        if (version >= (next[key]?.version ?? 0)) {
+            next[key] = { at, version };
+        }
+    }
+    return next;
+}
+
+export function compareConversations(
+    a: ConversationSummary,
+    b: ConversationSummary,
+): number {
+    return (
+        Number(b.pinned_at != null) - Number(a.pinned_at != null) ||
+        (b.last_message_at ?? '').localeCompare(a.last_message_at ?? '') ||
+        b.id.localeCompare(a.id)
+    );
+}
+
+function withConversationPins(
+    items: ConversationSummary[],
+): ConversationSummary[] {
+    return items
+        .map((item) => {
+            const preference = state.pinPreferences[summaryKey(item)];
+            return preference === undefined
+                ? item
+                : { ...item, pinned_at: preference.at };
+        })
+        .sort(compareConversations);
 }
 
 function updateThread(
@@ -380,7 +459,7 @@ function withReactionChanges(
             .map((change) => [change.id, change.reactions]),
     );
 
-    if (changed.size === 0) {
+    if (!messages.some((message) => changed.has(message.id))) {
         return messages;
     }
 
@@ -389,6 +468,52 @@ function withReactionChanges(
             ? { ...message, reactions: changed.get(message.id) }
             : message,
     );
+}
+
+/**
+ * Whether a message's reactions are the user's own to settle: they are reacting to it right now, or reacted to it after
+ * the request was sent.
+ */
+function isReactionHeld(sentAt: number): (id: number) => boolean {
+    return (id) =>
+        reactionsInFlight.has(id) ||
+        (reactionsSettledAt.get(id) ?? 0) >= sentAt;
+}
+
+/**
+ * The thread's pinned messages once the server sent a list with the reactions version it read before it, or none.
+ * A list the thread doesn't take still gets the reaction changes sent with it.
+ */
+function pinnedMessagesFrom(
+    key: string,
+    thread: ThreadState,
+    pinned: Message[] | null,
+    version: number,
+    changes: MessageReactionChange[],
+    sentAt: number,
+): PinnedMessages {
+    const accepted = acceptedPinnedMessages(
+        thread,
+        pinned,
+        version,
+        messagePinsInFlight.has(key),
+    );
+
+    if (accepted === null) {
+        return {
+            pinned: withReactionChanges(thread.pinned, changes, sentAt),
+            pinnedMessagesVersion: thread.pinnedMessagesVersion,
+        };
+    }
+
+    return {
+        pinned: withShownReactions(
+            accepted.pinned,
+            [...thread.messages, ...thread.pinned],
+            isReactionHeld(sentAt),
+        ),
+        pinnedMessagesVersion: accepted.pinnedMessagesVersion,
+    };
 }
 
 function unreadOf(conversations: ConversationSummary[]): number {
@@ -409,15 +534,18 @@ function withoutKey(
     );
 }
 
-function byLatest(conversations: ConversationSummary[]): ConversationSummary[] {
-    return [...conversations].sort((a, b) =>
-        (b.last_message_at ?? '').localeCompare(a.last_message_at ?? ''),
-    );
-}
-
 export function seedInbox(inbox: InboxPage): void {
+    invalidatedInboxTabs.delete('open');
     updateDuringRender({
-        conversations: inbox.conversations,
+        pinPreferences: withPinPreferences(
+            inbox.conversations.map((item) => [
+                summaryKey(item),
+                item.pinned_at,
+            ]),
+        ),
+    });
+    updateDuringRender({
+        conversations: withConversationPins(inbox.conversations),
         mutePreferences: withMutePreferences(
             inbox.conversations.map((item) => [
                 summaryKey(item),
@@ -437,35 +565,43 @@ function withFirstPage(
     firstPage: ConversationSummary[],
 ): ConversationSummary[] {
     const fresh = new Set(firstPage.map(summaryKey));
-    const oldest = firstPage.at(-1)?.last_message_at ?? '';
+    const oldest = firstPage.at(-1);
 
-    return [
+    return withConversationPins([
         ...firstPage,
-        ...(current ?? []).filter(
+        ...withConversationPins(current ?? []).filter(
             (item) =>
                 !fresh.has(summaryKey(item)) &&
-                (item.last_message_at ?? '') <= oldest,
+                oldest !== undefined &&
+                compareConversations(item, oldest) >= 0,
         ),
-    ];
+    ]);
 }
 
 async function fetchInbox(
     tab: InboxTab,
     before?: string,
     notificationBaseline = false,
+    notificationConversations = false,
 ): Promise<
     InboxPage & {
         unread: number;
         requests: number;
         notification_baseline?: Record<string, number>;
+        notification_conversations?: ConversationSummary[];
+        pins?: Record<string, string | null>;
+        pinsChanged: boolean;
     }
 > {
     const version = ++muteVersion;
+    const pinsVersion = ++pinVersion;
     const page = await request<
         InboxPage & {
             unread: number;
             requests: number;
             notification_baseline?: Record<string, number>;
+            notification_conversations?: ConversationSummary[];
+            pins?: Record<string, string | null>;
         }
     >(
         InboxController.index.url({
@@ -473,27 +609,68 @@ async function fetchInbox(
                 tab,
                 ...(before === undefined ? {} : { before }),
                 ...(notificationBaseline ? { notification_baseline: 1 } : {}),
+                ...(notificationConversations
+                    ? { notification_conversations: 1 }
+                    : {}),
             },
         }),
     );
     update({
-        mutePreferences: withMutePreferences(
-            page.conversations.map((item) => [
+        pinPreferences: withPinPreferences(
+            [
+                ...(state.conversations ?? []),
+                ...(state.fetched ?? []),
+                ...(state.archived ?? []),
+                ...page.conversations,
+            ].map((item) => [
                 summaryKey(item),
-                item.muted_until_at,
+                page.pins === undefined
+                    ? item.pinned_at
+                    : (page.pins[item.id] ?? null),
             ]),
+            pinsVersion,
+        ),
+        mutePreferences: withMutePreferences(
+            [
+                ...page.conversations,
+                ...(page.notification_conversations ?? []),
+            ].map((item) => [summaryKey(item), item.muted_until_at]),
             version,
         ),
     });
-    return page;
+    const known = [
+        ...(state.conversations ?? []),
+        ...(state.fetched ?? []),
+        ...(state.archived ?? []),
+    ];
+    const pinsChanged =
+        known.some(
+            (item) =>
+                state.pinPreferences[summaryKey(item)]?.at !== item.pinned_at,
+        ) ||
+        page.conversations.some(
+            (item) =>
+                item.pinned_at !== null &&
+                !known.some((current) => current.id === item.id),
+        );
+    return {
+        ...page,
+        pinsChanged,
+        conversations: withConversationPins(page.conversations),
+    };
 }
 
 /**
  * Loads a tab's first page, for the tabs that are not polled.
  */
 export async function loadTab(tab: InboxTab): Promise<void> {
+    const revision = inboxRevision;
     try {
         const page = await fetchInbox(tab);
+        if (revision !== inboxRevision) {
+            return loadTab(tab);
+        }
+        invalidatedInboxTabs.delete(tab);
 
         update({
             [listOf[tab]]: page.conversations,
@@ -509,30 +686,102 @@ export async function loadTab(tab: InboxTab): Promise<void> {
  * The next page of a tab, once the user scrolls to the end of it.
  */
 export async function loadMoreConversations(tab: InboxTab): Promise<void> {
-    const list = state[listOf[tab]];
-    const last = list?.at(-1);
-
-    if (!state.hasMore[tab] || state.isLoadingMore[tab] || last === undefined) {
+    if (!state.hasMore[tab] || state.isLoadingMore[tab]) {
         return;
     }
-
+    if (invalidatedInboxTabs.has(tab)) {
+        await refreshConversationPages(tab, true);
+        return;
+    }
+    const last = state[listOf[tab]]?.at(-1);
+    if (last === undefined) {
+        return;
+    }
+    const revision = inboxRevision;
     update({ isLoadingMore: { ...state.isLoadingMore, [tab]: true } });
 
     try {
         const page = await fetchInbox(tab, last.id);
+        if (revision !== inboxRevision) {
+            return;
+        }
+        if (page.pinsChanged) {
+            invalidateConversationPages();
+            await refreshConversationPages(tab, true);
+            return;
+        }
         const known = new Set((state[listOf[tab]] ?? []).map(summaryKey));
 
         update({
-            [listOf[tab]]: [
+            [listOf[tab]]: withConversationPins([
                 ...(state[listOf[tab]] ?? []),
                 ...page.conversations.filter(
                     (item) => !known.has(summaryKey(item)),
                 ),
-            ],
+            ]),
             hasMore: { ...state.hasMore, [tab]: page.has_more },
         });
     } finally {
-        update({ isLoadingMore: { ...state.isLoadingMore, [tab]: false } });
+        if (revision === inboxRevision) {
+            update({ isLoadingMore: { ...state.isLoadingMore, [tab]: false } });
+        }
+    }
+}
+
+/**
+ * A moved pin invalidates the last displayed row as a cursor. Rebuild the loaded depth as a continuous prefix.
+ */
+async function refreshConversationPages(
+    tab: InboxTab,
+    more = false,
+): Promise<void> {
+    const revision = inboxRevision;
+    const depth = state[listOf[tab]]?.length ?? 0;
+    const conversations: ConversationSummary[] = [];
+    let page: Awaited<ReturnType<typeof fetchInbox>>;
+    let before: string | undefined;
+    let pins: string | undefined;
+    update({ isLoadingMore: { ...state.isLoadingMore, [tab]: true } });
+    try {
+        while (true) {
+            page = await fetchInbox(tab, before);
+            if (revision !== inboxRevision) {
+                return;
+            }
+            const snapshot = JSON.stringify(
+                Object.entries(page.pins ?? {}).sort(([left], [right]) =>
+                    left.localeCompare(right),
+                ),
+            );
+            if (pins !== undefined && pins !== snapshot) {
+                conversations.length = 0;
+                before = undefined;
+                pins = undefined;
+                continue;
+            }
+            pins = snapshot;
+            conversations.push(...page.conversations);
+            before = page.conversations.at(-1)?.id;
+            if (
+                !page.has_more ||
+                before === undefined ||
+                conversations.length > depth ||
+                (!more && conversations.length === depth)
+            ) {
+                break;
+            }
+        }
+        invalidatedInboxTabs.delete(tab);
+        update({
+            [listOf[tab]]: withConversationPins(conversations),
+            hasMore: { ...state.hasMore, [tab]: page.has_more },
+        });
+    } catch {
+        // Keep the cursor invalid so the next scroll retries from the first page instead of skipping the gap.
+    } finally {
+        if (revision === inboxRevision) {
+            update({ isLoadingMore: { ...state.isLoadingMore, [tab]: false } });
+        }
     }
 }
 
@@ -548,7 +797,10 @@ function emptyThread(target: ChatTarget): ThreadState {
         members: [],
         typing: [],
         role: null,
+        pinned: [],
+        pinnedMessagesVersion: null,
         is_archived: false,
+        pinned_at: null,
         muted_until_at: null,
         access: 'open',
         pending: [],
@@ -568,6 +820,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
               typing: thread.typing,
               role: thread.role,
               is_archived: thread.is_archived,
+              pinned_at: thread.pinned_at,
               muted_until_at: thread.muted_until_at,
               access: thread.access,
           }
@@ -576,6 +829,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
               partner_read_at: thread.partner_read_at,
               partner_typing: thread.partner_typing,
               is_archived: thread.is_archived,
+              pinned_at: thread.pinned_at,
               muted_until_at: thread.muted_until_at,
               access: thread.access,
           };
@@ -592,6 +846,7 @@ export function seedThread(
     const current = state.threads[key] ?? emptyThread(target);
 
     updateDuringRender({
+        pinPreferences: withPinPreferences([[key, thread.pinned_at]]),
         mutePreferences: withMutePreferences([[key, thread.muted_until_at]]),
         threads: {
             ...state.threads,
@@ -600,6 +855,14 @@ export function seedThread(
                 ...fromServer(thread),
                 target,
                 messages: mergeMessages(current.messages, thread.messages),
+                ...pinnedMessagesFrom(
+                    key,
+                    current,
+                    'pinned' in thread ? thread.pinned : null,
+                    thread.reactions_version,
+                    [],
+                    performance.now(),
+                ),
                 has_older: current.isLoaded
                     ? current.has_older
                     : thread.has_older,
@@ -628,16 +891,38 @@ export function rememberTarget(target: ChatTarget): void {
 }
 
 async function pollInbox(): Promise<void> {
-    if ((document.hidden && remoteAlerts === null) || isFetchingInbox) {
+    const isPaused = document.hidden && remoteAlerts === null;
+
+    if (isPaused && state.unread !== null) {
+        update({ unread: null });
+    }
+
+    if (isPaused || isFetchingInbox) {
         return;
     }
 
     isFetchingInbox = true;
+    const revision = inboxRevision;
 
     try {
         const alerts = remoteAlerts;
-        const { conversations, unread, requests, notification_baseline } =
-            await fetchInbox('open', undefined, alerts?.needsBaseline());
+        const {
+            conversations,
+            unread,
+            requests,
+            notification_baseline,
+            notification_conversations,
+            pinsChanged,
+        } = await fetchInbox(
+            'open',
+            undefined,
+            alerts?.needsBaseline(),
+            alerts !== null,
+        );
+        if (revision !== inboxRevision) {
+            return;
+        }
+        const notifications = notification_conversations ?? conversations;
         const isReading = (conversation: ConversationSummary) =>
             !document.hidden &&
             document.hasFocus() &&
@@ -647,7 +932,7 @@ async function pollInbox(): Promise<void> {
             (!alerts?.needsBaseline() || notification_baseline !== undefined)
         ) {
             void alerts?.receive(
-                conversations.map((conversation) => ({
+                notifications.map((conversation) => ({
                     ...conversation,
                     muted_until_at:
                         state.mutePreferences[summaryKey(conversation)].until,
@@ -660,19 +945,32 @@ async function pollInbox(): Promise<void> {
                 notification_baseline,
             );
         }
+        if (pinsChanged) {
+            invalidateConversationPages();
+        }
+        const reconcileOpen = invalidatedInboxTabs.has('open');
+        await Promise.all(
+            [...invalidatedInboxTabs].map((tab) =>
+                refreshConversationPages(tab),
+            ),
+        );
         const requestsChanged =
             state.requests !== null && requests !== state.requests;
         const watched = conversations.filter(isReading);
 
         update({
-            conversations: withFirstPage(
-                state.conversations,
-                conversations.map((conversation) =>
-                    isReading(conversation)
-                        ? { ...conversation, ahead: 0 }
-                        : conversation,
-                ),
-            ),
+            conversations: reconcileOpen
+                ? state.conversations
+                : withFirstPage(
+                      state.conversations,
+                      conversations.map((conversation) =>
+                          isReading(conversation)
+                              ? { ...conversation, ahead: 0 }
+                              : conversation,
+                      ),
+                  ),
+            fetched: state.fetched && withConversationPins(state.fetched),
+            archived: state.archived && withConversationPins(state.archived),
             requests,
             unread:
                 unread -
@@ -777,7 +1075,10 @@ export function watchRemoteAlerts(userId: string): () => void {
                 conversation.kind === 'org'
                     ? ` in ${conversation.name || 'an unnamed org'}`
                     : '';
-            const title = `${sender}${remote} sent you a message`;
+            const title =
+                conversation.last_message?.event === 'ping'
+                    ? `${sender}${remote} sent you a ping`
+                    : `${sender}${remote} sent you a message`;
             const alert = { key: summaryKey(conversation), title };
             channel?.postMessage(alert);
             showTitle(alert);
@@ -854,9 +1155,17 @@ async function pollThread(target: ChatTarget): Promise<void> {
     const thread = state.threads[key];
     const after = thread?.isLoaded ? (thread.messages.at(-1)?.id ?? 0) : null;
     const reactionsAfter =
-        after === null ? null : (thread?.reactions_version ?? null);
+        after === null
+            ? null
+            : reactionsAfterOf(
+                  thread?.reactions_version ?? null,
+                  target.kind === 'org'
+                      ? (thread?.pinnedMessagesVersion ?? 0)
+                      : null,
+              );
     const polledAt = performance.now();
     const version = ++muteVersion;
+    const pinsVersion = ++pinVersion;
 
     const fresh = await request<
         (Thread & { partner: User }) | (OrgThread & { org: OrgRef })
@@ -882,6 +1191,10 @@ async function pollThread(target: ChatTarget): Promise<void> {
     }
 
     update({
+        pinPreferences: withPinPreferences(
+            [[key, fresh.pinned_at]],
+            pinsVersion,
+        ),
         mutePreferences: withMutePreferences(
             [[key, fresh.muted_until_at]],
             version,
@@ -904,6 +1217,14 @@ async function pollThread(target: ChatTarget): Promise<void> {
                         polledAt,
                     ),
                     fresh.messages,
+                ),
+                ...pinnedMessagesFrom(
+                    key,
+                    current,
+                    'pinned' in fresh ? fresh.pinned : null,
+                    fresh.reactions_version,
+                    fresh.reaction_changes,
+                    polledAt,
                 ),
                 reactions_version: Math.max(
                     current.reactions_version ?? 0,
@@ -1043,11 +1364,15 @@ function touchInbox(target: ChatTarget, message: Message): void {
         partner_read_through_id: existing?.partner_read_through_id ?? 0,
         partner_read_at: existing?.partner_read_at ?? null,
         is_archived: false,
+        pinned_at: state.pinPreferences[key]?.at ?? existing?.pinned_at ?? null,
         muted_until_at: existing?.muted_until_at ?? null,
     };
 
     update({
-        conversations: [summary, ...(withoutKey(conversations, key) ?? [])],
+        conversations: withConversationPins([
+            summary,
+            ...(withoutKey(conversations, key) ?? []),
+        ]),
         archived: withoutKey(state.archived, key),
     });
     updateThread(key, () => ({ is_archived: false }));
@@ -1158,6 +1483,26 @@ export function sendMessage(target: ChatTarget, draft: MessageDraft): void {
     void deliver(target, pending);
 }
 
+/**
+ * Pings the partner, or everyone in an org. The stored ping lands in the thread like a message, and the thread shakes
+ * as it arrives.
+ */
+export async function sendPing(target: ChatTarget): Promise<void> {
+    const key = targetKey(target);
+    const { message } = await request<{ message: Message }>(
+        urls(target).ping,
+        'POST',
+    );
+
+    lastActivity.set(key, Date.now());
+    updateThread(key, (thread) => ({
+        messages: mergeMessages(thread.messages, [message]),
+        read_through_id: Math.max(thread.read_through_id, message.id),
+        head: Math.max(thread.head, message.id),
+    }));
+    touchInbox(target, message);
+}
+
 async function loadReactionUsage(): Promise<void> {
     if (state.reactionUsage !== null || isLoadingReactionUsage) {
         return;
@@ -1186,17 +1531,30 @@ function countReactionUse(emoji: string, change: 1 | -1): void {
     }
 }
 
+/**
+ * A message can show twice, in the thread and among the pinned ones, or only among the pinned ones for a member added
+ * after it without its history.
+ */
 function setReactions(
     key: string,
     messageId: number,
     change: (reactions: MessageReaction[]) => MessageReaction[],
 ): void {
+    const changed = (messages: Message[]) =>
+        messages.some((message) => message.id === messageId)
+            ? messages.map((message) =>
+                  message.id === messageId
+                      ? {
+                            ...message,
+                            reactions: change(message.reactions ?? []),
+                        }
+                      : message,
+              )
+            : messages;
+
     updateThread(key, (thread) => ({
-        messages: thread.messages.map((message) =>
-            message.id === messageId
-                ? { ...message, reactions: change(message.reactions ?? []) }
-                : message,
-        ),
+        messages: changed(thread.messages),
+        pinned: changed(thread.pinned),
     }));
 }
 
@@ -1211,9 +1569,11 @@ export async function toggleReaction(
     userId: string,
 ): Promise<boolean> {
     const key = targetKey(target);
-    const message = state.threads[key]?.messages.find(
-        (item) => item.id === messageId,
-    );
+    const thread = state.threads[key];
+    const message = [
+        ...(thread?.messages ?? []),
+        ...(thread?.pinned ?? []),
+    ].find((item) => item.id === messageId);
 
     if (message === undefined) {
         return false;
@@ -1269,6 +1629,85 @@ export async function toggleReaction(
         countReactionUse(emoji, isRemoving ? 1 : -1);
 
         return false;
+    }
+}
+
+/**
+ * Pins a message for the whole org, or unpins it, straight away, then settles on the org's pinned messages as the
+ * server holds them, once no other pin request in the org is in flight. Puts the message back where it was and throws
+ * when the server refuses, or answers without the message among the pinned ones.
+ */
+export async function setMessagePinned(
+    target: ChatTarget,
+    message: Message,
+    isPinned: boolean,
+): Promise<void> {
+    const key = targetKey(target);
+    const shown = state.threads[key]?.pinned ?? [];
+    const index = shown.findIndex((item) => item.id === message.id);
+    const sentAt = performance.now();
+
+    if (isPinned === (index !== -1)) {
+        return;
+    }
+
+    messagePinsInFlight.set(key, (messagePinsInFlight.get(key) ?? 0) + 1);
+    updateThread(key, (thread) => ({
+        pinned: isPinned
+            ? withPinnedMessage(thread.pinned, message)
+            : withoutPinnedMessage(thread.pinned, message),
+    }));
+
+    try {
+        const { pinned, reactions_version: version } = await request<{
+            pinned: Message[];
+            reactions_version: number;
+        }>(
+            isPinned
+                ? MessagePinController.update.url({ message: message.id })
+                : MessagePinController.destroy.url({ message: message.id }),
+            isPinned ? 'PUT' : 'DELETE',
+        );
+
+        // Responses can arrive out of order, so the newest one wins.
+        if ((newestPinnedMessages.get(key)?.version ?? -1) <= version) {
+            newestPinnedMessages.set(key, { pinned, version, sentAt });
+        }
+
+        if (isPinned && !isPinnedIn(pinned, message)) {
+            throw new Error('Another pin took the last place first.');
+        }
+    } catch (error) {
+        updateThread(key, (thread) => ({
+            pinned: isPinned
+                ? withoutPinnedMessage(thread.pinned, message)
+                : withPinnedMessageRestored(thread.pinned, shown[index], index),
+        }));
+
+        throw error;
+    } finally {
+        const left = (messagePinsInFlight.get(key) ?? 1) - 1;
+        const newest = newestPinnedMessages.get(key);
+
+        if (left > 0) {
+            messagePinsInFlight.set(key, left);
+        } else {
+            messagePinsInFlight.delete(key);
+            newestPinnedMessages.delete(key);
+
+            if (newest !== undefined) {
+                updateThread(key, (thread) =>
+                    pinnedMessagesFrom(
+                        key,
+                        thread,
+                        newest.pinned,
+                        newest.version,
+                        [],
+                        newest.sentAt,
+                    ),
+                );
+            }
+        }
     }
 }
 
@@ -1428,6 +1867,7 @@ export async function searchConversations(
     signal: AbortSignal,
 ): Promise<ConversationSummary[]> {
     const version = ++muteVersion;
+    const pinsVersion = ++pinVersion;
     const response = await fetch(
         InboxController.index.url({ query: { q: term, tab } }),
         { headers: { Accept: 'application/json' }, cache: 'no-store', signal },
@@ -1439,6 +1879,10 @@ export async function searchConversations(
 
     const { conversations } = (await response.json()) as InboxPage;
     update({
+        pinPreferences: withPinPreferences(
+            conversations.map((item) => [summaryKey(item), item.pinned_at]),
+            pinsVersion,
+        ),
         mutePreferences: withMutePreferences(
             conversations.map((item) => [
                 summaryKey(item),
@@ -1447,7 +1891,7 @@ export async function searchConversations(
             version,
         ),
     });
-    return conversations;
+    return withConversationPins(conversations);
 }
 
 /**
@@ -1507,7 +1951,7 @@ export async function settleRequest(
         unread: Math.max(0, (state.unread ?? 1) - 1),
         ...(isMerging && fetchedRequest
             ? {
-                  conversations: byLatest([
+                  conversations: withConversationPins([
                       ...(withoutKey(state.conversations, key) ?? []),
                       { ...fetchedRequest, ahead: 0 },
                   ]),
@@ -1541,13 +1985,16 @@ export async function setConversationArchived(
         const moved = { ...conversation, is_archived: isArchived };
         const conversations = isArchived
             ? withoutKey(state.conversations, key)
-            : byLatest([
+            : withConversationPins([
                   ...(withoutKey(state.conversations, key) ?? []),
                   moved,
               ]);
         const archived = isArchived
             ? state.archived &&
-              byLatest([...(withoutKey(state.archived, key) ?? []), moved])
+              withConversationPins([
+                  ...(withoutKey(state.archived, key) ?? []),
+                  moved,
+              ])
             : withoutKey(state.archived, key);
 
         update({
@@ -1576,6 +2023,41 @@ export async function setConversationArchived(
 
         return false;
     }
+}
+
+function invalidateConversationPages(): void {
+    inboxRevision++;
+    for (const tab of ['open', 'fetched', 'stashed'] as const) {
+        if (state[listOf[tab]] !== null && state.hasMore[tab]) {
+            invalidatedInboxTabs.add(tab);
+        }
+    }
+}
+
+export async function setConversationPinned(
+    target: ChatTarget,
+    pinned: boolean,
+): Promise<void> {
+    const preference = await request<{ pinned_at: string | null }>(
+        urls(target).pin,
+        'PUT',
+        { pinned },
+    );
+    const key = targetKey(target);
+    invalidateConversationPages();
+    update({
+        pinPreferences: withPinPreferences([[key, preference.pinned_at]]),
+    });
+    update({
+        conversations:
+            state.conversations && withConversationPins(state.conversations),
+        fetched: state.fetched && withConversationPins(state.fetched),
+        archived: state.archived && withConversationPins(state.archived),
+    });
+    updateThread(key, () => preference);
+    await Promise.all(
+        [...invalidatedInboxTabs].map((tab) => refreshConversationPages(tab)),
+    );
 }
 
 export type MuteDuration = 'hour' | 'tomorrow' | 'week' | 'forever' | 'off';

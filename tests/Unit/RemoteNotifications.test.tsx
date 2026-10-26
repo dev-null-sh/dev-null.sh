@@ -43,7 +43,7 @@ function conversation(id: number, changes: Partial<ConversationSummary> = {}): C
         last_incoming_message_id: id,
         last_incoming_sender: 'Alice',
         last_message_at: new Date(time).toISOString(), ahead: 1,
-        partner_read_through_id: 0, partner_read_at: null, is_archived: false, muted_until_at: null,
+        partner_read_through_id: 0, partner_read_at: null, is_archived: false, pinned_at: null, muted_until_at: null,
         ...changes,
     };
 }
@@ -52,6 +52,7 @@ beforeEach(() => {
     time = Date.parse('2026-10-22T12:00:00Z');
     permission = 'granted';
     storage.clear();
+    storage.set('remote-alerts:me:offsite', 'on');
     shown.length = 0;
     announced.length = 0;
     play.mockClear();
@@ -287,7 +288,7 @@ test.each([
     await alerts.receive([], () => false);
     await alerts.receive([conversation(1)], () => false);
 
-    assert.equal(shown.length, Number(notifications));
+    assert.equal(shown.length, 1);
     assert.equal(announced.length, Number(notifications));
     assert.equal(play.mock.calls.length, Number(sound));
 });
@@ -348,11 +349,23 @@ test('mobile notification fallback works and rejected audio does not reject mess
     assert.equal(play.mock.calls.length, 1);
 });
 
+test.each([
+    [49, 50, '(99) Remotes - /dev/null'],
+    [50, 50, '(99+) Remotes - /dev/null'],
+    [1000, 0, '(99+) Remotes - /dev/null'],
+    [0, 1000, '(99+) Remotes - /dev/null'],
+] as const)('tab titles cap the combined unread total with %s notifications and %s messages', (notifications, messages, expected) => {
+    const page = { props: { auth: { user: { id: 'me' }, unreadNotificationsCount: notifications, unreadMessagesCount: messages } } } as Page<SharedPageProps>;
+
+    assert.equal(pageTitle('Remotes', page), expected);
+});
+
 test.each([true, false])('background inbox polling alerts without consuming unread state, with banners=%s', async (banners) => {
     vi.useFakeTimers();
     Object.assign(window, { setTimeout, clearTimeout });
     vi.stubGlobal('document', { hidden: true, cookie: '', addEventListener() {}, removeEventListener() {} });
     await setRemoteAlerts('me', banners);
+    storage.set('remote-alerts:me:offsite', banners ? 'on' : 'off');
     let messages = [conversation(30, { kind: 'org' })];
     let unread = 1;
     const page = { props: { auth: { user: { id: 'me' }, unreadNotificationsCount: 2, unreadMessagesCount: 8 } } } as Page<SharedPageProps>;
@@ -382,6 +395,14 @@ test.each([true, false])('background inbox polling alerts without consuming unre
         assert.equal(pageTitle('Settings', page), '(6) Settings - /dev/null');
         assert.equal(shown.length, 2 * Number(banners));
         assert.equal(play.mock.calls.length, 2);
+
+        unread = 97;
+        await vi.advanceTimersByTimeAsync(15_000);
+        assert.equal(pageTitle('Settings', page), '(99) Settings - /dev/null');
+
+        unread = 98;
+        await vi.advanceTimersByTimeAsync(15_000);
+        assert.equal(pageTitle('', page), '(99+) /dev/null');
 
         unread = 0;
         messages = [conversation(32, { kind: 'org', ahead: 0 })];
@@ -769,8 +790,8 @@ test('an unfocused window does not mark incoming messages read before it can ale
     seedThread(target, {
         messages: [conversation(50).last_message!], has_older: false,
         reactions_version: 0, reaction_changes: [], read_through_id: 0,
-        members: [], typing: [], is_archived: false, muted_until_at: null,
-        role: 'contributor', access: 'open',
+        members: [], typing: [], is_archived: false, pinned_at: null, muted_until_at: null,
+        role: 'contributor', access: 'open', pinned: [],
     });
 
     markThreadRead(target);
@@ -778,4 +799,47 @@ test('an unfocused window does not mark incoming messages read before it can ale
     focused = true;
     markThreadRead(target);
     assert.equal(chatSnapshot().threads['org:unfocused-org'].read_through_id, 50);
+});
+
+
+test('alerts from recent activity even when older pins occupy the visible first page', async () => {
+    vi.useFakeTimers();
+    Object.assign(window, { setTimeout, clearTimeout });
+    vi.stubGlobal('document', { hidden: true, cookie: '', addEventListener() {}, removeEventListener() {} });
+    await setRemoteAlerts('me', true);
+    let incoming = conversation(100, { id: 'recent-unpinned', kind: 'org' });
+    const pinned = conversation(10, { id: 'old-pinned', kind: 'org', pinned_at: '2026-10-23T10:00:00Z' });
+    const requested: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+        requested.push(url);
+        return Response.json({ conversations: [pinned], notification_conversations: [incoming], notification_baseline: { 'recent-unpinned': 100, 'old-pinned': 10 }, has_more: true, unread: 2, requests: 0 });
+    });
+    const stop = watchRemoteAlerts('me');
+    try {
+        await vi.advanceTimersByTimeAsync(0);
+        incoming = conversation(101, { id: 'recent-unpinned', kind: 'org' });
+        await vi.advanceTimersByTimeAsync(15_000);
+        assert.equal(shown.length, 1);
+        assert.equal(play.mock.calls.length, 1);
+        assert.equal(chatSnapshot().conversations?.[0].id, 'old-pinned');
+        assert.ok(requested.every((url) => url.includes('notification_conversations=1')));
+    } finally {
+        stop();
+        vi.useRealTimers();
+    }
+});
+
+test('default notifications stay on-site even when this browser already has OS permission', async () => {
+    storage.delete('remote-alerts:me:offsite');
+    storage.set('remote-alerts:me', 'on');
+    const permissionRequest = vi.spyOn(FakeNotification, 'requestPermission');
+    assert.equal(remoteAlertsEnabled('me'), true);
+    assert.equal(remoteAlertsEnabled('me', 'offsite'), false);
+    await setRemoteAlerts('me', true);
+    const alerts = reader();
+    await alerts.receive([], () => false);
+    await alerts.receive([conversation(1)], () => false);
+    assert.equal(announced.length, 1);
+    assert.equal(shown.length, 0);
+    assert.equal(permissionRequest.mock.calls.length, 0);
 });

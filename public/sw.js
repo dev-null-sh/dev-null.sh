@@ -19,6 +19,16 @@ const assetCache = `assets-${version}`;
 const offlineUrl = '/offline.html';
 const offlineFiles = [offlineUrl, '/favicon.ico', '/favicon.svg'];
 
+self.addEventListener('push', (event) => {
+    event.waitUntil(self.registration.showNotification('/dev/null · Remotes', {
+        body: 'You have a new message in Remotes.',
+        icon: '/icon-192.png',
+        tag: 'devnull-remotes',
+        silent: true,
+        data: { url: '/remotes' },
+    }));
+});
+
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
     const url = new URL(event.notification.data?.url ?? '/', self.location.origin);
@@ -26,7 +36,7 @@ self.addEventListener('notificationclick', (event) => {
     if (url.origin !== self.location.origin) return;
 
     event.waitUntil(self.clients.matchAll({ type: 'window' }).then(async (clients) => {
-        const client = clients[0];
+        const client = clients.find((client) => new URL(client.url).pathname.startsWith('/remotes')) ?? clients[0];
 
         if (client) {
             await client.navigate(url.href);

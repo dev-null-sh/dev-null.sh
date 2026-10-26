@@ -9,7 +9,7 @@ const message = (id: number) => ({ id, user_id: 'partner', client_id: `message-$
 const page = (ids: number[], hasOlder = true): Thread => ({
     messages: ids.map(message), has_older: hasOlder, reactions_version: 0, reaction_changes: [],
     read_through_id: 0, partner_read_through_id: 0, partner_read_at: null,
-    partner_typing: false, is_archived: false, muted_until_at: null, access: 'open',
+    partner_typing: false, is_archived: false, pinned_at: null, muted_until_at: null, access: 'open',
 });
 function thread(kind: 'direct' | 'org' = 'direct'): ChatTarget {
     const id = `navigation-${++sequence}`;
@@ -17,7 +17,7 @@ function thread(kind: 'direct' | 'org' = 'direct'): ChatTarget {
         ? { kind, partner: { id, username: id } as User }
         : { kind, org: { id, name: 'Navigation' } };
     seedThread(target, kind === 'direct' ? page([101, 102]) : {
-        ...page([101, 102]), members: [], typing: [], role: 'contributor',
+        ...page([101, 102]), members: [], typing: [], role: 'contributor', pinned: [],
     });
     return target;
 }

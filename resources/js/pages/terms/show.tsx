@@ -1,10 +1,12 @@
 import { Head, Link } from '@inertiajs/react';
+import AppController from '@/actions/App/Http/Controllers/AppController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import {
     DocumentList,
     DocumentPage,
     DocumentSection,
 } from '@/components/document-page';
+import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import { COMPANY_NAME, CONTACT_EMAIL, TERMS_EFFECTIVE_DATE } from '@/lib/legal';
 
@@ -28,10 +30,11 @@ export default function Show() {
                 <DocumentSection id="agreement" title="Agreement">
                     <p>
                         These terms are an agreement between you and{' '}
-                        {COMPANY_NAME} ("we", "us"). The "service" means
-                        /dev/null and everything we offer under that name or any
-                        other, now or in the future, including dev-null.sh, its
-                        apps, APIs, feeds, tools, and features.
+                        {COMPANY_NAME} ("we", "us"). The "service" means{' '}
+                        <WordmarkText>/dev/null</WordmarkText> and everything we
+                        offer under that name or any other, now or in the
+                        future, including dev-null.sh, its apps, APIs, feeds,
+                        tools, and features.
                     </p>
                     <p>
                         By using the service, you accept these terms and our{' '}
@@ -109,6 +112,27 @@ export default function Show() {
                     </p>
                 </DocumentSection>
 
+                <DocumentSection id="apps" title="Apps">
+                    <p>
+                        Our apps, such as{' '}
+                        <Link href={AppController.index()}>
+                            /dev/null for Mac
+                        </Link>
+                        , are part of the service. We let you install and use
+                        them on devices you own or control, only to use the
+                        service, under a personal, non-exclusive,
+                        non-transferable license that ends when your access to
+                        the service ends. Get them only from dev-null.sh. Each
+                        device you approve can act as you until you revoke it in
+                        your settings, and you are responsible for what happens
+                        through it. We may update, limit, or stop offering any
+                        app, and an outdated version may stop working. Apps we
+                        haven't had notarized by Apple ask you to approve them
+                        in macOS before they first open, and you install them at
+                        your own risk.
+                    </p>
+                </DocumentSection>
+
                 <DocumentSection id="rules" title="Rules">
                     <p>Don't use the service to:</p>
                     <DocumentList
@@ -167,8 +191,9 @@ export default function Show() {
                         you rely on them at your own risk.
                     </p>
                     <p>
-                        /dev/null is not affiliated with or endorsed by GitHub,
-                        Inc. GitHub is a trademark of GitHub, Inc.
+                        <WordmarkText>/dev/null</WordmarkText> is not affiliated
+                        with or endorsed by GitHub, Inc. GitHub is a trademark
+                        of GitHub, Inc.
                     </p>
                 </DocumentSection>
 

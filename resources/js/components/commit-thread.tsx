@@ -9,6 +9,7 @@ import {
 import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
 import {
     useCallback,
+    useContext,
     useEffect,
     useEffectEvent,
     useRef,
@@ -40,12 +41,15 @@ import {
     useComposerPreview,
 } from '@/components/composer-preview';
 import {
+    graphDash,
+    graphStrokeWidth,
     useGraphDimmed,
     useGraphNode,
     useGraphNodeId,
     useGraphOverlay,
 } from '@/components/graph-canvas';
 import { RailDot, railDotRing } from '@/components/graph-rail';
+import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
@@ -687,57 +691,64 @@ export function ThreadSpine({
         <span
             aria-hidden
             className={cn(
-                'absolute bottom-0 left-1/2 w-px -translate-x-1/2',
+                'absolute bottom-0 left-1/2 w-0.5 -translate-x-1/2',
                 className,
             )}
-            style={laneStrokeStyle(laneOf(thread.commit))}
+            style={laneStrokeStyle(laneOf(thread.commit), { dash: graphDash })}
             data-test="thread-spine"
         />
     );
 }
 
-const replyLink =
-    'absolute left-[calc(var(--indent)+12px)] w-px sm:left-[calc(var(--indent)+14px)]';
+/**
+ * A piece of the parent's column, in its lane, as the graph canvas draws it on from one reply's corner to the next.
+ */
+function ThreadColumn({ className }: { className: string }) {
+    return (
+        <span
+            aria-hidden
+            className={cn('absolute w-0.5 -translate-x-1/2', className)}
+            style={laneStrokeStyle('var(--lane)', { dash: graphDash })}
+            data-test="thread-column"
+        />
+    );
+}
 
-function ReplyLinks({
-    previousLane,
-    lane,
+/**
+ * A reply's branch off its parent: an elbow to the reply, and the column on below it when another reply follows. A
+ * trunk going on below the replies is their column already, so they only turn off it.
+ */
+function ReplyBranch({
+    isOnTrunk,
     hasNext,
 }: {
-    previousLane: string | null;
-    lane: string;
+    isOnTrunk: boolean;
     hasNext: boolean;
 }) {
     return (
         <span aria-hidden>
-            {previousLane === null ? (
-                <ThreadElbow />
-            ) : (
-                <span
-                    className={cn(replyLink, 'top-0 h-1.5')}
-                    style={laneStrokeStyle(previousLane)}
-                    data-test="reply-link"
-                />
-            )}
-            {hasNext && (
-                <span
-                    className={cn(
-                        replyLink,
-                        'top-[38px] bottom-0 sm:top-[42px]',
-                    )}
-                    style={laneStrokeStyle(lane)}
-                    data-test="reply-tail"
-                />
+            <ThreadElbow isOnTrunk={isOnTrunk} />
+            {hasNext && !isOnTrunk && (
+                <ThreadColumn className="top-2.5 bottom-0 left-(--spine) sm:top-3" />
             )}
         </span>
     );
 }
 
-function ThreadElbow() {
+function ThreadElbow({
+    isOnTrunk,
+    className,
+}: {
+    isOnTrunk: boolean;
+    className?: string;
+}) {
     return (
         <svg
             aria-hidden
-            className="pointer-events-none absolute top-0 left-(--spine) h-[22px] w-[calc(var(--indent)-var(--spine)-4px)] overflow-visible sm:h-6"
+            className={cn(
+                'pointer-events-none absolute top-0 left-(--spine) h-[22px] w-[calc(var(--indent)-var(--spine)-4px)] overflow-visible sm:h-6',
+                className,
+            )}
             viewBox="0 0 32 24"
             preserveAspectRatio="none"
             fill="none"
@@ -745,10 +756,10 @@ function ThreadElbow() {
         >
             {/* Quarter-circle corner matching rounded-bl-xl. */}
             <path
-                d="M 0 0 L 0 12 Q 0 23.5 12 23.5 L 32 23.5"
+                d={`${isOnTrunk ? 'M 0 12' : 'M 0 0 L 0 12'} Q 0 23.5 12 23.5 L 32 23.5`}
                 stroke="var(--lane)"
-                strokeWidth="1"
-                strokeDasharray="2 2"
+                strokeWidth={graphStrokeWidth}
+                strokeDasharray={`${graphDash} ${graphDash}`}
                 vectorEffect="non-scaling-stroke"
             />
         </svg>
@@ -759,11 +770,14 @@ export function ThreadReplies({
     thread,
     depth,
     graphParent,
+    isOnTrunk = false,
 }: {
     thread: Thread;
     depth: number;
-    /** In a graph canvas, the node the first reply branches off. */
+    /** In a graph canvas, the node the replies branch off. */
     graphParent?: string;
+    /** Whether the parent's trunk goes on below the replies, to the next commit of the thread. */
+    isOnTrunk?: boolean;
 }) {
     const isOverlaid = useGraphOverlay();
     const nodeId = useGraphNodeId();
@@ -798,31 +812,11 @@ export function ThreadReplies({
                             reply={reply}
                             parent={thread.commit}
                             depth={depth + 1}
-                            graph={
-                                isFlattened
-                                    ? {}
-                                    : {
-                                          after:
-                                              index === 0
-                                                  ? undefined
-                                                  : nodeId(
-                                                        replies[index - 1].id,
-                                                    ),
-                                          parent:
-                                              index === 0
-                                                  ? branchFrom
-                                                  : undefined,
-                                      }
-                            }
+                            graph={isFlattened ? {} : { parent: branchFrom }}
                             links={
                                 isFlattened || isOverlaid ? null : (
-                                    <ReplyLinks
-                                        previousLane={
-                                            index === 0
-                                                ? null
-                                                : laneOf(replies[index - 1])
-                                        }
-                                        lane={laneOf(reply)}
+                                    <ReplyBranch
+                                        isOnTrunk={isOnTrunk}
                                         hasNext={
                                             index < replies.length - 1 ||
                                             thread.hasMore
@@ -834,41 +828,31 @@ export function ThreadReplies({
                         />
                     ))}
                     {thread.hasMore && (
-                        <div className="relative pt-1.5 pl-(--indent)">
+                        <div
+                            className={cn(
+                                'relative pt-1.5',
+                                isFlattened || isOnTrunk
+                                    ? 'pl-(--indent)'
+                                    : // Centres the dot on the parent's column.
+                                      'ml-[calc(var(--spine)-12px)] sm:ml-[calc(var(--spine)-14px)]',
+                            )}
+                            data-test="more-replies"
+                        >
                             {!isFlattened &&
                                 !isOverlaid &&
-                                thread.replies.length > 0 && (
-                                    <span
-                                        aria-hidden
-                                        className={cn(
-                                            replyLink,
-                                            'top-0 h-5 sm:h-5.5',
-                                        )}
-                                        style={laneStrokeStyle(
-                                            laneOf(
-                                                thread.replies[
-                                                    thread.replies.length - 1
-                                                ],
-                                            ),
-                                        )}
+                                (isOnTrunk ? (
+                                    <ThreadElbow
+                                        isOnTrunk
+                                        className="h-5 w-[calc(var(--indent)-var(--spine)+4px)] sm:h-5.5"
                                     />
-                                )}
+                                ) : (
+                                    <ThreadColumn className="top-0 left-3 h-5 sm:left-3.5 sm:h-5.5" />
+                                ))}
                             <MoreRepliesButton
                                 thread={thread}
                                 isFlattened={depth + 1 > maxIndentDepth}
                                 graph={
-                                    isFlattened
-                                        ? {}
-                                        : thread.replies.length > 0
-                                          ? {
-                                                after: nodeId(
-                                                    thread.replies[
-                                                        thread.replies.length -
-                                                            1
-                                                    ].id,
-                                                ),
-                                            }
-                                          : { parent: branchFrom }
+                                    isFlattened ? {} : { parent: branchFrom }
                                 }
                             />
                         </div>
@@ -982,7 +966,7 @@ function MoreRepliesButton({
     );
 }
 
-type ReplyGraph = { after?: string; parent?: string };
+type ReplyGraph = { parent?: string };
 
 /** A reply avatar's ring is a 2px ring, 2px away from the picture. */
 const replyRing = 4;
@@ -1080,6 +1064,7 @@ function CommitReply({
 }) {
     const { auth } = usePage().props;
     const now = useNow();
+    const hiddenLinkPreviewUrl = useContext(HiddenLinkPreviewContext);
     const { bodyRef, ...translation } = useCommitTranslation(reply);
     const wasDeleted = useIsCommitDeleted(reply.id);
     const commitNotFound = useCommitNotFound();
@@ -1268,14 +1253,15 @@ function CommitReply({
                     </div>
                     {translation.notice}
                     <CommitImages commit={reply} />
-                    {reply.link_preview && (
-                        <LinkPreview
-                            refreshUrl={CommitLinkPreviewController.show.url(
-                                reply.id,
-                            )}
-                            preview={reply.link_preview}
-                        />
-                    )}
+                    {reply.link_preview &&
+                        reply.link_preview.url !== hiddenLinkPreviewUrl && (
+                            <LinkPreview
+                                refreshUrl={CommitLinkPreviewController.show.url(
+                                    reply.id,
+                                )}
+                                preview={reply.link_preview}
+                            />
+                        )}
                     <ShowThreadLink thread={thread} />
 
                     {isConfirming ? (
