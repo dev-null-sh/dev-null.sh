@@ -1,8 +1,7 @@
 import { ImagePlus, X } from 'lucide-react';
-import { useId, useRef, useState } from 'react';
+import { lazy, Suspense, useId, useRef, useState } from 'react';
 import { ActionTooltip } from '@/components/action-tooltip';
 import type { ShownImage } from '@/components/commit-images';
-import { ImageViewer } from '@/components/image-viewer';
 import { Button } from '@/components/ui/button';
 import {
     acceptedImageTypes,
@@ -15,6 +14,15 @@ import { cn } from '@/lib/utils';
 export { maxImages } from '@/lib/read-picked-images';
 
 export const maxDescriptionLength = 1000;
+
+/**
+ * Only needed once a picked image is opened, which keeps the viewer and its styles out of the composer's bundle.
+ */
+const ImageViewer = lazy(() =>
+    import('@/components/image-viewer').then((module) => ({
+        default: module.ImageViewer,
+    })),
+);
 
 /**
  * Keeps the files the server would accept, and tells why any others were left out.
@@ -298,14 +306,16 @@ export function ImagePickerPreviews({
                 })}
             </ul>
 
-            <ImageViewer
-                images={shownImages}
-                index={activeViewedIndex}
-                onView={setViewedIndex}
-                onClose={closeViewer}
-                downloadUrl={(image) => image.url}
-                downloadFilename={downloadFilename}
-            />
+            <Suspense fallback={null}>
+                <ImageViewer
+                    images={shownImages}
+                    index={activeViewedIndex}
+                    onView={setViewedIndex}
+                    onClose={closeViewer}
+                    downloadUrl={(image) => image.url}
+                    downloadFilename={downloadFilename}
+                />
+            </Suspense>
 
             {editing !== null && (
                 <div
