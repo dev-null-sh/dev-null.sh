@@ -2,18 +2,18 @@ import type { GifMutation } from './php-gif-mutations.ts';
 
 export const playbackMutations: GifMutation[] = [
     {
-        name: 'autoplay invalid verified GIF sources',
+        name: 'play unsafe verified GIF sources',
         source: 'resources/js/lib/gifs.ts',
         test: 'tests/Unit/GifPlayback.test.ts',
-        before: '!reducedMotion && parseHttpsUrl(source) !== null',
-        after: '!reducedMotion',
+        before: 'parseHttpsUrl(source) === null',
+        after: 'false',
     },
     {
         name: 'ignore reduced motion',
         source: 'resources/js/lib/gifs.ts',
         test: 'tests/Unit/GifPlayback.test.ts',
-        before: '!reducedMotion && parseHttpsUrl(source) !== null',
-        after: 'parseHttpsUrl(source) !== null',
+        before: 'return !reducedMotion;',
+        after: 'return true;',
     },
     {
         name: 'ignore visibility',

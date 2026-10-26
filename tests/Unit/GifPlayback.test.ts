@@ -5,6 +5,7 @@ import {
     canLoadGifPoster,
     canRetryGifLoad,
     failGifLoad,
+    GIF_PLAYBACK_MODE,
     hasGifLoadFailed,
     isGifPlaying,
     isGifUrl,
@@ -75,8 +76,13 @@ for (const source of [
     'https://user:secret@example.com/media?id=cat',
     'https://example.com:8443/media?id=cat',
 ]) {
-    void test(`does not autoplay an unsafe verified GIF source: ${source}`, () => {
-        assert.equal(isGifPlaying({ ...playback, source }), false);
+    void test(`rejects an unsafe verified GIF source in every playback mode: ${source}`, () => {
+        for (const mode of Object.values(GIF_PLAYBACK_MODE)) {
+            assert.equal(
+                isGifPlaying({ ...playback, source, playback: mode }),
+                false,
+            );
+        }
     });
 }
 

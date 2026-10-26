@@ -144,7 +144,8 @@ export function isGifPlaying({
         isStatic ||
         hasFailed ||
         !isVisible ||
-        playback === GIF_PLAYBACK_MODE.STOPPED
+        playback === GIF_PLAYBACK_MODE.STOPPED ||
+        parseHttpsUrl(source) === null
     ) {
         return false;
     }
@@ -153,5 +154,5 @@ export function isGifPlaying({
         return true;
     }
 
-    return !reducedMotion && parseHttpsUrl(source) !== null;
+    return !reducedMotion;
 }
