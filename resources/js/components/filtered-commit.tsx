@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { show } from '@/actions/App/Http/Controllers/CommitVisibilityController';
 import { Spinner } from '@/components/ui/spinner';
+import { withViewTransition } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 export function useCommitVisibility<
@@ -22,7 +23,7 @@ export function useCommitVisibility<
 
         try {
             const commit = await request.submit(show(original.id));
-            setRevealed({ original, commit });
+            await withViewTransition(() => setRevealed({ original, commit }));
         } catch {
             toast.error('Could not show this commit. Try again.');
         }
