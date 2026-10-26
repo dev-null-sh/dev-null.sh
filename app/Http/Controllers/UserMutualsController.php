@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Enums\ConnectionType;
 use App\Http\Requests\ListUserMutualsRequest;
 use App\Models\User;
 use App\Queries\UserConnectionsQuery;
@@ -28,7 +29,7 @@ final readonly class UserMutualsController
 
         return Inertia::render('user/connections', [
             'user' => fn (): User => $currentUser instanceof User ? $user : $getCountedUser(),
-            'type' => 'mutuals',
+            'type' => ConnectionType::Mutuals,
             'users' => Inertia::scroll(function () use ($connections, $currentUser, $user) {
                 $mutuals = $connections->builder($user->following()
                     ->whereExists(fn (QueryBuilder $query): QueryBuilder => $query->from('follows', 'follows_back')
@@ -41,6 +42,6 @@ final readonly class UserMutualsController
 
                 return $mutuals->cursorPaginate(30);
             }),
-        ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->connections($getCountedUser(), 'mutuals')]);
+        ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->connections($getCountedUser(), ConnectionType::Mutuals)]);
     }
 }
