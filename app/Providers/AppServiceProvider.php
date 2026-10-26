@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Inertia\ExceptionResponse;
 use Inertia\Inertia;
+use LogicException;
 use Tempest\Highlight\Highlighter;
 
 final class AppServiceProvider extends ServiceProvider
@@ -30,9 +31,25 @@ final class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        $this->ensureProductionIsNotDebugging();
+
         $this->bootRateLimitingDefaults();
 
         $this->bootExceptionHandling();
+    }
+
+    /**
+     * A production build that still has "APP_DEBUG" on answers every error with a stack trace, the environment
+     * and the queries that led there. That is worse than being down, so the app refuses to start instead, and
+     * the deploy fails on it rather than the first visitor.
+     */
+    private function ensureProductionIsNotDebugging(): void
+    {
+        throw_if(
+            $this->app->isProduction() && config('app.debug'),
+            LogicException::class,
+            'APP_DEBUG must be false when APP_ENV is "production", as it exposes stack traces, environment variables and queries.',
+        );
     }
 
     private function bootExceptionHandling(): void
