@@ -55,6 +55,7 @@ import {
     maxRawBodyLength,
     minBodyLength,
 } from '@/lib/commit';
+import type { IssueKind } from '@/lib/issue-commands';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import {
     characterCount,
@@ -559,10 +560,12 @@ function CommitComposerBody({
 export function CommitComposer({
     id = 'body',
     isInDialog = false,
+    issue: initialIssue = null,
     onCommitted,
 }: {
     id?: string;
     isInDialog?: boolean;
+    issue?: IssueKind | null;
     onCommitted?: () => void;
 }) {
     const schedule = useCommitSchedule();
@@ -597,6 +600,7 @@ export function CommitComposer({
             !hasImages &&
             poll === null &&
             !isScheduling,
+        initialKind: initialIssue,
         onCreated: () => {
             drop();
             focusBody(id);

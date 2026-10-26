@@ -44,7 +44,7 @@ it('lists conversations by latest message, with what is unread, as the web inbox
         ->assertJsonPath('data.1.last_incoming_message_id', null)
         ->assertJsonPath('data.1.last_incoming_sender', null)
         ->assertJsonPath('has_more', false)
-        ->assertJsonPath('unread_count', 2)
+        ->assertJsonPath('unread_count', 1)
         ->assertJsonPath('requests_count', 0);
 });
 

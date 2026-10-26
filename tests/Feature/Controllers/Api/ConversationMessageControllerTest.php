@@ -49,7 +49,7 @@ it('loads the latest messages with the partner, as the web thread does', functio
             ['type' => 'code', 'code' => 'the PR'],
             ['type' => 'text', 'text' => ', @ghost? https://laravel.com'],
         ])
-        ->assertJsonPath('data.messages.0.mentions', [['handle' => 'octocat', 'username' => 'octocat', 'offset' => 4, 'length' => 8]])
+        ->assertJsonPath('data.messages.0.mentions', [['handle' => 'octocat', 'offset' => 4, 'length' => 8]])
         ->assertJsonPath('data.messages.0.link_preview.url', 'https://laravel.com')
         ->assertJsonPath('data.messages.0.link_preview.is_pending', true)
         ->assertJsonPath('data.messages.0.reply_to', null)

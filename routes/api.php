@@ -56,6 +56,7 @@ use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\UserRemotePreferencesController;
 use App\Http\Controllers\Api\UserRemotesController;
+use App\Http\Controllers\Api\UserTermsController;
 use App\Http\Controllers\Cli\CommitController;
 use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
@@ -118,6 +119,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Pastéis...
         Route::put('me/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('api-user-pasteis-mode.update');
+        Route::put('me/terms', [UserTermsController::class, 'update'])->name('api-user-terms.update');
 
         // User Profile: mirrored from GitHub again, as Sync from GitHub does on the web...
         Route::put('me/github', [UserProfileController::class, 'update'])
@@ -185,7 +187,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Who to Follow...
         Route::get('me/suggested-users', [SuggestedUserController::class, 'index'])->name('api-suggested-user.index');
-        Route::post('users/{user:username}/dismiss', [SuggestionDismissalController::class, 'store'])->name('api-suggestion-dismissal.store');
+        Route::post('users/{user:handle}/dismiss', [SuggestionDismissalController::class, 'store'])->name('api-suggestion-dismissal.store');
 
         // User Mute...
         Route::get('me/muted', [UserMuteController::class, 'index'])->name('api-user-mute.index');

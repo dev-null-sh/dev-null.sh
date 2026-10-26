@@ -29,7 +29,6 @@ it('finds people to push to, as the api shows people elsewhere', function (): vo
             'user' => [
                 'id' => $nuno->id,
                 'handle' => 'nunomaduro',
-                'username' => 'nunomaduro',
                 'name' => $nuno->name,
                 'avatar_url' => $nuno->avatar_url,
                 'bio' => 'Pest and Pint.',

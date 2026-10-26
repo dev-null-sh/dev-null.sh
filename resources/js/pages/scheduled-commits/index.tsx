@@ -1,10 +1,22 @@
 import { Head, Link, router, usePoll } from '@inertiajs/react';
-import { ArrowLeft, Clock3, ImageIcon, LockKeyhole } from 'lucide-react';
-import { useState } from 'react';
+import {
+    ArrowLeft,
+    Clock3,
+    ImageIcon,
+    LockKeyhole,
+    Trash2,
+} from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
+import ScheduledCommitSubmissionController from '@/actions/App/Http/Controllers/ScheduledCommitSubmissionController';
 import { FoldedCommitBody } from '@/components/commit-body';
 import { Button } from '@/components/ui/button';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
@@ -34,8 +46,92 @@ export default function Index({
     };
 }) {
     const now = useNow();
-    const [canceling, setCanceling] = useState<string | null>(null);
+    const [busy, setBusy] = useState<{
+        id: string;
+        action: 'commit' | 'cancel';
+    } | null>(null);
+    const returnFocusTo = useRef<string | null>(null);
+    const [sent, setSent] = useState(new Map<string, ScheduledCommit>());
+    // Rows keep the order they had when the page opened, and a row sent with Commit now keeps showing what was sent
+    // (submission clears it), so it stays where it was at its size instead of jumping below the outstanding ones and
+    // pulling the rows under it up. Submitted rows sort after older ones, so the refreshed page can leave it out: it
+    // stays from what was sent. A fresh visit sorts and trims them again.
+    const [order] = useState(() =>
+        scheduledCommits.data.map((scheduled) => scheduled.id),
+    );
+    const rank = (id: string) => {
+        const index = order.indexOf(id);
+
+        return index === -1 ? order.length : index;
+    };
+    const missing = [...sent.values()]
+        .filter(
+            (before) =>
+                !scheduledCommits.data.some(
+                    (scheduled) => scheduled.id === before.id,
+                ),
+        )
+        .map((before) => ({ ...before, status: 'pending' as const }));
+    const rows = [...scheduledCommits.data, ...missing]
+        .sort((a, b) => rank(a.id) - rank(b.id))
+        .map((scheduled) => {
+            const before = sent.get(scheduled.id);
+
+            return before && scheduled.status !== 'scheduled'
+                ? {
+                      ...before,
+                      submitted_at: scheduled.submitted_at,
+                      status: scheduled.status,
+                  }
+                : scheduled;
+        });
     usePoll(30_000, backgroundPollOptions({ only: ['scheduledCommits'] }));
+
+    useEffect(() => {
+        if (busy !== null || returnFocusTo.current === null) {
+            return;
+        }
+
+        const row = document.querySelector<HTMLElement>(
+            `[data-scheduled-commit="${returnFocusTo.current}"]`,
+        );
+        returnFocusTo.current = null;
+        // The page has the new props by now: back on Commit now when the commit is still outstanding, on its row once
+        // the button is gone.
+        (row?.querySelector<HTMLElement>('[data-commit-now]') ?? row)?.focus({
+            preventScroll: true,
+        });
+    }, [busy]);
+
+    const commitNow = (scheduled: ScheduledCommit) => {
+        let claimed = false;
+        returnFocusTo.current = scheduled.id;
+        // Kept before the response renders, and dropped again unless the server says this request claimed it.
+        setSent((current) => new Map(current).set(scheduled.id, scheduled));
+        setBusy({ id: scheduled.id, action: 'commit' });
+        router.post(
+            ScheduledCommitSubmissionController.store(scheduled.id),
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: (page) => {
+                    claimed = page.flash.submitted === scheduled.id;
+                },
+                onFinish: () => {
+                    if (!claimed) {
+                        setSent((current) => {
+                            const next = new Map(current);
+                            next.delete(scheduled.id);
+
+                            return next;
+                        });
+                    }
+
+                    setBusy(null);
+                },
+            },
+        );
+    };
 
     const labels = {
         pending: 'Submitted for review',
@@ -86,14 +182,22 @@ export default function Index({
                 </div>
             ) : (
                 <ul className="divide-y">
-                    {scheduledCommits.data.map((scheduled) => {
+                    {rows.map((scheduled) => {
                         const due =
                             new Date(scheduled.scheduled_at).getTime() <=
                             now.getTime();
+                        const when = new Date(
+                            scheduled.scheduled_at,
+                        ).toLocaleString(dateLocale, {
+                            dateStyle: 'medium',
+                            timeStyle: 'short',
+                        });
                         return (
                             <li
                                 key={scheduled.id}
-                                className="space-y-3 p-5 sm:px-6"
+                                className="space-y-3 p-5 outline-none focus-visible:bg-accent sm:px-6"
+                                tabIndex={-1}
+                                data-scheduled-commit={scheduled.id}
                             >
                                 <div className="flex items-start justify-between gap-3">
                                     <div className="min-w-0">
@@ -108,38 +212,61 @@ export default function Index({
                                             dateTime={scheduled.scheduled_at}
                                             className="mt-1 block font-mono text-xs text-muted-foreground"
                                         >
-                                            {new Date(
-                                                scheduled.scheduled_at,
-                                            ).toLocaleString(dateLocale, {
-                                                dateStyle: 'medium',
-                                                timeStyle: 'short',
-                                            })}
+                                            {when}
                                         </time>
                                     </div>
                                     {scheduled.status === 'scheduled' && (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={canceling !== null}
-                                            aria-label={`Cancel the commit scheduled for ${new Date(scheduled.scheduled_at).toLocaleString(dateLocale, { dateStyle: 'medium', timeStyle: 'short' })}`}
-                                            onClick={() => {
-                                                setCanceling(scheduled.id);
-                                                router.delete(
-                                                    ScheduledCommitController.destroy(
-                                                        scheduled.id,
-                                                    ),
-                                                    {
-                                                        preserveScroll: true,
-                                                        onFinish: () =>
-                                                            setCanceling(null),
-                                                    },
-                                                );
-                                            }}
-                                        >
-                                            {canceling === scheduled.id
-                                                ? 'Canceling…'
-                                                : 'Cancel'}
-                                        </Button>
+                                        <div className="flex shrink-0 gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={busy !== null}
+                                                aria-label={`Commit now instead of at ${when}`}
+                                                data-commit-now
+                                                onClick={() =>
+                                                    commitNow(scheduled)
+                                                }
+                                            >
+                                                {busy?.id === scheduled.id &&
+                                                busy.action === 'commit'
+                                                    ? 'Committing…'
+                                                    : 'Commit now'}
+                                            </Button>
+                                            <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                    <button
+                                                        type="button"
+                                                        disabled={busy !== null}
+                                                        aria-label={`Cancel the commit scheduled for ${when}`}
+                                                        onClick={() => {
+                                                            setBusy({
+                                                                id: scheduled.id,
+                                                                action: 'cancel',
+                                                            });
+                                                            router.delete(
+                                                                ScheduledCommitController.destroy(
+                                                                    scheduled.id,
+                                                                ),
+                                                                {
+                                                                    preserveScroll: true,
+                                                                    onFinish:
+                                                                        () =>
+                                                                            setBusy(
+                                                                                null,
+                                                                            ),
+                                                                },
+                                                            );
+                                                        }}
+                                                        className="self-center rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
+                                                    >
+                                                        <Trash2 className="size-4" />
+                                                    </button>
+                                                </TooltipTrigger>
+                                                <TooltipContent>
+                                                    Cancel
+                                                </TooltipContent>
+                                            </Tooltip>
+                                        </div>
                                     )}
                                 </div>
                                 {scheduled.body && (
@@ -180,12 +307,20 @@ export default function Index({
                                             : `${scheduled.image_count} images`}
                                     </p>
                                 )}
-                                {scheduled.status === 'scheduled' && (
+                                {scheduled.status === 'scheduled' ? (
                                     <p className="text-xs text-muted-foreground">
                                         {due
                                             ? 'Waiting for the scheduler. If submission fails, it is retried automatically.'
-                                            : 'Private until submitted. You can cancel before submission.'}
+                                            : 'Private until submitted. You can commit it now or cancel it before submission.'}
                                     </p>
+                                ) : (
+                                    sent.has(scheduled.id) && (
+                                        <p className="text-xs text-muted-foreground">
+                                            Submitted just now, ahead of its
+                                            scheduled time. It goes through the
+                                            usual review process.
+                                        </p>
+                                    )
                                 )}
                             </li>
                         );

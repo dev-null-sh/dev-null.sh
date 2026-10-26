@@ -89,6 +89,7 @@ use App\Http\Controllers\RemoteCandidateController;
 use App\Http\Controllers\ReportedCommitController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
+use App\Http\Controllers\ScheduledCommitSubmissionController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\SiteActivityController;
@@ -108,6 +109,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserFeedController;
 use App\Http\Controllers\UserFollowController;
 use App\Http\Controllers\UserFollowersController;
+use App\Http\Controllers\UserFollowersYouKnowController;
 use App\Http\Controllers\UserFollowingController;
 use App\Http\Controllers\UserLaneController;
 use App\Http\Controllers\UserLiveController;
@@ -269,7 +271,7 @@ Route::get('search/commits', [CommitSearchController::class, 'index'])
 
 Route::middleware('auth')->group(function (): void {
     Route::post('issues', [IssueController::class, 'store'])
-        ->middleware('throttle:10,1')
+        ->middleware([PreventPostingInTimeout::class, 'throttle:10,1'])
         ->name('issue.store');
 
     // Session...
@@ -283,6 +285,10 @@ Route::middleware('auth')->group(function (): void {
 
     // Banned, where a banned user is sent from everywhere else...
     Route::get('banned', [BannedController::class, 'show'])->name('banned.show');
+
+    // Followers the viewer knows...
+    Route::get('@{user:handle}/followers-you-know', [UserFollowersYouKnowController::class, 'index'])
+        ->name('user-followers-you-know.index');
 
     // Onboarding...
     Route::get('onboarding', [OnboardingController::class, 'show'])->name('onboarding.show');
@@ -299,6 +305,8 @@ Route::middleware('auth')->group(function (): void {
     Route::post('scheduled-commits', [ScheduledCommitController::class, 'store'])
         ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])->name('scheduled-commit.store');
     Route::delete('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'destroy'])->name('scheduled-commit.destroy');
+    Route::post('scheduled-commits/{scheduledCommit}/submission', [ScheduledCommitSubmissionController::class, 'store'])
+        ->middleware([PreventPostingInTimeout::class, ThrottleCommits::class])->name('scheduled-commit-submission.store');
 
     Route::get('commit-stars', [CommitStarCountController::class, 'index'])->name('commit-star-count.index');
     Route::post('commits', [CommitController::class, 'store'])

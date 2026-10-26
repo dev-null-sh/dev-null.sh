@@ -2,6 +2,7 @@ import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
+import UserFollowersYouKnowController from '@/actions/App/Http/Controllers/UserFollowersYouKnowController';
 import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
 import UserMutualsController from '@/actions/App/Http/Controllers/UserMutualsController';
 import { EmptyFeed } from '@/components/commit-feed';
@@ -16,10 +17,15 @@ import type { CursorPaginated, User } from '@/types';
 
 type Connection = User & { is_followed: boolean };
 
-type ConnectionType = 'followers' | 'following' | 'mutuals';
+type ConnectionType =
+    | 'followers'
+    | 'followers_you_know'
+    | 'following'
+    | 'mutuals';
 
 const titles: Record<ConnectionType, string> = {
     followers: 'Followers',
+    followers_you_know: 'Followers you know',
     following: 'Following',
     mutuals: 'Mutuals',
 };
@@ -49,8 +55,10 @@ export default function Connections({
 }) {
     const { auth } = usePage().props;
     const title = titles[type];
+    const knowsFollowers = auth.user !== null && auth.user.id !== user.id;
     const emptyMessages: Record<ConnectionType, string> = {
         followers: `Nobody is following @${user.handle} yet.`,
+        followers_you_know: `Nobody you follow is following @${user.handle} yet.`,
         following: `@${user.handle} isn't following anyone yet.`,
         mutuals: `@${user.handle} has no mutuals yet.`,
     };
@@ -83,6 +91,18 @@ export default function Connections({
                             href: UserFollowersController.index(user),
                             isActive: type === 'followers',
                         },
+                        ...(knowsFollowers
+                            ? [
+                                  {
+                                      title: 'Followers you know',
+                                      shortTitle: 'You know',
+                                      href: UserFollowersYouKnowController.index(
+                                          user,
+                                      ),
+                                      isActive: type === 'followers_you_know',
+                                  },
+                              ]
+                            : []),
                         {
                             title: 'Following',
                             href: UserFollowingController.index(user),
@@ -99,7 +119,13 @@ export default function Connections({
 
             {users.data.length === 0 ? (
                 <div className="px-6 py-16 text-center sm:px-12">
-                    <EmptyFeed command={`fatal: no ${type} yet`}>
+                    <EmptyFeed
+                        command={
+                            type === 'followers_you_know'
+                                ? 'fatal: no followers you know'
+                                : `fatal: no ${type} yet`
+                        }
+                    >
                         {emptyMessages[type]}
                     </EmptyFeed>
                 </div>

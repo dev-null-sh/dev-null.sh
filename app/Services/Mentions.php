@@ -36,9 +36,9 @@ final readonly class Mentions
     /**
      * Finds where each "@handle" is in the text, by the same rules and also skipping code, so a client can link it
      * to the profile like the web does. The handle keeps its case, and the offset and length count characters in
-     * the whole text and include the "@". The handle is also the username, which clients read before handles.
+     * the whole text and include the "@".
      *
-     * @return list<array{handle: string, username: string, offset: int, length: int}>
+     * @return list<array{handle: string, offset: int, length: int}>
      */
     public function positions(string $text): array
     {
@@ -52,7 +52,6 @@ final readonly class Mentions
                 foreach ($matches as $match) {
                     $positions[] = [
                         'handle' => $match[1][0],
-                        'username' => $match[1][0],
                         'offset' => $offset + mb_strlen(mb_strcut($part, 0, $match[0][1])),
                         'length' => mb_strlen($match[0][0]),
                     ];

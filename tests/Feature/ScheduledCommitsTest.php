@@ -16,6 +16,7 @@ use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\ScheduledCommit;
 use App\Models\User;
+use App\Models\UserTimeout;
 use App\Queries\UserActivityQuery;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\UploadedFile;
@@ -155,6 +156,7 @@ it('requires authentication for every scheduled endpoint', function (): void {
     $this->get(route('scheduled-commit.index'))->assertRedirectToRoute('home');
     $this->post(route('scheduled-commit.store'), [])->assertRedirectToRoute('home');
     $this->delete(route('scheduled-commit.destroy', $scheduled))->assertRedirectToRoute('home');
+    $this->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirectToRoute('home');
 });
 
 it('rejects invalid times and bodies', function (array $payload, string $field): void {
@@ -215,6 +217,7 @@ it('limits outstanding submissions per author and frees a slot on cancellation',
 
 it('shares the existing commit rate limit', function (): void {
     $user = User::factory()->create();
+    $scheduled = ScheduledCommit::factory()->for($user)->create();
     for ($i = 0; $i < 10; $i++) {
         $this->actingAs($user)->post(route('commit.store'), ['body' => 'An ordinary commit.']);
     }
@@ -222,7 +225,10 @@ it('shares the existing commit rate limit', function (): void {
     $this->post(route('scheduled-commit.store'), [
         'body' => 'Must be throttled.', 'scheduled_at' => now()->addDay()->toIso8601String(),
     ])->assertRedirect();
-    expect(ScheduledCommit::query()->count())->toBe(0);
+    $this->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirect()
+        ->assertInertiaFlash('toast.type', 'error')->assertInertiaFlashMissing('submitted');
+    expect(ScheduledCommit::query()->count())->toBe(1)
+        ->and($scheduled->fresh()->submitted_at)->toBeNull();
 });
 
 it('keeps schedules out of logs profiles activity previews and moderation until due', function (): void {
@@ -493,4 +499,48 @@ it('does not load the schedule when the page only polls the unread count', funct
         ->assertJsonMissingPath('props.scheduledCommits');
 
     expect(collect(DB::getQueryLog())->filter(fn (array $query): bool => str_contains($query['query'], 'scheduled_commits')))->toBeEmpty();
+});
+
+it('commits a scheduled item now, before its time, through the usual review', function (): void {
+    $scheduled = ScheduledCommit::factory()->create(['scheduled_at' => now()->addDay(), 'body' => 'Shipping early']);
+
+    $this->actingAs($scheduled->user)->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirect()
+        ->assertInertiaFlash('toast.type', 'success')->assertInertiaFlash('submitted', $scheduled->id);
+
+    $commit = Commit::query()->sole();
+    expect($commit->body)->toBe('Shipping early')
+        ->and($commit->status)->toBe(CommitStatus::Pending)
+        ->and($scheduled->fresh()->commit_id)->toBe($commit->id)
+        ->and($scheduled->fresh()->submitted_at->equalTo(now()))->toBeTrue();
+
+    $this->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirect()
+        ->assertInertiaFlash('toast.type', 'info');
+    $this->travel(1)->day();
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+    expect(Commit::query()->count())->toBe(1);
+});
+
+it('does not commit now a canceled item or another authors item', function (): void {
+    $canceled = ScheduledCommit::factory()->create();
+    resolve(DeleteScheduledCommit::class)->handle($canceled->user, $canceled);
+    $other = ScheduledCommit::factory()->create();
+
+    $this->actingAs($canceled->user)->post(route('scheduled-commit-submission.store', $canceled))->assertRedirect()
+        ->assertInertiaFlash('toast.type', 'info')->assertInertiaFlashMissing('submitted');
+    $this->post(route('scheduled-commit-submission.store', $other))->assertForbidden();
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))->post(route('scheduled-commit-submission.store', $other))->assertForbidden();
+
+    expect(Commit::query()->count())->toBe(0)
+        ->and($other->fresh()->submitted_at)->toBeNull();
+});
+
+it('does not commit now while the author is in timeout', function (): void {
+    $scheduled = ScheduledCommit::factory()->create();
+    UserTimeout::factory()->for($scheduled->user)->create();
+
+    $this->actingAs($scheduled->user)->post(route('scheduled-commit-submission.store', $scheduled))->assertRedirect()
+        ->assertInertiaFlash('timeout')->assertInertiaFlashMissing('submitted');
+
+    expect(Commit::query()->count())->toBe(0)
+        ->and(resolve(UpdateScheduledCommitSubmittedAt::class)->handle($scheduled->id, early: true))->toBeFalse();
 });
