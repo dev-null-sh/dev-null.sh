@@ -1,4 +1,5 @@
-import { Ellipsis, Radio, Square } from 'lucide-react';
+import { Form, router } from '@inertiajs/react';
+import { Ellipsis, Radio, RadioOff } from 'lucide-react';
 import { useState } from 'react';
 import { endStream, GoLiveDialog } from '@/components/go-live-dialog';
 import { Button } from '@/components/ui/button';
@@ -43,7 +44,7 @@ export function ProfileActionsMenu({ user }: { user: Pick<User, 'live'> }) {
                             }
                             data-test="end-stream"
                         >
-                            <Square />
+                            <RadioOff />
                             End stream
                         </DropdownMenuItem>
                     ) : (

@@ -111,7 +111,7 @@ it('counts profile matches without guessing demographics or returning people', f
 
     User::factory()->notOnboarded()->create([$column => $matching[0]]);
     User::factory()->create(['github_id' => CreateTomFriendship::GITHUB_ID, $column => $matching[0]]);
-    User::factory()->withoutProfile()->create();
+    User::factory()->withBlankProfile()->create();
 
     $result = json_decode(new CommunityStats()->handle(new Request(['metric' => $metric, 'term' => $term])), true);
 

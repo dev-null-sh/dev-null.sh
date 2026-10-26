@@ -98,7 +98,7 @@ it('lets org members react within the history they can see, but not to org event
     [$nuno, $taylor] = followersOf($mark, 2);
     $org = createOrg($mark, [$nuno]);
     $before = pushToOrg($nuno, $org, 'before taylor joined');
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
     $after = pushToOrg($nuno, $org, 'welcome taylor');
     $event = $after->newQuery()->whereNotNull('event')->latest('id')->firstOrFail();
 
@@ -109,6 +109,24 @@ it('lets org members react within the history they can see, but not to org event
     $messages = collect($this->actingAs($mark)->getJson(route('org-message.index', $org))->json('messages'));
 
     expect($messages->firstWhere('id', $after->id)['reactions'])->toBe([['user_id' => $taylor->id, 'emoji' => '👋']]);
+});
+
+it('lets org members react to a pinned message from before their history, until it is unpinned', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno]);
+    $runbook = pushToOrg($nuno, $org, 'deploy runbook');
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
+    $this->putJson(route('message-pin.update', $runbook))->assertOk();
+
+    $this->actingAs($taylor)->postJson(route('message-reaction.store', $runbook), ['emoji' => '🙏'])
+        ->assertOk()
+        ->assertJsonPath('reactions', [['user_id' => $taylor->id, 'emoji' => '🙏']]);
+    $this->getJson(route('org-message.index', $org))->assertJsonPath('pinned.0.reactions', [['user_id' => $taylor->id, 'emoji' => '🙏']]);
+
+    $this->actingAs($mark)->deleteJson(route('message-pin.destroy', $runbook))->assertOk();
+
+    $this->actingAs($taylor)->postJson(route('message-reaction.store', $runbook), ['emoji' => '👀'])->assertNotFound();
 });
 
 it('hands polls the reactions that changed since the last one, wherever the message is', function (): void {

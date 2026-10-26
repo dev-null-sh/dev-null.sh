@@ -7,7 +7,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 it('lists who a user is following', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $followed = User::factory()->create();
     $user->following()->attach($followed);
     $user->followers()->attach(User::factory()->create());
@@ -19,7 +19,7 @@ it('lists who a user is following', function (): void {
         ->assertInertia(fn ($page) => $page
             ->component('user/connections')
             ->where('type', 'following')
-            ->where('user.username', 'octocat')
+            ->where('user.handle', 'octocat')
             ->has('users.data', 1)
             ->where('users.data.0.id', $followed->id));
 });
@@ -71,7 +71,7 @@ it('lists them to guests, without anyone marked as followed', function (): void 
 });
 
 it('previews the list to guests without letting search engines index it', function (): void {
-    $user = User::factory()->create(['username' => 'octocat', 'name' => 'The Octocat']);
+    $user = User::factory()->create(['handle' => 'octocat', 'name' => 'The Octocat']);
 
     $this->get(route('user-following.index', $user))
         ->assertOk()

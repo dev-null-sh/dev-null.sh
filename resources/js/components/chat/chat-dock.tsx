@@ -28,6 +28,7 @@ import { rememberTarget, summaryKey, targetKey, targetOf } from '@/lib/chat';
 import type { ChatTarget } from '@/lib/chat';
 import { setChatDocked, updateChatDock, useChatDock } from '@/lib/chat-dock';
 import { cn, laneColor } from '@/lib/utils';
+import { show } from '@/routes/user';
 import type { User } from '@/types';
 
 /**
@@ -132,14 +133,12 @@ function DockedChat({ user }: { user: User }) {
                 <span className="text-[15px] font-bold">Remotes</span>
                 {unread > 0 && (
                     <span
-                        title={`${unread} unread messages`}
+                        title={`${unread} unread conversations`}
                         className="rounded-sm bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums"
                     >
-                        <span aria-hidden>
-                            {unread > 99 ? '99+' : unread} ahead
-                        </span>
+                        <span aria-hidden>{unread > 99 ? '99+' : unread}</span>
                         <span className="sr-only">
-                            {unread} unread messages
+                            {unread} unread conversations
                         </span>
                     </span>
                 )}
@@ -226,14 +225,14 @@ function DockedChat({ user }: { user: User }) {
                             </span>
                             {unread > 0 && (
                                 <span
-                                    title={`${unread} unread messages`}
+                                    title={`${unread} unread conversations`}
                                     className="rounded-sm bg-primary px-2 font-mono text-[11px] leading-5 font-medium text-primary-foreground tabular-nums"
                                 >
                                     <span aria-hidden>
                                         {unread > 99 ? '99+' : unread}
                                     </span>
                                     <span className="sr-only">
-                                        {unread} unread messages
+                                        {unread} unread conversations
                                     </span>
                                 </span>
                             )}
@@ -303,17 +302,21 @@ function DirectDockHeader({
                     { '--lane': laneColor(partner.lane) } as React.CSSProperties
                 }
             />
-            <span className="min-w-0">
-                <span className="block truncate text-sm font-semibold">
+            <Link
+                href={show(partner)}
+                className="group min-w-0 rounded-md"
+                title={partner.name}
+            >
+                <span className="block truncate text-sm font-semibold group-hover:underline">
                     {partner.name}
                 </span>
                 <span className="block truncate font-mono text-[11px] text-muted-foreground">
-                    @{partner.username}
+                    @{partner.handle}
                 </span>
-            </span>
+            </Link>
             <ConversationActions
                 target={{ kind: 'direct', partner }}
-                title={`@${partner.username}`}
+                title={`@${partner.handle}`}
                 user={user}
                 isArchived={isArchived}
                 onLeave={onBack}

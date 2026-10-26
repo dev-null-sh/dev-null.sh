@@ -60,7 +60,7 @@ function PeopleList({
                                     {person.name}
                                 </p>
                                 <p className="truncate font-mono text-[13px] text-muted-foreground">
-                                    @{person.username}
+                                    @{person.handle}
                                 </p>
                             </div>
                         </Link>
@@ -75,7 +75,7 @@ function PeopleList({
                                 as="button"
                                 preserveScroll
                                 onSuccess={clearMentionSuggestionsCache}
-                                aria-label={`${action.label} @${person.username}`}
+                                aria-label={`${action.label} @${person.handle}`}
                             >
                                 {action.label}
                             </Link>

@@ -316,6 +316,11 @@ test('keeps valid images around an oversized selection and displays the error', 
     assert.deepEqual(draft.descriptions, ['', '']);
     assert.match(attachments.error!, /10 MB/);
     assert.equal(attachments.isReading(), false);
+
+    attachments.clearError();
+    const corrected = render(draft);
+    assert.equal(corrected.error, null);
+    assert.deepEqual(corrected.images.map((image) => image.name), ['first.png', 'last.png']);
 });
 
 test('rejected files do not consume the last available attachment slot', async () => {

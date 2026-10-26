@@ -27,12 +27,9 @@ final readonly class CommitTranslations
         //
     }
 
-    /**
-     * Translations need a provider key and an administrator who has not switched them off.
-     */
     public function enabled(): bool
     {
-        return filled(config('ai.providers.opencode.key')) && $this->features->enabled(Feature::Translations);
+        return $this->features->enabled(Feature::Translations);
     }
 
     public function key(Commit $commit): string

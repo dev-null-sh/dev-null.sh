@@ -16,13 +16,15 @@ import {
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
+import { DragonBallIcon } from '@/components/dragon-ball-icon';
 import {
     Dialog,
-    DialogContent,
     DialogDescription,
+    DialogFloatingContent,
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { WordmarkText } from '@/components/wordmark-text';
 import { dropConfetti } from '@/lib/confetti';
 import { formatCount, formatExactCount } from '@/lib/numbers';
 import { cn, laneTint } from '@/lib/utils';
@@ -43,6 +45,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     cookie: Cookie,
     'bot-off': BotOff,
     bomb: Bomb,
+    'dragon-ball': DragonBallIcon,
 };
 
 export function AchievementsDialog({
@@ -67,8 +70,8 @@ export function AchievementsDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent
-                className="max-h-[85vh] overflow-y-auto sm:max-w-xl"
+            <DialogFloatingContent
+                className="max-h-[min(85vh,calc(var(--visual-viewport-height,100svh)-6rem))] sm:max-w-xl"
                 style={{ '--lane': lane } as CSSProperties}
             >
                 <DialogHeader className="text-left">
@@ -87,7 +90,7 @@ export function AchievementsDialog({
                         </span>
                     </div>
                     <DialogDescription className="font-mono text-xs text-muted-foreground">
-                        @{user.username} ·{' '}
+                        @{user.handle} ·{' '}
                         <span title={`${formatExactCount(achievements.xp)} XP`}>
                             {formatCount(achievements.xp)} XP
                         </span>{' '}
@@ -206,7 +209,9 @@ export function AchievementsDialog({
                                             </span>
                                         </div>
                                         <p className="mt-1.5 font-sans text-xs leading-normal text-muted-foreground">
-                                            {badge.description}
+                                            <WordmarkText>
+                                                {badge.description}
+                                            </WordmarkText>
                                         </p>
                                     </div>
 
@@ -339,7 +344,7 @@ export function AchievementsDialog({
                     2/star given · −100/luddite · +100/shell shocked (minimum 0
                     XP)
                 </p>
-            </DialogContent>
+            </DialogFloatingContent>
         </Dialog>
     );
 }

@@ -49,7 +49,7 @@ it('does not notify authors in a bulk approval and preserves reply notifications
 });
 
 it('notifies mentioned users once a commit is approved', function (): void {
-    $mentioned = User::factory()->create(['username' => 'taylorotwell']);
+    $mentioned = User::factory()->create(['handle' => 'taylorotwell']);
     $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Pairing with @taylorotwell today');
 
     expect($mentioned->notifications()->count())->toBe(0);
@@ -64,7 +64,7 @@ it('notifies mentioned users once a commit is approved', function (): void {
 });
 
 it('stores a concise rejection reason privately and leaves repeated rejections unchanged', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     $commit = Commit::factory()->pending()->create();
 
     $this->actingAs($admin)->fromRoute('moderation.show')
@@ -109,7 +109,7 @@ it('stores a concise rejection reason privately and leaves repeated rejections u
 });
 
 it('validates rejection reasons before changing status', function (mixed $reason): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     $commit = Commit::factory()->pending()->create();
 
     $this->actingAs($admin)->post(route('commit-rejection.store', $commit), ['reason' => $reason])
@@ -121,7 +121,7 @@ it('validates rejection reasons before changing status', function (mixed $reason
 
 it('accepts an optional rejection reason', function (?string $reason): void {
     $commit = Commit::factory()->pending()->create();
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
 
     $this->actingAs($admin)->post(route('commit-rejection.store', $commit), ['reason' => $reason])->assertRedirect();
 
@@ -153,7 +153,7 @@ it('does not moderate deleted commits even with stale models', function (): void
 });
 
 it('does not send moderation notices for initial autoapproval or unchanged approved status', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     $commit = resolve(CreateCommit::class)->handle($admin, 'Shipped a smaller query planner.');
 
     resolve(UpdateCommitStatus::class)->handle($commit, CommitStatus::Approved);

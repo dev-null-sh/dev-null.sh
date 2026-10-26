@@ -6,6 +6,7 @@ namespace App\Queries;
 
 use App\Models\User;
 use App\Services\Mentions;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -21,16 +22,16 @@ final readonly class MentionedUsersQuery
      */
     public function get(string $body): array
     {
-        $usernames = $this->mentions->usernames($body);
+        $handles = $this->mentions->handles($body);
 
-        if ($usernames === []) {
+        if ($handles === []) {
             return [];
         }
 
         return User::query()
-            ->whereIn(DB::raw('LOWER(username)'), $usernames)
-            ->get(['id', 'username'])
-            ->mapWithKeys(fn (User $user): array => [Str::lower($user->username) => $user->id])
+            ->whereHas('profile', fn (Builder $query): Builder => $query->whereIn(DB::raw('LOWER(handle)'), $handles))
+            ->get()
+            ->mapWithKeys(fn (User $user): array => [Str::lower($user->handle) => $user->id])
             ->all();
     }
 }

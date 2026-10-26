@@ -156,11 +156,11 @@ function render(element: ReactElement<Props>): ReactNode {
     return (element.type as (props: Props) => ReactNode)(element.props);
 }
 
-function suggestion(username: string): SuggestedUser {
+function suggestion(handle: string): SuggestedUser {
     return {
-        id: username,
-        name: username,
-        username,
+        id: handle,
+        name: handle,
+        handle,
         avatar_url: null,
         lane: 1,
         timezone: null,
@@ -562,8 +562,8 @@ function hasElementNamed(node: ReactNode, name: string): boolean {
     );
 }
 
-function suggestions(...usernames: string[]): SuggestedUser[] {
-    return usernames.map(suggestion);
+function suggestions(...handles: string[]): SuggestedUser[] {
+    return handles.map(suggestion);
 }
 
 function finishTopUp(topUp: VisitOptions): void {

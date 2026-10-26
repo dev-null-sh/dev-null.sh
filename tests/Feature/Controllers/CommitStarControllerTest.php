@@ -197,8 +197,8 @@ it('may not unstar a commit across a block', function (): void {
 it('lists who starred their commit, newest first', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create();
-    $first = User::factory()->create(['username' => 'first']);
-    $second = User::factory()->create(['username' => 'second']);
+    $first = User::factory()->create(['handle' => 'first']);
+    $second = User::factory()->create(['handle' => 'second']);
 
     $first->starredCommits()->attach($commit, ['created_at' => now()->subMinute()]);
     $second->starredCommits()->attach($commit);
@@ -208,11 +208,11 @@ it('lists who starred their commit, newest first', function (): void {
 
     $response->assertOk()
         ->assertJsonPath('data.0.id', $second->id)
-        ->assertJsonPath('data.0.username', 'second')
+        ->assertJsonPath('data.0.handle', 'second')
         ->assertJsonPath('data.0.avatar_url', $second->avatar_url)
         ->assertJsonMissingPath('data.0.pivot')
         ->assertJsonMissingPath('data.0.email')
-        ->assertJsonPath('data.1.username', 'first')
+        ->assertJsonPath('data.1.handle', 'first')
         ->assertJsonCount(2, 'data')
         ->assertJsonPath('next_cursor', null);
 });
