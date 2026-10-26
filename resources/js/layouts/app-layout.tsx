@@ -16,6 +16,7 @@ import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
 import { DeletedPageDialog } from '@/components/deleted-page-dialog';
 import { endStream, GoLiveDialog } from '@/components/go-live-dialog';
+import { GuestJoinSheet } from '@/components/guest-join-sheet';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
@@ -187,6 +188,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 />
 
                 {isGuest && <LocalSignInDialog />}
+
+                {isGuest && <GuestJoinSheet />}
             </div>
             <NotificationTitle />
         </>
