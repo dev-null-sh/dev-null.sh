@@ -89,7 +89,22 @@ test('leaves a full composer as it is and returns to it', () => {
 
     assert.equal(updateBody.mock.calls.length, 0);
     assert.equal(focus.mock.calls.length, 1);
-    assert.equal(setSelectionRange.mock.calls.length, 0);
+    assert.deepEqual(setSelectionRange.mock.calls, [[3, 3]]);
+});
+
+test('keeps the caret at the start of a full restored draft', () => {
+    const { textarea, focus, setSelectionRange } = blurredTextarea(0);
+
+    useEmojiInsertion({
+        body: 'abc',
+        updateBody,
+        textareaRef: { current: textarea },
+        maxLength: 3,
+    })('🔥');
+
+    assert.equal(updateBody.mock.calls.length, 0);
+    assert.equal(focus.mock.calls.length, 1);
+    assert.deepEqual(setSelectionRange.mock.calls, [[0, 0]]);
 });
 
 test('appends when the textarea is gone', () => {

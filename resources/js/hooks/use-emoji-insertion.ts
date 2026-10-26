@@ -37,7 +37,13 @@ export function useEmojiInsertion({
         const inserted = insertAtSelection(body, element, emoji, maxLength);
 
         if (inserted === null) {
-            element?.focus();
+            // Focusing a restored draft moves a caret at its start to the end, so the selection is put back after.
+            if (element !== null) {
+                const { selectionStart, selectionEnd } = element;
+
+                element.focus();
+                element.setSelectionRange(selectionStart, selectionEnd);
+            }
 
             return;
         }
