@@ -1,13 +1,12 @@
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
-import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitCard, CommitTombstone } from '@/components/commit-card';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { useContinuation } from '@/hooks/use-continuation';
+import { useGoBack } from '@/hooks/use-go-back';
 import AppLayout from '@/layouts/app-layout';
 import { isDeleted, laneOf, shortHash } from '@/lib/utils';
-import { home } from '@/routes';
 import type {
     Commit,
     CursorPaginated,
@@ -28,7 +27,7 @@ export default function Show({
     continuation: ThreadContinuation;
     replies: CursorPaginated<ThreadCommit> | null;
 }) {
-    const { auth } = usePage().props;
+    const goBack = useGoBack();
     const { shown, nextId, size, isCapped, isLoading, loadMore } =
         useContinuation(continuation);
     const focusedPosition = continuation.position;
@@ -39,16 +38,6 @@ export default function Show({
         commit.body.length > titleLength
             ? `${commit.body.slice(0, titleLength).trimEnd()}…`
             : commit.body;
-
-    const goBack = () => {
-        if (window.history.length > 1) {
-            window.history.back();
-
-            return;
-        }
-
-        router.visit(auth.log === null ? home() : LogController.show(auth.log));
-    };
 
     const lastAncestor = ancestors.at(-1);
 
