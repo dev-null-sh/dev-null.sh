@@ -25,16 +25,22 @@ function restoredThread(saved: unknown, except?: string) {
         key === `thread:root:${except ?? ''}` ? (saved as never) : undefined,
     );
     let thread: ReturnType<typeof useThread> | undefined;
-    function Probe() {
-        thread = useThread(
-            { ...reply('root'), replies_count: 18 },
-            initial,
-            false,
-            except,
+    function Probe({
+        onRender,
+    }: {
+        onRender: (rendered: typeof thread) => void;
+    }) {
+        onRender(
+            useThread(
+                { ...reply('root'), replies_count: 18 },
+                initial,
+                false,
+                except,
+            ),
         );
         return null;
     }
-    renderToString(<Probe />);
+    renderToString(<Probe onRender={(rendered) => (thread = rendered)} />);
     assert.ok(thread);
     return thread;
 }
@@ -72,17 +78,23 @@ test('restores loaded continuation pages and their next cursor', () => {
             : undefined,
     );
     let result: ReturnType<typeof useContinuation> | undefined;
-    function Probe() {
-        result = useContinuation({
-            data: [],
-            next_id: 'next',
-            position: 1,
-            length: 3,
-            is_capped: false,
-        });
+    function Probe({
+        onRender,
+    }: {
+        onRender: (rendered: typeof result) => void;
+    }) {
+        onRender(
+            useContinuation({
+                data: [],
+                next_id: 'next',
+                position: 1,
+                length: 3,
+                is_capped: false,
+            }),
+        );
         return null;
     }
-    renderToString(<Probe />);
+    renderToString(<Probe onRender={(rendered) => (result = rendered)} />);
     assert.ok(result);
     assert.deepEqual(result.shown, shown);
     assert.equal(result.nextId, 'more');

@@ -85,7 +85,7 @@ import {
 } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
-import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import {
     characterCount,
     cn,

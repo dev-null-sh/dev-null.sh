@@ -36,14 +36,24 @@ const reply = (id: string) =>
     ({ id, replies_count: 0, deleted_at: null }) as ThreadCommit;
 function mount(id: string) {
     let thread: ReturnType<typeof useThread> | undefined;
-    function Probe() {
-        thread = useThread(
-            { ...reply(id), replies_count: 5 },
-            { data: [reply('one')], next_cursor: 'next', prev_cursor: null },
+    function Probe({
+        onRender,
+    }: {
+        onRender: (rendered: typeof thread) => void;
+    }) {
+        onRender(
+            useThread(
+                { ...reply(id), replies_count: 5 },
+                {
+                    data: [reply('one')],
+                    next_cursor: 'next',
+                    prev_cursor: null,
+                },
+            ),
         );
         return null;
     }
-    renderToString(<Probe />);
+    renderToString(<Probe onRender={(rendered) => (thread = rendered)} />);
     assert.ok(thread);
     return thread;
 }
@@ -242,21 +252,29 @@ for (const isOpen of [true, false]) {
                 prev_cursor: null,
             };
             let thread: ReturnType<typeof useThread> | undefined;
-            function Probe() {
+            function Probe({
+                onRender,
+            }: {
+                onRender: (rendered: typeof thread) => void;
+            }) {
                 const [posted, setPosted] = React.useState(false);
-                thread = useThread(
-                    {
-                        ...reply(`quoted-${isOpen}-${hasReplies}`),
-                        replies_count: refreshed.data.length,
-                    },
-                    posted ? refreshed : initial,
+                onRender(
+                    useThread(
+                        {
+                            ...reply(`quoted-${isOpen}-${hasReplies}`),
+                            replies_count: refreshed.data.length,
+                        },
+                        posted ? refreshed : initial,
+                    ),
                 );
                 if (!posted) {
                     setPosted(true);
                 }
                 return null;
             }
-            renderToString(<Probe />);
+            renderToString(
+                <Probe onRender={(rendered) => (thread = rendered)} />,
+            );
             assert.ok(thread);
             assert.deepEqual(
                 thread.replies?.map((row) => row.id),

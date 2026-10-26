@@ -15,7 +15,7 @@ const org = (id: string, name: string | null, users: User[]) =>
 
 const ids = (conversations: ConversationSummary[]) => conversations.map(({ id }) => id);
 
-test('finds loaded conversations by a partner or member handle or name, or an org name, ignoring case', () => {
+void test('finds loaded conversations by a partner or member handle or name, or an org name, ignoring case', () => {
     const loaded = [direct(ana), direct(ben), org('core', 'Core Team', [ana]), org('crew', null, [ben])];
 
     assert.deepEqual(ids(conversationsMatching('ANA', loaded)), ['direct-ana', 'core']);
@@ -24,7 +24,7 @@ test('finds loaded conversations by a partner or member handle or name, or an or
     assert.deepEqual(conversationsMatching('nobody', loaded), []);
 });
 
-test('keeps the first matching copy of a conversation found in several lists', () => {
+void test('keeps the first matching copy of a conversation found in several lists', () => {
     const fresh = direct(ana, { ahead: 2 });
     const renamed = org('core', 'Core', [ben]);
 
@@ -34,7 +34,7 @@ test('keeps the first matching copy of a conversation found in several lists', (
     ]);
 });
 
-test('keeps every conversation the server found for the term, ahead of stale copies on hand', () => {
+void test('keeps every conversation the server found for the term, ahead of stale copies on hand', () => {
     const found = [org('core', 'Review Renamed Team', [ben]), direct(ana)];
 
     assert.deepEqual(conversationsMatching('review', [org('core', 'Core', [ben])], found), [...found]);

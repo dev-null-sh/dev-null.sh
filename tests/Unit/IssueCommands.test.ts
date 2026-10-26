@@ -6,7 +6,7 @@ import {
     typedCommand,
 } from '../../resources/js/lib/issue-commands.ts';
 
-test('suggests commands only while the draft is a slash and the start of a name', () => {
+void test('suggests commands only while the draft is a slash and the start of a name', () => {
     const names = (body: string) =>
         suggestedCommands(body).map((command) => command.name);
 
@@ -19,7 +19,7 @@ test('suggests commands only while the draft is a slash and the start of a name'
     assert.deepEqual(names(''), []);
 });
 
-test('a complete command and a space or new line becomes an issue without the command', () => {
+void test('a complete command and a space or new line becomes an issue without the command', () => {
     assert.deepEqual(typedCommand('/bug '), { kind: 'bug', body: '' });
     assert.deepEqual(typedCommand('/feature Dark mode'), {
         kind: 'feature',
@@ -34,7 +34,7 @@ test('a complete command and a space or new line becomes an issue without the co
     assert.equal(typedCommand('Fixed a /bug today'), null);
 });
 
-test('hints the command a plain draft mentions', () => {
+void test('hints the command a plain draft mentions', () => {
     const name = (body: string) => hintedCommand(body)?.name ?? null;
 
     assert.equal(name('The search has a bug'), '/bug');
