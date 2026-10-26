@@ -262,6 +262,40 @@ export function ConversationThread({
     }, [messages, isLoaded, user.id, mutedUntil, isVisible]);
 
     const pinnedMessages = thread?.pinned ?? noMessages;
+    const hasPinnedMessages = pinnedMessages.length > 0;
+    const [hasPinClearance, setHasPinClearance] = useState(hasPinnedMessages);
+
+    if (hasPinnedMessages && !hasPinClearance) {
+        setHasPinClearance(true);
+    }
+
+    const releasePinClearance = useCallback(() => {
+        const element = scroller.current;
+        const content = list.current;
+
+        if (
+            hasPinnedMessages ||
+            !hasPinClearance ||
+            element === null ||
+            content === null
+        ) {
+            return;
+        }
+
+        // Near the oldest message, removing the inset would clamp the reverse scroller and move the reading position.
+        const roomAbove =
+            element.scrollHeight - element.clientHeight + element.scrollTop;
+
+        if (
+            element.scrollTop === 0 ||
+            roomAbove >= parseFloat(getComputedStyle(content).paddingTop)
+        ) {
+            setHasPinClearance(false);
+        }
+    }, [hasPinnedMessages, hasPinClearance]);
+
+    useLayoutEffect(releasePinClearance, [releasePinClearance]);
+
     const canPin = isOrg && thread?.role === 'maintainer' && isOpen;
     // Polls hand over a new list whenever any reaction changes, so the bubbles only hear about the pins themselves.
     const pinnedKey = pinnedMessages.map((message) => message.id).join();
@@ -585,6 +619,7 @@ export function ConversationThread({
         }
 
         updateScrollPosition();
+        releasePinClearance();
 
         // A correction during the reply fold is not an intentional scroll, even while it is close to the bottom.
         if (
@@ -723,8 +758,7 @@ export function ConversationThread({
                                 ? 'px-3 pt-3 text-sm'
                                 : 'px-4 pt-4 text-[15px]',
                             // The pinned banner lies over the top, so the oldest message can still scroll clear of it.
-                            pinnedMessages.length > 0 &&
-                                (isCompact ? 'pt-12' : 'pt-13'),
+                            hasPinClearance && (isCompact ? 'pt-12' : 'pt-13'),
                         )}
                     >
                         {thread.isLoadingOlder && (
