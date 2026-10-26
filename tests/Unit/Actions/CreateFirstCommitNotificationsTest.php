@@ -118,3 +118,17 @@ it('does not notify about the first commit of a bot', function (): void {
 
     expect(Notification::query()->count())->toBe(0);
 });
+
+it('leaves out followers it mentions or quotes, who already hear about it', function (): void {
+    $author = User::factory()->create();
+    [$follower, $mentioned, $quoted] = User::factory()->count(3)->create()->all();
+    $author->followers()->attach([$follower->id, $mentioned->id, $quoted->id]);
+    $commit = Commit::factory()->for($author)->create([
+        'mentions' => [$mentioned->handle => $mentioned->id],
+        'quoted_commit_id' => Commit::factory()->for($quoted)->create()->id,
+    ]);
+
+    resolve(CreateFirstCommitNotifications::class)->handle($commit);
+
+    expect(Notification::query()->pluck('recipient_id')->all())->toBe([$follower->id]);
+});
