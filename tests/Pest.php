@@ -11,7 +11,9 @@ use App\Services\OpenAI;
 use App\Services\SignedCommits;
 use App\Services\SignedRequests;
 use Carbon\CarbonInterface;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -131,6 +133,28 @@ function fakeGitHubAccount(User $user, array $account = []): void
     ]);
 
     fakeGitHubSshKeys(User::factory()->make(['github_id' => $user->github_id, 'username' => $account['login']]));
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function gitHubContributor(string $login, int $commits, string $type = 'User'): array
+{
+    return ['login' => $login, 'contributions' => $commits, 'type' => $type];
+}
+
+/**
+ * Serves the contributors of the repository like GitHub does: most commits first, a page at a time.
+ *
+ * @param  list<array<string, mixed>>  $contributors
+ */
+function fakeGitHubContributors(array $contributors): void
+{
+    Http::fake(['api.github.com/repos/'.config()->string('services.github.repository').'/contributors*' => function (Request $request) use ($contributors): PromiseInterface {
+        $perPage = (int) $request['per_page'];
+
+        return Http::response(array_slice($contributors, ((int) $request['page'] - 1) * $perPage, $perPage));
+    }]);
 }
 
 /**
@@ -406,6 +430,25 @@ function signedApiRequestWithImages(SshKeyPair $keyPair, string $method, string 
         'images' => $images,
     ], server: [
         ...signApiRequest($keyPair, $method, $uri, $hashes."\n".$payload, namespace: $namespace),
+        'CONTENT_TYPE' => 'multipart/form-data; boundary=devnull',
+    ]);
+}
+
+/**
+ * Sends an API request with a voice note the way the Mac app does: multipart, with the data as the JSON payload beside
+ * the voice note, signed with the hash of $signedVoice, which is the voice note sent unless a test says otherwise.
+ *
+ * @param  array<string, mixed>  $data
+ */
+function signedApiRequestWithVoice(SshKeyPair $keyPair, string $method, string $uri, array $data, UploadedFile $voice, ?UploadedFile $signedVoice = null): TestResponse
+{
+    $payload = json_encode($data, JSON_THROW_ON_ERROR);
+
+    return test()->call($method, $uri, files: [
+        'payload' => UploadedFile::fake()->createWithContent('payload', $payload),
+        'voice' => $voice,
+    ], server: [
+        ...signApiRequest($keyPair, $method, $uri, hash_file('sha256', ($signedVoice ?? $voice)->getPathname())."\n".$payload, namespace: SignedRequests::ImagesNamespace),
         'CONTENT_TYPE' => 'multipart/form-data; boundary=devnull',
     ]);
 }

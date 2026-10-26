@@ -18,7 +18,7 @@ final readonly class LogCommitsQuery
     public function paginate(Log $log, ?User $user, ?Commit $through = null): CursorPaginator
     {
         $query = $log->query()->builder($user);
-        if ($log !== Log::Following || ! $through instanceof Commit) {
+        if ($log->isRanked() || ! $through instanceof Commit) {
             return $query->cursorPaginate(20);
         }
 

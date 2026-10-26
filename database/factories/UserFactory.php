@@ -21,7 +21,7 @@ final class UserFactory extends Factory
      */
     public function definition(): array
     {
-        $username = fake()->unique()->userName();
+        $username = Str::replace(['.', '_'], '-', fake()->unique()->userName());
 
         return [
             'github_id' => (string) fake()->unique()->numberBetween(1, 999_999_999),

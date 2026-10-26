@@ -16,20 +16,28 @@ use App\Http\Controllers\Api\ConversationDropController;
 use App\Http\Controllers\Api\ConversationMergeController;
 use App\Http\Controllers\Api\ConversationMessageController;
 use App\Http\Controllers\Api\ConversationMuteController;
+use App\Http\Controllers\Api\ConversationPinController;
+use App\Http\Controllers\Api\ConversationPingController;
 use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\LogController;
+use App\Http\Controllers\Api\MacAppController;
 use App\Http\Controllers\Api\MessageImageController;
 use App\Http\Controllers\Api\MessageLinkPreviewController;
+use App\Http\Controllers\Api\MessagePinController;
 use App\Http\Controllers\Api\MessageReactionController;
+use App\Http\Controllers\Api\MessageVoiceController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
 use App\Http\Controllers\Api\OrgArchiveController;
 use App\Http\Controllers\Api\OrgController;
+use App\Http\Controllers\Api\OrgMemberController;
 use App\Http\Controllers\Api\OrgMessageController;
 use App\Http\Controllers\Api\OrgMuteController;
+use App\Http\Controllers\Api\OrgPinController;
+use App\Http\Controllers\Api\OrgPingController;
 use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\OrgTypingController;
 use App\Http\Controllers\Api\RemoteCandidateController;
@@ -80,18 +88,26 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-commit.show');
     });
 
+    // The Mac app's latest release, which its update check compares with, unsigned so it sends nothing about anyone...
+    Route::get('apps/mac', [MacAppController::class, 'show'])->name('api-mac-app.show');
+
     // Signing in: the app redeems the code it got on the web, signed with a key that isn't approved yet...
     Route::post('devices', [DeviceController::class, 'store'])
         ->withoutMiddleware('throttle:api')
         ->middleware('throttle:devices')
         ->name('api-device.store');
 
-    // Remote images: the app's image views can't sign requests, so a thread hands out URLs signed for the user...
+    // Remote images and voice notes: the app's image views and audio players can't sign requests, so a thread hands out URLs signed for the user...
     Route::get('remotes/images/{messageImage}', [MessageImageController::class, 'show'])
         ->whereUuid('messageImage')
         ->withoutMiddleware('throttle:api')
         ->middleware('signed:relative')
         ->name('api-message-image.show');
+    Route::get('remotes/voices/{messageVoice}', [MessageVoiceController::class, 'show'])
+        ->whereUuid('messageVoice')
+        ->withoutMiddleware('throttle:api')
+        ->middleware('signed:relative')
+        ->name('api-message-voice.show');
 
     // Signed by the mobile app with an SSH key that the user approved as a device...
     Route::middleware(AuthenticateSignedRequest::class)->group(function (): void {
@@ -189,9 +205,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 ->name('api-org-archive.destroy');
             Route::put('remotes/@{partner:username}/mute', [ConversationMuteController::class, 'update'])
                 ->name('api-conversation-mute.update');
+            Route::put('remotes/@{partner:username}/pin', [ConversationPinController::class, 'update'])
+                ->name('api-conversation-pin.update');
             Route::put('remotes/orgs/{org}/mute', [OrgMuteController::class, 'update'])
                 ->whereUuid('org')
                 ->name('api-org-mute.update');
+            Route::put('remotes/orgs/{org}/pin', [OrgPinController::class, 'update'])
+                ->whereUuid('org')
+                ->name('api-org-pin.update');
             Route::post('remotes/@{partner:username}/merge', [ConversationMergeController::class, 'store'])
                 ->name('api-conversation-merge.store');
             Route::post('remotes/@{partner:username}/drop', [ConversationDropController::class, 'store'])
@@ -234,6 +255,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
             ->name('api-org-message.store');
 
+        // Remotes: pinging the partner, as the web's composer does...
+        Route::post('remotes/@{partner:username}/ping', [ConversationPingController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, 'throttle:pings'])
+            ->name('api-conversation-ping.store');
+        Route::post('remotes/orgs/{org}/ping', [OrgPingController::class, 'store'])
+            ->whereUuid('org')
+            ->middleware([PreventPostingInTimeout::class, 'throttle:pings'])
+            ->name('api-org-ping.store');
+
         // Remote Reactions...
         Route::middleware('throttle:conversations')->group(function (): void {
             Route::get('remotes/reactions', [MessageReactionController::class, 'index'])->name('api-message-reaction.index');
@@ -245,6 +275,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 ->name('api-message-reaction.destroy');
         });
 
+        // Remote Pins: an org's maintainers pinning and unpinning messages for everyone in it...
+        Route::middleware('throttle:pins')->group(function (): void {
+            Route::put('remotes/messages/{message}/pin', [MessagePinController::class, 'update'])
+                ->whereNumber('message')
+                ->middleware(PreventPostingInTimeout::class)
+                ->name('api-message-pin.update');
+            Route::delete('remotes/messages/{message}/pin', [MessagePinController::class, 'destroy'])
+                ->whereNumber('message')
+                ->name('api-message-pin.destroy');
+        });
+
         // Notifications...
         Route::get('notifications', [NotificationController::class, 'index'])->name('api-notification.index');
         Route::get('notifications/{notification}/group', [NotificationGroupController::class, 'show'])->name('api-notification-group.show');
@@ -253,6 +294,26 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::middleware('throttle:conversations')->group(function (): void {
             Route::get('remotes/candidates', [RemoteCandidateController::class, 'index'])->name('api-remote-candidate.index');
             Route::post('remotes/orgs', [OrgController::class, 'store'])->middleware('throttle:messages')->name('api-org.store');
+        });
+
+        // Remotes: renaming an org and managing its members, as the web's org settings do...
+        Route::middleware('throttle:conversations')->group(function (): void {
+            Route::put('remotes/orgs/{org}', [OrgController::class, 'update'])
+                ->whereUuid('org')
+                ->middleware(PreventPostingInTimeout::class)
+                ->name('api-org.update');
+            Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])
+                ->whereUuid('org')
+                ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
+                ->name('api-org-member.store');
+            Route::put('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'update'])
+                ->whereUuid('org')
+                ->withoutScopedBindings()
+                ->name('api-org-member.update');
+            Route::delete('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'destroy'])
+                ->whereUuid('org')
+                ->withoutScopedBindings()
+                ->name('api-org-member.destroy');
         });
     });
 });

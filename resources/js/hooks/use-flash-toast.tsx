@@ -2,10 +2,9 @@ import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { CommitUndoToast } from '@/components/commit-undo-toast';
+import { CommittedToast } from '@/components/committed-toast';
 import { showTimeout } from '@/components/timeout-dialog';
 import { dropConfetti } from '@/lib/confetti';
-import { emojify } from '@/lib/emoji';
-import { shortHash } from '@/lib/utils';
 
 export function useFlashToast(): void {
     useEffect(() => {
@@ -46,15 +45,10 @@ export function useFlashToast(): void {
             }
 
             if (committed) {
-                toast(
-                    <span
-                        className="line-clamp-3 font-mono text-[13px] wrap-anywhere"
-                        title={committed.body}
-                    >
-                        [log {shortHash(committed.id)}]{' '}
-                        {emojify(committed.body)}
-                    </span>,
-                );
+                const id = `committed-${committed.id}`;
+                toast(<CommittedToast committed={committed} toastId={id} />, {
+                    id,
+                });
             }
 
             if (data) {

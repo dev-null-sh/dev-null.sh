@@ -62,6 +62,7 @@ it('loads the latest messages with the partner, as the web thread does', functio
             'user_id' => $nuno->id,
             'body' => 'did @octocat see `the PR`, @ghost? https://laravel.com',
             'images_count' => 0,
+            'has_voice' => false,
         ])
         ->assertJsonPath('data.messages.1.images.0.id', $answer->images->sole()->id)
         ->assertJsonPath('data.messages.1.images.0.description', 'The diff')
