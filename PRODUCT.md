@@ -34,7 +34,8 @@ What exists, one line each (details in the knowledge base):
 - **Commits:** text with code, images, link cards and embedded players, or a poll; replies, quotes, threads, scheduling, translation.
 - **Logs:** Following, Latest, and Trending.
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
-- **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
+- **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube or Twitch.
+- **Live:** the Orbit Rail above every log shows who you follow is streaming right now, with their latest commit and the stream one click from playing. Only what the link and the clock can tell: no viewer counts, titles, or chat.
 - **Remotes:** private one-to-one and group messages (orgs).
 - **Notifications:** in-app activity and on-site Remotes alerts by default; off-site browser and PWA notifications require a separate opt-in. Sound is controlled independently and plays while the site is open.
 - **Search:** developers by name, commits by meaning.
