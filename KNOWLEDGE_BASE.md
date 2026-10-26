@@ -322,6 +322,8 @@ Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [
 
 Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, and moderation messages about rejected commits (approvals do not notify). The navigation shows unread activity and checks for more every 30 seconds. While you have unread notifications or messages, the browser tab's icon shows an orange dot; a tab in the background checks about every five minutes. Related activity is grouped, with expandable details: stars per commit, follows per day, and replies and mentions per thread. Filters (Replies, Quotes, Stars, Mentions, Follows, Moderation) are remembered, and the unread count follows them. Opening the inbox marks all notifications read. You can follow back or unfollow from follower notifications.
 
+When someone you follow makes their first commit, you get a notification for it under **All**, so a newcomer's first post gets seen and answered. It comes once per person, after approval, and never for replies.
+
 Level-up notifications announce your new Unix rank under **All**, rather than one of the activity filters. Each level can notify you only once, even if you later lose and regain enough XP to reach it.
 
 On phones, **Replies**, **Quotes**, and **Stars** share one row with a **More notification filters** (`…`) button for **Mentions**, **Follows**, and **Moderation**. The menu stays open while you toggle filters so you can change several at once.

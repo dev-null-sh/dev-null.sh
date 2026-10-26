@@ -29,6 +29,7 @@ final readonly class CreateCommit
         private CreateReplyNotifications $createReplyNotifications,
         private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
+        private CreateFirstCommitNotifications $createFirstCommitNotifications,
         private CreateCommitImages $createCommitImages,
         private CreateWorldReply $createWorldReply,
         private UpdateCommitHotScores $updateCommitHotScores,
@@ -85,6 +86,7 @@ final readonly class CreateCommit
             $this->createReplyNotifications->handle($commit);
             $this->createQuoteNotifications->handle($commit);
             $this->createMentionNotifications->handle($commit);
+            $this->createFirstCommitNotifications->handle($commit);
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
                 dispatch(new UnfurlLink($linkPreview));

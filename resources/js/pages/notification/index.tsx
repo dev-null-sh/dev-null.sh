@@ -6,6 +6,7 @@ import {
     Check,
     ChevronDown,
     ChevronsUp,
+    GitCommitVertical,
     MessageSquareReply,
     Quote,
     Star,
@@ -756,7 +757,8 @@ export function NotificationContent({
     const isActorsCommit =
         notification.type === 'replied' ||
         notification.type === 'quoted' ||
-        notification.type === 'mentioned';
+        notification.type === 'mentioned' ||
+        notification.type === 'first_commit';
     const level = notification.type === 'leveled_up' ? notification : null;
     const Icon = {
         followed: UserPlus,
@@ -765,6 +767,7 @@ export function NotificationContent({
         quoted: Quote,
         starred: Star,
         mentioned: AtSign,
+        first_commit: GitCommitVertical,
         approved: Check,
         rejected: X,
     }[notification.type];
@@ -804,6 +807,7 @@ export function NotificationContent({
             ? `starred your ${starredImages.length === 1 ? 'image' : 'images'}`
             : 'starred your commit',
         mentioned: 'mentioned you',
+        first_commit: 'made their first commit',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
         leveled_up: level && `You reached level ${level.level}: ${level.rank}`,
