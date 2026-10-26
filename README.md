@@ -29,6 +29,8 @@ composer setup
 composer dev
 ```
 
+Giphy share links and verified public HTTPS `.gif` links play inline from their external host. GIFs autoplay while visible; reduced-motion users press Play.
+
 Run `composer test` before opening a pull request.
 
 ## License

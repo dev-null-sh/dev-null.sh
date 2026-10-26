@@ -41,6 +41,20 @@ it('hashes its url', function (): void {
     expect($linkPreview->url_hash)->toBe(hash('sha256', 'https://example.com'));
 });
 
+it('serializes a verified external GIF without exposing its storage field', function (): void {
+    $preview = LinkPreview::factory()->fetched()->create([
+        'url' => 'https://example.com/cat.gif',
+        'gif_url' => 'https://cdn.example.com/cat.gif',
+    ])->refresh();
+
+    expect($preview->gif_url)->toBe('https://cdn.example.com/cat.gif')
+        ->and($preview->toArray())->not->toHaveKey('gif_url')
+        ->and($preview->toArray()['embed'])->toMatchArray([
+            'kind' => 'gif',
+            'src' => 'https://cdn.example.com/cat.gif',
+        ]);
+});
+
 it('casts the fetched at timestamp', function (): void {
     $linkPreview = LinkPreview::factory()->fetched()->create()->refresh();
 

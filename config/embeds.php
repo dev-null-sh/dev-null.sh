@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Services\EmbedProviders\AppleMusic;
 use App\Services\EmbedProviders\Asciinema;
 use App\Services\EmbedProviders\CodePen;
+use App\Services\EmbedProviders\Giphy;
 use App\Services\EmbedProviders\Loom;
 use App\Services\EmbedProviders\SoundCloud;
 use App\Services\EmbedProviders\Spotify;
@@ -17,9 +18,11 @@ return [
 
     'enabled' => (bool) env('EMBEDS_ENABLED', true),
 
+    // "gif" selects verified external GIFs; the other keys select providers below.
     'only' => array_values(array_filter(array_map(trim(...), explode(',', (string) env('EMBEDS_PROVIDERS', ''))))),
 
     'providers' => [
+        'giphy' => Giphy::class,
         'youtube' => YouTube::class,
         'vimeo' => Vimeo::class,
         'loom' => Loom::class,

@@ -64,6 +64,6 @@ final class LinkPreview extends Model
      */
     public function toArray(): array
     {
-        return [...parent::toArray(), 'is_pending' => $this->fetched_at === null, 'embed' => resolve(Embeds::class)->for($this->url)?->toArray()];
+        return [...parent::toArray(), 'is_pending' => $this->fetched_at === null, 'embed' => resolve(Embeds::class)->for($this->url, $this->gif_url)?->toArray()];
     }
 }
