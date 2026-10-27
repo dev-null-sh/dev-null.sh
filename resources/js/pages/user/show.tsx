@@ -31,7 +31,7 @@ import {
 import { LocalTime } from '@/components/local-time';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
-import { ProfileActionsMenu } from '@/components/profile-actions-menu';
+import { ProfileLiveButton } from '@/components/profile-live-button';
 import { ProfileReadme } from '@/components/profile-readme';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
@@ -175,7 +175,7 @@ export default function Show({
                         />
                         {isCurrentUser ? (
                             <>
-                                <ProfileActionsMenu user={user} />
+                                <ProfileLiveButton user={user} />
                                 <EditProfileMenu />
                             </>
                         ) : (
