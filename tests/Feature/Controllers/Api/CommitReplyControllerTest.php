@@ -141,6 +141,31 @@ it('keeps listing newest first on the next page', function (): void {
         ->assertJsonPath('data.*.body', ['Reply 1', 'Reply 0']);
 });
 
+it('lists fewer replies a page when asked, as the web does, and keeps asking on the next page', function (): void {
+    $parent = Commit::factory()->create();
+
+    Commit::factory()->for($parent, 'parent')->count(12)
+        ->state(new Sequence(fn (Sequence $sequence): array => [
+            'body' => "Reply {$sequence->index}",
+            'created_at' => now()->subMinutes(100 - $sequence->index),
+        ]))
+        ->create();
+
+    $first = signedApiRequest($this->keyPair, 'GET', route('api-commit-reply.index', [$parent, 'limit' => 5]));
+
+    $first->assertOk()->assertJsonPath('data.*.body', ['Reply 0', 'Reply 1', 'Reply 2', 'Reply 3', 'Reply 4']);
+
+    signedApiRequest($this->keyPair, 'GET', (string) $first->json('links.next'))
+        ->assertOk()
+        ->assertJsonPath('data.*.body', ['Reply 5', 'Reply 6', 'Reply 7', 'Reply 8', 'Reply 9']);
+});
+
+it('rejects a page of replies outside 1 to 50', function (int $limit): void {
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-reply.index', [Commit::factory()->create(), 'limit' => $limit]))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('limit');
+})->with([0, 51]);
+
 it('hides the replies of commits the user may not see', function (): void {
     $parent = Commit::factory()->pending()->create();
     Commit::factory()->for($parent, 'parent')->create();
