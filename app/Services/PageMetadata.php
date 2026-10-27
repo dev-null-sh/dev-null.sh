@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\CommitStatus;
+use App\Enums\ConnectionType;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
@@ -298,24 +299,28 @@ final readonly class PageMetadata
     }
 
     /**
-     * The link preview of who follows a profile, or who it follows. The lists are thin pages, so they are not indexed, though their links are followed.
+     * The link preview of who follows a profile, who it follows, or who of those follow it back. The lists are thin pages, so they are not indexed, though their links are followed.
      *
-     * @param  'followers'|'following'  $type
+     * @param  ConnectionType::Followers|ConnectionType::Following|ConnectionType::Mutuals  $type
      * @return ConnectionsMetadata
      */
-    public function connections(User $user, string $type): array
+    public function connections(User $user, ConnectionType $type): array
     {
-        $title = $type === 'followers'
-            ? "People following {$user->nameWithHandle()} on /dev/null"
-            : "People followed by {$user->nameWithHandle()} on /dev/null";
+        $title = match ($type) {
+            ConnectionType::Followers => "People following {$user->nameWithHandle()} on /dev/null",
+            ConnectionType::Following => "People followed by {$user->nameWithHandle()} on /dev/null",
+            ConnectionType::Mutuals => "Mutuals of {$user->nameWithHandle()} on /dev/null",
+        };
 
         return [
             'type' => 'profile',
             'title' => $title,
-            'description' => $type === 'followers'
-                ? "See who follows {$user->mention()} on /dev/null, a social network for developers."
-                : "See who {$user->mention()} follows on /dev/null, a social network for developers.",
-            'url' => route($type === 'followers' ? 'user-followers.index' : 'user-following.index', $user),
+            'description' => match ($type) {
+                ConnectionType::Followers => "See who follows {$user->mention()} on /dev/null, a social network for developers.",
+                ConnectionType::Following => "See who {$user->mention()} follows on /dev/null, a social network for developers.",
+                ConnectionType::Mutuals => "See who follows {$user->mention()} back on /dev/null, a social network for developers.",
+            },
+            'url' => route("user-{$type->value}.index", $user),
             'robots' => self::NOT_INDEXABLE,
             'images' => [$this->profileImage($user, $title)],
             'handle' => $user->handle,

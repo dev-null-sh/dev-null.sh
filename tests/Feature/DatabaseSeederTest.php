@@ -55,6 +55,6 @@ it('gives the local developer conversations to read and reply to', function (boo
         ->and($conversations->get($localDeveloper, InboxTab::Fetched)['conversations'])->toHaveCount($fetched)
         ->and($conversations->unreadCount($localDeveloper))->toBe($unread);
 })->with([
-    'requests off' => [false, 0, 3],
-    'requests on' => [true, 1, 4],
+    'requests off' => [false, 0, 2],
+    'requests on' => [true, 1, 3],
 ]);

@@ -8,6 +8,7 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 
@@ -700,4 +701,80 @@ it('offers guests and the profile owner no remote', function (): void {
 
     $this->actingAs($user)->get(route('user.show', $user))
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('canPush', false));
+});
+
+it('shows the github profile readme on the readme tab, without looking for commits', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+    Commit::factory()->for($user)->create();
+
+    Http::fake([
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => 'octocat']),
+        'api.github.com/repos/octocat/octocat/readme' => Http::response('<div id="readme"><article class="markdown-body"><h2>Hi there</h2></article></div>'),
+    ]);
+
+    $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('tab', 'readme')
+        ->where('readme', '<div><article><h2>Hi there</h2></article></div>')
+        ->where('pinnedCommit', null)
+        ->where('commits.data', []));
+});
+
+it('tells the readme tab when github did not answer', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+
+    Http::fake(["api.github.com/user/{$user->github_id}" => Http::response(status: 502)]);
+
+    $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('readme', false));
+});
+
+it('does not ask github for the readme on the other tabs', function (string $tab): void {
+    Http::preventStrayRequests();
+    $user = User::factory()->create(['handle' => 'octocat']);
+
+    $this->get(route('user.show', ['user' => $user, 'tab' => $tab]))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('readme', null));
+})->with(['commits', 'replies']);
+
+it('names the followers the viewer knows, the most followed first', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create();
+    [$quiet, $popular, $middle, $fourth] = User::factory()->count(4)->create();
+    $user->followers()->attach([$quiet->id, $popular->id, $middle->id, $fourth->id, User::factory()->create()->id]);
+    $viewer->following()->attach([$quiet->id, $popular->id, $middle->id, $fourth->id]);
+    $popular->followers()->attach(User::factory()->count(3)->create());
+    $middle->followers()->attach(User::factory()->count(2)->create());
+    $fourth->followers()->attach(User::factory()->create());
+
+    $this->actingAs($viewer)
+        ->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page
+            ->where('followersYouKnow.count', 4)
+            ->has('followersYouKnow.users', 3)
+            ->where('followersYouKnow.users.0.id', $popular->id)
+            ->where('followersYouKnow.users.1.id', $middle->id)
+            ->where('followersYouKnow.users.2.id', $fourth->id));
+});
+
+it('has no followers the viewer knows when they follow none of them', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create();
+    $user->followers()->attach(User::factory()->create());
+
+    $this->actingAs($viewer)
+        ->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page
+            ->where('followersYouKnow.count', 0)
+            ->has('followersYouKnow.users', 0));
+});
+
+it('names no followers the viewer knows to guests or on their own profile', function (): void {
+    $user = User::factory()->create();
+
+    $this->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page->where('followersYouKnow', null));
+
+    $this->actingAs($user)
+        ->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page->where('followersYouKnow', null));
 });

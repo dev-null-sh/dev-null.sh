@@ -38,7 +38,6 @@ it('returns the signed-in user with their unread notifications and their pastéi
             'data' => [
                 'id' => $user->id,
                 'handle' => 'octocat',
-                'username' => 'octocat',
                 'name' => 'The Octocat',
                 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
                 'bio' => 'I am the Octocat.',
@@ -61,6 +60,9 @@ it('returns the signed-in user with their unread notifications and their pastéi
                 'automatic_lane' => $user->automaticLane(),
                 'sponsors_url' => null,
                 'github_synced_at' => null,
+                'terms_version' => config('legal.terms_version'),
+                'terms_accepted_at' => null,
+                'terms_accepted' => false,
                 'remotes' => [
                     'from' => 'following',
                     'pull_receipts' => true,
@@ -120,7 +122,7 @@ it('counts unread notifications in groups, like the web', function (): void {
         ->assertJsonPath('unread_notifications_count', 1);
 });
 
-it('counts unread messages and requests the way the nav on the web does', function (): void {
+it('counts unread conversations and requests the way the nav on the web does', function (): void {
     config(['remotes.requests' => true]);
 
     $user = User::factory()->create();
@@ -136,7 +138,7 @@ it('counts unread messages and requests the way the nav on the web does', functi
     signedApiRequest($keyPair, 'GET', route('api-current-user.show'))
         ->assertOk()
         ->assertJsonPath('data.remotes.requests', true)
-        ->assertJsonPath('data.remotes.unread_count', 3);
+        ->assertJsonPath('data.remotes.unread_count', 2);
 });
 
 it('says nothing about Remotes while the user has them off', function (): void {

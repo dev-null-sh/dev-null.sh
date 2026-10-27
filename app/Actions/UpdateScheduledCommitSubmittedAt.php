@@ -17,15 +17,18 @@ final readonly class UpdateScheduledCommitSubmittedAt
         //
     }
 
-    public function handle(string $id): bool
+    /**
+     * The author can commit it now, before its scheduled time.
+     */
+    public function handle(string $id, bool $early = false): bool
     {
-        return DB::transaction(function () use ($id): bool {
+        return DB::transaction(function () use ($id, $early): bool {
             // Claim with a conditional write before reading.
             // Creation and the claim roll back together if either operation fails.
             // Moderation is checked in the claim too, since a timeout or ban can land after the batch was selected...
             $claimed = ScheduledCommit::query()->whereKey($id)
                 ->whereNull('submitted_at')->whereNull('canceled_at')
-                ->where('scheduled_at', '<=', now())
+                ->unless($early, fn (Builder $query): Builder => $query->where('scheduled_at', '<=', now()))
                 ->whereDoesntHave('user.timeouts', fn (Builder $query): Builder => $query->where('ends_at', '>', now()))
                 ->whereDoesntHave('user.ban')
                 ->update(['submitted_at' => now()]);

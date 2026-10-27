@@ -26,6 +26,26 @@ beforeEach(function (): void {
     ));
 });
 
+it('records the terms as accepted when the app says which version it showed before sign-in', function (): void {
+    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier, 'terms_version' => config('legal.terms_version')])
+        ->assertOk()
+        ->assertJsonPath('data.terms_accepted', true);
+
+    expect($this->user->refresh()->hasAcceptedCurrentTerms())->toBeTrue();
+});
+
+it('leaves the terms alone when the app does not say, and refuses a version that is not in force', function (): void {
+    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier, 'terms_version' => '1999-01-01'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('terms_version');
+
+    signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier])
+        ->assertOk()
+        ->assertJsonPath('data.terms_accepted', false);
+
+    expect($this->user->refresh()->terms_accepted_at)->toBeNull();
+});
+
 it('approves the key that redeems the code as a device, and answers like me', function (): void {
     $response = signedApiRequest($this->keyPair, 'POST', route('api-device.store'), ['code' => $this->code, 'code_verifier' => $this->verifier]);
 

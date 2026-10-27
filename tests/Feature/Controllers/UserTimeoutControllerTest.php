@@ -174,6 +174,26 @@ it('stops a user in timeout from sending remotes', function (): void {
         ->assertJsonPath('timeout.reason', 'Spam or self-promotion');
 });
 
+it('stops a user in timeout from going live, but lets them end a stream', function (): void {
+    $user = User::factory()->create([
+        'live_platform' => 'youtube',
+        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'live_ends_at' => now()->addHour(),
+    ]);
+    UserTimeout::factory()->for($user)->create();
+
+    $this->actingAs($user)
+        ->putJson(route('user-live.update'), ['url' => 'https://www.twitch.tv/buymycourse', 'hours' => 12])
+        ->assertForbidden()
+        ->assertJsonPath('timeout.reason', 'Spam or self-promotion');
+
+    expect($user->refresh()->live_url)->toBe('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+
+    $this->delete(route('user-live.destroy'))->assertRedirect();
+
+    expect($user->refresh()->live_url)->toBeNull();
+});
+
 it('stops a user in timeout from starting, renaming, or growing orgs, and from messaging or pinning in them', function (): void {
     $user = User::factory()->create();
     [$member, $newcomer] = followersOf($user, 2);
@@ -195,6 +215,16 @@ it('stops a user in timeout from starting, renaming, or growing orgs, and from m
         ->and(Conversation::query()->sole()->name)->toBe('dev/null core')
         ->and(Conversation::query()->sole()->participants()->count())->toBe(2)
         ->and($message->fresh()?->pinned_at)->toBeNull();
+});
+
+it('stops a user in timeout from opening issues', function (): void {
+    $user = User::factory()->create();
+    UserTimeout::factory()->for($user)->create();
+
+    $this->actingAs($user)
+        ->postJson(route('issue.store'), ['command' => '/bug', 'body' => 'buy my course'])
+        ->assertForbidden()
+        ->assertJsonPath('timeout.reason', 'Spam or self-promotion');
 });
 
 it('tells the user how long is left of the timeout that ends last, rounded up', function (string $endsIn, string $remaining): void {

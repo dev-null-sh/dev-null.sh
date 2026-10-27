@@ -12,7 +12,7 @@ beforeEach(function (): void {
     config(['remotes.requests' => true, 'remotes.everyone' => true]);
 });
 
-it('lists conversations by latest message with what is unread', function (array $query): void {
+it('lists conversations by latest message with how many of them are unread', function (array $query): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
     $taylor = User::factory()->withRemotes()->create(['handle' => 'taylorotwell']);
@@ -24,7 +24,7 @@ it('lists conversations by latest message with what is unread', function (array 
         ->assertOk()
         ->assertHeader('Cache-Control', 'no-store, private')
         ->assertJsonMissingPath('notification_baseline')
-        ->assertJsonPath('unread', 2);
+        ->assertJsonPath('unread', 1);
 
     expect($response->json('conversations'))->toHaveCount(2)
         ->and($response->json('conversations.0.partner.handle'))->toBe('nunomaduro')

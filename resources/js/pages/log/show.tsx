@@ -277,7 +277,14 @@ export default function Show({
         const visible = new Set<Element>();
 
         const settle = () => {
-            rows.forEach((row) => row.removeAttribute('data-fresh'));
+            rows.forEach((row) => {
+                row.dataset.fresh = 'fading';
+                setTimeout(() => {
+                    if (row.dataset.fresh === 'fading') {
+                        row.removeAttribute('data-fresh');
+                    }
+                }, 1400);
+            });
             freshIds.current = new Set();
             cleanup();
         };

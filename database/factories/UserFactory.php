@@ -38,6 +38,7 @@ final class UserFactory extends Factory
             'lane_color' => null,
             'pinned_commit_id' => null,
             'onboarded_at' => now(),
+            'github_follows_imported_at' => null,
             'commit_rules_accepted_at' => now(),
             'remember_token' => Str::random(10),
         ];

@@ -42,6 +42,7 @@ import {
     isRemoteMuted,
     remoteAlertsEnabled,
 } from '@/lib/remote-notifications';
+import { remotePushEnabled } from '@/lib/remote-push';
 import type { VoiceDraft } from '@/lib/voice-notes';
 import type {
     ConversationSummary,
@@ -163,6 +164,7 @@ const activePoll = 1_500;
 const idlePoll = 4_000;
 const inboxPoll = 15_000;
 const busyInboxPoll = 6_000;
+const hiddenInboxPoll = 60_000;
 const activeWindow = 60_000;
 const typingPing = 3_000;
 
@@ -205,6 +207,10 @@ let inboxWatchers = 0;
 let inboxTimer: number | undefined;
 let isLoadingReactionUsage = false;
 let remoteAlerts: ReturnType<typeof createRemoteAlerts> | null = null;
+/**
+ * Whether this tab is the one of the user's tabs that keeps polling for alerts while hidden.
+ */
+let isAlertingTab = false;
 let isFetchingInbox = false;
 let muteVersion = 0;
 let pinVersion = 0;
@@ -516,11 +522,12 @@ function pinnedMessagesFrom(
     };
 }
 
+/**
+ * How many of the conversations have unread messages, the way the nav badge counts them.
+ */
 function unreadOf(conversations: ConversationSummary[]): number {
-    return conversations.reduce(
-        (total, conversation) => total + conversation.ahead,
-        0,
-    );
+    return conversations.filter((conversation) => conversation.ahead > 0)
+        .length;
 }
 
 function withoutKey(
@@ -891,7 +898,9 @@ export function rememberTarget(target: ChatTarget): void {
 }
 
 async function pollInbox(): Promise<void> {
-    const isPaused = document.hidden && remoteAlerts === null;
+    const isPaused =
+        document.hidden &&
+        (remoteAlerts === null || !isAlertingTab || remotePushEnabled());
 
     if (isPaused && state.unread !== null) {
         update({ unread: null });
@@ -972,12 +981,7 @@ async function pollInbox(): Promise<void> {
             fetched: state.fetched && withConversationPins(state.fetched),
             archived: state.archived && withConversationPins(state.archived),
             requests,
-            unread:
-                unread -
-                watched.reduce(
-                    (total, conversation) => total + conversation.ahead,
-                    0,
-                ),
+            unread: unread - unreadOf(watched),
         });
 
         if (requestsChanged && state.fetched !== null) {
@@ -1086,8 +1090,28 @@ export function watchRemoteAlerts(userId: string): () => void {
     );
     remoteAlerts = alerts;
     const unwatch = watchInbox();
+    const lock = new AbortController();
+    let releaseLock = () => {};
+    if (navigator.locks) {
+        void navigator.locks
+            .request(
+                `remote-alerts:${userId}`,
+                { signal: lock.signal },
+                () =>
+                    new Promise<void>((resolve) => {
+                        isAlertingTab = true;
+                        releaseLock = resolve;
+                    }),
+            )
+            .catch(() => undefined);
+    } else {
+        isAlertingTab = true;
+    }
 
     return () => {
+        lock.abort();
+        releaseLock();
+        isAlertingTab = false;
         alerts.stop();
         window.clearInterval(titleTimer);
         window.removeEventListener('focus', acknowledgeTitle);
@@ -1111,7 +1135,11 @@ function scheduleInbox(): void {
 
     inboxTimer = window.setTimeout(
         () => void pollInbox().finally(scheduleInbox),
-        threadWatchers.size > 0 ? busyInboxPoll : inboxPoll,
+        document.hidden
+            ? hiddenInboxPoll
+            : threadWatchers.size > 0
+              ? busyInboxPoll
+              : inboxPoll,
     );
 }
 
@@ -1133,7 +1161,7 @@ export function watchInbox(): () => void {
 
     const onVisible = () => {
         if (!document.hidden) {
-            void pollInbox();
+            void pollInbox().finally(scheduleInbox);
         }
     };
 
@@ -2004,7 +2032,7 @@ export async function setConversationArchived(
                 state.unread === null
                     ? null
                     : state.unread +
-                      (isArchived ? -conversation.ahead : conversation.ahead),
+                      (isArchived ? -1 : 1) * unreadOf([conversation]),
         });
     }
 

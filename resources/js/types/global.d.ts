@@ -18,6 +18,7 @@ declare module '@inertiajs/core' {
             deleted?: DeletedFlash;
             restored?: Commit;
             scheduled?: boolean;
+            submitted?: string;
             localSignIn?: boolean;
             signedUp?: boolean;
         };

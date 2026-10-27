@@ -55,10 +55,10 @@ export default function Show() {
                 <DocumentSection id="eligibility" title="Who can use it">
                     <p>
                         You must be at least 16 years old, sign in with your own
-                        account, and be allowed to use the service under the
-                        laws that apply to you, including sanctions and export
-                        laws. If you use it for an organization, you accept
-                        these terms on its behalf.
+                        GitHub or Apple account, and be allowed to use the
+                        service under the laws that apply to you, including
+                        sanctions and export laws. If you use it for an
+                        organization, you accept these terms on its behalf.
                     </p>
                 </DocumentSection>
 
@@ -152,9 +152,15 @@ export default function Show() {
                         ]}
                     />
                     <p>
-                        To report content you believe is illegal or infringes
-                        your rights, write to <Mail />. We decide how to handle
-                        reports.
+                        There is no place on the service for objectionable
+                        content or abusive users, and we have zero tolerance for
+                        them. Report a commit with Report in its menu, and use
+                        Mute and Block on a profile to stop seeing someone. To
+                        report content you believe is illegal or infringes your
+                        rights, or anything else, write to <Mail />. We review
+                        reports and act on content that breaks these rules
+                        within 24 hours, by removing it and restricting or
+                        banning the account that posted it.
                     </p>
                 </DocumentSection>
 
@@ -170,11 +176,11 @@ export default function Show() {
                     </p>
                     <p>
                         If you break these terms, we may stop you from posting
-                        for a while (a timeout) or ban you. A ban applies to
-                        your GitHub account, so you can't sign up again with it,
-                        even after deleting your account. We keep a record of
-                        timeouts and bans, and the GitHub account they apply to,
-                        after your account is deleted.
+                        for a while (a timeout) or ban you. A ban applies to the
+                        GitHub or Apple account you signed in with, so you can't
+                        sign up again with it, even after deleting your account.
+                        We keep a record of timeouts and bans, and the account
+                        they apply to, after your account is deleted.
                     </p>
                 </DocumentSection>
 
@@ -194,6 +200,25 @@ export default function Show() {
                         <WordmarkText>/dev/null</WordmarkText> is not affiliated
                         with or endorsed by GitHub, Inc. GitHub is a trademark
                         of GitHub, Inc.
+                    </p>
+                </DocumentSection>
+
+                <DocumentSection id="apple" title="Apple">
+                    <p>
+                        If you use the iOS app, these terms are between you and
+                        us only, not Apple. Apple is not responsible for the app
+                        or its content, and has no obligation to provide
+                        maintenance or support for it. If the app fails to
+                        conform to a warranty, you may tell Apple, and Apple
+                        will refund the purchase price, if any; Apple has no
+                        other warranty obligation for the app. We, not Apple,
+                        answer any claim about the app, including product
+                        liability, legal or regulatory compliance, and consumer
+                        protection. Apple and its subsidiaries are third-party
+                        beneficiaries of these terms and may enforce them
+                        against you once you accept them. You confirm that you
+                        are not in a country under a U.S. government embargo or
+                        listed as a restricted party.
                     </p>
                 </DocumentSection>
 
