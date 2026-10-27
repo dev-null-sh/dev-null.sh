@@ -34,13 +34,31 @@ export function PageTabs({
 
     useLayoutEffect(() => {
         const nav = navRef.current;
-        const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
-        if (scrollable && nav && active) {
-            nav.scrollLeft =
-                active.offsetLeft -
-                nav.offsetLeft -
-                (nav.clientWidth - active.offsetWidth) / 2;
-        }
+        if (!scrollable || !nav) return;
+
+        const center = () => {
+            const active = nav.querySelector<HTMLElement>(
+                '[aria-current="page"]',
+            );
+            if (active) {
+                nav.scrollLeft =
+                    active.offsetLeft -
+                    nav.offsetLeft -
+                    (nav.clientWidth - active.offsetWidth) / 2;
+            }
+        };
+
+        center();
+        let width = nav.clientWidth;
+        const observer = new ResizeObserver(() => {
+            if (nav.clientWidth !== width) {
+                width = nav.clientWidth;
+                center();
+            }
+        });
+        observer.observe(nav);
+
+        return () => observer.disconnect();
     }, [scrollable, activeTitle]);
 
     return (
