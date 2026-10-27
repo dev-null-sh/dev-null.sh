@@ -125,7 +125,7 @@ final readonly class CreateExport
                 'name' => $list->name,
                 'pinned_at' => $list->pinned_at?->toIso8601String(),
                 'created_at' => $list->created_at->toIso8601String(),
-                'members' => $list->members()->orderBy('handle')->get(['users.id', 'users.handle'])->map(fn (User $member): string => $member->handle)->values()->all(),
+                'members' => $list->members()->join('profiles', 'profiles.github_id', '=', 'users.github_id')->orderBy('profiles.handle')->get(['users.*'])->map(fn (User $member): string => $member->handle)->values()->all(),
             ])->all(),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [

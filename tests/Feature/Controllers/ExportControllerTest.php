@@ -580,8 +580,8 @@ it("exports the user's lists with their members, but never the lists others put 
     $user = User::factory()->create();
     $list = UserList::factory()->for($user)->create(['name' => 'Laravel folks', 'pinned_at' => now()]);
     $list->members()->attach([
-        User::factory()->create(['username' => 'zed'])->id,
-        User::factory()->create(['username' => 'ada'])->id,
+        User::factory()->create(['handle' => 'zed'])->id,
+        User::factory()->create(['handle' => 'ada'])->id,
     ]);
     UserList::factory()->create(['name' => 'Secret watchlist'])->members()->attach($user);
 

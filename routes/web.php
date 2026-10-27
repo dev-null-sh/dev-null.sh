@@ -455,12 +455,12 @@ Route::middleware('auth')->group(function (): void {
         ->whereUuid('userList')
         ->middleware('throttle:pins')
         ->name('user-list-pin.destroy');
-    Route::post('lists/{userList}/members/@{user:username}', [UserListMemberController::class, 'store'])
+    Route::post('lists/{userList}/members/@{user:handle}', [UserListMemberController::class, 'store'])
         ->whereUuid('userList')
         ->withoutScopedBindings()
         ->middleware('throttle:lists')
         ->name('user-list-member.store');
-    Route::delete('lists/{userList}/members/@{user:username}', [UserListMemberController::class, 'destroy'])
+    Route::delete('lists/{userList}/members/@{user:handle}', [UserListMemberController::class, 'destroy'])
         ->whereUuid('userList')
         ->withoutScopedBindings()
         ->middleware('throttle:lists')

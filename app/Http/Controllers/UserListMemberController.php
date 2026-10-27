@@ -19,7 +19,7 @@ final readonly class UserListMemberController
     {
         $action->handle($userList, $user);
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => "Added @{$user->username} to {$userList->name}."]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => "Added @{$user->handle} to {$userList->name}."]);
 
         return back();
     }
@@ -28,7 +28,7 @@ final readonly class UserListMemberController
     {
         $action->handle($userList, $user);
 
-        Inertia::flash('toast', ['type' => 'success', 'message' => "Removed @{$user->username} from {$userList->name}."]);
+        Inertia::flash('toast', ['type' => 'success', 'message' => "Removed @{$user->handle} from {$userList->name}."]);
 
         return back();
     }

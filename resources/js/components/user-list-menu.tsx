@@ -23,7 +23,7 @@ export function UserListMenu({
     user,
     lists,
 }: {
-    user: Pick<User, 'username'>;
+    user: Pick<User, 'handle'>;
     lists: ProfileList[] | undefined;
 }) {
     const [isSaving, setIsSaving] = useState(false);
@@ -37,8 +37,8 @@ export function UserListMenu({
     const toggle = (list: ProfileList) =>
         visitWithErrorToast(
             list.has_member
-                ? UserListMemberController.destroy([list.id, user.username])
-                : UserListMemberController.store([list.id, user.username]),
+                ? UserListMemberController.destroy([list.id, user.handle])
+                : UserListMemberController.store([list.id, user.handle]),
             {
                 only: ['lists'],
                 onStart: () => setIsSaving(true),
@@ -53,7 +53,7 @@ export function UserListMenu({
                     variant="outline"
                     size="icon"
                     className="shrink-0"
-                    aria-label={`Add @${user.username} to a list`}
+                    aria-label={`Add @${user.handle} to a list`}
                     data-test="user-list-menu"
                 >
                     <ListPlus />
