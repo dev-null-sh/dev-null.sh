@@ -95,6 +95,8 @@ await test('ignores what only looks like a CSS color function', () => {
         'rgb(1 2)',
         'rgb(a b c)',
         'rgb(1, 2 3)',
+        'lab(52%, 40, 59)',
+        'oklch(0.75, 0.15, 50)',
         'hsl(1 2 3 4)',
         'rgb(1 2 3)px',
         'xrgb(1 2 3)',

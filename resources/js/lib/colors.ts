@@ -11,10 +11,10 @@ const colorPattern =
 const channel = String.raw`[+-]?(?:\d+(?:\.\d+)?|\.\d+)(?:%|deg)?`;
 
 // A CSS color function like "rgb(255 138 76)", "hsl(20 100% 65%)" or "oklch(0.75 0.15 50 / 50%)", a whole word like a hex
-// color. Its three channels are on one line, separated by spaces with an optional "/ alpha" or by commas with an optional
-// fourth, so "rgb(1, 2 3)" and "hsl(1 2 3 4)" stay text.
+// color. Its three channels are on one line, separated by spaces with an optional "/ alpha" or, in rgb() and hsl() only, by
+// commas with an optional fourth, so "rgb(1, 2 3)", "lab(1, 2, 3)" and "hsl(1 2 3 4)" stay text.
 const colorFunctionPattern = new RegExp(
-    String.raw`(?:(?<!\S)|(?<=\n>))(?:rgba?|hsla?|(?:ok)?lab|(?:ok)?lch)\([ \t]*(?:${channel}[ \t]+${channel}[ \t]+${channel}(?:[ \t]*/[ \t]*${channel})?|${channel}[ \t]*,[ \t]*${channel}[ \t]*,[ \t]*${channel}(?:[ \t]*,[ \t]*${channel})?)[ \t]*\)(?=\p{P}*(?:[\s\u00AD\u2060\u200A-\u200D\u20E2]|$))`,
+    String.raw`(?:(?<!\S)|(?<=\n>))(?:(?:rgba?|hsla?|(?:ok)?lab|(?:ok)?lch)\([ \t]*${channel}[ \t]+${channel}[ \t]+${channel}(?:[ \t]*/[ \t]*${channel})?|(?:rgba?|hsla?)\([ \t]*${channel}[ \t]*,[ \t]*${channel}[ \t]*,[ \t]*${channel}(?:[ \t]*,[ \t]*${channel})?)[ \t]*\)(?=\p{P}*(?:[\s\u00AD\u2060\u200A-\u200D\u20E2]|$))`,
     'giu',
 );
 
