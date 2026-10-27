@@ -1,6 +1,7 @@
 import { Slot } from "@radix-ui/react-slot"
 import * as TooltipPrimitive from "@radix-ui/react-tooltip"
 import * as React from "react"
+import { flushSync } from "react-dom"
 
 import { cn } from "@/lib/utils"
 
@@ -47,7 +48,9 @@ function Tooltip({
     isArmed,
     arm: (byFocus) => {
       takesFocus.current = byFocus
-      setHasArmed(true)
+      // At once: React waits to render after a pointer enters, and a click landing meanwhile would press the trigger
+      // before it is mounted again and be released on the new one, which loses it.
+      flushSync(() => setHasArmed(true))
     },
     consumeFocus: () => {
       const takes = takesFocus.current
