@@ -16,6 +16,9 @@ use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\IpUtils;
 use Uri\WhatWg\Url;
 
+/**
+ * @phpstan-type Metadata array{title: string|null, description: string|null, image_url: string|null, site_name: string|null}
+ */
 final readonly class UpdateLinkPreview
 {
     private const int MAX_REDIRECTS = 3;
@@ -76,7 +79,7 @@ final readonly class UpdateLinkPreview
     /**
      * Follows up to three redirects by hand, so that every hop goes through the same checks as the original URL.
      *
-     * @return array{title: string|null, description: string|null, image_url: string|null, site_name: string|null}
+     * @return Metadata
      */
     private function fetchMetadata(string $url): array
     {
@@ -185,7 +188,7 @@ final readonly class UpdateLinkPreview
     }
 
     /**
-     * @return array{title: string|null, description: string|null, image_url: string|null, site_name: string|null}
+     * @return Metadata
      */
     private function parse(string $html, Url $page): array
     {

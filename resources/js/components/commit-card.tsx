@@ -1,7 +1,7 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { MouseEvent, PointerEvent, ReactNode } from 'react';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useContext, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { CommitAuthorFollowButton } from '@/components/commit-author-follow-button';
@@ -17,6 +17,7 @@ import {
     ShowThreadLink,
     ThreadActions,
     ThreadReplies,
+    ThreadReplyComposer,
     useThread,
 } from '@/components/commit-thread';
 import { useCommitTranslation } from '@/components/commit-translation';
@@ -26,12 +27,14 @@ import {
     useGraphNode,
 } from '@/components/graph-canvas';
 import {
+    ChainedEntrance,
     GraphRail,
     RailAvatar,
     RailDot,
     RailSegment,
     railDotRing,
 } from '@/components/graph-rail';
+import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import { LinkPreview } from '@/components/link-preview';
 import { LiveStreamTrigger } from '@/components/live-stream-card';
 import { QuotedCommit } from '@/components/quoted-commit';
@@ -120,6 +123,7 @@ export function CommitCard({
         component,
     } = usePage();
     const now = useNow();
+    const hiddenLinkPreviewUrl = useContext(HiddenLinkPreviewContext);
     const { bodyRef, ...translation } = useCommitTranslation(commit);
     const nodeRef = useRef<HTMLAnchorElement>(null);
     const graphNodeRef = useGraphNode({
@@ -155,6 +159,7 @@ export function CommitCard({
         hasRailTail && railNodePosition !== 'bottom' && endsWithDot;
     const graphEndId = `${commit.id}:end`;
     const isOwn = commit.user_id === auth.user?.id;
+    const isFresh = isOwn && isWithinSeconds(commit.created_at, 15);
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });
@@ -270,12 +275,13 @@ export function CommitCard({
                     lane={laneColor(commit.user.lane)}
                     previousLane={previousLane}
                     endsWithDot={endsWithDot}
+                    endsOnActions
                     nodePosition={railNodePosition}
                     hasTail={hasRailTail && railNodePosition !== 'bottom'}
                     hasReplyTail={
                         hasVisibleReplies && (!hasRailTail || endsWithDot)
                     }
-                    isFresh={isOwn && isWithinSeconds(commit.created_at, 15)}
+                    isFresh={isFresh}
                     isDimmed={isDimmed}
                     isPreviousDimmed={isPreviousDimmed}
                     onHoverChange={onAuthorHover}
@@ -319,11 +325,10 @@ export function CommitCard({
                     }
                 />
 
-                <div
-                    className={cn(
-                        'min-w-0 pr-4',
-                        hasVisibleReplies ? 'pt-3' : 'border-b py-3',
-                    )}
+                <ChainedEntrance
+                    isFresh={isFresh}
+                    previousLane={previousLane}
+                    className="min-w-0 pt-3 pr-4"
                 >
                     <div
                         inert={wasDeleted}
@@ -351,7 +356,7 @@ export function CommitCard({
                                         tabIndex={-1}
                                         className="shrink-4 truncate font-mono text-[13px] text-muted-foreground"
                                     >
-                                        @{commit.user.username}
+                                        @{commit.user.handle}
                                     </Link>
                                 </UserPreview>
                                 <span
@@ -445,7 +450,7 @@ export function CommitCard({
                                     className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
                                 >
                                     <CornerDownRight className="size-3" />
-                                    replying to @{commit.parent.user.username}
+                                    replying to @{commit.parent.user.handle}
                                 </Link>
                             )}
                             <div ref={bodyRef} style={translation.bodyStyle}>
@@ -479,14 +484,16 @@ export function CommitCard({
                                     commit={commit.quoted_commit ?? null}
                                 />
                             )}
-                            {commit.link_preview && (
-                                <LinkPreview
-                                    refreshUrl={CommitLinkPreviewController.show.url(
-                                        commit.id,
-                                    )}
-                                    preview={commit.link_preview}
-                                />
-                            )}
+                            {commit.link_preview &&
+                                commit.link_preview.url !==
+                                    hiddenLinkPreviewUrl && (
+                                    <LinkPreview
+                                        refreshUrl={CommitLinkPreviewController.show.url(
+                                            commit.id,
+                                        )}
+                                        preview={commit.link_preview}
+                                    />
+                                )}
                             {isFocused && (
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
                                     <TimestampTooltip
@@ -537,6 +544,7 @@ export function CommitCard({
                                 <ThreadActions
                                     thread={thread}
                                     hasKeyboardShortcuts
+                                    hasComposer={false}
                                     actions={
                                         <>
                                             <CommitStarButton
@@ -558,54 +566,80 @@ export function CommitCard({
                                     }
                                 />
                             )}
-
-                            {actions}
-
-                            {deletion === 'deleting' && (
-                                <p
-                                    className="mt-3 flex min-h-12 items-center rounded-md bg-destructive/8 px-3 py-2 font-mono text-sm text-muted-foreground"
-                                    role="status"
-                                >
-                                    rm {hash} → /dev/null
-                                </p>
-                            )}
-
-                            {deletion === 'confirming' && (
-                                <div
-                                    role="group"
-                                    aria-label="Confirm delete"
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Escape') {
-                                            cancelDeletion();
-                                        }
-                                    }}
-                                    className="mt-3 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
-                                >
-                                    <span className="mr-auto">
-                                        Delete this commit? You can undo for 30
-                                        seconds.
-                                    </span>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        autoFocus
-                                        onClick={cancelDeletion}
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={deleteCommit}
-                                        data-test="confirm-delete-commit-button"
-                                    >
-                                        Delete
-                                    </Button>
-                                </div>
-                            )}
                         </div>
                     </div>
-                </div>
+                </ChainedEntrance>
+                {/* What opens below the actions row gets a row of its own, so the rail's row, and its end dot, end on the actions. */}
+                <RailSegment
+                    lane={
+                        hasRailTail && !endsWithDot
+                            ? laneColor(commit.user.lane)
+                            : undefined
+                    }
+                    isDimmed={isDimmed}
+                />
+                <ChainedEntrance
+                    isFresh={isFresh}
+                    previousLane={previousLane}
+                    className={cn('min-w-0 pr-4', {
+                        'border-b pb-3': !hasVisibleReplies,
+                    })}
+                >
+                    <div
+                        inert={wasDeleted}
+                        className={cn('transition-opacity duration-200', {
+                            'opacity-70': isDimmed,
+                            'opacity-50': wasDeleted,
+                        })}
+                    >
+                        <ThreadReplyComposer thread={thread} />
+
+                        {actions}
+
+                        {deletion === 'deleting' && (
+                            <p
+                                className="mt-3 flex min-h-12 items-center rounded-md bg-destructive/8 px-3 py-2 font-mono text-sm text-muted-foreground"
+                                role="status"
+                            >
+                                rm {hash} → /dev/null
+                            </p>
+                        )}
+
+                        {deletion === 'confirming' && (
+                            <div
+                                role="group"
+                                aria-label="Confirm delete"
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Escape') {
+                                        cancelDeletion();
+                                    }
+                                }}
+                                className="mt-3 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
+                            >
+                                <span className="mr-auto">
+                                    Delete this commit? You can undo for 30
+                                    seconds.
+                                </span>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    autoFocus
+                                    onClick={cancelDeletion}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={deleteCommit}
+                                    data-test="confirm-delete-commit-button"
+                                >
+                                    Delete
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </ChainedEntrance>
                 {commit.replies_count !== undefined && (
                     <>
                         <RailSegment
@@ -636,6 +670,9 @@ export function CommitCard({
                                                 endsOnDot
                                                     ? graphEndId
                                                     : commit.id
+                                            }
+                                            isOnTrunk={
+                                                hasRailTail && !endsWithDot
                                             }
                                         />
                                     </GraphScope>

@@ -11,7 +11,9 @@ use App\Services\OpenAI;
 use App\Services\SignedCommits;
 use App\Services\SignedRequests;
 use Carbon\CarbonInterface;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -57,6 +59,18 @@ function embeddingVector(int $dimension): array
 {
     $vector = array_fill(0, OpenAI::EMBEDDING_DIMENSIONS, 0.0);
     $vector[$dimension] = 1.0;
+
+    return $vector;
+}
+
+/**
+ * @return list<float>
+ */
+function embeddingAtDistance(float $distance): array
+{
+    $vector = array_fill(0, OpenAI::EMBEDDING_DIMENSIONS, 0.0);
+    $vector[0] = 1 - $distance;
+    $vector[1] = sqrt(1 - (1 - $distance) ** 2);
 
     return $vector;
 }
@@ -130,24 +144,48 @@ function fakeGitHubAccount(User $user, array $account = []): void
         "api.github.com/user/{$user->github_id}" => Http::response($account),
     ]);
 
-    fakeGitHubSshKeys(User::factory()->make(['github_id' => $user->github_id, 'username' => $account['login']]));
+    fakeGitHubSshKeys($user, handle: $account['login']);
+}
+
+/**
+ * @return array<string, mixed>
+ */
+function gitHubContributor(string $login, int $commits, string $type = 'User', ?int $id = null): array
+{
+    return ['login' => $login, 'id' => $id ?? crc32($login), 'contributions' => $commits, 'type' => $type];
+}
+
+/**
+ * Serves the contributors of the repository like GitHub does: most commits first, a page at a time.
+ *
+ * @param  list<array<string, mixed>>  $contributors
+ */
+function fakeGitHubContributors(array $contributors): void
+{
+    Http::fake(['api.github.com/repos/'.config()->string('services.github.repository').'/contributors*' => function (Request $request) use ($contributors): PromiseInterface {
+        $perPage = (int) $request['per_page'];
+
+        return Http::response(array_slice($contributors, ((int) $request['page'] - 1) * $perPage, $perPage));
+    }]);
 }
 
 /**
  * @param  list<SshPublicKey>  $keys
  * @param  list<SshPublicKey>  $signingKeys
  */
-function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = []): void
+function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = [], ?string $handle = null): void
 {
+    $handle ??= $user->handle;
+
     $toResponse = fn (array $publicKeys): array => array_map(
         fn (SshPublicKey $publicKey): array => ['id' => 1, 'key' => $publicKey->toOpenSsh()],
         $publicKeys,
     );
 
     Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
-        "api.github.com/users/{$user->username}/keys*" => Http::response($toResponse($keys)),
-        "api.github.com/users/{$user->username}/ssh_signing_keys*" => Http::response($toResponse($signingKeys)),
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $handle]),
+        "api.github.com/users/{$handle}/keys*" => Http::response($toResponse($keys)),
+        "api.github.com/users/{$handle}/ssh_signing_keys*" => Http::response($toResponse($signingKeys)),
     ]);
 }
 
@@ -158,14 +196,14 @@ function fakeGitHubSshKeys(User $user, array $keys = [], array $signingKeys = []
 function fakeGitHubFollows(User $user, array $following = [], array $followers = []): void
 {
     $toResponse = fn (array $users): array => array_map(
-        fn (User $user): array => ['id' => (int) $user->github_id, 'login' => $user->username],
+        fn (User $user): array => ['id' => (int) $user->github_id, 'login' => $user->handle],
         $users,
     );
 
     Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->username]),
-        "api.github.com/users/{$user->username}/following*" => Http::response($toResponse($following)),
-        "api.github.com/users/{$user->username}/followers*" => Http::response($toResponse($followers)),
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->handle]),
+        "api.github.com/users/{$user->handle}/following*" => Http::response($toResponse($following)),
+        "api.github.com/users/{$user->handle}/followers*" => Http::response($toResponse($followers)),
     ]);
 }
 
@@ -340,7 +378,7 @@ function createOrg(User $maintainer, array $members, ?string $name = 'dev/null c
 {
     return test()->actingAs($maintainer)->postJson(route('org.store'), [
         'name' => $name,
-        'members' => array_map(fn (User $member): string => $member->username, $members),
+        'members' => array_map(fn (User $member): string => $member->handle, $members),
     ])->assertCreated()->json('org.id');
 }
 
@@ -406,6 +444,25 @@ function signedApiRequestWithImages(SshKeyPair $keyPair, string $method, string 
         'images' => $images,
     ], server: [
         ...signApiRequest($keyPair, $method, $uri, $hashes."\n".$payload, namespace: $namespace),
+        'CONTENT_TYPE' => 'multipart/form-data; boundary=devnull',
+    ]);
+}
+
+/**
+ * Sends an API request with a voice note the way the Mac app does: multipart, with the data as the JSON payload beside
+ * the voice note, signed with the hash of $signedVoice, which is the voice note sent unless a test says otherwise.
+ *
+ * @param  array<string, mixed>  $data
+ */
+function signedApiRequestWithVoice(SshKeyPair $keyPair, string $method, string $uri, array $data, UploadedFile $voice, ?UploadedFile $signedVoice = null): TestResponse
+{
+    $payload = json_encode($data, JSON_THROW_ON_ERROR);
+
+    return test()->call($method, $uri, files: [
+        'payload' => UploadedFile::fake()->createWithContent('payload', $payload),
+        'voice' => $voice,
+    ], server: [
+        ...signApiRequest($keyPair, $method, $uri, hash_file('sha256', ($signedVoice ?? $voice)->getPathname())."\n".$payload, namespace: SignedRequests::ImagesNamespace),
         'CONTENT_TYPE' => 'multipart/form-data; boundary=devnull',
     ]);
 }

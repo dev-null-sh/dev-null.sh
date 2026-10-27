@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { CommitCard } from '@/components/commit-card';
 import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
+import { GraphCanvas } from '@/components/graph-canvas';
 import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
 import { searchCommits, suggestedQueries } from '@/lib/commit-search';
@@ -139,7 +140,7 @@ function useCommitSearch(query: string) {
     return { results, isWaiting };
 }
 
-function SearchResults({
+export function SearchResults({
     results,
     isWaiting,
 }: {
@@ -172,19 +173,25 @@ function SearchResults({
                     </EmptyFeed>
                 </div>
             ) : (
-                results.commits.map((commit, index) => (
-                    <CommitCard
-                        key={commit.id}
-                        commit={commit}
-                        previousLane={
-                            index === 0
-                                ? undefined
-                                : laneColor(
-                                      results.commits[index - 1].user.lane,
-                                  )
-                        }
-                    />
-                ))
+                <GraphCanvas>
+                    {results.commits.map((commit, index) => {
+                        const previous = results.commits[index - 1];
+
+                        return (
+                            <CommitCard
+                                key={commit.id}
+                                commit={commit}
+                                previousLane={
+                                    previous && laneColor(previous.user.lane)
+                                }
+                                graphAfter={previous?.id}
+                                endsWithDot={
+                                    index === results.commits.length - 1
+                                }
+                            />
+                        );
+                    })}
+                </GraphCanvas>
             )}
         </section>
     );

@@ -425,12 +425,16 @@ export function AppNav({
                                 {auth.user.name}
                             </span>
                             <span className="block truncate font-mono text-xs text-muted-foreground">
-                                @{auth.user.username}
+                                @{auth.user.handle}
                             </span>
                         </span>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent
-                        className="w-60"
+                        className={
+                            iconsOnly
+                                ? 'w-60'
+                                : 'w-(--radix-dropdown-menu-trigger-width)'
+                        }
                         side="top"
                         align="start"
                     >
@@ -553,14 +557,16 @@ export function MobileNav({ children }: { children?: ReactNode }) {
 
         const root = document.documentElement;
         // Hidden while the keyboard is open, it keeps its height, so toasts above it do not drop onto it on the way back.
-        const observer = new ResizeObserver(() => {
+        const updateHeight = () => {
             const { height } = element.getBoundingClientRect();
 
             if (height > 0) {
                 root.style.setProperty('--mobile-nav-height', `${height}px`);
             }
-        });
+        };
+        const observer = new ResizeObserver(updateHeight);
 
+        updateHeight();
         observer.observe(element, { box: 'border-box' });
 
         return () => {

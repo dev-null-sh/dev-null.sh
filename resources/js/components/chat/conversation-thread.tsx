@@ -1,4 +1,5 @@
-import { ArrowDown, Mic, X } from 'lucide-react';
+import { Link } from '@inertiajs/react';
+import { ArrowDown, Mic, Vibrate, X } from 'lucide-react';
 import type {
     ClipboardEvent,
     FormEvent,
@@ -17,12 +18,14 @@ import {
 } from 'react';
 import { toast } from 'sonner';
 import {
+    LiftedMessage,
     MessageImages,
     MessageLinkCard,
     MessageText,
     BubbleActions,
     Repliable,
     ReplyGhost,
+    replyOf,
 } from '@/components/chat/message-parts';
 import type { Author } from '@/components/chat/message-parts';
 import {
@@ -33,6 +36,7 @@ import {
 } from '@/components/chat/message-reactions';
 import { MessageStatusGlyph } from '@/components/chat/message-status';
 import { EventLine, typingText } from '@/components/chat/org';
+import { PinnedBanner, usePinMessage } from '@/components/chat/pinned-messages';
 import { VoiceNote, VoiceNoteComposer } from '@/components/chat/voice-note';
 import {
     ImageDropOverlay,
@@ -41,42 +45,53 @@ import {
 } from '@/components/commit-image-picker';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
-import { SecretWarning } from '@/components/secret-warning';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Spinner } from '@/components/ui/spinner';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserPreview } from '@/components/user-preview';
 import { useChat, useThread } from '@/hooks/use-chat';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
-import { useSecretWarning } from '@/hooks/use-secret-warning';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
 import { useVoiceNote } from '@/hooks/use-voice-note';
 import {
+    ChatRequestError,
     settleRequest,
+    loadMessage,
     loadOlderMessages,
     markThreadRead,
     pingTyping,
     retryMessage,
     sendMessage,
+    sendPing,
     setReplyingTo,
     targetKey,
     toggleReaction,
 } from '@/lib/chat';
 import type { ChatTarget, PendingMessage } from '@/lib/chat';
+import { isBehindLatest } from '@/lib/chat-scroll';
 import { formatCount } from '@/lib/numbers';
 import { pullsOf, statusMessageOf } from '@/lib/pulls';
 import { doubleTapReaction } from '@/lib/reactions';
 import type { ReactionUsage } from '@/lib/reactions';
+import { isRemoteMuted, playPing } from '@/lib/remote-notifications';
 import { restoreScrollAnchor, scrollAnchorOf } from '@/lib/scroll-anchor';
 import type { ScrollAnchor } from '@/lib/scroll-anchor';
 import {
     characterCount,
     cn,
+    formatClockTime,
     formatDayLabel,
     laneColor,
     localDayKey,
 } from '@/lib/utils';
+import { show } from '@/routes/user';
 import type {
     Message,
     MessageReply,
@@ -149,19 +164,29 @@ export function ConversationThread({
     onDropped?: () => void;
 }) {
     const thread = useThread(target);
-    const usage = useChat().reactionUsage ?? noUsage;
+    const chat = useChat();
+    const usage = chat.reactionUsage ?? noUsage;
     const isOrg = target.kind === 'org';
     // Renaming an org updates the thread's target, not the one this was opened with.
     const current = thread?.target ?? target;
+    const section = useRef<HTMLElement>(null);
     const scroller = useRef<HTMLDivElement>(null);
     const list = useRef<HTMLOListElement>(null);
+    const seenPing = useRef<number | null>(null);
     const headLine = useRef<HTMLDivElement>(null);
     const isPinned = useRef(true);
     const hasScrolledIn = useRef(false);
     const anchor = useRef<ScrollAnchor | null>(null);
     const restoredScrollTop = useRef<number | null>(null);
+    const sentAnchor = useRef<ScrollAnchor | null>(null);
+    const isFollowingSend = useRef(false);
+    const isReplyResizing = useRef(false);
     const seenLatest = useRef(0);
     const [unseen, setUnseen] = useState(0);
+    const [isBrowsingHistory, setIsBrowsingHistory] = useState(false);
+    const [isScrolledBack, setIsScrolledBack] = useState(false);
+    const [isJumping, setIsJumping] = useState(false);
+    const jumpRequest = useRef<AbortController | null>(null);
 
     const messages = thread?.messages ?? noMessages;
     const pending = thread?.pending ?? noPending;
@@ -196,6 +221,134 @@ export function ConversationThread({
     const draft = useMessageDraft(user, current);
     const replyingTo = thread?.replyingTo ?? null;
     const members = thread?.members;
+    const mutePreference = chat.mutePreferences[targetKey(target)];
+    const mutedUntil =
+        mutePreference !== undefined
+            ? mutePreference.until
+            : (thread?.muted_until_at ?? null);
+    const isLoaded = thread?.isLoaded ?? false;
+
+    // A ping coming in or going out shakes the thread to MSN's ping sound. Pings already there when it opened stay still.
+    useEffect(() => {
+        if (!isLoaded) {
+            return;
+        }
+
+        const ping = messages.findLast((message) => message.event === 'ping');
+        const seen = seenPing.current;
+        seenPing.current = Math.max(seen ?? 0, ping?.id ?? 0);
+
+        if (seen === null || ping === undefined || ping.id <= seen) {
+            return;
+        }
+
+        if (ping.user_id === user.id || !isRemoteMuted(mutedUntil)) {
+            playPing(user.id);
+        }
+
+        if (
+            isVisible &&
+            !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ) {
+            section.current?.animate(
+                {
+                    transform: [0, -8, 8, -6, 6, -3, 3, 0].map(
+                        (x) => `translateX(${x}px)`,
+                    ),
+                },
+                { duration: 500, easing: 'ease-in-out' },
+            );
+        }
+    }, [messages, isLoaded, user.id, mutedUntil, isVisible]);
+
+    const pinnedMessages = thread?.pinned ?? noMessages;
+    const hasPinnedMessages = pinnedMessages.length > 0;
+    const [hasPinClearance, setHasPinClearance] = useState(hasPinnedMessages);
+
+    if (hasPinnedMessages && !hasPinClearance) {
+        setHasPinClearance(true);
+    }
+
+    const releasePinClearance = useCallback(() => {
+        const element = scroller.current;
+        const content = list.current;
+
+        if (
+            hasPinnedMessages ||
+            !hasPinClearance ||
+            element === null ||
+            content === null
+        ) {
+            return;
+        }
+
+        // Near the oldest message, removing the inset would clamp the reverse scroller and move the reading position.
+        const roomAbove =
+            element.scrollHeight - element.clientHeight + element.scrollTop;
+
+        if (
+            element.scrollTop === 0 ||
+            roomAbove >= parseFloat(getComputedStyle(content).paddingTop)
+        ) {
+            setHasPinClearance(false);
+        }
+    }, [hasPinnedMessages, hasPinClearance]);
+
+    const canPin = isOrg && thread?.role === 'maintainer' && isOpen;
+    // Polls hand over a new list whenever any reaction changes, so the bubbles only hear about the pins themselves.
+    const pinnedKey = pinnedMessages.map((message) => message.id).join();
+    const pinnedIds = useMemo(
+        () => new Set(pinnedKey === '' ? [] : pinnedKey.split(',').map(Number)),
+        [pinnedKey],
+    );
+    // Only who wrote the pinned messages matters for names, so a reaction on one doesn't re-render every row.
+    const pinnedAuthorIds = [
+        ...new Set(pinnedMessages.map((message) => message.user_id)),
+    ]
+        .toSorted()
+        .join();
+    const pinnedAuthors = useMemo(
+        () => pinnedMessages.flatMap((message) => message.user ?? []),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [pinnedAuthorIds],
+    );
+    const pins = usePinMessage(target, user.id);
+    const { pin, unpin } = pins;
+    const togglePin = useCallback(
+        (message: Message, isPinned: boolean) =>
+            isPinned ? unpin(message) : pin(message),
+        [pin, unpin],
+    );
+
+    const updateScrollPosition = useCallback(() => {
+        setIsScrolledBack(
+            scroller.current !== null &&
+                isBehindLatest(scroller.current, messages),
+        );
+    }, [messages]);
+
+    useLayoutEffect(updateScrollPosition, [updateScrollPosition, isVisible]);
+
+    useLayoutEffect(() => {
+        isReplyResizing.current = true;
+    }, [replyingTo]);
+
+    const settleReplyPreview = useCallback((isOpen: boolean) => {
+        const element = scroller.current;
+        isReplyResizing.current = false;
+
+        if (element === null) {
+            return;
+        }
+
+        if (!isPinned.current && anchor.current !== null) {
+            restoreScrollAnchor(element, anchor.current);
+            restoredScrollTop.current = element.scrollTop;
+        }
+
+        isPinned.current = isPinned.current || (!isOpen && isAtLatest(element));
+        anchor.current ??= scrollAnchorOf(element);
+    }, []);
 
     const authorOf = useCallback(
         (userId: string): Author => {
@@ -209,7 +362,8 @@ export function ConversationThread({
                     : (members?.find((member) => member.user.id === userId)
                           ?.user ??
                       messages.find((message) => message.user_id === userId)
-                          ?.user);
+                          ?.user ??
+                      pinnedAuthors.find((person) => person.id === userId));
 
             return {
                 name: person?.name ?? 'Someone',
@@ -217,27 +371,81 @@ export function ConversationThread({
                 isMe: false,
             };
         },
-        [user, current, members, messages],
+        [user, current, members, messages, pinnedAuthors],
     );
 
-    const jumpTo = useCallback((id: number) => {
-        const bubble = scroller.current?.querySelector<HTMLElement>(
-            `[data-message-id="${id}"]`,
-        );
+    useEffect(() => () => jumpRequest.current?.abort(), []);
 
-        if (!bubble) {
-            return;
-        }
+    const jumpTo = useCallback(
+        async (id: number) => {
+            jumpRequest.current?.abort();
+            const request = new AbortController();
+            jumpRequest.current = request;
+            anchor.current = null;
+            sentAnchor.current = null;
+            isFollowingSend.current = false;
+            restoredScrollTop.current = null;
+            isPinned.current = false;
+            setIsBrowsingHistory(true);
 
-        bubble.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        bubble.dataset.flash = '';
-        window.setTimeout(() => delete bubble.dataset.flash, 1200);
-    }, []);
+            let bubble = scroller.current?.querySelector<HTMLElement>(
+                `[data-message-id="${id}"]`,
+            );
+
+            if (!bubble) {
+                setIsJumping(true);
+                const found = await loadMessage(target, id, request.signal);
+
+                if (request.signal.aborted) {
+                    return;
+                }
+
+                // Let the store's last page render before locating the original bubble.
+                if (found) {
+                    await new Promise<void>((resolve) => {
+                        requestAnimationFrame(() => resolve());
+                    });
+                }
+
+                if (request.signal.aborted) {
+                    return;
+                }
+
+                bubble = scroller.current?.querySelector<HTMLElement>(
+                    `[data-message-id="${id}"]`,
+                );
+            }
+
+            jumpRequest.current = null;
+            setIsJumping(false);
+
+            if (!bubble) {
+                toast.error('Could not load this message. Try again.');
+                return;
+            }
+
+            anchor.current = null;
+            restoredScrollTop.current = null;
+            bubble.scrollIntoView({ block: 'center', behavior: 'instant' });
+            bubble.dataset.flash = '';
+            window.setTimeout(() => delete bubble.dataset.flash, 1200);
+        },
+        [target],
+    );
 
     const replyTo = useCallback(
         (reply: MessageReply) => {
+            if (scroller.current !== null) {
+                // Reuse the reading anchor across folds so rounded scroll positions cannot accumulate drift.
+                if (isPinned.current) {
+                    anchor.current = null;
+                } else if (anchor.current === null) {
+                    anchor.current = scrollAnchorOf(scroller.current);
+                }
+            }
+
             setReplyingTo(target, reply);
-            draft.input.current?.focus();
+            draft.input.current?.focus({ preventScroll: true });
         },
         // eslint-disable-next-line react-hooks/exhaustive-deps
         [targetKey(target)],
@@ -258,9 +466,20 @@ export function ConversationThread({
     );
 
     useEffect(() => {
-        if (isVisible && thread?.isLoaded && isPinned.current) {
-            markThreadRead(target);
-        }
+        const markRead = () => {
+            if (isVisible && thread?.isLoaded && isPinned.current) {
+                markThreadRead(target);
+            }
+        };
+
+        markRead();
+        window.addEventListener('focus', markRead);
+        document.addEventListener('visibilitychange', markRead);
+
+        return () => {
+            window.removeEventListener('focus', markRead);
+            document.removeEventListener('visibilitychange', markRead);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isVisible, latestId, thread?.isLoaded, targetKey(target)]);
 
@@ -281,7 +500,23 @@ export function ConversationThread({
             return;
         }
 
-        if (isPinned.current) {
+        if (sentAnchor.current !== null) {
+            restoreScrollAnchor(element, sentAnchor.current);
+            sentAnchor.current = null;
+            anchor.current = scrollAnchorOf(element);
+            isFollowingSend.current = element.scrollTop !== 0;
+            element.scrollTo({
+                top: 0,
+                behavior: window.matchMedia('(prefers-reduced-motion: reduce)')
+                    .matches
+                    ? 'instant'
+                    : 'smooth',
+            });
+            seenLatest.current = latestId;
+        } else if (isFollowingSend.current) {
+            // Confirming the same optimistic reply must not interrupt its scroll.
+            seenLatest.current = latestId;
+        } else if (isPinned.current) {
             element.scrollTop = 0;
             seenLatest.current = latestId;
         } else {
@@ -304,6 +539,18 @@ export function ConversationThread({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [contentKey, thread?.isLoaded]);
 
+    useLayoutEffect(releasePinClearance, [releasePinClearance]);
+
+    const releaseScrollAnchor = useCallback(() => {
+        // Let deliberate input own the viewport until the fold settles, including delayed automatic scroll events.
+        anchor.current = null;
+        sentAnchor.current = null;
+        isFollowingSend.current = false;
+        jumpRequest.current?.abort();
+        jumpRequest.current = null;
+        setIsJumping(false);
+    }, []);
+
     // A row below the visible ones can still change height, as reactions or a link card arrive, and the scroller itself
     // shrinks as the composer grows or the keyboard opens. Anchored at its bottom, either would move what is being read,
     // so the top visible row is kept where it was.
@@ -316,17 +563,53 @@ export function ConversationThread({
         }
 
         const observer = new ResizeObserver(() => {
-            if (!isPinned.current && anchor.current !== null) {
+            if (
+                !isPinned.current &&
+                !isFollowingSend.current &&
+                anchor.current !== null
+            ) {
                 restoreScrollAnchor(element, anchor.current);
                 restoredScrollTop.current = element.scrollTop;
             }
+
+            updateScrollPosition();
         });
+
+        const onWheel = (event: WheelEvent) => {
+            if (event.ctrlKey || event.defaultPrevented || event.deltaY === 0) {
+                return;
+            }
+
+            releaseScrollAnchor();
+
+            if (isReplyResizing.current) {
+                // WebKit can drop native wheel scrolling after a frame's scrollTop correction.
+                event.preventDefault();
+                const unit =
+                    event.deltaMode === WheelEvent.DOM_DELTA_LINE
+                        ? parseFloat(getComputedStyle(element).lineHeight)
+                        : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+                          ? element.clientHeight
+                          : 1;
+                element.scrollTop += event.deltaY * unit;
+            }
+        };
 
         observer.observe(content);
         observer.observe(element);
+        element.addEventListener('wheel', onWheel, {
+            passive: false,
+        });
+        element.addEventListener('touchmove', releaseScrollAnchor, {
+            passive: false,
+        });
 
-        return () => observer.disconnect();
-    }, [thread?.isLoaded]);
+        return () => {
+            observer.disconnect();
+            element.removeEventListener('wheel', onWheel);
+            element.removeEventListener('touchmove', releaseScrollAnchor);
+        };
+    }, [releaseScrollAnchor, thread?.isLoaded, updateScrollPosition]);
 
     const onScroll = () => {
         const element = scroller.current;
@@ -335,10 +618,13 @@ export function ConversationThread({
             return;
         }
 
-        // Keep the reading anchor during a fold, but resume following messages when a correction reaches the bottom.
+        updateScrollPosition();
+        releasePinClearance();
+
+        // A correction during the reply fold is not an intentional scroll, even while it is close to the bottom.
         if (
             element.scrollTop === restoredScrollTop.current &&
-            !isAtLatest(element)
+            (isReplyResizing.current || !isAtLatest(element))
         ) {
             restoredScrollTop.current = null;
 
@@ -347,7 +633,12 @@ export function ConversationThread({
 
         restoredScrollTop.current = null;
         isPinned.current = isAtLatest(element);
-        anchor.current = scrollAnchorOf(element);
+        if (element.scrollTop === 0) {
+            isFollowingSend.current = false;
+        }
+        if (!isReplyResizing.current || anchor.current !== null) {
+            anchor.current = scrollAnchorOf(element);
+        }
 
         if (isPinned.current) {
             seenLatest.current = latestId;
@@ -370,13 +661,24 @@ export function ConversationThread({
     };
 
     const jumpToLatest = () => {
+        jumpRequest.current?.abort();
+        jumpRequest.current = null;
+        setIsJumping(false);
+        setIsBrowsingHistory(false);
+        setIsScrolledBack(false);
+        anchor.current = null;
+        sentAnchor.current = null;
+        isFollowingSend.current = false;
+        restoredScrollTop.current = null;
+        isPinned.current = true;
         const element = scroller.current;
 
-        element?.scrollTo({ top: 0, behavior: 'smooth' });
+        element?.scrollTo({ top: 0, behavior: 'instant' });
     };
 
     return (
         <section
+            ref={section}
             aria-label={
                 current.kind === 'direct'
                     ? `Conversation with ${current.partner.name}`
@@ -387,9 +689,59 @@ export function ConversationThread({
         >
             {header}
 
+            {isOrg && (
+                <PinnedBanner
+                    messages={pinnedMessages}
+                    user={user}
+                    authorOf={authorOf}
+                    boundary={scroller}
+                    isCompact={isCompact}
+                    usage={usage}
+                    onReply={isOpen ? replyTo : null}
+                    onReact={isOpen ? react : null}
+                    onUnpin={canPin ? unpin : null}
+                    onEmptied={() => {
+                        if (!window.matchMedia('(pointer: coarse)').matches) {
+                            draft.input.current?.focus({ preventScroll: true });
+                        }
+                    }}
+                />
+            )}
+            {pins.dialog}
+
             <div
                 ref={scroller}
                 onScroll={onScroll}
+                onScrollEnd={() => {
+                    if (
+                        scroller.current !== null &&
+                        isAtLatest(scroller.current) &&
+                        jumpRequest.current === null
+                    ) {
+                        setIsBrowsingHistory(false);
+                    }
+                }}
+                onKeyDown={(event) => {
+                    if (
+                        !event.defaultPrevented &&
+                        [
+                            'ArrowUp',
+                            'ArrowDown',
+                            'PageUp',
+                            'PageDown',
+                            'Home',
+                            'End',
+                            ' ',
+                        ].includes(event.key)
+                    ) {
+                        releaseScrollAnchor();
+                    }
+                }}
+                onPointerDown={(event) => {
+                    if (event.target === event.currentTarget) {
+                        releaseScrollAnchor();
+                    }
+                }}
                 className="flex min-h-0 flex-1 scrollbar-thin flex-col-reverse overflow-y-auto overscroll-contain [overflow-anchor:none]"
                 data-test="conversation-messages"
             >
@@ -405,6 +757,8 @@ export function ConversationThread({
                             isCompact
                                 ? 'px-3 pt-3 text-sm'
                                 : 'px-4 pt-4 text-[15px]',
+                            // The pinned banner lies over the top, so the oldest message can still scroll clear of it.
+                            hasPinClearance && (isCompact ? 'pt-12' : 'pt-13'),
                         )}
                     >
                         {thread.isLoadingOlder && (
@@ -418,7 +772,7 @@ export function ConversationThread({
                                 <li className="py-10 text-center font-mono text-[13px] text-muted-foreground">
                                     empty history.{' '}
                                     {target.kind === 'direct'
-                                        ? `say hi to @${target.partner.username}`
+                                        ? `say hi to @${target.partner.handle}`
                                         : 'say hi to the org'}
                                 </li>
                             )}
@@ -437,20 +791,38 @@ export function ConversationThread({
                                 onReply={isOpen ? replyTo : null}
                                 usage={usage}
                                 onReact={isOpen ? react : null}
+                                pinnedIds={pinnedIds}
+                                onPin={canPin ? togglePin : null}
                             />
                         ))}
                     </ol>
                 )}
             </div>
 
-            {unseen > 0 && (
+            {(isBrowsingHistory || isScrolledBack || unseen > 0) && (
                 <button
                     type="button"
                     onClick={jumpToLatest}
-                    className="absolute bottom-[calc(var(--composer-height,4rem)+2.5rem)] left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-md bg-primary px-3 py-1 font-mono text-xs font-medium text-primary-foreground tabular-nums shadow-lg"
+                    aria-label={
+                        isBrowsingHistory || unseen === 0
+                            ? 'Back to present'
+                            : undefined
+                    }
+                    className="absolute bottom-[calc(var(--composer-height,4rem)+2.5rem)] left-1/2 flex min-h-9 -translate-x-1/2 items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-xs font-medium whitespace-nowrap text-primary-foreground shadow-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
                 >
-                    <ArrowDown aria-hidden className="size-3.5" />
-                    {unseen} new
+                    {isJumping ? (
+                        <Spinner aria-hidden className="size-3.5" />
+                    ) : (
+                        <ArrowDown aria-hidden className="size-3.5" />
+                    )}
+                    {isBrowsingHistory || unseen === 0
+                        ? 'Back to present'
+                        : `${unseen} new`}
+                    {isJumping && (
+                        <span className="sr-only" role="status">
+                            Loading original message
+                        </span>
+                    )}
                 </button>
             )}
 
@@ -470,8 +842,17 @@ export function ConversationThread({
                             : authorOf(replyingTo.user_id)
                     }
                     onSend={() => {
+                        jumpRequest.current?.abort();
+                        jumpRequest.current = null;
+                        setIsJumping(false);
+                        setIsBrowsingHistory(false);
+                        sentAnchor.current =
+                            scroller.current === null || isPinned.current
+                                ? null
+                                : scrollAnchorOf(scroller.current);
                         isPinned.current = true;
                     }}
+                    onReplySettled={settleReplyPreview}
                     isCompact={isCompact}
                     autoFocus={autoFocus}
                     typing={
@@ -480,7 +861,7 @@ export function ConversationThread({
                                 ? typingText(thread?.typing ?? [])
                                 : null
                             : thread?.partner_typing
-                              ? `@${target.partner.username} is typing…`
+                              ? `@${target.partner.handle} is typing…`
                               : null
                     }
                 />
@@ -583,7 +964,7 @@ function itemsOf(
 
         items.push({
             kind: 'group',
-            key: `group-${bubble.kind === 'message' ? id : bubble.pending.client_id}`,
+            key: `group-${bubble.kind === 'message' ? bubble.message.client_id : bubble.pending.client_id}`,
             isMine,
             authorId: author,
             author:
@@ -613,6 +994,8 @@ const ThreadItem = memo(function ThreadItem({
     onReply,
     usage,
     onReact,
+    pinnedIds,
+    onPin,
 }: {
     item: Item;
     pulls: Pulls;
@@ -626,6 +1009,11 @@ const ThreadItem = memo(function ThreadItem({
     onReply: ((reply: MessageReply) => void) | null;
     usage: ReactionUsage[];
     onReact: ((messageId: number, emoji: string) => void) | null;
+    pinnedIds: Set<number>;
+    /**
+     * Pins or unpins a message, for maintainers only.
+     */
+    onPin: ((message: Message, isPinned: boolean) => void) | null;
 }) {
     if (item.kind === 'day') {
         return (
@@ -666,23 +1054,29 @@ const ThreadItem = memo(function ThreadItem({
             })}
         >
             {item.author !== null && (
-                <span
-                    className="flex max-w-full min-w-0 items-center gap-1.5 px-1.5 pb-0.5 text-xs text-muted-foreground"
-                    title={item.author.name}
+                <UserPreview
+                    user={item.author}
+                    className="flex max-w-full min-w-0 px-1.5 pb-0.5"
                 >
-                    <UserAvatar
-                        user={item.author}
-                        className="size-4 ring-1 ring-(--lane)"
-                        style={
-                            {
-                                '--lane': laneColor(item.author.lane),
-                            } as React.CSSProperties
-                        }
-                    />
-                    <span className="truncate font-medium text-foreground">
-                        {item.author.name}
-                    </span>
-                </span>
+                    <Link
+                        href={show(item.author)}
+                        className="flex min-w-0 items-center gap-1.5 rounded-sm text-xs text-muted-foreground"
+                        title={item.author.name}
+                    >
+                        <UserAvatar
+                            user={item.author}
+                            className="size-4 ring-1 ring-(--lane)"
+                            style={
+                                {
+                                    '--lane': laneColor(item.author.lane),
+                                } as React.CSSProperties
+                            }
+                        />
+                        <span className="truncate font-medium text-foreground hover:underline">
+                            {item.author.name}
+                        </span>
+                    </Link>
+                </UserPreview>
             )}
             {item.bubbles.map((bubble, index) => {
                 const key =
@@ -707,6 +1101,11 @@ const ThreadItem = memo(function ThreadItem({
                         onReply={onReply}
                         usage={usage}
                         onReact={onReact}
+                        isPinned={
+                            bubble.kind === 'message' &&
+                            pinnedIds.has(bubble.message.id)
+                        }
+                        onPin={onPin}
                     />
                 );
             })}
@@ -728,6 +1127,8 @@ function BubbleWithMeta({
     onReply,
     usage,
     onReact,
+    isPinned,
+    onPin,
 }: {
     bubble: Bubble;
     isMine: boolean;
@@ -742,6 +1143,8 @@ function BubbleWithMeta({
     onReply: ((reply: MessageReply) => void) | null;
     usage: ReactionUsage[];
     onReact: ((messageId: number, emoji: string) => void) | null;
+    isPinned: boolean;
+    onPin: ((message: Message, isPinned: boolean) => void) | null;
 }) {
     const [isReacting, setIsReacting] = useState(false);
     const [isTrayOpen, setIsTrayOpen] = useState(false);
@@ -786,15 +1189,20 @@ function BubbleWithMeta({
     const side = isMine ? 'mine' : 'theirs';
     const replyToThis =
         onReply !== null && bubble.kind === 'message'
-            ? () =>
-                  onReply({
-                      id: bubble.message.id,
-                      user_id: bubble.message.user_id,
-                      body: bubble.message.body,
-                      images_count: images.length,
-                      has_voice: voice !== null,
-                  })
+            ? () => onReply(replyOf(bubble.message))
             : null;
+    // Only org messages pin. Contributors see the pin of a pinned one, and can't press it.
+    const pin =
+        target.kind !== 'org' || bubble.kind !== 'message'
+            ? null
+            : onPin !== null
+              ? {
+                    isPinned,
+                    onToggle: () => onPin(bubble.message, isPinned),
+                }
+              : isPinned
+                ? { isPinned, onToggle: null }
+                : null;
 
     const reactions =
         bubble.kind === 'message' ? bubble.message.reactions : undefined;
@@ -825,13 +1233,13 @@ function BubbleWithMeta({
     );
 
     const bubbleClass = cn(
-        'relative w-fit max-w-full min-w-0 rounded-lg px-3.5 py-2 wrap-anywhere ring-primary ring-offset-2 ring-offset-background transition-[background-color,color,outline-color,box-shadow] duration-200 data-flash:ring-2',
+        'relative w-fit max-w-full min-w-0 rounded-lg px-3.5 py-2 wrap-anywhere ring-primary ring-offset-2 ring-offset-background transition-[background-color,color,outline-color,box-shadow] duration-200 before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:border-[1.5px] before:border-dashed before:border-primary before:opacity-0 before:transition-opacity before:duration-200 data-flash:ring-2 motion-reduce:transition-none motion-reduce:before:transition-none',
         isCompact && 'px-3 py-1.5',
         isMine
             ? 'bg-primary text-primary-foreground'
             : 'bg-muted text-foreground',
         {
-            'bg-transparent text-foreground outline-[1.5px] outline-offset-[-1.5px] outline-primary outline-dashed':
+            'bg-transparent text-foreground before:opacity-100':
                 status === 'staged',
             'bg-transparent text-foreground outline-[1.5px] outline-offset-[-1.5px] outline-destructive outline-solid':
                 status === 'rejected',
@@ -845,6 +1253,12 @@ function BubbleWithMeta({
             isReacting={isTrayOpen}
             reactRef={reactButton}
             trayId={trayId}
+            pin={pin}
+            // Whichever part of the message comes first sits under the reply's quote.
+            isBelowReply={
+                reply !== null &&
+                (images.length === 0 || (message.body === '' && voice === null))
+            }
         />
     );
 
@@ -859,9 +1273,16 @@ function BubbleWithMeta({
                     }
                     className={cn(
                         'relative flex max-w-[85%] min-w-0 flex-col gap-1',
+                        // Org bubbles leave room for a third action, the pin, whether or not it shows, so pushing a
+                        // message or a pin arriving never rewraps one.
                         isCompact
-                            ? 'max-w-[88%] pointer-fine:max-w-[calc(100%-3.5rem)]'
-                            : 'sm:max-w-[78%]',
+                            ? target.kind === 'org'
+                                ? 'max-w-[88%] pointer-fine:max-w-[calc(100%-5.5rem)]'
+                                : 'max-w-[88%] pointer-fine:max-w-[calc(100%-3.5rem)]'
+                            : cn('sm:max-w-[78%]', {
+                                  'pointer-fine:max-sm:max-w-[calc(100%-5rem)]':
+                                      target.kind === 'org',
+                              }),
                         isMine ? 'items-end' : 'items-start',
                         {
                             '[-webkit-touch-callout:none] pointer-coarse:select-none':
@@ -922,17 +1343,19 @@ function BubbleWithMeta({
                         <MessageLinkCard message={bubble.message} />
                     )}
                     {reactToThis !== null && (
-                        <ReactionTray
-                            id={trayId}
-                            isOpen={isTrayOpen}
-                            onOpenChange={setIsTrayOpen}
-                            trigger={reactButton}
-                            usage={usage}
-                            reacted={reacted}
-                            hasReactions={(reactions?.length ?? 0) > 0}
-                            isMine={isMine}
-                            onReact={reactToThis}
-                        />
+                        <div className="-mt-1 w-full">
+                            <ReactionTray
+                                id={trayId}
+                                isOpen={isTrayOpen}
+                                onOpenChange={setIsTrayOpen}
+                                trigger={reactButton}
+                                usage={usage}
+                                reacted={reacted}
+                                hasReactions={(reactions?.length ?? 0) > 0}
+                                isMine={isMine}
+                                onReact={reactToThis}
+                            />
+                        </div>
                     )}
                     <ReactionChips
                         reactions={reactions}
@@ -944,7 +1367,7 @@ function BubbleWithMeta({
                 </div>
             </Repliable>
 
-            {reactToThis !== null && (
+            {bubble.kind === 'message' && reactToThis !== null && (
                 <ReactionSheet
                     isOpen={isReacting}
                     onOpenChange={setIsReacting}
@@ -953,34 +1376,17 @@ function BubbleWithMeta({
                     isMine={isMine}
                     body={message.body}
                     preview={
-                        voice !== null ? (
-                            <div
-                                className={cn(
-                                    'w-fit max-w-full rounded-lg p-2 shadow-[0_12px_30px_-12px_rgb(0_0_0/0.45)]',
-                                    isMine
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'bg-muted text-foreground',
-                                )}
-                            >
-                                <VoiceNote voice={voice} />
-                            </div>
-                        ) : message.body === '' ? null : (
-                            <div
-                                className={cn(
-                                    'w-fit max-w-full rounded-lg px-3.5 py-2 text-[15px] wrap-anywhere shadow-[0_12px_30px_-12px_rgb(0_0_0/0.45)]',
-                                    isMine
-                                        ? 'bg-primary text-primary-foreground'
-                                        : 'bg-muted text-foreground',
-                                )}
-                            >
-                                <MessageText
-                                    message={message}
-                                    isMine={isOnPrimary}
-                                />
-                            </div>
-                        )
+                        <LiftedMessage
+                            message={bubble.message}
+                            isMine={isMine}
+                        />
                     }
                     onReact={reactToThis}
+                    pin={
+                        pin?.onToggle
+                            ? { isPinned, onToggle: pin.onToggle }
+                            : null
+                    }
                 />
             )}
 
@@ -1015,7 +1421,7 @@ function BubbleWithMeta({
                         {status === 'pulled' &&
                             target.kind === 'direct' &&
                             pulls.readAt &&
-                            ` ${timeOf(pulls.readAt)}`}
+                            ` ${formatClockTime(pulls.readAt)}`}
                         {pulledBy.length > 0 && ' by'}
                     </span>
                     {pulledBy.length > 0 && (
@@ -1027,7 +1433,7 @@ function BubbleWithMeta({
                 bubble.kind === 'message' && (
                     <MetaLine>
                         <time dateTime={bubble.message.created_at}>
-                            {timeOf(bubble.message.created_at)}
+                            {formatClockTime(bubble.message.created_at)}
                         </time>
                         {showsStatus && pulledBy.length > 0 && (
                             <>
@@ -1046,7 +1452,7 @@ function BubbleWithMeta({
  * The members who pulled a message, as small avatars, or "everyone" once the whole org has.
  */
 function PulledBy({ users, total }: { users: User[]; total: number }) {
-    const names = users.map((person) => `@${person.username}`).join(', ');
+    const names = users.map((person) => `@${person.handle}`).join(', ');
 
     if (users.length === total && total > 3) {
         return (
@@ -1097,16 +1503,9 @@ function MetaLine({
     );
 }
 
-function timeOf(date: string): string {
-    return new Date(date).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-    });
-}
-
 /**
  * The draft being written to a conversation: its body and images, kept per conversation across pages and the dock,
- * the link chosen for its card, and any secrets found in it.
+ * and the link chosen for its card.
  */
 function useMessageDraft(user: User, target: ChatTarget) {
     const stash = useStash(user.id, `remote:${targetKey(target)}`);
@@ -1117,13 +1516,103 @@ function useMessageDraft(user: User, target: ChatTarget) {
         stash.key,
     );
     const linkCard = useLinkCard(stash.body);
-    const secrets = useSecretWarning(stash.body);
     const input = useRef<HTMLTextAreaElement>(null);
 
-    return { stash, attachments, linkCard, secrets, input };
+    return { stash, attachments, linkCard, input };
 }
 
 type MessageDraftState = ReturnType<typeof useMessageDraft>;
+
+/**
+ * Keeps the quoted content in place while the reply bar closes, including when sending the reply.
+ */
+function ReplyPreview({
+    reply,
+    author,
+    onCancel,
+    onSettled,
+    wasSent,
+}: {
+    reply: MessageReply | null;
+    author: Author | null;
+    onCancel: () => void;
+    onSettled: (isOpen: boolean) => void;
+    wasSent: boolean;
+}) {
+    const preview = useRef<HTMLDivElement>(null);
+    const [shown, setShown] = useState<{
+        reply: MessageReply;
+        author: Author;
+    } | null>(null);
+    const isOpen = reply !== null && author !== null;
+
+    useEffect(() => {
+        let isCurrent = true;
+
+        void Promise.allSettled(
+            preview.current
+                ?.getAnimations()
+                .map((animation) => animation.finished) ?? [],
+        ).then(() => {
+            if (isCurrent) {
+                onSettled(isOpen);
+            }
+        });
+
+        return () => {
+            isCurrent = false;
+        };
+    }, [isOpen, onSettled, reply]);
+
+    if (
+        isOpen &&
+        (shown?.reply !== reply ||
+            shown.author.name !== author.name ||
+            shown.author.lane !== author.lane)
+    ) {
+        setShown({ reply, author });
+    }
+
+    return (
+        <div
+            ref={preview}
+            aria-hidden={!isOpen}
+            inert={!isOpen}
+            className={cn(
+                'grid',
+                wasSent
+                    ? 'transition-none'
+                    : 'transition-[grid-template-rows,opacity,margin-bottom] duration-300 ease-in-out motion-reduce:transition-none',
+                isOpen
+                    ? 'grid-rows-[1fr] opacity-100'
+                    : '-mb-2 grid-rows-[0fr] opacity-0',
+            )}
+        >
+            <div className="min-h-0 overflow-hidden">
+                {shown !== null && (
+                    <div className="flex min-w-0 items-center gap-1.5">
+                        <ReplyGhost
+                            reply={shown.reply}
+                            author={shown.author}
+                            side="theirs"
+                            isDraft
+                        />
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            aria-label="Cancel reply"
+                            title="Cancel reply (Esc)"
+                            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                            data-test="cancel-reply"
+                        >
+                            <X aria-hidden className="size-4" />
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
 
 /**
  * Counts characters once the message nears the limit, and refuses a paste that would cross it rather than
@@ -1140,6 +1629,7 @@ function Composer({
     autoFocus,
     typing,
     onSend,
+    onReplySettled,
 }: {
     target: ChatTarget;
     members: OrgMember[] | undefined;
@@ -1153,22 +1643,32 @@ function Composer({
      * Called as the user pushes, so the thread follows their own message down.
      */
     onSend: () => void;
+    onReplySettled: (isOpen: boolean) => void;
 }) {
     const id = `message-${targetKey(target).replace(':', '-')}`;
     const placeholder =
         target.kind === 'direct'
-            ? `Message @${target.partner.username}`
+            ? `Message @${target.partner.handle}`
             : `Message ${target.org.name ?? 'the org'}`;
     const lane = target.kind === 'direct' ? target.partner.lane : 0;
-    const { stash, attachments, linkCard, secrets, input } = draft;
+    const pingLabel =
+        target.kind === 'direct'
+            ? `Ping @${target.partner.handle}`
+            : 'Ping everyone in the org';
+    const { stash, attachments, linkCard, input } = draft;
     const body = stash.body;
     const [error, setError] = useState<string | null>(null);
+    const [wasReplySent, setWasReplySent] = useState(false);
     const errorTimer = useRef<number | undefined>(undefined);
     const trimmed = body.trim();
     const length = characterCount(body);
     const isCounting = length >= countFrom;
     const hasImages = attachments.images.length > 0;
     const shownError = error ?? attachments.error;
+
+    if (wasReplySent && replyingTo !== null) {
+        setWasReplySent(false);
+    }
 
     useEffect(() => () => window.clearTimeout(errorTimer.current), []);
 
@@ -1192,6 +1692,8 @@ function Composer({
         }
 
         onSend();
+        setWasReplySent(replyingTo !== null);
+        setReplyingTo(target, null);
         sendMessage(target, {
             body: '',
             replyTo: replyingTo,
@@ -1201,8 +1703,8 @@ function Composer({
             voice,
         });
         voiceNote.discard();
-        setReplyingTo(target, null);
         showError(null);
+        attachments.clearError();
     };
 
     const submit = (event?: FormEvent) => {
@@ -1214,15 +1716,13 @@ function Composer({
             return;
         }
 
-        if (
-            attachments.isReading() ||
-            (trimmed === '' && !hasImages) ||
-            !secrets.beforeSubmit()
-        ) {
+        if (attachments.isReading() || (trimmed === '' && !hasImages)) {
             return;
         }
 
         onSend();
+        setWasReplySent(replyingTo !== null);
+        setReplyingTo(target, null);
         sendMessage(target, {
             body: trimmed,
             replyTo: replyingTo,
@@ -1232,8 +1732,8 @@ function Composer({
         });
         stash.drop();
         linkCard.reset();
-        setReplyingTo(target, null);
         showError(null);
+        attachments.clearError();
         input.current?.focus();
     };
 
@@ -1350,38 +1850,16 @@ function Composer({
                     isCompact ? 'p-2.5' : 'px-4 py-3',
                 )}
             >
-                <SecretWarning
-                    body={body}
-                    findings={secrets.findings}
-                    textarea={input}
-                    onChange={stash.updateBody}
-                    confirming={secrets.confirming}
-                    onConfirmingChange={secrets.setConfirming}
-                    onApprove={secrets.approve}
+                <ReplyPreview
+                    reply={replyingTo}
+                    author={replyAuthor}
+                    onSettled={onReplySettled}
+                    wasSent={wasReplySent}
+                    onCancel={() => {
+                        setReplyingTo(target, null);
+                        input.current?.focus();
+                    }}
                 />
-                {replyingTo !== null && replyAuthor !== null && (
-                    <div className="flex min-w-0 items-center gap-1.5">
-                        <ReplyGhost
-                            reply={replyingTo}
-                            author={replyAuthor}
-                            side="theirs"
-                            isDraft
-                        />
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setReplyingTo(target, null);
-                                input.current?.focus();
-                            }}
-                            aria-label="Cancel reply"
-                            title="Cancel reply (Esc)"
-                            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-                            data-test="cancel-reply"
-                        >
-                            <X aria-hidden className="size-4" />
-                        </button>
-                    </div>
-                )}
                 {hasImages && (
                     <div className="[&>div]:mt-0">
                         <ImagePickerPreviews
@@ -1412,64 +1890,117 @@ function Composer({
                                     isCompact ? 'size-9' : 'size-10',
                                 )}
                             />
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                disabled={trimmed !== '' || hasImages}
-                                onClick={() => void voiceNote.start()}
-                                aria-label="Record a voice note"
-                                title={
-                                    trimmed !== '' || hasImages
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="-mx-1 inline-flex shrink-0">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            disabled={
+                                                trimmed !== '' || hasImages
+                                            }
+                                            onClick={() =>
+                                                void voiceNote.start()
+                                            }
+                                            aria-label="Record a voice note"
+                                            className={cn(
+                                                'text-muted-foreground',
+                                                isCompact
+                                                    ? 'size-9'
+                                                    : 'size-10',
+                                            )}
+                                            data-test="record-voice-note"
+                                        >
+                                            <Mic className="size-5" />
+                                        </Button>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    {trimmed !== '' || hasImages
                                         ? 'Voice notes go on their own'
-                                        : 'Record a voice note, up to a minute'
-                                }
-                                className={cn(
-                                    '-mx-1 shrink-0 text-muted-foreground',
-                                    isCompact ? 'size-9' : 'size-10',
-                                )}
-                                data-test="record-voice-note"
-                            >
-                                <Mic className="size-5" />
-                            </Button>
-                            <MentionTextarea
-                                id={id}
-                                ref={input}
-                                members={members}
-                                org={
-                                    target.kind === 'org'
-                                        ? target.org.id
-                                        : undefined
-                                }
-                                rows={1}
-                                autoFocus={autoFocus}
-                                value={body}
-                                maxLength={maxLength}
-                                onValueChange={(value) => {
-                                    stash.updateBody(value);
-
-                                    if (
-                                        error !== null &&
-                                        characterCount(value) < maxLength
-                                    ) {
+                                        : 'Record a voice note (max. 1 min)'}
+                                </TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() =>
+                                            void sendPing(target).catch(
+                                                (error: unknown) =>
+                                                    showError(
+                                                        error instanceof
+                                                            ChatRequestError
+                                                            ? error.firstError()
+                                                            : 'Could not ping. Try again.',
+                                                    ),
+                                            )
+                                        }
+                                        aria-label={pingLabel}
+                                        className={cn(
+                                            '-mx-1 shrink-0 text-muted-foreground',
+                                            isCompact ? 'size-9' : 'size-10',
+                                        )}
+                                        data-test="send-ping"
+                                    >
+                                        <Vibrate className="size-5" />
+                                    </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>{pingLabel}</TooltipContent>
+                            </Tooltip>
+                            <div className="relative min-w-0 flex-1">
+                                <MentionTextarea
+                                    id={id}
+                                    ref={input}
+                                    members={members}
+                                    org={
+                                        target.kind === 'org'
+                                            ? target.org.id
+                                            : undefined
+                                    }
+                                    rows={1}
+                                    autoFocus={autoFocus}
+                                    value={body}
+                                    maxLength={maxLength}
+                                    onValueChange={(value) => {
+                                        stash.updateBody(value);
                                         showError(null);
-                                    }
+                                        attachments.clearError();
 
-                                    if (value.trim() !== '') {
-                                        pingTyping(target);
+                                        if (value.trim() !== '') {
+                                            pingTyping(target);
+                                        }
+                                    }}
+                                    onFocus={moveCaretToEnd}
+                                    onPaste={onPaste}
+                                    onKeyDown={onKeyDown}
+                                    aria-invalid={
+                                        shownError !== null || undefined
                                     }
-                                }}
-                                onFocus={moveCaretToEnd}
-                                onPaste={onPaste}
-                                onKeyDown={onKeyDown}
-                                placeholder={placeholder}
-                                aria-invalid={shownError !== null || undefined}
-                                className={cn(
-                                    'field-sizing-content max-h-[min(10rem,calc(var(--visual-viewport-height,100dvh)/4))] min-h-10 min-w-0 flex-1 resize-none overflow-x-hidden rounded-lg border border-input bg-card px-4 py-2 text-base leading-snug outline-none placeholder:text-muted-foreground focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
-                                    { 'min-h-9 py-1.5 md:text-sm': isCompact },
+                                    className={cn(
+                                        'block field-sizing-content max-h-[min(10rem,calc(var(--visual-viewport-height,100dvh)/4))] min-h-10 w-full resize-none overflow-x-hidden rounded-lg border border-input bg-card px-4 py-2 text-base leading-snug outline-none focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
+                                        {
+                                            'min-h-9 py-1.5 md:text-sm':
+                                                isCompact,
+                                        },
+                                    )}
+                                    data-test="message-input"
+                                />
+                                {body === '' && (
+                                    <span
+                                        aria-hidden
+                                        className={cn(
+                                            'pointer-events-none absolute inset-x-px top-px truncate px-4 py-2 text-base leading-snug text-muted-foreground md:text-[15px]',
+                                            { 'py-1.5 md:text-sm': isCompact },
+                                        )}
+                                    >
+                                        {placeholder}
+                                    </span>
                                 )}
-                                data-test="message-input"
-                            />
+                            </div>
                         </>
                     )}
                     <Button
@@ -1543,7 +2074,7 @@ function AccessBar({
                     <>
                         <p className="min-w-0 flex-1 text-sm text-muted-foreground">
                             <span className="font-mono text-foreground">
-                                @{partner.username}
+                                @{partner.handle}
                             </span>{' '}
                             wants to push to you. Merge to reply, or drop it.
                             They won&apos;t be told.
@@ -1570,9 +2101,9 @@ function AccessBar({
                     <p className="min-w-0 flex-1 font-mono text-[13px] text-muted-foreground">
                         {
                             {
-                                waiting: `pushed. waiting for @${partner.username} to merge your request`,
-                                restricted: `@${partner.username} doesn't follow you, so you can't push to them yet`,
-                                closed: `@${partner.username} isn't taking remotes`,
+                                waiting: `pushed. waiting for @${partner.handle} to merge your request`,
+                                restricted: `@${partner.handle} doesn't follow you, so you can't push to them yet`,
+                                closed: `@${partner.handle} isn't taking remotes`,
                                 open: '',
                                 request: '',
                             }[access]

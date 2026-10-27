@@ -1,10 +1,10 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import type { ReactElement } from 'react';
 import { renderToString } from 'react-dom/server';
+import { test } from 'vite-plus/test';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import { laneColor } from '../../resources/js/lib/utils';
 import Index, {
@@ -20,7 +20,7 @@ import type {
 const actor = {
     id: 'actor',
     name: 'Matthieu Napoli',
-    username: 'mnapoli',
+    handle: 'mnapoli',
     lane: 2,
 } as User;
 
@@ -57,7 +57,7 @@ async function renderPage(page: () => ReactElement): Promise<string> {
             component: 'notification/index',
             props: {
                 auth: {
-                    user: { id: 'recipient', username: 'nunomaduro' },
+                    user: { id: 'recipient', handle: 'nunomaduro' },
                     log: {},
                 },
                 errors: {},
@@ -114,7 +114,7 @@ const previewedNames = (body: string): number =>
         /<span class="relative z-10[^"]*">(?:<a[^>]*>)?(?:<a|<span)[^>]*title="Matthieu Napoli"/g,
     )?.length ?? 0;
 
-const other = { ...actor, id: 'other', name: 'Other', username: 'other' };
+const other = { ...actor, id: 'other', name: 'Other', handle: 'other' };
 
 void test('separates last-visit activity without a border under the preceding notification', async () => {
     const body = await render([
@@ -136,7 +136,7 @@ void test('separates last-visit activity without a border under the preceding no
 });
 
 void test('colors each notification rail by actor and ends it in a dot', async () => {
-    const nextActor = { ...other, lane: 5 };
+    const nextActor = { ...other, lane: 5, is_followed: false };
     const body = await render([
         notification,
         {
@@ -186,7 +186,7 @@ for (const isFollowing of [false, true]) {
         assert.match(
             body,
             new RegExp(
-                `aria-label="${isFollowing ? 'Unfollow' : 'Follow'} @mnapoli"`,
+                `aria-label="${isFollowing ? 'Unfollow @mnapoli' : 'Follow @mnapoli back'}"`,
             ),
         );
         assert.match(body, /followed you/);
@@ -218,7 +218,7 @@ void test('shows the image of a starred image-only commit beside who starred it'
 
     assert.match(
         body,
-        /and 2 others <a\b[^>]*data-notification-link[^>]*>starred your image<\/a>/,
+        /and 2 others <\/span><a\b[^>]*data-notification-link[^>]*>starred your image<\/a>/,
     );
     assert.match(body, /<img[^>]*src="\/commit-images\/image"/);
     assert.doesNotMatch(body, /<div[^>]*>(?:<div[^>]*>)*(?:<\/div>)+<\/a>/);

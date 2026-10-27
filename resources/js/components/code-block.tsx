@@ -2,14 +2,17 @@ import { Check, Copy, WrapText } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { withCertificateHashes } from '@/lib/certificate-hashes';
 import { cn } from '@/lib/utils';
 
 export function CodeBlock({
     html,
+    fullHtml,
     language,
     isCopyable = true,
 }: {
     html: string;
+    fullHtml?: string;
     language: string | null;
     isCopyable?: boolean;
 }) {
@@ -33,7 +36,16 @@ export function CodeBlock({
             return;
         }
 
-        if (await copy(codeRef.current.textContent ?? '')) {
+        let code = codeRef.current.textContent ?? '';
+
+        if (fullHtml !== undefined) {
+            // The server escapes the code while highlighting it, and a template runs nothing.
+            const template = document.createElement('template');
+            template.innerHTML = fullHtml;
+            code = template.content.textContent ?? '';
+        }
+
+        if (await copy(code)) {
             setIsCopied(true);
 
             return;
@@ -113,7 +125,9 @@ export function CodeBlock({
                         ? 'overflow-x-hidden wrap-anywhere whitespace-pre-wrap'
                         : 'overflow-x-auto wrap-normal whitespace-pre',
                 )}
-                dangerouslySetInnerHTML={{ __html: html }}
+                dangerouslySetInnerHTML={{
+                    __html: withCertificateHashes(html),
+                }}
             />
         </div>
     );

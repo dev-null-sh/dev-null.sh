@@ -36,13 +36,11 @@ import {
     isExistingLocalTime,
     SchedulePicker,
 } from '@/components/schedule-picker';
-import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import type { UseLinkCardReturn } from '@/hooks/use-link-card';
-import { useSecretWarning } from '@/hooks/use-secret-warning';
 import type { UseStashReturn } from '@/hooks/use-stash';
 import {
     discardSeriesStash,
@@ -57,6 +55,7 @@ import {
     maxRawBodyLength,
     minBodyLength,
 } from '@/lib/commit';
+import type { IssueKind } from '@/lib/issue-commands';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import {
     characterCount,
@@ -101,7 +100,6 @@ function CommitComposerBody({
     schedule,
     poll,
     setPoll,
-    secrets,
     commitRules,
     isSubmittable,
     processing,
@@ -119,7 +117,6 @@ function CommitComposerBody({
     schedule: ReturnType<typeof useCommitSchedule>;
     poll: PollDraft | null;
     setPoll: (poll: PollDraft | null) => void;
-    secrets: ReturnType<typeof useSecretWarning>;
     commitRules: ReturnType<typeof useCommitRules>;
     isSubmittable: boolean;
     processing: boolean;
@@ -129,7 +126,7 @@ function CommitComposerBody({
     drop: () => void;
 }) {
     const keys = useKeyLabels();
-    const { body, isRestored, updateBody } = stash;
+    const { body, isRestored } = stash;
     const { auth } = usePage().props;
     const {
         isScheduling,
@@ -322,16 +319,6 @@ function CommitComposerBody({
                     <CommitRulesDialog
                         rules={commitRules}
                         textarea={textareaRef}
-                    />
-                    <SecretWarning
-                        body={body}
-                        findings={secrets.findings}
-                        textarea={textareaRef}
-                        onChange={updateBody}
-                        confirming={secrets.confirming}
-                        onConfirmingChange={secrets.setConfirming}
-                        onApprove={secrets.approve}
-                        onEdit={preview.close}
                     />
                     <InputError message={error} />
 
@@ -573,10 +560,12 @@ function CommitComposerBody({
 export function CommitComposer({
     id = 'body',
     isInDialog = false,
+    issue: initialIssue = null,
     onCommitted,
 }: {
     id?: string;
     isInDialog?: boolean;
+    issue?: IssueKind | null;
     onCommitted?: () => void;
 }) {
     const schedule = useCommitSchedule();
@@ -599,7 +588,6 @@ export function CommitComposer({
         stash.key,
     );
     const [poll, setPoll] = useState<PollDraft | null>(null);
-    const secrets = useSecretWarning(body);
     const commitRules = useCommitRules();
     const isPosting = useRef(false);
 
@@ -612,7 +600,7 @@ export function CommitComposer({
             !hasImages &&
             poll === null &&
             !isScheduling,
-        hasSecrets: secrets.findings.length > 0,
+        initialKind: initialIssue,
         onCreated: () => {
             drop();
             focusBody(id);
@@ -676,8 +664,7 @@ export function CommitComposer({
                 !isPosting.current &&
                 !attachments.isReading() &&
                 issue.command === null &&
-                commitRules.beforeSubmit() &&
-                secrets.beforeSubmit()
+                commitRules.beforeSubmit()
             }
             onStart={() => {
                 isPosting.current = true;
@@ -731,7 +718,6 @@ export function CommitComposer({
                         schedule={schedule}
                         poll={poll}
                         setPoll={setPoll}
-                        secrets={secrets}
                         commitRules={commitRules}
                         isSubmittable={isSubmittable}
                         processing={processing}

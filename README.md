@@ -31,6 +31,8 @@ composer dev
 
 Run `composer test` before opening a pull request.
 
+Commits are attributed to people only: never add Amp, Claude Code, or any other AI tool as a co-author, and keep their names out of commit attribution (author, committer, and trailers).
+
 ## License
 
 /dev/null is open-sourced software licensed under the **[MIT license](composer.json)**.

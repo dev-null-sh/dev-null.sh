@@ -4,18 +4,19 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
-use App\Enums\ConversationKind;
-use App\Enums\OrgRole;
 use App\Models\Message;
 use App\Models\User;
+use App\Queries\ConversationsQuery;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Collection;
 
 /**
  * A row of the web's inbox: the partner, or an org's name and members, the last message, how many messages from
- * others the user hasn't pulled yet (`ahead`), how far the partner has pulled when both of them share pulls, and
- * whether the user stashed it.
+ * others the user hasn't pulled yet (`ahead`), the id of the newest message from others, read or not and never an
+ * org event (`last_incoming_message_id`), how far the partner has pulled when both of them share pulls, whether the
+ * user stashed or pinned it, and until when they muted it.
+ *
+ * @phpstan-import-type ConversationSummary from ConversationsQuery
  */
 final class ConversationResource extends JsonResource
 {
@@ -24,7 +25,7 @@ final class ConversationResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        /** @var array{id: string, kind: ConversationKind, name: string|null, partner: User|null, members: Collection<int, array{user: User, role: OrgRole|null}>|null, last_message: Message|null, last_message_at: string|null, ahead: int, partner_read_through_id: int, partner_read_at: string|null, is_archived: bool} $conversation */
+        /** @var ConversationSummary $conversation */
         $conversation = $this->resource;
 
         return [

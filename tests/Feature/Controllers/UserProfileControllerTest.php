@@ -42,7 +42,7 @@ it('renders the custom color as the chosen lane', function (): void {
 });
 
 it('renders the activity graph links with the timezone preference', function (?string $timezone): void {
-    $user = User::factory()->create(['username' => 'octocat', 'timezone' => $timezone]);
+    $user = User::factory()->create(['handle' => 'octocat', 'timezone' => $timezone]);
 
     $response = $this->actingAs($user)
         ->get(route('user-profile.edit'));
@@ -104,7 +104,7 @@ it('renders when the profile was last synced from github', function (?string $sy
 })->with([null, '2026-10-01 09:30:00']);
 
 it('may sync the profile from github', function (): void {
-    $user = User::factory()->create(['github_id' => '583231', 'username' => 'old-username', 'bio' => 'Old bio']);
+    $user = User::factory()->create(['github_id' => '583231', 'handle' => 'old-handle', 'bio' => 'Old bio']);
 
     fakeGitHubAccount($user, ['login' => 'octocat', 'bio' => 'New bio']);
 
@@ -119,13 +119,13 @@ it('may sync the profile from github', function (): void {
         ]);
 
     expect($user->refresh())
-        ->username->toBe('octocat')
+        ->handle->toBe('octocat')
         ->bio->toBe('New bio')
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 });
 
 it('tells the user when github could not be synced', function (): void {
-    $user = User::factory()->create(['username' => 'old-username']);
+    $user = User::factory()->create(['handle' => 'old-handle']);
 
     Http::fake([
         "api.github.com/user/{$user->github_id}" => Http::response(['message' => 'Server Error'], 500),
@@ -141,7 +141,7 @@ it('tells the user when github could not be synced', function (): void {
             'message' => 'Could not sync from GitHub. Try again in a minute.',
         ]);
 
-    expect($user->refresh()->username)->toBe('old-username');
+    expect($user->refresh()->handle)->toBe('old-handle');
 });
 
 it('allows one sync a minute', function (): void {

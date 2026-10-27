@@ -8,6 +8,26 @@
 @custom-variant dark (&:is(.dark *));
 @custom-variant in-place (&:is(:root[data-view-transition] *));
 
+/* Keep the fingerprint's wrapping, selection and accessible text while revealing its tiny secret. */
+.certificate-hash {
+    position: relative;
+}
+
+@media (hover: hover) {
+    .certificate-hash:hover > span {
+        opacity: 0;
+    }
+
+    .certificate-hash:hover::after {
+        content: '4' / '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        pointer-events: none;
+        user-select: none;
+    }
+}
+
 /* Hovering or focusing a reply only reveals that reply's own controls, not those of the commits it sits inside. */
 @custom-variant commit-hover {
     @media (hover: hover) {
@@ -44,6 +64,15 @@
         content-visibility: auto;
         contain-intrinsic-size: auto 320px;
     }
+}
+
+/* Rail pieces stand in for a graph canvas's lines, from the server's HTML on, until it has drawn them. */
+[data-graph-rail] {
+    display: contents;
+}
+
+[data-graph-drawn] [data-graph-rail] {
+    display: none;
 }
 
 /* The rail and the feed slide only while the navigation collapses or expands, not when a page changes the feed's width. */
@@ -175,6 +204,8 @@
     --color-accent-foreground: var(--accent-foreground);
 
     --color-destructive: var(--destructive);
+    --color-success: var(--success);
+    --color-warning: var(--warning);
     --color-destructive-foreground: var(--destructive-foreground);
 
     --color-border: var(--border);
@@ -227,8 +258,14 @@
     );
 
     --animate-node-in: node-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    /* The scale-in backwards: its steps in reverse, its easing mirrored. A name of its own, so it starts on a node that
+       already scaled in. */
+    --animate-node-out: node-out 700ms cubic-bezier(0.7, 0, 0.84, 0) both;
     --animate-rail-draw: rail-draw 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-graph-draw: graph-draw 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    --animate-commit-in: commit-in 300ms linear both;
+    --animate-apps-shot-in: apps-shot-in 600ms cubic-bezier(0.16, 1, 0.3, 1)
+        both;
     --animate-star-pop: star-pop 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275)
         both;
 
@@ -255,10 +292,37 @@
 
     @keyframes graph-draw {
         from {
-            stroke-dashoffset: 1;
+            stroke-dashoffset: var(--graph-draw-from, 1);
         }
         to {
             stroke-dashoffset: 0;
+        }
+    }
+
+    @keyframes node-out {
+        0% {
+            transform: scale(1);
+        }
+        55% {
+            transform: scale(1.25);
+            box-shadow: 0 0 0 6px transparent;
+        }
+        100% {
+            transform: scale(0);
+            box-shadow: 0 0 0 0 var(--lane);
+        }
+    }
+
+    @keyframes apps-shot-in {
+        from {
+            opacity: 0;
+            transform: translateY(12px);
+        }
+    }
+
+    @keyframes commit-in {
+        from {
+            opacity: 0;
         }
     }
 
@@ -296,6 +360,8 @@
     --accent-foreground: #121417;
     --destructive: #c92a2a;
     --destructive-foreground: #c92a2a;
+    --success: #2f9e44;
+    --warning: #b7791f;
     --border: #e1e4e8;
     --input: #d3d7dd;
     --ring: #3b6fe0;
@@ -339,6 +405,8 @@
     --accent-foreground: #ececec;
     --destructive: #ff6b6b;
     --destructive-foreground: #ff8787;
+    --success: #51cf66;
+    --warning: #fcc419;
     --border: #2a2a2d;
     --input: #36363a;
     --ring: #7aa2f7;
@@ -393,6 +461,20 @@
     button:not(:disabled),
     [role='button']:not(:disabled) {
         cursor: pointer;
+    }
+}
+
+/* WebKit samples fixed surfaces taller than 10px instead of blurring the PWA header.
+   Clipping this empty surface to text supplies that color without painting over the page. */
+@media (display-mode: standalone) {
+    .pwa-status-bar {
+        position: fixed;
+        inset: 0 0 auto;
+        z-index: 1;
+        height: 11px;
+        background-color: var(--background);
+        background-clip: text;
+        pointer-events: none;
     }
 }
 
@@ -480,6 +562,11 @@ html body[data-scroll-locked] {
     animation-name: none;
     animation-duration: 160ms;
     overflow-x: clip;
+}
+
+/* Safari offsets the feed snapshot at fractional positions when only one axis clips. */
+::view-transition-group(log-feed) {
+    overflow-y: clip;
 }
 
 ::view-transition-new(*.staged-rail):only-child,
@@ -623,4 +710,127 @@ html body[data-scroll-locked] {
     .hl-deletion {
         color: var(--destructive);
     }
+
+    /* A GitHub profile README, sanitized on the server: it keeps GitHub's layout without GitHub's stylesheet. */
+    .readme {
+        overflow-wrap: anywhere;
+        font-size: 15px;
+        line-height: 1.6;
+
+        & > * + *,
+        & article > * + * {
+            margin-top: 1em;
+        }
+
+        & h1,
+        & h2,
+        & h3,
+        & h4 {
+            margin-top: 1.5em;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        & h1 {
+            font-size: 1.5em;
+        }
+
+        & h2 {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.3em;
+            font-size: 1.25em;
+        }
+
+        & a {
+            color: var(--primary);
+        }
+
+        & a:hover {
+            text-decoration: underline;
+        }
+
+        & img {
+            display: inline-block;
+            max-width: 100%;
+            height: auto;
+        }
+
+        & ul,
+        & ol {
+            padding-left: 1.5em;
+        }
+
+        & ul {
+            list-style: disc;
+        }
+
+        & ol {
+            list-style: decimal;
+        }
+
+        & blockquote {
+            border-left: 3px solid var(--border);
+            padding-left: 1em;
+            color: var(--muted-foreground);
+        }
+
+        & code {
+            border-radius: 0.25rem;
+            background: var(--muted);
+            padding: 0.1em 0.3em;
+            font-family: var(--font-mono);
+            font-size: 0.875em;
+        }
+
+        & pre {
+            overflow-x: auto;
+            border-radius: 0.5rem;
+            background: var(--muted);
+            padding: 0.75rem 1rem;
+
+            & code {
+                background: none;
+                padding: 0;
+            }
+        }
+
+        & table {
+            display: block;
+            max-width: 100%;
+            overflow-x: auto;
+            border-collapse: collapse;
+        }
+
+        & th,
+        & td {
+            border: 1px solid var(--border);
+            padding: 0.4em 0.75em;
+        }
+
+        & hr {
+            border-color: var(--border);
+        }
+
+        & [align='center'] {
+            text-align: center;
+        }
+
+        & [align='right'] {
+            text-align: right;
+        }
+    }
+}
+
+/* Commits that just arrived on their own, until the reader moves on. Only they fade slowly, as this unlayered rule
+   would otherwise override the hover transition of every commit. */
+[data-commit][data-fresh] {
+    transition:
+        background-color 1.4s ease,
+        box-shadow 1.4s ease;
+}
+
+[data-commit][data-fresh=''] {
+    background-color: color-mix(in oklab, var(--primary) 7%, transparent);
+    box-shadow: inset 3px 0 0
+        color-mix(in oklab, var(--primary) 70%, transparent);
 }

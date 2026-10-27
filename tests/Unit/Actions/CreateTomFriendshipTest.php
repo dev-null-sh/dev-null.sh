@@ -12,7 +12,7 @@ it('makes tom and the user follow each other', function (): void {
 
     resolve(CreateTomFriendship::class)->handle($user);
 
-    $tom = User::query()->where('username', 'tom')->sole();
+    $tom = User::query()->whereRelation('profile', 'handle', 'tom')->sole();
 
     expect($user->isFollowing($tom))->toBeTrue()
         ->and($tom->isFollowing($user))->toBeTrue()
@@ -26,7 +26,7 @@ it('creates tom once, with a single welcome commit and no github account', funct
     $action->handle(User::factory()->create());
     $action->handle(User::factory()->create());
 
-    $tom = User::query()->where('username', 'tom')->sole();
+    $tom = User::query()->whereRelation('profile', 'handle', 'tom')->sole();
     $commit = $tom->commits()->sole();
 
     expect($commit->body)->toBe('Welcome to dev/null!')
@@ -36,8 +36,8 @@ it('creates tom once, with a single welcome commit and no github account', funct
 });
 
 it('keeps befriending newcomers under the reserved handle instead of the real tom', function (): void {
-    $tom = User::factory()->create(['username' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
-    $owner = User::factory()->create(['username' => 'tom']);
+    $tom = User::factory()->create(['handle' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $owner = User::factory()->create(['handle' => 'tom']);
     $user = User::factory()->create();
 
     resolve(CreateTomFriendship::class)->handle($user);
@@ -70,7 +70,7 @@ it('befriends every existing user', function (): void {
 
     $this->artisan('tom:befriend')->assertSuccessful();
 
-    $tom = User::query()->where('username', 'tom')->sole();
+    $tom = User::query()->whereRelation('profile', 'handle', 'tom')->sole();
 
     expect($tom->following()->count())->toBe(3)
         ->and($tom->followers()->count())->toBe(3)
@@ -84,9 +84,9 @@ it('keeps tom out of remotes and orgs', function (): void {
 
     resolve(CreateTomFriendship::class)->handle($user);
 
-    $tom = User::query()->where('username', 'tom')->sole();
+    $tom = User::query()->whereRelation('profile', 'handle', 'tom')->sole();
     $reasons = fn (array $query): ?string => collect($this->getJson(route('remote-candidate.index', ['q' => 'tom', ...$query]))->assertOk()->json('candidates'))
-        ->firstWhere('user.username', 'tom')['reason'];
+        ->firstWhere('user.handle', 'tom')['reason'];
 
     expect($tom->remotes_enabled)->toBeFalse();
 
@@ -110,7 +110,7 @@ it('keeps tom out of remotes and orgs', function (): void {
 it('turns off the remotes of the tom who already exists', function (): void {
     $user = User::factory()->create();
     resolve(CreateTomFriendship::class)->handle($user);
-    $tom = User::query()->where('username', 'tom')->sole();
+    $tom = User::query()->whereRelation('profile', 'handle', 'tom')->sole();
     $tom->update(['remotes_enabled' => true]);
 
     $updatedAt = $tom->refresh()->updated_at;
