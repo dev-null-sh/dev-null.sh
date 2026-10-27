@@ -1,5 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
+import { useLayoutEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
 export function PageTabs({
@@ -28,22 +29,25 @@ export function PageTabs({
     }[];
 }) {
     const indicatorName = `tab-indicator-${label.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}`;
+    const navRef = useRef<HTMLElement>(null);
+    const activeTitle = tabs.find((tab) => tab.isActive)?.title;
+
+    useLayoutEffect(() => {
+        const nav = navRef.current;
+        const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+        if (scrollable && nav && active) {
+            nav.scrollLeft =
+                active.offsetLeft -
+                nav.offsetLeft -
+                (nav.clientWidth - active.offsetWidth) / 2;
+        }
+    }, [scrollable, activeTitle]);
 
     return (
         <nav
             aria-label={label}
             className={cn('flex border-b', scrollable && 'overflow-x-auto')}
-            ref={(nav) => {
-                const active = nav?.querySelector<HTMLElement>(
-                    '[aria-current="page"]',
-                );
-                if (scrollable && nav && active) {
-                    nav.scrollLeft =
-                        active.offsetLeft -
-                        nav.offsetLeft -
-                        (nav.clientWidth - active.offsetWidth) / 2;
-                }
-            }}
+            ref={navRef}
         >
             {tabs.map((tab) => (
                 <Link
