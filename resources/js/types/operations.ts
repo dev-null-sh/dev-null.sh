@@ -97,6 +97,7 @@ export type AcquisitionDay = {
 export type DeviceConversion = {
     device: string;
     visitors: number;
+    tapped: number;
     converted: number;
 };
 

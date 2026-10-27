@@ -719,8 +719,9 @@ const DEVICES = ['Phone', 'Desktop', 'Tablet'];
 
 /**
  * The conversion rate of each type of device, with the visitors behind it, so a shift towards phones can be told
- * apart from phones converting worse, next to the rate of all devices from the funnel. Until the funnel arrives, it
- * holds the room of the usual three.
+ * apart from phones converting worse, next to the rate of all devices from the funnel. The visitors who tapped to sign
+ * in, and the share of them who finished, tell visitors who never tap from those who give up at GitHub. Until the
+ * funnel arrives, it holds the room of the usual three.
  */
 function ConversionByDevice({ funnel }: { funnel?: Funnel }) {
     const devices = funnel?.conversion_by_device;
@@ -740,7 +741,7 @@ function ConversionByDevice({ funnel }: { funnel?: Funnel }) {
                 ...(devices?.map((device) => ({
                     label: device.device.toLowerCase() || 'unknown',
                     value: percent(ratio(device.converted, device.visitors)),
-                    note: `${formatCount(device.converted)} of ${formatCount(device.visitors)} visitors`,
+                    note: `${formatCount(device.converted)} of ${formatCount(device.visitors)} visitors · ${formatCount(device.tapped)} tapped sign in, ${percent(ratio(device.converted, device.tapped))} finished`,
                 })) ??
                     DEVICES.map((device) => ({ label: device.toLowerCase() }))),
                 {

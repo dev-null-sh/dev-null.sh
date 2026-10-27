@@ -1,3 +1,4 @@
+import { trackSignInTap } from '@/lib/analytics';
 import { login } from '@/routes';
 
 /**
@@ -6,5 +7,6 @@ import { login } from '@/routes';
  * GitHub is on another origin.
  */
 export function signIn(): void {
+    trackSignInTap();
     window.location.assign(login().url);
 }
