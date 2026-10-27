@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Dto;
 
-use DateTimeZone;
 use Illuminate\Contracts\Support\Arrayable;
 use Illuminate\Http\Request;
+use IntlTimeZone;
 
 /**
  * The time zone and hour cycle of the reader's browser, which it leaves in cookies so the server renders times the way
@@ -29,10 +29,15 @@ final readonly class ReaderClock implements Arrayable
     {
         $timeZone = $request->cookie('time_zone');
         $hourCycle = $request->cookie('hour_cycle');
+        $isSystemTimeZone = false;
+
+        if (is_string($timeZone)) {
+            // ICU recognizes browser aliases even when the OS omits legacy time zones.
+            IntlTimeZone::getCanonicalID($timeZone, $isSystemTimeZone);
+        }
 
         return new self(
-            // Browsers still report some former names, like Asia/Calcutta.
-            is_string($timeZone) && in_array($timeZone, DateTimeZone::listIdentifiers(DateTimeZone::ALL_WITH_BC), true) ? $timeZone : null,
+            is_string($timeZone) && $isSystemTimeZone ? $timeZone : null,
             is_string($hourCycle) && in_array($hourCycle, self::HOUR_CYCLES, true) ? $hourCycle : null,
         );
     }
