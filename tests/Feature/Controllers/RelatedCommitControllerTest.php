@@ -55,3 +55,19 @@ it('does not answer for a deleted commit', function (): void {
 
     $this->getJson(route('related-commit.index', $commit))->assertNotFound();
 });
+
+it('limits each guest IP without limiting other visitors', function (): void {
+    $commit = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+
+    $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.1']);
+
+    foreach (range(1, 60) as $attempt) {
+        $this->getJson(route('related-commit.index', $commit))->assertOk();
+    }
+
+    $this->getJson(route('related-commit.index', $commit))->assertTooManyRequests();
+
+    $this->withServerVariables(['REMOTE_ADDR' => '192.0.2.2']);
+
+    $this->getJson(route('related-commit.index', $commit))->assertOk();
+});

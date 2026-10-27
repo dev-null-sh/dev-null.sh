@@ -256,6 +256,7 @@ Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
 Route::get('commits/{commit}/continuation', [CommitContinuationController::class, 'index'])
     ->name('commit-continuation.index');
 Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index'])
+    ->middleware('throttle:related-commits')
     ->name('related-commit.index');
 
 // Search...
