@@ -251,13 +251,13 @@ function RailEnd({
     ComponentProps<typeof RailEndDot>,
     'isLeaving' | 'onLeft'
 >) {
-    const isDrawing = useGraphOverlay();
+    const isInCanvas = useGraphOverlay();
     const [wasShown, setWasShown] = useState(isShown);
     const [isLeaving, setIsLeaving] = useState(false);
 
     if (wasShown !== isShown) {
         setWasShown(isShown);
-        setIsLeaving(!isShown && isDrawing && !prefersStillness());
+        setIsLeaving(!isShown && isInCanvas && !prefersStillness());
     }
 
     return isShown || isLeaving ? (

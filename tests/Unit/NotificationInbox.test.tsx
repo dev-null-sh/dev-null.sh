@@ -1,12 +1,12 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
+import { test } from 'vite-plus/test';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import Index from '../../resources/js/pages/notification/index';
-import type { NotificationGroup, User } from '../../resources/js/types';
+import type { Commit, NotificationGroup, User } from '../../resources/js/types';
 
 const timestamp = '2026-10-16T12:00:00Z';
 const actor: User = {
@@ -26,6 +26,23 @@ const actor: User = {
     created_at: timestamp,
     updated_at: timestamp,
 };
+const quoteCommit: Omit<Commit, 'user'> = {
+    id: 'quote-commit',
+    user_id: actor.id,
+    parent_id: null,
+    hot_score: 0,
+    body: 'My quote commentary',
+    mentions: {},
+    body_segments: [{ type: 'text', text: 'My quote commentary' }],
+    preview_segments: null,
+    status: 'approved',
+    created_at: timestamp,
+    updated_at: timestamp,
+    stars_count: 0,
+    pasteis_count: 0,
+    starred: false,
+    quoted_commit_id: 'quoted-commit',
+};
 const quote: NotificationGroup = {
     id: 'notice',
     recipient_id: 'recipient',
@@ -43,20 +60,7 @@ const quote: NotificationGroup = {
     unread_count: 0,
     created_at: timestamp,
     updated_at: timestamp,
-    commit: {
-        id: 'quote-commit',
-        user_id: actor.id,
-        parent_id: null,
-        body: 'My quote commentary',
-        body_segments: [{ type: 'text', text: 'My quote commentary' }],
-        preview_segments: null,
-        status: 'approved',
-        created_at: timestamp,
-        updated_at: timestamp,
-        stars_count: 0,
-        starred: false,
-        quoted_commit_id: 'quoted-commit',
-    },
+    commit: quoteCommit,
 };
 
 async function renderInbox(notifications: NotificationGroup[], type = 'all') {
@@ -101,6 +105,21 @@ async function renderInbox(notifications: NotificationGroup[], type = 'all') {
     return result.body.replaceAll('<!-- -->', '');
 }
 
+// The filters render once for mobile and once for desktop, so count each category once.
+function categories(html: string, pressed: boolean): Set<string> {
+    return new Set(
+        Array.from(
+            html.matchAll(
+                new RegExp(
+                    `aria-pressed="${pressed}"[^>]*>([^<]+)</button>`,
+                    'g',
+                ),
+            ),
+            (match) => match[1],
+        ),
+    );
+}
+
 void test('renders quote notifications with their label and quoting commit destination', async () => {
     const html = await renderInbox([quote]);
 
@@ -115,10 +134,11 @@ void test('shows the quoted commit under a quote, or a tombstone once it is dele
         {
             ...quote,
             commit: {
-                ...quote.commit,
+                ...quoteCommit,
                 quoted_commit: {
                     id: 'quoted-commit',
                     body_segments: [{ type: 'text', text: 'My quoted commit' }],
+                    deleted_at: null,
                 },
             },
         },
@@ -131,7 +151,7 @@ void test('shows the quoted commit under a quote, or a tombstone once it is dele
             {
                 ...quote,
                 commit: {
-                    ...quote.commit,
+                    ...quoteCommit,
                     quoted_commit: {
                         id: 'quoted-commit',
                         parent_id: null,
@@ -162,7 +182,7 @@ void test('renders a follow-back control outside the follower profile link', asy
         html,
         /Quoter<\/a>.*@quoter<\/a>(?:<\/span>)? <a\b[^>]*data-notification-link[^>]*>followed you<\/a>/s,
     );
-    assert.match(html, /<button[^>]*aria-label="Follow @quoter"/);
+    assert.match(html, /<button[^>]*aria-label="Follow @quoter back"/);
     assert.doesNotMatch(html, /<a\b[^>]*>(?:(?!<\/a>).)*<button\b/s);
     assert.match(
         await renderInbox([
@@ -187,7 +207,7 @@ void test('leaves follow-back out of a group of followers until it is expanded',
 
     assert.match(
         html,
-        /Quoter<\/a> and 1 other <a\b[^>]*data-notification-link[^>]*>followed you<\/a>/,
+        /Quoter<\/a> <span[^>]*>and 1 other <\/span><a\b[^>]*data-notification-link[^>]*>followed you<\/a>/,
     );
     assert.match(html, /aria-expanded="false"[^>]*>.*2 followers/s);
     assert.doesNotMatch(html, /aria-label="(Follow|Unfollow) @/);
@@ -198,7 +218,7 @@ void test('renders notification code without altering emoji shortcodes or nestin
         {
             ...quote,
             commit: {
-                ...quote.commit,
+                ...quoteCommit,
                 body: '`echo ":fire:"`',
                 body_segments: [{ type: 'code', code: 'echo ":fire:"' }],
             },
@@ -214,7 +234,7 @@ void test('renders highlighted notification blocks without a nested copy button'
         {
             ...quote,
             commit: {
-                ...quote.commit,
+                ...quoteCommit,
                 body: '```php\nreturn ":fire:";\n```',
                 body_segments: [
                     {
@@ -236,16 +256,16 @@ void test('renders highlighted notification blocks without a nested copy button'
 
 void test('renders all notification categories as enabled toggle buttons by default', async () => {
     const body = await renderInbox([]);
-    assert.equal((body.match(/aria-pressed="true"/g) ?? []).length, 6);
+    assert.equal(categories(body, true).size, 6);
     assert.doesNotMatch(body, /aria-current="page"|role="tab"/);
 });
 
 void test('renders independent category selections and the all-off empty state', async () => {
     const selected = await renderInbox([], 'replies,mentions');
-    assert.equal((selected.match(/aria-pressed="true"/g) ?? []).length, 2);
-    assert.equal((selected.match(/aria-pressed="false"/g) ?? []).length, 4);
+    assert.deepEqual([...categories(selected, true)], ['Replies', 'Mentions']);
+    assert.equal(categories(selected, false).size, 4);
     const none = await renderInbox([], 'none');
-    assert.equal((none.match(/aria-pressed="false"/g) ?? []).length, 6);
+    assert.equal(categories(none, false).size, 6);
     assert.match(none, /All categories are turned off/);
     assert.match(none, /Show all notifications/);
 });

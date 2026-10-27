@@ -40,6 +40,7 @@ use App\Http\Controllers\Api\OrgPinController;
 use App\Http\Controllers\Api\OrgPingController;
 use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\OrgTypingController;
+use App\Http\Controllers\Api\RelatedCommitController;
 use App\Http\Controllers\Api\RemoteCandidateController;
 use App\Http\Controllers\Api\StarredCommitController;
 use App\Http\Controllers\Api\SuggestedUserController;
@@ -89,6 +90,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-user-following.index');
         Route::get('commits/{commit}', [ApiCommitController::class, 'show'])
             ->name('api-commit.show');
+        Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index'])
+            ->name('api-related-commit.index');
     });
 
     // The Mac app's latest release, which its update check compares with, unsigned so it sends nothing about anyone...

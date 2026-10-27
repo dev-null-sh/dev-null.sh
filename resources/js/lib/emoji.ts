@@ -66,33 +66,13 @@ function matchRank(name: string, partial: string): number {
 }
 
 /**
- * The shortcodes that start with the query, then the ones with a later word starting with it, then the ones that only
- * contain it, each shortest first.
+ * Each emoji once, under its best matching shortcode: the ones starting with the query, then the ones with a later
+ * word starting with it, then the ones that only contain it. Within each, the emoji the user uses most come first,
+ * then the shortest shortcodes. Colons around the query and its case are ignored.
  */
-export function searchEmoji(query: string, limit = 8): EmojiSuggestion[] {
-    const partial = query.toLowerCase();
-
-    return Object.keys(shortcodeEmoji)
-        .filter((name) => name.includes(partial))
-        .map((name) => ({ name, rank: matchRank(name, partial) }))
-        .sort(
-            (left, right) =>
-                left.rank - right.rank ||
-                left.name.length - right.name.length ||
-                left.name.localeCompare(right.name),
-        )
-        .slice(0, limit)
-        .map(({ name }) => ({ name, emoji: shortcodeEmoji[name] }));
-}
-
-/**
- * Each emoji once, under its best matching shortcode, ranked as searchEmoji does but with the emoji the user uses
- * most first within each kind of match. Colons around the query are ignored.
- */
-export function searchEmojiByUse(
+export function searchEmoji(
     query: string,
-    uses: ReadonlyMap<string, number>,
-    limit = 80,
+    uses: ReadonlyMap<string, number> = new Map(),
 ): EmojiSuggestion[] {
     const partial = query
         .trim()
@@ -124,6 +104,5 @@ export function searchEmojiByUse(
                 left.name.length - right.name.length ||
                 left.name.localeCompare(right.name),
         )
-        .slice(0, limit)
         .map(([emoji, { name }]) => ({ name, emoji }));
 }

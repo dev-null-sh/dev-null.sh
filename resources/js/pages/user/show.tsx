@@ -46,7 +46,7 @@ import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
-import { dateLocale, laneColor, laneTint } from '@/lib/utils';
+import { formatClockMonth, laneColor, laneTint } from '@/lib/utils';
 import type {
     Achievements,
     Activity,
@@ -328,11 +328,7 @@ export default function Show({
                     )}
                     <li className="flex items-center gap-1.5">
                         <CalendarDays className="size-4" />
-                        Joined{' '}
-                        {new Date(user.created_at).toLocaleDateString(
-                            dateLocale,
-                            { month: 'long', year: 'numeric' },
-                        )}
+                        Joined {formatClockMonth(user.created_at)}
                     </li>
                 </ul>
 

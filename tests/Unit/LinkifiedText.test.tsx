@@ -814,6 +814,10 @@ for (const kind of ['direct', 'org'] as const) {
                             partner_read_through_id: 0,
                             partner_read_at: null,
                             is_archived: false,
+                            last_incoming_message_id: null,
+                            last_incoming_sender: null,
+                            pinned_at: null,
+                            muted_until_at: null,
                         },
                     ]}
                 />,

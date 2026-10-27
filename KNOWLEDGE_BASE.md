@@ -256,6 +256,12 @@ Deleting a parent does not automatically delete other people's replies: an autho
 
 Sources: [reply validation](app/Http/Requests/CreateCommitReplyRequest.php), [commit page](app/Http/Controllers/CommitController.php), [reply notifications](app/Actions/CreateReplyNotifications.php), [commit deletion](app/Actions/DeleteCommit.php).
 
+### Related commits
+
+Under a commit, /dev/null shows up to three commits from other threads that say something close to it. It only suggests commits you could find through search: nothing from people you block, who block you or whom you mute, and nothing still pending. When nothing is close, nothing shows.
+
+Sources: [related commits query](app/Queries/RelatedCommitsQuery.php), [related commits rail](resources/js/components/related-commits.tsx).
+
 ### Quoting commits
 
 Quote a visible commit to publish a new top-level commit with your own commentary and an embedded card pointing to the original. Quotes follow normal commit limits, image support, and moderation. The quote composer has a preview and link-card choice, but no poll or scheduling. Quoting is different from replying: the quote appears in logs as its own post, and it is also listed among the original's replies and counted in its reply count. The original author is notified after approval, except for self-quotes.
@@ -369,6 +375,8 @@ Link cards are fetched by /dev/null's server. Unlike message bodies and attachme
 Message requests and an **Everyone** contact option may not be available. Where requests are available, a first message from someone outside the accepted contact policy waits in **Fetched**. The recipient can **merge** the request to accept or **drop** it privately. The sender cannot keep sending while waiting, and the recipient must merge before replying.
 
 Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contact policy](app/Models/User.php), [push access](app/Queries/PushAccessQuery.php), [reactions](app/Http/Controllers/MessageReactionController.php), [message validation](app/Http/Requests/CreateConversationMessageRequest.php), [message creation](app/Actions/CreateMessage.php), [link-preview storage](app/Models/LinkPreview.php), [voice notes](app/Services/VoiceNotes.php), [remote preferences](resources/js/components/chat/remote-settings-menu.tsx).
+
+Direct remotes disappear from the inbox when the other person deletes their account. An unnamed org can still show **Just you** when you are its only remaining member.
 
 ### Orgs: group chats
 
@@ -566,7 +574,7 @@ Sources: [status transitions](app/Actions/UpdateCommitStatuses.php), [timeouts](
 
 The public **About** page describes the livestream project and lists up to 1,000 GitHub contributor accounts, excluding bots and known agents, most commits first; the list is cached for an hour and GitHub may take several hours to update its counts; when GitHub cannot be reached the page says so instead of showing the list. The **Changelog**, opened from the navigation or the side column, lists the pull requests merged into `production` on GitHub, a few days at a time. The **Brand** page at `/brand` offers the logo, wordmark, colors, typography, and wallpapers; right-clicking the logo in the navigation also copies it or links there. **Terms** and **Privacy** explain acceptable use and data handling. Public posts may be indexed or copied outside /dev/null; content and search queries can be processed by automated or AI services. Read those policies before posting sensitive information or relying on deletion to remove every external copy.
 
-To count active people, /dev/null remembers only the **last day** (not the time) you were signed in and used the site or the API; background refreshes do not count. That day is never shown to other people, is included in your export, and is deleted with your account. Daily active-people numbers are kept as anonymous counts. Visitor analytics come from **Fathom**, which counts anonymously: the browser sends a `guest-visit` event once per session when you are not signed in and a `signup` event right after an account is created, with nothing that identifies you.
+To count active people, /dev/null remembers only the **last day** (not the time) you were signed in and used the site or the API; background refreshes do not count. That day is never shown to other people, is included in your export, and is deleted with your account. Daily active-people numbers are kept as anonymous counts. Visitor analytics come from **Fathom**, which counts anonymously: the browser sends a `guest-visit` event once per session when you are not signed in, a `signin-click` event when you tap to sign in, and a `signup` event right after an account is created, with nothing that identifies you.
 
 Sources: [last seen tracking](app/Http/Middleware/UpdateLastSeenAt.php), [Fathom events](resources/js/lib/analytics.ts), [public page routes](routes/web.php), [About](resources/js/pages/about/show.tsx), [contributors](app/Queries/ContributorsQuery.php), [privacy policy](resources/js/pages/privacy/show.tsx), [terms](resources/js/pages/terms/show.tsx).
 

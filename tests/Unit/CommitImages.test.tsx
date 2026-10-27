@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { test } from 'vite-plus/test';
 import {
     CommitImages,
     gridImageObjectFit,
@@ -36,6 +36,8 @@ const commit: Commit = {
         website: null,
         company: null,
         has_sponsors_listing: false,
+        timezone: null,
+        show_local_time: false,
         has_github_account: true,
         lane: 0,
         created_at: '2026-10-16T10:00:00Z',

@@ -31,6 +31,8 @@ composer dev
 
 Run `composer test` before opening a pull request.
 
+Commits are attributed to people only: never add Amp, Claude Code, or any other AI tool as a co-author, and keep their names out of commit attribution (author, committer, and trailers).
+
 To vote for a pull request, give its description a 👍 (its author's own doesn't count). Maintainers can run `.github/pr-queue.sh` (it needs `gh` 2.48 or later and `jq`) to list open pull requests from low risk to critical, and each vote moves a pull request up within its group.
 
 ## License

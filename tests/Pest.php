@@ -64,6 +64,18 @@ function embeddingVector(int $dimension): array
 }
 
 /**
+ * @return list<float>
+ */
+function embeddingAtDistance(float $distance): array
+{
+    $vector = array_fill(0, OpenAI::EMBEDDING_DIMENSIONS, 0.0);
+    $vector[0] = 1 - $distance;
+    $vector[1] = sqrt(1 - (1 - $distance) ** 2);
+
+    return $vector;
+}
+
+/**
  * @param  list<list<float>>  $embeddings
  * @return array{data: list<array{index: int, embedding: list<float>}>}
  */

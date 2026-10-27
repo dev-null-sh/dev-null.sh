@@ -153,6 +153,11 @@ final class AppServiceProvider extends ServiceProvider
                 $headers,
             )));
 
+        // Every commit page asks for its related commits, a vector index scan with no outside call...
+        RateLimiter::for('related-commits', fn (Request $request): Limit => Limit::perMinute(60)->by(
+            $request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip(),
+        ));
+
         // Exports stream every commit a user ever made...
         RateLimiter::for('exports', fn (Request $request): Limit => Limit::perHour(3)->by($this->userId($request)));
     }

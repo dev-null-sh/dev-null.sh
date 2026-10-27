@@ -66,6 +66,15 @@
     }
 }
 
+/* Rail pieces stand in for a graph canvas's lines, from the server's HTML on, until it has drawn them. */
+[data-graph-rail] {
+    display: contents;
+}
+
+[data-graph-drawn] [data-graph-rail] {
+    display: none;
+}
+
 /* The rail and the feed slide only while the navigation collapses or expands, not when a page changes the feed's width. */
 @media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
     :root[data-nav-sliding] [data-nav-rail] {
