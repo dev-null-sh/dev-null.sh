@@ -12,7 +12,7 @@ beforeEach(function (): void {
 });
 
 it('shows the product metrics of all time to admins', function (): void {
-    $admin = User::factory()->create(['username' => 'admin', 'created_at' => '2026-10-16 09:00:00']);
+    $admin = User::factory()->create(['handle' => 'admin', 'created_at' => '2026-10-16 09:00:00']);
     User::factory()->create(['created_at' => '2026-10-17 09:00:00', 'last_seen_at' => '2026-10-19']);
     DB::table('active_user_counts')->insert(['seen_at' => '2026-10-17', 'count' => 7]);
 
@@ -35,7 +35,7 @@ it('shows the product metrics of all time to admins', function (): void {
 });
 
 it('shows the product metrics of the last 30 days by default', function (): void {
-    $this->actingAs(User::factory()->create(['username' => 'admin', 'created_at' => '2026-01-01 09:00:00']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin', 'created_at' => '2026-01-01 09:00:00']))
         ->get(route('product-metrics.show'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -43,7 +43,7 @@ it('shows the product metrics of the last 30 days by default', function (): void
 });
 
 it('shows the product metrics of the chosen dates', function (): void {
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('product-metrics.show', ['from' => '2026-10-01', 'to' => '2026-10-10']))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
@@ -51,7 +51,7 @@ it('shows the product metrics of the chosen dates', function (): void {
 });
 
 it('rejects dates that are malformed, in the future, or out of order', function (array $query): void {
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('product-metrics.show', $query))
         ->assertSessionHasErrors();
 })->with([

@@ -14,7 +14,7 @@ it('gives the local developer people to follow and followers', function (): void
 
     $localDeveloper = User::query()->where('github_id', 'local')->sole();
 
-    expect($localDeveloper->username)->toBe('local-dev')
+    expect($localDeveloper->handle)->toBe('local-dev')
         ->and($localDeveloper->following()->count())->toBe(3)
         ->and($localDeveloper->followers()->count())->toBe(5);
 });
@@ -55,6 +55,6 @@ it('gives the local developer conversations to read and reply to', function (boo
         ->and($conversations->get($localDeveloper, InboxTab::Fetched)['conversations'])->toHaveCount($fetched)
         ->and($conversations->unreadCount($localDeveloper))->toBe($unread);
 })->with([
-    'requests off' => [false, 0, 3],
-    'requests on' => [true, 1, 4],
+    'requests off' => [false, 0, 2],
+    'requests on' => [true, 1, 3],
 ]);

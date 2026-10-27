@@ -715,6 +715,47 @@ function AcquisitionByDay({
     );
 }
 
+const DEVICES = ['Phone', 'Desktop', 'Tablet'];
+
+/**
+ * The conversion rate of each type of device, with the visitors behind it, so a shift towards phones can be told
+ * apart from phones converting worse, next to the rate of all devices from the funnel. Until the funnel arrives, it
+ * holds the room of the usual three.
+ */
+function ConversionByDevice({ funnel }: { funnel?: Funnel }) {
+    const devices = funnel?.conversion_by_device;
+
+    if (devices === null || devices?.length === 0) {
+        return (
+            <p className="font-mono text-[13px] text-muted-foreground">
+                nothing yet: Fathom isn't set up, didn't answer, or had no
+                visitors in these dates
+            </p>
+        );
+    }
+
+    return (
+        <Stats
+            stats={[
+                ...(devices?.map((device) => ({
+                    label: device.device.toLowerCase() || 'unknown',
+                    value: percent(ratio(device.converted, device.visitors)),
+                    note: `${formatCount(device.converted)} of ${formatCount(device.visitors)} visitors`,
+                })) ??
+                    DEVICES.map((device) => ({ label: device.toLowerCase() }))),
+                {
+                    label: 'all devices',
+                    value: funnel && percent(funnel.rates.conversion),
+                    note:
+                        funnel && funnel.visitors !== null
+                            ? `of ${formatCount(funnel.visitors)} visitors`
+                            : undefined,
+                },
+            ]}
+        />
+    );
+}
+
 function ActivationByDay({
     range,
     days,
@@ -975,6 +1016,16 @@ export default function Show({
                                 average={funnel.rates.activation}
                             />
                         )}
+                    </Deferred>
+                </Panel>
+
+                <Panel
+                    className="xl:col-span-2"
+                    title="Conversion by device"
+                    meta="sign-ups ÷ visitors, both from Fathom"
+                >
+                    <Deferred data="funnel" fallback={<ConversionByDevice />}>
+                        <ConversionByDevice funnel={funnel} />
                     </Deferred>
                 </Panel>
 

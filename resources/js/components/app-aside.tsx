@@ -109,7 +109,7 @@ export function AppAside({
                                         background: laneColor(user.lane),
                                     }}
                                 />
-                                @{user.username}
+                                @{user.handle}
                             </span>
                         </span>
                     </Link>

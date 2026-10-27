@@ -12,7 +12,7 @@ beforeEach(function (): void {
 it('shows admins where the metrics are heading', function (): void {
     $this->travelTo(CarbonImmutable::parse('2026-10-20 12:00:00'));
 
-    $response = $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $response = $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('forecast.show'));
 
     $response->assertOk()

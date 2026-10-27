@@ -8,16 +8,16 @@ use App\Models\User;
 use App\Models\UserTimeout;
 
 it('lists everyone in timeout, the soonest out first, and every ban, the newest first', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
-    $soon = User::factory()->create(['username' => 'soon']);
-    $later = User::factory()->create(['username' => 'later']);
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $soon = User::factory()->create(['handle' => 'soon']);
+    $later = User::factory()->create(['handle' => 'later']);
     UserTimeout::factory()->for($soon)->create(['reason' => ModerationReason::LowEffort, 'ends_at' => now()->addHour()]);
     UserTimeout::factory()->for($soon)->ended()->create();
     UserTimeout::factory()->for($later)->create(['ends_at' => now()->addHour()]);
     UserTimeout::factory()->for($later)->create(['ends_at' => now()->addDays(3)]);
     UserTimeout::factory()->ended()->create();
     UserTimeout::factory()->create(['github_id' => '999999999']);
-    $banned = User::factory()->banned(ModerationReason::AiGenerated)->create(['username' => 'banned']);
+    $banned = User::factory()->banned(ModerationReason::AiGenerated)->create(['handle' => 'banned']);
     $this->travel(1)->minute();
     Ban::factory()->create(['github_id' => '583231', 'reason' => ModerationReason::Spam]);
 
@@ -29,16 +29,16 @@ it('lists everyone in timeout, the soonest out first, and every ban, the newest 
         ->assertInertia(fn ($page) => $page
             ->component('moderation/people')
             ->has('timeouts', 2)
-            ->where('timeouts.0.user.username', 'soon')
+            ->where('timeouts.0.user.handle', 'soon')
             ->where('timeouts.0.reason', 'Low-effort posts')
             ->where('timeouts.0.timeouts_count', 2)
-            ->where('timeouts.1.user.username', 'later')
+            ->where('timeouts.1.user.handle', 'later')
             ->where('timeouts.1.ends_at', now()->subMinute()->addDays(3)->startOfSecond()->toISOString())
             ->has('bans', 2)
             ->where('bans.0.user', null)
             ->where('bans.0.github_id', '583231')
             ->where('bans.0.reason', 'Spam or self-promotion')
-            ->where('bans.1.user.username', 'banned')
+            ->where('bans.1.user.handle', 'banned')
             ->where('bans.1.reason', 'AI-generated posts'));
 });
 
@@ -49,8 +49,8 @@ it('is only for admins', function (): void {
 });
 
 it('lifts a ban from the list', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
-    $user = User::factory()->banned()->create(['username' => 'octocat']);
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $user = User::factory()->banned()->create(['handle' => 'octocat']);
 
     config(['app.admins' => ['admin']]);
 
@@ -65,7 +65,7 @@ it('lifts a ban from the list', function (): void {
 });
 
 it('lifts the ban on a deleted account, so it can sign up again', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     $ban = Ban::factory()->create();
 
     config(['app.admins' => ['admin']]);
@@ -88,7 +88,7 @@ it('may not lift a ban unless an admin', function (): void {
 });
 
 it('sends guests to sign in instead of letting them moderate anyone', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $ban = Ban::factory()->create();
 
     $this->get(route('moderated-user.index'))->assertRedirectToRoute('home');

@@ -20,7 +20,7 @@ it('starts an org with people who follow the user, who maintains it', function (
 
     $response = signedApiRequest($this->keyPair, 'POST', route('api-org.store'), [
         'name' => '  dev/null core  ',
-        'members' => [$nuno->username, $taylor->username],
+        'members' => [$nuno->handle, $taylor->handle],
     ]);
 
     $org = Conversation::query()->sole();
@@ -38,14 +38,14 @@ it('starts an org with people who follow the user, who maintains it', function (
 it('leaves an org without a name when none is given', function (?string $name): void {
     [$nuno] = followersOf($this->user, 1);
 
-    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['name' => $name, 'members' => [$nuno->username]])->assertCreated();
+    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['name' => $name, 'members' => [$nuno->handle]])->assertCreated();
 
     expect(Conversation::query()->sole()->name)->toBeNull();
 })->with([null, '', '   ']);
 
 it('says why people cannot be added, as the web does', function (string $case, string $reason): void {
     [$nuno] = followersOf($this->user, 1);
-    $candidate = User::factory()->create(['username' => 'candidate']);
+    $candidate = User::factory()->create(['handle' => 'candidate']);
 
     if ($case !== 'not a follower') {
         $candidate->following()->attach($this->user);
@@ -58,7 +58,7 @@ it('says why people cannot be added, as the web does', function (string $case, s
         default => null,
     };
 
-    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => ['candidate', $nuno->username]])
+    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => ['candidate', $nuno->handle]])
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['members.0' => "@candidate {$reason}."]);
 
@@ -71,7 +71,7 @@ it('says why people cannot be added, as the web does', function (string $case, s
 ]);
 
 it('refuses someone who does not follow the user, in the api error format', function (): void {
-    User::factory()->create(['username' => 'taylorotwell']);
+    User::factory()->create(['handle' => 'taylorotwell']);
 
     signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => ['taylorotwell']])
         ->assertUnprocessable()
@@ -82,16 +82,16 @@ it('refuses someone who does not follow the user, in the api error format', func
 });
 
 it('lets site admins add anyone with remotes on', function (): void {
-    config(['app.admins' => [$this->user->username]]);
+    config(['app.admins' => [$this->user->handle]]);
     $nuno = User::factory()->create();
 
-    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => [$nuno->username]])->assertCreated();
+    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => [$nuno->handle]])->assertCreated();
 
     expect(Conversation::query()->sole()->roleOf($nuno)?->value)->toBe('contributor');
 });
 
 it('caps an org at a hundred people', function (): void {
-    $members = array_map(fn (User $member): string => $member->username, followersOf($this->user, Conversation::MAX_MEMBERS));
+    $members = array_map(fn (User $member): string => $member->handle, followersOf($this->user, Conversation::MAX_MEMBERS));
 
     signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => $members])
         ->assertUnprocessable()
@@ -111,16 +111,16 @@ it('refuses an org it cannot start', function (Closure $data, array $fields): vo
 })->with([
     'no members' => [fn (User $nuno): array => ['name' => 'core'], ['members']],
     'an empty list' => [fn (User $nuno): array => ['members' => []], ['members']],
-    'someone who does not exist' => [fn (User $nuno): array => ['members' => [$nuno->username, 'nobody-by-that-name']], ['members.1']],
-    'the same person twice' => [fn (User $nuno): array => ['members' => [$nuno->username, $nuno->username]], ['members.0', 'members.1']],
-    'a long name' => [fn (User $nuno): array => ['name' => Str::repeat('a', 61), 'members' => [$nuno->username]], ['name']],
+    'someone who does not exist' => [fn (User $nuno): array => ['members' => [$nuno->handle, 'nobody-by-that-name']], ['members.1']],
+    'the same person twice' => [fn (User $nuno): array => ['members' => [$nuno->handle, $nuno->handle]], ['members.0', 'members.1']],
+    'a long name' => [fn (User $nuno): array => ['name' => Str::repeat('a', 61), 'members' => [$nuno->handle]], ['name']],
 ]);
 
 it('is not there while the user has Remotes off', function (): void {
     [$nuno] = followersOf($this->user, 1);
     $this->user->update(['remotes_enabled' => false]);
 
-    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => [$nuno->username]])->assertNotFound();
+    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => [$nuno->handle]])->assertNotFound();
 });
 
 it('shares the web limits of 30 pushes and 300 Remotes requests a minute', function (string $limiter, int $limit): void {
@@ -128,7 +128,7 @@ it('shares the web limits of 30 pushes and 300 Remotes requests a minute', funct
 
     RateLimiter::increment(md5($limiter.$this->user->id), amount: $limit);
 
-    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => [$nuno->username]])
+    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => [$nuno->handle]])
         ->assertTooManyRequests()
         ->assertJsonPath('code', 'rate_limited');
 

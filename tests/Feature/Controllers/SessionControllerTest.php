@@ -46,7 +46,7 @@ it('creates a user and logs them in', function (): void {
     $user = User::query()->where('github_id', '583231')->sole();
 
     expect($user)
-        ->username->toBe('octocat')
+        ->handle->toBe('octocat')
         ->name->toBe('The Octocat')
         ->email->toBe('octocat@github.com')
         ->avatar_url->toBe('https://avatars.githubusercontent.com/u/583231')
@@ -111,7 +111,7 @@ it('updates an existing user on login', function (): void {
 
     $user = User::factory()->create([
         'github_id' => '583231',
-        'username' => 'old-username',
+        'handle' => 'old-handle',
     ]);
 
     Socialite::fake('github', GitHubUser::fake([
@@ -125,7 +125,7 @@ it('updates an existing user on login', function (): void {
         ->assertInertiaFlashMissing('signedUp');
 
     expect(User::query()->count())->toBeOne()
-        ->and($user->refresh()->username)->toBe('octocat');
+        ->and($user->refresh()->handle)->toBe('octocat');
 
     $this->assertAuthenticatedAs($user);
 });
@@ -272,14 +272,14 @@ it('makes tom the first friend of a new user, but not of a returning one', funct
     $this->get(route('login.store'));
 
     $user = User::query()->where('github_id', '583231')->sole();
-    $tom = User::query()->where('username', 'tom')->sole();
+    $tom = User::query()->whereRelation('profile', 'handle', 'tom')->sole();
 
     expect($user->isFollowing($tom))->toBeTrue()
         ->and($tom->isFollowing($user))->toBeTrue();
 
     $returning = User::factory()->create(['github_id' => '1']);
 
-    Socialite::fake('github', GitHubUser::fake(['id' => '1', 'nickname' => $returning->username, 'name' => $returning->name]));
+    Socialite::fake('github', GitHubUser::fake(['id' => '1', 'nickname' => $returning->handle, 'name' => $returning->name]));
 
     $this->post(route('logout'));
     $this->get(route('login.store'));

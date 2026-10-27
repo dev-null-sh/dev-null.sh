@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { conversationsMatching } from '../../resources/js/lib/conversation-search.ts';
 import type { ConversationSummary, User } from '../../resources/js/types';
 
-const person = (username: string, name: string) => ({ id: username, username, name }) as User;
+const person = (handle: string, name: string) => ({ id: handle, handle, name }) as User;
 const ana = person('ana', 'Ana Lovelace');
 const ben = person('benji', 'Ben Hopper');
 

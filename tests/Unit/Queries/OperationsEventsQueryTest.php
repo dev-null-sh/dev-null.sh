@@ -25,7 +25,7 @@ beforeEach(function (): void {
 });
 
 it('logs signups, bots left out', function (): void {
-    $user = User::factory()->create(['username' => 'alice', 'created_at' => now()->subHour()]);
+    $user = User::factory()->create(['handle' => 'alice', 'created_at' => now()->subHour()]);
     User::factory()->create(['github_id' => CreateTomFriendship::GITHUB_ID, 'created_at' => now()->subHour()]);
 
     expect(resolve(OperationsEventsQuery::class)->get(now()->subDay()->toImmutable()))->toBe([[
@@ -60,7 +60,7 @@ it('logs failed jobs by their class and queue, with the first line of their exce
 });
 
 it('logs reports by their reason, never what the reporter wrote, and their dismissals', function (): void {
-    $reporter = User::factory()->create(['username' => 'reporter', 'created_at' => now()->subWeek()]);
+    $reporter = User::factory()->create(['handle' => 'reporter', 'created_at' => now()->subWeek()]);
     $report = CommitReport::factory()->create([
         'reporter_id' => $reporter->id,
         'commit_id' => Commit::factory()->create(['created_at' => now()->subWeek()])->id,
@@ -95,7 +95,7 @@ it('logs reports by their reason, never what the reporter wrote, and their dismi
 });
 
 it('logs moderation verdicts and the commits held for review', function (): void {
-    $author = User::factory()->create(['username' => 'author', 'created_at' => now()->subWeek()]);
+    $author = User::factory()->create(['handle' => 'author', 'created_at' => now()->subWeek()]);
     $approved = Commit::factory()->for($author)->create(['created_at' => now()->subWeek()]);
     $rejected = Commit::factory()->for($author)->rejected()->create(['created_at' => now()->subWeek()]);
     $held = Commit::factory()->for($author)->pending()->create(['created_at' => now()->subMinutes(10)]);
@@ -148,7 +148,7 @@ it('logs moderation verdicts and the commits held for review', function (): void
 });
 
 it('logs bans and timeouts by their reason, naming the person while they still have an account', function (): void {
-    $user = User::factory()->create(['username' => 'spammer', 'created_at' => now()->subWeek()]);
+    $user = User::factory()->create(['handle' => 'spammer', 'created_at' => now()->subWeek()]);
     $ban = Ban::factory()->create(['github_id' => $user->github_id, 'reason' => ModerationReason::Spam, 'created_at' => now()->subMinutes(10)]);
     $timeout = UserTimeout::factory()->create([
         'github_id' => '123',
@@ -197,10 +197,10 @@ it('logs features switched on or off', function (): void {
 });
 
 it('lists the newest events of the window first, up to the limit', function (): void {
-    User::factory()->create(['username' => 'old', 'created_at' => now()->subDays(2)]);
-    User::factory()->create(['username' => 'first', 'created_at' => now()->subHours(3)]);
-    User::factory()->create(['username' => 'second', 'created_at' => now()->subHours(2)]);
-    User::factory()->create(['username' => 'third', 'created_at' => now()->subHour()]);
+    User::factory()->create(['handle' => 'old', 'created_at' => now()->subDays(2)]);
+    User::factory()->create(['handle' => 'first', 'created_at' => now()->subHours(3)]);
+    User::factory()->create(['handle' => 'second', 'created_at' => now()->subHours(2)]);
+    User::factory()->create(['handle' => 'third', 'created_at' => now()->subHour()]);
 
     $events = resolve(OperationsEventsQuery::class)->get(now()->subDay()->toImmutable(), limit: 2);
 
@@ -208,8 +208,8 @@ it('lists the newest events of the window first, up to the limit', function (): 
 });
 
 it('filters by source, level, and a case-insensitive search of the message, detail and actor', function (): void {
-    User::factory()->create(['username' => 'Searchable_Dev', 'created_at' => now()->subHour()]);
-    User::factory()->create(['username' => 'other', 'created_at' => now()->subHour()]);
+    User::factory()->create(['handle' => 'Searchable_Dev', 'created_at' => now()->subHour()]);
+    User::factory()->create(['handle' => 'other', 'created_at' => now()->subHour()]);
     failedJob(failedAt: now()->subHour(), exception: 'RuntimeException: searchable failure');
     failedJob(failedAt: now()->subHour(), exception: 'RuntimeException: 100% broken');
 

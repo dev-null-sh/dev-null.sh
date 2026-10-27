@@ -17,6 +17,7 @@ import {
     LiveAvatarMarker,
     LiveStreamCard,
 } from '@/components/live-stream-card';
+import { LocalTime } from '@/components/local-time';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
@@ -107,7 +108,7 @@ export function UserPreview({
     anchor,
     onHoverChange,
 }: {
-    user: User | Pick<User, 'username'>;
+    user: User | Pick<User, 'handle'>;
     userId?: string;
     children: ReactNode;
     className?: string;
@@ -268,7 +269,7 @@ export function UserPreview({
                     <div
                         ref={previewRef}
                         role="dialog"
-                        aria-label={`About @${previewUser.username}`}
+                        aria-label={`About @${previewUser.handle}`}
                         onPointerEnter={(event) => {
                             if (event.pointerType !== 'mouse') {
                                 return;
@@ -433,8 +434,8 @@ function UserPreviewContent({
                                     onMouseLeave={onMouseLeave}
                                     aria-label={
                                         shownIsFollowing
-                                            ? `Unfollow @${user.username}`
-                                            : `Follow @${user.username}`
+                                            ? `Unfollow @${user.handle}`
+                                            : `Follow @${user.handle}`
                                     }
                                     aria-busy={pendingFollows !== null}
                                     data-test="user-preview-follow-button"
@@ -462,7 +463,7 @@ function UserPreviewContent({
                     aria-hidden
                     className="size-2 shrink-0 rounded-full bg-(--lane)"
                 />
-                <span className="truncate">@{user.username}</span>
+                <span className="truncate">@{user.handle}</span>
                 {data?.followsYou && (
                     <span className="ml-1 shrink-0 rounded-sm bg-muted px-1.5 py-0.5 font-sans text-xs">
                         Follows you
@@ -481,11 +482,19 @@ function UserPreviewContent({
                 </p>
             )}
 
+            {user.show_local_time && user.timezone && !data?.isUnavailable && (
+                <LocalTime
+                    as="p"
+                    timeZone={user.timezone}
+                    className="mt-2 text-sm text-muted-foreground"
+                />
+            )}
+
             <div className="mt-3 flex gap-4 text-sm">
                 {data?.isUnavailable ? (
                     <p className="text-muted-foreground">
                         {data.isBlocking
-                            ? `You blocked @${user.username}.`
+                            ? `You blocked @${user.handle}.`
                             : 'This profile is unavailable.'}
                     </p>
                 ) : data ? (

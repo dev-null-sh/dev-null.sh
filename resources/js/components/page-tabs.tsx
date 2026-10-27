@@ -19,6 +19,10 @@ export function PageTabs({
     scrollable?: boolean;
     tabs: {
         title: string;
+        /**
+         * Shown instead of the title on phones, where a long title would wrap.
+         */
+        shortTitle?: string;
         href: NonNullable<InertiaLinkProps['href']>;
         isActive: boolean;
     }[];
@@ -62,7 +66,20 @@ export function PageTabs({
                         { 'text-foreground': tab.isActive },
                     )}
                 >
-                    <span className="py-3.5">{tab.title}</span>
+                    <span className="py-3.5">
+                        {tab.shortTitle ? (
+                            <>
+                                <span className="sm:hidden">
+                                    {tab.shortTitle}
+                                </span>
+                                <span className="hidden sm:inline">
+                                    {tab.title}
+                                </span>
+                            </>
+                        ) : (
+                            tab.title
+                        )}
+                    </span>
                     {tab.isActive && (
                         <span
                             aria-hidden

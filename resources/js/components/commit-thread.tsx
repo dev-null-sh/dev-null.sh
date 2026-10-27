@@ -552,7 +552,7 @@ export function ShowThreadLink({ thread }: { thread: Thread }) {
         <Link
             href={CommitController.show({ user: commit.user, commit })}
             className="mt-2 -ml-2 flex w-fit items-center gap-1 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            aria-label={`Show thread by @${commit.user.username}`}
+            aria-label={`Show thread by @${commit.user.handle}`}
             data-test="show-thread-link"
         >
             <ListTree className="size-4" aria-hidden />
@@ -565,10 +565,15 @@ export function ThreadActions({
     thread,
     actions,
     hasKeyboardShortcuts = false,
+    hasComposer = true,
+    isReply = false,
 }: {
     thread: Thread;
     actions?: ReactNode;
     hasKeyboardShortcuts?: boolean;
+    /** False when the caller renders the reply composer itself, as ThreadReplyComposer. */
+    hasComposer?: boolean;
+    isReply?: boolean;
 }) {
     const { auth } = usePage().props;
     const { commit } = thread;
@@ -662,19 +667,26 @@ export function ThreadActions({
                     <CommitSecondaryActions
                         commit={commit}
                         keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
+                        isReply={isReply}
                     />
                 )}
             </div>
 
-            {thread.isReplying && !isDeleted(commit) && !isFiltered && (
-                <ReplyComposer
-                    parent={commit}
-                    onCancel={thread.cancelReply}
-                    onReplied={thread.onReplied}
-                />
-            )}
+            {hasComposer && <ThreadReplyComposer thread={thread} />}
         </>
     );
+}
+
+export function ThreadReplyComposer({ thread }: { thread: Thread }) {
+    const { commit } = thread;
+
+    return thread.isReplying && !isDeleted(commit) && !commit.is_filtered ? (
+        <ReplyComposer
+            parent={commit}
+            onCancel={thread.cancelReply}
+            onReplied={thread.onReplied}
+        />
+    ) : null;
 }
 
 export function ThreadSpine({
@@ -941,7 +953,7 @@ function MoreRepliesButton({
                             <>
                                 {' to '}
                                 <span className="font-mono text-xs">
-                                    @{thread.commit.user.username}
+                                    @{thread.commit.user.handle}
                                 </span>
                             </>
                         )}
@@ -1188,7 +1200,7 @@ function CommitReply({
                                 tabIndex={-1}
                                 className="hidden truncate font-mono text-xs text-muted-foreground sm:inline"
                             >
-                                @{reply.user.username}
+                                @{reply.user.handle}
                             </Link>
                         </UserPreview>
                         {isQuote && (
@@ -1242,7 +1254,7 @@ function CommitReply({
                                 {isQuote ? 'quoting' : 'replying to'}{' '}
                                 {isDeleted(parent)
                                     ? '[deleted]'
-                                    : `@${parent.user.username}`}
+                                    : `@${parent.user.handle}`}
                             </span>
                         </p>
                     )}
@@ -1302,6 +1314,7 @@ function CommitReply({
                     ) : (
                         <ThreadActions
                             thread={{ ...thread, commit: reply }}
+                            isReply
                             actions={
                                 !reply.is_filtered && (
                                     <>
@@ -1477,7 +1490,7 @@ function ReplyComposer({
                 <ImageDropOverlay className="-inset-px" />
             )}
             <label htmlFor={`reply-${parent.id}`} className="sr-only">
-                Reply to @{parent.user.username}
+                Reply to @{parent.user.handle}
             </label>
             <div className="grid">
                 <MentionTextarea
@@ -1493,7 +1506,7 @@ function ReplyComposer({
                     onPaste={attachments.onPaste}
                     onFocus={isRestored ? moveCaretToEnd : undefined}
                     maxLength={maxRawBodyLength}
-                    placeholder={`Reply to @${parent.user.username}`}
+                    placeholder={`Reply to @${parent.user.handle}`}
                     className={cn(
                         'col-start-1 row-start-1 block field-sizing-content max-h-[50dvh] min-h-9 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
                         { invisible: preview.isPreviewing },

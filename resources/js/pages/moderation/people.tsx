@@ -191,7 +191,7 @@ function Row({
                         <p className="truncate text-sm font-medium">
                             {user.name}{' '}
                             <span className="font-mono text-[13px] font-normal text-muted-foreground">
-                                @{user.username}
+                                @{user.handle}
                             </span>
                         </p>
                         <p className="text-xs text-muted-foreground">

@@ -1,14 +1,15 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import type { ReactNode } from 'react';
 import { createInertiaApp } from '@inertiajs/react';
+import type { ReactNode } from 'react';
 import { renderToString } from 'react-dom/server';
 import { test } from 'vite-plus/test';
 import { CommitCard } from '../../resources/js/components/commit-card';
 import { CommitChannelBadges } from '../../resources/js/components/commit-channel-badges';
 import {
     ThreadReplies,
+    ThreadReplyComposer,
     useThread,
 } from '../../resources/js/components/commit-thread';
 import { QuotedCommit } from '../../resources/js/components/quoted-commit';
@@ -35,7 +36,7 @@ const commit = (id: string, overrides: Partial<Commit> = {}): Commit =>
         user: {
             id: 'author',
             name: 'Author',
-            username: 'author',
+            handle: 'author',
             lane: 1,
             timezone: null,
             show_local_time: false,
@@ -43,12 +44,15 @@ const commit = (id: string, overrides: Partial<Commit> = {}): Commit =>
         ...overrides,
     }) as Commit;
 
-async function render(content: ReactNode): Promise<string> {
+async function render(content: ReactNode, signedIn = false): Promise<string> {
     const result = await createInertiaApp({
         page: {
             component: 'test',
             props: {
-                auth: { user: null, automaticTranslation: false },
+                auth: {
+                    user: signedIn ? commit('viewer').user : null,
+                    automaticTranslation: false,
+                },
                 errors: {},
                 repliesPerPage: 3,
             },
@@ -157,4 +161,21 @@ test('renders a filtered quote as a reveal placeholder without leaking its conte
     assert.match(html, /Show commit/);
     assert.doesNotMatch(html, /Content of hidden-quote/);
     assert.doesNotMatch(html, /<a\b/);
+});
+
+function Composer({ parent }: { parent: Commit }) {
+    const thread = useThread(parent);
+    return <ThreadReplyComposer thread={{ ...thread, isReplying: true }} />;
+}
+
+test('keeps the separately rendered reply composer hidden until the commit is visible', async () => {
+    const hidden = await render(
+        <Composer parent={commit('hidden', { is_filtered: true })} />,
+        true,
+    );
+    const visible = await render(<Composer parent={commit('visible')} />, true);
+
+    assert.doesNotMatch(hidden, /data-test="reply-composer"|<textarea/);
+    assert.match(visible, /data-test="reply-composer"/);
+    assert.match(visible, /Reply to @author/);
 });

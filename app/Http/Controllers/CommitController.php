@@ -73,7 +73,7 @@ final readonly class CommitController
         Inertia::flash('committed', [
             'id' => $commit->id,
             'body' => $commit->body,
-            'user' => ['username' => $user->username],
+            'user' => ['handle' => $user->handle],
         ]);
 
         if ($unlocked->isNotEmpty()) {
