@@ -50,7 +50,7 @@ final readonly class UserListController
     {
         return Inertia::render('user-list/show', [
             'list' => $userList->loadCount(['members' => fn (Builder $query): Builder => $query->whereNotIn('users.id', $user->idsAcrossBlocks())]),
-            'members' => fn (): Collection => $userList->members()->whereNotIn('users.id', $user->idsAcrossBlocks())->orderBy('username')->get(),
+            'members' => fn (): Collection => $userList->members()->whereNotIn('users.id', $user->idsAcrossBlocks())->join('profiles', 'profiles.github_id', '=', 'users.github_id')->orderBy('profiles.handle')->get(),
             'pinnedLists' => $user->pinnedLists(...),
             'commits' => Inertia::scroll(fn () => $commits->builder($user, $userList)->cursorPaginate(20)),
         ]);

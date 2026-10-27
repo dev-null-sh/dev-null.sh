@@ -8,7 +8,7 @@ use App\Models\UserList;
 
 it('may add a developer to a list', function (): void {
     $user = User::factory()->create();
-    $member = User::factory()->create(['username' => 'octocat']);
+    $member = User::factory()->create(['handle' => 'octocat']);
     $list = UserList::factory()->for($user)->create(['name' => 'Laravel']);
 
     $response = $this->actingAs($user)
@@ -64,7 +64,7 @@ it('may not add more than 250 developers to a list', function (): void {
 
 it('may remove a developer from a list', function (): void {
     $user = User::factory()->create();
-    $member = User::factory()->create(['username' => 'octocat']);
+    $member = User::factory()->create(['handle' => 'octocat']);
     $list = UserList::factory()->for($user)->create(['name' => 'Laravel']);
 
     $list->members()->attach($member);

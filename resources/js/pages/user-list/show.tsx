@@ -170,19 +170,19 @@ export default function Show({
                                             className="size-5"
                                         />
                                         <span className="font-mono text-[13px]">
-                                            @{member.username}
+                                            @{member.handle}
                                         </span>
                                     </span>
                                 </UserPreview>
                                 <Link
                                     href={UserListMemberController.destroy([
                                         list.id,
-                                        member.username,
+                                        member.handle,
                                     ])}
                                     as="button"
                                     preserveScroll
                                     className="rounded-full p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-                                    aria-label={`Remove @${member.username} from ${list.name}`}
+                                    aria-label={`Remove @${member.handle} from ${list.name}`}
                                 >
                                     <X className="size-3.5" />
                                 </Link>
