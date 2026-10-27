@@ -14,6 +14,7 @@ import type { Color } from '@/lib/colors';
 import { colorsIn } from '@/lib/colors';
 import { mentionPattern } from '@/lib/mentions';
 import {
+    commitLinkTo,
     hrefFor,
     shortenUrl,
     urlPattern,
@@ -23,9 +24,6 @@ import { cn, shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
 import type { BodySegment, Commit } from '@/types';
 
-// A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
-const commitLinkPattern =
-    /^https?:\/\/(?:www\.)?dev-null\.sh\/@([A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38})\/commits\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
 const gitHubHostPattern = /^(?:www\.)?github\.com$/i;
 const gitHubOwnerPattern =
     /^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$/;
@@ -756,7 +754,7 @@ export function LinkifiedText({
             continue;
         }
 
-        const commitLink = commitLinkPattern.exec(linkText);
+        const commitLink = commitLinkTo(linkText);
         const forgeLink = forgeLinkTo(href);
 
         parts.push(
@@ -772,8 +770,8 @@ export function LinkifiedText({
                 <CommitLink
                     key={match.index}
                     url={linkText}
-                    handle={commitLink[1]}
-                    commit={commitLink[2].toLowerCase()}
+                    handle={commitLink.handle}
+                    commit={commitLink.commit}
                     isStatic={isStatic}
                 />
             ) : forgeLink ? (
