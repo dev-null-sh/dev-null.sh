@@ -43,6 +43,7 @@ export function trackAnalyticsEvents(): void {
 
         if (
             link instanceof HTMLAnchorElement &&
+            link.origin === window.location.origin &&
             link.pathname === login().url
         ) {
             trackSignInTap();
