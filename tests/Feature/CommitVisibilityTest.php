@@ -125,7 +125,8 @@ it('redacts signed API content and offers explicit temporary reveal', function (
     signedApiRequest($key, 'GET', route('api-commit.show', $hidden))->assertOk()
         ->assertJsonPath('data.is_filtered', true)->assertJsonPath('data.body', '')->assertJsonPath('data.replies_count', 1);
     signedApiRequest($key, 'GET', route('api-commit-visibility.show', $hidden))->assertOk()
-        ->assertJsonPath('data.body', 'Workflow details')->assertJsonPath('data.is_filtered', false);
+        ->assertJsonPath('data.body', 'Workflow details')->assertJsonPath('data.is_filtered', false)
+        ->assertHeader('Cache-Control', 'no-store, private');
     signedApiRequest($key, 'GET', route('api-commit-reply.index', $hidden))->assertOk()->assertJsonPath('data.0.id', $reply->id);
 });
 
