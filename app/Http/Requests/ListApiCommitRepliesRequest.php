@@ -26,7 +26,8 @@ final class ListApiCommitRepliesRequest extends FormRequest
     }
 
     /**
-     * Newest first continues the next_cursor of a reply preview, as on the web.
+     * Newest first continues the next_cursor of a reply preview, as on the web, and a limit asks for fewer replies a
+     * page, as the web's threads do.
      *
      * @return array<string, list<string>>
      */
@@ -34,6 +35,7 @@ final class ListApiCommitRepliesRequest extends FormRequest
     {
         return [
             'newest' => ['sometimes', 'boolean'],
+            'limit' => ['sometimes', 'integer', 'between:1,50'],
         ];
     }
 }
