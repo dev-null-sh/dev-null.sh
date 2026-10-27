@@ -22,8 +22,13 @@ return [
     | Trusting an address that is reachable from the internet lets whoever is
     | there forge its own, so list only proxies you control.
     |
+    | An empty list, never null: given null, the framework trusts whichever
+    | address connected whenever the app runs on Laravel Cloud, Forge or
+    | Vapor, and then every caller can set its own address through
+    | "X-Forwarded-For" and spend someone else's rate limit.
+    |
     */
 
-    'proxies' => env('TRUSTED_PROXIES') ?: null,
+    'proxies' => env('TRUSTED_PROXIES') ?: [],
 
 ];
