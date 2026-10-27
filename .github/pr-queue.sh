@@ -18,7 +18,7 @@ gh api graphql --paginate --slurp -f query='
           author { login }
           files(first: 100) { nodes { path } }
           reactions(content: THUMBS_UP, first: 100) { nodes { user { login } } }
-          commits(last: 1) { nodes { commit { checkSuites(last: 20) { nodes { id conclusion app { slug } workflowRun { workflow { name } } } } } } }
+          commits(last: 1) { nodes { commit { checkSuites(last: 20) { nodes { id conclusion app { slug } workflowRun { workflow { id } } } } } } }
         }
       }
     }
@@ -29,7 +29,7 @@ gh api graphql --paginate --slurp -f query='
       | [.files.nodes[].path] as $paths
       | .size = ([10, 50, 250, 1000] | map(select($lines >= .)) | length)
       | .votes = ([.reactions.nodes[].user.login // empty | select(endswith("[bot]") | not)] - [.author.login] | length)
-      | ([.commits.nodes[].commit.checkSuites.nodes[]] | group_by(.workflowRun.workflow.name // .app.slug // .id) | map(last.conclusion)) as $suites
+      | ([.commits.nodes[].commit.checkSuites.nodes[]] | group_by(.workflowRun.workflow.id // .app.slug // .id) | map(last.conclusion)) as $suites
       | .approval = any($suites[]; . == "ACTION_REQUIRED")
       | .waiting = if .isDraft then "draft"
           elif .mergeable == "CONFLICTING" then "merge conflicts"
