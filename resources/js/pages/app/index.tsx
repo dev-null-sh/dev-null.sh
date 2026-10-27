@@ -161,6 +161,49 @@ export default function Index({
                         />
                     </div>
                 </figure>
+
+                <section
+                    aria-labelledby="mobile-title"
+                    className="border-t px-4 py-8 sm:px-6"
+                >
+                    <div className="flex items-center gap-4">
+                        <picture className="size-16 shrink-0 sm:size-[72px]">
+                            <img
+                                src="/images/apps/mac-icon-light.webp"
+                                alt=""
+                                width={256}
+                                height={256}
+                                className="size-full dark:hidden"
+                            />
+                            <img
+                                src="/images/apps/mac-icon-dark.webp"
+                                alt=""
+                                width={256}
+                                height={256}
+                                className="hidden size-full dark:block"
+                            />
+                        </picture>
+                        <h2
+                            id="mobile-title"
+                            className="text-[1.75rem] leading-tight font-semibold tracking-tight text-balance sm:text-3xl"
+                        >
+                            <WordmarkText>/dev/null for Mobile</WordmarkText>
+                        </h2>
+                    </div>
+
+                    <p className="mt-4 max-w-prose text-pretty">
+                        It's in beta for now. Want to help build?{' '}
+                        <a
+                            href="https://github.com/nativephp/dev-null-app"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline decoration-muted-foreground/50 underline-offset-4 hover:decoration-foreground"
+                        >
+                            Open a pull request
+                        </a>
+                        .
+                    </p>
+                </section>
             </article>
         </>
     );
