@@ -36,8 +36,11 @@ await test('leaves the phone browsers and computers alone', () => {
 });
 
 await test('opens the page in Safari on iOS and in the default browser on Android', () => {
-    const url = new URL('https://dev-null.sh/@mnapoli/log/abc?tab=replies');
+    const url = new URL('https://dev-null.sh/@mnapoli/log/abc?tab=replies#reply-1');
 
-    assert.equal(phoneBrowserUrl(url, 'ios'), 'x-safari-https://dev-null.sh/@mnapoli/log/abc?tab=replies');
-    assert.equal(phoneBrowserUrl(url, 'android'), 'intent://dev-null.sh/@mnapoli/log/abc?tab=replies#Intent;scheme=https;end');
+    assert.equal(phoneBrowserUrl(url, 'ios'), 'x-safari-https://dev-null.sh/@mnapoli/log/abc?tab=replies#reply-1');
+    assert.equal(
+        phoneBrowserUrl(url, 'android'),
+        'intent://dev-null.sh/@mnapoli/log/abc?tab=replies#reply-1#Intent;scheme=https;end',
+    );
 });

@@ -51,5 +51,5 @@ export function phoneBrowserUrl(
 ): string {
     return platform === 'ios'
         ? `x-safari-${url.href}`
-        : `intent://${url.host}${url.pathname}${url.search}#Intent;scheme=https;end`;
+        : `intent://${url.host}${url.pathname}${url.search}${url.hash}#Intent;scheme=https;end`;
 }
