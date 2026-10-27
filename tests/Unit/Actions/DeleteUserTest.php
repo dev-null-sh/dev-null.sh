@@ -353,3 +353,21 @@ it('erases browser push subscriptions with the account', function (): void {
     resolve(DeleteUser::class)->handle($user);
     expect(PushSubscription::query()->count())->toBe(0);
 });
+
+it('erases the previews of links to commits that deleted accounts already took with them', function (): void {
+    $tombstone = Commit::factory()->create(['user_id' => null, 'body' => '', 'deleted_at' => now()]);
+    $gone = fake()->uuid();
+    $leftovers = collect([
+        LinkPreview::factory()->create(['url' => url("/@gone/commits/{$tombstone->id}")]),
+        LinkPreview::factory()->create(['url' => url('/@gone/commits/'.mb_strtoupper($gone))]),
+    ]);
+    $kept = collect([Commit::factory()->create(), Commit::factory()->create(['deleted_at' => now()])])
+        ->map(fn (Commit $commit): LinkPreview => LinkPreview::factory()->create(['url' => url("/@{$commit->user->handle}/commits/{$commit->id}")]))
+        ->push(LinkPreview::factory()->create(['url' => "https://example.com/@gone/commits/{$gone}"]));
+
+    $migration = require database_path('migrations/2026_10_27_160000_erase_the_link_previews_of_erased_commits.php');
+    $migration->up();
+
+    $leftovers->each(fn (LinkPreview $preview) => $this->assertModelMissing($preview));
+    $kept->each(fn (LinkPreview $preview) => $this->assertModelExists($preview));
+});
