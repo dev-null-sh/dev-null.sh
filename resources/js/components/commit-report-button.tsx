@@ -8,6 +8,7 @@ import {
     ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
+    useImagePreviewCleanup,
 } from '@/components/commit-image-picker';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
@@ -130,6 +131,7 @@ function ReportForm({
         images: [] as File[],
         image_descriptions: [] as string[],
     });
+    useImagePreviewCleanup(form.data.images);
     const attachments = useImageAttachments(
         form.data.images,
         form.data.image_descriptions,
