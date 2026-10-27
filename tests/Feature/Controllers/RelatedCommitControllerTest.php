@@ -17,7 +17,7 @@ it('responds with the related commits, without their vectors', function (): void
         ->assertOk()
         ->assertJsonCount(1, 'commits')
         ->assertJsonPath('commits.0.id', $related->id)
-        ->assertJsonPath('commits.0.user.username', $related->user->username)
+        ->assertJsonPath('commits.0.user.handle', $related->user->handle)
         ->assertJsonMissingPath('commits.0.embedding');
 });
 

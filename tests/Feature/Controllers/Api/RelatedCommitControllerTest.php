@@ -13,7 +13,7 @@ it('responds with the related commits as the API shows commits', function (): vo
         ->assertOk()
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.id', $related->id)
-        ->assertJsonPath('data.0.author.username', $related->user->username)
+        ->assertJsonPath('data.0.author.handle', $related->user->handle)
         ->assertJsonMissingPath('data.0.starred')
         ->assertJsonMissingPath('data.0.embedding');
 });
