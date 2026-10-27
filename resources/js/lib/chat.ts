@@ -42,6 +42,7 @@ import {
     isRemoteMuted,
     remoteAlertsEnabled,
 } from '@/lib/remote-notifications';
+import { remotePushEnabled } from '@/lib/remote-push';
 import type { VoiceDraft } from '@/lib/voice-notes';
 import type {
     ConversationSummary,
@@ -163,6 +164,7 @@ const activePoll = 1_500;
 const idlePoll = 4_000;
 const inboxPoll = 15_000;
 const busyInboxPoll = 6_000;
+const hiddenInboxPoll = 60_000;
 const activeWindow = 60_000;
 const typingPing = 3_000;
 
@@ -205,6 +207,10 @@ let inboxWatchers = 0;
 let inboxTimer: number | undefined;
 let isLoadingReactionUsage = false;
 let remoteAlerts: ReturnType<typeof createRemoteAlerts> | null = null;
+/**
+ * Whether this tab is the one of the user's tabs that keeps polling for alerts while hidden.
+ */
+let isAlertingTab = false;
 let isFetchingInbox = false;
 let muteVersion = 0;
 let pinVersion = 0;
@@ -213,25 +219,29 @@ const invalidatedInboxTabs = new Set<InboxTab>();
 
 export function targetKey(target: ChatTarget): string {
     return target.kind === 'direct'
-        ? target.partner.username
+        ? target.partner.handle
         : `org:${target.org.id}`;
 }
 
 export function summaryKey(summary: ConversationSummary): string {
-    return summary.kind === 'org' || summary.partner === null
+    return summary.kind === 'org'
         ? `org:${summary.id}`
-        : summary.partner.username;
+        : (summary.partner?.handle ?? `direct:${summary.id}`);
 }
 
-export function targetOf(summary: ConversationSummary): ChatTarget {
-    return summary.kind === 'org' || summary.partner === null
-        ? { kind: 'org', org: { id: summary.id, name: summary.name } }
+export function targetOf(summary: ConversationSummary): ChatTarget | null {
+    if (summary.kind === 'org') {
+        return { kind: 'org', org: { id: summary.id, name: summary.name } };
+    }
+
+    return summary.partner === null
+        ? null
         : { kind: 'direct', partner: summary.partner };
 }
 
 function urls(target: ChatTarget) {
     if (target.kind === 'direct') {
-        const partner = { partner: target.partner.username };
+        const partner = { partner: target.partner.handle };
 
         return {
             show: ConversationController.show.url(partner),
@@ -516,11 +526,12 @@ function pinnedMessagesFrom(
     };
 }
 
+/**
+ * How many of the conversations have unread messages, the way the nav badge counts them.
+ */
 function unreadOf(conversations: ConversationSummary[]): number {
-    return conversations.reduce(
-        (total, conversation) => total + conversation.ahead,
-        0,
-    );
+    return conversations.filter((conversation) => conversation.ahead > 0)
+        .length;
 }
 
 function withoutKey(
@@ -891,7 +902,9 @@ export function rememberTarget(target: ChatTarget): void {
 }
 
 async function pollInbox(): Promise<void> {
-    const isPaused = document.hidden && remoteAlerts === null;
+    const isPaused =
+        document.hidden &&
+        (remoteAlerts === null || !isAlertingTab || remotePushEnabled());
 
     if (isPaused && state.unread !== null) {
         update({ unread: null });
@@ -972,12 +985,7 @@ async function pollInbox(): Promise<void> {
             fetched: state.fetched && withConversationPins(state.fetched),
             archived: state.archived && withConversationPins(state.archived),
             requests,
-            unread:
-                unread -
-                watched.reduce(
-                    (total, conversation) => total + conversation.ahead,
-                    0,
-                ),
+            unread: unread - unreadOf(watched),
         });
 
         if (requestsChanged && state.fetched !== null) {
@@ -1062,7 +1070,13 @@ export function watchRemoteAlerts(userId: string): () => void {
 
     const alerts = createRemoteAlerts(
         userId,
-        (conversation) => urls(targetOf(conversation)).show,
+        (conversation) => {
+            const target = targetOf(conversation);
+
+            return target === null
+                ? ConversationController.index.url()
+                : urls(target).show;
+        },
         () =>
             !document.hidden && document.hasFocus()
                 ? [...threadWatchers.keys()].map(
@@ -1086,8 +1100,28 @@ export function watchRemoteAlerts(userId: string): () => void {
     );
     remoteAlerts = alerts;
     const unwatch = watchInbox();
+    const lock = new AbortController();
+    let releaseLock = () => {};
+    if (navigator.locks) {
+        void navigator.locks
+            .request(
+                `remote-alerts:${userId}`,
+                { signal: lock.signal },
+                () =>
+                    new Promise<void>((resolve) => {
+                        isAlertingTab = true;
+                        releaseLock = resolve;
+                    }),
+            )
+            .catch(() => undefined);
+    } else {
+        isAlertingTab = true;
+    }
 
     return () => {
+        lock.abort();
+        releaseLock();
+        isAlertingTab = false;
         alerts.stop();
         window.clearInterval(titleTimer);
         window.removeEventListener('focus', acknowledgeTitle);
@@ -1111,7 +1145,11 @@ function scheduleInbox(): void {
 
     inboxTimer = window.setTimeout(
         () => void pollInbox().finally(scheduleInbox),
-        threadWatchers.size > 0 ? busyInboxPoll : inboxPoll,
+        document.hidden
+            ? hiddenInboxPoll
+            : threadWatchers.size > 0
+              ? busyInboxPoll
+              : inboxPoll,
     );
 }
 
@@ -1133,7 +1171,7 @@ export function watchInbox(): () => void {
 
     const onVisible = () => {
         if (!document.hidden) {
-            void pollInbox();
+            void pollInbox().finally(scheduleInbox);
         }
     };
 
@@ -1928,7 +1966,7 @@ export async function settleRequest(
     partner: User,
     isMerging: boolean,
 ): Promise<boolean> {
-    const key = partner.username;
+    const key = partner.handle;
 
     try {
         await request(
@@ -2004,7 +2042,7 @@ export async function setConversationArchived(
                 state.unread === null
                     ? null
                     : state.unread +
-                      (isArchived ? -conversation.ahead : conversation.ahead),
+                      (isArchived ? -1 : 1) * unreadOf([conversation]),
         });
     }
 
@@ -2111,12 +2149,12 @@ export async function blockPartner(partner: User): Promise<boolean> {
     }
 
     const threads = { ...state.threads };
-    delete threads[partner.username];
+    delete threads[partner.handle];
 
     update({
-        conversations: withoutKey(state.conversations, partner.username),
-        fetched: withoutKey(state.fetched, partner.username),
-        archived: withoutKey(state.archived, partner.username),
+        conversations: withoutKey(state.conversations, partner.handle),
+        fetched: withoutKey(state.fetched, partner.handle),
+        archived: withoutKey(state.archived, partner.handle),
         threads,
     });
 
@@ -2176,7 +2214,7 @@ export async function setOrgMemberRole(
     await request(
         OrgMemberController.update.url({
             org: org.id,
-            member: member.username,
+            member: member.handle,
         }),
         'PUT',
         { role },
@@ -2195,7 +2233,7 @@ export async function removeOrgMember(
     await request(
         OrgMemberController.destroy.url({
             org: org.id,
-            member: member.username,
+            member: member.handle,
         }),
         'DELETE',
     );

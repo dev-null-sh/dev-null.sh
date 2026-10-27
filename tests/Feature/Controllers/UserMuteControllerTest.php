@@ -6,7 +6,7 @@ use App\Models\User;
 
 it('may mute a user', function (): void {
     $user = User::factory()->create();
-    $muted = User::factory()->create(['username' => 'octocat']);
+    $muted = User::factory()->create(['handle' => 'octocat']);
 
     $response = $this->actingAs($user)
         ->fromRoute('user.show', $muted)
@@ -34,7 +34,7 @@ it('may not mute themselves', function (): void {
 
 it('may unmute a user', function (): void {
     $user = User::factory()->create();
-    $muted = User::factory()->create(['username' => 'octocat']);
+    $muted = User::factory()->create(['handle' => 'octocat']);
 
     $user->muting()->attach($muted);
 

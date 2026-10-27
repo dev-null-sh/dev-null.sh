@@ -31,7 +31,7 @@ it('requires authentication to download personal data', function (): void {
 
 it('exports a surviving quote reference without the deleted authors tombstone content', function (): void {
     $user = User::factory()->create();
-    $deleted = User::factory()->create(['username' => 'deletedquoteauthor']);
+    $deleted = User::factory()->create(['handle' => 'deletedquoteauthor']);
     $root = Commit::factory()->create();
     $quoted = Commit::factory()->for($deleted)->for($root, 'parent')->create(['body' => 'Erased quoted words']);
     $reply = Commit::factory()->for($user)->for($quoted, 'parent')->create();
@@ -84,11 +84,11 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 2,
+        'schema_version' => 3,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
-            'username' => $user->username,
+            'handle' => $user->handle,
             'name' => 'Zoë Example',
             'email' => 'zoe@example.test',
             'avatar_url' => $user->avatar_url,
@@ -170,7 +170,7 @@ it('exports when the user accepted the commit rules and their timeouts, without 
 it('exports the remotes the user muted, without the mutes of others', function (): void {
     config(['remotes.requests' => true, 'remotes.everyone' => true]);
     $user = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
     $taylor = User::factory()->withRemotes()->create();
     sendChatMessage($nuno, $user);
     sendChatMessage($taylor, $user);
@@ -307,7 +307,7 @@ it('exports the polls of live commits and votes without other voters', function 
             'option' => 'Emacs',
             'created_at' => $vote->created_at->toIso8601String(),
         ]])
-        ->and($response->streamedContent())->not->toContain($voter->id, $voter->username, $deleted->options[0]->label);
+        ->and($response->streamedContent())->not->toContain($voter->id, $voter->handle, $deleted->options[0]->label);
 });
 
 it('exports surviving replies and polls after another account is deleted', function (): void {
@@ -328,13 +328,13 @@ it('exports surviving replies and polls after another account is deleted', funct
         ->and(array_column($data['polls'], 'commit_id'))->toBe([$kept->commit_id])
         ->and($data['polls'][0]['options'])->toBe(['Kept A', 'Kept B'])
         ->and($data['poll_votes'])->toBe([])
-        ->and($response->streamedContent())->not->toContain('Removed A', 'Removed B', $deleted->username);
+        ->and($response->streamedContent())->not->toContain('Removed A', 'Removed B', $deleted->handle);
 });
 
-it('exports following and follower usernames without private identity fields', function (): void {
+it('exports following and follower handles without private identity fields', function (): void {
     $user = User::factory()->create();
-    $followed = User::factory()->create(['username' => 'demo-developer', 'email' => 'private@example.test', 'remember_token' => 'secret-token']);
-    $follower = User::factory()->create(['username' => 'demo-follower', 'email' => 'follower@example.test']);
+    $followed = User::factory()->create(['handle' => 'demo-developer', 'email' => 'private@example.test', 'remember_token' => 'secret-token']);
+    $follower = User::factory()->create(['handle' => 'demo-follower', 'email' => 'follower@example.test']);
     $stranger = User::factory()->create();
     $user->following()->attach($followed);
     $user->followers()->attach($follower);
@@ -343,18 +343,18 @@ it('exports following and follower usernames without private identity fields', f
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
-    expect($data['following'])->toBe([['username' => 'demo-developer']])
-        ->and($data['followers'])->toBe([['username' => 'demo-follower']])
+    expect($data['following'])->toBe([['handle' => 'demo-developer']])
+        ->and($data['followers'])->toBe([['handle' => 'demo-follower']])
         ->and($response->streamedContent())->not->toContain(
             $followed->email, $followed->github_id, $followed->id, $followed->remember_token,
-            $follower->email, $follower->id, $stranger->username,
+            $follower->email, $follower->id, $stranger->handle,
         );
 });
 
 it('exports received notifications without revealing moderators', function (): void {
     $user = User::factory()->create();
-    $friend = User::factory()->create(['username' => 'friendly-dev']);
-    $moderator = User::factory()->create(['username' => 'secret-moderator']);
+    $friend = User::factory()->create(['handle' => 'friendly-dev']);
+    $moderator = User::factory()->create(['handle' => 'secret-moderator']);
     $commit = Commit::factory()->for($user)->rejected()->create();
     Notification::factory()->for($user, 'recipient')->for($friend, 'actor')->read()->create();
     Notification::factory()->for($user, 'recipient')->for($moderator, 'actor')->create([
@@ -472,7 +472,7 @@ it('exports all records across chunk boundaries without omissions or duplicates'
     DB::disableQueryLog();
 
     expect(collect($data['commits'])->pluck('id')->sort()->values()->all())->toBe($commits->pluck('id')->sort()->values()->all())
-        ->and(collect($data['following'])->pluck('username')->sort()->values()->all())->toBe($following->pluck('username')->sort()->values()->all())
+        ->and(collect($data['following'])->pluck('handle')->sort()->values()->all())->toBe($following->pluck('handle')->sort()->values()->all())
         ->and(collect($data['commits'])->keyBy('id')[$translated->id]['cached_translations'])->toBe($cached)
         ->and($data['commits'][0]['cached_translations'])->toBeNull()
         ->and($cacheReads)->toHaveCount(2);
@@ -480,12 +480,12 @@ it('exports all records across chunk boundaries without omissions or duplicates'
 
 it('exports who the user mutes, blocks and dismissed, but never who mutes, blocks or dismissed them', function (): void {
     $user = User::factory()->create();
-    $muted = User::factory()->create(['username' => 'muted-developer']);
-    $blocked = User::factory()->create(['username' => 'blocked-developer']);
-    $dismissed = User::factory()->create(['username' => 'dismissed-developer']);
-    $muter = User::factory()->create(['username' => 'secret-muter']);
-    $blocker = User::factory()->create(['username' => 'secret-blocker']);
-    $dismisser = User::factory()->create(['username' => 'secret-dismisser']);
+    $muted = User::factory()->create(['handle' => 'muted-developer']);
+    $blocked = User::factory()->create(['handle' => 'blocked-developer']);
+    $dismissed = User::factory()->create(['handle' => 'dismissed-developer']);
+    $muter = User::factory()->create(['handle' => 'secret-muter']);
+    $blocker = User::factory()->create(['handle' => 'secret-blocker']);
+    $dismisser = User::factory()->create(['handle' => 'secret-dismisser']);
 
     $user->muting()->attach($muted);
     $user->blocking()->attach($blocked);
@@ -497,9 +497,9 @@ it('exports who the user mutes, blocks and dismissed, but never who mutes, block
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
-    expect($data['muting'])->toBe([['username' => 'muted-developer']])
-        ->and($data['blocking'])->toBe([['username' => 'blocked-developer']])
-        ->and($data['dismissed_suggestions'])->toBe([['username' => 'dismissed-developer']])
+    expect($data['muting'])->toBe([['handle' => 'muted-developer']])
+        ->and($data['blocking'])->toBe([['handle' => 'blocked-developer']])
+        ->and($data['dismissed_suggestions'])->toBe([['handle' => 'dismissed-developer']])
         ->and($response->streamedContent())->not->toContain('secret-muter', 'secret-blocker', 'secret-dismisser', $muted->id, $blocked->id, $dismissed->id);
 });
 
@@ -523,7 +523,7 @@ it('also limits exports to five a minute per user independently of the hourly bu
 
 it('exports the messages the user sent, and not the ones they received', function (): void {
     $user = User::factory()->create();
-    $partner = User::factory()->create(['username' => 'nunomaduro']);
+    $partner = User::factory()->create(['handle' => 'nunomaduro']);
     $partner->following()->attach($user);
     sendChatMessage($user, $partner, 'merged it this morning');
     sendChatMessage($partner, $user, 'ship it');
@@ -548,7 +548,7 @@ it('exports your remote pins without the pins of other members', function (): vo
     config(['remotes.requests' => true, 'remotes.everyone' => true]);
     $this->freezeSecond();
     $user = User::factory()->withRemotes()->create();
-    $partner = User::factory()->withRemotes()->create(['username' => 'alice']);
+    $partner = User::factory()->withRemotes()->create(['handle' => 'alice']);
     sendChatMessage($partner, $user);
     $org = createOrg($user, followersOf($user, 1), 'Release crew');
     $this->actingAs($user)->putJson(route('conversation-pin.update', $partner), ['pinned' => true])->assertOk();

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Enums\ConnectionType;
 use App\Http\Requests\ListUserFollowingRequest;
 use App\Models\User;
 use App\Services\PageMetadata;
@@ -23,12 +24,12 @@ final readonly class UserFollowingController
 
         return Inertia::render('user/connections', [
             'user' => fn (): User => $currentUser instanceof User ? $user : $getCountedUser(),
-            'type' => 'following',
+            'type' => ConnectionType::Following,
             'users' => Inertia::scroll(fn () => $user->following()
                 ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $currentUser instanceof User ? $query->whereKey($currentUser->id) : $query->whereRaw('1 = 0')])
                 ->latest('follows.created_at')
                 ->latest('users.id')
                 ->cursorPaginate(30)),
-        ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->connections($getCountedUser(), 'following')]);
+        ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->connections($getCountedUser(), ConnectionType::Following)]);
     }
 }

@@ -30,20 +30,21 @@ final readonly class SitemapQuery
     /**
      * Read as plain rows rather than models, since a page lists thousands of them.
      *
-     * @return list<array{username: string, updated_at: CarbonImmutable}>
+     * @return list<array{handle: string, updated_at: CarbonImmutable}>
      */
     public function usersOn(int $page): array
     {
-        /** @var list<object{username: string, updated_at: string}> $users */
+        /** @var list<object{handle: string, updated_at: string}> $users */
         $users = $this->users()
-            ->orderBy('id')
+            ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
+            ->orderBy('users.id')
             ->forPage($page, self::PER_PAGE)
             ->toBase()
-            ->get(['username', 'updated_at'])
+            ->get(['profiles.handle', 'users.updated_at'])
             ->all();
 
         return array_map(fn (object $user): array => [
-            'username' => $user->username,
+            'handle' => $user->handle,
             'updated_at' => CarbonImmutable::parse($user->updated_at),
         ], $users);
     }
@@ -52,7 +53,7 @@ final readonly class SitemapQuery
      * Read as plain rows rather than models, with the author and the images in the same query, since a page lists
      * thousands of them.
      *
-     * @return list<array{id: string, username: string, updated_at: CarbonImmutable, image_ids: list<string>}>
+     * @return list<array{id: string, handle: string, updated_at: CarbonImmutable, image_ids: list<string>}>
      */
     public function commitsOn(int $page): array
     {
@@ -61,14 +62,15 @@ final readonly class SitemapQuery
             ->orderBy('id')
             ->forPage($page, self::PER_PAGE);
 
-        /** @var list<object{id: string, username: string, updated_at: string, image_id: string|null}> $rows */
+        /** @var list<object{id: string, handle: string, updated_at: string, image_id: string|null}> $rows */
         $rows = DB::query()
             ->fromSub($onPage, 'commits')
             ->join('users', 'users.id', '=', 'commits.user_id')
+            ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
             ->leftJoin('commit_images', 'commit_images.commit_id', '=', 'commits.id')
             ->orderBy('commits.id')
             ->orderBy('commit_images.position')
-            ->get(['commits.id', 'users.username', 'commits.updated_at', 'commit_images.id as image_id'])
+            ->get(['commits.id', 'profiles.handle', 'commits.updated_at', 'commit_images.id as image_id'])
             ->all();
 
         $commits = [];
@@ -76,7 +78,7 @@ final readonly class SitemapQuery
         foreach ($rows as $row) {
             $commits[$row->id] ??= [
                 'id' => $row->id,
-                'username' => $row->username,
+                'handle' => $row->handle,
                 'updated_at' => CarbonImmutable::parse($row->updated_at),
                 'image_ids' => [],
             ];

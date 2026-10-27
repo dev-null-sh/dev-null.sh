@@ -16,7 +16,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { emojiName, searchEmojiByUse } from '@/lib/emoji';
+import { emojiName, searchEmoji } from '@/lib/emoji';
 import { formatCount, formatExactCount } from '@/lib/numbers';
 import type { ReactionUsage, Tap } from '@/lib/reactions';
 import {
@@ -529,7 +529,7 @@ export function EmojiPicker({
             return [
                 {
                     name: 'Results',
-                    emoji: searchEmojiByUse(query, uses, 200).map(
+                    emoji: searchEmoji(query, uses).map(
                         (result) => result.emoji,
                     ),
                 },

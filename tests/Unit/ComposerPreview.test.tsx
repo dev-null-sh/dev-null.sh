@@ -149,7 +149,7 @@ function renderComposer(body: string, isInDialog = false): string {
                                 user: {
                                     id: 'preview-user',
                                     name: 'Preview User',
-                                    username: 'previewuser',
+                                    handle: 'previewuser',
                                     lane: 0,
                                 },
                                 log: {},
@@ -422,7 +422,7 @@ for (const pasteisMode of [false, true]) {
             }
         });
 
-        test(`preserves code, URLs, usernames and larger words with mode ${pasteisMode ? 'on' : 'off'} in ${isStatic ? 'excerpts' : 'commits'}`, () => {
+        test(`preserves code, URLs, handles and larger words with mode ${pasteisMode ? 'on' : 'off'} in ${isStatic ? 'excerpts' : 'commits'}`, () => {
             const preview = previewFor({
                 body: 'pastel https://pasteis.com/pastel @pastel pastels pastelaria épastel pastelé pastel_1\n`pasteis`\n```text\npastéis\n```',
                 isSubmittable: true,

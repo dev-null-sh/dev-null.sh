@@ -30,7 +30,7 @@ export function UserSafetyMenu({
     className,
     onOpenChange,
 }: {
-    user: Pick<User, 'id' | 'username'>;
+    user: Pick<User, 'id' | 'handle'>;
     isMuting: boolean;
     isBlocking: boolean;
     className?: string;
@@ -79,7 +79,7 @@ export function UserSafetyMenu({
                         variant="outline"
                         size="icon"
                         className={cn('shrink-0', className)}
-                        aria-label={`More options for @${user.username}`}
+                        aria-label={`More options for @${user.handle}`}
                         data-test="user-safety-menu"
                     >
                         <Ellipsis />
@@ -98,8 +98,8 @@ export function UserSafetyMenu({
                     >
                         {isMuting ? <Volume2 /> : <VolumeX />}
                         {isMuting
-                            ? `Unmute @${user.username}`
-                            : `Mute @${user.username}`}
+                            ? `Unmute @${user.handle}`
+                            : `Mute @${user.handle}`}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                         variant={isBlocking ? 'default' : 'destructive'}
@@ -112,8 +112,8 @@ export function UserSafetyMenu({
                     >
                         <Ban />
                         {isBlocking
-                            ? `Unblock @${user.username}`
-                            : `Block @${user.username}`}
+                            ? `Unblock @${user.handle}`
+                            : `Block @${user.handle}`}
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
@@ -123,7 +123,7 @@ export function UserSafetyMenu({
                 onOpenChange={(open) => changeOpen(false, open)}
             >
                 <DialogContent>
-                    <DialogTitle>Block @{user.username}?</DialogTitle>
+                    <DialogTitle>Block @{user.handle}?</DialogTitle>
                     <DialogDescription>
                         You'll stop following each other. Neither of you will be
                         able to message, follow, reply to, or star the other, or

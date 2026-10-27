@@ -12,7 +12,7 @@ use Tests\Support\SshKeyPair;
 it('mirrors the github profile of the user', function (): void {
     $user = User::factory()->create([
         'github_id' => '583231',
-        'username' => 'old-username',
+        'handle' => 'old-handle',
         'email' => 'private@example.com',
         'has_sponsors_listing' => true,
     ]);
@@ -32,7 +32,7 @@ it('mirrors the github profile of the user', function (): void {
 
     expect($synced)->toBeTrue()
         ->and($user->refresh())
-        ->username->toBe('octocat')
+        ->handle->toBe('octocat')
         ->name->toBe('The Octocat')
         ->avatar_url->toBe('https://avatars.githubusercontent.com/u/583231?v=4')
         ->bio->toBe('I am the Octocat.')
@@ -75,7 +75,7 @@ it('mirrors the ssh keys of the user', function (): void {
     Http::fake([
         'api.github.com/user/583231' => Http::response(['id' => 583231, 'login' => 'octocat']),
     ]);
-    fakeGitHubSshKeys(User::factory()->make(['github_id' => '583231', 'username' => 'octocat']), [$publicKey]);
+    fakeGitHubSshKeys($user, [$publicKey], handle: 'octocat');
 
     resolve(UpdateUserProfile::class)->handle($user);
 
@@ -83,19 +83,19 @@ it('mirrors the ssh keys of the user', function (): void {
         ->and($user->sshKeys()->sole()->fingerprint)->toBe($publicKey->fingerprint());
 });
 
-it('looks the account up by its github id, so a renamed username cannot be claimed', function (): void {
-    $user = User::factory()->create(['github_id' => '583231', 'username' => 'old-username']);
+it('looks the account up by its github id, so a renamed handle cannot be claimed', function (): void {
+    $user = User::factory()->create(['github_id' => '583231', 'handle' => 'old-handle']);
 
     fakeGitHubAccount($user, ['login' => 'octocat']);
 
     resolve(UpdateUserProfile::class)->handle($user);
 
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.github.com/user/583231');
-    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'old-username'));
+    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'old-handle'));
 });
 
 it('leaves the profile and ssh keys untouched when github fails', function (int $status): void {
-    $user = User::factory()->create(['username' => 'old-username', 'bio' => 'Old bio']);
+    $user = User::factory()->create(['handle' => 'old-handle', 'bio' => 'Old bio']);
     $sshKey = SshKey::factory()->for($user)->create();
 
     Http::fake([
@@ -106,15 +106,15 @@ it('leaves the profile and ssh keys untouched when github fails', function (int 
 
     expect($synced)->toBeFalse()
         ->and($user->refresh())
-        ->username->toBe('old-username')
+        ->handle->toBe('old-handle')
         ->bio->toBe('Old bio')
         ->github_synced_at->toBeNull()
         ->and($sshKey->fresh())->not->toBeNull();
 })->with([403, 404, 500]);
 
 it('leaves the profile untouched when the ssh keys fail to sync', function (): void {
-    $stale = User::factory()->create(['github_id' => '1', 'username' => 'octocat']);
-    $user = User::factory()->create(['github_id' => '583231', 'username' => 'old-username']);
+    $stale = User::factory()->create(['github_id' => '1', 'handle' => 'octocat']);
+    $user = User::factory()->create(['github_id' => '583231', 'handle' => 'old-handle']);
 
     Http::fake([
         'api.github.com/user/583231' => Http::response(['id' => 583231, 'login' => 'octocat']),
@@ -125,25 +125,25 @@ it('leaves the profile untouched when the ssh keys fail to sync', function (): v
 
     expect($synced)->toBeFalse()
         ->and($user->refresh())
-        ->username->toBe('old-username')
+        ->handle->toBe('old-handle')
         ->github_synced_at->toBeNull()
-        ->and($stale->refresh()->username)->toBe('octocat');
+        ->and($stale->refresh()->handle)->toBe('octocat');
 });
 
 it('fails when github cannot be reached', function (): void {
-    $user = User::factory()->create(['username' => 'old-username']);
+    $user = User::factory()->create(['handle' => 'old-handle']);
 
     Http::fake(fn () => Http::failedConnection());
 
     $synced = resolve(UpdateUserProfile::class)->handle($user);
 
     expect($synced)->toBeFalse()
-        ->and($user->refresh()->username)->toBe('old-username');
+        ->and($user->refresh()->handle)->toBe('old-handle');
 });
 
-it('frees the stale username when syncing a renamed github account', function (string $staleUsername): void {
-    $stale = User::factory()->create(['github_id' => '1', 'username' => $staleUsername, 'bio' => 'Renamed away']);
-    $user = User::factory()->create(['github_id' => '583231', 'username' => 'old-username', 'email' => 'private@example.com']);
+it('frees the stale handle when syncing a renamed github account', function (string $staleUsername): void {
+    $stale = User::factory()->create(['github_id' => '1', 'handle' => $staleUsername, 'bio' => 'Renamed away']);
+    $user = User::factory()->create(['github_id' => '583231', 'handle' => 'old-handle', 'email' => 'private@example.com']);
 
     fakeGitHubAccount($user, ['login' => 'octocat']);
 
@@ -151,13 +151,13 @@ it('frees the stale username when syncing a renamed github account', function (s
 
     expect($synced)->toBeTrue()
         ->and($user->refresh())
-        ->username->toBe('octocat')
+        ->handle->toBe('octocat')
         ->github_id->toBe('583231')
         ->email->toBe('private@example.com')
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 
     expect($stale->refresh())
-        ->username->toBe('_renamed-1')
+        ->handle->toBe('_renamed-1')
         ->github_id->toBe('1')
         ->bio->toBe('Renamed away')
         ->and(User::query()->count())->toBe(2);

@@ -19,7 +19,7 @@ const original = {
     status: 'approved',
     body: 'The original commit',
     body_segments: [{ type: 'text', text: 'The original commit' }],
-    user: { id: 'author', name: 'Author', username: 'author', lane: 1 },
+    user: { id: 'author', name: 'Author', handle: 'author', lane: 1 },
 } as Commit;
 
 const reply = (id: string, overrides: Partial<Commit>): Commit =>
@@ -31,7 +31,7 @@ const reply = (id: string, overrides: Partial<Commit>): Commit =>
         body_segments: [{ type: 'text', text: `Body of ${id}` }],
         preview_segments: null,
         replies_count: 0,
-        user: { id, name: id, username: id, lane: 2 },
+        user: { id, name: id, handle: id, lane: 2 },
         ...overrides,
     }) as Commit;
 

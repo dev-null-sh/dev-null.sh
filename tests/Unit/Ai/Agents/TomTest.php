@@ -25,8 +25,8 @@ use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Tools\Request as ToolRequest;
 
 it('uses the reserved bot handle in its instructions after the real tom joins', function (): void {
-    User::factory()->create(['username' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
-    $owner = User::factory()->create(['username' => 'tom']);
+    User::factory()->create(['handle' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $owner = User::factory()->create(['handle' => 'tom']);
     $question = Commit::factory()->for($owner)->create(['body' => '@devnull-tom hello']);
 
     $instructions = new Tom($question)->instructions();
@@ -44,9 +44,9 @@ it('forces the selected tools before Tom answers and supports a bounded follow-u
     Commit::factory()->rejected()->create(['body' => 'Rejected secret', 'embedding' => embeddingVector(0)]);
     Commit::factory()->create(['body' => 'Deleted secret', 'deleted_at' => now(), 'embedding' => embeddingVector(0)]);
     KnowledgeBaseSection::factory()->create(['headings' => ['Stack'], 'content' => 'The platform uses PostgreSQL.', 'embedding' => embeddingVector(0)]);
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $question = Commit::factory()->create(['body' => '@tom explain the database and find posts about it', 'mentions' => ['tom' => $tom->id]]);
-    User::factory()->create(['github_id' => '123', 'username' => 'alice-local']);
+    User::factory()->create(['github_id' => '123', 'handle' => 'alice-local']);
     $calls = [
         ['name' => 'SearchCommits', 'arguments' => '{"query":"database"}'],
         ['name' => 'SearchKnowledgeBase', 'arguments' => '{"query":"platform database"}'],
@@ -139,7 +139,7 @@ it('retains all three search sources through retries and removes only spent tool
     Embeddings::fake([[embeddingVector(0)]]);
     Commit::factory()->create(['body' => 'I like the new badges.', 'embedding' => embeddingVector(0)]);
     KnowledgeBaseSection::factory()->create(['headings' => ['Badges'], 'content' => 'Badges reward milestones.', 'embedding' => embeddingVector(0)]);
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $previous = Commit::factory()->for($tom)->create(['body' => 'My knowledge-base budget is exhausted.']);
     $question = Commit::factory()->for($previous, 'parent')->create(['body' => 'Tell me about badges, how they evolved and what people think of them.']);
     $calls = ['SearchCommits', null, 'SearchKnowledgeBase', null,
@@ -212,7 +212,7 @@ it('routes a dated signup question to community statistics and supplies the cale
     resolve(Features::class)->update(Feature::Translations, false);
     User::factory()->count(2)->create(['created_at' => '2026-10-20 12:00:00']);
     User::factory()->create(['created_at' => '2026-10-19 12:00:00']);
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $question = Commit::factory()->create(['body' => '@tom how many people joined on October 20, 2026?', 'mentions' => ['tom' => $tom->id]]);
     Http::fake([
         'api.openai.com/v1/decisions' => Http::response(['answers' => [
@@ -250,7 +250,7 @@ it('routes a dated signup question to community statistics and supplies the cale
 it('uses public thread context for the decision and falls back to chat when no tool is selected', function (): void {
     config(['ai.providers.openai.key' => 'test-openai', 'ai.providers.opencode.key' => 'test-opencode']);
     Queue::fake([EmbedCommit::class, ModerateCommit::class, ReplyAsTom::class]);
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $root = Commit::factory()->create(['body' => 'How do bookmarks work?']);
     $answer = Commit::factory()->for($root, 'parent')->for($tom)->create(['body' => 'They save posts for later.']);
     Commit::factory()->for($root, 'parent')->create(['body' => 'Unrelated sibling']);
@@ -288,7 +288,7 @@ it('retries skipped tools at most twice and never publishes an incomplete reply'
     resolve(Features::class)->update(Feature::Translations, false);
     Embeddings::fake([[embeddingVector(0)]]);
     KnowledgeBaseSection::factory()->create(['headings' => ['Pastéis'], 'content' => 'Pastéis are pastry awards.', 'embedding' => embeddingVector(0)]);
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $root = Commit::factory()->create(['body' => 'What are pastels here?']);
     $answer = Commit::factory()->for($root, 'parent')->for($tom)->create(['body' => 'Pastels are pale colors.']);
     $question = Commit::factory()->for($answer, 'parent')->create(['body' => 'I MEANT PASTEIS, TOM']);
@@ -353,13 +353,13 @@ it('selects only known affirmative predicates at or above the probability thresh
 });
 
 it('remembers only the public ancestor branch with the correct speakers', function (): void {
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
-    $user = User::factory()->create(['username' => 'alice']);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $user = User::factory()->create(['handle' => 'alice']);
     $root = Commit::factory()->for($user)->create(['body' => 'What is this place?']);
     $answer = Commit::factory()->for($root, 'parent')->for($tom)->create(['body' => 'A developer community.']);
     Commit::factory()->for($root, 'parent')->create(['body' => 'A different branch.']);
     Commit::factory()->create(['body' => 'An unrelated thread.']);
-    $newcomer = User::factory()->create(['username' => 'bob']);
+    $newcomer = User::factory()->create(['handle' => 'bob']);
     $question = Commit::factory()->for($answer, 'parent')->for($newcomer)->create(['body' => '@tom and who started it?']);
 
     expect(new Tom($question)->messages()->map(fn (Message $message): array => [$message->role->value, $message->content])->all())->toBe([
@@ -376,7 +376,7 @@ it('remembers only the public ancestor branch with the correct speakers', functi
 });
 
 it('bounds history by both posts and characters and signals a nearly full window', function (int $length, int $expected): void {
-    $user = User::factory()->create(['username' => 'alice']);
+    $user = User::factory()->create(['handle' => 'alice']);
     $parent = null;
     for ($index = 0; $index < 15; $index++) {
         $parent = Commit::factory()->for($user)->create(['body' => str_repeat('x', $length), 'parent_id' => $parent?->id]);

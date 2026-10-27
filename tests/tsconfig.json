@@ -16,6 +16,7 @@
         "Unit/DraftImagePreview.test.tsx",
         "Unit/ImageAttachments.test.tsx",
         "Unit/StagedRail.test.tsx",
+        "Unit/StandaloneCommitGraphs.test.tsx",
         "Unit/UseNow.test.tsx",
         "Unit/FollowRequests.test.tsx",
         "Unit/FollowState.test.tsx",
