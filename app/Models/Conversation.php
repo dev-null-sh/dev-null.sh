@@ -49,7 +49,7 @@ final class Conversation extends Model
     use HasUuids;
 
     /**
-     * An org holds the maintainer and up to two hundred and fifty-five others.
+     * An org holds up to 256 people, the maintainer included.
      */
     public const int MAX_MEMBERS = 256;
 
