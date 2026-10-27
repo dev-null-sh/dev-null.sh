@@ -10,6 +10,7 @@ use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventFraming;
+use App\Http\Middleware\QueueGitHubSshKeySync;
 use App\Http\Middleware\RedirectBannedUsers;
 use App\Http\Middleware\SerializePushSessions;
 use App\Http\Middleware\StripNullBytes;
@@ -58,6 +59,7 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             UpdateLastSeenAt::class,
+            QueueGitHubSshKeySync::class,
             RedirectBannedUsers::class,
         ]);
 

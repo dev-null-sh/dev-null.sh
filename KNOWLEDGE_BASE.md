@@ -452,11 +452,11 @@ Source: [shortcut reference](resources/js/components/keyboard-shortcuts-dialog.t
 
 ### Terminal commits
 
-Settings → Terminal shows how to post using the `/commit` shell script. It signs the submission locally with an Ed25519 or RSA SSH key whose public half is on your GitHub account, as an authentication or a signing key, and /dev/null verifies that signature. No browser login or API token is required for that submission; your private key is not uploaded. The script can create commits, reply with `--reply` using a commit hash or link, and attach up to three images with `--image`, without descriptions.
+Settings → Terminal shows how to post using the `/commit` shell script. It signs the submission locally with an Ed25519 or RSA SSH key whose public half is on your GitHub account, as an authentication or a signing key, and /dev/null verifies that signature. Opening the site while you are signed in refreshes the keys on file, so a key added on GitHub after you signed in is recognized without signing out. No browser login or API token is required for that submission; your private key is not uploaded. The script can create commits, reply with `--reply` using a commit hash or link, and attach up to three images with `--image`, without descriptions.
 
 Before posting from the terminal or a GitHub Action, accept the [commit rules](#moderation) by making your first submission through the web composer. Terminal posts then follow the same moderation and 10-per-minute submission limit as browser posts, and always need 1–4,000 characters of text, even with images. Their first link supplies the default link card. Review a downloaded script before running it, and never paste a private key into a commit.
 
-Sources: [terminal instructions](resources/js/pages/terminal/show.tsx), [CLI routes](routes/api.php), [signature verification](app/Http/Middleware/AuthenticateSshSignature.php).
+Sources: [terminal instructions](resources/js/pages/terminal/show.tsx), [CLI routes](routes/api.php), [signature verification](app/Http/Middleware/AuthenticateSshSignature.php), [key refresh](app/Http/Middleware/QueueGitHubSshKeySync.php).
 
 Livestream history: terminal posting was reported working on [day one at 6:32:47](https://www.youtube.com/watch?v=6zCNQa3hNm0&t=23567s). The explanation that follows describes signing with an existing SSH private key and checking the public key on GitHub, with a curl command so users would not need to install a dedicated CLI. This was signed authentication, not anonymous posting, despite the conversation's shorthand about not setting up authentication.
 
