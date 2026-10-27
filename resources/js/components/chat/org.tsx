@@ -303,11 +303,6 @@ export function OrgMembersDialog({
     const maintainers = members.filter(
         (member) => member.role === 'maintainer',
     ).length;
-    const sortedMembers = members.toSorted(
-        (a, b) =>
-            Number(b.role === 'maintainer') - Number(a.role === 'maintainer') ||
-            a.user.name.localeCompare(b.user.name),
-    );
 
     const rename = async (event: FormEvent) => {
         event.preventDefault();
@@ -398,7 +393,7 @@ export function OrgMembersDialog({
                     </div>
 
                     <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
-                        {sortedMembers.map((member) => (
+                        {members.map((member) => (
                             <MemberRow
                                 key={member.user.id}
                                 org={org}
