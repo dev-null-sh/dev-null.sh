@@ -55,6 +55,19 @@ it('leaves replies out', function (): void {
     expect(relatedCommitIds($source))->toBeEmpty();
 });
 
+it('finds top-level commits through the vector index behind many closer replies', function (): void {
+    DB::statement('set local enable_sort = off');
+    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+    $otherRoot = Commit::factory()->create(['embedding' => embeddingVector(1)]);
+    foreach (range(1, 80) as $step) {
+        Commit::factory()->for($otherRoot, 'parent')->create(['embedding' => embeddingAtDistance($step / 1000)]);
+    }
+
+    $related = Commit::factory()->count(3)->create(['embedding' => embeddingAtDistance(0.2)]);
+
+    expect(relatedCommitIds($source))->toEqualCanonicalizing($related->pluck('id')->all());
+});
+
 it('drops commits past the distance cutoff', function (): void {
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     Commit::factory()->create(['embedding' => embeddingAtDistance(RelatedCommitsQuery::MAX_DISTANCE + 0.01)]);
