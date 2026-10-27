@@ -175,6 +175,10 @@ export function ImagePickerPreviews({
     const id = useId();
     const [describedIndex, setDescribedIndex] = useState<number | null>(null);
     const [viewedIndex, setViewedIndex] = useState<number | null>(null);
+    // The viewer is a chunk of its own, and rendering it at mount fetches it as soon as a composer holds an
+    // image, whether or not a preview is ever opened. It is mounted on the first open and left mounted after
+    // that, so closing it passes a null index: the lightbox animates out and keeps the state it had.
+    const [hasOpenedViewer, setHasOpenedViewer] = useState(false);
     const urls = images.map(objectUrlFor);
 
     if (images.length === 0) {
@@ -191,6 +195,11 @@ export function ImagePickerPreviews({
             : null;
     const altButtonId = (index: number) => `${id}-alt-${index}`;
     const previewButtonId = (index: number) => `${id}-preview-${index}`;
+
+    const openViewer = (index: number) => {
+        setHasOpenedViewer(true);
+        setViewedIndex(index);
+    };
 
     const closeViewer = () => {
         const indexToFocus = activeViewedIndex;
@@ -246,7 +255,7 @@ export function ImagePickerPreviews({
                             <button
                                 id={previewButtonId(index)}
                                 type="button"
-                                onClick={() => setViewedIndex(index)}
+                                onClick={() => openViewer(index)}
                                 aria-label={`Preview attached image ${index + 1}`}
                                 className="block cursor-pointer overflow-hidden rounded-md border bg-muted text-left transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                                 data-test="preview-image-button"
@@ -306,16 +315,18 @@ export function ImagePickerPreviews({
                 })}
             </ul>
 
-            <Suspense fallback={null}>
-                <ImageViewer
-                    images={shownImages}
-                    index={activeViewedIndex}
-                    onView={setViewedIndex}
-                    onClose={closeViewer}
-                    downloadUrl={(image) => image.url}
-                    downloadFilename={downloadFilename}
-                />
-            </Suspense>
+            {hasOpenedViewer && (
+                <Suspense fallback={null}>
+                    <ImageViewer
+                        images={shownImages}
+                        index={activeViewedIndex}
+                        onView={setViewedIndex}
+                        onClose={closeViewer}
+                        downloadUrl={(image) => image.url}
+                        downloadFilename={downloadFilename}
+                    />
+                </Suspense>
+            )}
 
             {editing !== null && (
                 <div
