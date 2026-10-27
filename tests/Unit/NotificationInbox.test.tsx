@@ -129,6 +129,21 @@ function categories(html: string, pressed: boolean): Set<string> {
     assert.match(html, /<button[^>]*aria-pressed="true"[^>]*>Quotes<\/button>/);
 });
 
+ test('renders poll results with their poll commit destination', async () => {
+    const pollEnded: NotificationGroup = {
+        ...quote,
+        type: 'poll_ended',
+        commit_id: 'poll-commit',
+        subject_id: 'poll-notice',
+        commit: { ...quoteCommit, id: 'poll-commit', quoted_commit_id: null },
+    };
+    const html = await renderInbox([pollEnded]);
+
+    assert.match(html, /closed a poll you voted in — the results are in/);
+    assert.match(html, /href="\/@quoter\/commits\/poll-commit"/);
+    assert.match(html, /My quote commentary/);
+});
+
  test('shows the quoted commit under a quote, or a tombstone once it is deleted', async () => {
     const html = await renderInbox([
         {

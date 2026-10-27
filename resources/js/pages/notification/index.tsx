@@ -3,6 +3,7 @@ import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
 import {
     ArrowUp,
     AtSign,
+    ChartBar,
     Check,
     ChevronDown,
     ChevronsUp,
@@ -70,7 +71,7 @@ const filterOptions: {
     {
         type: 'all',
         label: 'All',
-        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, level-ups, and moderation updates for your commits will show up here.',
+        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, poll results, level-ups, and moderation updates for your commits will show up here.',
     },
     {
         type: 'replies',
@@ -764,6 +765,7 @@ export function NotificationContent({
         replied: MessageSquareReply,
         quoted: Quote,
         starred: Star,
+        poll_ended: ChartBar,
         mentioned: AtSign,
         approved: Check,
         rejected: X,
@@ -803,6 +805,7 @@ export function NotificationContent({
         starred: isImageOnly
             ? `starred your ${starredImages.length === 1 ? 'image' : 'images'}`
             : 'starred your commit',
+        poll_ended: 'closed a poll you voted in — the results are in',
         mentioned: 'mentioned you',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',

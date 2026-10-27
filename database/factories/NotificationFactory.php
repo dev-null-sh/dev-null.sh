@@ -7,6 +7,8 @@ namespace Database\Factories;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
+use App\Models\Poll;
+use App\Models\PollVote;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -37,6 +39,7 @@ final class NotificationFactory extends Factory
                 'key' => match ($notification->type) {
                     NotificationType::Starred => 'starred:'.$notification->commit_id.':'.$notification->actor_id,
                     NotificationType::LeveledUp => 'leveled_up:'.$notification->level,
+                    NotificationType::PollEnded => 'poll-ended:'.$notification->subject_id,
                     default => $notification->type->value.':'.($notification->commit_id ?? $notification->actor_id),
                 },
             ]))
@@ -120,6 +123,31 @@ final class NotificationFactory extends Factory
                 ->for(User::query()->whereKey($attributes['actor_id'])->sole())
                 ->create(['body' => 'Thanks @'.User::query()->whereKey($attributes['recipient_id'])->sole()->handle])
                 ->id,
+        ]);
+    }
+
+    /**
+     * Poll results from the author of the poll's commit to the recipient, who voted.
+     */
+    public function pollEnded(): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'type' => NotificationType::PollEnded,
+            'commit_id' => function (array $attributes): string {
+                $poll = Poll::factory()
+                    ->for(Commit::factory()->for(User::query()->whereKey($attributes['actor_id'])->sole()))
+                    ->closed()
+                    ->withOptions('First', 'Second')
+                    ->create();
+
+                PollVote::factory()->create([
+                    'poll_option_id' => $poll->options->firstOrFail()->id,
+                    'user_id' => $attributes['recipient_id'],
+                ]);
+
+                return (string) $poll->commit_id;
+            },
+            'subject_id' => fn (array $attributes): string => Commit::query()->whereKey($attributes['commit_id'])->sole('id')->id,
         ]);
     }
 
