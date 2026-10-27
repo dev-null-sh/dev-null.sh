@@ -360,10 +360,12 @@ it('erases the previews of links to commits that deleted accounts already took w
     $leftovers = collect([
         LinkPreview::factory()->create(['url' => url("/@gone/commits/{$tombstone->id}")]),
         LinkPreview::factory()->create(['url' => url('/@gone/commits/'.mb_strtoupper($gone))]),
+        LinkPreview::factory()->create(['url' => str_replace('://', '://www.', url("/@gone/commits/{$gone}"))]),
     ]);
     $kept = collect([Commit::factory()->create(), Commit::factory()->create(['deleted_at' => now()])])
         ->map(fn (Commit $commit): LinkPreview => LinkPreview::factory()->create(['url' => url("/@{$commit->user->handle}/commits/{$commit->id}")]))
-        ->push(LinkPreview::factory()->create(['url' => "https://example.com/@gone/commits/{$gone}"]));
+        ->push(LinkPreview::factory()->create(['url' => "https://example.com/@gone/commits/{$gone}"]))
+        ->push(LinkPreview::factory()->create(['url' => str_replace('://', '://not', url("/@gone/commits/{$gone}"))]));
 
     $migration = require database_path('migrations/2026_10_27_160000_erase_the_link_previews_of_erased_commits.php');
     $migration->up();
