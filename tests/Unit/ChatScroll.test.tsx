@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import assert from 'node:assert/strict';
 import * as React from 'react';
 import type { ReactElement, ReactNode } from 'react';
@@ -28,6 +29,7 @@ vi.doMock('react', () => ({
     },
     useMemo: (compute: () => unknown) => compute(),
     useCallback: (callback: unknown) => callback,
+    useId: () => 'id',
     useEffect: (effect: () => unknown) => {
         effects.push(effect);
     },
@@ -41,7 +43,7 @@ vi.doMock('react', () => ({
 }));
 vi.doMock('../../resources/js/hooks/use-chat', () => ({
     useThread: () => thread,
-    useChat: () => ({}),
+    useChat: () => ({ mutePreferences: {} }),
 }));
 vi.doMock('../../resources/js/hooks/use-stash', () => ({
     useStash: () => ({}),

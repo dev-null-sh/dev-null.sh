@@ -1,9 +1,9 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
+import { test } from 'vite-plus/test';
 import { CommitSecondaryActions } from '../../resources/js/components/commit-secondary-actions';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import type { Commit } from '../../resources/js/types';

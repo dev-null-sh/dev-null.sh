@@ -10,6 +10,7 @@ vi.doMock('react', () => ({
 }));
 
 const { LocalTime } = await import('../../resources/js/components/local-time');
+const { formatZonedTime } = await import('../../resources/js/lib/utils');
 
 afterEach(() => vi.useRealTimers());
 
@@ -19,10 +20,7 @@ test('shows the time in the given timezone with its offset', () => {
     const html = renderToStaticMarkup(
         <LocalTime timeZone="Europe/Berlin" as="p" className="mt-2" />,
     );
-    const expected = new Date('2026-07-01T10:06:00Z').toLocaleTimeString(
-        undefined,
-        { hour: 'numeric', minute: '2-digit', timeZone: 'Europe/Berlin' },
-    );
+    const expected = formatZonedTime('2026-07-01T10:06:00Z', 'Europe/Berlin');
 
     assert.ok(html.startsWith('<p class="flex items-center gap-1.5 mt-2"'));
     assert.ok(html.includes('dateTime="2026-07-01T10:06:00.000Z"'));

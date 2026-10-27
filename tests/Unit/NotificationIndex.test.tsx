@@ -1,10 +1,10 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import type { ReactElement } from 'react';
 import { renderToString } from 'react-dom/server';
+import { test } from 'vite-plus/test';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import { laneColor } from '../../resources/js/lib/utils';
 import Index, {
@@ -136,7 +136,7 @@ void test('separates last-visit activity without a border under the preceding no
 });
 
 void test('colors each notification rail by actor and ends it in a dot', async () => {
-    const nextActor = { ...other, lane: 5 };
+    const nextActor = { ...other, lane: 5, is_followed: false };
     const body = await render([
         notification,
         {
@@ -186,7 +186,7 @@ for (const isFollowing of [false, true]) {
         assert.match(
             body,
             new RegExp(
-                `aria-label="${isFollowing ? 'Unfollow' : 'Follow'} @mnapoli"`,
+                `aria-label="${isFollowing ? 'Unfollow @mnapoli' : 'Follow @mnapoli back'}"`,
             ),
         );
         assert.match(body, /followed you/);
@@ -218,7 +218,7 @@ void test('shows the image of a starred image-only commit beside who starred it'
 
     assert.match(
         body,
-        /and 2 others <a\b[^>]*data-notification-link[^>]*>starred your image<\/a>/,
+        /and 2 others <\/span><a\b[^>]*data-notification-link[^>]*>starred your image<\/a>/,
     );
     assert.match(body, /<img[^>]*src="\/commit-images\/image"/);
     assert.doesNotMatch(body, /<div[^>]*>(?:<div[^>]*>)*(?:<\/div>)+<\/a>/);
