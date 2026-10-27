@@ -192,6 +192,7 @@ export function CommitPoll({
                                 size="sm"
                                 onClick={vote}
                                 disabled={choice === '' || request.processing}
+                                className="min-w-19"
                                 data-test="poll-vote-button"
                             >
                                 {request.processing ? 'Voting…' : 'Vote'}
