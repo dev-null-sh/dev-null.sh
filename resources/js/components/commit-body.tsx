@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { CertificateText } from '@/components/certificate-text';
 import { CodeBlock } from '@/components/code-block';
 import { LinkifiedText } from '@/components/linkified-text';
+import { MermaidDiagram } from '@/components/mermaid-diagram';
 import { bodyBlocks } from '@/lib/code';
 import { emojify } from '@/lib/emoji';
 import { cn } from '@/lib/utils';
@@ -13,11 +14,13 @@ export function CommitBody({
     mentions,
     className,
     isStatic = false,
+    renderDiagrams = true,
 }: {
     segments: BodySegment[];
     mentions: Commit['mentions'];
     className?: string;
     isStatic?: boolean;
+    renderDiagrams?: boolean;
 }) {
     return (
         <div
@@ -37,6 +40,7 @@ export function CommitBody({
                             segments={block.segments}
                             mentions={mentions}
                             isStatic={isStatic}
+                            renderDiagrams={renderDiagrams}
                         />
                     </blockquote>
                 ) : (
@@ -45,6 +49,7 @@ export function CommitBody({
                         segments={block.segments}
                         mentions={mentions}
                         isStatic={isStatic}
+                        renderDiagrams={renderDiagrams}
                     />
                 ),
             )}
@@ -56,10 +61,12 @@ export function BodySegments({
     segments,
     mentions,
     isStatic = false,
+    renderDiagrams = true,
 }: {
     segments: BodySegment[];
     mentions: Commit['mentions'];
     isStatic?: boolean;
+    renderDiagrams?: boolean;
 }) {
     const { auth } = usePage().props;
 
@@ -87,6 +94,20 @@ export function BodySegments({
                             </code>
                         );
                     case 'block':
+                        if (
+                            renderDiagrams &&
+                            !isStatic &&
+                            segment.language?.toLowerCase() === 'mermaid' &&
+                            segment.source !== undefined
+                        ) {
+                            return (
+                                <MermaidDiagram
+                                    key={index}
+                                    source={segment.source}
+                                />
+                            );
+                        }
+
                         return (
                             <CodeBlock
                                 key={index}

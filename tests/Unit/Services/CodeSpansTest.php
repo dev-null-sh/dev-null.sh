@@ -152,3 +152,16 @@ it('never lets a code block pick its own CSS classes', function (): void {
         ->toContain('evil.example')
         ->toContain('class="hl-operator"');
 });
+
+it('preserves Mermaid source without allowing HTML in its fallback', function (string $language): void {
+    $source = 'flowchart LR'."\n".'A[<script>alert(1)</script> & welcome] --> B[Done]';
+
+    expect(resolve(CodeSpans::class)->highlight("```{$language}\n{$source}\n```"))->toBe([
+        [
+            'type' => 'block',
+            'language' => $language,
+            'html' => 'flowchart LR'."\n".'A[&lt;script&gt;alert(1)&lt;/script&gt; &amp; welcome] --&gt; B[Done]',
+            'source' => $source,
+        ],
+    ]);
+})->with(['mermaid', 'MERMAID']);

@@ -76,7 +76,7 @@ final readonly class CodeSpans
      * Splits the text into prose, inline code and highlighted code blocks. The highlighter escapes the code, so a
      * block's HTML is safe to render as is. The line breaks around a block are dropped, since it is a block already.
      *
-     * @return list<array{type: 'text', text: string}|array{type: 'code', code: string}|array{type: 'block', language: string|null, html: string}>
+     * @return list<array{type: 'text', text: string}|array{type: 'code', code: string}|array{type: 'block', language: string|null, html: string, source?: string}>
      */
     public function highlight(string $text): array
     {
@@ -124,17 +124,29 @@ final readonly class CodeSpans
     }
 
     /**
-     * @return array{type: 'block', language: string|null, html: string}
+     * @return array{type: 'block', language: string|null, html: string, source?: string}
      */
     private function block(string $part): array
     {
         $lines = explode("\n", str_replace("\r\n", "\n", $part));
         $language = strtok(mb_ltrim($lines[0], '`'), " \t") ?: null;
+        $source = implode("\n", array_slice($lines, 1, -1));
+
+        // Preserve exact Mermaid source instead of sending highlighted HTML to the diagram renderer.
+        // The regular HTML field stays escaped for previews and non-interactive surfaces.
+        if ($language !== null && mb_strtolower($language) === 'mermaid') {
+            return [
+                'type' => 'block',
+                'language' => $language,
+                'html' => htmlspecialchars($source, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
+                'source' => $source,
+            ];
+        }
 
         return [
             'type' => 'block',
             'language' => $language,
-            'html' => $this->highlighter->parse(implode("\n", array_slice($lines, 1, -1)), $language === null ? null : mb_strtolower($language)),
+            'html' => $this->highlighter->parse($source, $language === null ? null : mb_strtolower($language)),
         ];
     }
 }

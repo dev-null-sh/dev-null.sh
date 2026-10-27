@@ -25,10 +25,13 @@ function block(part: string): BodySegment {
     const lines = part.replaceAll('\r\n', '\n').split('\n');
     const language = lines[0].replace(/^`+/, '').trim().split(/[ \t]/)[0];
 
+    const source = lines.slice(1, -1).join('\n');
+
     return {
         type: 'block',
         language: language === '' ? null : language,
-        html: escapeHtml(lines.slice(1, -1).join('\n')),
+        html: escapeHtml(source),
+        ...(language.toLowerCase() === 'mermaid' ? { source } : {}),
     };
 }
 

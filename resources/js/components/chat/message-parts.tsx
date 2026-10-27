@@ -48,6 +48,7 @@ export function MessageText({
             segments={segments}
             mentions={message.mentions ?? null}
             className={cn('flow-root leading-snug', { [onPrimary]: isMine })}
+            renderDiagrams={false}
         />
     );
 }
