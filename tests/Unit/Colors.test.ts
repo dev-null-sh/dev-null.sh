@@ -74,12 +74,13 @@ await test('ends a hex color at a zero-width character, as a hashtag ends', () =
 await test('finds CSS color functions as whole words, in order with hex colors', () => {
     assert.deepEqual(
         values(
-            'Use rgb(255 138 76), #fff, rgba(255, 138, 76, 0.5) or HSL(20 100% 65% / 50%)!\n>oklch(0.75 0.15 50deg) oklab(.7 -.1 .1) lab(52% 40 59) lch(52% 72 56)',
+            'Use rgb(255 138 76), #fff, rgba(255, 138, 76, 0.5), hsl(20, 100%, 65%) or HSL(20 100% 65% / 50%)!\n>oklch(0.75 0.15 50deg) oklab(.7 -.1 .1) lab(52% 40 59) lch(52% 72 56)',
         ),
         [
             'rgb(255 138 76)',
             'fff',
             'rgba(255, 138, 76, 0.5)',
+            'hsl(20, 100%, 65%)',
             'HSL(20 100% 65% / 50%)',
             'oklch(0.75 0.15 50deg)',
             'oklab(.7 -.1 .1)',
