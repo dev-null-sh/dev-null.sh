@@ -50,6 +50,8 @@ export function graphEdges(
     const byId = new Map(nodes.map((node) => [node.id, node]));
     const edges: GraphEdge[] = [];
 
+    let branches: ReturnType<typeof branchNeighbors> | undefined;
+
     for (const node of nodes) {
         const previous =
             node.after === undefined ? undefined : byId.get(node.after);
@@ -62,23 +64,11 @@ export function graphEdges(
             node.parent === undefined ? undefined : byId.get(node.parent);
 
         if (parent) {
-            const continues = nodes.some(
-                (other) =>
-                    other.after === parent.id &&
-                    other.y > node.y &&
-                    !drawing.has(trunkId(parent, other)),
-            );
-            const above = nodes
-                .filter(
-                    (other) => other.parent === parent.id && other.y < node.y,
-                )
-                .reduce<GraphNode | undefined>(
-                    (closest, other) =>
-                        closest === undefined || other.y > closest.y
-                            ? other
-                            : closest,
-                    undefined,
-                );
+            branches ??= branchNeighbors(nodes, drawing);
+            const { continuationBottom, aboveNode } = branches;
+            const continues =
+                (continuationBottom.get(parent.id) ?? -Infinity) > node.y;
+            const above = aboveNode.get(node);
 
             edges.push(
                 branch(
@@ -95,6 +85,46 @@ export function graphEdges(
     }
 
     return edges;
+}
+
+/** Lazily built: a canvas with trunks alone needs no branch indexes. */
+function branchNeighbors(nodes: GraphNode[], drawing: ReadonlySet<string>) {
+    // Index each parent's column once rather than scanning the whole canvas per reply.
+    const continuationBottom = new Map<string, number>();
+    const siblings = new Map<string, GraphNode[]>();
+    for (const node of nodes) {
+        if (
+            node.after !== undefined &&
+            !drawing.has(`${node.after}->${node.id}`)
+        ) {
+            const bottom = continuationBottom.get(node.after) ?? -Infinity;
+            if (node.y > bottom) continuationBottom.set(node.after, node.y);
+        }
+        if (node.parent !== undefined && !Number.isNaN(node.y)) {
+            const group = siblings.get(node.parent);
+            if (group) group.push(node);
+            else siblings.set(node.parent, [node]);
+        }
+    }
+
+    const aboveNode = new Map<GraphNode, GraphNode>();
+    for (const group of siblings.values()) {
+        group.sort((a, b) => a.y - b.y);
+        let above: GraphNode | undefined;
+        for (let index = 0; index < group.length;) {
+            const first = group[index];
+            let next = index;
+            // Equal-height siblings share the previous row. Keep input-order tie breaking.
+            while (next < group.length && group[next].y === first.y) {
+                if (above) aboveNode.set(group[next], above);
+                next++;
+            }
+            above = first;
+            index = next;
+        }
+    }
+
+    return { continuationBottom, aboveNode };
 }
 
 /**

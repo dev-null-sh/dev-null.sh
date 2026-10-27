@@ -117,6 +117,7 @@ export default function Show({
                     endsWithDot={shown.length === 0}
                     threadPosition={positionAt(focusedPosition)}
                     isFocused
+                    prioritizeImage
                 />
 
                 {shown.map((next, index) => {

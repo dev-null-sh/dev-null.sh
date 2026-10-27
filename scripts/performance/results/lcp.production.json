@@ -1,0 +1,44 @@
+[
+    {
+        "label": "desktop-warm",
+        "url": "https://dev-null.sh/",
+        "date": "2026-10-27",
+        "configuration": {
+            "cpu": 1,
+            "network": "none",
+            "viewport": "1365x768",
+            "visit": "reload after initial navigation; service worker active"
+        },
+        "note": "Single production trace, not measurements of the local patch. Dynamic feed content differs across visits.",
+        "metrics": {
+            "lcp_ms": 786,
+            "ttfb_ms": 708,
+            "render_delay_ms": 78,
+            "cls": 0.067,
+            "lcp_element": "text"
+        }
+    },
+    {
+        "label": "mobile-cold",
+        "url": "https://dev-null.sh/",
+        "date": "2026-10-27",
+        "configuration": {
+            "cpu": 4,
+            "network": "Slow 4G",
+            "viewport": "390x844 @3x",
+            "visit": "new isolated browser; recording started on about:blank before navigation"
+        },
+        "note": "Single production trace, not measurements of the local patch. Dynamic feed content differs across visits.",
+        "metrics": {
+            "lcp_ms": 7524,
+            "ttfb_ms": 564,
+            "resource_load_delay_ms": 2859,
+            "resource_load_duration_ms": 2007,
+            "render_delay_ms": 2094,
+            "cls": 0,
+            "lcp_element": "first feed card photo",
+            "image_initial_priority": "Low",
+            "image_final_priority": "High"
+        }
+    }
+]

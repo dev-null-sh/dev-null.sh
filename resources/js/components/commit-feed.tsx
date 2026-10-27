@@ -199,6 +199,11 @@ export function CommitFeed({
     const card = (commit: Commit) => (
         <CommitCard
             commit={commit}
+            prioritizeImage={
+                page.component === 'log/show' &&
+                pinnedCommit === null &&
+                commit.id === listed[0]?.id
+            }
             endsWithDot
             isDimmed={isDimmed(commit)}
             isHighlighted={
@@ -230,6 +235,7 @@ export function CommitFeed({
                     </div>
                     <CommitCard
                         commit={pinnedCommit}
+                        prioritizeImage={page.component === 'log/show'}
                         endsWithDot
                         isDimmed={isDimmed(pinnedCommit)}
                         onHover={(isHovering, event) =>
