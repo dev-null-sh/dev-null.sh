@@ -32,7 +32,7 @@ it('imports the github follows of every user not imported yet, without notifying
 it('keeps going when the follows of a user cannot be imported', function (string $exception, Closure $response): void {
     Exceptions::fake();
 
-    $failing = User::factory()->create(['username' => 'failing']);
+    $failing = User::factory()->create(['handle' => 'failing']);
     $user = User::factory()->create();
 
     Http::fake(["api.github.com/user/{$failing->github_id}" => $response]);
@@ -55,7 +55,7 @@ it('keeps going when the follows of a user cannot be imported', function (string
 it('keeps going when github cannot be reached for a user', function (): void {
     Exceptions::fake();
 
-    $unreachable = User::factory()->create(['username' => 'unreachable']);
+    $unreachable = User::factory()->create(['handle' => 'unreachable']);
     $user = User::factory()->create();
 
     Http::fake(["api.github.com/user/{$unreachable->github_id}" => Http::failedConnection()]);

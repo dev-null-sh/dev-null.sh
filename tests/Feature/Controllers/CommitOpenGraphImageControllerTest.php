@@ -64,7 +64,7 @@ it('returns not found for commits that are not approved', function (Closure $fac
     'rejected' => [fn (): Commit => Commit::factory()->rejected()->create()],
 ]);
 
-it('returns not found for a commit under another username', function (): void {
+it('returns not found for a commit under another handle', function (): void {
     $commit = Commit::factory()->create();
 
     $this->get(route('commit-open-graph-image.show', [User::factory()->create(), $commit]))->assertNotFound();
@@ -73,7 +73,7 @@ it('returns not found for a commit under another username', function (): void {
 it('returns not found for unknown commits', function (): void {
     $user = User::factory()->create();
 
-    $this->get("/@{$user->username}/commits/01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3/og.png")->assertNotFound();
+    $this->get("/@{$user->handle}/commits/01a13f6e-ebdd-72c7-bf9d-be2a9b2315a3/og.png")->assertNotFound();
 });
 
 it('returns not found for deleted commits without rendering an image', function (): void {

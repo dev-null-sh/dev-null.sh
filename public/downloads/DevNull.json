@@ -1,10 +1,10 @@
 {
     "version": "0.1",
-    "build": 891,
-    "revision": "1e1c8145",
-    "released_at": "2026-10-25T11:23:03Z",
+    "build": 899,
+    "revision": "4f96a881-dirty",
+    "released_at": "2026-10-26T23:57:24Z",
     "minimum_system_version": "14.0",
     "notarized": true,
-    "size": 5196455,
-    "sha256": "77e2371b5a14005bc543807fab3dd67096855e394ba4d45755a6edd529a7e94d"
+    "size": 5261325,
+    "sha256": "0ac333e09062c21e577964e1296bdc428f0c8ea6b5b3d3f368d83e5d937d13c7"
 }

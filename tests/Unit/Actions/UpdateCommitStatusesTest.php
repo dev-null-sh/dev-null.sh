@@ -31,7 +31,7 @@ it('may approve many commits', function (): void {
 
 it('queues direct replies to Tom in bulk without per-reply queries', function (): void {
     config(['ai.providers.opencode.key' => 'test', 'ai.providers.openai.key' => 'test']);
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
 
     $queryCounts = collect([2, 6])->map(function (int $count) use ($tom): int {
         $parents = Commit::factory()->for($tom)->count($count)->create(['body' => 'A developer community.']);

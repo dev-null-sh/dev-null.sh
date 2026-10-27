@@ -3,7 +3,13 @@ import { ChevronRight } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import UserController from '@/actions/App/Http/Controllers/UserController';
 import { useNow } from '@/hooks/use-now';
-import { cn, dateLocale, formatDayLabel, localDayKey } from '@/lib/utils';
+import {
+    cn,
+    dateLocale,
+    formatDayLabel,
+    localDayKey,
+    readerClock,
+} from '@/lib/utils';
 import type { OperationsEvent, OperationsEventLevel } from '@/types';
 
 export const LEVEL_DOTS: Record<OperationsEventLevel, string> = {
@@ -15,17 +21,28 @@ export const LEVEL_DOTS: Record<OperationsEventLevel, string> = {
 
 const FRESH_MILLISECONDS = 2500;
 
-const timeFormat = new Intl.DateTimeFormat(dateLocale, {
+/** An event's time on the reader's clock, which only shows once the page renders. */
+function formatEventTime(
+    at: string,
+    options: Intl.DateTimeFormatOptions,
+): string {
+    return new Date(at).toLocaleString(dateLocale, {
+        ...options,
+        timeZone: readerClock().timeZone,
+    });
+}
+
+const timeOptions: Intl.DateTimeFormatOptions = {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
     hourCycle: 'h23',
-});
+};
 
-const fullFormat = new Intl.DateTimeFormat(dateLocale, {
+const fullOptions: Intl.DateTimeFormatOptions = {
     dateStyle: 'full',
     timeStyle: 'long',
-});
+};
 
 type Anchor = { id: string; top: number };
 
@@ -96,10 +113,10 @@ function EventRow({
         >
             <time
                 dateTime={event.at}
-                title={fullFormat.format(new Date(event.at))}
+                title={formatEventTime(event.at, fullOptions)}
                 className="text-muted-foreground tabular-nums"
             >
-                {timeFormat.format(new Date(event.at))}
+                {formatEventTime(event.at, timeOptions)}
             </time>
             <LevelBadge level={event.level} />
             <span

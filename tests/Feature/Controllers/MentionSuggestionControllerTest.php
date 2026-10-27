@@ -25,11 +25,11 @@ it('suggests the people the user follows without a term, most recently followed 
 });
 
 it('suggests matches, people the user follows first', function (): void {
-    $user = User::factory()->create(['username' => 'viewer', 'name' => 'Viewer']);
-    User::factory()->create(['username' => 'taylor', 'name' => 'Taylor']);
-    User::factory()->create(['username' => 'taylorbot', 'name' => 'Bot']);
-    $followed = User::factory()->create(['username' => 'taylorotwell', 'name' => 'Taylor Otwell']);
-    User::factory()->create(['username' => 'jess', 'name' => 'Jess Taylor']);
+    $user = User::factory()->create(['handle' => 'viewer', 'name' => 'Viewer']);
+    User::factory()->create(['handle' => 'taylor', 'name' => 'Taylor']);
+    User::factory()->create(['handle' => 'taylorbot', 'name' => 'Bot']);
+    $followed = User::factory()->create(['handle' => 'taylorotwell', 'name' => 'Taylor Otwell']);
+    User::factory()->create(['handle' => 'jess', 'name' => 'Jess Taylor']);
 
     $user->following()->attach($followed);
 
@@ -37,17 +37,17 @@ it('suggests matches, people the user follows first', function (): void {
 
     $response->assertOk()
         ->assertJsonCount(4, 'users')
-        ->assertJsonPath('users.0.username', 'taylorotwell')
-        ->assertJsonPath('users.1.username', 'taylor')
-        ->assertJsonPath('users.2.username', 'taylorbot')
-        ->assertJsonPath('users.3.username', 'jess');
+        ->assertJsonPath('users.0.handle', 'taylorotwell')
+        ->assertJsonPath('users.1.handle', 'taylor')
+        ->assertJsonPath('users.2.handle', 'taylorbot')
+        ->assertJsonPath('users.3.handle', 'jess');
 });
 
 it('matches literal wildcard characters in display names', function (string $name, string $query): void {
-    $match = User::factory()->create(['username' => 'matching', 'name' => $name]);
-    User::factory()->create(['username' => 'other', 'name' => 'JaneXDoe']);
+    $match = User::factory()->create(['handle' => 'matching', 'name' => $name]);
+    User::factory()->create(['handle' => 'other', 'name' => 'JaneXDoe']);
 
-    $this->actingAs(User::factory()->create(['username' => 'viewer']))
+    $this->actingAs(User::factory()->create(['handle' => 'viewer']))
         ->getJson('/search/mentions?q='.rawurlencode($query))
         ->assertOk()
         ->assertJsonCount(1, 'users')
@@ -59,7 +59,7 @@ it('matches literal wildcard characters in display names', function (string $nam
 ]);
 
 it('never suggests the user themselves', function (): void {
-    $user = User::factory()->create(['username' => 'nuno', 'name' => 'Nuno Maduro']);
+    $user = User::factory()->create(['handle' => 'nuno', 'name' => 'Nuno Maduro']);
 
     $response = $this->actingAs($user)->getJson('/search/mentions?q=nuno');
 
@@ -68,11 +68,11 @@ it('never suggests the user themselves', function (): void {
 });
 
 it('never suggests muted people or people across a block', function (string $term): void {
-    $user = User::factory()->create(['username' => 'viewer', 'name' => 'Viewer']);
-    $muted = User::factory()->create(['username' => 'taylor_muted']);
-    $blocked = User::factory()->create(['username' => 'taylor_blocked']);
-    $blocker = User::factory()->create(['username' => 'taylor_blocker']);
-    $visible = User::factory()->create(['username' => 'taylor']);
+    $user = User::factory()->create(['handle' => 'viewer', 'name' => 'Viewer']);
+    $muted = User::factory()->create(['handle' => 'taylor_muted']);
+    $blocked = User::factory()->create(['handle' => 'taylor_blocked']);
+    $blocker = User::factory()->create(['handle' => 'taylor_blocker']);
+    $visible = User::factory()->create(['handle' => 'taylor']);
 
     $user->following()->attach([$muted->id, $visible->id]);
     $user->muting()->attach($muted);
@@ -87,7 +87,7 @@ it('never suggests muted people or people across a block', function (string $ter
 })->with(['', 'taylor']);
 
 it('limits the number of suggestions', function (): void {
-    User::factory()->count(10)->sequence(fn ($sequence): array => ['username' => "dev{$sequence->index}"])->create();
+    User::factory()->count(10)->sequence(fn ($sequence): array => ['handle' => "dev{$sequence->index}"])->create();
 
     $response = $this->actingAs(User::factory()->create())
         ->getJson('/search/mentions?q=dev');
@@ -97,22 +97,22 @@ it('limits the number of suggestions', function (): void {
 });
 
 it("only suggests an org's members within it, people the user follows first", function (): void {
-    $mark = User::factory()->create(['username' => 'mark']);
+    $mark = User::factory()->create(['handle' => 'mark']);
     [$taylor, $jess] = followersOf($mark, 2);
-    $taylor->update(['username' => 'taylor']);
-    $jess->update(['username' => 'jess']);
-    User::factory()->create(['username' => 'taylorotwell']);
+    $taylor->profile->update(['handle' => 'taylor']);
+    $jess->profile->update(['handle' => 'jess']);
+    User::factory()->create(['handle' => 'taylorotwell']);
     $org = createOrg($mark, [$taylor, $jess]);
     $mark->following()->attach($taylor);
 
     $this->actingAs($mark)
         ->getJson(route('mention-suggestion.index', ['q' => '', 'org' => $org]))
         ->assertOk()
-        ->assertJsonPath('users.*.username', ['taylor', 'jess']);
+        ->assertJsonPath('users.*.handle', ['taylor', 'jess']);
 
     $this->getJson(route('mention-suggestion.index', ['q' => 'tay', 'org' => $org]))
         ->assertOk()
-        ->assertJsonPath('users.*.username', ['taylor']);
+        ->assertJsonPath('users.*.handle', ['taylor']);
 });
 
 it("does not suggest an org's members to people outside it", function (): void {
@@ -140,10 +140,10 @@ it('requires authentication', function (): void {
 
 it('ranks the direct recipient, root author, and nested contributors before ordinary matches', function (string $term): void {
     $viewer = User::factory()->create();
-    $rootAuthor = User::factory()->create(['username' => 'zroot', 'name' => 'Match Root']);
-    $recipient = User::factory()->create(['username' => 'zrecipient', 'name' => 'Match Recipient']);
-    $contributor = User::factory()->create(['username' => 'zcontributor', 'name' => 'Match Contributor']);
-    $outsider = User::factory()->create(['username' => 'match', 'name' => 'Outsider']);
+    $rootAuthor = User::factory()->create(['handle' => 'zroot', 'name' => 'Match Root']);
+    $recipient = User::factory()->create(['handle' => 'zrecipient', 'name' => 'Match Recipient']);
+    $contributor = User::factory()->create(['handle' => 'zcontributor', 'name' => 'Match Contributor']);
+    $outsider = User::factory()->create(['handle' => 'match', 'name' => 'Outsider']);
     $viewer->following()->attach($outsider);
     $root = Commit::factory()->for($rootAuthor)->create();
     $reply = Commit::factory()->for($recipient)->create(['parent_id' => $root->id]);
@@ -158,8 +158,8 @@ it('ranks the direct recipient, root author, and nested contributors before ordi
 
 it('ranks a root recipient once before contributors', function (): void {
     $viewer = User::factory()->create();
-    $author = User::factory()->create(['username' => 'zroot']);
-    $contributor = User::factory()->create(['username' => 'acontributor']);
+    $author = User::factory()->create(['handle' => 'zroot']);
+    $contributor = User::factory()->create(['handle' => 'acontributor']);
     $root = Commit::factory()->for($author)->create();
     Commit::factory()->for($contributor)->create(['parent_id' => $root->id]);
 
@@ -170,9 +170,9 @@ it('ranks a root recipient once before contributors', function (): void {
 });
 
 it('uses ordinary matching when none of the thread participants match', function (): void {
-    $viewer = User::factory()->create(['username' => 'viewer', 'name' => 'Viewer']);
-    $root = Commit::factory()->for(User::factory()->create(['username' => 'abc', 'name' => 'ABC']))->create();
-    $match = User::factory()->create(['username' => 'ijk', 'name' => 'IJK']);
+    $viewer = User::factory()->create(['handle' => 'viewer', 'name' => 'Viewer']);
+    $root = Commit::factory()->for(User::factory()->create(['handle' => 'abc', 'name' => 'ABC']))->create();
+    $match = User::factory()->create(['handle' => 'ijk', 'name' => 'IJK']);
 
     $this->actingAs($viewer)
         ->getJson(route('mention-suggestion.index', ['q' => 'i', 'reply' => $root->id]))
@@ -182,9 +182,9 @@ it('uses ordinary matching when none of the thread participants match', function
 
 it('prioritizes only the quoted author without looking up their thread contributors', function (string $term): void {
     $viewer = User::factory()->create();
-    $author = User::factory()->create(['username' => 'zauthor', 'name' => 'Match Author']);
-    $contributor = User::factory()->create(['username' => 'acontributor', 'name' => 'Match Contributor']);
-    $followed = User::factory()->create(['username' => 'match', 'name' => 'Followed']);
+    $author = User::factory()->create(['handle' => 'zauthor', 'name' => 'Match Author']);
+    $contributor = User::factory()->create(['handle' => 'acontributor', 'name' => 'Match Contributor']);
+    $followed = User::factory()->create(['handle' => 'match', 'name' => 'Followed']);
     $viewer->following()->attach($followed);
     $root = Commit::factory()->for($author)->create();
     Commit::factory()->for($contributor)->create(['parent_id' => $root->id]);
@@ -286,8 +286,8 @@ it('rejects mixing an org and commit context', function (string $context): void 
 it('keeps ordinary bare-at suggestions in recently followed order after the recipient', function (): void {
     $viewer = User::factory()->create();
     $root = Commit::factory()->create();
-    $older = User::factory()->create(['username' => 'aaa']);
-    $newer = User::factory()->create(['username' => 'zzz']);
+    $older = User::factory()->create(['handle' => 'aaa']);
+    $newer = User::factory()->create(['handle' => 'zzz']);
     $viewer->following()->attach($older, ['created_at' => now()->subMinute()]);
     $viewer->following()->attach($newer, ['created_at' => now()]);
 
@@ -299,9 +299,9 @@ it('keeps ordinary bare-at suggestions in recently followed order after the reci
 
 it('applies thread priority before limiting the matching suggestions', function (): void {
     $viewer = User::factory()->create();
-    $author = User::factory()->create(['username' => 'zdev', 'name' => 'Author']);
+    $author = User::factory()->create(['handle' => 'zdev', 'name' => 'Author']);
     $root = Commit::factory()->for($author)->create();
-    User::factory()->count(8)->sequence(fn ($sequence): array => ['username' => "adev{$sequence->index}"])->create();
+    User::factory()->count(8)->sequence(fn ($sequence): array => ['handle' => "adev{$sequence->index}"])->create();
 
     $this->actingAs($viewer)
         ->getJson(route('mention-suggestion.index', ['q' => 'dev', 'reply' => $root->id]))

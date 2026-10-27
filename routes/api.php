@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\ConversationMergeController;
 use App\Http\Controllers\Api\ConversationMessageController;
 use App\Http\Controllers\Api\ConversationMuteController;
 use App\Http\Controllers\Api\ConversationPinController;
+use App\Http\Controllers\Api\ConversationPingController;
 use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
@@ -25,6 +26,7 @@ use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\MacAppController;
 use App\Http\Controllers\Api\MessageImageController;
 use App\Http\Controllers\Api\MessageLinkPreviewController;
+use App\Http\Controllers\Api\MessagePinController;
 use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\MessageVoiceController;
 use App\Http\Controllers\Api\NotificationController;
@@ -35,10 +37,13 @@ use App\Http\Controllers\Api\OrgMemberController;
 use App\Http\Controllers\Api\OrgMessageController;
 use App\Http\Controllers\Api\OrgMuteController;
 use App\Http\Controllers\Api\OrgPinController;
+use App\Http\Controllers\Api\OrgPingController;
 use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\OrgTypingController;
 use App\Http\Controllers\Api\RemoteCandidateController;
 use App\Http\Controllers\Api\StarredCommitController;
+use App\Http\Controllers\Api\SuggestedUserController;
+use App\Http\Controllers\Api\SuggestionDismissalController;
 use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
@@ -51,6 +56,7 @@ use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\UserRemotePreferencesController;
 use App\Http\Controllers\Api\UserRemotesController;
+use App\Http\Controllers\Api\UserTermsController;
 use App\Http\Controllers\Cli\CommitController;
 use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
@@ -73,13 +79,13 @@ Route::prefix('cli')->group(function (): void {
 Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
     // Public, or as the web shows them to the user when signed by the mobile app...
     Route::middleware(AuthenticateSignedRequest::optional())->group(function (): void {
-        Route::get('users/{user:username}', [UserController::class, 'show'])
+        Route::get('users/{user:handle}', [UserController::class, 'show'])
             ->name('api-user.show');
-        Route::get('users/{user:username}/commits', [UserCommitController::class, 'index'])
+        Route::get('users/{user:handle}/commits', [UserCommitController::class, 'index'])
             ->name('api-user-commit.index');
-        Route::get('users/{user:username}/followers', [UserFollowersController::class, 'index'])
+        Route::get('users/{user:handle}/followers', [UserFollowersController::class, 'index'])
             ->name('api-user-followers.index');
-        Route::get('users/{user:username}/following', [UserFollowingController::class, 'index'])
+        Route::get('users/{user:handle}/following', [UserFollowingController::class, 'index'])
             ->name('api-user-following.index');
         Route::get('commits/{commit}', [ApiCommitController::class, 'show'])
             ->name('api-commit.show');
@@ -113,6 +119,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Pastéis...
         Route::put('me/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('api-user-pasteis-mode.update');
+        Route::put('me/terms', [UserTermsController::class, 'update'])->name('api-user-terms.update');
 
         // User Profile: mirrored from GitHub again, as Sync from GitHub does on the web...
         Route::put('me/github', [UserProfileController::class, 'update'])
@@ -171,28 +178,32 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-commit-star.destroy');
 
         // User Follow...
-        Route::post('users/{user:username}/follow', [UserFollowController::class, 'store'])
+        Route::post('users/{user:handle}/follow', [UserFollowController::class, 'store'])
             ->middleware('throttle:follows')
             ->name('api-user-follow.store');
-        Route::delete('users/{user:username}/follow', [UserFollowController::class, 'destroy'])
+        Route::delete('users/{user:handle}/follow', [UserFollowController::class, 'destroy'])
             ->middleware('throttle:follows')
             ->name('api-user-follow.destroy');
 
+        // Who to Follow...
+        Route::get('me/suggested-users', [SuggestedUserController::class, 'index'])->name('api-suggested-user.index');
+        Route::post('users/{user:handle}/dismiss', [SuggestionDismissalController::class, 'store'])->name('api-suggestion-dismissal.store');
+
         // User Mute...
         Route::get('me/muted', [UserMuteController::class, 'index'])->name('api-user-mute.index');
-        Route::post('users/{user:username}/mute', [UserMuteController::class, 'store'])->name('api-user-mute.store');
-        Route::delete('users/{user:username}/mute', [UserMuteController::class, 'destroy'])->name('api-user-mute.destroy');
+        Route::post('users/{user:handle}/mute', [UserMuteController::class, 'store'])->name('api-user-mute.store');
+        Route::delete('users/{user:handle}/mute', [UserMuteController::class, 'destroy'])->name('api-user-mute.destroy');
 
         // User Block...
         Route::get('me/blocked', [UserBlockController::class, 'index'])->name('api-user-block.index');
-        Route::post('users/{user:username}/block', [UserBlockController::class, 'store'])->name('api-user-block.store');
-        Route::delete('users/{user:username}/block', [UserBlockController::class, 'destroy'])->name('api-user-block.destroy');
+        Route::post('users/{user:handle}/block', [UserBlockController::class, 'store'])->name('api-user-block.store');
+        Route::delete('users/{user:handle}/block', [UserBlockController::class, 'destroy'])->name('api-user-block.destroy');
 
         // Remotes: stashing or muting a conversation or an org, and merging or dropping a fetched request...
         Route::middleware('throttle:conversations')->group(function (): void {
-            Route::post('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'store'])
+            Route::post('remotes/@{partner:handle}/archive', [ConversationArchiveController::class, 'store'])
                 ->name('api-conversation-archive.store');
-            Route::delete('remotes/@{partner:username}/archive', [ConversationArchiveController::class, 'destroy'])
+            Route::delete('remotes/@{partner:handle}/archive', [ConversationArchiveController::class, 'destroy'])
                 ->name('api-conversation-archive.destroy');
             Route::post('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'store'])
                 ->whereUuid('org')
@@ -200,9 +211,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::delete('remotes/orgs/{org}/archive', [OrgArchiveController::class, 'destroy'])
                 ->whereUuid('org')
                 ->name('api-org-archive.destroy');
-            Route::put('remotes/@{partner:username}/mute', [ConversationMuteController::class, 'update'])
+            Route::put('remotes/@{partner:handle}/mute', [ConversationMuteController::class, 'update'])
                 ->name('api-conversation-mute.update');
-            Route::put('remotes/@{partner:username}/pin', [ConversationPinController::class, 'update'])
+            Route::put('remotes/@{partner:handle}/pin', [ConversationPinController::class, 'update'])
                 ->name('api-conversation-pin.update');
             Route::put('remotes/orgs/{org}/mute', [OrgMuteController::class, 'update'])
                 ->whereUuid('org')
@@ -210,18 +221,18 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::put('remotes/orgs/{org}/pin', [OrgPinController::class, 'update'])
                 ->whereUuid('org')
                 ->name('api-org-pin.update');
-            Route::post('remotes/@{partner:username}/merge', [ConversationMergeController::class, 'store'])
+            Route::post('remotes/@{partner:handle}/merge', [ConversationMergeController::class, 'store'])
                 ->name('api-conversation-merge.store');
-            Route::post('remotes/@{partner:username}/drop', [ConversationDropController::class, 'store'])
+            Route::post('remotes/@{partner:handle}/drop', [ConversationDropController::class, 'store'])
                 ->name('api-conversation-drop.store');
         });
 
         // Remotes: the inbox and threads of the web's Remotes page, polled as often as it polls them...
         Route::middleware('throttle:conversations')->group(function (): void {
             Route::get('remotes', [ConversationController::class, 'index'])->name('api-conversation.index');
-            Route::get('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'index'])
+            Route::get('remotes/@{partner:handle}/messages', [ConversationMessageController::class, 'index'])
                 ->name('api-conversation-message.index');
-            Route::put('remotes/@{partner:username}/read', [ConversationReadController::class, 'update'])
+            Route::put('remotes/@{partner:handle}/read', [ConversationReadController::class, 'update'])
                 ->name('api-conversation-read.update');
             Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])
                 ->whereUuid('org')
@@ -236,7 +247,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Remotes: saying the user is typing, as the web's composer does every few seconds...
         Route::middleware('throttle:conversations')->group(function (): void {
-            Route::put('remotes/@{partner:username}/typing', [ConversationTypingController::class, 'update'])
+            Route::put('remotes/@{partner:handle}/typing', [ConversationTypingController::class, 'update'])
                 ->name('api-conversation-typing.update');
             Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])
                 ->whereUuid('org')
@@ -244,13 +255,22 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         });
 
         // Remotes: pushing a message, as often as the web's composer may...
-        Route::post('remotes/@{partner:username}/messages', [ConversationMessageController::class, 'store'])
+        Route::post('remotes/@{partner:handle}/messages', [ConversationMessageController::class, 'store'])
             ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
             ->name('api-conversation-message.store');
         Route::post('remotes/orgs/{org}/messages', [OrgMessageController::class, 'store'])
             ->whereUuid('org')
             ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
             ->name('api-org-message.store');
+
+        // Remotes: pinging the partner, as the web's composer does...
+        Route::post('remotes/@{partner:handle}/ping', [ConversationPingController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, 'throttle:pings'])
+            ->name('api-conversation-ping.store');
+        Route::post('remotes/orgs/{org}/ping', [OrgPingController::class, 'store'])
+            ->whereUuid('org')
+            ->middleware([PreventPostingInTimeout::class, 'throttle:pings'])
+            ->name('api-org-ping.store');
 
         // Remote Reactions...
         Route::middleware('throttle:conversations')->group(function (): void {
@@ -261,6 +281,17 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::delete('remotes/messages/{message}/reactions', [MessageReactionController::class, 'destroy'])
                 ->whereNumber('message')
                 ->name('api-message-reaction.destroy');
+        });
+
+        // Remote Pins: an org's maintainers pinning and unpinning messages for everyone in it...
+        Route::middleware('throttle:pins')->group(function (): void {
+            Route::put('remotes/messages/{message}/pin', [MessagePinController::class, 'update'])
+                ->whereNumber('message')
+                ->middleware(PreventPostingInTimeout::class)
+                ->name('api-message-pin.update');
+            Route::delete('remotes/messages/{message}/pin', [MessagePinController::class, 'destroy'])
+                ->whereNumber('message')
+                ->name('api-message-pin.destroy');
         });
 
         // Notifications...
@@ -283,11 +314,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
                 ->whereUuid('org')
                 ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
                 ->name('api-org-member.store');
-            Route::put('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'update'])
+            Route::put('remotes/orgs/{org}/members/{member:handle}', [OrgMemberController::class, 'update'])
                 ->whereUuid('org')
                 ->withoutScopedBindings()
                 ->name('api-org-member.update');
-            Route::delete('remotes/orgs/{org}/members/{member:username}', [OrgMemberController::class, 'destroy'])
+            Route::delete('remotes/orgs/{org}/members/{member:handle}', [OrgMemberController::class, 'destroy'])
                 ->whereUuid('org')
                 ->withoutScopedBindings()
                 ->name('api-org-member.destroy');

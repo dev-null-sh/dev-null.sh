@@ -13,7 +13,7 @@ beforeEach(function (): void {
 it('sends admins a test email right away, marked as a test', function (): void {
     Mail::fake();
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->fromRoute('email.create')
         ->post(route('test-email.store'), [
             'address' => 'someone@example.com',
@@ -30,7 +30,7 @@ it('sends admins a test email right away, marked as a test', function (): void {
 it('requires an email address', function (): void {
     Mail::fake();
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->post(route('test-email.store'), ['address' => 'nope', 'subject' => 'Hi', 'body' => 'Hi'])
         ->assertSessionHasErrors('address');
 

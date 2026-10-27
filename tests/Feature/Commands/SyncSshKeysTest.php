@@ -30,7 +30,7 @@ it('syncs the ssh keys of all users', function (): void {
 it('keeps going when the keys of a user cannot be synced', function (string $exception, Closure $response): void {
     Exceptions::fake();
 
-    $failing = User::factory()->create(['username' => 'failing']);
+    $failing = User::factory()->create(['handle' => 'failing']);
     $user = User::factory()->create();
     $publicKey = SshKeyPair::generate()->publicKey;
     $existingKey = SshKey::factory()->for($failing)->create();

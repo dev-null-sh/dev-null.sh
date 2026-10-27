@@ -11,6 +11,7 @@ use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventFraming;
 use App\Http\Middleware\RedirectBannedUsers;
+use App\Http\Middleware\SerializePushSessions;
 use App\Http\Middleware\StripNullBytes;
 use App\Http\Middleware\UpdateLastSeenAt;
 use App\Models\User;
@@ -26,6 +27,7 @@ use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Routing\Middleware\ThrottleRequests;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
@@ -41,7 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(StripNullBytes::class);
         $middleware->append(PreventFraming::class);
 
-        $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow', 'who_to_follow_round', 'lane_dimming', 'replies_per_page']);
+        $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow', 'who_to_follow_round', 'lane_dimming', 'replies_per_page', 'time_zone', 'hour_cycle']);
 
         $middleware->redirectGuestsTo(fn (): string => route('home'));
         $middleware->redirectUsersTo(fn (Request $request): string => route('log.show', $request->user()->log ?? Log::Following));
@@ -49,6 +51,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Rate limits apply to the user authenticated by their SSH signature...
         $middleware->prependToPriorityList(before: ThrottleRequests::class, prepend: AuthenticateSshSignature::class);
         $middleware->prependToPriorityList(before: ThrottleRequests::class, prepend: AuthenticateSignedRequest::class);
+        $middleware->prependToPriorityList(before: StartSession::class, prepend: SerializePushSessions::class);
 
         $middleware->web(append: [
             HandleAppearance::class,
