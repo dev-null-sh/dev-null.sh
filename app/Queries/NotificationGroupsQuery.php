@@ -157,16 +157,30 @@ final readonly class NotificationGroupsQuery
             ->cursorPaginate($perPage);
     }
 
+    /**
+     * The rows for the next window, scaled by how many groups this one found so it would hold twice the page and the
+     * one group past it, but never less than double nor more than eight times as many, so one sparse window cannot
+     * blow the next up to the whole history.
+     */
     private function widened(int $rows, int $perPage, int $found): int
     {
         return (int) ceil($rows * min(self::MAX_WINDOW_GROWTH, max(self::MIN_WINDOW_GROWTH, 2 * ($perPage + 1) / max(1, $found))));
     }
 
+    /**
+     * Whether fewer than twice the window's rows lie below the cursor, so the window would take at least half of them
+     * and grouping them all costs little more.
+     */
     private function windowCoversHalf(NotificationBuilder $below, int $rows): bool
     {
         return $below->clone()->offset(2 * $rows - 1)->doesntExist();
     }
 
+    /**
+     * Where a window of the given rows below the cursor begins: the oldest notification the inbox shows from the time
+     * of the row that many back. Null when the window would not be worth it, or no notification it shows lies there,
+     * and the page is grouped from the whole history instead.
+     */
     private function windowStart(User $user, ?Cursor $cursor, int $rows): ?CarbonInterface
     {
         $below = $this->below($user, $cursor)->latest()->latest('id');
