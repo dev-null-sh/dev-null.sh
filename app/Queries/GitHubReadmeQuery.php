@@ -67,11 +67,33 @@ final readonly class GitHubReadmeQuery
 
     /**
      * The repository a profile README lives in is named after the GitHub login, which the handle can lag behind after
-     * a rename on GitHub, so this is the login the README was last looked up with, or the handle until then.
+     * a rename on GitHub, so this is the GitHub login, or the handle when GitHub can't tell.
      */
     public function repository(User $user): string
     {
-        return Cache::string("github-login:{$user->github_id}", $user->handle);
+        try {
+            return $this->login($user) ?? $user->handle;
+        } catch (HttpClientException) {
+            return $user->handle;
+        }
+    }
+
+    /**
+     * Looked up by the account id, which never changes, and kept for a day like the README, so a README cached before
+     * the login was still finds its repository, and reading it again costs one GitHub call instead of two. Null when the
+     * GitHub account no longer exists.
+     *
+     * @throws HttpClientException
+     */
+    private function login(User $user): ?string
+    {
+        $key = "github-login:{$user->github_id}";
+
+        if (! Cache::has($key)) {
+            Cache::put($key, $this->github->login($user->github_id) ?? '', 86400);
+        }
+
+        return Cache::string($key) ?: null;
     }
 
     /**
@@ -79,13 +101,11 @@ final readonly class GitHubReadmeQuery
      */
     private function fetch(User $user): string
     {
-        $login = $this->github->login($user->github_id);
+        $login = $this->login($user);
 
         if ($login === null) {
             return '';
         }
-
-        Cache::put("github-login:{$user->github_id}", $login, 86400);
 
         $response = $this->github->request()
             ->replaceHeaders(['Accept' => 'application/vnd.github.html+json'])
