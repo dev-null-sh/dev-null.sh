@@ -19,6 +19,7 @@ import { GitHubProfile } from '@/components/github-profile';
 import InputError from '@/components/input-error';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LaneOptions, LanePreview } from '@/components/lane-picker';
+import { TermsDialog } from '@/components/terms-dialog';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
@@ -935,6 +936,7 @@ export default function Show({
                 onOpenChange={setIsShowingShortcuts}
                 canModerate={auth.isAdmin}
             />
+            <TermsDialog />
         </>
     );
 }

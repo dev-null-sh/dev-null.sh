@@ -124,6 +124,7 @@ use App\Http\Controllers\UserRemotePreferencesController;
 use App\Http\Controllers\UserRemotesController;
 use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
+use App\Http\Controllers\UserTermsController;
 use App\Http\Controllers\UserTimeoutController;
 use App\Http\Controllers\UserTimezoneController;
 use App\Http\Controllers\UserTranslationLanguageController;
@@ -506,6 +507,9 @@ Route::middleware('auth')->group(function (): void {
     Route::put('settings/pasteis-mode', [UserPasteisModeController::class, 'update'])->name('user-pasteis-mode.update');
 
     Route::put('settings/remotes', [UserRemotesController::class, 'update'])->name('user-remotes.update');
+
+    // User Terms, accepted from the dialog every page shows until the current version is...
+    Route::put('settings/terms', [UserTermsController::class, 'update'])->name('user-terms.update');
 
     // User Live...
     Route::put('settings/live', [UserLiveController::class, 'update'])
