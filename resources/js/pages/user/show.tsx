@@ -32,6 +32,7 @@ import { LocalTime } from '@/components/local-time';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { ProfileActionsMenu } from '@/components/profile-actions-menu';
+import { ProfileBackButton } from '@/components/profile-back-button';
 import { ProfileReadme } from '@/components/profile-readme';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
@@ -123,6 +124,7 @@ export default function Show({
             <Head title={`${user.name} (@${user.handle})`} />
 
             <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4 sm:px-6">
+                <ProfileBackButton className="shrink-0 transition-colors" />
                 <p className="min-w-0 truncate font-semibold">{user.name}</p>
                 <p
                     className="shrink-0 font-mono text-[13px] text-muted-foreground"
