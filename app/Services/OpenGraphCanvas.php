@@ -353,7 +353,7 @@ final readonly class OpenGraphCanvas
 
     public function text(string $text, string $font, int $size, int $x, int $y, int $color): void
     {
-        imagettftext($this->image, $this->points($size), 0, $x * self::SCALE, $y * self::SCALE, $color, $this->font($font), $text);
+        imagettftext($this->image, $this->points($size), 0, $x * self::SCALE, $y * self::SCALE, $color, $this->font($font), $this->literal($text));
     }
 
     public function width(string $text, string $font, int $size): int
@@ -438,6 +438,15 @@ final readonly class OpenGraphCanvas
         return $avatar instanceof GdImage ? $avatar : null;
     }
 
+    /**
+     * The text with its ampersands escaped, since GD draws numeric character references such as `&#65;` as the
+     * character they name rather than as typed.
+     */
+    private function literal(string $text): string
+    {
+        return str_replace('&', '&#38;', $text);
+    }
+
     private function ellipsis(string $text): string
     {
         return mb_rtrim($text, ' ,;:.-').'…';
@@ -448,7 +457,7 @@ final readonly class OpenGraphCanvas
      */
     private function box(string $text, string $font, int $size): array
     {
-        $box = imagettfbbox($this->points($size), 0, $this->font($font), $text);
+        $box = imagettfbbox($this->points($size), 0, $this->font($font), $this->literal($text));
 
         throw_if($box === false, RuntimeException::class, "Unable to measure text with [{$font}].");
 

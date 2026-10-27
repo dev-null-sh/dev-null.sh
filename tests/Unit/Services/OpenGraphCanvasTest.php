@@ -90,3 +90,10 @@ it('draws nothing for emoji, which GeistMono has no glyphs for', function (): vo
 
     expect(colorsIn($image, 208, 108, 1080, 140))->toBe([0x18181A]);
 });
+
+it('draws character references as typed rather than as the character they name', function (): void {
+    $image = drawCodeWindow("```html\n&#65;\n```");
+
+    expect(colorsIn($image, 240, 108, 280, 140))->not->toBe([0x18181A])
+        ->and((new OpenGraphCanvas)->width('&#65;', 'GeistMono-Regular', 22))->toBeGreaterThan((new OpenGraphCanvas)->width('&#6', 'GeistMono-Regular', 22));
+});
