@@ -16,6 +16,7 @@ type VisitOptions = {
 const visits: (VisitOptions & { method?: string })[] = [];
 const toasts: string[] = [];
 const locations: string[] = [];
+let flushAllCount = 0;
 let authUser: { id: string } | null = { id: 'viewer' };
 let preview: {
     isFollowing: boolean;
@@ -34,15 +35,16 @@ vi.doMock('react', () => ({
         typeof initial === 'function' ? initial() : initial,
         () => {},
     ],
-    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) =>
-        read(),
+    useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
 }));
 
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
     usePage: () => ({ props: { auth: { user: authUser } } }),
     router: {
-        flushAll: () => {},
+        flushAll: () => {
+            flushAllCount += 1;
+        },
         visit: (url: { method: string }, options: VisitOptions) =>
             visits.push({ ...options, method: url.method }),
     },
@@ -66,6 +68,8 @@ const { CommitAuthorFollowButton } =
     await import('../../resources/js/components/commit-author-follow-button');
 const { FollowButton, resolveIsFollowing, toggleFollow } =
     await import('../../resources/js/components/follow-button');
+const { peekSharedState, refreshSharedState } =
+    await import('../../resources/js/hooks/use-shared-state');
 
 vi.stubGlobal('window', {
     matchMedia: () => ({ matches: false }),
@@ -255,6 +259,7 @@ test('a follow that lands while the preview is pending wins over a stale respons
 test('toggleFollow posts a follow and reports success', () => {
     visits.length = 0;
     toasts.length = 0;
+    flushAllCount = 0;
     let following = false;
 
     toggleFollow(author('toastable'), false, (next) => {
@@ -262,7 +267,33 @@ test('toggleFollow posts a follow and reports success', () => {
     });
 
     assert.equal(visits.at(-1)?.method, 'post');
+    assert.equal(peekSharedState<boolean>('follow_pending:toastable'), true);
     visits.at(-1)?.onSuccess?.();
+    visits.at(-1)?.onFinish?.();
     assert.equal(following, true);
     assert.equal(toasts.at(-1), 'followed');
+    assert.equal(flushAllCount, 1);
+    assert.equal(peekSharedState<boolean>('follow_pending:toastable'), false);
+});
+
+test('toggleFollow skips while another follow for that author is pending', () => {
+    visits.length = 0;
+    let finished = false;
+    const user = author('busy-author');
+
+    refreshSharedState(new Map([[`follow_pending:${user.id}`, true]]));
+
+    toggleFollow(
+        user,
+        false,
+        () => {},
+        () => {
+            finished = true;
+        },
+    );
+
+    assert.equal(visits.length, 0);
+    assert.equal(finished, true);
+
+    refreshSharedState(new Map([[`follow_pending:${user.id}`, false]]));
 });

@@ -197,6 +197,14 @@ export function toggleFollow(
 ): void {
     const next = !isFollowing;
 
+    if (peekSharedState<boolean>(isPendingKey(user)) === true) {
+        onFinish?.();
+
+        return;
+    }
+
+    refreshSharedState(new Map([[isPendingKey(user), true]]));
+
     router.visit(
         next
             ? UserFollowController.store(user)
@@ -206,6 +214,7 @@ export function toggleFollow(
             preserveState: true,
             onSuccess: () => {
                 setIsFollowing(next);
+                router.flushAll();
                 toast(
                     <span className="font-mono text-[13px]">
                         {next
@@ -216,7 +225,10 @@ export function toggleFollow(
             },
             onHttpException: (response) =>
                 onFollowHttpException(user, response),
-            onFinish,
+            onFinish: () => {
+                refreshSharedState(new Map([[isPendingKey(user), false]]));
+                onFinish?.();
+            },
         },
     );
 }

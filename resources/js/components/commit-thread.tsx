@@ -1311,7 +1311,6 @@ function CommitReply({
                                 <>
                                     <CommitStarButton
                                         commit={reply}
-                                        keyShortcut="s"
                                         className="px-2 py-0.5"
                                     />
                                     <CommitPastelButton
