@@ -89,6 +89,7 @@ final class CreateCommitRequest extends FormRequest
         return [
             'body' => self::bodyRules($this->hasFile('images')),
             'quoted_commit_id' => ['nullable', 'uuid', 'prohibits:parent_id', new VisibleCommit($user, 'That commit is no longer available to quote.')],
+            'shipped' => ['sometimes', 'boolean', 'prohibits:parent_id,quoted_commit_id'],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             ...$attachmentRules,
         ];
@@ -124,6 +125,11 @@ final class CreateCommitRequest extends FormRequest
         return [
             'link_preview_url.in' => 'The link card must be one of the links in the body.',
         ];
+    }
+
+    public function shipped(): bool
+    {
+        return $this->boolean('shipped');
     }
 
     /**

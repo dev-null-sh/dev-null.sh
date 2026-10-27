@@ -97,6 +97,7 @@ export type Commit = {
     link_preview?: LinkPreview | null;
     poll?: Poll | null;
     quoted_commit_id: string | null;
+    shipped?: boolean;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
     images?: CommitImage[];
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;

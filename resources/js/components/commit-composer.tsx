@@ -38,6 +38,8 @@ import {
 } from '@/components/schedule-picker';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import type { UseLinkCardReturn } from '@/hooks/use-link-card';
@@ -153,6 +155,7 @@ function CommitComposerBody({
     const textBox = useRef<HTMLDivElement>(null);
     const preview = useComposerPreview({ body, textareaRef, isSubmittable });
     const isIssue = issue.command !== null;
+    const [shipped, setShipped] = useState(false);
 
     // When the dialog's text box shrinks, as the keyboard opens or an image is added, it keeps the caret in view.
     useEffect(() => {
@@ -401,6 +404,33 @@ function CommitComposerBody({
                             >
                                 Scheduled commits →
                             </Link>
+                        </div>
+                    )}
+
+                    {!isIssue && !isScheduling && (
+                        <div className="mt-3 flex items-start gap-2">
+                            <Checkbox
+                                id={`${id}-shipped`}
+                                checked={shipped}
+                                disabled={processing}
+                                onCheckedChange={(checked) =>
+                                    setShipped(checked === true)
+                                }
+                                className="mt-0.5"
+                                data-test="shipped-checkbox"
+                            />
+                            {shipped && (
+                                <input type="hidden" name="shipped" value="1" />
+                            )}
+                            <Label
+                                htmlFor={`${id}-shipped`}
+                                className="block text-sm leading-snug font-normal"
+                            >
+                                Shipped
+                                <span className="block text-muted-foreground">
+                                    This commit is something you shipped.
+                                </span>
+                            </Label>
                         </div>
                     )}
 

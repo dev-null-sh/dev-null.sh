@@ -24,7 +24,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * and how many pastéis it was given, which the app only shows in pastéis mode, as the web does. Like the web's cards,
  * it also has preview_segments, the excerpt a list shows of a long commit, the poll, with what the user may see of
  * its votes, and the commit it quotes, or null once the user may no longer see that one, while quoted_commit_id still
- * says it quoted something. In a list, reply_preview is the newest reply or quote the web shows under it. As on the
+ * says it quoted something. When the author marked it as something they shipped, shipped is true. Otherwise that key
+ * is left out. In a list, reply_preview is the newest reply or quote the web shows under it. As on the
  * web, the counts, link_preview, images, starred, parent, poll, quoted_commit and reply_preview are only
  * there when they were loaded, so ancestors and the commits of notifications come without some of them. The images of
  * a commit that isn't published yet have temporary URLs, since the app has no web session to load them with.
@@ -66,6 +67,7 @@ final class CommitResource extends JsonResource
                 ? $this->images
                 : $this->images->map(fn (CommitImage $image): array => [...$image->toArray(), 'url' => $image->temporaryUrl()])),
             'author' => UserResource::make($this->user),
+            'shipped' => $this->when($this->shipped, true),
         ];
 
         if (! $isSigned) {

@@ -190,6 +190,15 @@ for (const count of [1, 2, 3, 3850]) {
     });
 }
 
+test('offers to mark a commit as something you shipped', () => {
+    const markup = renderComposer('Shipped the parser');
+
+    assert.ok(markup.includes('data-test="shipped-checkbox"'));
+    assert.ok(markup.includes('for="body-shipped"'));
+    assert.ok(markup.includes('This commit is something you shipped.'));
+    assert.equal(markup.includes('name="shipped"'), false);
+});
+
 test('links the composer avatar to the author profile', () => {
     const markup = renderComposer('');
     const avatar = markup.match(/<a[^>]*href="\/@previewuser"[^>]*>/)?.[0];

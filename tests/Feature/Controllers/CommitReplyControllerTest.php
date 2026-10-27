@@ -785,6 +785,17 @@ it('keeps approved account deletion tombstones readable to guests without exposi
         ->assertJsonPath('data.0.id', $reply->id);
 });
 
+it('may not mark a reply as shipped', function (): void {
+    $parent = Commit::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-reply.store', $parent), ['body' => 'Nice work', 'shipped' => true])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors(['shipped' => 'The shipped field is prohibited.']);
+
+    expect($parent->replies()->count())->toBe(0);
+});
+
 it('keeps quotes out of the json reply endpoint', function (): void {
     $user = User::factory()->create();
     $parent = Commit::factory()->create();

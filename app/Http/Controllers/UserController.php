@@ -75,7 +75,7 @@ final readonly class UserController
             // The README tab shows no commits, so it doesn't look for any.
             'commits' => Inertia::scroll(fn () => $request->tab() === 'readme'
                 ? new CursorPaginator([], 20)
-                : $commits->builder($user, $currentUser, $request->tab() === 'replies')
+                : $commits->builder($user, $currentUser, $request->tab() === 'replies', $request->tab() === 'shipped')
                     ->cursorPaginate(20)
                     ->appends(['tab' => $request->tab()])),
         ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->user($getCountedUser())]);

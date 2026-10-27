@@ -31,8 +31,29 @@ it('may create a commit', function (): void {
 
     expect($commit->exists)->toBeTrue()
         ->and($commit->body)->toBe('Hello, devnull!')
-        ->and($commit->user->is($user))->toBeTrue();
+        ->and($commit->user->is($user))->toBeTrue()
+        ->and($commit->shipped)->toBeFalse();
 });
+
+it('stores shipped only on a top-level commit', function (bool $shipped): void {
+    $commit = resolve(CreateCommit::class)->handle(User::factory()->create(), 'Shipped the parser', shipped: $shipped);
+
+    expect($commit->shipped)->toBe($shipped);
+})->with([true, false]);
+
+it('does not mark a reply or a quote as shipped', function (string $kind): void {
+    $other = Commit::factory()->create();
+
+    $commit = resolve(CreateCommit::class)->handle(
+        User::factory()->create(),
+        'Not an announcement',
+        parent: $kind === 'reply' ? $other : null,
+        quotedCommit: $kind === 'quote' ? $other : null,
+        shipped: true,
+    );
+
+    expect($commit->shipped)->toBeFalse();
+})->with(['reply', 'quote']);
 
 it('creates commits pending review', function (): void {
     $action = resolve(CreateCommit::class);
