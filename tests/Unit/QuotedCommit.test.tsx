@@ -20,6 +20,7 @@ const commit = {
         {
             type: 'block',
             language: 'php',
+            filename: null,
             html: '<span class="hl-keyword">return</span> round($score, 6);',
         },
     ],

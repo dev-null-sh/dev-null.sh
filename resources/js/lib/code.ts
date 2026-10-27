@@ -32,11 +32,22 @@ function escapeHtml(text: string): string {
 
 function block(part: string): BodySegment {
     const lines = part.replaceAll('\r\n', '\n').split('\n');
-    const language = lines[0].replace(/^`+/, '').trim().split(/[ \t]/)[0];
+    const [, language = '', meta = ''] =
+        /^`+[ \t]*([^ \t]*)([\s\S]*)$/.exec(lines[0]) ?? [];
+    const attributes = new Map<string, string>();
+
+    for (const [, key, value] of meta.matchAll(
+        /\{[^}]*\}|([A-Za-z][\w-]*)="([^"]*)"|[^ \t]+/g,
+    )) {
+        if (key !== undefined && value !== '' && !attributes.has(key)) {
+            attributes.set(key, value);
+        }
+    }
 
     return {
         type: 'block',
         language: language === '' ? null : language,
+        filename: attributes.get('title') ?? attributes.get('filename') ?? null,
         html: escapeHtml(lines.slice(1, -1).join('\n')),
     };
 }

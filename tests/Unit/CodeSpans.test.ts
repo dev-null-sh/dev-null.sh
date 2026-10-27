@@ -15,6 +15,7 @@ test('keeps a shorter fence inside a code block', () => {
         {
             type: 'block',
             language: 'markdown',
+            filename: null,
             html: '```\nfence inside fence\n```',
         },
         { type: 'text', text: 'after' },

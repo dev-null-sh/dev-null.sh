@@ -171,6 +171,7 @@ test('keeps captured mention identities in regular bodies alongside highlighted 
                 {
                     type: 'block',
                     language: 'php',
+                    filename: null,
                     html: '<span class="hl-comment">// @ORIGINAL</span>',
                 },
             ]}

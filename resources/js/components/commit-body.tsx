@@ -100,6 +100,7 @@ export function BodySegments({
                                 html={segment.html}
                                 fullHtml={segment.fullHtml}
                                 language={segment.language}
+                                filename={segment.filename}
                                 isCopyable={!isStatic}
                             />
                         );

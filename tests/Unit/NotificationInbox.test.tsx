@@ -240,6 +240,7 @@ function categories(html: string, pressed: boolean): Set<string> {
                     {
                         type: 'block',
                         language: 'php',
+                        filename: null,
                         html: '<span class="hl-keyword">return</span> &quot;:fire:&quot;;',
                     },
                 ],

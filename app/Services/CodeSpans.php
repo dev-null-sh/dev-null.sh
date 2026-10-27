@@ -91,7 +91,7 @@ final readonly class CodeSpans
      * Splits the text into prose, inline code and highlighted code blocks. The highlighter escapes the code, so a
      * block's HTML is safe to render as is. The line breaks around a block are dropped, since it is a block already.
      *
-     * @return list<array{type: 'text', text: string}|array{type: 'code', code: string}|array{type: 'block', language: string|null, html: string}>
+     * @return list<array{type: 'text', text: string}|array{type: 'code', code: string}|array{type: 'block', language: string|null, filename: string|null, html: string}>
      */
     public function highlight(string $text): array
     {
@@ -139,17 +139,26 @@ final readonly class CodeSpans
     }
 
     /**
-     * @return array{type: 'block', language: string|null, html: string}
+     * @return array{type: 'block', language: string|null, filename: string|null, html: string}
      */
     private function block(string $part): array
     {
         $lines = explode("\n", str_replace("\r\n", "\n", $part));
-        $language = strtok(mb_ltrim($lines[0], '`'), " \t") ?: null;
+        [$language, $meta] = array_pad(preg_split('/[ \t]+/', mb_trim(mb_ltrim($lines[0], '`'), " \t"), 2) ?: [], 2, '');
+        preg_match_all('/\{[^}]*\}|([A-Za-z][\w-]*)="([^"]*)"|[^ \t]+/', $meta, $tokens, PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL);
+        $attributes = [];
+
+        foreach ($tokens as [, $key, $value]) {
+            if ($key !== null && $value !== '') {
+                $attributes[$key] ??= $value;
+            }
+        }
 
         return [
             'type' => 'block',
-            'language' => $language,
-            'html' => $this->highlighter->parse(implode("\n", array_slice($lines, 1, -1)), $language === null ? null : mb_strtolower($language)),
+            'language' => $language === '' ? null : $language,
+            'filename' => $attributes['title'] ?? $attributes['filename'] ?? null,
+            'html' => $this->highlighter->parse(implode("\n", array_slice($lines, 1, -1)), $language === '' ? null : mb_strtolower($language)),
         ];
     }
 }
