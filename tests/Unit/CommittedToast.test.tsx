@@ -36,7 +36,7 @@ function render(): LinkProps {
             committed: {
                 id: '019a0000-0000-7000-8000-00000c5efedb',
                 body: 'Ship it :rocket:',
-                user: { username: 'ada' },
+                user: { handle: 'ada' },
             },
             toastId: 'committed-019a0000-0000-7000-8000-00000c5efedb',
         }) as ReactElement<LinkProps>

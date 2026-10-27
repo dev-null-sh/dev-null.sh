@@ -15,6 +15,11 @@ use Illuminate\Database\Query\Builder as QueryBuilder;
  */
 final class NotificationBuilder extends Builder
 {
+    /**
+     * Each exists is offset by nothing, which keeps it a lookup per notification. Without the offset, exists checks
+     * joined by "or" get planned as hashes over every follow or every commit, which takes tens of milliseconds for
+     * someone with thousands of notifications even when only a few are unread.
+     */
     public function relevant(): self
     {
         return $this->where(fn (Builder $query): Builder => $query
@@ -23,16 +28,19 @@ final class NotificationBuilder extends Builder
                 ->whereExists(fn (QueryBuilder $follows): QueryBuilder => $follows
                     ->from('follows')
                     ->whereColumn('follows.follower_id', 'notifications.actor_id')
-                    ->whereColumn('follows.followed_id', 'notifications.recipient_id')))
+                    ->whereColumn('follows.followed_id', 'notifications.recipient_id')
+                    ->offset(0)))
             ->orWhere(fn (Builder $query): Builder => $query
                 ->whereIn('type', [NotificationType::Replied, NotificationType::Quoted, NotificationType::Mentioned, NotificationType::Starred])
                 ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
-                    ->where('status', CommitStatus::Approved)))
+                    ->where('status', CommitStatus::Approved)
+                    ->offset(0)))
             ->orWhere(fn (Builder $query): Builder => $query
                 ->whereIn('type', [NotificationType::Approved, NotificationType::Rejected])
                 ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
                     ->whereColumn('commits.user_id', 'notifications.recipient_id')
-                    ->whereColumn('commits.status', 'notifications.type')))
+                    ->whereColumn('commits.status', 'notifications.type')
+                    ->offset(0)))
             ->orWhere('type', NotificationType::LeveledUp))
             ->withoutSilencedActors();
     }

@@ -19,6 +19,10 @@
 - Run the full PHP suite with code coverage using the CI command: `php -d memory_limit=-1 vendor/bin/pest --parallel --ci --coverage --exactly=100.0 --passthru-php="'-d' 'memory_limit=-1'"`. The `--ci` flag prevents local test-impact analysis from skipping tests. Targeted tests alone are not a substitute for the coverage check.
 - Fix failures introduced by the changes. Never lower coverage thresholds or exclude code just to pass. Report pre-existing failures or environment blockers explicitly; do not claim a check passed when it failed or could not run.
 
+## Mac app
+
+- Whenever a change touches the Mac app (`../mac-os-app`), rebuild it with its `scripts/build.sh` before finishing, signed and notarized like the published build: `DEVELOPER_ID=89A1DD63507AAD8592A9E56668F15A22AB42A939 NOTARY_PROFILE=devnull scripts/build.sh`. Check that `DevNull.json` says `"notarized": true` before finishing. The build writes `public/downloads/DevNull.dmg` and `public/downloads/DevNull.json` here: leave both in the working tree to ship with the change, never restore or discard them.
+
 ## Product guide maintenance
 
 - `PRODUCT.md` is the short product context agents design and build against: users, positioning, the rules every feature must keep, vocabulary, and what is deliberately excluded. It does not describe features in detail: limits and behavior belong in `KNOWLEDGE_BASE.md` and the code.

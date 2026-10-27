@@ -4,6 +4,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import { CommitCard, CommitTombstone } from '@/components/commit-card';
 import { CopyLinkButton } from '@/components/copy-link-button';
 import { GraphCanvas } from '@/components/graph-canvas';
+import { RelatedCommits } from '@/components/related-commits';
 import { useContinuation } from '@/hooks/use-continuation';
 import AppLayout from '@/layouts/app-layout';
 import { isDeleted, laneOf, shortHash } from '@/lib/utils';
@@ -164,6 +165,8 @@ export default function Show({
                     </div>
                 )}
             </GraphCanvas>
+
+            {!isDeleted(commit) && <RelatedCommits commitId={commit.id} />}
         </>
     );
 }

@@ -94,6 +94,13 @@ export type AcquisitionDay = {
     complete: boolean;
 };
 
+export type DeviceConversion = {
+    device: string;
+    visitors: number;
+    tapped: number;
+    converted: number;
+};
+
 export type ActivationDay = {
     date: string;
     activated: number;
@@ -105,6 +112,7 @@ export type Funnel = {
     visitors: number | null;
     signups: number;
     acquisition_by_day: AcquisitionDay[];
+    conversion_by_device: DeviceConversion[] | null;
     activated: number;
     activation_eligible: number;
     activation_by_day: ActivationDay[];

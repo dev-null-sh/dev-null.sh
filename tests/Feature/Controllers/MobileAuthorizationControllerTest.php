@@ -67,7 +67,7 @@ it('sends a guest through the github sign-in, then back to approve the app', fun
 
     Socialite::fake('github', GitHubUser::fake([
         'id' => '583231',
-        'nickname' => $user->username,
+        'nickname' => $user->handle,
     ]));
 
     $location = (string) $this->get(route('login.store'))->assertRedirect()->headers->get('Location');

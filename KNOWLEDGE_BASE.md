@@ -92,19 +92,19 @@ Livestream history: the team agreed on GitHub-only sign-in and importing profile
 
 ### First-time setup
 
-The first GitHub sign-in opens a short onboarding flow: review your mirrored profile (after editing it on GitHub, **Sync from GitHub** pulls the changes in without leaving setup), choose a color, follow suggested developers, and learn about the composer, keyboard shortcuts, and terminal commits. Skip setup at any step or finish it to continue to the app. Completed or skipped setup does not appear again. New users also start with Tom as a mutual follow; Tom is the platform's fictional welcome bot. Tag @tom in a public commit to ask about the platform or find posts on a topic.
+The first GitHub sign-in opens a short onboarding flow: review your mirrored profile (after editing it on GitHub, **Sync from GitHub** pulls the changes in without leaving setup), choose a color, see who came over from your GitHub network and follow suggested developers, and learn about the composer, keyboard shortcuts, and terminal commits. Skip setup at any step or finish it to continue to the app. The follow step shows what the one-time GitHub import brought over: the people you follow on GitHub who are already on /dev/null, whom you now follow, and your GitHub followers who are here, who now follow you. Completed or skipped setup does not appear again. New users also start with Tom as a mutual follow; Tom is the platform's fictional welcome bot. Tag @tom in a public commit to ask about the platform or find posts on a topic.
 
 Sources: [onboarding page](resources/js/pages/onboarding/show.tsx), [sign-in tests](tests/Feature/Controllers/SessionControllerTest.php).
 
 ### Profiles and GitHub sync
 
-Every developer has a profile at `/@{username}`, with their GitHub identity, bio and other public profile information, commit/following/follower counts, a **Follows you** badge when they follow you, and an activity graph. Across a block in either direction, the profile is shown as unavailable. The Commits tab lists top-level commits; Replies lists that developer's replies with parent context. Follow and follower counts open the corresponding people lists. The profile links to GitHub and, when available, GitHub Sponsors. Share uses the device's share sheet when supported, or copies the profile link.
+Every developer has a profile at `/@{handle}`, with their GitHub identity, bio and other public profile information, commit/following/follower counts, a **Follows you** badge when they follow you, and an activity graph. Across a block in either direction, the profile is shown as unavailable. The Commits tab lists top-level commits; Replies lists that developer's replies with parent context; README shows the README of their GitHub profile repository (the one named after their username), as GitHub renders it, refreshed daily. It keeps only plain formatting, links, and images hosted by GitHub: no scripts, styles, or classes. When GitHub doesn't answer, the tab says so rather than showing no README. Follow and follower counts open the corresponding people lists. When you are signed in, someone else's profile also shows which of the people you follow follow them: **Followed by @a, @b and N others you follow**, naming the most followed first. It opens a **Followers you know** list, which also appears as a tab beside Followers and Following. A **Mutuals** tab lists the people they follow who follow them back. The profile links to GitHub and, when available, GitHub Sponsors. Share uses the device's share sheet when supported, or copies the profile link.
 
 Change your name, avatar, bio, company, location, or website on GitHub, not on /dev/null. Settings → Profile and the **Edit profile** menu on your own profile offer **Edit on GitHub** and **Sync from GitHub**. Profile details also refresh on sign-in. Manual sync is limited to once a minute. The GitHub Sponsors link is refreshed on sign-in only. A GitHub username rename is picked up on sign-in or sync; if a stale account still holds the new username because its owner also renamed, that account moves to a `_renamed-<github id>` placeholder until its owner signs in or syncs again. Accounts are matched by GitHub id and never merged.
 
 Profiles also show [achievement badges and an XP-based Unix rank](#achievement-badges-and-xp). Click a badge or rank to inspect unlock requirements and progress.
 
-Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](resources/js/pages/user-profile/edit.tsx), [profile sharing](resources/js/components/profile-share-button.tsx), [identity sync](app/Actions/UpdateOrCreateUser.php).
+Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](resources/js/pages/user-profile/edit.tsx), [profile sharing](resources/js/components/profile-share-button.tsx), [profile README](app/Queries/GitHubReadmeQuery.php), [identity sync](app/Actions/UpdateOrCreateUser.php).
 
 ### Going live
 
@@ -256,6 +256,12 @@ Deleting a parent does not automatically delete other people's replies: an autho
 
 Sources: [reply validation](app/Http/Requests/CreateCommitReplyRequest.php), [commit page](app/Http/Controllers/CommitController.php), [reply notifications](app/Actions/CreateReplyNotifications.php), [commit deletion](app/Actions/DeleteCommit.php).
 
+### Related commits
+
+Under a commit, /dev/null shows up to three commits from other threads that say something close to it. It only suggests commits you could find through search: nothing from people you block, who block you or whom you mute, and nothing still pending. When nothing is close, nothing shows.
+
+Sources: [related commits query](app/Queries/RelatedCommitsQuery.php), [related commits rail](resources/js/components/related-commits.tsx).
+
 ### Quoting commits
 
 Quote a visible commit to publish a new top-level commit with your own commentary and an embedded card pointing to the original. Quotes follow normal commit limits, image support, and moderation. The quote composer has a preview and link-card choice, but no poll or scheduling. Quoting is different from replying: the quote appears in logs as its own post, and it is also listed among the original's replies and counted in its reply count. The original author is notified after approval, except for self-quotes.
@@ -362,7 +368,7 @@ When you are at the bottom of a chat, opening a reply moves the messages up to k
 
 Click the quoted preview above a reply to jump to the original message, even when it is in older history that has not loaded yet. The original is briefly highlighted. **Back to present** returns to the latest messages.
 
-Unread badges in conversation rows and the desktop dock display **99+** above 99; the full count remains available on hover and to screen readers. The **Fetched** tab applies the same display cap to waiting requests.
+The **Remotes** badge in the navigation and the desktop dock counts conversations with unread messages, plus waiting requests, not the messages themselves: three new messages in one conversation count once. Unread badges in conversation rows and the desktop dock display **99+** above 99; the full count remains available on hover and to screen readers. The **Fetched** tab applies the same display cap to waiting requests.
 
 Link cards are fetched by /dev/null's server. Unlike message bodies and attachments, the card's URL and page metadata are stored without encryption, using the same link-preview storage as public commits.
 
@@ -370,15 +376,17 @@ Message requests and an **Everyone** contact option may not be available. Where 
 
 Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contact policy](app/Models/User.php), [push access](app/Queries/PushAccessQuery.php), [reactions](app/Http/Controllers/MessageReactionController.php), [message validation](app/Http/Requests/CreateConversationMessageRequest.php), [message creation](app/Actions/CreateMessage.php), [link-preview storage](app/Models/LinkPreview.php), [voice notes](app/Services/VoiceNotes.php), [remote preferences](resources/js/components/chat/remote-settings-menu.tsx).
 
+Direct remotes disappear from the inbox when the other person deletes their account. An unnamed org can still show **Just you** when you are its only remaining member.
+
 ### Orgs: group chats
 
 An **Org** is a private group chat within Remotes, not a synchronized GitHub organization. Create one with other eligible developers; a group can contain up to **100 people including you**. Members need Remotes enabled, must follow the person adding them (unless that person is an admin), and must have no block with anyone in the org. A group's optional name can be up to **60 characters**.
 
-The creator starts as a **Maintainer**, and invited people start as **Contributors**. Maintainers can rename the group, add or remove members, and change roles. Contributors can read and send messages. When adding members, a maintainer can share existing history or only new messages. Members can leave or stash the group for themselves. At least one maintainer remains while the group has members: the last maintainer cannot be demoted, and if they leave, the longest-standing remaining member takes over. An org that everyone has left is deleted.
+The creator starts as a **Maintainer**, and invited people start as **Contributors**. Maintainers can rename the group, add or remove members, change roles, and pin up to **25 messages**. Contributors can read and send messages. When adding members, a maintainer can share existing history or only new messages. Members can leave or stash the group for themselves. At least one maintainer remains while the group has members: the last maintainer cannot be demoted, and if they leave, the longest-standing remaining member takes over. An org that everyone has left is deleted.
 
-Group messages support the same text, images, voice notes, replies, link cards, reactions, and typing indicators as direct messages. A member's read position shows only when both you and that member have pull receipts on. Any new message pops the org back for members who stashed it. Membership and history access determine what a person can read.
+Group messages support the same text, images, voice notes, replies, link cards, reactions, and typing indicators as direct messages. A member's read position shows only when both you and that member have pull receipts on. Any new message pops the org back for members who stashed it. Membership and history access determine what a person can read, except pinned messages: on the web, every member sees those in the pinned messages bar at the top of the chat, including people added without the history, and can reply and react to them.
 
-Sources: [group creation](app/Http/Requests/CreateOrgRequest.php), [invitation eligibility](app/Queries/RemoteCandidatesQuery.php), [history sharing](app/Actions/CreateOrgMembers.php), [role changes](app/Http/Requests/UpdateOrgMemberRequest.php), [leaving a group](app/Actions/DeleteOrgMember.php).
+Sources: [group creation](app/Http/Requests/CreateOrgRequest.php), [invitation eligibility](app/Queries/RemoteCandidatesQuery.php), [history sharing](app/Actions/CreateOrgMembers.php), [pinning](app/Http/Requests/UpdateMessagePinRequest.php), [role changes](app/Http/Requests/UpdateOrgMemberRequest.php), [leaving a group](app/Actions/DeleteOrgMember.php).
 
 ### Muting and blocking
 
@@ -420,7 +428,7 @@ Sources: [web app manifest](public/site.webmanifest), [service worker](public/sw
 
 ### Activity graphs and README embeds
 
-Profiles display commit activity with current and longest streaks. The profile graph adapts to how long someone has been committing: the last 24 hours, 7 days, 30 days, or a year. Hovering a cell highlights that period's commits. Settings → Profile includes a live preview and copyable Markdown for embedding your /dev/null activity graph in a GitHub profile README. The graph is public at `/@{username}/graph.svg`, uses your lane color, and supports `?theme=light`, `dark`, or `auto` (light by default). The SVG is cached for an hour, so a new commit may not appear in an external embed immediately.
+Profiles display commit activity with current and longest streaks. The profile graph adapts to how long someone has been committing: the last 24 hours, 7 days, 30 days, or a year. Hovering a cell highlights that period's commits. Settings → Profile includes a live preview and copyable Markdown for embedding your /dev/null activity graph in a GitHub profile README. The graph is public at `/@{handle}/graph.svg`, uses your lane color, and supports `?theme=light`, `dark`, or `auto` (light by default). The SVG is cached for an hour, so a new commit may not appear in an external embed immediately.
 
 Sources: [graph embed settings](resources/js/components/activity-graph-embed.tsx), [graph controller](app/Http/Controllers/UserActivityGraphController.php), [graph route and cache](routes/web.php).
 
@@ -462,9 +470,9 @@ Sources: [workflow instructions](resources/js/pages/terminal/show.tsx), [GitHub 
 
 ### Public read API and Atom feeds
 
-The read-only JSON API at `/api/v1` requires no authentication or token. Read a public profile at `/api/v1/users/{username}`, that user's commits at `/api/v1/users/{username}/commits`, or one commit at `/api/v1/commits/{commit}`. `/api/v1/users/{username}/followers` and `/following` list people the way the profile's people lists do, newest follow first; a signed request also gets each person's lane and whether you follow each other. Add `?replies=1` to the user-commits endpoint to read their replies instead of top-level commits. Lists use cursor pagination: 20 commits or 30 people per page. Only public approved, non-deleted content is returned, not private profile data such as email. Unsigned requests are limited to **60 requests per minute per IP** and cannot create posts, follow, or star; terminal posting and the [signed API](#signed-api-and-devices) are separate signed interfaces.
+The read-only JSON API at `/api/v1` requires no authentication or token. Read a public profile at `/api/v1/users/{handle}`, that user's commits at `/api/v1/users/{handle}/commits`, or one commit at `/api/v1/commits/{commit}`. `/api/v1/users/{handle}/followers` and `/following` list people the way the profile's people lists do, newest follow first; a signed request also gets each person's lane and whether you follow each other. Add `?replies=1` to the user-commits endpoint to read their replies instead of top-level commits. Lists use cursor pagination: 20 commits or 30 people per page. Only public approved, non-deleted content is returned, not private profile data such as email. Unsigned requests are limited to **60 requests per minute per IP** and cannot create posts, follow, or star; terminal posting and the [signed API](#signed-api-and-devices) are separate signed interfaces.
 
-Subscribe in a feed reader to `/@{username}/feed.atom` for a profile's latest **50 approved top-level commits**, including image enclosures. Feeds are public and can be cached for five minutes.
+Subscribe in a feed reader to `/@{handle}/feed.atom` for a profile's latest **50 approved top-level commits**, including image enclosures. Feeds are public and can be cached for five minutes.
 
 Sources: [API routes](routes/api.php), [API controllers](app/Http/Controllers/Api), [feed generation](app/Actions/CreateUserFeed.php), [rate limits](app/Providers/AppServiceProvider.php).
 
@@ -478,9 +486,10 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - commit, reply, and quote, with images, and delete your commits;
 - preview commit drafts without publishing them;
 - follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
+- read who to follow, also as it is suggested beside a profile or a commit, and mark a suggestion not interested;
 - star or unstar;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
-- change Remotes settings, read and send messages with images, link cards, and voice notes in conversations and orgs, mark them pulled, react to messages and list your reactions, find people, and start orgs;
+- change Remotes settings, read and send messages with images, link cards, and voice notes in conversations and orgs, mark them pulled, react to messages and list your reactions, pin and unpin org messages as a maintainer, find people, and start orgs;
 - rename orgs, add people to them, change their roles, remove them, and leave an org, with the same maintainer rules as the web;
 - stash or reopen conversations and orgs, pin and mute them, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
@@ -555,7 +564,7 @@ Posts awaiting automated checks stay pending if those checks fail; a failed chec
 
 Before you first commit, reply, quote, or schedule a commit, the web composer shows the commit rules, and keeps showing them on every attempt until you send with "Got it, commit": no engagement bait, no low-effort posts, no AI-generated posts, no spam or self-promotion, and no harassment, hate, or private information, followed by a link to the terms. Your first submission must come from the web so you can accept these rules; terminal, GitHub Action, and app posting become available afterwards.
 
-During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, send remotes, or start, rename, or add people to orgs from any surface; each attempt says how long is left and why. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
+During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, open issues, send remotes, or start, rename, add people to, or pin messages in orgs from any surface; each attempt says how long is left and why. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
 
 A **ban** sends you to a page explaining why, where you can only sign out or delete your account; the app refuses everything but deleting the account, and the terminal refuses posting. A ban belongs to the GitHub account, so deleting the /dev/null account and signing in again does not lift it. Banning someone cancels their scheduled commits, so lifting the ban later does not publish them all at once.
 
@@ -565,7 +574,7 @@ Sources: [status transitions](app/Actions/UpdateCommitStatuses.php), [timeouts](
 
 The public **About** page describes the livestream project and lists up to 1,000 GitHub contributor accounts, excluding bots and known agents, most commits first; the list is cached for an hour and GitHub may take several hours to update its counts; when GitHub cannot be reached the page says so instead of showing the list. The **Changelog**, opened from the navigation or the side column, lists the pull requests merged into `production` on GitHub, a few days at a time. The **Brand** page at `/brand` offers the logo, wordmark, colors, typography, and wallpapers; right-clicking the logo in the navigation also copies it or links there. **Terms** and **Privacy** explain acceptable use and data handling. Public posts may be indexed or copied outside /dev/null; content and search queries can be processed by automated or AI services. Read those policies before posting sensitive information or relying on deletion to remove every external copy.
 
-To count active people, /dev/null remembers only the **last day** (not the time) you were signed in and used the site or the API; background refreshes do not count. That day is never shown to other people, is included in your export, and is deleted with your account. Daily active-people numbers are kept as anonymous counts. Visitor analytics come from **Fathom**, which counts anonymously: the browser sends a `guest-visit` event once per session when you are not signed in and a `signup` event right after an account is created, with nothing that identifies you.
+To count active people, /dev/null remembers only the **last day** (not the time) you were signed in and used the site or the API; background refreshes do not count. That day is never shown to other people, is included in your export, and is deleted with your account. Daily active-people numbers are kept as anonymous counts. Visitor analytics come from **Fathom**, which counts anonymously: the browser sends a `guest-visit` event once per session when you are not signed in, a `signin-click` event when you tap to sign in, and a `signup` event right after an account is created, with nothing that identifies you.
 
 Sources: [last seen tracking](app/Http/Middleware/UpdateLastSeenAt.php), [Fathom events](resources/js/lib/analytics.ts), [public page routes](routes/web.php), [About](resources/js/pages/about/show.tsx), [contributors](app/Queries/ContributorsQuery.php), [privacy policy](resources/js/pages/privacy/show.tsx), [terms](resources/js/pages/terms/show.tsx).
 

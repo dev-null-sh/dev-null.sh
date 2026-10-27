@@ -43,7 +43,7 @@ export function LiveFollowing() {
                                     {user.name}
                                 </span>
                                 <span className="block truncate font-mono text-xs text-muted-foreground">
-                                    @{user.username}
+                                    @{user.handle}
                                 </span>
                             </span>
                             <ArrowUpRight

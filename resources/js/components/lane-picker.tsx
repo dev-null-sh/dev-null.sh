@@ -38,7 +38,7 @@ export function LanePreview({ lane }: { lane: string }) {
                     <p className="truncate font-semibold">{user.name}</p>
                     <p className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
                         <span className="size-2 shrink-0 rounded-full bg-(--lane) transition-colors duration-200" />
-                        <span className="truncate">@{user.username}</span>
+                        <span className="truncate">@{user.handle}</span>
                     </p>
                 </div>
             </div>

@@ -68,9 +68,9 @@ function Approve({
                             </span>
                             <span
                                 className="block truncate font-mono text-[13px] text-muted-foreground"
-                                title={`@${user.username}`}
+                                title={`@${user.handle}`}
                             >
-                                @{user.username}
+                                @{user.handle}
                             </span>
                         </span>
                     </dd>

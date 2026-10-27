@@ -18,9 +18,9 @@ beforeEach(function (): void {
     Queue::fake();
     config(['remotes.requests' => true, 'remotes.everyone' => true]);
 
-    $this->user = User::factory()->withRemotes()->create(['username' => 'octocat']);
+    $this->user = User::factory()->withRemotes()->create(['handle' => 'octocat']);
     $this->keyPair = apiKeyPairFor($this->user);
-    $this->nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $this->nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
 });
 
 it('pushes a message, starting the conversation, and answers with it as the thread shows it', function (): void {

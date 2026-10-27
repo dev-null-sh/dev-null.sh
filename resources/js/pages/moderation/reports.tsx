@@ -6,6 +6,7 @@ import { store as reject } from '@/actions/App/Http/Controllers/CommitRejectionC
 import { destroy } from '@/actions/App/Http/Controllers/CommitReportController';
 import { CommitCard } from '@/components/commit-card';
 import { EmptyFeed } from '@/components/commit-feed';
+import { GraphCanvas } from '@/components/graph-canvas';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
@@ -103,80 +104,85 @@ export default function Reports({
                     }
                 >
                     {reports.data.map((report) => (
-                        <CommitCard
-                            key={report.id}
-                            commit={report.commit}
-                            canDelete={false}
-                            actions={
-                                <div className="mt-3 grid gap-2 border-t pt-3">
-                                    <p className="text-sm font-medium">
-                                        {reasons[report.reason]}
-                                    </p>
-                                    {report.details && (
-                                        <p className="text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">
-                                            {report.details}
+                        // A canvas each: reports are unrelated to each other, and two can be about the same commit,
+                        // whose node they would otherwise share.
+                        <GraphCanvas key={report.id}>
+                            <CommitCard
+                                commit={report.commit}
+                                endsWithDot
+                                canDelete={false}
+                                actions={
+                                    <div className="mt-3 grid gap-2 border-t pt-3">
+                                        <p className="text-sm font-medium">
+                                            {reasons[report.reason]}
                                         </p>
-                                    )}
-                                    {report.attachments?.map((image) => (
-                                        <a
-                                            key={image.url}
-                                            href={image.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="block"
-                                        >
-                                            <img
-                                                src={image.url}
-                                                alt={
-                                                    image.description ||
-                                                    'Report attachment'
+                                        {report.details && (
+                                            <p className="text-sm leading-relaxed wrap-anywhere whitespace-pre-wrap">
+                                                {report.details}
+                                            </p>
+                                        )}
+                                        {report.attachments?.map((image) => (
+                                            <a
+                                                key={image.url}
+                                                href={image.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="block"
+                                            >
+                                                <img
+                                                    src={image.url}
+                                                    alt={
+                                                        image.description ||
+                                                        'Report attachment'
+                                                    }
+                                                    width={image.width}
+                                                    height={image.height}
+                                                    loading="lazy"
+                                                    className="max-h-80 rounded-md object-contain"
+                                                />
+                                            </a>
+                                        ))}
+                                        <p className="text-xs text-muted-foreground">
+                                            Reported{' '}
+                                            <time dateTime={report.created_at}>
+                                                {formatFullDateTime(
+                                                    report.created_at,
+                                                )}
+                                            </time>
+                                        </p>
+                                        <div className="flex flex-wrap gap-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={busy}
+                                                onClick={() => dismiss(report)}
+                                            >
+                                                <Check />
+                                                Dismiss report
+                                            </Button>
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                disabled={busy}
+                                                onClick={() =>
+                                                    resolve(
+                                                        reject(report.commit),
+                                                        () =>
+                                                            markCommitDeleted(
+                                                                report.commit
+                                                                    .id,
+                                                            ),
+                                                    )
                                                 }
-                                                width={image.width}
-                                                height={image.height}
-                                                loading="lazy"
-                                                className="max-h-80 rounded-md object-contain"
-                                            />
-                                        </a>
-                                    ))}
-                                    <p className="text-xs text-muted-foreground">
-                                        Reported{' '}
-                                        <time dateTime={report.created_at}>
-                                            {formatFullDateTime(
-                                                report.created_at,
-                                            )}
-                                        </time>
-                                    </p>
-                                    <div className="flex flex-wrap gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={busy}
-                                            onClick={() => dismiss(report)}
-                                        >
-                                            <Check />
-                                            Dismiss report
-                                        </Button>
-                                        <Button
-                                            variant="destructive"
-                                            size="sm"
-                                            disabled={busy}
-                                            onClick={() =>
-                                                resolve(
-                                                    reject(report.commit),
-                                                    () =>
-                                                        markCommitDeleted(
-                                                            report.commit.id,
-                                                        ),
-                                                )
-                                            }
-                                        >
-                                            <X />
-                                            Reject commit
-                                        </Button>
+                                            >
+                                                <X />
+                                                Reject commit
+                                            </Button>
+                                        </div>
                                     </div>
-                                </div>
-                            }
-                        />
+                                }
+                            />
+                        </GraphCanvas>
                     ))}
                 </InfiniteScroll>
             )}

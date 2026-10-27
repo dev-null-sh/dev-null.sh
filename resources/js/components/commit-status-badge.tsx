@@ -99,6 +99,7 @@ export function CommitStatusBadge({
             </PopoverTrigger>
             <PopoverContent
                 side="bottom"
+                sideOffset={8}
                 className="w-64 p-3 text-sm"
                 onOpenAutoFocus={(event) => event.preventDefault()}
             >

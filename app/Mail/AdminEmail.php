@@ -6,16 +6,20 @@ namespace App\Mail;
 
 use App\Models\User;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Mail\Factory as MailFactory;
+use Illuminate\Contracts\Mail\Mailer;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Mail\Mailables\Headers;
+use Illuminate\Mail\SentMessage;
 use Illuminate\Queue\Attributes\Backoff;
 use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Queue\Attributes\Tries;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\URL;
+use Override;
 
 /**
  * An email the admins write to the people on /dev/null, in Markdown, with a link to unsubscribe that mail providers
@@ -33,6 +37,23 @@ final class AdminEmail extends Mailable implements ShouldQueue
     public function __construct(private readonly User $user, private readonly string $title, private readonly string $body)
     {
         //
+    }
+
+    /**
+     * A queued email goes out a while after it was queued, and the user is read again by then, so it is skipped for
+     * someone who unsubscribed or was banned in the meantime: unsubscribing takes effect right away. A test email, sent
+     * to an address the admin chose, still goes out.
+     *
+     * @param  MailFactory|Mailer  $mailer
+     */
+    #[Override]
+    public function send($mailer): ?SentMessage
+    {
+        if ($this->to === [] && ($this->user->emails_unsubscribed_at !== null || $this->user->isBanned())) {
+            return null;
+        }
+
+        return parent::send($mailer);
     }
 
     public function envelope(): Envelope

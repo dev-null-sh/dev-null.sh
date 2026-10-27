@@ -32,7 +32,7 @@ export type ComposerPreview = ReturnType<typeof useComposerPreview>;
 /**
  * Switches a composer between writing and previewing its draft as the commit it becomes. The draft is rendered right
  * away, and its code blocks are highlighted and its mentions linked once the server, the only place code is
- * highlighted and usernames are looked up, sends them back.
+ * highlighted and handles are looked up, sends them back.
  */
 export function useComposerPreview({
     body,

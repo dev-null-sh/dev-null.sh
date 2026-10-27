@@ -12,11 +12,13 @@ use Illuminate\Support\Facades\DB;
  * @phpstan-import-type ActivationDay from ActivationByDayQuery
  *
  * @phpstan-type AcquisitionDay array{date: string, signups: int, visitors: int|null, converted: int|null, complete: bool}
+ * @phpstan-type DeviceConversion array{device: string, visitors: int, tapped: int, converted: int}
  * @phpstan-type FunnelRates array{conversion: float|null, activation: float|null, retention: float|null}
  * @phpstan-type ProductFunnel array{
  *     visitors: int|null,
  *     signups: int,
  *     acquisition_by_day: list<AcquisitionDay>,
+ *     conversion_by_device: list<DeviceConversion>|null,
  *     activated: int,
  *     activation_eligible: int,
  *     activation_by_day: list<array{date: string, activated: int, eligible: int, complete: bool}>,
@@ -34,9 +36,12 @@ final readonly class ProductFunnelQuery
     private const int RETENTION_DAY = 1;
 
     /**
-     * The Fathom events the browser sends for a visit by someone not signed in, and for a signup.
+     * The Fathom events the browser sends for a visit by someone not signed in, a tap on a link to sign in, and a
+     * signup.
      */
     private const string GUEST_VISIT_EVENT = 'guest-visit';
+
+    private const string SIGN_IN_TAP_EVENT = 'signin-click';
 
     private const string SIGNUP_EVENT = 'signup';
 
@@ -112,6 +117,7 @@ final readonly class ProductFunnelQuery
                 ->where('created_at', '<', $to->addDay()->startOfDay())
                 ->count(),
             'acquisition_by_day' => $this->acquisitionByDay($from, $to),
+            'conversion_by_device' => $this->conversionByDevice($from, $to),
             'activated' => $activation['activated'],
             'activation_eligible' => $activation['eligible'],
             'activation_by_day' => array_map(fn (array $day): array => [
@@ -173,6 +179,31 @@ final readonly class ProductFunnelQuery
             'converted' => $converted === null ? null : $converted[$date] ?? 0,
             'complete' => $date < CarbonImmutable::today()->toDateString(),
         ], $dates);
+    }
+
+    /**
+     * Visitors not signed in, taps to sign in and signups from Fathom for each type of device, most visitors first, so
+     * a change in the mix of devices can be told apart from a change in how each converts, and a pitch that doesn't
+     * convince from sign-in at GitHub that people give up on. Null when Fathom isn't set up or didn't answer.
+     *
+     * @return list<DeviceConversion>|null
+     */
+    private function conversionByDevice(CarbonImmutable $from, CarbonImmutable $to): ?array
+    {
+        $visitors = $this->traffic->eventVisitorsBy($from, $to, self::GUEST_VISIT_EVENT, 'device_type');
+        $tapped = $visitors === null ? null : $this->traffic->eventVisitorsBy($from, $to, self::SIGN_IN_TAP_EVENT, 'device_type');
+        $converted = $tapped === null ? null : $this->traffic->eventVisitorsBy($from, $to, self::SIGNUP_EVENT, 'device_type');
+
+        if ($visitors === null || $tapped === null || $converted === null) {
+            return null;
+        }
+
+        return array_map(fn (string $device): array => [
+            'device' => $device,
+            'visitors' => $visitors[$device] ?? 0,
+            'tapped' => $tapped[$device] ?? 0,
+            'converted' => $converted[$device] ?? 0,
+        ], array_keys($visitors + $tapped + $converted));
     }
 
     /**

@@ -106,7 +106,7 @@ it('returns the latest messages, then only newer ones, then older pages', functi
     $latest = $this->actingAs($mark)->getJson(route('conversation-message.index', $nuno))
         ->assertOk()
         ->assertHeader('Cache-Control', 'no-store, private')
-        ->assertJsonPath('partner.username', $nuno->username)
+        ->assertJsonPath('partner.handle', $nuno->handle)
         ->assertJsonPath('has_older', true);
 
     expect($latest->json('messages'))->toHaveCount(50)
@@ -194,7 +194,7 @@ it('refuses replies to messages from another conversation', function (): void {
 it('links the people a message mentions and highlights its code', function (): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create();
-    $taylor = User::factory()->create(['username' => 'taylorotwell']);
+    $taylor = User::factory()->create(['handle' => 'taylorotwell']);
 
     $response = $this->actingAs($mark)->postJson(route('conversation-message.store', $nuno), [
         'body' => "ask @TaylorOtwell about `php artisan serve`\n```php\necho 'hi';\n```",

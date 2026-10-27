@@ -10,7 +10,7 @@ import { PresetButton } from '@/components/operations/preset-button';
 import { Panel } from '@/components/operations/section';
 import OperationsLayout from '@/layouts/operations/layout';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
-import { cn, dateLocale } from '@/lib/utils';
+import { cn, dateLocale, readerClock } from '@/lib/utils';
 import type {
     OperationsEvent,
     OperationsEventBucket,
@@ -64,28 +64,32 @@ const SERIES: ColumnSeries<OperationsEventLevel>[] = [
     },
 ];
 
-const BUCKET_FORMATS: Record<OperationsEventWindow, Intl.DateTimeFormat> = {
-    '1h': new Intl.DateTimeFormat(dateLocale, {
+// On the reader's clock, but for the days of the 30-day window, which run by UTC day.
+const BUCKET_FORMATS: Record<
+    OperationsEventWindow,
+    Intl.DateTimeFormatOptions
+> = {
+    '1h': {
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23',
-    }),
-    '24h': new Intl.DateTimeFormat(dateLocale, {
+    },
+    '24h': {
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23',
-    }),
-    '7d': new Intl.DateTimeFormat(dateLocale, {
+    },
+    '7d': {
         weekday: 'short',
         hour: '2-digit',
         minute: '2-digit',
         hourCycle: 'h23',
-    }),
-    '30d': new Intl.DateTimeFormat(dateLocale, {
+    },
+    '30d': {
         month: 'short',
         day: 'numeric',
         timeZone: 'UTC',
-    }),
+    },
 };
 
 /**
@@ -361,9 +365,10 @@ export default function Index({
                             height={140}
                             label={`Events in ${phrase} by level`}
                             formatBucket={(at) =>
-                                BUCKET_FORMATS[filters.window].format(
-                                    new Date(at),
-                                )
+                                new Date(at).toLocaleString(dateLocale, {
+                                    timeZone: readerClock().timeZone,
+                                    ...BUCKET_FORMATS[filters.window],
+                                })
                             }
                             unit="events"
                         />

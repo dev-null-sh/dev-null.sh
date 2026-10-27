@@ -32,7 +32,7 @@ use Traversable;
  * @phpstan-type ExportPoll array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}
  * @phpstan-type ExportPollVote array{commit_id: string, option: string, created_at: string}
  * @phpstan-type ExportMessage array{to: string|null, body: string, voice: string|null, created_at: string}
- * @phpstan-type ExportUser array{username: string}
+ * @phpstan-type ExportUser array{handle: string}
  * @phpstan-type UserExport array{
  *     schema_version: int,
  *     exported_at: string,
@@ -68,11 +68,11 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 2,
+            'schema_version' => 3,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
-                'username' => $user->username,
+                'handle' => $user->handle,
                 'name' => $user->name,
                 'email' => $user->email,
                 'avatar_url' => $user->avatar_url,
@@ -108,11 +108,11 @@ final readonly class CreateExport
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
             'stars' => $this->stars($user),
-            'following' => $this->usernames($user->following()),
-            'followers' => $this->usernames($user->followers()),
-            'muting' => $this->usernames($user->muting()),
-            'blocking' => $this->usernames($user->blocking()),
-            'dismissed_suggestions' => $this->usernames($user->dismissedSuggestions()),
+            'following' => $this->handles($user->following()),
+            'followers' => $this->handles($user->followers()),
+            'muting' => $this->handles($user->muting()),
+            'blocking' => $this->handles($user->blocking()),
+            'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
                 'commit_id' => $report->commit_id,
@@ -283,20 +283,20 @@ final readonly class CreateExport
     {
         return $conversation->isOrg()
             ? 'org: '.($conversation->name ?? $conversation->id)
-            : $conversation->participants->firstWhere('user_id', '!=', $user->id)?->user->username;
+            : $conversation->participants->firstWhere('user_id', '!=', $user->id)?->user->handle;
     }
 
     /**
      * @param  BelongsToMany<User, User>  $users
      * @return Generator<int, ExportUser>
      */
-    private function usernames(BelongsToMany $users): Generator
+    private function handles(BelongsToMany $users): Generator
     {
-        /** @var LazyCollection<int, object{username: string}> $users */
-        $users = $users->toBase()->select(['users.id', 'users.username'])->lazyById(500, 'users.id', 'id');
+        /** @var LazyCollection<int, object{handle: string}> $users */
+        $users = $users->join('profiles', 'profiles.github_id', '=', 'users.github_id')->toBase()->select(['users.id', 'profiles.handle'])->lazyById(500, 'users.id', 'id');
 
         foreach ($users as $user) {
-            yield ['username' => $user->username];
+            yield ['handle' => $user->handle];
         }
     }
 
@@ -310,8 +310,9 @@ final readonly class CreateExport
         /** @var LazyCollection<int, object{type: string, actor: string, commit_id: string|null, reason: string|null, level: int|string|null, read_at: string|null, created_at: string}> $notifications */
         $notifications = $user->notifications()
             ->join('users as actors', 'actors.id', '=', 'notifications.actor_id')
+            ->join('profiles as actor_profiles', 'actor_profiles.github_id', '=', 'actors.github_id')
             ->toBase()
-            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actors.username as actor'])
+            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actor_profiles.handle as actor'])
             ->lazyById(500, 'notifications.id', 'id');
 
         foreach ($notifications as $notification) {

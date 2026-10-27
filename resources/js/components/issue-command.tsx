@@ -4,6 +4,7 @@ import type { KeyboardEvent } from 'react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { store } from '@/actions/App/Http/Controllers/IssueController';
+import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import { WordmarkText } from '@/components/wordmark-text';
 import { collectEnvironment } from '@/lib/environment';
 import type { IssueEnvironment } from '@/lib/environment';
@@ -34,14 +35,18 @@ export function useIssueCommand({
     body,
     updateBody,
     enabled,
+    initialKind = null,
     onCreated,
 }: {
     body: string;
     updateBody: (body: string) => void;
     enabled: boolean;
+    initialKind?: IssueKind | null;
     onCreated: () => void;
 }) {
-    const [kind, setKind] = useState<IssueKind | null>(null);
+    const [kind, setKind] = useState<IssueKind | null>(
+        enabled ? initialKind : null,
+    );
     const [selected, setSelected] = useState(0);
     const [dismissed, setDismissed] = useState(false);
     const [focused, setFocused] = useState(false);
@@ -96,11 +101,17 @@ export function useIssueCommand({
                     );
                 },
                 onHttpException: (response) => {
-                    toast.error(
-                        response.status === 429
-                            ? 'Issue limit reached: 10 a day. Try again tomorrow.'
-                            : 'GitHub did not confirm the issue. Check upstream before retrying. Your draft is safe.',
-                    );
+                    const timeout = timeoutFrom(response.status, response.data);
+
+                    if (timeout) {
+                        showTimeout(timeout);
+                    } else {
+                        toast.error(
+                            response.status === 429
+                                ? 'Issue limit reached: 10 a day. Try again tomorrow.'
+                                : 'GitHub did not confirm the issue. Check upstream before retrying. Your draft is safe.',
+                        );
+                    }
                 },
                 onNetworkError: () => {
                     toast.error(

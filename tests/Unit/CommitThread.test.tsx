@@ -27,7 +27,7 @@ const reply = (id: string): Commit =>
         user: {
             id: 'author',
             name: 'Author',
-            username: 'author',
+            handle: 'author',
             lane: 1,
             timezone: null,
             show_local_time: false,

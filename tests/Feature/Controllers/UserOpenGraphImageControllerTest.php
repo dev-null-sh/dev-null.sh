@@ -54,7 +54,7 @@ it('falls back to an initial when the avatar host cannot be reached', function (
 });
 
 it('renders a profile without an avatar or bio without requesting anything', function (): void {
-    $user = User::factory()->withoutProfile()->create();
+    $user = User::factory()->withBlankProfile()->create();
 
     $this->get(route('user-open-graph-image.show', $user))
         ->assertOk()
@@ -74,13 +74,13 @@ it('reuses the rendered image until the profile changes', function (): void {
     Http::assertSentCount(1);
 
     $this->travel(1)->minute();
-    $user->update(['bio' => 'Updated on GitHub.']);
+    $user->profile->update(['bio' => 'Updated on GitHub.']);
 
     $this->get(route('user-open-graph-image.show', $user))->assertOk();
 
     Http::assertSentCount(2);
 });
 
-it('returns not found for unknown usernames', function (): void {
+it('returns not found for unknown handles', function (): void {
     $this->get('/@missing/og.png')->assertNotFound();
 });

@@ -20,7 +20,7 @@ use Illuminate\Support\Str;
  * A message as the web's thread shows it: its body, also split into prose, inline code and highlighted code blocks,
  * where it mentions people the message links to, the message it replies to only as much as its ghost shows, and when
  * they were loaded its link card, images, voice note and reactions. In an org it also says who wrote it and the event
- * it records.
+ * it records. Which message it replies to is left out wherever the model hides it, as pinned messages do.
  *
  * The app's image views and audio players can't sign requests, so each image and voice note comes with a URL signed
  * for the user, good until midnight UTC the day after tomorrow, which stays the same all day so the app can cache it.
@@ -41,9 +41,9 @@ final class MessageResource extends JsonResource
             'body' => $this->body,
             'body_segments' => resolve(CodeSpans::class)->highlight($this->body),
             'mentions' => collect(resolve(Mentions::class)->positions($this->body))
-                ->filter(fn (array $mention): bool => array_key_exists(Str::lower($mention['username']), $this->mentions ?? []))
+                ->filter(fn (array $mention): bool => array_key_exists(Str::lower($mention['handle']), $this->mentions ?? []))
                 ->values(),
-            'reply_to_id' => $this->reply_to_id,
+            'reply_to_id' => $this->when(! in_array('reply_to_id', $this->getHidden(), true), $this->reply_to_id),
             'reply_to' => $this->whenLoaded('replyTo', fn (Message $replyTo): array => [
                 'id' => $replyTo->id,
                 'user_id' => $replyTo->user_id,
@@ -76,6 +76,7 @@ final class MessageResource extends JsonResource
             'subject_id' => $this->subject_id,
             'user' => $this->whenLoaded('user', fn (User $user): UserResource => UserResource::make($user)),
             'subject' => $this->whenLoaded('subject', fn (User $subject): UserResource => UserResource::make($subject)),
+            'pinned_at' => $this->pinned_at?->toIso8601ZuluString(),
             'created_at' => $this->created_at->toIso8601ZuluString(),
         ];
     }

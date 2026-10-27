@@ -77,7 +77,7 @@ it('lists only the profile authors replies in the replies tab', function (): voi
             ->has('commits.data', 1)
             ->where('commits.data.0.id', $reply->id)
             ->where('commits.data.0.parent.id', $parent->id)
-            ->where('commits.data.0.parent.user.username', $parent->user->username)
+            ->where('commits.data.0.parent.user.handle', $parent->user->handle)
             ->missing('commits.data.0.parent.user.email'));
 });
 

@@ -11,8 +11,8 @@ beforeEach(function (): void {
 
 it('gives admins an overview of where the app is failing, what happened, and where it is heading', function (): void {
     $this->travelTo(CarbonImmutable::parse('2026-10-20 12:00:00'));
-    $admin = User::factory()->create(['username' => 'admin', 'created_at' => now()->subWeek()]);
-    User::factory()->create(['username' => 'newcomer', 'created_at' => now()->subHour()]);
+    $admin = User::factory()->create(['handle' => 'admin', 'created_at' => now()->subWeek()]);
+    User::factory()->create(['handle' => 'newcomer', 'created_at' => now()->subHour()]);
     failedJob(failedAt: now()->subDays(2));
 
     $response = $this->actingAs($admin)
@@ -34,7 +34,7 @@ it('gives admins an overview of where the app is failing, what happened, and whe
 });
 
 it('shows only the 10 newest events of the last day', function (): void {
-    $admin = User::factory()->create(['username' => 'admin', 'created_at' => now()->subWeek()]);
+    $admin = User::factory()->create(['handle' => 'admin', 'created_at' => now()->subWeek()]);
     User::factory()->count(11)->create(['created_at' => now()->subHour()]);
     User::factory()->create(['created_at' => now()->subDays(2)]);
 
@@ -48,7 +48,7 @@ it('shows only the 10 newest events of the last day', function (): void {
 it('offers the traffic tab when a Fathom token is configured', function (): void {
     config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
 
-    $this->actingAs(User::factory()->create(['username' => 'admin']))
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('operations.show'))
         ->assertOk()
         ->assertInertia(fn ($page) => $page->where('hasTraffic', true));

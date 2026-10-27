@@ -132,6 +132,10 @@ export type ThreadContinuation = {
     next_id: string | null;
 };
 
+export type RelatedCommits = {
+    commits: Commit[];
+};
+
 export type CursorPaginated<T> = {
     data: T[];
     next_cursor: string | null;
