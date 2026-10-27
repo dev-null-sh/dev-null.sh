@@ -43,7 +43,7 @@ it('renders pending commits oldest first', function (): void {
 });
 
 it('shows moderators the event a pending commit announces, with its link and agenda', function (): void {
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     $commit = Commit::factory()->pending()->create();
     $event = Event::factory()->for($commit)->create(['title' => 'Laravel night', 'url' => 'https://example.com/stream']);
     EventAgendaItem::factory()->for($event)->create(['label' => 'Opening talk', 'starts_at' => $event->starts_at]);

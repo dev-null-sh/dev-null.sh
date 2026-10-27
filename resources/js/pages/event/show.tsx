@@ -120,7 +120,7 @@ export default function Show({
                                 href={userShow(host)}
                                 className="font-semibold text-foreground hover:underline"
                             >
-                                @{host.username}
+                                @{host.handle}
                             </Link>{' '}
                             {state === 'cancelled'
                                 ? 'cancelled this event'
@@ -277,7 +277,7 @@ function AttendeeAvatar({ user }: { user: User }) {
         <li>
             <Link
                 href={userShow(user)}
-                title={`@${user.username}`}
+                title={`@${user.handle}`}
                 className="block rounded-full"
             >
                 <UserAvatar user={user} className="size-7" pixels={56} />

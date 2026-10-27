@@ -54,7 +54,7 @@ it('lists upcoming events soonest first to guests', function (): void {
             ->where('events.data.0.state', 'live')
             ->where('events.data.1.id', $sooner->id)
             ->where('events.data.1.going_count', 2)
-            ->where('events.data.1.host.username', $sooner->commit->user->username)
+            ->where('events.data.1.host.handle', $sooner->commit->user->handle)
             ->missing('events.data.1.commit')
             ->where('events.data.2.id', $later->id));
 });

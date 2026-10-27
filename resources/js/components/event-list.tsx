@@ -103,7 +103,7 @@ export function EventList({
                                 <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
                                     {eventPlace(event) !== null &&
                                         `${eventPlace(event)} · `}
-                                    hosted by @{event.host.username}
+                                    hosted by @{event.host.handle}
                                 </p>
                             </div>
                             <span
