@@ -75,7 +75,7 @@ import {
     toggleReaction,
 } from '@/lib/chat';
 import type { ChatTarget, PendingMessage } from '@/lib/chat';
-import { isBehindLatest } from '@/lib/chat-scroll';
+import { glideToPresent, isBehindLatest } from '@/lib/chat-scroll';
 import { formatCount } from '@/lib/numbers';
 import { pullsOf, statusMessageOf } from '@/lib/pulls';
 import { doubleTapReaction } from '@/lib/reactions';
@@ -187,6 +187,8 @@ export function ConversationThread({
     const [isScrolledBack, setIsScrolledBack] = useState(false);
     const [isJumping, setIsJumping] = useState(false);
     const jumpRequest = useRef<AbortController | null>(null);
+    const glideCancel = useRef<(() => void) | null>(null);
+    const isGliding = useRef(false);
 
     const messages = thread?.messages ?? noMessages;
     const pending = thread?.pending ?? noPending;
@@ -374,11 +376,20 @@ export function ConversationThread({
         [user, current, members, messages, pinnedAuthors],
     );
 
-    useEffect(() => () => jumpRequest.current?.abort(), []);
+    useEffect(
+        () => () => {
+            jumpRequest.current?.abort();
+            glideCancel.current?.();
+        },
+        [],
+    );
 
     const jumpTo = useCallback(
         async (id: number) => {
             jumpRequest.current?.abort();
+            glideCancel.current?.();
+            glideCancel.current = null;
+            isGliding.current = false;
             const request = new AbortController();
             jumpRequest.current = request;
             anchor.current = null;
@@ -517,7 +528,11 @@ export function ConversationThread({
             // Confirming the same optimistic reply must not interrupt its scroll.
             seenLatest.current = latestId;
         } else if (isPinned.current) {
-            element.scrollTop = 0;
+            // A glide already owns the viewport; it still keeps the seen pointer current.
+            if (!isGliding.current) {
+                element.scrollTop = 0;
+            }
+
             seenLatest.current = latestId;
         } else {
             if (anchor.current !== null) {
@@ -548,6 +563,9 @@ export function ConversationThread({
         isFollowingSend.current = false;
         jumpRequest.current?.abort();
         jumpRequest.current = null;
+        glideCancel.current?.();
+        glideCancel.current = null;
+        isGliding.current = false;
         setIsJumping(false);
     }, []);
 
@@ -618,8 +636,11 @@ export function ConversationThread({
             return;
         }
 
-        updateScrollPosition();
-        releasePinClearance();
+        // A glide owns the viewport until it lands or the user takes over.
+        if (!isGliding.current) {
+            updateScrollPosition();
+            releasePinClearance();
+        }
 
         // A correction during the reply fold is not an intentional scroll, even while it is close to the bottom.
         if (
@@ -664,16 +685,35 @@ export function ConversationThread({
         jumpRequest.current?.abort();
         jumpRequest.current = null;
         setIsJumping(false);
-        setIsBrowsingHistory(false);
-        setIsScrolledBack(false);
         anchor.current = null;
         sentAnchor.current = null;
         isFollowingSend.current = false;
         restoredScrollTop.current = null;
         isPinned.current = true;
+        glideCancel.current?.();
+        glideCancel.current = null;
         const element = scroller.current;
 
-        element?.scrollTo({ top: 0, behavior: 'instant' });
+        if (element === null) {
+            isGliding.current = false;
+            setIsBrowsingHistory(false);
+            setIsScrolledBack(false);
+
+            return;
+        }
+
+        // Keeping the shortcut visible until the glide lands avoids a blink at the start.
+        isGliding.current = true;
+        glideCancel.current = glideToPresent(element, {
+            onDone: () => {
+                isGliding.current = false;
+                setUnseen(0);
+                setIsBrowsingHistory(false);
+                setIsScrolledBack(false);
+                updateScrollPosition();
+                releasePinClearance();
+            },
+        });
     };
 
     return (
