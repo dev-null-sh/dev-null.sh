@@ -31,7 +31,7 @@ composer dev
 
 Run `composer test` before opening a pull request.
 
-To vote for a pull request, give its description a 👍 (its author's own doesn't count). Maintainers can run `.github/pr-queue.sh` to list open pull requests from low risk to critical, and each vote moves a pull request up within its group.
+To vote for a pull request, give its description a 👍 (its author's own doesn't count). Maintainers can run `.github/pr-queue.sh` (it needs `gh` 2.48 or later and `jq`) to list open pull requests from low risk to critical, and each vote moves a pull request up within its group.
 
 ## License
 
