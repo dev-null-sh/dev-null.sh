@@ -38,7 +38,10 @@ function pollWith(results: boolean): Poll {
     };
 }
 
-function renderPage(content: ReactElement): string {
+function renderPage(
+    content: ReactElement,
+    userId: string | null = null,
+): string {
     return renderToStaticMarkup(
         <App
             initialComponent={() => (
@@ -49,13 +52,30 @@ function renderPage(content: ReactElement): string {
                     component: 'Commit',
                     url: '/',
                     version: null,
-                    props: { errors: {}, auth: { user: null, pasteis: null } },
+                    props: {
+                        errors: {},
+                        auth: {
+                            user: userId === null ? null : { id: userId },
+                            pasteis: null,
+                        },
+                    },
                     clearHistory: false,
                     encryptHistory: false,
                 } as unknown as ComponentProps<typeof App>['initialPage']
             }
         />,
     );
+}
+
+function openResults(): Poll {
+    return {
+        ...pollWith(true),
+        has_voted: false,
+        options: pollWith(true).options.map((option) => ({
+            ...option,
+            voted: false,
+        })),
+    };
 }
 
 for (const results of [false, true]) {
@@ -72,6 +92,7 @@ for (const results of [false, true]) {
         assert.ok(markup.includes(`href="/mentions/${mentionedId}"`));
         assert.equal(markup.match(/data-test="mention"/g)?.length, 1);
         assert.ok(markup.includes('or @bob'));
+        assert.equal(markup.includes('View results'), false);
     });
 }
 
@@ -88,8 +109,66 @@ for (const results of [false, true]) {
         );
         assert.ok(markup.includes('title="/dev/null"'));
         assert.match(markup, /<code[^>]*>rm -rf<\/code>/);
+        assert.equal(markup.includes('View results'), false);
     });
 }
+
+test('offers a focusable view results button before a signed-in reader votes', () => {
+    const markup = renderPage(
+        <CommitPoll commit={commit} poll={pollWith(false)} />,
+        '019a2b3c-0000-7000-8000-000000000099',
+    );
+    const button = markup.match(/<button[^>]*>View results<\/button>/);
+
+    assert.ok(button);
+    assert.match(button[0], /type="button"/);
+    assert.match(button[0], /data-test="poll-view-results"/);
+    assert.match(button[0], /focus-visible:ring-\[3px\]/);
+    assert.match(button[0], /focus-visible:ring-ring\/50/);
+    assert.doesNotMatch(button[0], /\sdisabled[\s=>]/);
+    assert.match(markup, /data-test="poll-vote-button"/);
+    assert.equal(markup.includes('data-test="poll-summary"'), false);
+});
+
+test('shows counts and keeps voting after results are visible', () => {
+    const markup = renderPage(
+        <CommitPoll commit={commit} poll={openResults()} />,
+        '019a2b3c-0000-7000-8000-000000000099',
+    );
+
+    assert.equal(markup.includes('View results'), false);
+    assert.match(markup, /data-test="poll-vote-button"/);
+    assert.match(markup, /type="radio"/);
+    assert.match(markup, /data-test="poll-summary"/);
+    assert.ok(markup.includes('25%'));
+    assert.ok(markup.includes('4 votes'));
+});
+
+test('hides view results from the author and from a closed poll', () => {
+    const authorMarkup = renderPage(
+        <CommitPoll commit={commit} poll={openResults()} />,
+        commit.user_id,
+    );
+
+    assert.equal(authorMarkup.includes('View results'), false);
+    assert.equal(authorMarkup.includes('data-test="poll-vote-button"'), false);
+    assert.ok(authorMarkup.includes('data-test="poll-summary"'));
+
+    const closedMarkup = renderPage(
+        <CommitPoll
+            commit={commit}
+            poll={{
+                ...openResults(),
+                is_closed: true,
+                closes_at: '2000-01-01T00:00:00Z',
+            }}
+        />,
+        '019a2b3c-0000-7000-8000-000000000099',
+    );
+
+    assert.equal(closedMarkup.includes('View results'), false);
+    assert.equal(closedMarkup.includes('data-test="poll-vote-button"'), false);
+});
 
 test('shortens a big poll total but keeps the exact total on hover and for screen readers', () => {
     const poll = {
