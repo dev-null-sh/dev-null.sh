@@ -14,7 +14,7 @@ return new class extends Migration
         $host = preg_quote(Str::of(config()->string('app.url'))->after('://')->before('/')->value());
 
         DB::table('link_previews')
-            ->whereRaw('url ~* ?', ["^https?://([^/?#]+\\.)?{$host}/@[^/]+/commits/"])
+            ->whereRaw('url ~* ?', ["^https?://([^/?#]+\\.)?{$host}/@[^/?#]+/commits/"])
             ->whereNotExists(fn (Builder $query): Builder => $query->from('commits')
                 ->whereNotNull('user_id')
                 ->whereRaw("commits.id::text = substring(lower(link_previews.url) from '/commits/([0-9a-f-]{36})')"))
