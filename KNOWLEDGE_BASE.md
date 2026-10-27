@@ -276,11 +276,11 @@ Sources: [poll editor](resources/js/components/poll-editor.tsx), [poll results](
 
 ### Scheduled commits
 
-Use the composer's scheduling control to submit a top-level commit later. Pick a future time within **30 days**, in five-minute steps; you can have at most **10 outstanding scheduled commits**. Scheduled posts can carry images or a poll under the normal attachment rules, but replies and quotes cannot be scheduled. Scheduling counts against the 10-per-minute submission limit. The scheduled-commits page, linked from the scheduling control, is private to you: it lists queued posts, which you can cancel, and already submitted ones with their outcome.
+Use the composer's scheduling control to submit a top-level commit later. Pick a future time within **30 days**, in five-minute steps; you can have at most **10 outstanding scheduled commits**. Scheduled posts can carry images or a poll under the normal attachment rules, but replies and quotes cannot be scheduled. Scheduling counts against the 10-per-minute submission limit. The scheduled-commits page, linked from the scheduling control, is private to you: it lists queued posts, which you can cancel or submit right away with **Commit now**, and already submitted ones with their outcome. **Commit now** counts against the same 10-per-minute limit.
 
 The scheduler checks due posts every minute. Scheduling submits the post for the normal publishing and moderation flow; it is not a promise that an approved public post will appear at the exact second selected. To change a queued post, cancel it and schedule a replacement.
 
-Sources: [schedule validation](app/Http/Requests/CreateScheduledCommitRequest.php), [outstanding limit](app/Rules/ScheduledCommitLimit.php), [scheduled-commit controller](app/Http/Controllers/ScheduledCommitController.php), [scheduler](routes/console.php).
+Sources: [schedule validation](app/Http/Requests/CreateScheduledCommitRequest.php), [outstanding limit](app/Rules/ScheduledCommitLimit.php), [scheduled-commit controller](app/Http/Controllers/ScheduledCommitController.php), [commit now](app/Http/Controllers/ScheduledCommitSubmissionController.php), [scheduler](routes/console.php).
 
 ### Deleting commits and undo
 
@@ -556,7 +556,7 @@ Posts awaiting automated checks stay pending if those checks fail; a failed chec
 
 Before you first commit, reply, quote, or schedule a commit, the web composer shows the commit rules, and keeps showing them on every attempt until you send with "Got it, commit": no engagement bait, no low-effort posts, no AI-generated posts, no spam or self-promotion, and no harassment, hate, or private information, followed by a link to the terms. Your first submission must come from the web so you can accept these rules; terminal, GitHub Action, and app posting become available afterwards.
 
-During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, open issues, send remotes, or start, rename, add people to, or pin messages in orgs from any surface; each attempt says how long is left and why. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
+During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, open issues, go live, send remotes, or start, rename, add people to, or pin messages in orgs from any surface; each attempt says how long is left and why. A stream that is already live keeps showing, and **End stream** still works. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
 
 A **ban** sends you to a page explaining why, where you can only sign out or delete your account; the app refuses everything but deleting the account, and the terminal refuses posting. A ban belongs to the GitHub account, so deleting the /dev/null account and signing in again does not lift it. Banning someone cancels their scheduled commits, so lifting the ban later does not publish them all at once.
 
