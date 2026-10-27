@@ -370,6 +370,8 @@ Message requests and an **Everyone** contact option may not be available. Where 
 
 Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contact policy](app/Models/User.php), [push access](app/Queries/PushAccessQuery.php), [reactions](app/Http/Controllers/MessageReactionController.php), [message validation](app/Http/Requests/CreateConversationMessageRequest.php), [message creation](app/Actions/CreateMessage.php), [link-preview storage](app/Models/LinkPreview.php), [voice notes](app/Services/VoiceNotes.php), [remote preferences](resources/js/components/chat/remote-settings-menu.tsx).
 
+Direct remotes disappear from the inbox when the other person deletes their account. An unnamed org can still show **Just you** when you are its only remaining member.
+
 ### Orgs: group chats
 
 An **Org** is a private group chat within Remotes, not a synchronized GitHub organization. Create one with other eligible developers; a group can contain up to **100 people including you**. Members need Remotes enabled, must follow the person adding them (unless that person is an admin), and must have no block with anyone in the org. A group's optional name can be up to **60 characters**.

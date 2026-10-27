@@ -16,9 +16,11 @@ vi.doMock('react', () => ({
     },
 }));
 
-const { chatSnapshot, loadTab, searchConversations, seedInbox, seedThread, setConversationMute, watchThread } = await import('../../resources/js/lib/chat');
+const { chatSnapshot, loadTab, searchConversations, seedInbox, seedThread, setConversationMute, summaryKey, targetOf, watchRemoteAlerts, watchThread } = await import('../../resources/js/lib/chat');
 const { useRemoteAlerts } = await import('../../resources/js/hooks/use-chat');
+const { ConversationList } = await import('../../resources/js/components/chat/conversation-list');
 const { ConversationActions } = await import('../../resources/js/components/chat/conversation-actions');
+const remoteNotifications = await import('../../resources/js/lib/remote-notifications');
 const { remoteNotificationsAllowed, setRemoteAlerts, subscribeRemoteAlerts } = await import('../../resources/js/lib/remote-notifications');
 
 const user = { id: 'viewer', handle: 'viewer' } as User;
@@ -197,4 +199,43 @@ test('permission changes and returning to the tab refresh permission subscribers
     unsubscribe();
     status.dispatchEvent(new Event('change'));
     assert.deepEqual(permissions, [false, true, false]);
+});
+
+test('a direct chat without a partner never becomes an org target', () => {
+    const orphan = { ...orgSummary, id: 'orphan-direct', kind: 'direct' as const, members: null };
+    assert.equal(targetOf(orphan), null);
+    assert.equal(summaryKey(orphan), 'direct:orphan-direct');
+    assert.deepEqual(targetOf(orgSummary), { kind: 'org', org: { id: org.id, name: org.name } });
+    assert.equal(summaryKey(orgSummary), `org:${org.id}`);
+    assert.deepEqual(targetOf({ ...orphan, partner }), { kind: 'direct', partner });
+    assert.equal(summaryKey({ ...orphan, partner }), partner.handle);
+});
+
+test('an inbox containing only an orphaned direct chat shows its empty state', () => {
+    const empty = <span>No remotes yet</span>;
+    const orphan = { ...orgSummary, kind: 'direct' as const, members: null };
+    assert.equal(ConversationList({ conversations: [orphan], user, empty }), empty);
+});
+
+test('an inbox keeps real direct chats and single-member orgs beside an orphan', () => {
+    const orphan = { ...orgSummary, id: 'missing-partner', kind: 'direct' as const, members: null };
+    const direct = { ...orphan, id: 'available-partner', partner };
+    const list = ConversationList({ conversations: [orphan, direct, orgSummary], user, empty: <span>Empty</span> });
+    const rows = elements(list).filter((element) => 'conversation' in element.props);
+    assert.deepEqual(rows.map((element) => (element.props.conversation as ConversationSummary).id).sort(), [direct.id, orgSummary.id].sort());
+});
+
+test('a stale alert for a missing direct partner opens the inbox instead of an org', async () => {
+    vi.stubGlobal('fetch', async () => Response.json({ conversations: [], has_more: false, unread: 0, requests: 0, notification_baseline: {} }));
+    const create = vi.spyOn(remoteNotifications, 'createRemoteAlerts');
+    const stop = watchRemoteAlerts(user.id);
+    try {
+        const urlOf = create.mock.calls[0][1];
+        assert.equal(urlOf({ ...orgSummary, kind: 'direct', members: null }), '/remotes');
+        assert.equal(urlOf(orgSummary), `/remotes/orgs/${org.id}`);
+        assert.equal(urlOf({ ...orgSummary, kind: 'direct', partner }), `/remotes/@${partner.handle}`);
+        await vi.advanceTimersByTimeAsync(0);
+    } finally {
+        stop();
+    }
 });

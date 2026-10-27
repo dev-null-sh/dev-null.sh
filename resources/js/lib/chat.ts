@@ -224,14 +224,18 @@ export function targetKey(target: ChatTarget): string {
 }
 
 export function summaryKey(summary: ConversationSummary): string {
-    return summary.kind === 'org' || summary.partner === null
+    return summary.kind === 'org'
         ? `org:${summary.id}`
-        : summary.partner.handle;
+        : (summary.partner?.handle ?? `direct:${summary.id}`);
 }
 
-export function targetOf(summary: ConversationSummary): ChatTarget {
-    return summary.kind === 'org' || summary.partner === null
-        ? { kind: 'org', org: { id: summary.id, name: summary.name } }
+export function targetOf(summary: ConversationSummary): ChatTarget | null {
+    if (summary.kind === 'org') {
+        return { kind: 'org', org: { id: summary.id, name: summary.name } };
+    }
+
+    return summary.partner === null
+        ? null
         : { kind: 'direct', partner: summary.partner };
 }
 
@@ -1066,7 +1070,13 @@ export function watchRemoteAlerts(userId: string): () => void {
 
     const alerts = createRemoteAlerts(
         userId,
-        (conversation) => urls(targetOf(conversation)).show,
+        (conversation) => {
+            const target = targetOf(conversation);
+
+            return target === null
+                ? ConversationController.index.url()
+                : urls(target).show;
+        },
         () =>
             !document.hidden && document.hasFocus()
                 ? [...threadWatchers.keys()].map(
