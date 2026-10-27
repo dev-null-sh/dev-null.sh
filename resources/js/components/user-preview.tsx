@@ -73,6 +73,10 @@ async function fetchPreview(url: string): Promise<PreviewData> {
     return data;
 }
 
+export function clearUserPreviews(): void {
+    cache.clear();
+}
+
 function positionFor(trigger: HTMLElement): Position {
     const rect = trigger.getBoundingClientRect();
     const left = Math.min(

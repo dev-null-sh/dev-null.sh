@@ -390,11 +390,11 @@ Sources: [group creation](app/Http/Requests/CreateOrgRequest.php), [invitation e
 
 ### Muting and blocking
 
-**Mute** someone to remove their commits and replies from your logs, threads, search, and suggestions and stop their notifications. Muting is silent, leaves follows intact, and still lets you visit their profile, which shows a **Muted** badge. Commits you starred stay in Starred.
+**Mute** someone to remove their commits and replies from your logs, threads, search, and suggestions and stop their notifications. Muting is silent, leaves follows intact, and still lets you visit their profile, which shows a **Muted** badge. Commits you starred stay in Starred. Hover cards show the same badge, and logging out or deleting your account forgets them, so whoever uses that tab next doesn't see who you muted or blocked.
 
 **Block** someone to stop messaging and interactions such as following, replies, stars, pastéis, and Tom's replies between the two accounts, and hide each other's commits while signed in. Their profile and follower lists become unavailable to you. Blocking removes follows in both directions. Unblocking does not restore those follows. Manage and reverse either choice in Settings → Safety. Blocking is an account-level interaction control, not a way to make public posts inaccessible to signed-out visitors.
 
-Sources: [safety settings](resources/js/pages/safety/edit.tsx), [mute action](app/Actions/CreateUserMute.php), [block action](app/Actions/CreateUserBlock.php), [public routes](routes/web.php).
+Sources: [safety settings](resources/js/pages/safety/edit.tsx), [mute action](app/Actions/CreateUserMute.php), [block action](app/Actions/CreateUserBlock.php), [public routes](routes/web.php), [hover cards](resources/js/components/user-preview.tsx).
 
 ### Reporting commits
 

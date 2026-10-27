@@ -38,7 +38,7 @@ const { UserAvatar } =
     await import('../../resources/js/components/user-avatar');
 const { ActorAvatar } =
     await import('../../resources/js/pages/notification/index');
-const { UserPreview } =
+const { UserPreview, clearUserPreviews } =
     await import('../../resources/js/components/user-preview');
 const { SuggestedUserRow } =
     await import('../../resources/js/components/who-to-follow');
@@ -175,6 +175,38 @@ test('profile preview stays open when its menu is dismissed under the mouse', ()
     vi.runAllTimers();
 
     assert.ok(!stateChanges.includes(false));
+});
+
+test('profile preview opens without the cached relationship once previews are cleared', () => {
+    const user = { id: 'muted', handle: 'muted' } as User;
+    const content = () => {
+        showPreview = true;
+        const preview = UserPreview({ user, children: 'Muted' });
+        showPreview = false;
+
+        return (
+            React.Children.toArray(preview.props.children)[1] as ReactElement<{
+                children: ReactElement<{
+                    data: { followsYou: boolean; isMuting: boolean } | null;
+                    onChange: (data: object) => void;
+                }>;
+            }>
+        ).props.children.props;
+    };
+
+    content().onChange({
+        isFollowing: false,
+        followsYou: true,
+        isMuting: true,
+        isBlocking: false,
+        isUnavailable: false,
+        user,
+    });
+    assert.equal(content().data?.isMuting, true);
+
+    clearUserPreviews();
+
+    assert.equal(content().data, null);
 });
 
 test('suggested user row wraps the author in a user preview anchored to their avatar', () => {

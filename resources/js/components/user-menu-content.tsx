@@ -24,6 +24,7 @@ import {
     DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { UserInfo } from '@/components/user-info';
+import { clearUserPreviews } from '@/components/user-preview';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
 import { clearRecentSearches } from '@/hooks/use-recent-searches';
 import { clearStashes } from '@/hooks/use-stash';
@@ -44,6 +45,7 @@ export function UserMenuContent({ user }: Props) {
         cleanup();
         clearStashes(user.id);
         clearRecentSearches(user.id);
+        clearUserPreviews();
         router.flushAll();
     };
 
