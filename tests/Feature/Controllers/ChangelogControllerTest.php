@@ -3,37 +3,35 @@
 declare(strict_types=1);
 
 use App\Models\User;
-use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia;
 
 /**
  * @return array<string, mixed>
  */
-function changelogPullRequest(int $number, string $mergedAt): array
+function changelogCommit(int $number, string $committedAt, ?int $parent): array
 {
     return [
-        'number' => $number,
-        'title' => 'feat: turn emoji shortcodes into emoji in remotes',
-        'html_url' => "https://github.com/dev-null-sh/dev-null.sh/pull/{$number}",
-        'merged_at' => $mergedAt,
-        'updated_at' => $mergedAt,
-        'merge_commit_sha' => 'c897f86700000000000000000000000000000000',
-        'user' => ['id' => 14284867, 'login' => 'xHeaven', 'avatar_url' => 'https://avatars.githubusercontent.com/u/1?v=4'],
+        'sha' => "sha-{$number}",
+        'html_url' => "https://github.com/dev-null-sh/dev-null.sh/commit/sha-{$number}",
+        'commit' => ['message' => "feat: turn emoji shortcodes into emoji in remotes (#{$number})", 'committer' => ['date' => $committedAt]],
+        'author' => ['id' => 14284867, 'login' => 'xHeaven', 'type' => 'User', 'avatar_url' => 'https://avatars.githubusercontent.com/u/1?v=4'],
+        'committer' => ['id' => 19864447, 'login' => 'web-flow', 'type' => 'User', 'avatar_url' => 'https://avatars.githubusercontent.com/u/19864447?v=4'],
+        'parents' => $parent === null ? [] : [['sha' => "sha-{$parent}"]],
     ];
 }
 
 function fakeChangelog(): void
 {
-    Http::fake(['api.github.com/*' => fn (Request $request) => Http::response($request['page'] === 1 ? [
-        changelogPullRequest(377, '2026-10-17T23:30:00Z'),
-        changelogPullRequest(376, '2026-10-16T12:00:00Z'),
-        changelogPullRequest(375, '2026-10-15T12:00:00Z'),
-        changelogPullRequest(374, '2026-10-14T12:00:00Z'),
-    ] : [])]);
+    Http::fake(['api.github.com/*' => Http::response([
+        changelogCommit(377, '2026-10-17T23:30:00Z', 376),
+        changelogCommit(376, '2026-10-16T12:00:00Z', 375),
+        changelogCommit(375, '2026-10-15T12:00:00Z', 374),
+        changelogCommit(374, '2026-10-14T12:00:00Z', null),
+    ])]);
 }
 
-it('lists the latest days of merged pull requests for anyone, with a link to every commit on production', function (bool $isSignedIn): void {
+it('lists the latest days of commits on production for anyone, with a link to all of them on GitHub', function (bool $isSignedIn): void {
     fakeChangelog();
 
     $request = $isSignedIn ? $this->actingAs(User::factory()->create()) : $this;
@@ -41,11 +39,12 @@ it('lists the latest days of merged pull requests for anyone, with a link to eve
     $request->getJson('/changelog?timezone=UTC')
         ->assertOk()
         ->assertJsonPath('commitsUrl', 'https://github.com/dev-null-sh/dev-null.sh/commits/production')
-        ->assertJsonPath('pullRequests.0.number', 377)
-        ->assertJsonPath('pullRequests.0.type', 'feat')
-        ->assertJsonPath('pullRequests.0.title', 'Turn emoji shortcodes into emoji in remotes')
-        ->assertJsonPath('pullRequests.0.author.login', 'xHeaven')
-        ->assertJsonCount(3, 'pullRequests')
+        ->assertJsonPath('commits.0.sha', 'sha-377')
+        ->assertJsonPath('commits.0.pull_request.number', 377)
+        ->assertJsonPath('commits.0.type', 'feat')
+        ->assertJsonPath('commits.0.title', 'Turn emoji shortcodes into emoji in remotes')
+        ->assertJsonPath('commits.0.author.login', 'xHeaven')
+        ->assertJsonCount(3, 'commits')
         ->assertJsonPath('olderBefore', '2026-10-15T00:00:00+00:00');
 })->with(['guest' => false, 'signed in' => true]);
 
@@ -53,12 +52,12 @@ it('groups days in the reader’s time zone, and carries on from where the reade
     fakeChangelog();
 
     $this->getJson('/changelog?timezone=Europe/Budapest')
-        ->assertJsonCount(3, 'pullRequests')
-        ->assertJsonPath('pullRequests.2.number', 375);
+        ->assertJsonCount(3, 'commits')
+        ->assertJsonPath('commits.2.sha', 'sha-375');
 
     $this->getJson('/changelog?'.http_build_query(['timezone' => 'UTC', 'before' => '2026-10-15T00:00:00+00:00']))
-        ->assertJsonCount(1, 'pullRequests')
-        ->assertJsonPath('pullRequests.0.number', 374)
+        ->assertJsonCount(1, 'commits')
+        ->assertJsonPath('commits.0.sha', 'sha-374')
         ->assertJsonPath('olderBefore', null);
 });
 
@@ -76,7 +75,7 @@ it('says the changelog is unavailable when GitHub cannot be reached', function (
 
     $this->getJson('/changelog?timezone=UTC')
         ->assertOk()
-        ->assertJsonPath('pullRequests', null)
+        ->assertJsonPath('commits', null)
         ->assertJsonPath('olderBefore', null);
 });
 
@@ -92,13 +91,13 @@ it('opens the changelog as a page', function (): void {
 
 it('uses the configured upstream for the changelog and commit links', function (): void {
     config(['services.github.repository' => 'example/upstream']);
-    Http::fake(['api.github.com/repos/example/upstream/pulls*' => Http::response([
-        [...changelogPullRequest(377, '2026-10-17T23:30:00Z'), 'html_url' => 'https://github.com/example/upstream/pull/377'],
+    Http::fake(['api.github.com/repos/example/upstream/commits*' => Http::response([
+        [...changelogCommit(377, '2026-10-17T23:30:00Z', null), 'html_url' => 'https://github.com/example/upstream/commit/sha-377'],
     ])]);
 
     $this->getJson('/changelog?timezone=UTC')
         ->assertOk()
         ->assertJsonPath('commitsUrl', 'https://github.com/example/upstream/commits/production')
-        ->assertJsonPath('pullRequests.0.url', 'https://github.com/example/upstream/pull/377')
-        ->assertJsonPath('pullRequests.0.commit_url', 'https://github.com/example/upstream/commit/c897f86700000000000000000000000000000000');
+        ->assertJsonPath('commits.0.pull_request.url', 'https://github.com/example/upstream/pull/377')
+        ->assertJsonPath('commits.0.url', 'https://github.com/example/upstream/commit/sha-377');
 });

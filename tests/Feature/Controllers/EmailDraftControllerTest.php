@@ -12,24 +12,27 @@ beforeEach(function (): void {
 });
 
 /**
- * @param  list<array{number: int, title: string, merged_at: string|null}>  $pullRequests
+ * Production's history, newest first, each commit the first parent of the one before it.
+ *
+ * @param  list<array{sha: string, message: string, committed_at: string}>  $commits
  */
-function fakeMergedPullRequests(array $pullRequests): void
+function fakeProductionCommits(array $commits): void
 {
-    Http::fake(['api.github.com/repos/'.config()->string('services.github.repository').'/pulls*' => Http::response(array_map(fn (array $pullRequest): array => [
-        ...$pullRequest,
-        'html_url' => "https://github.com/dev-null-sh/dev-null.sh/pull/{$pullRequest['number']}",
-        'updated_at' => $pullRequest['merged_at'] ?? '2026-10-01T00:00:00Z',
-        'merge_commit_sha' => mb_str_pad((string) $pullRequest['number'], 40, 'a'),
-        'user' => ['id' => 1, 'login' => 'octocat', 'avatar_url' => 'https://avatars.githubusercontent.com/u/1'],
-    ], $pullRequests))]);
+    Http::fake(['api.github.com/repos/'.config()->string('services.github.repository').'/commits*' => Http::response(array_map(fn (array $commit, int $index): array => [
+        'sha' => $commit['sha'],
+        'html_url' => "https://github.com/dev-null-sh/dev-null.sh/commit/{$commit['sha']}",
+        'commit' => ['message' => $commit['message'], 'committer' => ['date' => $commit['committed_at']]],
+        'author' => ['id' => 1, 'login' => 'octocat', 'type' => 'User', 'avatar_url' => 'https://avatars.githubusercontent.com/u/1'],
+        'committer' => ['id' => 1, 'login' => 'octocat', 'type' => 'User', 'avatar_url' => 'https://avatars.githubusercontent.com/u/1'],
+        'parents' => isset($commits[$index + 1]) ? [['sha' => $commits[$index + 1]['sha']]] : [],
+    ], $commits, array_keys($commits)))]);
 }
 
-it('drafts an email from what was merged in the time it looks back over', function (string $draft, array $included, array $excluded): void {
-    fakeMergedPullRequests([
-        ['number' => 3, 'title' => 'feat: email everyone', 'merged_at' => '2026-10-23T10:00:00Z'],
-        ['number' => 2, 'title' => 'docs: closed without merging', 'merged_at' => null],
-        ['number' => 1, 'title' => 'fix: older fix', 'merged_at' => '2026-10-10T10:00:00Z'],
+it('drafts an email from what was committed in the time it looks back over', function (string $draft, array $included, array $excluded): void {
+    fakeProductionCommits([
+        ['sha' => 'c', 'message' => 'feat: email everyone (#3)', 'committed_at' => '2026-10-23T10:00:00Z'],
+        ['sha' => 'b', 'message' => 'feat: audio in remotes', 'committed_at' => '2026-10-21T10:00:00Z'],
+        ['sha' => 'a', 'message' => 'fix: older fix (#1)', 'committed_at' => '2026-10-10T10:00:00Z'],
     ]);
     EmailWriter::fake([['subject' => 'What shipped', 'body' => "## New\n\n- Emails"]])->preventStrayPrompts();
 
@@ -41,19 +44,19 @@ it('drafts an email from what was merged in the time it looks back over', functi
     EmailWriter::assertPrompted(fn ($prompt): bool => collect($included)->every(fn (string $line): bool => str_contains($prompt->prompt, $line))
         && collect($excluded)->every(fn (string $line): bool => ! str_contains($prompt->prompt, $line)));
 })->with([
-    'weekly' => ['weekly', ['- [feat] Email everyone (#3, https://github.com/dev-null-sh/dev-null.sh/pull/3) by octocat'], ['Older fix', 'Closed without merging']],
-    'monthly' => ['monthly', ['Email everyone', '- [fix] Older fix (#1'], ['Closed without merging']],
+    'weekly' => ['weekly', ['- [feat] Email everyone (#3, https://github.com/dev-null-sh/dev-null.sh/pull/3) by octocat', '- [feat] Audio in remotes (https://github.com/dev-null-sh/dev-null.sh/commit/b) by octocat'], ['Older fix']],
+    'monthly' => ['monthly', ['Email everyone', 'Audio in remotes', '- [fix] Older fix (#1'], []],
 ]);
 
-it('tells the writer when nothing was merged', function (): void {
-    fakeMergedPullRequests([]);
+it('tells the writer when nothing was committed', function (): void {
+    fakeProductionCommits([]);
     EmailWriter::fake([['subject' => 'Quiet week', 'body' => 'Nothing shipped.']]);
 
     $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->postJson(route('email-draft.store'), ['draft' => 'weekly'])
         ->assertOk();
 
-    EmailWriter::assertPrompted('No pull requests were merged.');
+    EmailWriter::assertPrompted('Nothing was committed.');
 });
 
 it('fails when the changelog can not be read', function (): void {

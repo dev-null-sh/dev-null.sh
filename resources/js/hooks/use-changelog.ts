@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { flushSync } from 'react-dom';
 import ChangelogController from '@/actions/App/Http/Controllers/ChangelogController';
-import type { Changelog, ChangelogPullRequest } from '@/lib/changelog';
+import type { Changelog, ChangelogCommit } from '@/lib/changelog';
 
 let loaded: Changelog | null = null;
 let request: Promise<Changelog> | null = null;
@@ -31,7 +31,7 @@ async function fetchChangelog(
 
     const changelog = (await response.json()) as Changelog;
 
-    if (changelog.pullRequests === null) {
+    if (changelog.commits === null) {
         throw new Error('GitHub could not be reached');
     }
 
@@ -48,7 +48,7 @@ export function useChangelog(timeZone: string): {
     isLoadingOlder: boolean;
     hasOlderFailed: boolean;
     load: () => void;
-    loadOlder: (onLoaded: (added: ChangelogPullRequest[]) => void) => void;
+    loadOlder: (onLoaded: (added: ChangelogCommit[]) => void) => void;
 } {
     const [changelog, setChangelog] = useState(loaded);
     const [hasFailed, setHasFailed] = useState(false);
@@ -91,21 +91,16 @@ export function useChangelog(timeZone: string): {
             fetchChangelog(timeZone, current.olderBefore).then(
                 (older) => {
                     const known = new Set(
-                        (current.pullRequests ?? []).map(
-                            (pullRequest) => pullRequest.number,
-                        ),
+                        (current.commits ?? []).map((commit) => commit.sha),
                     );
-                    const added = (older.pullRequests ?? []).filter(
-                        (pullRequest) => !known.has(pullRequest.number),
+                    const added = (older.commits ?? []).filter(
+                        (commit) => !known.has(commit.sha),
                     );
 
                     flushSync(() => {
                         keep({
                             ...current,
-                            pullRequests: [
-                                ...(current.pullRequests ?? []),
-                                ...added,
-                            ],
+                            commits: [...(current.commits ?? []), ...added],
                             olderBefore: older.olderBefore,
                         });
                         setIsLoadingOlder(false);

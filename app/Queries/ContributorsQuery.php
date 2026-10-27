@@ -16,6 +16,11 @@ use Illuminate\Support\Fluent;
  */
 final readonly class ContributorsQuery
 {
+    /**
+     * GitHub reports them as ordinary accounts, so they are named rather than detected.
+     */
+    public const array Agents = ['ampagent', 'claude'];
+
     private const int PerPage = 100;
 
     private const int MaxPages = 10;
@@ -23,11 +28,6 @@ final readonly class ContributorsQuery
     private const int Ttl = 3600;
 
     private const int FailedTtl = 60;
-
-    /**
-     * GitHub reports them as ordinary accounts, so they are named rather than detected.
-     */
-    private const array Agents = ['ampagent', 'claude'];
 
     public function __construct(private GitHub $github)
     {
