@@ -142,6 +142,21 @@ it('accepts fences of more than three backticks', function (): void {
     ]);
 });
 
+it('keeps a shorter fence inside a code block', function (): void {
+    $codeSpans = resolve(CodeSpans::class);
+    $text = "before\n`````\n````markdown\n```\nfence inside fence\n```\n````\n`````\nafter `x`";
+
+    expect($codeSpans->split($text))->toBe([
+        "before\n",
+        "`````\n````markdown\n```\nfence inside fence\n```\n````\n`````",
+        "\nafter ",
+        '`x`',
+        '',
+    ])->and($codeSpans->highlight("````markdown\n```\nfence inside fence\n```\n````")[0]['html'])
+        ->toContain('fence inside fence')
+        ->toContain('```');
+});
+
 it('never lets a code block pick its own CSS classes', function (): void {
     $codeSpans = resolve(CodeSpans::class);
 

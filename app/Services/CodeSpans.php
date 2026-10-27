@@ -14,10 +14,11 @@ use Tempest\Highlight\Highlighter;
 final readonly class CodeSpans
 {
     /**
-     * A fenced code block, from a line starting with ``` or more (and maybe a language) to a line that is only ``` or
-     * more, or inline code between two backticks on one line. Keep in sync with resources/js/lib/code.ts.
+     * A fenced code block, from a line starting with ``` or more (and maybe a language) to a line that is only as many
+     * backticks or more, so a block can hold a shorter fence, or inline code between two backticks on one line. Keep in
+     * sync with resources/js/lib/code.ts.
      */
-    private const string PATTERN = '/((?<![^\n])`{3,}[^`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?`{3,}[ \t]*(?![^\r\n])|`[^`\r\n]+`)/';
+    private const string PATTERN = '/(?<![^\n])(?<fence>`{3,})[^`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?\k<fence>`*[ \t]*(?![^\r\n])|`[^`\r\n]+`/';
 
     public function __construct(private Highlighter $highlighter)
     {
@@ -35,7 +36,21 @@ final readonly class CodeSpans
             return [$text];
         }
 
-        return preg_split(self::PATTERN, $text, flags: PREG_SPLIT_DELIM_CAPTURE) ?: [$text];
+        // The prose and the code are found apart, since the fence the pattern captures isn't a part.
+        $prose = preg_split(self::PATTERN, $text) ?: [$text];
+        preg_match_all(self::PATTERN, $text, $matches);
+
+        $parts = [];
+
+        foreach ($prose as $index => $part) {
+            $parts[] = $part;
+
+            if (isset($matches[0][$index])) {
+                $parts[] = $matches[0][$index];
+            }
+        }
+
+        return $parts;
     }
 
     /**
