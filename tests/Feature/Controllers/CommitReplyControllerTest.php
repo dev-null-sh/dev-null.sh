@@ -19,6 +19,41 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
+it('only notifies selected conversation recipients and keeps explicit mentions', function (bool $selected, bool $explicit): void {
+    Queue::fake();
+    config(['app.admins' => ['alice']]);
+    $author = User::factory()->create(['handle' => 'alice']);
+    $participant = User::factory()->create(['handle' => 'participant']);
+    $parent = Commit::factory()->create(['mentions' => ['participant' => $participant->id]]);
+
+    $response = $this->actingAs($author)->postJson(route('commit-reply.store', $parent), [
+        'body' => $explicit ? 'Hello @participant' : 'Hello everyone',
+        'reply_recipients' => $selected ? [$participant->id] : [],
+    ])->assertCreated();
+
+    $reply = Commit::query()->findOrFail($response->json('committed.id'));
+    expect($reply->mentions ?? [])->toBe($selected || $explicit ? ['participant' => $participant->id] : []);
+    expect($participant->notifications()->where('commit_id', $reply->id)->count())->toBe($selected || $explicit ? 1 : 0);
+    expect($parent->user->notifications()->where('commit_id', $reply->id)->count())->toBe(1);
+})->with([
+    'selected' => [true, false],
+    'unchecked' => [false, false],
+    'explicit mention overrides unchecked' => [false, true],
+]);
+
+it('rejects reply recipients outside the conversation', function (): void {
+    $parent = Commit::factory()->create();
+    $stranger = User::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-reply.store', $parent), [
+            'body' => 'Hello everyone',
+            'reply_recipients' => [$stranger->id],
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('reply_recipients.0');
+});
+
 it('answers a casual public Tom mention in the same thread', function (): void {
     config(['app.admins' => ['alice', 'tom'], 'ai.providers.opencode.key' => 'test', 'ai.providers.openai.key' => 'test']);
     Queue::fake([ReplyAsTom::class, DetectCommitLanguage::class]);

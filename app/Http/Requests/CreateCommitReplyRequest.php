@@ -43,8 +43,12 @@ final class CreateCommitReplyRequest extends FormRequest
     public function rules(): array
     {
         $body = $this->input('body');
+        $parent = $this->route('commit');
+        assert($parent instanceof Commit);
 
         return [
+            'reply_recipients' => ['sometimes', 'list'],
+            'reply_recipients.*' => ['required', 'string', 'distinct', Rule::in(array_values($parent->mentions ?? []))],
             'body' => CreateCommitRequest::bodyRules($this->hasFile('images')),
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
@@ -101,6 +105,22 @@ final class CreateCommitReplyRequest extends FormRequest
         $images = $this->file('images');
 
         return is_array($images) ? array_values($images) : [];
+    }
+
+    /**
+     * Only people already addressed by the parent may be included without an explicit body mention.
+     *
+     * @return array<string, string>
+     */
+    public function replyRecipients(): array
+    {
+        $parent = $this->route('commit');
+        assert($parent instanceof Commit);
+
+        /** @var list<string> $recipients */
+        $recipients = $this->validated('reply_recipients', []);
+
+        return array_intersect($parent->mentions ?? [], $recipients);
     }
 
     /**
