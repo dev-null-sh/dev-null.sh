@@ -80,6 +80,20 @@ it('says how starred the reply is and whether the user starred it, so it can be 
             ->where('notifications.data.0.commit.starred', true));
 });
 
+it('says how starred an expanded reply is and whether the user starred it', function (): void {
+    $user = User::factory()->create();
+    $replied = Notification::factory()->for($user, 'recipient')->replied()->create();
+    $reply = Commit::query()->findOrFail($replied->commit_id);
+    resolve(CreateCommitStar::class)->handle($user, $reply);
+    resolve(CreateCommitStar::class)->handle(User::factory()->create(), $reply);
+
+    $this->actingAs($user)->getJson(route('notification-group.show', $replied))
+        ->assertOk()
+        ->assertJsonPath('data.0.commit.id', $reply->id)
+        ->assertJsonPath('data.0.commit.stars_count', 2)
+        ->assertJsonPath('data.0.commit.starred', true);
+});
+
 it('hides notifications that no longer hold', function (): void {
     $user = User::factory()->create();
     $notification = Notification::factory()->for($user, 'recipient')->create();
