@@ -66,6 +66,15 @@ final readonly class GitHubReadmeQuery
     }
 
     /**
+     * The repository a profile README lives in is named after the GitHub login, which the handle can lag behind after
+     * a rename on GitHub, so this is the login the README was last looked up with, or the handle until then.
+     */
+    public function repository(User $user): string
+    {
+        return Cache::string("github-login:{$user->github_id}", $user->handle);
+    }
+
+    /**
      * @throws HttpClientException
      */
     private function fetch(User $user): string
@@ -75,6 +84,8 @@ final readonly class GitHubReadmeQuery
         if ($login === null) {
             return '';
         }
+
+        Cache::put("github-login:{$user->github_id}", $login, 86400);
 
         $response = $this->github->request()
             ->replaceHeaders(['Accept' => 'application/vnd.github.html+json'])

@@ -155,6 +155,18 @@ it('keeps the words of the rarer text elements, without the elements', function 
         ->not->toContain('hidden');
 });
 
+it('names the repository after the github login, which the handle can lag behind', function (): void {
+    $user = User::factory()->create(['handle' => 'old-name']);
+    $query = resolve(GitHubReadmeQuery::class);
+
+    expect($query->repository($user))->toBe('old-name');
+
+    fakeGitHubReadme($user, Http::response(status: 404));
+    $query->get($user);
+
+    expect($query->repository($user))->toBe('octocat');
+});
+
 it('shows no readme for a github account that no longer exists', function (): void {
     $user = User::factory()->create();
 

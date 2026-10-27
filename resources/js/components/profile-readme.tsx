@@ -1,17 +1,20 @@
 import { EmptyFeed } from '@/components/commit-feed';
 
 /**
- * The README of the developer's GitHub profile repository. The server only sends it once sanitized, with plain
+ * The README of the developer's GitHub profile repository, which is named after their GitHub login rather than their
+ * handle, as the two can differ after a rename. The server only sends it once sanitized, with plain
  * formatting, links and images from GitHub's own hosts. False when GitHub didn't answer, which is not the same as
  * having no README.
  */
 export function ProfileReadme({
     readme,
-    username,
+    handle,
+    repository,
     isCurrentUser,
 }: {
     readme: string | false | null;
-    username: string;
+    handle: string;
+    repository: string;
     isCurrentUser: boolean;
 }) {
     if (readme === false) {
@@ -31,7 +34,7 @@ export function ProfileReadme({
                     {isCurrentUser ? (
                         <>
                             Add a README.md to a GitHub repository named{' '}
-                            <span className="font-mono">{username}</span>, and
+                            <span className="font-mono">{repository}</span>, and
                             it shows up here.{' '}
                             <a
                                 href="https://docs.github.com/en/account-and-profile/setting-up-and-managing-your-github-profile/customizing-your-profile/managing-your-profile-readme"
@@ -43,7 +46,7 @@ export function ProfileReadme({
                             </a>
                         </>
                     ) : (
-                        `@${username} doesn't have a profile README on GitHub.`
+                        `@${handle} doesn't have a profile README on GitHub.`
                     )}
                 </EmptyFeed>
             </div>
@@ -58,12 +61,12 @@ export function ProfileReadme({
                 dangerouslySetInnerHTML={{ __html: readme }}
             />
             <a
-                href={`https://github.com/${username}/${username}`}
+                href={`https://github.com/${repository}/${repository}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-6 block font-mono text-xs text-muted-foreground hover:text-foreground"
             >
-                {username}/README.md on GitHub
+                {repository}/README.md on GitHub
             </a>
         </div>
     );

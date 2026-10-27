@@ -76,6 +76,7 @@ export default function Show({
     tab,
     pinnedCommit,
     readme,
+    readmeRepository,
 }: {
     user: Profile;
     pasteisReceived: number | null;
@@ -92,6 +93,7 @@ export default function Show({
     tab: 'commits' | 'replies' | 'readme';
     pinnedCommit: Commit | null;
     readme: string | false | null;
+    readmeRepository: string | null;
 }) {
     const { auth } = usePage().props;
     const isCurrentUser = auth.user?.id === user.id;
@@ -434,7 +436,13 @@ export default function Show({
                 <PageTabs
                     label="Profile feed"
                     preserveScroll
-                    only={['tab', 'commits', 'pinnedCommit', 'readme']}
+                    only={[
+                        'tab',
+                        'commits',
+                        'pinnedCommit',
+                        'readme',
+                        'readmeRepository',
+                    ]}
                     reset={['commits']}
                     tabs={[
                         {
@@ -458,7 +466,8 @@ export default function Show({
                 {tab === 'readme' ? (
                     <ProfileReadme
                         readme={readme}
-                        username={user.handle}
+                        handle={user.handle}
+                        repository={readmeRepository ?? user.handle}
                         isCurrentUser={isCurrentUser}
                     />
                 ) : (
