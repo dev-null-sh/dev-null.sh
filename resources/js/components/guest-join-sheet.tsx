@@ -1,4 +1,4 @@
-import { GitCommitVertical, UsersRound, X } from 'lucide-react';
+import { GitCommitVertical, Laptop, UsersRound, X } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
 import { GitHubIcon } from '@/components/github-icon';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,9 @@ function dismiss(): void {
 /**
  * On a phone, guests don't see the aside that tells desktop visitors what /dev/null is, so this sheet does, with the
  * button where the thumb is. It stays out of the server render and opens once the page has loaded, unless the guest
- * closed it earlier in this browser session. Signing in leaves for GitHub, so the button is a plain link.
+ * closed it earlier in this browser session. Signing in leaves for GitHub, so the button is a plain link. Guests not
+ * signed in to GitHub on their phone can send the page to their computer instead, through the phone's share sheet:
+ * AirDrop, a message to themselves, a note.
  */
 export function GuestJoinSheet() {
     const isHidden = useSyncExternalStore(subscribe, isDismissed, () => true);
@@ -90,12 +92,43 @@ export function GuestJoinSheet() {
                 </li>
             </ul>
 
-            <Button className="mt-1.5 h-12 rounded-[10px] text-base" asChild>
-                <a href={login().url} data-test="guest-join-sheet-login-button">
-                    <GitHubIcon className="size-[18px]" />
-                    Join with GitHub
-                </a>
-            </Button>
+            <div className="mt-1.5 flex flex-col items-center gap-3">
+                <Button
+                    className="h-12 w-full rounded-[10px] text-base"
+                    asChild
+                >
+                    <a
+                        href={login().url}
+                        data-test="guest-join-sheet-login-button"
+                    >
+                        <GitHubIcon className="size-[18px]" />
+                        Join with GitHub
+                    </a>
+                </Button>
+                {/* The sheet never renders on the server, so the browser is there to ask... */}
+                {typeof navigator.share === 'function' && (
+                    <button
+                        type="button"
+                        onClick={sendToComputer}
+                        className="flex items-center gap-2 text-sm text-muted-foreground underline-offset-4 hover:underline"
+                        data-test="guest-join-sheet-share-button"
+                    >
+                        <Laptop className="size-4" />
+                        Finish on your computer
+                    </button>
+                )}
+            </div>
         </section>
     );
+}
+
+function sendToComputer(): void {
+    navigator
+        .share({
+            title: 'Join /dev/null with GitHub',
+            url: window.location.href,
+        })
+        .catch(() => {
+            // Closing the share sheet rejects too, and there is nothing to tell.
+        });
 }
