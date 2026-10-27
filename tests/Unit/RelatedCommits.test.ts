@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
-import { fetchRelatedCommits } from '../../resources/js/lib/related-commits.ts';
+import { fetchRelatedCommits, hiddenAfterFlash } from '../../resources/js/lib/related-commits.ts';
 import type { Commit } from '../../resources/js/types';
 
 const realFetch = globalThis.fetch;
@@ -50,4 +50,18 @@ void test('rejects when the request was aborted, so a stale response never lands
         fetchRelatedCommits('/commits/a/related', controller.signal),
         { name: 'AbortError' },
     );
+});
+
+void test('hides a deleted commit and shows it again once restored', () => {
+    const hidden = hiddenAfterFlash(new Set(), { deleted: { id: 'related' } });
+
+    assert.deepEqual([...hidden], ['related']);
+    assert.deepEqual([...hiddenAfterFlash(hidden, { restored: { id: 'related' } })], []);
+});
+
+void test('leaves the hidden commits alone on other flashes', () => {
+    const hidden = new Set(['related']);
+
+    assert.equal(hiddenAfterFlash(hidden, {}), hidden);
+    assert.deepEqual([...hiddenAfterFlash(hidden, { restored: { id: 'other' } })], ['related']);
 });

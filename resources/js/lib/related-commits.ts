@@ -27,3 +27,28 @@ export function fetchRelatedCommits(
             return [];
         });
 }
+
+/**
+ * The rail keeps the order it was fetched in, so a deleted commit's card is hidden rather than dropped, and a restore
+ * mounts it afresh as the feeds do.
+ */
+export function hiddenAfterFlash(
+    hidden: ReadonlySet<string>,
+    {
+        deleted,
+        restored,
+    }: { deleted?: { id: string }; restored?: { id: string } },
+): ReadonlySet<string> {
+    if (deleted) {
+        return new Set(hidden).add(deleted.id);
+    }
+
+    if (restored && hidden.has(restored.id)) {
+        const shown = new Set(hidden);
+        shown.delete(restored.id);
+
+        return shown;
+    }
+
+    return hidden;
+}
