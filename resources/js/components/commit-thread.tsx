@@ -680,6 +680,7 @@ export function ThreadReplyComposer({ thread }: { thread: Thread }) {
 
     return thread.isReplying && !isDeleted(commit) ? (
         <ReplyComposer
+            key={commit.id}
             parent={commit}
             onCancel={thread.cancelReply}
             onReplied={thread.onReplied}
