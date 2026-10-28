@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { inAppBrowser, phoneBrowserUrl } from '../../resources/js/lib/in-app-browser.ts';
+import { inAppBrowser } from '../../resources/js/lib/in-app-browser.ts';
 
 const SAFARI =
     'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Mobile/15E148 Safari/604.1';
@@ -35,12 +35,3 @@ await test('leaves the phone browsers and computers alone', () => {
     }
 });
 
-await test('opens the page in Safari on iOS and in the default browser on Android', () => {
-    const url = new URL('https://dev-null.sh/@mnapoli/log/abc?tab=replies#reply-1');
-
-    assert.equal(phoneBrowserUrl(url, 'ios'), 'x-safari-https://dev-null.sh/@mnapoli/log/abc?tab=replies#reply-1');
-    assert.equal(
-        phoneBrowserUrl(url, 'android'),
-        'intent://dev-null.sh/@mnapoli/log/abc?tab=replies#reply-1#Intent;scheme=https;end',
-    );
-});

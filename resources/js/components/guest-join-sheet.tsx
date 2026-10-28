@@ -1,9 +1,15 @@
-import { Compass, GitCommitVertical, UsersRound, X } from 'lucide-react';
-import { useState, useSyncExternalStore } from 'react';
+import {
+    ArrowDown,
+    EllipsisVertical,
+    GitCommitVertical,
+    UsersRound,
+    X,
+} from 'lucide-react';
+import { useSyncExternalStore } from 'react';
 import { GitHubIcon } from '@/components/github-icon';
 import { Button } from '@/components/ui/button';
 import type { InAppBrowser } from '@/lib/in-app-browser';
-import { inAppBrowser, phoneBrowserUrl } from '@/lib/in-app-browser';
+import { inAppBrowser } from '@/lib/in-app-browser';
 import { login } from '@/routes';
 
 const DISMISSED = 'devnull:join-sheet-dismissed';
@@ -38,7 +44,7 @@ function dismiss(): void {
  * On a phone, guests don't see the aside that tells desktop visitors what /dev/null is, so this sheet does, with the
  * button where the thumb is. It stays out of the server render and opens once the page has loaded, unless the guest
  * closed it earlier in this browser session. Signing in leaves for GitHub, so the button is a plain link. In an app's
- * browser, it first offers to open the page in the phone's browser, where the guest may already be signed in to
+ * browser, it also shows how to open the page in the phone's browser, where the guest may already be signed in to
  * GitHub.
  */
 export function GuestJoinSheet() {
@@ -97,80 +103,57 @@ export function GuestJoinSheet() {
                 </li>
             </ul>
 
-            {browser === null ? (
-                <Button
-                    className="mt-1.5 h-12 rounded-[10px] text-base"
-                    asChild
-                >
-                    <a
-                        href={login().url}
-                        data-test="guest-join-sheet-login-button"
-                    >
-                        <GitHubIcon className="size-[18px]" />
-                        Join with GitHub
-                    </a>
-                </Button>
-            ) : (
-                <OpenInPhoneBrowser browser={browser} />
-            )}
+            <Button className="mt-1.5 h-12 rounded-[10px] text-base" asChild>
+                <a href={login().url} data-test="guest-join-sheet-login-button">
+                    <GitHubIcon className="size-[18px]" />
+                    Join with GitHub
+                </a>
+            </Button>
+
+            {browser !== null && <InAppBrowserHint browser={browser} />}
         </section>
     );
 }
 
 /**
- * Opening the phone's browser from a web view can fail silently, with an app that blocks the link or an iOS version
- * that ignores it. If the page is still showing a moment later, the guest learns the way that always works.
+ * Apps don't let a page open the phone's browser: X ignores Safari's undocumented scheme. Their own menu always can,
+ * so the hint shows the way there, and points at it in X, whose menu sits right under the sheet.
  */
-function OpenInPhoneBrowser({ browser }: { browser: InAppBrowser }) {
-    const [hasFailed, setHasFailed] = useState(false);
+function InAppBrowserHint({ browser }: { browser: InAppBrowser }) {
     const name = browser.platform === 'ios' ? 'Safari' : 'your browser';
-
-    const open = () => {
-        setTimeout(() => {
-            if (document.visibilityState === 'visible') {
-                setHasFailed(true);
-            }
-        }, 1500);
-    };
+    const isX = browser.app === 'X' && browser.platform === 'ios';
 
     return (
-        <>
-            <p
-                className="text-[15px] leading-snug text-muted-foreground"
-                data-test="guest-join-sheet-in-app"
-            >
-                You&rsquo;re in {browser.app ? `${browser.app}’s` : 'an app’s'}{' '}
-                browser, which isn&rsquo;t signed in to GitHub.{' '}
-                {hasFailed
-                    ? `Nothing opened? Use the app’s menu (⋯) to open this page in ${name}.`
-                    : `In ${name}, you may already be.`}
+        <div
+            className="flex flex-col gap-1 rounded-[10px] bg-primary/10 px-4 py-3"
+            data-test="guest-join-sheet-in-app"
+        >
+            <p className="text-sm leading-snug text-muted-foreground">
+                {browser.app ? `${browser.app}’s` : 'This app’s'} browser
+                isn&rsquo;t signed in to GitHub.{' '}
+                {browser.platform === 'ios' ? 'Safari' : 'Your browser'} may be.
             </p>
-            <div className="mt-1.5 flex flex-col items-center gap-3">
-                <Button
-                    className="h-12 w-full rounded-[10px] text-base"
-                    asChild
-                >
-                    <a
-                        href={phoneBrowserUrl(
-                            new URL(window.location.href),
-                            browser.platform,
-                        )}
-                        onClick={open}
-                        data-test="guest-join-sheet-open-browser-button"
-                    >
-                        <Compass className="size-[18px]" />
-                        Open in{' '}
-                        {browser.platform === 'ios' ? 'Safari' : 'browser'}
-                    </a>
-                </Button>
-                <a
-                    href={login().url}
-                    className="text-sm text-muted-foreground underline underline-offset-4"
-                    data-test="guest-join-sheet-login-button"
-                >
-                    Join with GitHub here instead
-                </a>
-            </div>
-        </>
+            <p className="text-[17px] leading-snug font-semibold">
+                {isX ? (
+                    <>
+                        Tap{' '}
+                        <EllipsisVertical
+                            aria-label="⋮"
+                            className="inline size-5 -translate-y-px"
+                        />{' '}
+                        below, then{' '}
+                        <span className="text-primary">Open in browser</span>.
+                    </>
+                ) : (
+                    `Open this page in ${name} from the app’s menu.`
+                )}
+            </p>
+            {isX && (
+                <ArrowDown
+                    aria-hidden
+                    className="absolute bottom-1 left-[62%] size-6 -translate-x-1/2 text-primary motion-safe:animate-bounce"
+                />
+            )}
+        </div>
     );
 }

@@ -40,16 +40,3 @@ export function inAppBrowser(userAgent: string): InAppBrowser | null {
 
     return isWebView ? { app, platform } : null;
 }
-
-/**
- * A link that opens the page in the phone's browser: Safari's own scheme on iOS, which Apple doesn't document but
- * works from web views since iOS 17, or an intent for the default browser on Android.
- */
-export function phoneBrowserUrl(
-    url: URL,
-    platform: InAppBrowser['platform'],
-): string {
-    return platform === 'ios'
-        ? `x-safari-${url.href}`
-        : `intent://${url.host}${url.pathname}${url.search}${url.hash}#Intent;scheme=https;end`;
-}
