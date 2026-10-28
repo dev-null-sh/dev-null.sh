@@ -103,7 +103,9 @@ final readonly class CreateCommit
             }
 
             if ($commit->status === CommitStatus::Approved) {
-                dispatch(new CheckUserLevel($user))->afterCommit();
+                // Outside the transaction, like CreateCommitStar: on Postgres, taking a unique-job lock that
+                // is already held fails the insert and aborts this transaction (25P02), which 500s the create.
+                DB::afterCommit(fn () => dispatch(new CheckUserLevel($user)));
             }
 
             if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation) {
