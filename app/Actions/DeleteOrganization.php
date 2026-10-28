@@ -18,7 +18,7 @@ final readonly class DeleteOrganization
     {
         DB::transaction(function () use ($organization): void {
             DB::table('commit_topics')
-                ->where('topic_type', TopicType::Profile->value)
+                ->where('topic_type', TopicType::Organization->value)
                 ->where('topic_id', $organization->id)
                 ->delete();
 

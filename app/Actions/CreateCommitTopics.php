@@ -21,7 +21,7 @@ final readonly class CreateCommitTopics
         DB::table('commit_topics')->insertOrIgnore(array_map(fn (int|string $reference, string $id): array => [
             'commit_id' => $commit->id,
             'reference' => (string) $reference,
-            'topic_type' => TopicType::Profile->value,
+            'topic_type' => TopicType::Organization->value,
             'topic_id' => $id,
         ], array_keys($organizations), $organizations));
     }

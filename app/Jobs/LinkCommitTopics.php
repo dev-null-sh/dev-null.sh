@@ -17,7 +17,7 @@ use Illuminate\Queue\Attributes\MaxExceptions;
 /**
  * Runs once a commit is approved, so only commits everyone can read spend GitHub's rate limit, and again once the rate
  * limit resets when it cut the lookups short. Waiting for the reset doesn't count as a try: the job gives up after three
- * failures, or a day.
+ * failures, or a day after it was queued.
  */
 #[Backoff([60, 600])]
 #[MaxExceptions(3)]

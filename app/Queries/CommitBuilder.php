@@ -32,9 +32,9 @@ final class CommitBuilder extends Builder
     ];
 
     /**
-     * The organizations a commit mentions, by lowercase handle, from its topics of type TopicType::Profile.
+     * The organizations a commit mentions, by lowercase handle, from its topics of type TopicType::Organization.
      */
-    private const string ORGANIZATION_MENTIONS = "(select json_object_agg(reference, topic_id) from commit_topics where commit_topics.commit_id = commits.id and topic_type = 'profile') as organization_mentions";
+    private const string ORGANIZATION_MENTIONS = "(select json_object_agg(reference, topic_id) from commit_topics where commit_topics.commit_id = commits.id and topic_type = 'organization') as organization_mentions";
 
     /**
      * Embeddings are only ever compared within the database, so commits are loaded without theirs rather than carry
