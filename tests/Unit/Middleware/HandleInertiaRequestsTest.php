@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\CommitStatus;
 use App\Enums\LivePlatform;
+use App\Enums\WhoToFollowCount;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\Notification;
@@ -385,6 +386,32 @@ it('leaves who to follow and live following out of the operations console, which
     expect($shared)->not->toHaveKey('suggestedUsers')
         ->and($shared['liveFollowing']())->toBeEmpty();
 })->with(['/operations', '/operations/events']);
+
+it('suggests as many people as the user chose', function (?string $cookie, WhoToFollowCount $count): void {
+    $middleware = new HandleInertiaRequests();
+    $user = User::factory()->create();
+    User::factory()->count(12)->has(Commit::factory())->create();
+
+    $request = Request::create('/', 'GET');
+    $request->setUserResolver(fn () => $user);
+
+    if ($cookie !== null) {
+        $request->cookies->set('who_to_follow_count', $cookie);
+    }
+
+    $shared = $middleware->share($request);
+
+    expect($shared['whoToFollowCount'])->toBe($count->value)
+        ->and($shared['suggestedUsers']()->pluck('id')->all())
+        ->toBe(resolve(SuggestedUsersQuery::class)->get($user, limit: $count->value, spares: 3)->pluck('id')->all())
+        ->and($shared['suggestedUsers']())->toHaveCount($count->value + 3);
+})->with([
+    'default' => [null, WhoToFollowCount::Three],
+    'one' => ['1', WhoToFollowCount::One],
+    'five' => ['5', WhoToFollowCount::Five],
+    'not offered' => ['4', WhoToFollowCount::Three],
+    'not a number' => ['abc', WhoToFollowCount::Three],
+]);
 
 it('suggests the round of people the user refreshed to', function (string $cookie, int $round): void {
     $middleware = new HandleInertiaRequests();

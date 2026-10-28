@@ -31,6 +31,7 @@ declare module '@inertiajs/core' {
             hasUnmoderatedCommits: boolean;
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
+            whoToFollowCount: number;
             dimsLanes: boolean;
             repliesPerPage: number;
             clock: SharedClock;

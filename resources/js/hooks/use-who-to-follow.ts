@@ -12,7 +12,7 @@ export function currentRound(): number {
  * Whether to suggest people to follow is kept in a cookie, like the theme, so the server can skip the suggestions too.
  */
 export function useWhoToFollow() {
-    const { showsWhoToFollow } = usePage().props;
+    const { showsWhoToFollow, whoToFollowCount } = usePage().props;
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const rememberShowsWhoToFollow = (shows: boolean): void => {
@@ -24,6 +24,19 @@ export function useWhoToFollow() {
         rememberShowsWhoToFollow(shows);
         router.reload({
             only: ['showsWhoToFollow', 'suggestedUsers'],
+            reset: ['suggestedUsers'],
+            viewTransition: true,
+        });
+    };
+
+    /**
+     * Choosing how many to suggest also brings the suggestions back if they were hidden.
+     */
+    const setWhoToFollowCount = (count: number): void => {
+        setCookie('who_to_follow_count', String(count));
+        rememberShowsWhoToFollow(true);
+        router.reload({
+            only: ['showsWhoToFollow', 'whoToFollowCount', 'suggestedUsers'],
             reset: ['suggestedUsers'],
             viewTransition: true,
         });
@@ -50,6 +63,8 @@ export function useWhoToFollow() {
         showsWhoToFollow,
         rememberShowsWhoToFollow,
         setShowsWhoToFollow,
+        whoToFollowCount,
+        setWhoToFollowCount,
         isRefreshing,
         refreshSuggestedUsers,
     } as const;

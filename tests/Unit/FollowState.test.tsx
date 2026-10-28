@@ -12,6 +12,7 @@ let component = 'user/show';
 let log: string | undefined;
 let loadedCommits: { data: { id: string }[] } | undefined;
 let suggestedUsers: SuggestedUser[] | undefined;
+let whoToFollowCount = 3;
 type VisitOptions = {
     only?: string[];
     headers?: Record<string, string>;
@@ -61,6 +62,7 @@ vi.doMock('@inertiajs/react', async () => ({
             log,
             commits: loadedCommits,
             showsWhoToFollow: true,
+            whoToFollowCount,
             suggestedUsers,
         },
     }),
@@ -120,6 +122,7 @@ afterEach(() => {
     log = undefined;
     loadedCommits = undefined;
     suggestedUsers = undefined;
+    whoToFollowCount = 3;
     refreshSharedState(
         new Map<string, boolean | number | string>([
             ['who-to-follow-dismissing', 0],
@@ -528,7 +531,9 @@ test('both Following controls carry the oldest loaded row through the follow red
 });
 
 function shownSuggestions(): (string | number)[] {
-    return (suggestedUsers ?? []).slice(0, 3).map((user) => user.id);
+    return (suggestedUsers ?? [])
+        .slice(0, whoToFollowCount)
+        .map((user) => user.id);
 }
 
 function suggestionRow(user: SuggestedUser): Props {
@@ -597,6 +602,42 @@ test('a failed dismissal takes its slot back from whoever holds it, without brin
         suggestedUsers.map((user) => user.id),
         ['ada', 'bob', 'cleo', 'eve', 'finn'],
     );
+});
+
+test('shows as many suggestions as chosen, and a dismissed one hands its slot to the next spare', () => {
+    const [ada, bob, cleo, dina, eve, finn] = suggestions(
+        'ada',
+        'bob',
+        'cleo',
+        'dina',
+        'eve',
+        'finn',
+    );
+
+    for (const count of [1, 5]) {
+        whoToFollowCount = count;
+        suggestedUsers = [ada, bob, cleo, dina, eve, finn];
+
+        const block = WhoToFollow();
+        const rows = suggestedUsers
+            .filter((user) =>
+                find(
+                    block,
+                    (props) =>
+                        (props.user as SuggestedUser | undefined)?.id ===
+                        user.id,
+                ),
+            )
+            .map((user) => user.id);
+        assert.equal(rows.length, count);
+        assert.deepEqual(rows, shownSuggestions());
+
+        assert.equal(dismissSuggestion(ada), true);
+        assert.deepEqual(
+            shownSuggestions(),
+            count === 1 ? ['bob'] : ['finn', 'bob', 'cleo', 'dina', 'eve'],
+        );
+    }
 });
 
 test('a dismissal that fails after a refresh leaves the new suggestions alone', () => {

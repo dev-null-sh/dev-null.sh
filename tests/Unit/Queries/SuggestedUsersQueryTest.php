@@ -155,7 +155,34 @@ it('limits the number of suggestions', function (): void {
     User::factory()->count(5)->has(Commit::factory())->create();
 
     expect(resolve(SuggestedUsersQuery::class)->get($user))->toHaveCount(3)
-        ->and(resolve(SuggestedUsersQuery::class)->get($user, limit: 2))->toHaveCount(2);
+        ->and(resolve(SuggestedUsersQuery::class)->get($user, limit: 2))->toHaveCount(2)
+        ->and(resolve(SuggestedUsersQuery::class)->get($user, limit: 5))->toHaveCount(5);
+});
+
+it('does not keep a single suggestion for the most followed until they run out', function (): void {
+    $user = User::factory()->create();
+    $vouched = vouchedFor($user, 10);
+    popularUsers(10);
+
+    $query = resolve(SuggestedUsersQuery::class);
+    $suggested = collect(range(0, 9))->flatMap(fn (int $round): array => $query->get($user, limit: 1, round: $round)->pluck('id')->all());
+
+    expect($suggested)->toHaveCount(10)
+        ->and($suggested->intersect($vouched->modelKeys()))->not->toBeEmpty();
+});
+
+it('moves on to new people each round when showing five', function (): void {
+    $user = User::factory()->create();
+    vouchedFor($user, 6);
+    popularUsers(6);
+
+    $query = resolve(SuggestedUsersQuery::class);
+    $first = $query->get($user, limit: 5)->pluck('id')->all();
+    $second = $query->get($user, limit: 5, round: 1)->pluck('id')->all();
+
+    expect($first)->toHaveCount(5)
+        ->and($second)->toHaveCount(5)
+        ->and(array_intersect($first, $second))->toBeEmpty();
 });
 
 it('does not suggest muted or dismissed people or people across a block', function (): void {

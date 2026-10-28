@@ -70,8 +70,6 @@ function Reason({ reason, title }: { reason: string; title: string }) {
     );
 }
 
-const shownSuggestionsCount = 3;
-
 function DismissButton({
     user,
     onDismiss,
@@ -257,6 +255,7 @@ function SuggestedUsersSkeleton({
     rowClassName?: string;
     isStacked?: boolean;
 }) {
+    const { whoToFollowCount } = usePage().props;
     const details = (
         <>
             <Skeleton className="my-0.5 h-3 w-36" />
@@ -266,7 +265,7 @@ function SuggestedUsersSkeleton({
 
     return (
         <>
-            {[0, 1, 2].map((index) => (
+            {Array.from({ length: whoToFollowCount }, (_, index) => (
                 <li key={index} aria-hidden className={rowClassName}>
                     <div className="flex items-center gap-3">
                         <Skeleton className="size-9 shrink-0 rounded-full" />
@@ -358,7 +357,8 @@ function WhoToFollowMenu({ onHide }: { onHide: () => void }) {
  * Hiding only writes the cookie, so the block stays put with an undo until the next visit leaves it out.
  */
 function useHideWhoToFollow() {
-    const { showsWhoToFollow, suggestedUsers } = usePage().props;
+    const { showsWhoToFollow, suggestedUsers, whoToFollowCount } =
+        usePage().props;
     const { rememberShowsWhoToFollow } = useWhoToFollow();
     const [isHidden, setIsHidden] = useState(false);
     const { hasDismissed, isEmptied, dismiss } = useDismissSuggestion();
@@ -375,7 +375,7 @@ function useHideWhoToFollow() {
         isEmptied,
         hide: () => toggle(true),
         undo: () => toggle(false),
-        suggestedUsers: suggestedUsers?.slice(0, shownSuggestionsCount),
+        suggestedUsers: suggestedUsers?.slice(0, whoToFollowCount),
         dismiss,
     };
 }
@@ -398,7 +398,8 @@ const dismissedIds = new Set<SuggestedUser['id']>();
  * page load leaves the block out like any other time there's nobody to suggest.
  */
 function useDismissSuggestion() {
-    const { suggestedUsers = [] } = usePage().props;
+    const { suggestedUsers = [], whoToFollowCount: shownSuggestionsCount } =
+        usePage().props;
     const [dismissingCount, setDismissingCount] = useSharedState<number>(
         'who-to-follow-dismissing',
         0,
