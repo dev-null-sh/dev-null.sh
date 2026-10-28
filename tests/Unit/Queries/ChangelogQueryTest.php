@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Queries\ChangelogQuery;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -47,7 +48,8 @@ function commitLine(array $commits): array
 }
 
 /**
- * Serves production's history like GitHub does: a hundred commits at a time, newest first, from the given commit.
+ * Serves production's history like GitHub does: newest first, from the given commit, committed between since and
+ * until, a page at a time.
  *
  * @param  list<array<string, mixed>>  $commits
  */
@@ -55,8 +57,9 @@ function fakeCommits(array $commits): void
 {
     Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/commits*' => function (Request $request) use ($commits) {
         $from = $request['sha'] === 'production' ? 0 : (int) array_search($request['sha'], array_column($commits, 'sha'), true);
+        $dated = array_values(array_filter(array_slice($commits, $from), fn (array $commit): bool => (! isset($request['since']) || $commit['commit']['committer']['date'] >= $request['since']) && $commit['commit']['committer']['date'] <= $request['until']));
 
-        return Http::response(array_slice($commits, $from, 100));
+        return Http::response(array_slice($dated, (($request['page'] ?? 1) - 1) * $request['per_page'], $request['per_page']));
     }]);
 }
 
@@ -101,7 +104,10 @@ it('lists the commits on the three latest days with commits, newest first, with 
             'pull_request' => ['number' => 250, 'url' => 'https://github.com/dev-null-sh/dev-null.sh/pull/250'],
         ]);
 
-    Http::assertSent(fn (Request $request): bool => $request['sha'] === 'production' && $request['per_page'] === 100);
+    Http::assertSent(fn (Request $request): bool => $request['sha'] === 'production'
+        && ($request['since'] ?? null) === '2026-10-18T00:00:00Z'
+        && $request['until'] === '2026-10-18T23:59:59Z'
+        && $request['per_page'] === 100);
 });
 
 it('follows production’s own line, leaving out the commits of merged branches and the merges of branches', function (): void {
@@ -147,23 +153,27 @@ it('counts days in the reader’s time zone', function (): void {
         ->and($query->get('Europe/Budapest')['olderBefore'] ?? null)->toBe('2026-10-15T22:00:00+00:00');
 });
 
-it('reads the line a hundred commits at a time from where it got to, as many pages as the three days take', function (): void {
+it('reads a day at a time, a hundred commits a page, skipping the days without commits in one go', function (): void {
+    $this->travelTo(CarbonImmutable::parse('2026-10-18T23:59:59Z'));
+
     fakeCommits(commitLine([
-        ...array_map(fn (int $number): array => gitHubCommit("busy-{$number}", CarbonImmutable::parse('2026-10-18T23:59:00Z')->subMinutes($number * 9)->toIso8601ZuluString()), range(1, 300)),
+        ...array_map(fn (int $number): array => gitHubCommit("busy-{$number}", CarbonImmutable::parse('2026-10-18T23:59:00Z')->subMinutes($number * 9)->toIso8601ZuluString()), range(1, 150)),
+        gitHubCommit('yesterday', '2026-10-17T10:00:00Z'),
         gitHubCommit('older', '2026-10-12T10:00:00Z'),
-        ...array_map(fn (int $number): array => gitHubCommit("old-{$number}", '2026-10-01T10:00:00Z'), range(1, 150)),
+        gitHubCommit('oldest', '2026-10-11T10:00:00Z'),
     ]));
 
     $changelog = resolve(ChangelogQuery::class)->get('UTC');
 
-    expect($changelog['commits'] ?? [])->toHaveCount(301)
+    expect($changelog['commits'] ?? [])->toHaveCount(152)
         ->and($changelog['olderBefore'] ?? null)->toBe('2026-10-12T00:00:00+00:00');
 
-    Http::assertSentCount(4);
-    Http::assertSent(fn (Request $request): bool => $request['sha'] === 'busy-101');
+    Http::assertSentCount(7);
+    Http::assertSent(fn (Request $request): bool => $request['sha'] === 'production' && ($request['page'] ?? null) === 2);
+    Http::assertSent(fn (Request $request): bool => $request['sha'] === 'older' && $request['until'] === '2026-10-15T23:59:59Z' && $request['per_page'] === 1);
 });
 
-it('lists the next three days older than where the reader is, reusing the pages it already read', function (): void {
+it('carries on from where the reader is, from the commit it got to', function (): void {
     fakeCommits(commitLine([
         gitHubCommit('f', '2026-10-18T10:00:00Z'),
         gitHubCommit('e', '2026-10-17T10:00:00Z'),
@@ -181,18 +191,45 @@ it('lists the next three days older than where the reader is, reusing the pages 
         ->and(shas($older))->toBe(['c', 'b', 'a'])
         ->and($older)->toHaveKey('olderBefore', null);
 
-    Http::assertSentCount(1);
+    Http::assertSent(fn (Request $request): bool => $request['sha'] === 'c' && ($request['since'] ?? null) === '2026-10-15T00:00:00Z');
 });
 
-it('stops reading after twenty pages, carrying on from the oldest commit it got to next time', function (): void {
-    fakeCommits(commitLine(array_map(fn (int $number): array => gitHubCommit("c-{$number}", CarbonImmutable::parse('2026-10-18T23:59:00Z')->subSeconds($number * 30)->toIso8601ZuluString()), range(1, 2100))));
+it('carries on from the latest commit before where the reader is when it no longer knows the commit it got to', function (): void {
+    fakeCommits(commitLine([
+        gitHubCommit('f', '2026-10-18T10:00:00Z'),
+        gitHubCommit('e', '2026-10-17T10:00:00Z'),
+        gitHubCommit('d', '2026-10-16T10:00:00Z'),
+        gitHubCommit('c', '2026-10-15T10:00:00Z'),
+        gitHubCommit('b', '2026-10-13T10:00:00Z'),
+    ]));
 
-    $changelog = resolve(ChangelogQuery::class)->get('UTC');
+    $query = resolve(ChangelogQuery::class);
+    $latest = $query->get('UTC');
+    Cache::flush();
 
-    expect($changelog['commits'] ?? [])->toHaveCount(2000)
-        ->and($changelog['olderBefore'] ?? null)->toBe(CarbonImmutable::parse('2026-10-18T23:59:00Z')->subSeconds(2000 * 30)->toIso8601String());
+    expect(shas($query->get('UTC', CarbonImmutable::parse((string) $latest['olderBefore']))))->toBe(['c', 'b']);
+});
 
-    Http::assertSentCount(20);
+it('reads at most ten days a time, and carries on from the oldest day it got to however far back the line goes', function (): void {
+    fakeCommits(commitLine([
+        gitHubCommit('latest', '2026-10-18T10:00:00Z'),
+        ...array_map(fn (int $number): array => gitHubCommit("bot-{$number}", CarbonImmutable::parse('2026-10-18T10:00:00Z')->subDays($number)->toIso8601ZuluString(), author: ['id' => 4, 'login' => 'dependabot[bot]', 'type' => 'Bot'], committer: null), range(1, 25)),
+        gitHubCommit('older', '2026-09-20T10:00:00Z'),
+    ]));
+
+    $query = resolve(ChangelogQuery::class);
+    $reads = [];
+    $changelog = $query->get('UTC');
+
+    while ($changelog !== null && $changelog['olderBefore'] !== null) {
+        $reads[] = $changelog;
+        $changelog = $query->get('UTC', CarbonImmutable::parse($changelog['olderBefore']));
+    }
+
+    $reads[] = $changelog;
+
+    expect(array_merge(...array_map(shas(...), $reads)))->toBe(['latest', 'older'])
+        ->and(count($reads))->toBeGreaterThan(1);
 });
 
 it('colors each author with the lane they chose on /dev/null, found by their GitHub account', function (): void {
@@ -223,24 +260,36 @@ it('links each author who is on /dev/null to their profile, found by their GitHu
         ->and(array_column($authors, 'mention'))->toBe(['@renamed-on-devnull', null]);
 });
 
-it('asks GitHub for a page at most once every thirty minutes', function (): void {
-    fakeCommits([gitHubCommit('a', '2026-10-18T00:53:44Z')]);
+it('asks GitHub for today at most once every thirty minutes, and for a day that is over once every twelve hours', function (): void {
+    $this->travelTo(CarbonImmutable::parse('2026-10-18T06:00:00Z'));
+
+    fakeCommits(commitLine([
+        gitHubCommit('d', '2026-10-18T05:00:00Z'),
+        gitHubCommit('c', '2026-10-17T12:00:00Z'),
+        gitHubCommit('b', '2026-10-16T12:00:00Z'),
+        gitHubCommit('a', '2026-10-15T12:00:00Z'),
+    ]));
 
     $query = resolve(ChangelogQuery::class);
     $query->get('UTC');
-    $query->get('Europe/Budapest');
+    $query->get('UTC');
 
-    Http::assertSentCount(1);
+    Http::assertSentCount(4);
 
     $this->travel(29)->minutes();
     $query->get('UTC');
 
-    Http::assertSentCount(1);
+    Http::assertSentCount(4);
 
     $this->travel(2)->minutes();
     $query->get('UTC');
 
-    Http::assertSentCount(2);
+    Http::assertSentCount(5);
+
+    $this->travel(12)->hours();
+    $query->get('UTC');
+
+    Http::assertSentCount(9);
 });
 
 it('is null when GitHub cannot be reached, and asks again next time', function (mixed $response): void {

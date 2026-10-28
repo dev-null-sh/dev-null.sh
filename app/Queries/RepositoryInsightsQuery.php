@@ -121,7 +121,7 @@ final readonly class RepositoryInsightsQuery
                 'repository' => $repository,
                 'source_url' => 'https://github.com/'.$repository,
                 'as_of' => now()->toIso8601String(),
-                'freshness' => 'Cached for 15 minutes. GitHub contributor counts can lag by hours; changelog pages are cached for another 30 minutes. This is not a live deployment status.',
+                'freshness' => 'Cached for 15 minutes. GitHub contributor counts can lag by hours; the changelog for the current day is cached for another 30 minutes. This is not a live deployment status.',
                 ...$data,
             ];
         });

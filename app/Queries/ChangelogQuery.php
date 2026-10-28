@@ -22,9 +22,15 @@ final readonly class ChangelogQuery
 
     private const int PerPage = 100;
 
-    private const int MaxPages = 20;
+    private const int MaxPages = 10;
+
+    private const int MaxDaysRead = 10;
 
     private const int Days = 3;
+
+    private const int TodayTtl = 1800; // 30 minutes
+
+    private const int PastTtl = 43200; // 12 hours
 
     public function __construct(private GitHub $github, private PullRequestTitles $titles)
     {
@@ -37,7 +43,10 @@ final readonly class ChangelogQuery
      *
      * Production's own line runs from its newest commit through each commit's first parent, so the commits of a branch
      * merged into it are left out, and so is the merge of a branch, which says nothing of its own. The line is read a
-     * hundred commits at a time from wherever it has got to, up to twenty pages a time.
+     * day at a time, newest day first, and a day without commits is skipped by asking for the latest commit before it.
+     * Up to ten days are read a time. Where the line goes on is kept with the moment handed back, so the next three
+     * days carry on from there instead of reading down from the newest commit again. Without it, the line is picked up
+     * at the latest commit of the day before the given moment.
      *
      * @return array{commits: list<ChangelogCommit>, olderBefore: string|null}|null
      */
@@ -47,20 +56,39 @@ final readonly class ChangelogQuery
         $loaded = [];
         $line = [];
         $days = [];
-        $next = null;
+        $next = $before instanceof CarbonImmutable ? Cache::get($this->resumeKey($before)) : null;
+        $next = is_string($next) ? $next : null;
 
-        for ($page = 1; $page <= self::MaxPages; $page++) {
-            $commits = $this->page($next ?? self::Branch);
+        $start = ($before?->subSecond() ?? CarbonImmutable::now())->setTimezone($timeZone)->startOfDay();
+
+        for ($read = 1; $read <= self::MaxDaysRead; $read++) {
+            $commits = $this->day($next ?? self::Branch, $start);
 
             if ($commits === null) {
                 return null;
+            }
+
+            if ($commits === []) {
+                $latest = $this->read($next ?? self::Branch, $start->subSecond(), ['per_page' => 1]);
+
+                if ($latest === null) {
+                    return null;
+                }
+
+                if ($latest === []) {
+                    return $this->result($line, null);
+                }
+
+                $start = CarbonImmutable::parse($latest[0]['commit']['committer']['date'])->setTimezone($timeZone)->startOfDay();
+
+                continue;
             }
 
             foreach ($commits as $commit) {
                 $loaded[$commit['sha']] = $commit;
             }
 
-            $next ??= $commits[0]['sha'] ?? null;
+            $next ??= $commits[0]['sha'];
 
             while ($next !== null && isset($loaded[$next])) {
                 $commit = $loaded[$next];
@@ -76,7 +104,7 @@ final readonly class ChangelogQuery
                 $days[$day->toDateString()] = $day;
 
                 if (count($days) > self::Days) {
-                    return $this->result($line, array_values($days)[self::Days - 1]);
+                    return $this->result($line, array_values($days)[self::Days - 1], $commit['sha']);
                 }
 
                 $line[] = ['commit' => $commit, 'author' => $author];
@@ -85,34 +113,71 @@ final readonly class ChangelogQuery
             if ($next === null) {
                 return $this->result($line, null);
             }
+
+            $start = $start->subDay();
         }
 
-        return $this->result($line, $line === [] ? null : CarbonImmutable::parse(end($line)['commit']['commit']['committer']['date']));
+        return $this->result($line, $start->addDay(), $next);
     }
 
     /**
-     * A hundred commits of production's history from the given commit, newest first. Each page is cached for half an
-     * hour, and a failed read is not cached, so the next request tries again.
+     * Production's commits made on the day that starts at the given moment, newest first, from the given commit.
      *
      * @return list<GitHubCommit>|null
      */
-    private function page(string $sha): ?array
+    private function day(string $sha, CarbonImmutable $start): ?array
+    {
+        $commits = [];
+
+        for ($page = 1; $page <= self::MaxPages; $page++) {
+            $read = $this->read($sha, $start->addDay()->subSecond(), [
+                'since' => $start->utc()->toIso8601ZuluString(),
+                'per_page' => self::PerPage,
+                'page' => $page,
+            ]);
+
+            if ($read === null) {
+                return null;
+            }
+
+            $commits = [...$commits, ...$read];
+
+            if (count($read) < self::PerPage) {
+                break;
+            }
+        }
+
+        return $commits;
+    }
+
+    /**
+     * Production's commits up to the given moment, newest first, from the given commit. A day that is still going is
+     * cached for half an hour, and one that is over for twelve hours. A failed read is not cached, so the next request
+     * tries again.
+     *
+     * @param  array<string, int|string>  $query
+     * @return list<GitHubCommit>|null
+     */
+    private function read(string $sha, CarbonImmutable $until, array $query): ?array
     {
         $repository = config()->string('services.github.repository');
+        $query = ['sha' => $sha, 'until' => $until->utc()->toIso8601ZuluString(), ...$query];
 
         /** @var list<GitHubCommit>|null */
-        return Cache::remember("changelog:{$repository}:commits:{$sha}", 1800, function () use ($repository, $sha): ?array {
+        return Cache::remember("changelog:{$repository}:commits:".http_build_query($query), $until->isFuture() ? self::TodayTtl : self::PastTtl, function () use ($repository, $query): ?array {
             try {
-                $commits = $this->github->request()->get("repos/{$repository}/commits", [
-                    'sha' => $sha,
-                    'per_page' => self::PerPage,
-                ])->throw()->json();
+                $commits = $this->github->request()->get("repos/{$repository}/commits", $query)->throw()->json();
             } catch (HttpClientException) {
                 return null;
             }
 
             return is_array($commits) && array_is_list($commits) ? $commits : null;
         });
+    }
+
+    private function resumeKey(CarbonImmutable $before): string
+    {
+        return 'changelog:'.config()->string('services.github.repository').":resume:{$before->getTimestamp()}";
     }
 
     /**
@@ -146,12 +211,18 @@ final readonly class ChangelogQuery
      * it, with the pull request's title underneath. Authors who are on /dev/null keep the lane they chose there, and
      * link to their profile. They are found by their GitHub account, since a handle can change on either side.
      *
+     * Where the line goes on from is kept with the moment handed back, for the next three days.
+     *
      * @param  list<array{commit: GitHubCommit, author: GitHubAccount}>  $line
      * @return array{commits: list<ChangelogCommit>, olderBefore: string|null}
      */
-    private function result(array $line, ?CarbonImmutable $olderBefore): array
+    private function result(array $line, ?CarbonImmutable $olderBefore, ?string $resumeFrom = null): array
     {
         $repository = config()->string('services.github.repository');
+
+        if ($olderBefore instanceof CarbonImmutable && $resumeFrom !== null) {
+            Cache::put($this->resumeKey($olderBefore), $resumeFrom, self::PastTtl);
+        }
 
         $users = User::query()
             ->whereIn('github_id', array_unique(array_map(fn (array $entry): string => (string) $entry['author']['id'], $line)))
