@@ -45,13 +45,17 @@ export function ConversationList({
         return <ConversationListSkeleton isCompact={isCompact} />;
     }
 
-    if (conversations.length === 0) {
+    const available = conversations.filter(
+        (conversation) => targetOf(conversation) !== null,
+    );
+
+    if (available.length === 0) {
         return empty;
     }
 
     return (
         <ul aria-label="Conversations">
-            {conversations
+            {available
                 .map((conversation) => {
                     const pin = pinPreferences[summaryKey(conversation)];
                     return pin === undefined
@@ -94,8 +98,14 @@ function ConversationRow({
 }) {
     const now = useNow();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const { partner, last_message: lastMessage, ahead } = conversation;
+    const { last_message: lastMessage, ahead } = conversation;
     const target = targetOf(conversation);
+
+    if (target === null) {
+        return null;
+    }
+
+    const partner = target.kind === 'direct' ? target.partner : null;
     const others = (conversation.members ?? [])
         .map((member) => member.user)
         .filter((member) => member.id !== user.id);

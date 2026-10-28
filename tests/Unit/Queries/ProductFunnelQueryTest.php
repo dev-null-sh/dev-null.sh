@@ -185,6 +185,7 @@ it('counts visitors and conversion from Fathom events', function (): void {
 
     Http::fake(fn (Request $request) => Http::response([match ($request->data()['entity_name'] ?? null) {
         'guest-visit' => ['unique_conversions' => '400'],
+        'signin-click' => ['unique_conversions' => '20'],
         'signup' => ['unique_conversions' => '3'],
     }]));
 
@@ -224,18 +225,19 @@ it('tells acquisition for each day, signups from the database and conversion fro
     ]);
 });
 
-it('tells conversion for each type of device, most visitors first', function (): void {
+it('tells taps to sign in and conversion for each type of device, most visitors first', function (): void {
     config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
 
     Http::fake(fn (Request $request) => Http::response(isset($request->data()['field_grouping']) ? match ($request->data()['entity_name']) {
         'guest-visit' => [['unique_conversions' => '400', 'device_type' => 'Phone'], ['unique_conversions' => '100', 'device_type' => 'Desktop']],
+        'signin-click' => [['unique_conversions' => '40', 'device_type' => 'Phone'], ['unique_conversions' => '12', 'device_type' => 'Desktop']],
         'signup' => [['unique_conversions' => '9', 'device_type' => 'Desktop'], ['unique_conversions' => '4', 'device_type' => 'Phone'], ['unique_conversions' => '1', 'device_type' => 'Tablet']],
     } : [['unique_conversions' => '0']]));
 
     expect(($this->funnel)()['conversion_by_device'])->toBe([
-        ['device' => 'Phone', 'visitors' => 400, 'converted' => 4],
-        ['device' => 'Desktop', 'visitors' => 100, 'converted' => 9],
-        ['device' => 'Tablet', 'visitors' => 0, 'converted' => 1],
+        ['device' => 'Phone', 'visitors' => 400, 'tapped' => 40, 'converted' => 4],
+        ['device' => 'Desktop', 'visitors' => 100, 'tapped' => 12, 'converted' => 9],
+        ['device' => 'Tablet', 'visitors' => 0, 'tapped' => 0, 'converted' => 1],
     ]);
 });
 

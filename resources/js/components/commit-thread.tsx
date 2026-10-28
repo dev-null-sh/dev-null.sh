@@ -46,7 +46,7 @@ import {
     useGraphDimmed,
     useGraphNode,
     useGraphNodeId,
-    useGraphOverlay,
+    WithoutGraph,
 } from '@/components/graph-canvas';
 import { RailDot, railDotRing } from '@/components/graph-rail';
 import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
@@ -693,22 +693,24 @@ export function ThreadSpine({
     thread: Thread;
     className?: string;
 }) {
-    const isOverlaid = useGraphOverlay();
-
-    if (isOverlaid || !thread.isOpen || !thread.replies?.length) {
+    if (!thread.isOpen || !thread.replies?.length) {
         return null;
     }
 
     return (
-        <span
-            aria-hidden
-            className={cn(
-                'absolute bottom-0 left-1/2 w-0.5 -translate-x-1/2',
-                className,
-            )}
-            style={laneStrokeStyle(laneOf(thread.commit), { dash: graphDash })}
-            data-test="thread-spine"
-        />
+        <WithoutGraph>
+            <span
+                aria-hidden
+                className={cn(
+                    'absolute bottom-0 left-1/2 w-0.5 -translate-x-1/2',
+                    className,
+                )}
+                style={laneStrokeStyle(laneOf(thread.commit), {
+                    dash: graphDash,
+                })}
+                data-test="thread-spine"
+            />
+        </WithoutGraph>
     );
 }
 
@@ -791,7 +793,6 @@ export function ThreadReplies({
     /** Whether the parent's trunk goes on below the replies, to the next commit of the thread. */
     isOnTrunk?: boolean;
 }) {
-    const isOverlaid = useGraphOverlay();
     const nodeId = useGraphNodeId();
 
     if (!thread.isOpen) {
@@ -826,14 +827,16 @@ export function ThreadReplies({
                             depth={depth + 1}
                             graph={isFlattened ? {} : { parent: branchFrom }}
                             links={
-                                isFlattened || isOverlaid ? null : (
-                                    <ReplyBranch
-                                        isOnTrunk={isOnTrunk}
-                                        hasNext={
-                                            index < replies.length - 1 ||
-                                            thread.hasMore
-                                        }
-                                    />
+                                isFlattened ? null : (
+                                    <WithoutGraph>
+                                        <ReplyBranch
+                                            isOnTrunk={isOnTrunk}
+                                            hasNext={
+                                                index < replies.length - 1 ||
+                                                thread.hasMore
+                                            }
+                                        />
+                                    </WithoutGraph>
                                 )
                             }
                             onDeleted={thread.onDeleted}
@@ -850,16 +853,18 @@ export function ThreadReplies({
                             )}
                             data-test="more-replies"
                         >
-                            {!isFlattened &&
-                                !isOverlaid &&
-                                (isOnTrunk ? (
-                                    <ThreadElbow
-                                        isOnTrunk
-                                        className="h-5 w-[calc(var(--indent)-var(--spine)+4px)] sm:h-5.5"
-                                    />
-                                ) : (
-                                    <ThreadColumn className="top-0 left-3 h-5 sm:left-3.5 sm:h-5.5" />
-                                ))}
+                            {!isFlattened && (
+                                <WithoutGraph>
+                                    {isOnTrunk ? (
+                                        <ThreadElbow
+                                            isOnTrunk
+                                            className="h-5 w-[calc(var(--indent)-var(--spine)+4px)] sm:h-5.5"
+                                        />
+                                    ) : (
+                                        <ThreadColumn className="top-0 left-3 h-5 sm:left-3.5 sm:h-5.5" />
+                                    )}
+                                </WithoutGraph>
+                            )}
                             <MoreRepliesButton
                                 thread={thread}
                                 isFlattened={depth + 1 > maxIndentDepth}

@@ -7,7 +7,7 @@ import { WordmarkText } from '@/components/wordmark-text';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
-import { cn, formatRelativeTime } from '@/lib/utils';
+import { cn, formatFullDateTime, formatRelativeTime } from '@/lib/utils';
 import type { Device } from '@/types';
 
 export default function Index({ devices }: { devices: Device[] }) {
@@ -244,7 +244,7 @@ function Time({ date, now }: { date: string; now: Date }) {
     return (
         <time
             dateTime={date}
-            title={new Date(date).toLocaleString()}
+            title={formatFullDateTime(date)}
             className="font-mono text-[13px] tabular-nums"
         >
             {relative === 'now'

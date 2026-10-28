@@ -26,7 +26,6 @@ import {
     Repliable,
     ReplyGhost,
     replyOf,
-    timeOf,
 } from '@/components/chat/message-parts';
 import type { Author } from '@/components/chat/message-parts';
 import {
@@ -87,6 +86,7 @@ import type { ScrollAnchor } from '@/lib/scroll-anchor';
 import {
     characterCount,
     cn,
+    formatClockTime,
     formatDayLabel,
     laneColor,
     localDayKey,
@@ -1421,7 +1421,7 @@ function BubbleWithMeta({
                         {status === 'pulled' &&
                             target.kind === 'direct' &&
                             pulls.readAt &&
-                            ` ${timeOf(pulls.readAt)}`}
+                            ` ${formatClockTime(pulls.readAt)}`}
                         {pulledBy.length > 0 && ' by'}
                     </span>
                     {pulledBy.length > 0 && (
@@ -1433,7 +1433,7 @@ function BubbleWithMeta({
                 bubble.kind === 'message' && (
                     <MetaLine>
                         <time dateTime={bubble.message.created_at}>
-                            {timeOf(bubble.message.created_at)}
+                            {formatClockTime(bubble.message.created_at)}
                         </time>
                         {showsStatus && pulledBy.length > 0 && (
                             <>

@@ -42,6 +42,7 @@ import {
     isRemoteMuted,
     remoteAlertsEnabled,
 } from '@/lib/remote-notifications';
+import { remotePushEnabled } from '@/lib/remote-push';
 import type { VoiceDraft } from '@/lib/voice-notes';
 import type {
     ConversationSummary,
@@ -163,6 +164,7 @@ const activePoll = 1_500;
 const idlePoll = 4_000;
 const inboxPoll = 15_000;
 const busyInboxPoll = 6_000;
+const hiddenInboxPoll = 60_000;
 const activeWindow = 60_000;
 const typingPing = 3_000;
 
@@ -205,6 +207,10 @@ let inboxWatchers = 0;
 let inboxTimer: number | undefined;
 let isLoadingReactionUsage = false;
 let remoteAlerts: ReturnType<typeof createRemoteAlerts> | null = null;
+/**
+ * Whether this tab is the one of the user's tabs that keeps polling for alerts while hidden.
+ */
+let isAlertingTab = false;
 let isFetchingInbox = false;
 let muteVersion = 0;
 let pinVersion = 0;
@@ -218,14 +224,18 @@ export function targetKey(target: ChatTarget): string {
 }
 
 export function summaryKey(summary: ConversationSummary): string {
-    return summary.kind === 'org' || summary.partner === null
+    return summary.kind === 'org'
         ? `org:${summary.id}`
-        : summary.partner.handle;
+        : (summary.partner?.handle ?? `direct:${summary.id}`);
 }
 
-export function targetOf(summary: ConversationSummary): ChatTarget {
-    return summary.kind === 'org' || summary.partner === null
-        ? { kind: 'org', org: { id: summary.id, name: summary.name } }
+export function targetOf(summary: ConversationSummary): ChatTarget | null {
+    if (summary.kind === 'org') {
+        return { kind: 'org', org: { id: summary.id, name: summary.name } };
+    }
+
+    return summary.partner === null
+        ? null
         : { kind: 'direct', partner: summary.partner };
 }
 
@@ -892,7 +902,9 @@ export function rememberTarget(target: ChatTarget): void {
 }
 
 async function pollInbox(): Promise<void> {
-    const isPaused = document.hidden && remoteAlerts === null;
+    const isPaused =
+        document.hidden &&
+        (remoteAlerts === null || !isAlertingTab || remotePushEnabled());
 
     if (isPaused && state.unread !== null) {
         update({ unread: null });
@@ -1058,7 +1070,13 @@ export function watchRemoteAlerts(userId: string): () => void {
 
     const alerts = createRemoteAlerts(
         userId,
-        (conversation) => urls(targetOf(conversation)).show,
+        (conversation) => {
+            const target = targetOf(conversation);
+
+            return target === null
+                ? ConversationController.index.url()
+                : urls(target).show;
+        },
         () =>
             !document.hidden && document.hasFocus()
                 ? [...threadWatchers.keys()].map(
@@ -1082,8 +1100,28 @@ export function watchRemoteAlerts(userId: string): () => void {
     );
     remoteAlerts = alerts;
     const unwatch = watchInbox();
+    const lock = new AbortController();
+    let releaseLock = () => {};
+    if (navigator.locks) {
+        void navigator.locks
+            .request(
+                `remote-alerts:${userId}`,
+                { signal: lock.signal },
+                () =>
+                    new Promise<void>((resolve) => {
+                        isAlertingTab = true;
+                        releaseLock = resolve;
+                    }),
+            )
+            .catch(() => undefined);
+    } else {
+        isAlertingTab = true;
+    }
 
     return () => {
+        lock.abort();
+        releaseLock();
+        isAlertingTab = false;
         alerts.stop();
         window.clearInterval(titleTimer);
         window.removeEventListener('focus', acknowledgeTitle);
@@ -1107,7 +1145,11 @@ function scheduleInbox(): void {
 
     inboxTimer = window.setTimeout(
         () => void pollInbox().finally(scheduleInbox),
-        threadWatchers.size > 0 ? busyInboxPoll : inboxPoll,
+        document.hidden
+            ? hiddenInboxPoll
+            : threadWatchers.size > 0
+              ? busyInboxPoll
+              : inboxPoll,
     );
 }
 
@@ -1129,7 +1171,7 @@ export function watchInbox(): () => void {
 
     const onVisible = () => {
         if (!document.hidden) {
-            void pollInbox();
+            void pollInbox().finally(scheduleInbox);
         }
     };
 

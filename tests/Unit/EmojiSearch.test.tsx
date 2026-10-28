@@ -1,17 +1,15 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
 import { test } from 'vite-plus/test';
-import {
-    emojiName,
-    searchEmoji,
-    searchEmojiByUse,
-} from '../../resources/js/lib/emoji';
+import { emojiName, searchEmoji } from '../../resources/js/lib/emoji';
 
 test('suggests the shortcodes starting with the query first, shortest first', () => {
     const names = searchEmoji('smi').map((emoji) => emoji.name);
 
     assert.deepEqual(names.slice(0, 3), ['smile', 'smirk', 'smiley']);
-    assert.ok(names.every((name) => name.startsWith('smi')));
+    const prefixed = names.filter((name) => name.startsWith('smi')).length;
+
+    assert.ok(names.slice(0, prefixed).every((name) => name.startsWith('smi')));
 });
 
 test('falls back to the shortcodes with a word starting with the query, ignoring case', () => {
@@ -28,27 +26,28 @@ test('lists the shortcodes containing the query inside a word last', () => {
     assert.deepEqual(names, ['apple', 'green_apple', 'pineapple']);
 });
 
-test('limits the suggestions and pairs each shortcode with its emoji', () => {
-    const suggestions = searchEmoji('a', 5);
-
-    assert.equal(suggestions.length, 5);
-    assert.deepEqual(searchEmoji('+1', 1), [{ name: '+1', emoji: '👍' }]);
+test('suggests every matching shortcode and pairs each with its emoji', () => {
+    assert.equal(searchEmoji('heart').length, 34);
+    assert.deepEqual(
+        searchEmoji('boat').filter((result) => result.emoji === '⛵'),
+        [{ name: 'boat', emoji: '⛵' }],
+    );
+    assert.equal(searchEmoji('ar').length, 253);
+    assert.deepEqual(searchEmoji('+1'), [{ name: '+1', emoji: '👍' }]);
     assert.deepEqual(searchEmoji('no_such_shortcode'), []);
 });
 
 test('searches each emoji once, putting the ones the user reacts with most first within a match', () => {
-    const results = searchEmojiByUse('heart', new Map([['😍', 3]]));
+    const results = searchEmoji('heart', new Map([['😍', 3]]));
 
     assert.deepEqual(
         results.slice(0, 2).map((result) => result.emoji),
         ['😍', '❤️'],
     );
     assert.equal(
-        searchEmojiByUse('thumbs', new Map()).filter(
-            (result) => result.emoji === '👍',
-        ).length,
+        searchEmoji('thumbs').filter((result) => result.emoji === '👍').length,
         1,
     );
-    assert.equal(searchEmojiByUse(':rock', new Map())[0].emoji, '🪨');
+    assert.equal(searchEmoji(':rock')[0].emoji, '🪨');
     assert.equal(emojiName('👍'), '+1');
 });

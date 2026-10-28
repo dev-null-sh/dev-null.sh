@@ -1,7 +1,7 @@
 import type { CSSProperties, MouseEvent, ReactNode } from 'react';
 import { useRef, useState } from 'react';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
-import { cn } from '@/lib/utils';
+import { clockTimeOf, cn, localDayKey } from '@/lib/utils';
 import type { Activity, ActivityBucket, ActivityScale } from '@/types';
 
 export type ActivityNoun = [singular: string, plural: string];
@@ -64,7 +64,9 @@ function formatDay(date: string, withYear: boolean): string {
 }
 
 function formatTime(time: Date): string {
-    return [time.getHours(), time.getMinutes()]
+    const { hour, minute } = clockTimeOf(time.toISOString());
+
+    return [hour, minute]
         .map((part) => String(part).padStart(2, '0'))
         .join(':');
 }
@@ -102,7 +104,9 @@ function describe(
 
     const start = new Date(bucket.date);
     const end = new Date(start.getTime() + 3_600_000);
-    const isToday = start.toDateString() === new Date().toDateString();
+    const isToday =
+        localDayKey(start.toISOString()) ===
+        localDayKey(new Date().toISOString());
 
     return `${counted} between ${formatTime(start)} and ${formatTime(end)} ${isToday ? 'today' : 'yesterday'}`;
 }
@@ -133,7 +137,7 @@ function stripLabel(
     if (scale === 'day') {
         const start = new Date(bucket.date);
 
-        return start.getHours() % 6 === 0 && index < length - 2
+        return clockTimeOf(bucket.date).hour % 6 === 0 && index < length - 2
             ? formatTime(start)
             : null;
     }
