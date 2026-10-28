@@ -6,7 +6,9 @@ namespace App\Queries;
 
 use App\Enums\CommitStatus;
 use App\Enums\RepliesPerPage;
+use App\Enums\TopicType;
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use Illuminate\Contracts\Database\Query\Expression;
@@ -210,6 +212,18 @@ final class CommitBuilder extends Builder
     public function approved(): self
     {
         return $this->where('status', CommitStatus::Approved);
+    }
+
+    /**
+     * The commits linked to the organization by a mention, whatever handle it had when they were written.
+     */
+    public function mentioning(Profile $organization): self
+    {
+        return $this->whereExists(fn (QueryBuilder $query): QueryBuilder => $query
+            ->from('commit_topics')
+            ->whereColumn('commit_topics.commit_id', $this->qualifyColumn('id'))
+            ->where('commit_topics.topic_type', TopicType::Organization)
+            ->where('commit_topics.topic_id', $organization->id));
     }
 
     /**

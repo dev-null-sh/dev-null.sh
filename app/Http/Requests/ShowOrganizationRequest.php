@@ -19,11 +19,21 @@ final class ShowOrganizationRequest extends FormRequest
     }
 
     /**
-     * @return array{}
+     * @return array<string, array<int, string>>
      */
     public function rules(): array
     {
-        return [];
+        return [
+            'tab' => ['nullable', 'string', 'in:mentions'],
+        ];
+    }
+
+    /**
+     * Mentions is the only tab so far, so it's the default.
+     */
+    public function tab(): string
+    {
+        return 'mentions';
     }
 
     /**

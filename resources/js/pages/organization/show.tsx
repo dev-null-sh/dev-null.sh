@@ -2,14 +2,23 @@ import { Head } from '@inertiajs/react';
 import { Link2, MapPin } from 'lucide-react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import { BioText } from '@/components/bio-text';
-import { EmptyFeed } from '@/components/commit-feed';
+import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { GitHubIcon } from '@/components/github-icon';
 import { OrganizationAvatar } from '@/components/organization-avatar';
+import { PageTabs } from '@/components/page-tabs';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import AppLayout from '@/layouts/app-layout';
-import type { Organization } from '@/types';
+import type { Commit, CursorPaginated, Organization } from '@/types';
 
-export default function Show({ organization }: { organization: Organization }) {
+export default function Show({
+    organization,
+    tab,
+    commits,
+}: {
+    organization: Organization;
+    tab: 'mentions';
+    commits: CursorPaginated<Commit>;
+}) {
     return (
         <>
             <Head title={`${organization.name} (@${organization.handle})`} />
@@ -92,12 +101,34 @@ export default function Show({ organization }: { organization: Organization }) {
                 </ul>
             </header>
 
-            <div className="px-6 py-16 text-center sm:px-12">
-                <EmptyFeed command={`$ git log --grep=@${organization.handle}`}>
-                    Organization pages are new. Soon you'll be able to follow @
-                    {organization.handle} and read what the community commits
-                    about it, right here.
-                </EmptyFeed>
+            <div className="min-h-dvh">
+                <PageTabs
+                    label="Organization feed"
+                    preserveScroll
+                    only={['tab', 'commits']}
+                    reset={['commits']}
+                    tabs={[
+                        {
+                            title: 'Mentions',
+                            href: show(organization),
+                            isActive: tab === 'mentions',
+                        },
+                    ]}
+                />
+
+                <CommitFeed
+                    key={`${organization.handle}:${tab}`}
+                    commits={commits}
+                    end={`That's the first commit mentioning @${organization.handle}.`}
+                    empty={
+                        <EmptyFeed
+                            command={`$ git log --grep=@${organization.handle}`}
+                        >
+                            Nobody has mentioned @{organization.handle} yet.
+                            Mention it in a commit and it shows up here.
+                        </EmptyFeed>
+                    }
+                />
             </div>
         </>
     );

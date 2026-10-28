@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\MessageVoiceController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
 use App\Http\Controllers\Api\OrganizationController;
+use App\Http\Controllers\Api\OrganizationMentionController;
 use App\Http\Controllers\Api\OrgArchiveController;
 use App\Http\Controllers\Api\OrgController;
 use App\Http\Controllers\Api\OrgMemberController;
@@ -108,6 +109,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-related-commit.index');
         Route::get('organizations/{handle}', [OrganizationController::class, 'show'])
             ->name('api-organization.show');
+        Route::get('organizations/{handle}/mentions', [OrganizationMentionController::class, 'index'])
+            ->name('api-organization-mention.index');
     });
 
     // The Mac app's latest release, which its update check compares with, unsigned so it sends nothing about anyone...

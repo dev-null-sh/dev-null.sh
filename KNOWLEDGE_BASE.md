@@ -111,9 +111,11 @@ Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](re
 
 GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with their GitHub avatar (square, so they never pass for a person), name, description, location, website, and a link to GitHub. An organization gets its page once an approved commit mentions it, from its public GitHub profile, and the profile refreshes when commits keep mentioning it, at most once a day. Nobody signs in as an organization or edits its page: everything on it comes from GitHub.
 
-Following organizations and reading what the community commits about them are planned, not shipped yet.
+The **Mentions** tab lists the commits and replies that mention the organization, newest first, a reply with the commit it answers. A commit stays listed after the organization is renamed, since it is linked to the organization rather than to the handle. It follows the usual visibility: guests see approved commits only, you also see your own pending ones, and commits across a block or by people you muted are left out.
 
-Sources: [organization page](resources/js/pages/organization/show.tsx), [organization lookups](app/Actions/UpdateCommitTopics.php).
+Following organizations is planned, not shipped yet.
+
+Sources: [organization page](resources/js/pages/organization/show.tsx), [mentions](app/Queries/OrganizationMentionsQuery.php), [organization lookups](app/Actions/UpdateCommitTopics.php).
 
 ### Going live
 
