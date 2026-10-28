@@ -14,7 +14,7 @@
         "inertiajs/inertia-laravel": "^3.5.2",
         "intervention/image": "^4.4.0",
         "laravel/ai": "^1.3.0",
-        "laravel/framework": "^13.38.0",
+        "laravel/framework": "^13.39.0",
         "laravel/octane": "^2.22",
         "laravel/socialite": "^5.31.0",
         "laravel/wayfinder": "^0.1.23",
@@ -23,11 +23,11 @@
         "nunomaduro/essentials": "^1.2.0",
         "phpseclib/phpseclib": "^4.0.2",
         "resend/resend-php": "^1.17",
-        "symfony/html-sanitizer": "^8.1.8",
-        "tempest/highlight": "^2.29.0"
+        "symfony/html-sanitizer": "^8.1.10",
+        "tempest/highlight": "^2.30.0"
     },
     "require-dev": {
-        "driftingly/rector-laravel": "^2.7.2",
+        "driftingly/rector-laravel": "^2.7.3",
         "fakerphp/faker": "^1.24.1",
         "larastan/larastan": "^3.13.2",
         "laravel/boost": "^2.10.3",

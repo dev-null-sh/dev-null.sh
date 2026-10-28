@@ -1264,6 +1264,7 @@ function CommitReply({
                         <FoldedCommitBody
                             segments={translation.segments}
                             mentions={reply.mentions}
+                            organizationMentions={reply.organization_mentions}
                             previewSegments={translation.previewSegments}
                             className="text-[15px]"
                         />
@@ -1311,6 +1312,7 @@ function CommitReply({
                                 <>
                                     <CommitStarButton
                                         commit={reply}
+                                        keyShortcut="s"
                                         className="px-2 py-0.5"
                                     />
                                     <CommitPastelButton

@@ -8,6 +8,7 @@ use App\Enums\CommitStatus;
 use App\Enums\ConnectionType;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\Profile;
 use App\Models\User;
 use App\Queries\MacAppReleaseQuery;
 use Illuminate\Support\Arr;
@@ -20,6 +21,7 @@ use Illuminate\Support\Str;
  * @phpstan-type WebsiteMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
  * @phpstan-type CommitMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, publishedAt: string, author: string, feed: Feed, structuredData: array<string, mixed>}
  * @phpstan-type UserMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, feed: Feed, handle: string, structuredData: array<string, mixed>}
+ * @phpstan-type OrganizationMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, handle: string, structuredData: array<string, mixed>}
  * @phpstan-type ConnectionsMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, handle: string}
  *
  * @phpstan-import-type MacAppRelease from MacAppReleaseQuery
@@ -299,6 +301,51 @@ final readonly class PageMetadata
     }
 
     /**
+     * The link preview and structured data of an organization's page, from its GitHub profile.
+     *
+     * @return OrganizationMetadata
+     */
+    public function organization(Profile $organization): array
+    {
+        $nameWithHandle = $organization->name === $organization->handle ? "@{$organization->handle}" : "{$organization->name} (@{$organization->handle})";
+        $title = "{$nameWithHandle} on /dev/null";
+        $url = route('user.show', $organization->handle);
+
+        return [
+            'type' => 'profile',
+            'title' => $title,
+            'description' => $organization->bio ?? "Read the commits that mention @{$organization->handle} on /dev/null, a social network for developers.",
+            'url' => $url,
+            'robots' => self::INDEXABLE,
+            'images' => [[
+                'url' => route('user-open-graph-image.show', ['profile' => $organization->handle, 'v' => $organization->openGraphImageVersion()]),
+                'width' => OpenGraphCanvas::WIDTH,
+                'height' => OpenGraphCanvas::HEIGHT,
+                'type' => 'image/png',
+                'alt' => $title,
+            ]],
+            'handle' => $organization->handle,
+            'structuredData' => [
+                '@context' => 'https://schema.org',
+                '@type' => 'ProfilePage',
+                'url' => $url,
+                'mainEntity' => [
+                    '@type' => 'Organization',
+                    'name' => $organization->name,
+                    'alternateName' => "@{$organization->handle}",
+                    'url' => $url,
+                    ...$organization->bio !== null ? ['description' => $organization->bio] : [],
+                    ...$organization->avatar_url !== null ? ['image' => $organization->avatar_url] : [],
+                    'sameAs' => [
+                        "https://github.com/{$organization->handle}",
+                        ...filled($organization->website) ? [$organization->website] : [],
+                    ],
+                ],
+            ],
+        ];
+    }
+
+    /**
      * The link preview of who follows a profile, who it follows, or who of those follow it back. The lists are thin pages, so they are not indexed, though their links are followed.
      *
      * @param  ConnectionType::Followers|ConnectionType::Following|ConnectionType::Mutuals  $type
@@ -373,7 +420,7 @@ final readonly class PageMetadata
     private function profileImage(User $user, string $alt): array
     {
         return [
-            'url' => route('user-open-graph-image.show', ['user' => $user, 'v' => $user->openGraphImageVersion()]),
+            'url' => route('user-open-graph-image.show', ['profile' => $user->handle, 'v' => $user->openGraphImageVersion()]),
             'width' => OpenGraphCanvas::WIDTH,
             'height' => OpenGraphCanvas::HEIGHT,
             'type' => 'image/png',

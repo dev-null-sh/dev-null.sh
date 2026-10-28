@@ -8,6 +8,7 @@ use App\Actions\CreateTomFriendship;
 use App\Actions\DeletePushSubscription;
 use App\Actions\UpdateOrCreateUser;
 use App\Jobs\ImportGitHubFollowsJob;
+use App\Jobs\LookUpUserOrganizations;
 use App\Jobs\SyncGitHubSshKeysJob;
 use App\Models\User;
 use App\Services\GitHubAccountScreening;
@@ -70,6 +71,7 @@ final readonly class SessionController
 
         dispatch(new SyncGitHubSshKeysJob($user));
         dispatch(new ImportGitHubFollowsJob($user, notify: $user->wasRecentlyCreated));
+        LookUpUserOrganizations::dispatchFor($user);
 
         Auth::login($user, remember: true);
 

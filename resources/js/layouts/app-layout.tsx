@@ -89,6 +89,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     useKeyboardShortcuts(
         auth.user,
         auth.log,
+        auth.remotes !== null,
         showShortcuts,
         openSearch,
         compose,
@@ -185,6 +186,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     open={isShowingShortcuts}
                     onOpenChange={setIsShowingShortcuts}
                     canModerate={auth.isAdmin}
+                    hasRemotes={auth.remotes !== null}
                 />
 
                 {isGuest && <LocalSignInDialog />}

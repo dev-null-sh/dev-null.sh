@@ -11,6 +11,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Public browsing and GitHub sign-in](#public-browsing-and-github-sign-in)
   - [First-time setup](#first-time-setup)
   - [Profiles and GitHub sync](#profiles-and-github-sync)
+  - [Organization pages](#organization-pages)
   - [Going live](#going-live)
   - [Achievement badges and XP](#achievement-badges-and-xp)
   - [Following developers and suggestions](#following-developers-and-suggestions)
@@ -82,7 +83,7 @@ These entries cover the app's public and signed-in features. Options that may no
 
 ### Public browsing and GitHub sign-in
 
-Guests land on the Trending log and can browse Latest and Trending, public profiles and their following/follower lists, approved commits and reply threads, photos, and search. Sign in with GitHub to write commits, follow, star, vote, report, give pastéis, translate, receive notifications, read the Following log or your Starred list, or use private messages and settings. Clicking one of those actions as a guest goes straight to GitHub sign-in and returns to the profile or commit being read. GitHub is the only sign-in provider; there is no separate /dev/null password.
+Guests land on the Trending log and can browse Latest and Trending, public profiles and their following/follower lists, approved commits and reply threads, photos, and search. Sign in with GitHub to write commits, follow, star, vote, report, give pastéis, translate, receive notifications, read the Following log or your Starred list, or use private messages and settings. Clicking one of those actions as a guest goes straight to GitHub sign-in and returns to the profile or commit being read. GitHub is the only sign-in provider; there is no separate /dev/null password. Next to the sign-in button, guests see how many developers are on /dev/null, rounded down to the thousand (or to the hundred below a thousand) and counted once an hour, banned accounts and bots left out.
 
 New GitHub accounts are screened at signup; eligibility checks can require an established account and a verified email. Returning accounts are not screened again. Public profiles and approved commits are readable by other people and crawlers, and links have social previews. A public commit is not private just because its author signed in to write it.
 
@@ -105,6 +106,16 @@ Change your name, avatar, bio, company, location, or website on GitHub, not on /
 Profiles also show [achievement badges and an XP-based Unix rank](#achievement-badges-and-xp). Click a badge or rank to inspect unlock requirements and progress.
 
 Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](resources/js/pages/user-profile/edit.tsx), [profile sharing](resources/js/components/profile-share-button.tsx), [profile README](app/Queries/GitHubReadmeQuery.php), [identity sync](app/Actions/UpdateOrCreateUser.php).
+
+### Organization pages
+
+GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with their GitHub avatar (square, so they never pass for a person), name, description, location, website, and a link to GitHub. An organization gets its page once an approved commit mentions it, from its public GitHub profile, and the profile refreshes when commits keep mentioning it, at most once a day. Nobody signs in as an organization or edits its page: everything on it comes from GitHub. Shared links to an organization's page preview as a card with its square avatar, name, handle, and description, like a developer's profile.
+
+The **Mentions** tab lists the commits and replies that mention the organization, newest first, a reply with the commit it answers. A commit stays listed after the organization is renamed, since it is linked to the organization rather than to the handle. It follows the usual visibility: guests see approved commits only, you also see your own pending ones, and commits across a block or by people you muted are left out.
+
+Following organizations is planned, not shipped yet.
+
+Sources: [organization page](resources/js/pages/organization/show.tsx), [mentions](app/Queries/OrganizationMentionsQuery.php), [organization lookups](app/Actions/UpdateCommitTopics.php).
 
 ### Going live
 
@@ -202,11 +213,11 @@ Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController
 
 ### Code, emoji, and mentions
 
-Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. Text outside code supports emoji shortcodes, clickable URLs, and `@username` mentions. This is developer-oriented text formatting, not a full rich-text editor.
+Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. A title after the language, as in ```` ```php title="app/Models/User.php" ````, labels the block in place of the language. Text outside code supports emoji shortcodes, clickable URLs, and `@username` mentions. This is developer-oriented text formatting, not a full rich-text editor.
 
 In commits, replies, and remotes, start a line with `>` to render a quote block. Consecutive quoted lines stay together; an unquoted line ends the block. Quotes keep inline code, links, mentions, and emoji formatting. A `>` inside code or in the middle of a line stays literal.
 
-Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions search the loaded member list instantly and update as membership refreshes. Suggestions are limited to the org's members, but you can still type anyone's handle yourself. Mentions link to profiles and can notify the mentioned developer after approval. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
+Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions search the loaded member list instantly and update as membership refreshes. Suggestions are limited to the org's members, but you can still type anyone's handle yourself. Mentions link to profiles and can notify the mentioned developer after approval. Mentioning a GitHub organization, like `@laravel`, links to its [organization page](#organization-pages) and notifies nobody: a known organization links right away, one mentioned for the first time once the commit is approved and GitHub confirms it is an organization. Typing @ followed by a few letters also suggests organizations that already have a page, after developers. Organization mentions only link in commits and replies, not in remotes. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
 
 Typing **#123** in a composer looks up that exact issue or pull request in the /dev/null repository, `dev-null-sh/dev-null.sh`. The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL, just like choosing an emoji suggestion. A space or punctuation leaves the number as typed and dismisses the suggestion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
 
@@ -442,11 +453,12 @@ Press **?** to open the shortcut reference. Navigation shortcuts work outside te
 | `Enter` | Open the focused commit. |
 | `y` | Copy the focused commit's link. |
 | `r` / `q` / `o` | Reply, quote, or show/hide replies. |
+| `s` | Star or unstar the focused commit. |
 | `c` | Write a commit. |
 | `⌘/Ctrl+K` or `/` | Search developers and commits. |
 | `⌘/Ctrl+Enter` | Submit from the composer. |
 | `⌘/Ctrl+Shift+P` | Toggle composer preview. |
-| `g` then `l` / `e` / `p` / `s` | Go to your log / Trending / profile / settings. |
+| `g` then `l` / `e` / `p` / `s` / `n` / `m` / `*` | Go to your log / Trending / profile / settings / Notifications / Remotes / Starred. `g m` works only while Remotes is on. |
 
 Source: [shortcut reference](resources/js/components/keyboard-shortcuts-dialog.tsx).
 
@@ -462,11 +474,11 @@ Livestream history: terminal posting was reported working on [day one at 6:32:47
 
 ### GitHub Actions integration
 
-Use `dev-null-sh/dev-null.sh/.github/actions/commit@production` to publish updates from a GitHub workflow, for example when a release is published. Settings → Terminal includes a workflow example. The action accepts a commit body, an SSH private key supplied through a GitHub Actions secret, an optional `reply-to` reference, optional image paths (up to three), and an optional `url` for another /dev/null instance.
+Use `dev-null-sh/dev-null.sh/.github/actions/commit@production` to publish updates from a GitHub workflow, for example when a release is published. The action accepts a commit body, an SSH private key supplied through a GitHub Actions secret, an optional `reply-to` reference, optional image paths (up to three), and an optional `url` for another /dev/null instance.
 
 Generate a dedicated CI key, add its public half to GitHub as a signing or authentication key, and store the private half only in the repository's encrypted secrets. The action supports Ed25519 or RSA keys without a passphrase. It reports the created commit's link and whether it is pending review as a workflow annotation; it has no step outputs, and a refused submission fails the job. The usual moderation and submission limits still apply.
 
-Sources: [workflow instructions](resources/js/pages/terminal/show.tsx), [GitHub action](.github/actions/commit/action.yml).
+Sources: [GitHub action](.github/actions/commit/action.yml).
 
 ### Public read API and Atom feeds
 
@@ -478,7 +490,7 @@ Sources: [API routes](routes/api.php), [API controllers](app/Http/Controllers/Ap
 
 ### Signed API and devices
 
-An app can use the same `/api/v1` for you with signed requests. It keeps an SSH key on the device and signs every request with it; there are no passwords or API tokens. To sign in, the app opens `/mobile/authorize` on the web: sign in with GitHub if needed, check the key's fingerprint, and approve it. The key then becomes one of your devices, and it does not need to be on your GitHub account. A key that is only on GitHub, such as a GitHub Actions key, cannot use the signed API.
+An app can use the same `/api/v1` for you with signed requests. It keeps an SSH key on the device and signs every request with it; there are no passwords or API tokens. To sign in, the app opens `/mobile/authorize` on the web. A guest goes straight to GitHub and returns to that page; someone already signed in checks the key's fingerprint and approves it. The key then becomes one of your devices, and it does not need to be on your GitHub account. A key that is only on GitHub, such as a GitHub Actions key, cannot use the signed API.
 
 A signed request sees what the web shows you, such as your own pending commits. It can also, with the web's validation, moderation, and rate limits:
 

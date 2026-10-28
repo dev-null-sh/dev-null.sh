@@ -42,3 +42,7 @@ _ide_helper.php
 /.codex
 /.cursor
 /.junie
+
+**/caddy
+frankenphp
+frankenphp-worker.php

@@ -734,7 +734,7 @@ it('shows the commit and its replies split into prose and highlighted code', fun
                 ['type' => 'text', 'text' => 'Run '],
                 ['type' => 'code', 'code' => 'make'],
                 ['type' => 'text', 'text' => ' :fire'],
-                ['type' => 'block', 'language' => 'php', 'html' => '<span class="hl-variable">$name</span> = <span class="hl-value">\'&lt;b&gt;\'</span>;'],
+                ['type' => 'block', 'language' => 'php', 'filename' => null, 'html' => '<span class="hl-variable">$name</span> = <span class="hl-value">\'&lt;b&gt;\'</span>;'],
             ])
             ->where('replies.data.0.body_segments.1', ['type' => 'code', 'code' => 'make test'])
             ->missing('replies.data.0.body_segments.2'));

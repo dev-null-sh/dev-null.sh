@@ -26,6 +26,8 @@ declare module '@inertiajs/core' {
             name: string;
             repository: string;
             auth: Auth;
+            /** For guests: how many developers are here, rounded down (12,000). */
+            developersCount: number | null;
             hasUnmoderatedCommits: boolean;
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
