@@ -121,7 +121,7 @@ Share a stream you are running from the **…** menu on your own profile: **Go l
 
 **End stream** in the same menu stops it at once; otherwise it stops showing when the chosen time runs out, and the scheduler clears it within five minutes. Only the platform, the link, and the end time are stored, and they are included in your export.
 
-Sources: [go-live menu](resources/js/components/profile-actions-menu.tsx), [live avatar and card](resources/js/components/live-stream-card.tsx), [validation](app/Http/Requests/UpdateUserLiveRequest.php), [YouTube links](app/Services/LivePlatforms/YouTube.php), [Twitch links](app/Services/LivePlatforms/Twitch.php), [ending streams](app/Jobs/EndLiveStreams.php).
+Sources: [go-live button](resources/js/components/profile-live-button.tsx), [live avatar and card](resources/js/components/live-stream-card.tsx), [validation](app/Http/Requests/UpdateUserLiveRequest.php), [YouTube links](app/Services/LivePlatforms/YouTube.php), [Twitch links](app/Services/LivePlatforms/Twitch.php), [ending streams](app/Jobs/EndLiveStreams.php).
 
 ### Achievement badges and XP
 
