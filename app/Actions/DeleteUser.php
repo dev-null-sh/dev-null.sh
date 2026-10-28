@@ -59,6 +59,7 @@ final readonly class DeleteUser
             }
 
             $user->commits()->delete();
+            DB::table('commit_topics')->whereIn('commit_id', $user->commits()->withTrashed()->select('id'))->delete();
             $user->commits()->withTrashed()->update(['user_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
 
             $this->deleteOrgs->handle($this->emptyOrgs($user));

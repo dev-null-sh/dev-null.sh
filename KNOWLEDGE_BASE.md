@@ -11,6 +11,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Public browsing and GitHub sign-in](#public-browsing-and-github-sign-in)
   - [First-time setup](#first-time-setup)
   - [Profiles and GitHub sync](#profiles-and-github-sync)
+  - [Organization pages](#organization-pages)
   - [Going live](#going-live)
   - [Achievement badges and XP](#achievement-badges-and-xp)
   - [Following developers and suggestions](#following-developers-and-suggestions)
@@ -105,6 +106,14 @@ Change your name, avatar, bio, company, location, or website on GitHub, not on /
 Profiles also show [achievement badges and an XP-based Unix rank](#achievement-badges-and-xp). Click a badge or rank to inspect unlock requirements and progress.
 
 Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](resources/js/pages/user-profile/edit.tsx), [profile sharing](resources/js/components/profile-share-button.tsx), [profile README](app/Queries/GitHubReadmeQuery.php), [identity sync](app/Actions/UpdateOrCreateUser.php).
+
+### Organization pages
+
+GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with their GitHub avatar (square, so they never pass for a person), name, description, location, website, and a link to GitHub. An organization gets its page once an approved commit mentions it, from its public GitHub profile, and the profile refreshes when commits keep mentioning it, at most once a day. Nobody signs in as an organization or edits its page: everything on it comes from GitHub.
+
+Following organizations and reading what the community commits about them are planned, not shipped yet.
+
+Sources: [organization page](resources/js/pages/organization/show.tsx), [organization lookups](app/Actions/UpdateCommitTopics.php).
 
 ### Going live
 
@@ -206,7 +215,7 @@ Commit and reply text supports inline code in backticks and fenced code blocks w
 
 In commits, replies, and remotes, start a line with `>` to render a quote block. Consecutive quoted lines stay together; an unquoted line ends the block. Quotes keep inline code, links, mentions, and emoji formatting. A `>` inside code or in the middle of a line stays literal.
 
-Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions search the loaded member list instantly and update as membership refreshes. Suggestions are limited to the org's members, but you can still type anyone's handle yourself. Mentions link to profiles and can notify the mentioned developer after approval. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
+Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions search the loaded member list instantly and update as membership refreshes. Suggestions are limited to the org's members, but you can still type anyone's handle yourself. Mentions link to profiles and can notify the mentioned developer after approval. Mentioning a GitHub organization, like `@laravel`, links to its [organization page](#organization-pages) and notifies nobody: a known organization links right away, one mentioned for the first time once the commit is approved and GitHub confirms it is an organization. Typing @ followed by a few letters also suggests organizations that already have a page, after developers. Organization mentions only link in commits and replies, not in remotes. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
 
 Typing **#123** in a composer looks up that exact issue or pull request in the /dev/null repository, `dev-null-sh/dev-null.sh`. The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL, just like choosing an emoji suggestion. A space or punctuation leaves the number as typed and dismisses the suggestion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
 

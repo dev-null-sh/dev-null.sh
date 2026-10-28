@@ -1264,6 +1264,7 @@ function CommitReply({
                         <FoldedCommitBody
                             segments={translation.segments}
                             mentions={reply.mentions}
+                            organizationMentions={reply.organization_mentions}
                             previewSegments={translation.previewSegments}
                             className="text-[15px]"
                         />
