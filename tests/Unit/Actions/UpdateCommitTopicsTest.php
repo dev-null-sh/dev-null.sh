@@ -186,6 +186,31 @@ it('waits for the rate limit to reset once few requests are left, and says when 
     Http::assertSentCount(2);
 });
 
+it('does not try again when the last lookup is the one that pauses', function (): void {
+    Http::fake([
+        'api.github.com/users/laravel' => Http::response(gitHubOrganization(), headers: [
+            'X-RateLimit-Remaining' => '999',
+            'X-RateLimit-Reset' => (string) now()->addMinutes(30)->getTimestamp(),
+        ]),
+    ]);
+
+    $commit = Commit::factory()->create(['body' => '@laravel', 'mentions' => []]);
+
+    expect(resolve(UpdateCommitTopics::class)->handle($commit))->toBeNull()
+        ->and(Cache::has('github-organizations:paused'))->toBeTrue();
+});
+
+it('reads the pause from cache stores that keep numbers as strings', function (): void {
+    Http::fake();
+
+    $resetsAt = now()->addMinutes(30)->startOfSecond();
+    Cache::put('github-organizations:paused', (string) $resetsAt->getTimestamp(), $resetsAt);
+    $commit = Commit::factory()->create(['body' => '@laravel', 'mentions' => []]);
+
+    expect(resolve(UpdateCommitTopics::class)->handle($commit)?->getTimestamp())->toBe($resetsAt->getTimestamp());
+    Http::assertNothingSent();
+});
+
 it('keeps asking while enough requests are left', function (): void {
     Http::fake([
         'api.github.com/users/*' => Http::response(status: 404, headers: ['X-RateLimit-Remaining' => '1000']),
