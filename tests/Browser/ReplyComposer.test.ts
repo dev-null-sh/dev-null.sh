@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
@@ -9,6 +10,10 @@ await test(
     'submits only checked recipients and displays indexed recipient errors',
     { timeout: 60000 },
     async (context) => {
+        execFileSync('php', ['artisan', 'wayfinder:generate', '--with-form'], {
+            cwd: fileURLToPath(new URL('../../', import.meta.url)),
+            stdio: 'pipe',
+        });
         const server = await createServer({
             configFile: false,
             cacheDir: 'node_modules/.vite-reply-composer-tests',
