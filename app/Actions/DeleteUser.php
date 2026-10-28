@@ -43,13 +43,12 @@ final readonly class DeleteUser
 
             $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
 
-            $translationKeys = Commit::query()->withTrashed()
-                ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
-                    ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id')))
+            $translationKeys = $this->touchedCommits($user)
                 ->select(['id', 'body'])
                 ->lazyById(500)
                 ->map(resolve(CommitTranslations::class)->key(...))->unique()->all();
 
+            DB::table('commit_topics')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
             $user->commits()->withTrashed()->topLevel()->forceDelete();
             CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
             CommitReport::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
@@ -59,7 +58,6 @@ final readonly class DeleteUser
             }
 
             $user->commits()->delete();
-            DB::table('commit_topics')->whereIn('commit_id', $user->commits()->withTrashed()->select('id'))->delete();
             $user->commits()->withTrashed()->update(['user_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
 
             $this->deleteOrgs->handle($this->emptyOrgs($user));
@@ -94,6 +92,16 @@ final readonly class DeleteUser
                 ->map(fn (Commit $commit): string => $commit->id)
                 ->all(),
         ];
+    }
+
+    /**
+     * The user's commits and every commit in the threads they started: all the erasure deletes or leaves as a tombstone.
+     */
+    private function touchedCommits(User $user): CommitBuilder
+    {
+        return Commit::query()->withTrashed()
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
+                ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id')));
     }
 
     /**

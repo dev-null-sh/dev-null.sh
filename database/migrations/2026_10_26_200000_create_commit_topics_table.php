@@ -17,7 +17,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('commit_topics', function (Blueprint $table): void {
-            $table->foreignUuid('commit_id')->constrained()->cascadeOnDelete();
+            $table->foreignUuid('commit_id')->constrained();
             $table->string('reference');
             $table->string('topic_type');
             $table->uuid('topic_id');

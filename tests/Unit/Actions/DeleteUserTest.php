@@ -45,12 +45,17 @@ it('erases the commits of a deleted user along with the replies under them', fun
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->create()->delete();
-    Commit::factory()->for($commit, 'parent')->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
     $unrelated = Commit::factory()->create();
+    $organization = Profile::factory()->organization()->create();
+    resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => $organization->id]);
+    resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => $organization->id]);
+    resolve(CreateCommitTopics::class)->handle($unrelated, ['laravel' => $organization->id]);
 
     resolve(DeleteUser::class)->handle($user);
 
-    expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id]);
+    expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id])
+        ->and(DB::table('commit_topics')->pluck('commit_id')->all())->toBe([$unrelated->id]);
 });
 
 it('keeps the quotes of others when erasing the quoted commits of a deleted user', function (): void {
