@@ -191,6 +191,7 @@ export function ConversationThread({
     const isGliding = useRef(false);
 
     const messages = thread?.messages ?? noMessages;
+    const messagesRef = useRef(messages);
     const pending = thread?.pending ?? noPending;
     const latestId = messages.at(-1)?.id ?? 0;
     const head = thread?.head ?? 0;
@@ -494,6 +495,10 @@ export function ConversationThread({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isVisible, latestId, thread?.isLoaded, targetKey(target)]);
 
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
     useLayoutEffect(() => {
         const element = scroller.current;
 
@@ -557,6 +562,9 @@ export function ConversationThread({
     useLayoutEffect(releasePinClearance, [releasePinClearance]);
 
     const releaseScrollAnchor = useCallback(() => {
+        const element = scroller.current;
+        const wasGliding = isGliding.current;
+
         // Let deliberate input own the viewport until the fold settles, including delayed automatic scroll events.
         anchor.current = null;
         sentAnchor.current = null;
@@ -567,7 +575,24 @@ export function ConversationThread({
         glideCancel.current = null;
         isGliding.current = false;
         setIsJumping(false);
-    }, []);
+
+        if (!wasGliding || element === null) {
+            return;
+        }
+
+        // A cancel can land before the first frame, so trust the scroller rather than the state the glide was started with.
+        isPinned.current = isAtLatest(element);
+
+        // The pinned branch may have advanced the seen pointer mid-glide without clearing the count.
+        setUnseen(
+            messagesRef.current.filter(
+                (message) =>
+                    message.id > seenLatest.current &&
+                    message.user_id !== user.id &&
+                    !message.event,
+            ).length,
+        );
+    }, [user.id]);
 
     // A row below the visible ones can still change height, as reactions or a link card arrive, and the scroller itself
     // shrinks as the composer grows or the keyboard opens. Anchored at its bottom, either would move what is being read,
@@ -657,7 +682,11 @@ export function ConversationThread({
         if (element.scrollTop === 0) {
             isFollowingSend.current = false;
         }
-        if (!isReplyResizing.current || anchor.current !== null) {
+        if (
+            !isGliding.current &&
+            (!isReplyResizing.current || anchor.current !== null)
+        ) {
+            // An anchor captured mid-glide would be restored by a later resize and fight the glide.
             anchor.current = scrollAnchorOf(element);
         }
 
@@ -778,7 +807,10 @@ export function ConversationThread({
                     }
                 }}
                 onPointerDown={(event) => {
-                    if (event.target === event.currentTarget) {
+                    if (
+                        isGliding.current ||
+                        event.target === event.currentTarget
+                    ) {
                         releaseScrollAnchor();
                     }
                 }}
