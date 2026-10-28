@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Dto\LiveStream;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -12,6 +13,9 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * A user's public profile, with their counts when they were loaded. A signed request also gets the lane, the color
  * the web draws them in, and in a list of people, whether its user follows each one and whether each one follows them.
  * Who to follow also says how many people the user follows follow each one.
+ *
+ * Wherever a user shows up, live is the stream they are on until it runs out, or null, so an app can mark who is live
+ * in a list without asking for each profile.
  *
  * @mixin User
  */
@@ -35,6 +39,7 @@ final class UserResource extends JsonResource
             'html_url' => route('user.show', $this->resource),
             'feed_url' => route('user-feed.show', $this->resource),
             'created_at' => $this->created_at->toIso8601ZuluString(),
+            'live' => $this->live(),
             'commits_count' => $this->whenCounted('commits'),
             'followers_count' => $this->whenCounted('followers'),
             'following_count' => $this->whenCounted('following'),
@@ -43,5 +48,19 @@ final class UserResource extends JsonResource
             'follows_you' => $this->whenHas('follows_you'),
             'followed_by_following_count' => $this->whenHas('followed_by_following_count'),
         ];
+    }
+
+    /**
+     * @return array{platform: string|null, url: string, thumbnail_url: string, ends_at: string|null}|null
+     */
+    private function live(): ?array
+    {
+        $stream = $this->liveStream();
+
+        return $stream instanceof LiveStream ? [
+            'platform' => $this->live_platform?->value,
+            ...$stream->toArray(),
+            'ends_at' => $this->live_ends_at?->toIso8601ZuluString(),
+        ] : null;
     }
 }
