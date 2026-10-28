@@ -140,7 +140,7 @@ it('shows what the web shows on a commit', function (): void {
         ->assertJsonPath('data.0.author.lane', 4);
 });
 
-it('tells which authors are live without asking for each one', function (): void {
+it('tells on each commit whether its author is live', function (): void {
     $this->freezeSecond();
 
     $streamer = User::factory()->create([
