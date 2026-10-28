@@ -26,6 +26,9 @@ final class ShowApiOrganizationRequest extends FormRequest
         return [];
     }
 
+    /**
+     * The organization at the handle in any case, as a mention keeps the case it was written in.
+     */
     public function organization(): ?Profile
     {
         $handle = $this->route('organization');
@@ -33,7 +36,7 @@ final class ShowApiOrganizationRequest extends FormRequest
 
         return $this->organization ??= Profile::query()
             ->where('type', ProfileType::Organization)
-            ->where('handle', $handle)
+            ->whereRaw('LOWER(handle) = ?', [mb_strtolower($handle)])
             ->first();
     }
 }

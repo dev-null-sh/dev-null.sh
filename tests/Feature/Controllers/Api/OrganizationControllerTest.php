@@ -28,6 +28,14 @@ it('shows an organization as its page does, to anyone', function (): void {
         ]]);
 });
 
+it('finds an organization whatever the case of the handle, as mentions keep the case they were written in', function (): void {
+    Profile::factory()->organization()->create(['handle' => 'PHPMailer']);
+
+    $this->getJson(route('api-organization.show', 'phpmailer'))
+        ->assertOk()
+        ->assertJsonPath('data.handle', 'PHPMailer');
+});
+
 it('does not find a handle that is not an organization, even when a user has it', function (): void {
     User::factory()->create(['handle' => 'taylorotwell']);
 

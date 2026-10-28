@@ -113,7 +113,7 @@ GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with the
 
 Following organizations and reading what the community commits about them are planned, not shipped yet.
 
-Sources: [organization page](resources/js/pages/organization/show.tsx), [organization lookups](app/Actions/UpdateCommitTopics.php).
+Sources: [organization page](resources/js/pages/organization/show.tsx), [organization API](app/Http/Controllers/Api/OrganizationController.php), [organization lookups](app/Actions/UpdateCommitTopics.php).
 
 ### Going live
 
@@ -479,7 +479,7 @@ Sources: [workflow instructions](resources/js/pages/terminal/show.tsx), [GitHub 
 
 ### Public read API and Atom feeds
 
-The read-only JSON API at `/api/v1` requires no authentication or token. Read a public profile at `/api/v1/users/{handle}`, that user's commits at `/api/v1/users/{handle}/commits`, or one commit at `/api/v1/commits/{commit}`. `/api/v1/users/{handle}/followers` and `/following` list people the way the profile's people lists do, newest follow first; a signed request also gets each person's lane and whether you follow each other. Add `?replies=1` to the user-commits endpoint to read their replies instead of top-level commits. Lists use cursor pagination: 20 commits or 30 people per page. Only public approved, non-deleted content is returned, not private profile data such as email. Unsigned requests are limited to **60 requests per minute per IP** and cannot create posts, follow, or star; terminal posting and the [signed API](#signed-api-and-devices) are separate signed interfaces.
+The read-only JSON API at `/api/v1` requires no authentication or token. Read a public profile at `/api/v1/users/{handle}`, that user's commits at `/api/v1/users/{handle}/commits`, one commit at `/api/v1/commits/{commit}`, or a GitHub organization's page at `/api/v1/organizations/{handle}`. `/api/v1/users/{handle}/followers` and `/following` list people the way the profile's people lists do, newest follow first; a signed request also gets each person's lane and whether you follow each other. Add `?replies=1` to the user-commits endpoint to read their replies instead of top-level commits. Lists use cursor pagination: 20 commits or 30 people per page. Only public approved, non-deleted content is returned, not private profile data such as email. Unsigned requests are limited to **60 requests per minute per IP** and cannot create posts, follow, or star; terminal posting and the [signed API](#signed-api-and-devices) are separate signed interfaces.
 
 Subscribe in a feed reader to `/@{handle}/feed.atom` for a profile's latest **50 approved top-level commits**, including image enclosures. Feeds are public and can be cached for five minutes.
 
