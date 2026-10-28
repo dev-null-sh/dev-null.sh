@@ -583,6 +583,10 @@ export function ConversationThread({
         // A cancel can land before the first frame, so trust the scroller rather than the state the glide was started with.
         isPinned.current = isAtLatest(element);
 
+        if (!isPinned.current) {
+            anchor.current = scrollAnchorOf(element);
+        }
+
         // The pinned branch may have advanced the seen pointer mid-glide without clearing the count.
         setUnseen(
             messagesRef.current.filter(
