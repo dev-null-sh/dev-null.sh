@@ -54,6 +54,21 @@ it('links the organizations GitHub has to the commit, from their GitHub profile'
         ->and($commit->refresh()->organization_mentions)->toBe(['laravel' => $organization->id]);
 });
 
+it('links nothing to a commit erased while its handles were looked up', function (bool $gone): void {
+    $commit = Commit::factory()->create(['body' => 'Thanks @laravel', 'mentions' => []]);
+
+    Http::fake(function () use ($commit, $gone) {
+        $gone ? $commit->forceDelete() : $commit->update(['body' => '', 'mentions' => null]);
+
+        return Http::response(gitHubOrganization());
+    });
+
+    resolve(UpdateCommitTopics::class)->handle($commit);
+
+    expect(Profile::query()->where('handle', 'laravel')->exists())->toBeTrue();
+    $this->assertDatabaseEmpty('commit_topics');
+})->with(['content erased' => false, 'deleted' => true]);
+
 it('only asks GitHub about the handles that are neither a user nor a known organization', function (): void {
     Http::fake();
 

@@ -43,7 +43,8 @@ final readonly class UpdateCommitTopics
      * Asks GitHub about the handles the commit mentions that are neither a user nor a known organization, and
      * refreshes the known organizations it mentions once their profile is a day old, then links the commit to them.
      * A handle that isn't an organization's isn't asked about again for a day, and an organization GitHub no longer
-     * has is deleted, with the links to it. Returns when to try again if the rate limit cut the lookups short.
+     * has is deleted, with the links to it. The links come from the commit as it is after the lookups, locked, so a
+     * commit erased in the meantime gets none. Returns when to try again if the rate limit cut the lookups short.
      */
     public function handle(Commit $commit): ?CarbonImmutable
     {
@@ -109,7 +110,13 @@ final readonly class UpdateCommitTopics
             $this->updateOrCreateOrganization->handle($account);
         }
 
-        $this->createCommitTopics->handle($commit, $this->mentionedOrganizations->get($commit->body, $commit->mentions ?? []));
+        DB::transaction(function () use ($commit): void {
+            $commit = Commit::withTrashed()->lockForUpdate()->find($commit->id);
+
+            if ($commit instanceof Commit) {
+                $this->createCommitTopics->handle($commit, $this->mentionedOrganizations->get($commit->body, $commit->mentions ?? []));
+            }
+        });
 
         return $retryAt;
     }
