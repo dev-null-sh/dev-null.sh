@@ -8,7 +8,7 @@ use App\Models\Profile;
 use App\Models\User;
 
 it('shows an organization at the handle no user has, to guests too', function (): void {
-    Profile::factory()->organization()->create([
+    $laravel = Profile::factory()->organization()->create([
         'github_id' => '958072',
         'handle' => 'laravel',
         'name' => 'Laravel',
@@ -20,6 +20,7 @@ it('shows an organization at the handle no user has, to guests too', function ()
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('organization/show')
+            ->where('organization.id', $laravel->id)
             ->where('organization.handle', 'laravel')
             ->where('organization.name', 'Laravel')
             ->where('organization.bio', 'The PHP framework for web artisans.')

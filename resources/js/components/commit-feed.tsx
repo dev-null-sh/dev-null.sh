@@ -54,12 +54,10 @@ export function CommitFeed({
             : null;
     const isProfileReplies =
         profileUserId !== null && page.props.tab === 'replies';
-    // The organization's Mentions tab lists replies too, by the lowercase handle they mention it with.
-    const mentionedOrganization =
+    // The organization's Mentions tab lists replies too, whatever handle they mention it with.
+    const mentionedOrganizationId =
         page.component === 'organization/show'
-            ? (
-                  page.props.organization as { handle: string }
-              ).handle.toLowerCase()
+            ? (page.props.organization as { id: string }).id
             : null;
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
@@ -151,10 +149,10 @@ export function CommitFeed({
                     const belongsInFeed =
                         (isStarred
                             ? restored.starred === true
-                            : mentionedOrganization !== null
-                              ? restored.organization_mentions?.[
-                                    mentionedOrganization
-                                ] !== undefined
+                            : mentionedOrganizationId !== null
+                              ? Object.values(
+                                    restored.organization_mentions ?? {},
+                                ).includes(mentionedOrganizationId)
                               : isProfileReplies
                                 ? restored.parent_id !== null
                                 : restored.parent_id === null) &&
@@ -181,7 +179,7 @@ export function CommitFeed({
             profileUserId,
             isModeration,
             isProfileReplies,
-            mentionedOrganization,
+            mentionedOrganizationId,
             isStarred,
             isRanked,
         ],

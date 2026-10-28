@@ -15,7 +15,7 @@ export default function Show({
     tab,
     commits,
 }: {
-    organization: Organization;
+    organization: Organization & { id: string };
     tab: 'mentions';
     commits: CursorPaginated<Commit>;
 }) {
