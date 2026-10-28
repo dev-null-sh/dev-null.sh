@@ -8,13 +8,13 @@ use App\Mail\JoinLinkEmail;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Illuminate\Support\Uri;
 
 final readonly class CreateJoinLink
 {
     /**
      * Each address gets the email once a month at most, so the form can't fill someone's inbox. Only a keyed hash of it
-     * is kept to know that, and it expires with the month.
+     * is kept to know that, and it expires with the month. The link starts from the configured URL, never from the request's
+     * host, and its fragment tells the page it was opened from the email without reaching the server.
      */
     public function handle(string $email, string $path): void
     {
@@ -24,6 +24,6 @@ final readonly class CreateJoinLink
             return;
         }
 
-        Mail::to($email)->queue(new JoinLinkEmail(Uri::of(url($path))->withQuery(['ref' => 'join-link'])->value()));
+        Mail::to($email)->queue(new JoinLinkEmail(mb_rtrim(config()->string('app.url'), '/').$path.'#join-link'));
     }
 }

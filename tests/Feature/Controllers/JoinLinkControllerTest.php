@@ -10,9 +10,11 @@ beforeEach(function (): void {
     Mail::fake();
 });
 
-it('emails a link back to the page the guest was reading', function (): void {
+it('emails a link back to the page the guest was reading, on the configured host', function (): void {
+    config(['app.url' => 'https://dev-null.sh']);
+
     $this->from('/log/trending')
-        ->post(route('join-link.store'), ['email' => 'ada@example.com', 'path' => '/@ada/log?tab=replies'])
+        ->post('http://evil.example'.route('join-link.store', absolute: false), ['email' => 'ada@example.com', 'path' => '/@ada/log?tab=replies'])
         ->assertRedirect('/log/trending')
         ->assertSessionHasNoErrors();
 
@@ -21,7 +23,7 @@ it('emails a link back to the page the guest was reading', function (): void {
 
         return $mail->hasTo('ada@example.com')
             && $mail->hasSubject('Your link to /dev/null')
-            && str_contains($html, e(url('/@ada/log?tab=replies&ref=join-link')));
+            && str_contains($html, e('https://dev-null.sh/@ada/log?tab=replies#join-link'));
     });
 });
 
@@ -65,7 +67,7 @@ it('rejects what is not an email address', function (): void {
     Mail::assertNothingQueued();
 });
 
-it('limits how many links a network asks for', function (): void {
+it('limits how many links an IP address asks for', function (): void {
     foreach (['a', 'b', 'c'] as $name) {
         $this->post(route('join-link.store'), ['email' => "{$name}@example.com", 'path' => '/'])->assertSessionHasNoErrors();
     }
