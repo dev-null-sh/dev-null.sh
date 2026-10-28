@@ -81,10 +81,10 @@ final readonly class UpdateCommitTopics
         $retryAt = null;
 
         foreach ($lookups as [$path, $notFound]) {
-            $pausedUntil = Cache::get('github-organizations:paused');
+            $pausedUntil = Cache::integer('github-organizations:paused', 0);
 
-            if (is_numeric($pausedUntil)) {
-                $retryAt = CarbonImmutable::createFromTimestamp((int) $pausedUntil);
+            if ($pausedUntil > 0) {
+                $retryAt = CarbonImmutable::createFromTimestamp($pausedUntil);
 
                 break;
             }

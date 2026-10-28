@@ -47,6 +47,21 @@ it('stops once GitHub pauses the lookups, to be run again after the reset', func
     Http::assertNothingSent();
 });
 
+it('stops when GitHub refuses the requests', function (): void {
+    Http::fake([
+        'api.github.com/users/*' => Http::response(status: 429),
+    ]);
+
+    Commit::factory()->create(['body' => '@first', 'mentions' => []]);
+    Commit::factory()->create(['body' => '@second', 'mentions' => []]);
+
+    $this->artisan('commits:link-organizations')
+        ->expectsOutputToContain('GitHub rate limit reached after 0 commits. Run the command again later.')
+        ->assertFailed();
+
+    Http::assertSentCount(1);
+});
+
 it('goes on with the other commits when GitHub fails for one', function (): void {
     Http::fake([
         'api.github.com/users/broken' => Http::response(status: 502),

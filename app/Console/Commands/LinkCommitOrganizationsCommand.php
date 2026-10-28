@@ -33,6 +33,12 @@ final class LinkCommitOrganizationsCommand extends Command
             try {
                 $retryAt = $updateCommitTopics->handle($commit);
             } catch (RequestException|ConnectionException $exception) {
+                if ($exception instanceof RequestException && in_array($exception->response->status(), [403, 429], true)) {
+                    $this->components->error("GitHub rate limit reached after {$linked} commits. Run the command again later.");
+
+                    return self::FAILURE;
+                }
+
                 report($exception);
 
                 $this->components->warn("Could not look up the organizations of commit {$commit->id}.");
