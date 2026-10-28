@@ -229,9 +229,18 @@ it('fails when the user denies access', function (): void {
     $this->assertGuest();
 });
 
-it('fails when the state is invalid', function (): void {
+it('starts the sign-in over once when it started in another browser', function (): void {
     Socialite::shouldReceive('driver->user')->andThrow(new InvalidStateException);
 
+    $this->get(route('login.store'))->assertRedirectToRoute('login');
+
+    $this->assertGuest();
+});
+
+it('fails when the state is still invalid after starting over', function (): void {
+    Socialite::shouldReceive('driver->user')->andThrow(new InvalidStateException);
+
+    $this->get(route('login.store'))->assertRedirectToRoute('login');
     $response = $this->get(route('login.store'));
 
     $response->assertRedirectToRoute('home')
