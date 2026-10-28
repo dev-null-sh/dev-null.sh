@@ -7,6 +7,11 @@
 - Use the Laravel AI SDK for new AI features and semantic search query embeddings. Load the `ai-sdk-development` skill and keep the embedding provider, model, and dimensions compatible with the stored vectors.
 - Whenever one of Tom's tools is added, removed, or changed, update `App\Services\TomToolDecision`'s decision policy and criteria, Tom's execution guidance (arguments and follow-up limits), and the routing tests in the same change.
 
+## Commit attribution
+
+- Never add Amp, Claude Code, or any other AI tool as a co-author: no `Co-authored-by` trailers naming them, such as `Co-authored-by: Amp <amp@ampcode.com>` or `Co-authored-by: Claude <noreply@anthropic.com>`.
+- Never put their names anywhere in commit attribution: not as the commit author or committer, and not in trailers or footers such as `Amp-Thread-ID` or "Generated with Claude Code". Commits are attributed to the human contributors only.
+
 ## Minimal code
 
 - Write the least code that does the job: no private helpers, extra cache layers, or defensive checks the feature doesn't need. If a method can be inlined or a branch removed without losing behavior, do it.
