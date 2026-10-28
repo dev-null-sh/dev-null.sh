@@ -32,6 +32,24 @@ export type XpBreakdown = {
     shell_shocked: XpMetric;
 };
 
+export type XpLogEntry = {
+    source:
+        | 'commits'
+        | 'replies'
+        | 'streak'
+        | 'stars_received'
+        | 'stars_given'
+        | 'shell_shocked';
+    count: number;
+    xp: number;
+};
+
+export type XpLogDay = {
+    date: string;
+    xp: number;
+    entries: XpLogEntry[];
+};
+
 export type Achievements = {
     level: number;
     rank: string;

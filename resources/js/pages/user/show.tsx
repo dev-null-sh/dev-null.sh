@@ -54,6 +54,7 @@ import type {
     CursorPaginated,
     Profile,
     Streaks,
+    XpLogDay,
 } from '@/types';
 
 function pluralize(count: number, singular: string, plural: string) {
@@ -72,6 +73,7 @@ export default function Show({
     activity,
     streaks,
     achievements,
+    xpLog,
     commits,
     tab,
     pinnedCommit,
@@ -88,6 +90,7 @@ export default function Show({
     activity: Activity;
     streaks: Streaks;
     achievements: Achievements;
+    xpLog?: XpLogDay[];
     commits: CursorPaginated<Commit>;
     tab: 'commits' | 'replies' | 'readme';
     pinnedCommit: Commit | null;
@@ -426,6 +429,7 @@ export default function Show({
                 open={isAchievementsOpen}
                 onOpenChange={setIsAchievementsOpen}
                 achievements={achievements}
+                xpLog={xpLog}
                 user={user}
                 lane={lane}
             />

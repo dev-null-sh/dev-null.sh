@@ -1,3 +1,4 @@
+import { router } from '@inertiajs/react';
 import {
     Bomb,
     BotOff,
@@ -15,7 +16,7 @@ import {
     Zap,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { DragonBallIcon } from '@/components/dragon-ball-icon';
 import {
     Dialog,
@@ -24,11 +25,18 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Skeleton } from '@/components/ui/skeleton';
 import { WordmarkText } from '@/components/wordmark-text';
 import { dropConfetti } from '@/lib/confetti';
 import { formatCount, formatExactCount } from '@/lib/numbers';
-import { cn, laneTint } from '@/lib/utils';
-import type { Achievements, Profile, User } from '@/types';
+import { cn, formatFullDate, laneTint } from '@/lib/utils';
+import type {
+    Achievements,
+    Profile,
+    User,
+    XpLogDay,
+    XpLogEntry,
+} from '@/types';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     terminal: Terminal,
@@ -48,20 +56,66 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     'dragon-ball': DragonBallIcon,
 };
 
+const xpSources: Record<XpLogEntry['source'], [string, string]> = {
+    commits: ['commit', 'commits'],
+    replies: ['reply to someone else', 'replies to others'],
+    streak: ['streak day', 'streak days'],
+    stars_received: ['star received', 'stars received'],
+    stars_given: ['star given', 'stars given'],
+    shell_shocked: ['shell shocked bonus', 'shell shocked bonus'],
+};
+
+function XpLogSkeleton() {
+    return (
+        <div
+            aria-hidden
+            className="space-y-3 motion-safe:animate-in motion-safe:delay-300 motion-safe:fill-mode-backwards motion-safe:fade-in"
+        >
+            {[0, 1, 2].map((index) => (
+                <div key={index}>
+                    <div className="flex items-center justify-between border-b pb-1">
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-4 w-12" />
+                    </div>
+                    <div className="mt-1 space-y-0.5">
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-4 w-1/2" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
 export function AchievementsDialog({
     open,
     onOpenChange,
     achievements,
+    xpLog,
     user,
     lane,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     achievements: Achievements;
+    xpLog?: XpLogDay[];
     user: User | Profile;
     lane: string;
 }) {
-    const [tab, setTab] = useState<'badges' | 'ranks'>('badges');
+    const [tab, setTab] = useState<'badges' | 'ranks' | 'xp'>('badges');
+    const [hasFailed, setHasFailed] = useState(false);
+
+    // The log is only loaded once someone looks at it, so a profile visit stays as light as before.
+    useEffect(() => {
+        if (open && tab === 'xp' && xpLog === undefined) {
+            router.reload({
+                only: ['xpLog'],
+                onStart: () => setHasFailed(false),
+                onError: () => setHasFailed(true),
+                onNetworkError: () => setHasFailed(true),
+            });
+        }
+    }, [open, tab, xpLog]);
 
     const unlockedCount = achievements.badges.filter((b) => b.unlocked).length;
     const nextRank = achievements.ranks.find(
@@ -161,6 +215,18 @@ export function AchievementsDialog({
                         )}
                     >
                         Unix Ranks ({achievements.ranks.length})
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setTab('xp')}
+                        className={cn(
+                            'border-b-2 px-3 py-1.5 font-medium transition',
+                            tab === 'xp'
+                                ? 'border-(--lane) text-foreground'
+                                : 'border-transparent text-muted-foreground hover:text-foreground',
+                        )}
+                    >
+                        XP Log
                     </button>
                 </div>
 
@@ -335,6 +401,72 @@ export function AchievementsDialog({
                                 </button>
                             );
                         })}
+                    </div>
+                )}
+
+                {/* XP Log */}
+                {tab === 'xp' && (
+                    <div
+                        className="min-h-40 font-mono text-xs"
+                        aria-busy={xpLog === undefined && !hasFailed}
+                    >
+                        {hasFailed ? (
+                            <p role="status" className="text-muted-foreground">
+                                The XP log couldn't be loaded. Try again in a
+                                minute.
+                            </p>
+                        ) : xpLog === undefined ? (
+                            <XpLogSkeleton />
+                        ) : xpLog.length === 0 ? (
+                            <p role="status" className="text-muted-foreground">
+                                No XP in the last 90 days.
+                            </p>
+                        ) : (
+                            <ol className="space-y-3">
+                                {xpLog.map((day) => (
+                                    <li key={day.date}>
+                                        <div className="flex items-center justify-between gap-2 border-b pb-1">
+                                            <time
+                                                dateTime={day.date}
+                                                className="text-muted-foreground"
+                                            >
+                                                {formatFullDate(
+                                                    `${day.date}T00:00:00`,
+                                                )}
+                                            </time>
+                                            <span className="font-medium tabular-nums">
+                                                +{formatExactCount(day.xp)} XP
+                                            </span>
+                                        </div>
+                                        <ul className="mt-1 space-y-0.5">
+                                            {day.entries.map((entry) => (
+                                                <li
+                                                    key={entry.source}
+                                                    className="flex items-center justify-between gap-2 text-muted-foreground"
+                                                >
+                                                    <span>
+                                                        {entry.count}{' '}
+                                                        {
+                                                            xpSources[
+                                                                entry.source
+                                                            ][
+                                                                entry.count ===
+                                                                1
+                                                                    ? 0
+                                                                    : 1
+                                                            ]
+                                                        }
+                                                    </span>
+                                                    <span className="tabular-nums">
+                                                        +{entry.xp}
+                                                    </span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </li>
+                                ))}
+                            </ol>
+                        )}
                     </div>
                 )}
 
