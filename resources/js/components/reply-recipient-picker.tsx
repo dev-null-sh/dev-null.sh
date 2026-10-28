@@ -11,6 +11,7 @@ import {
 
 export type ReplyParticipant = { id: string; handle: string };
 
+/** Lets the author choose additional reply recipients while keeping the parent author selected. */
 export function ReplyRecipientPicker({
     participants,
     authorId,
@@ -35,12 +36,14 @@ export function ReplyRecipientPicker({
             >
                 Replying to{' '}
                 <span className="text-primary">
-                    {selected
-                        .map(
-                            ({ handle }, index) =>
-                                `${index > 0 ? (index === selected.length - 1 ? ' and ' : ', ') : ''}@${handle}`,
-                        )
-                        .join('')}
+                    {selected.length === 0
+                        ? 'no additional participants'
+                        : selected
+                              .map(
+                                  ({ handle }, index) =>
+                                      `${index > 0 ? (index === selected.length - 1 ? ' and ' : ', ') : ''}@${handle}`,
+                              )
+                              .join('')}
                 </span>
             </button>
             <Dialog open={open} onOpenChange={setOpen}>

@@ -1334,6 +1334,7 @@ function CommitReply({
     );
 }
 
+/** Composes a reply with optional recipients inherited from the parent, excluding the signed-in user. */
 function ReplyComposer({
     parent,
     onCancel,
@@ -1360,6 +1361,9 @@ function ReplyComposer({
                 .filter(([id]) => id !== user.id)
                 .map(([id, handle]) => [id, { id, handle }]),
         ).values(),
+    );
+    const hasRecipientChoice = participants.some(
+        ({ id }) => id !== parent.user.id,
     );
     const {
         body,
@@ -1510,7 +1514,7 @@ function ReplyComposer({
             <label htmlFor={`reply-${parent.id}`} className="sr-only">
                 Reply to @{parent.user.handle}
             </label>
-            {participants.length > 1 && (
+            {hasRecipientChoice && (
                 <ReplyRecipientPicker
                     participants={participants}
                     authorId={parent.user.id}
@@ -1533,7 +1537,7 @@ function ReplyComposer({
                     onFocus={isRestored ? moveCaretToEnd : undefined}
                     maxLength={maxRawBodyLength}
                     placeholder={
-                        participants.length > 1
+                        hasRecipientChoice
                             ? 'Post your reply'
                             : `Reply to @${parent.user.handle}`
                     }
@@ -1553,7 +1557,11 @@ function ReplyComposer({
                 )}
             </div>
             <InputError
-                message={errors.body ?? errors.link_preview_url}
+                message={
+                    errors.body ??
+                    errors.reply_recipients ??
+                    errors.link_preview_url
+                }
                 className="px-1"
             />
             {!preview.isPreviewing && (

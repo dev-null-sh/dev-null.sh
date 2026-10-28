@@ -8,6 +8,7 @@ use App\Actions\DeleteUser;
 use App\Ai\Agents\Tom;
 use App\Contracts\Services\ToolDecisionProvider;
 use App\Enums\CommitStatus;
+use App\Http\Requests\CreateCommitReplyRequest;
 use App\Jobs\DetectCommitLanguage;
 use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
@@ -18,6 +19,35 @@ use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+
+it('bounds the combined inherited and explicit reply recipients', function (int $inheritedCount, bool $accepted): void {
+    Queue::fake();
+    config(['app.admins' => ['alice']]);
+    $author = User::factory()->create(['handle' => 'alice']);
+    $users = User::factory()->count($inheritedCount)->create();
+    $mentions = $users->mapWithKeys(fn (User $user): array => [$user->handle => $user->id])->all();
+    $participant = User::factory()->create(['handle' => 'new-participant']);
+    $parent = Commit::factory()->create(['mentions' => $mentions]);
+
+    $response = $this->actingAs($author)->postJson(route('commit-reply.store', $parent), [
+        'body' => 'Hello @new-participant @'.$users->firstOrFail()->handle,
+        'reply_recipients' => array_values($mentions),
+    ]);
+
+    if ($accepted) {
+        $response->assertCreated();
+        $reply = Commit::query()->findOrFail($response->json('committed.id'));
+        expect($reply->mentions)->toHaveCount(CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS);
+    } else {
+        $response->assertUnprocessable()->assertJsonValidationErrors('reply_recipients');
+        expect($parent->replies()->count())->toBe(0);
+        expect($participant->notifications()->count())->toBe(0);
+    }
+})->with([
+    'at limit with overlapping explicit mention' => [CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS - 1, true],
+    'combined recipients over limit' => [CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS, false],
+    'inherited recipients over limit' => [CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS + 1, false],
+]);
 
 it('only notifies selected conversation recipients and keeps explicit mentions', function (bool $selected, bool $explicit): void {
     Queue::fake();
