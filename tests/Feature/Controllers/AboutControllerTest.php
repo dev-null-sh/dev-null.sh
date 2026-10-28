@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 it('renders the about page for guests', function (): void {
@@ -55,6 +56,7 @@ it('links each contributor who is on /dev/null to their profile, found by their 
 });
 
 it('leaves the contributors out while GitHub is unreachable', function (): void {
+    Cache::forget(gitHubContributorsCacheKey());
     Http::fake(fn () => throw new ConnectionException('timeout'));
 
     $this->get(route('about.show'))

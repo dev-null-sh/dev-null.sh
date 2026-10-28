@@ -9,8 +9,8 @@ use App\Enums\UnixRank;
 use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
-use App\Queries\ContributorsQuery;
 use App\Queries\UserAchievementsQuery;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
@@ -367,7 +367,6 @@ it('unlocks git blame with a commit in the /dev/null repository, matching the Gi
     $contributor = User::factory()->create(['github_id' => (string) crc32('xHeaven'), 'handle' => 'renamed']);
     $other = User::factory()->create(['handle' => 'xHeaven']);
     fakeGitHubContributors([gitHubContributor('xHeaven', 187)]);
-    resolve(ContributorsQuery::class)->refresh();
 
     $query = resolve(UserAchievementsQuery::class);
     $result = $query->get($contributor, null);
@@ -384,13 +383,13 @@ it('unlocks git blame with a commit in the /dev/null repository, matching the Gi
         ->and(collect($query->get($other, null)['badges'])->firstWhere('id', 'git_blame')['unlocked'])->toBeFalse();
 });
 
-it('does not ask GitHub for git blame, leaving it locked until the contributors are refreshed', function (): void {
+it('keeps git blame locked while GitHub does not answer', function (): void {
     $user = User::factory()->create(['github_id' => (string) crc32('xHeaven')]);
-    fakeGitHubContributors([gitHubContributor('xHeaven', 187)]);
+    Cache::forget(gitHubContributorsCacheKey());
+    Http::fake(['api.github.com/*' => Http::response(status: 500)]);
 
     $badge = collect(resolve(UserAchievementsQuery::class)->get($user, null)['badges'])->firstWhere('id', 'git_blame');
 
     expect($badge['unlocked'])->toBeFalse()
         ->and($badge['progress'])->toBe(0);
-    Http::assertNothingSent();
 });
