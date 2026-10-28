@@ -31,6 +31,7 @@ import { show as userPreview } from '@/routes/user-preview';
 import type { Commit, CursorPaginated, Profile, User } from '@/types';
 
 type PreviewData = {
+    bioProfiles: Record<string, string>;
     isFollowing: boolean;
     followsYou: boolean;
     isMuting: boolean;
@@ -478,7 +479,7 @@ function UserPreviewContent({
 
             {user.bio && !data?.isUnavailable && (
                 <p className="mt-2 line-clamp-3 text-sm text-pretty">
-                    <BioText bio={user.bio} />
+                    <BioText bio={user.bio} profiles={data?.bioProfiles} />
                 </p>
             )}
 

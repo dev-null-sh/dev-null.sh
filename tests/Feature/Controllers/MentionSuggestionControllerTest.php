@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 
 it('suggests the people the user follows without a term, most recently followed first', function (): void {
@@ -332,4 +333,33 @@ it('uses the quote thread rather than the quoted thread when replying to a quote
         ->getJson(route('mention-suggestion.index', ['reply' => $quote->id]))
         ->assertOk()
         ->assertJsonPath('users.*.id', [$quote->user_id, $reply->user_id]);
+});
+
+it('suggests organizations that have a page, the closest matches first', function (): void {
+    $user = User::factory()->create();
+    Profile::factory()->organization()->create(['handle' => 'laravel-shift', 'name' => 'Shift']);
+    Profile::factory()->organization()->create(['handle' => 'laravel', 'name' => 'Laravel']);
+    Profile::factory()->organization()->create(['handle' => 'tighten', 'name' => 'Laravel Tighten']);
+    Profile::factory()->organization()->create(['handle' => 'spatie', 'name' => 'Spatie']);
+
+    $this->actingAs($user)->getJson('/search/mentions?q=@Laravel')
+        ->assertOk()
+        ->assertJsonPath('organizations.*.handle', ['laravel', 'laravel-shift', 'tighten'])
+        ->assertJsonMissingPath('organizations.0.github_id');
+
+    $this->getJson('/search/mentions?q=')
+        ->assertOk()
+        ->assertJsonPath('organizations', []);
+});
+
+it('does not suggest organizations within an org', function (): void {
+    $mark = User::factory()->create(['handle' => 'mark']);
+    [$taylor] = followersOf($mark, 1);
+    Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $org = createOrg($mark, [$taylor]);
+
+    $this->actingAs($mark)
+        ->getJson(route('mention-suggestion.index', ['q' => 'laravel', 'org' => $org]))
+        ->assertOk()
+        ->assertJsonPath('organizations', []);
 });

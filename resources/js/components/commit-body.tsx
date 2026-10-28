@@ -11,11 +11,13 @@ import type { BodySegment, Commit } from '@/types';
 export function CommitBody({
     segments,
     mentions,
+    organizationMentions = null,
     className,
     isStatic = false,
 }: {
     segments: BodySegment[];
     mentions: Commit['mentions'];
+    organizationMentions?: Commit['organization_mentions'];
     className?: string;
     isStatic?: boolean;
 }) {
@@ -36,6 +38,7 @@ export function CommitBody({
                         <BodySegments
                             segments={block.segments}
                             mentions={mentions}
+                            organizationMentions={organizationMentions}
                             isStatic={isStatic}
                         />
                     </blockquote>
@@ -44,6 +47,7 @@ export function CommitBody({
                         key={index}
                         segments={block.segments}
                         mentions={mentions}
+                        organizationMentions={organizationMentions}
                         isStatic={isStatic}
                     />
                 ),
@@ -55,10 +59,12 @@ export function CommitBody({
 export function BodySegments({
     segments,
     mentions,
+    organizationMentions = null,
     isStatic = false,
 }: {
     segments: BodySegment[];
     mentions: Commit['mentions'];
+    organizationMentions?: Commit['organization_mentions'];
     isStatic?: boolean;
 }) {
     const { auth } = usePage().props;
@@ -73,6 +79,7 @@ export function BodySegments({
                                 key={index}
                                 text={emojify(segment.text)}
                                 mentions={mentions}
+                                organizationMentions={organizationMentions}
                                 pasteisMode={Boolean(auth.pasteis)}
                                 isStatic={isStatic}
                             />
@@ -109,11 +116,13 @@ export function FoldedCommitBody({
     segments,
     previewSegments,
     mentions,
+    organizationMentions = null,
     className,
 }: {
     segments: BodySegment[];
     previewSegments: BodySegment[] | null;
     mentions: Commit['mentions'];
+    organizationMentions?: Commit['organization_mentions'];
     className?: string;
 }) {
     const [isUnfolded, setIsUnfolded] = useState(false);
@@ -124,6 +133,7 @@ export function FoldedCommitBody({
             <CommitBody
                 segments={segments}
                 mentions={mentions}
+                organizationMentions={organizationMentions}
                 className={className}
             />
         );
@@ -154,6 +164,7 @@ export function FoldedCommitBody({
                         : withFullBlocks(previewSegments, segments)
                 }
                 mentions={mentions}
+                organizationMentions={organizationMentions}
                 className={className}
             />
             {!isUnfolded && (

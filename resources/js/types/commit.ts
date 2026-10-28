@@ -76,6 +76,7 @@ export type Commit = {
     hot_score: number;
     body: string;
     mentions: Record<string, string> | null;
+    organization_mentions?: Record<string, string> | null;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
     translation?: CommitTranslation | null;

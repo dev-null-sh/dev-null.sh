@@ -54,6 +54,11 @@ final class Profile extends Model
     public const array USER_ATTRIBUTES = ['handle', 'name', 'avatar_url', 'bio', 'location', 'website', 'github_synced_at'];
 
     /**
+     * Organizations are refreshed from GitHub when a commit mentions them, at most this often.
+     */
+    public const int FRESH_FOR_HOURS = 24;
+
+    /**
      * @return array<string, string>
      */
     public function casts(): array

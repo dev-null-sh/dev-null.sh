@@ -43,13 +43,17 @@ final readonly class DeleteUser
 
             $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
 
-            $translationKeys = Commit::query()->withTrashed()
-                ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
-                    ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id')))
+            $translationKeys = $this->touchedCommits($user)
                 ->select(['id', 'body'])
                 ->lazyById(500)
                 ->map(resolve(CommitTranslations::class)->key(...))->unique()->all();
 
+            // Locked first, in statements of their own, so a topic lookup running meanwhile either links before this deletes its
+            // links or finds the commit erased. The threads are locked before their replies, so no reply joins them in between.
+            $user->commits()->withTrashed()->topLevel()->orderBy('id')->lockForUpdate()->pluck('id');
+            $this->touchedCommits($user)->orderBy('id')->lockForUpdate()->pluck('id');
+
+            DB::table('commit_topics')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
             $user->commits()->withTrashed()->topLevel()->forceDelete();
             CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
             CommitReport::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
@@ -93,6 +97,16 @@ final readonly class DeleteUser
                 ->map(fn (Commit $commit): string => $commit->id)
                 ->all(),
         ];
+    }
+
+    /**
+     * The user's commits and every commit in the threads they started: all the erasure deletes or leaves as a tombstone.
+     */
+    private function touchedCommits(User $user): CommitBuilder
+    {
+        return Commit::query()->withTrashed()
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
+                ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id')));
     }
 
     /**

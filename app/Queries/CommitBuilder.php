@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\Query\Expression as QueryExpression;
 use Illuminate\Pagination\Cursor;
 
 /**
@@ -31,8 +32,14 @@ final class CommitBuilder extends Builder
     ];
 
     /**
+     * The organizations a commit mentions, by lowercase handle, from its topics of type TopicType::Organization.
+     */
+    private const string ORGANIZATION_MENTIONS = "(select json_object_agg(reference, topic_id) from commit_topics where commit_topics.commit_id = commits.id and topic_type = 'organization') as organization_mentions";
+
+    /**
      * Embeddings are only ever compared within the database, so commits are loaded without theirs rather than carry
-     * kilobytes of numbers each that nothing reads.
+     * kilobytes of numbers each that nothing reads. They come with the organizations they mention instead, by lowercase
+     * handle, read from their topics in the same query, so rendering a page of commits takes no query more.
      *
      * @param  array<int, Expression|string>|string  $columns
      * @return array<int, Commit>
@@ -43,7 +50,7 @@ final class CommitBuilder extends Builder
 
         $this->query->columns = array_merge(...array_map(
             fn (Expression|string $column): array => $this->isEveryColumn($column)
-                ? array_map($this->qualifyColumn(...), self::COLUMNS_BUT_EMBEDDING)
+                ? [...array_map($this->qualifyColumn(...), self::COLUMNS_BUT_EMBEDDING), new QueryExpression(self::ORGANIZATION_MENTIONS)]
                 : [$column],
             $selected ?? (array) $columns,
         ));
