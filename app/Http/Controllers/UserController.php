@@ -60,6 +60,7 @@ final readonly class UserController
             'pasteisReceived' => $currentUser?->pasteis_mode ? $user->pasteis_received : null,
             'isFollowing' => fn (): bool => $currentUser?->isFollowing($user) ?? false,
             'followsYou' => fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser),
+            'isWatching' => fn (): bool => $currentUser?->isWatching($user) ?? false,
             'isMuting' => fn (): bool => $currentUser?->isMuting($user) ?? false,
             'followersYouKnow' => fn (): ?array => $currentUser instanceof User && $currentUser->isNot($user)
                 ? $followersYouKnow->preview($user, $currentUser)

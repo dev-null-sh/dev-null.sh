@@ -137,6 +137,7 @@ final readonly class NotificationGroupsQuery
                 'quotes' => ['quoted'],
                 'stars' => ['starred'],
                 'mentions' => ['mentioned'],
+                'commits' => ['committed'],
                 'follows' => ['followed'],
                 'moderation' => ['approved', 'rejected'],
                 default => [],

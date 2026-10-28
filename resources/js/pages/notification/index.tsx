@@ -3,6 +3,7 @@ import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
 import {
     ArrowUp,
     AtSign,
+    BellRing,
     Check,
     ChevronDown,
     ChevronsUp,
@@ -71,7 +72,7 @@ const filterOptions: {
     {
         type: 'all',
         label: 'All',
-        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, level-ups, and moderation updates for your commits will show up here.',
+        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, commits from people you watch, level-ups, and moderation updates for your commits will show up here.',
     },
     {
         type: 'replies',
@@ -92,6 +93,11 @@ const filterOptions: {
         type: 'mentions',
         label: 'Mentions',
         empty: 'No mentions yet. When someone mentions you in a commit, it shows up here.',
+    },
+    {
+        type: 'commits',
+        label: 'Commits',
+        empty: 'No commits yet. Ring the bell on the profile of someone you follow to hear about each of their commits here.',
     },
     {
         type: 'follows',
@@ -758,7 +764,8 @@ export function NotificationContent({
         notification.type === 'replied' ||
         notification.type === 'quoted' ||
         notification.type === 'mentioned' ||
-        notification.type === 'first_commit';
+        notification.type === 'first_commit' ||
+        notification.type === 'committed';
     const level = notification.type === 'leveled_up' ? notification : null;
     const Icon = {
         followed: UserPlus,
@@ -768,6 +775,7 @@ export function NotificationContent({
         starred: Star,
         mentioned: AtSign,
         first_commit: GitCommitVertical,
+        committed: BellRing,
         approved: Check,
         rejected: X,
     }[notification.type];
@@ -808,6 +816,7 @@ export function NotificationContent({
             : 'starred your commit',
         mentioned: 'mentioned you',
         first_commit: 'made their first commit',
+        committed: 'committed',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
         leveled_up: level && `You reached level ${level.level}: ${level.rank}`,

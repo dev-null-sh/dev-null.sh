@@ -509,6 +509,14 @@ final class User extends Authenticatable
         return $this->following()->newPivotQuery()->where('followed_id', $user->id)->exists();
     }
 
+    /**
+     * Whether the user hears about each new commit of someone they follow.
+     */
+    public function isWatching(self $user): bool
+    {
+        return $this->following()->newPivotQuery()->where('followed_id', $user->id)->where('watching', true)->exists();
+    }
+
     public function isMuting(self $user): bool
     {
         return $this->muting()->newPivotQuery()->where('muted_id', $user->id)->exists();

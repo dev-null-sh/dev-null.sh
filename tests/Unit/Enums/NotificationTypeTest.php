@@ -15,5 +15,6 @@ it('has the types of a notification', function (): void {
         'Starred' => 'starred',
         'LeveledUp' => 'leveled_up',
         'FirstCommit' => 'first_commit',
+        'Committed' => 'committed',
     ]);
 });

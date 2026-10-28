@@ -132,6 +132,7 @@ use App\Http\Controllers\UserSitemapController;
 use App\Http\Controllers\UserTimeoutController;
 use App\Http\Controllers\UserTimezoneController;
 use App\Http\Controllers\UserTranslationLanguageController;
+use App\Http\Controllers\UserWatchController;
 use App\Http\Middleware\PreventPostingInTimeout;
 use App\Http\Middleware\RedirectToHandleCase;
 use App\Http\Middleware\RememberIntendedUrl;
@@ -585,6 +586,14 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('@{user:handle}/follow', [UserFollowController::class, 'destroy'])
         ->middleware('throttle:follows')
         ->name('user-follow.destroy');
+
+    // User Watch...
+    Route::post('@{user:handle}/watch', [UserWatchController::class, 'store'])
+        ->middleware('throttle:follows')
+        ->name('user-watch.store');
+    Route::delete('@{user:handle}/watch', [UserWatchController::class, 'destroy'])
+        ->middleware('throttle:follows')
+        ->name('user-watch.destroy');
 
     // User Mute...
     Route::post('@{user:handle}/mute', [UserMuteController::class, 'store'])

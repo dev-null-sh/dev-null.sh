@@ -42,6 +42,7 @@ import {
     UserModerationStatus,
 } from '@/components/user-moderation-menu';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
+import { WatchButton } from '@/components/watch-button';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
@@ -65,6 +66,7 @@ export default function Show({
     bioProfiles,
     pasteisReceived,
     isFollowing,
+    isWatching,
     followsYou,
     isMuting,
     followersYouKnow,
@@ -82,6 +84,7 @@ export default function Show({
     bioProfiles: Record<string, string>;
     pasteisReceived: number | null;
     isFollowing: boolean;
+    isWatching: boolean;
     followsYou: boolean;
     isMuting: boolean;
     followersYouKnow: FollowersYouKnowPreview | null;
@@ -212,6 +215,13 @@ export default function Show({
                                             </span>
                                         </Link>
                                     </Button>
+                                )}
+                                {auth.user && (
+                                    <WatchButton
+                                        user={user}
+                                        isFollowing={isFollowing}
+                                        isWatching={isWatching}
+                                    />
                                 )}
                                 <FollowButton
                                     user={user}

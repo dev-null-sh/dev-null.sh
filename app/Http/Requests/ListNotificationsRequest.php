@@ -13,7 +13,7 @@ use Inertia\Support\Header;
 
 final class ListNotificationsRequest extends FormRequest
 {
-    public const string TYPE_RULE = 'regex:/\A(?:all|none|(?:replies|quotes|stars|mentions|follows|moderation)(?:,(?:replies|quotes|stars|mentions|follows|moderation))*)\z/';
+    public const string TYPE_RULE = 'regex:/\A(?:all|none|(?:replies|quotes|stars|mentions|commits|follows|moderation)(?:,(?:replies|quotes|stars|mentions|commits|follows|moderation))*)\z/';
 
     public static function rememberedType(Request $request, User $user): string
     {

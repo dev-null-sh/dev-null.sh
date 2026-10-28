@@ -25,6 +25,7 @@ final readonly class UpdateCommitStatuses
         private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
         private CreateFirstCommitNotifications $createFirstCommitNotifications,
+        private CreateWatchNotifications $createWatchNotifications,
         private CreateWorldReply $createWorldReply,
         private UpdateCommitHotScores $updateCommitHotScores,
         private TomQuery $tomQuery,
@@ -85,6 +86,7 @@ final readonly class UpdateCommitStatuses
                 $this->createQuoteNotifications->handle(...$commits);
                 $this->createMentionNotifications->handle(...$commits);
                 $this->createFirstCommitNotifications->handle(...$commits);
+                $this->createWatchNotifications->handle(...$commits);
 
                 $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
                 LinkCommitTopics::dispatchFor(...$commits->all());

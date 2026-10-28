@@ -120,7 +120,7 @@ function categories(html: string, pressed: boolean): Set<string> {
     );
 }
 
- test('renders quote notifications with their label and quoting commit destination', async () => {
+test('renders quote notifications with their label and quoting commit destination', async () => {
     const html = await renderInbox([quote]);
 
     assert.match(html, /quoted your commit/);
@@ -129,7 +129,7 @@ function categories(html: string, pressed: boolean): Set<string> {
     assert.match(html, /<button[^>]*aria-pressed="true"[^>]*>Quotes<\/button>/);
 });
 
- test('shows the quoted commit under a quote, or a tombstone once it is deleted', async () => {
+test('shows the quoted commit under a quote, or a tombstone once it is deleted', async () => {
     const html = await renderInbox([
         {
             ...quote,
@@ -164,11 +164,26 @@ function categories(html: string, pressed: boolean): Set<string> {
     );
 });
 
- test('includes quotes in the unfiltered empty inbox message', async () => {
+test('renders a commit from someone the recipient watches, linking to it', async () => {
+    const html = await renderInbox(
+        [{ ...quote, type: 'committed', commit: quoteCommit }],
+        'commits',
+    );
+
+    assert.match(html, /<a\b[^>]*data-notification-link[^>]*>committed<\/a>/);
+    assert.match(html, /href="\/@quoter\/commits\/quote-commit"/);
+    assert.match(html, /My quote commentary/);
+    assert.match(
+        html,
+        /<button[^>]*aria-pressed="true"[^>]*>Commits<\/button>/,
+    );
+});
+
+test('includes quotes in the unfiltered empty inbox message', async () => {
     assert.match(await renderInbox([]), /replies, quotes, mentions/);
 });
 
- test('renders a follow-back control outside the follower profile link', async () => {
+test('renders a follow-back control outside the follower profile link', async () => {
     const follow: NotificationGroup = {
         ...quote,
         type: 'followed',
@@ -192,7 +207,7 @@ function categories(html: string, pressed: boolean): Set<string> {
     );
 });
 
- test('leaves follow-back out of a group of followers until it is expanded', async () => {
+test('leaves follow-back out of a group of followers until it is expanded', async () => {
     const html = await renderInbox([
         {
             ...quote,
@@ -213,7 +228,7 @@ function categories(html: string, pressed: boolean): Set<string> {
     assert.doesNotMatch(html, /aria-label="(Follow|Unfollow) @/);
 });
 
- test('renders notification code without altering emoji shortcodes or nesting interactive controls', async () => {
+test('renders notification code without altering emoji shortcodes or nesting interactive controls', async () => {
     const html = await renderInbox([
         {
             ...quote,
@@ -229,7 +244,7 @@ function categories(html: string, pressed: boolean): Set<string> {
     assert.doesNotMatch(html, /Copy code/);
 });
 
- test('renders highlighted notification blocks without a nested copy button', async () => {
+test('renders highlighted notification blocks without a nested copy button', async () => {
     const html = await renderInbox([
         {
             ...quote,
@@ -255,18 +270,18 @@ function categories(html: string, pressed: boolean): Set<string> {
     assert.doesNotMatch(html, /Copy code/);
 });
 
- test('renders all notification categories as enabled toggle buttons by default', async () => {
+test('renders all notification categories as enabled toggle buttons by default', async () => {
     const body = await renderInbox([]);
-    assert.equal(categories(body, true).size, 6);
+    assert.equal(categories(body, true).size, 7);
     assert.doesNotMatch(body, /aria-current="page"|role="tab"/);
 });
 
- test('renders independent category selections and the all-off empty state', async () => {
+test('renders independent category selections and the all-off empty state', async () => {
     const selected = await renderInbox([], 'replies,mentions');
     assert.deepEqual([...categories(selected, true)], ['Replies', 'Mentions']);
-    assert.equal(categories(selected, false).size, 4);
+    assert.equal(categories(selected, false).size, 5);
     const none = await renderInbox([], 'none');
-    assert.equal(categories(none, false).size, 6);
+    assert.equal(categories(none, false).size, 7);
     assert.match(none, /All categories are turned off/);
     assert.match(none, /Show all notifications/);
 });
