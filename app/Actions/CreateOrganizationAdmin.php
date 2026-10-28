@@ -6,7 +6,6 @@ namespace App\Actions;
 
 use App\Models\Profile;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 
 final readonly class CreateOrganizationAdmin
 {
@@ -16,10 +15,6 @@ final readonly class CreateOrganizationAdmin
      */
     public function handle(Profile $organization, User $user): void
     {
-        DB::table('organization_admins')->insertOrIgnore([
-            'organization_id' => $organization->id,
-            'user_id' => $user->id,
-            'created_at' => now(),
-        ]);
+        $organization->admins()->syncWithoutDetaching([$user->id]);
     }
 }

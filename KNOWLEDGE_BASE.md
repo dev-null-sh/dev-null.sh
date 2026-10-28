@@ -113,7 +113,7 @@ GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with the
 
 The **Mentions** tab lists the commits and replies that mention the organization, newest first, a reply with the commit it answers. A commit stays listed after the organization is renamed, since it is linked to the organization rather than to the handle. It follows the usual visibility: guests see approved commits only, you also see your own pending ones, and commits across a block or by people you muted are left out.
 
-Members of an organization can **Claim** its page, which lists them as its admins. Claiming asks GitHub once for permission to read your organizations, then checks that you are an owner or a member there, not just invited. Organizations that restrict third-party apps only share their members once an owner approved /dev/null: the page then links to GitHub, where an owner grants access and a member requests it. Claims are in your data export and go when you delete your account.
+Members of an organization can **Claim** its page, which lists them as its admins. Claiming asks GitHub once for permission to read your organizations, then checks that you are an owner or a member there, not just invited. Organizations that restrict third-party apps only share their members once an owner approved /dev/null: the page then links to GitHub, where an owner grants access and a member requests it. GitHub is only the way in: leaving the organization on GitHub doesn't remove you as an admin on /dev/null. Claims are in your data export and go when you delete your account.
 
 Following organizations is planned, not shipped yet.
 

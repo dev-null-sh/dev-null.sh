@@ -114,12 +114,13 @@ final class Profile extends Model
     }
 
     /**
-     * The users who claimed the organization's page.
+     * The users who claimed the organization's page. GitHub only lets them in: leaving the organization there doesn't
+     * remove them here.
      *
      * @return BelongsToMany<User, $this>
      */
     public function admins(): BelongsToMany
     {
-        return $this->belongsToMany(User::class, 'organization_admins', 'organization_id');
+        return $this->belongsToMany(User::class, 'organization_admins', 'organization_id')->withTimestamps(updatedAt: false);
     }
 }
