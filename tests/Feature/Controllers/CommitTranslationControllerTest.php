@@ -256,6 +256,38 @@ it('isolates language detection from default workers and retries transient failu
     CommitTranslator::assertPromptedTimes(3);
 });
 
+it('stops re-queuing detection for a body the provider keeps failing on, and resumes when the failure expires', function (): void {
+    Exceptions::fake();
+    config(['queue.default' => 'database']);
+    CommitTranslator::fake(function (): never {
+        throw new RuntimeException('Provider unavailable');
+    })->preventStrayPrompts();
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+    $translations = resolve(CommitTranslations::class);
+    $url = route('commit.show', ['user' => $commit->user, 'commit' => $commit]);
+
+    $this->get($url)->assertOk();
+    $this->assertDatabaseCount('jobs', 1);
+
+    foreach ([0, 60, 600] as $delay) {
+        $this->travel($delay)->seconds();
+        $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'translations', '--once' => true])->assertSuccessful();
+    }
+
+    $this->assertDatabaseCount('jobs', 0);
+    $this->assertDatabaseCount('failed_jobs', 1);
+    expect(Cache::has($translations->failedKey($commit)))->toBeTrue();
+
+    $this->get($url)->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.source_language', null)
+        ->where('commit.translation.translated', null));
+    $this->assertDatabaseCount('jobs', 0);
+
+    $this->travel(CommitTranslations::DETECTION_FAILURE_TTL_SECONDS + 1)->seconds();
+    $this->get($url)->assertOk();
+    $this->assertDatabaseCount('jobs', 1);
+});
+
 it('requires sign in to generate translations', function (): void {
     CommitTranslator::fake()->preventStrayPrompts();
 
