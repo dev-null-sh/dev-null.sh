@@ -74,6 +74,7 @@ use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\OperationsEventController;
+use App\Http\Controllers\OrganizationAdminController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationMentionController;
 use App\Http\Controllers\OrganizationSitemapController;
@@ -322,6 +323,15 @@ Route::middleware('auth')->group(function (): void {
 
     // Banned, where a banned user is sent from everywhere else...
     Route::get('banned', [BannedController::class, 'show'])->name('banned.show');
+
+    // Claiming an organization's page, which GitHub confirms the user belongs to...
+    Route::post('organizations/{organization}/claim', [OrganizationAdminController::class, 'create'])
+        ->whereUuid('organization')
+        ->middleware('throttle:10,1')
+        ->name('organization-admin.create');
+    Route::get('auth/github/callback/organizations', [OrganizationAdminController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('organization-admin.store');
 
     // Followers the viewer knows...
     Route::get('@{user:handle}/followers-you-know', [UserFollowersYouKnowController::class, 'index'])

@@ -16,6 +16,7 @@ use App\Models\MessageVoice;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\PollVote;
+use App\Models\Profile;
 use App\Models\SshKey;
 use App\Models\User;
 use App\Models\UserTimeout;
@@ -129,6 +130,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'muting' => [],
         'blocking' => [],
         'dismissed_suggestions' => [],
+        'claimed_organizations' => [],
         'messages' => [],
         'remote_mutes' => [],
         'remote_pins' => [],
@@ -436,6 +438,23 @@ it('exports ssh key fingerprints and sessions without session ids or payloads', 
         ->and($response->streamedContent())->not->toContain(
             'secret-session-id', 'secret-session-payload', 'other-session-id', '198.51.100.9', $otherKey->fingerprint,
         );
+});
+
+it('exports the organizations the user claimed, first claim first, without their other admins', function (): void {
+    $this->freezeSecond();
+    $user = User::factory()->create();
+    $laravel = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $bref = Profile::factory()->organization()->create(['handle' => 'brefphp']);
+    $bref->admins()->attach($user->id, ['created_at' => now()->subDay()]);
+    $laravel->admins()->attach([$user->id => ['created_at' => now()], User::factory()->create()->id => ['created_at' => now()]]);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['claimed_organizations'])->toBe([
+        ['handle' => 'brefphp', 'claimed_at' => now()->subDay()->toIso8601String()],
+        ['handle' => 'laravel', 'claimed_at' => now()->toIso8601String()],
+    ]);
 });
 
 it('exports the devices approved for the app, oldest first', function (): void {

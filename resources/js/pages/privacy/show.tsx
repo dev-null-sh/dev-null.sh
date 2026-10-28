@@ -56,6 +56,16 @@ export default function Show() {
                             </>,
                             <>
                                 <strong>
+                                    From GitHub, when you claim an
+                                    organization's page:
+                                </strong>{' '}
+                                whether you belong to that organization, asked
+                                once with your permission to read your
+                                organizations. Nothing else about them is kept,
+                                and your claim shows on the organization's page.
+                            </>,
+                            <>
+                                <strong>
                                     From Apple, when you sign in with Apple in
                                     the iOS app:
                                 </strong>{' '}

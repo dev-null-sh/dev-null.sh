@@ -11,8 +11,8 @@ use Illuminate\Support\Facades\DB;
 final readonly class DeleteOrganization
 {
     /**
-     * Deletes an organization GitHub no longer has, and unlinks the commits that mention it, so none links to a page
-     * that is gone.
+     * Deletes an organization GitHub no longer has, with its admins, and unlinks the commits that mention it, so none
+     * links to a page that is gone.
      */
     public function handle(Profile $organization): void
     {
@@ -22,6 +22,7 @@ final readonly class DeleteOrganization
                 ->where('topic_id', $organization->id)
                 ->delete();
 
+            $organization->admins()->detach();
             $organization->delete();
         });
     }

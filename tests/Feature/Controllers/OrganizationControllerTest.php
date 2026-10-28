@@ -29,6 +29,23 @@ it('shows an organization at the handle no user has, to guests too', function ()
             ->missing('organization.github_synced_at'));
 });
 
+it('shows who claimed the organization, first claim first, and where to claim it', function (): void {
+    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $first = User::factory()->create();
+    $second = User::factory()->create();
+    $organization->admins()->attach([$second->id => ['created_at' => now()], $first->id => ['created_at' => now()->subDay()]]);
+
+    $this->get('/@laravel')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('claimUrl', route('organization-admin.create', $organization))
+            ->where('admins.0.id', $first->id)
+            ->where('admins.0.handle', $first->profile->handle)
+            ->where('admins.1.id', $second->id)
+            ->missing('admins.0.pivot')
+            ->has('admins', 2));
+});
+
 it('shows guests the link preview of the organization', function (): void {
     $laravel = Profile::factory()->organization()->create([
         'handle' => 'laravel',

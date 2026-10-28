@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Attributes\Visible;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
@@ -110,5 +111,15 @@ final class Profile extends Model
     public function user(): HasOne
     {
         return $this->hasOne(User::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * The users who claimed the organization's page.
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function admins(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'organization_admins', 'organization_id');
     }
 }

@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Queries\OrganizationMentionsQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -18,8 +19,8 @@ final readonly class OrganizationController
 {
     /**
      * Organization pages are public, at the "@handle" of users, and show the organization's GitHub profile and the
-     * commits that mention it, with the organization's link preview. Like users' pages, they move for good to the
-     * handle's own case.
+     * commits that mention it, with the users who claimed it, first claim first, and the organization's link preview.
+     * Like users' pages, they move for good to the handle's own case.
      */
     public function show(ShowOrganizationRequest $request, #[CurrentUser] ?User $currentUser, OrganizationMentionsQuery $mentions, PageMetadata $metadata): RedirectResponse|Response
     {
@@ -40,6 +41,8 @@ final readonly class OrganizationController
             'commits' => Inertia::scroll(fn () => $mentions->builder($organization, $currentUser)
                 ->cursorPaginate(20)
                 ->appends(['tab' => $request->tab()])),
+            'claimUrl' => route('organization-admin.create', $organization),
+            'admins' => fn (): Collection => $organization->admins()->oldest('organization_admins.created_at')->get()->makeHidden('pivot'),
         ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->organization($organization)]);
     }
 }
