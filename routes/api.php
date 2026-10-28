@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\MessageVoiceController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
+use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrgArchiveController;
 use App\Http\Controllers\Api\OrgController;
 use App\Http\Controllers\Api\OrgMemberController;
@@ -101,6 +102,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-user-followers.index');
         Route::get('users/{user:handle}/following', [UserFollowingController::class, 'index'])
             ->name('api-user-following.index');
+        Route::get('organizations/{organization}', [OrganizationController::class, 'show'])
+            ->name('api-organization.show');
         Route::get('commits/{commit}', [ApiCommitController::class, 'show'])
             ->name('api-commit.show');
         Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index'])
