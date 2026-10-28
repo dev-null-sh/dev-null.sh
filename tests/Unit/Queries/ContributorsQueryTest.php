@@ -2,7 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Models\User;
 use App\Queries\ContributorsQuery;
+use Illuminate\Console\Scheduling\CallbackEvent;
+use Illuminate\Console\Scheduling\Event;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -130,4 +134,56 @@ it('discards a partial list after a later page fails and recovers when the failu
 
     expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'recovered', 'commits' => 12, 'handle' => null]]);
     Http::assertSentCount(3);
+});
+
+it('counts the commits of a user by their GitHub account from the refreshed list, and none for anyone else', function (): void {
+    fakeGitHubContributors([gitHubContributor('xHeaven', 187), gitHubContributor('jubianchi', 1)]);
+    $query = resolve(ContributorsQuery::class);
+    $contributor = User::factory()->make(['github_id' => (string) crc32('jubianchi')]);
+
+    expect($query->commits($contributor))->toBe(0);
+    Http::assertNothingSent();
+
+    $query->refresh();
+
+    expect($query->commits($contributor))->toBe(1)
+        ->and($query->commits(User::factory()->make(['handle' => 'xHeaven'])))->toBe(0);
+});
+
+it('keeps the list it has when a refresh fails, and replaces it when one succeeds', function (): void {
+    Http::fake(['api.github.com/repos/'.config()->string('services.github.repository').'/contributors*' => Http::sequence()
+        ->push([gitHubContributor('xHeaven', 187)])
+        ->pushStatus(503)
+        ->push([gitHubContributor('xHeaven', 188)])]);
+    $query = resolve(ContributorsQuery::class);
+    $contributor = User::factory()->make(['github_id' => (string) crc32('xHeaven')]);
+
+    $query->refresh();
+    $query->refresh();
+
+    expect($query->commits($contributor))->toBe(187);
+
+    $query->refresh();
+
+    expect($query->commits($contributor))->toBe(188)
+        ->and($query->get())->toBe([['login' => 'xHeaven', 'commits' => 188, 'handle' => null]]);
+    Http::assertSentCount(3);
+});
+
+it('counts no commits while GitHub has not answered', function (): void {
+    Http::fake(['api.github.com/*' => Http::response(status: 500)]);
+    $query = resolve(ContributorsQuery::class);
+
+    $query->refresh();
+    $query->get();
+
+    expect($query->commits(User::factory()->make(['github_id' => (string) crc32('xHeaven')])))->toBe(0);
+});
+
+it('is refreshed every half hour, well within the hour it is cached', function (): void {
+    $event = collect(resolve(Schedule::class)->events())
+        ->sole(fn (Event $event): bool => $event->description === 'refresh-contributors');
+
+    expect($event)->toBeInstanceOf(CallbackEvent::class)
+        ->expression->toBe('*/30 * * * *');
 });

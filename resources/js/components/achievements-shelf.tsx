@@ -7,6 +7,7 @@ import {
     Cookie,
     FileCode,
     Flame,
+    GitCommitHorizontal,
     GitMerge,
     Key,
     Server,
@@ -51,6 +52,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     'bot-off': BotOff,
     bomb: Bomb,
     'dragon-ball': DragonBallIcon,
+    'git-commit-horizontal': GitCommitHorizontal,
 };
 
 export function AchievementsShelf({

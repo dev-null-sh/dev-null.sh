@@ -35,7 +35,7 @@ use Illuminate\Support\Facades\DB;
  */
 final readonly class UserAchievementsQuery
 {
-    public function __construct(private UserStreakQuery $streaks)
+    public function __construct(private UserStreakQuery $streaks, private ContributorsQuery $contributors)
     {
         //
     }
@@ -90,6 +90,7 @@ final readonly class UserAchievementsQuery
         $hasUnfollowedTom = $user->followers()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists()
             && ! $user->following()->where('github_id', CreateTomFriendship::GITHUB_ID)->exists();
         $isShellShocked = $user->created_at->lt('2026-10-21 14:00:00 UTC');
+        $repositoryCommits = $this->contributors->commits($user);
 
         // XP breakdown: 10 per commit, 15 per streak day, 5 per star received, 5 per reply, 2 per star given
         $commitsXp = $commitsCount * 10;
@@ -187,6 +188,10 @@ final readonly class UserAchievementsQuery
             Achievement::SuperSaiyan->value => [
                 'progress' => min($user->followers()->count(), Achievement::SuperSaiyan->target()),
                 'target' => Achievement::SuperSaiyan->target(),
+            ],
+            Achievement::GitBlame->value => [
+                'progress' => min($repositoryCommits, Achievement::GitBlame->target()),
+                'target' => Achievement::GitBlame->target(),
             ],
         ];
 

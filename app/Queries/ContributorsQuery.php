@@ -61,6 +61,31 @@ final readonly class ContributorsQuery
     }
 
     /**
+     * How many commits the user's GitHub account has in the repository, as GitHub counted them when the list was last
+     * read. It only reads the cache, which the scheduler keeps warm, so a profile or a commit never waits on GitHub.
+     * Zero when the account has none, or the list hasn't been read.
+     */
+    public function commits(User $user): int
+    {
+        /** @var list<Account>|false|null $accounts */
+        $accounts = Cache::get($this->key());
+
+        return array_column(is_array($accounts) ? $accounts : [], 'commits', 'github_id')[$user->github_id] ?? 0;
+    }
+
+    /**
+     * Reads the list from GitHub again before the cached one expires. A failed read keeps the list there is.
+     */
+    public function refresh(): void
+    {
+        $accounts = $this->fetch();
+
+        if ($accounts !== null) {
+            Cache::put($this->key(), $accounts, self::Ttl);
+        }
+    }
+
+    /**
      * The GitHub accounts behind the contributors. A failed read is kept for a minute, so an outage doesn't send every
      * visitor to GitHub.
      *
@@ -68,53 +93,64 @@ final readonly class ContributorsQuery
      */
     private function accounts(): ?array
     {
-        $repository = config()->string('services.github.repository');
-        $key = "about:contributor-accounts:{$repository}";
-
         /** @var list<Account>|false|null $contributors */
-        $contributors = Cache::get($key);
+        $contributors = Cache::get($this->key());
 
         if ($contributors === null) {
-            $contributors = [];
+            $contributors = $this->fetch() ?? false;
 
-            try {
-                for ($page = 1; $page <= self::MaxPages; $page++) {
-                    $accounts = $this->github->request()->get("repos/{$repository}/contributors", [
-                        'per_page' => self::PerPage,
-                        'page' => $page,
-                    ])->throw()->collect();
-
-                    if ($accounts->isNotEmpty() && ! array_is_list($accounts->all())) {
-                        $contributors = false;
-
-                        break;
-                    }
-
-                    $contributors = [...$contributors, ...$accounts->where('type', 'User')
-                        ->mapInto(Fluent::class)
-                        ->filter(fn (Fluent $account): bool => $account->string('login')->isNotEmpty()
-                            && is_int($account->get('id'))
-                            && is_int($account->get('contributions'))
-                            && ! in_array($account->string('login')->lower()->value(), self::Agents, true))
-                        ->map(fn (Fluent $account): array => [
-                            'login' => $account->string('login')->value(),
-                            'github_id' => (string) $account->integer('id'),
-                            'commits' => $account->integer('contributions'),
-                        ])
-                        ->values()
-                        ->all()];
-
-                    if ($accounts->count() < self::PerPage) {
-                        break;
-                    }
-                }
-            } catch (HttpClientException) {
-                $contributors = false;
-            }
-
-            Cache::put($key, $contributors, $contributors === false ? self::FailedTtl : self::Ttl);
+            Cache::put($this->key(), $contributors, $contributors === false ? self::FailedTtl : self::Ttl);
         }
 
         return $contributors === false ? null : $contributors;
+    }
+
+    /**
+     * @return list<Account>|null
+     */
+    private function fetch(): ?array
+    {
+        $repository = config()->string('services.github.repository');
+        $contributors = [];
+
+        try {
+            for ($page = 1; $page <= self::MaxPages; $page++) {
+                $accounts = $this->github->request()->get("repos/{$repository}/contributors", [
+                    'per_page' => self::PerPage,
+                    'page' => $page,
+                ])->throw()->collect();
+
+                if ($accounts->isNotEmpty() && ! array_is_list($accounts->all())) {
+                    return null;
+                }
+
+                $contributors = [...$contributors, ...$accounts->where('type', 'User')
+                    ->mapInto(Fluent::class)
+                    ->filter(fn (Fluent $account): bool => $account->string('login')->isNotEmpty()
+                        && is_int($account->get('id'))
+                        && is_int($account->get('contributions'))
+                        && ! in_array($account->string('login')->lower()->value(), self::Agents, true))
+                    ->map(fn (Fluent $account): array => [
+                        'login' => $account->string('login')->value(),
+                        'github_id' => (string) $account->integer('id'),
+                        'commits' => $account->integer('contributions'),
+                    ])
+                    ->values()
+                    ->all()];
+
+                if ($accounts->count() < self::PerPage) {
+                    break;
+                }
+            }
+        } catch (HttpClientException) {
+            return null;
+        }
+
+        return $contributors;
+    }
+
+    private function key(): string
+    {
+        return 'about:contributor-accounts:'.config()->string('services.github.repository');
     }
 }
