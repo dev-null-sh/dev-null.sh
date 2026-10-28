@@ -446,7 +446,7 @@ Press **?** to open the shortcut reference. Navigation shortcuts work outside te
 | `⌘/Ctrl+K` or `/` | Search developers and commits. |
 | `⌘/Ctrl+Enter` | Submit from the composer. |
 | `⌘/Ctrl+Shift+P` | Toggle composer preview. |
-| `g` then `l` / `e` / `p` / `s` | Go to your log / Trending / profile / settings. |
+| `g` then `l` / `e` / `n` / `p` / `s` | Go to your log / Trending / notifications / profile / settings. |
 
 Source: [shortcut reference](resources/js/components/keyboard-shortcuts-dialog.tsx).
 
