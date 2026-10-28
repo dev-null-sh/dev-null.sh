@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateUserProfile;
+use App\Jobs\LookUpUserOrganizations;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\Support\SshKeyPair;
 
 it('mirrors the github profile of the user', function (): void {
@@ -43,6 +45,20 @@ it('mirrors the github profile of the user', function (): void {
         ->has_sponsors_listing->toBeTrue()
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 });
+
+it('queues a lookup of the organizations the synced bio mentions', function (bool $mentions): void {
+    Queue::fake();
+
+    $user = User::factory()->create(['github_id' => '583231']);
+
+    fakeGitHubAccount($user, ['login' => 'octocat', 'bio' => $mentions ? 'Building @laravel' : 'Building things', 'company' => null]);
+
+    resolve(UpdateUserProfile::class)->handle($user);
+
+    $mentions
+        ? Queue::assertPushed(LookUpUserOrganizations::class, fn (LookUpUserOrganizations $job): bool => $job->user->is($user))
+        : Queue::assertNotPushed(LookUpUserOrganizations::class);
+})->with(['a mention' => true, 'no mention' => false]);
 
 it('clears profile fields removed on github', function (): void {
     $user = User::factory()->create();

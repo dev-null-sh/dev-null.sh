@@ -28,7 +28,7 @@ export function AppAside({
     onShowShortcuts: () => void;
     onSearch: () => void;
 }) {
-    const { user } = usePage().props.auth;
+    const { user, bioProfiles } = usePage().props.auth;
     const { developersCount } = usePage().props;
     const keys = useKeyLabels();
     const [commitsCount] = useSharedState(
@@ -163,7 +163,7 @@ export function AppAside({
                     </dl>
                     {user.bio && (
                         <p className="mt-3 text-sm text-pretty text-muted-foreground">
-                            <BioText bio={user.bio} />
+                            <BioText bio={user.bio} profiles={bioProfiles} />
                         </p>
                     )}
                 </section>

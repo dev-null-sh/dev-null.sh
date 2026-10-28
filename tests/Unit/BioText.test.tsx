@@ -41,3 +41,29 @@ test('leaves emails, package names and domains as plain text', () => {
     assert.ok(!html.includes('<a'));
     assert.equal(textOf(html), bio);
 });
+
+test('opens the users and organizations on dev/null on their profile', () => {
+    const html = renderToStaticMarkup(
+        <BioText
+            bio="Building @Laravel, previously @vercel."
+            profiles={{ laravel: 'laravel' }}
+        />,
+    );
+
+    assert.ok(html.includes('href="/@laravel"'));
+    assert.ok(html.includes('aria-label="@Laravel"'));
+    assert.ok(html.includes('src="https://github.com/Laravel.png?size=40"'));
+    assert.equal(html.match(/target="_blank"/g)?.length, 1);
+    assert.ok(html.includes('href="https://github.com/vercel"'));
+});
+
+test('opens GitHub when no account is on dev/null, sent as an empty array', () => {
+    const html = renderToStaticMarkup(
+        <BioText
+            bio="Hi @length"
+            profiles={[] as unknown as Record<string, string>}
+        />,
+    );
+
+    assert.ok(html.includes('href="https://github.com/length"'));
+});

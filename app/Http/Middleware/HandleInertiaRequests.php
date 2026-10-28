@@ -10,6 +10,7 @@ use App\Enums\RepliesPerPage;
 use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
 use App\Queries\DevelopersCountQuery;
 use App\Queries\LiveFollowingQuery;
@@ -91,6 +92,7 @@ final class HandleInertiaRequests extends Middleware
             'repository' => config('services.github.repository'),
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
+                'bioProfiles' => fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [],
                 'isAdmin' => $isAdmin,
                 'automaticTranslation' => $user->automatic_translation ?? true,
                 'mustReadCommitRules' => $user instanceof User && $user->commit_rules_accepted_at === null,
