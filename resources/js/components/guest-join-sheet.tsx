@@ -1,7 +1,15 @@
-import { GitCommitVertical, UsersRound, X } from 'lucide-react';
+import {
+    ArrowDown,
+    EllipsisVertical,
+    GitCommitVertical,
+    UsersRound,
+    X,
+} from 'lucide-react';
 import { useSyncExternalStore } from 'react';
 import { GitHubIcon } from '@/components/github-icon';
 import { Button } from '@/components/ui/button';
+import type { InAppBrowser } from '@/lib/in-app-browser';
+import { inAppBrowser } from '@/lib/in-app-browser';
 import { login } from '@/routes';
 
 const DISMISSED = 'devnull:join-sheet-dismissed';
@@ -35,7 +43,9 @@ function dismiss(): void {
 /**
  * On a phone, guests don't see the aside that tells desktop visitors what /dev/null is, so this sheet does, with the
  * button where the thumb is. It stays out of the server render and opens once the page has loaded, unless the guest
- * closed it earlier in this browser session. Signing in leaves for GitHub, so the button is a plain link.
+ * closed it earlier in this browser session. Signing in leaves for GitHub, so the button is a plain link. In an app's
+ * browser, it also shows how to open the page in the phone's browser, where the guest may already be signed in to
+ * GitHub.
  */
 export function GuestJoinSheet() {
     const isHidden = useSyncExternalStore(subscribe, isDismissed, () => true);
@@ -43,6 +53,9 @@ export function GuestJoinSheet() {
     if (isHidden) {
         return null;
     }
+
+    // The sheet never renders on the server, so the user agent is there to read...
+    const browser = inAppBrowser(navigator.userAgent);
 
     return (
         <section
@@ -96,6 +109,51 @@ export function GuestJoinSheet() {
                     Join with GitHub
                 </a>
             </Button>
+
+            {browser !== null && <InAppBrowserHint browser={browser} />}
         </section>
+    );
+}
+
+/**
+ * Apps don't let a page open the phone's browser: X ignores Safari's undocumented scheme. Their own menu always can,
+ * so the hint shows the way there, and points at it in X, whose menu sits right under the sheet.
+ */
+function InAppBrowserHint({ browser }: { browser: InAppBrowser }) {
+    const name = browser.platform === 'ios' ? 'Safari' : 'your browser';
+    const isX = browser.app === 'X' && browser.platform === 'ios';
+
+    return (
+        <div
+            className="flex flex-col gap-1 rounded-[10px] bg-primary/10 px-4 py-3"
+            data-test="guest-join-sheet-in-app"
+        >
+            <p className="text-sm leading-snug text-muted-foreground">
+                {browser.app ? `${browser.app}’s` : 'This app’s'} browser
+                isn&rsquo;t signed in to GitHub.{' '}
+                {browser.platform === 'ios' ? 'Safari' : 'Your browser'} may be.
+            </p>
+            <p className="text-[17px] leading-snug font-semibold">
+                {isX ? (
+                    <>
+                        Tap{' '}
+                        <EllipsisVertical
+                            aria-label="⋮"
+                            className="inline size-5 -translate-y-px"
+                        />{' '}
+                        below, then{' '}
+                        <span className="text-primary">Open in browser</span>.
+                    </>
+                ) : (
+                    `Open this page in ${name} from the app’s menu.`
+                )}
+            </p>
+            {isX && (
+                <ArrowDown
+                    aria-hidden
+                    className="absolute bottom-1 left-[62%] size-6 -translate-x-1/2 text-primary motion-safe:animate-bounce"
+                />
+            )}
+        </div>
     );
 }
