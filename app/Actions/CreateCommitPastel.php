@@ -10,6 +10,14 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class CreateCommitPastel
 {
+    public function __construct(private CreatePastelNotification $createPastelNotification)
+    {
+        //
+    }
+
+    /**
+     * Notifies the author only while the locked count moves from zero, so repeats, restored commits, and old winners stay silent.
+     */
     public function handle(User $user, Commit $commit): bool
     {
         return DB::transaction(function () use ($user, $commit): bool {
@@ -25,6 +33,7 @@ final readonly class CreateCommitPastel
             }
 
             $recipientCommit = Commit::query()->lockForUpdate()->findOrFail($commit->id);
+            $firstPastel = $recipientCommit->pasteis_count === 0;
 
             $sender->update([
                 'pasteis_given_on' => today()->toDateString(),
@@ -33,6 +42,10 @@ final readonly class CreateCommitPastel
 
             $recipientCommit->increment('pasteis_count');
             User::query()->whereKey($commit->user_id)->increment('pasteis_received');
+
+            if ($firstPastel) {
+                $this->createPastelNotification->handle($user, $recipientCommit);
+            }
 
             return true;
         }, 3);

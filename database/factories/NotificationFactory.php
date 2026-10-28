@@ -95,6 +95,21 @@ final class NotificationFactory extends Factory
     }
 
     /**
+     * The first pastel on one of the recipient's approved commits, from the actor.
+     */
+    public function awarded(): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'type' => NotificationType::Awarded,
+            'commit_id' => fn (array $attributes): string => Commit::factory()
+                ->for(User::query()->whereKey($attributes['recipient_id'])->sole())
+                ->create()
+                ->id,
+            'subject_id' => fn (array $attributes): string => Commit::query()->whereKey($attributes['commit_id'])->sole()->id,
+        ]);
+    }
+
+    /**
      * An approved quote from the actor of one of the recipient's commits.
      */
     public function quoted(): self

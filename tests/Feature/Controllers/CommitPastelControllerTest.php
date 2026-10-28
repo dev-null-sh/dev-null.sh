@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\User;
 
@@ -30,6 +31,28 @@ it('awards repeated pastéis to commits and their author even with the recipient
         ->where('auth.pasteis', null));
 });
 
+it('notifies the author about a first pastel while repeats stay quiet', function (): void {
+    $sender = User::factory()->create(['pasteis_mode' => true]);
+    $recipient = User::factory()->create();
+    $commit = Commit::factory()->for($recipient)->create();
+
+    $this->actingAs($sender)->postJson(route('commit-pastel.store', $commit))
+        ->assertOk()->assertJsonPath('pasteis_count', 1);
+    $this->postJson(route('commit-pastel.store', $commit))
+        ->assertOk()->assertJsonPath('pasteis_count', 2);
+
+    $other = User::factory()->create(['pasteis_mode' => true]);
+
+    $this->actingAs($other)->postJson(route('commit-pastel.store', $commit))
+        ->assertOk()->assertJsonPath('pasteis_count', 3);
+
+    $notification = $recipient->notifications()->sole();
+
+    expect($notification->type)->toBe(NotificationType::Awarded)
+        ->and($notification->actor_id)->toBe($sender->id)
+        ->and($notification->commit_id)->toBe($commit->id);
+});
+
 it('shares ten awards across posts and restores the allowance at midnight UTC, not after 24 hours', function (): void {
     $this->travelTo(now()->setDate(2026, 10, 16)->setTime(23, 59, 59));
     $sender = User::factory()->create(['pasteis_mode' => true]);
@@ -47,7 +70,8 @@ it('shares ten awards across posts and restores the allowance at midnight UTC, n
         ->assertJsonValidationErrors(['pastel' => 'you ran out of pastéis. wait until tomorrow.']);
 
     expect($otherCommit->refresh()->pasteis_count)->toBe(0)
-        ->and($recipient->refresh()->pasteis_received)->toBe(10);
+        ->and($recipient->refresh()->pasteis_received)->toBe(10)
+        ->and($recipient->notifications()->count())->toBeOne();
 
     $this->travel(1)->seconds();
 

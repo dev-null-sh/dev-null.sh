@@ -129,6 +129,28 @@ function categories(html: string, pressed: boolean): Set<string> {
     assert.match(html, /<button[^>]*aria-pressed="true"[^>]*>Quotes<\/button>/);
 });
 
+ test('renders pastéis awarded to the recipients own commit, linked to it', async () => {
+    const awarded: NotificationGroup = {
+        ...quote,
+        type: 'awarded',
+        commit_id: 'own-commit',
+        subject_id: 'own-commit',
+        commit: {
+            ...quoteCommit,
+            id: 'own-commit',
+            user_id: 'recipient',
+            body: 'My awarded commit',
+            body_segments: [{ type: 'text', text: 'My awarded commit' }],
+            quoted_commit_id: null,
+        },
+    };
+    const html = await renderInbox([awarded]);
+
+    assert.match(html, /gave your commit a pastel/);
+    assert.match(html, /href="\/@recipient\/commits\/own-commit"/);
+    assert.match(html, /My awarded commit/);
+});
+
  test('shows the quoted commit under a quote, or a tombstone once it is deleted', async () => {
     const html = await renderInbox([
         {

@@ -149,6 +149,28 @@ it('deletes stars along with the starred commit', function (): void {
     expect($notification->fresh())->toBeNull();
 });
 
+it('keeps pastéis on approved commits', function (): void {
+    $notification = Notification::factory()->awarded()->create();
+
+    expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
+});
+
+it('hides pastéis once the commit is rejected', function (): void {
+    $notification = Notification::factory()->awarded()->create();
+
+    resolve(UpdateCommitStatus::class)->handle($notification->commit, CommitStatus::Rejected);
+
+    expect(Notification::query()->where('type', NotificationType::Awarded)->relevant()->exists())->toBeFalse();
+});
+
+it('deletes pastéis along with the awarded commit', function (): void {
+    $notification = Notification::factory()->awarded()->create();
+
+    resolve(DeleteCommit::class)->handle($notification->commit);
+
+    expect($notification->fresh())->toBeNull();
+});
+
 it('deletes notifications along with the actor', function (Notification $notification): void {
     resolve(DeleteUser::class)->handle($notification->actor);
 
@@ -158,6 +180,7 @@ it('deletes notifications along with the actor', function (Notification $notific
     'replied' => fn (): Notification => Notification::factory()->replied()->create(),
     'quoted' => fn (): Notification => Notification::factory()->quoted()->create(),
     'starred' => fn (): Notification => Notification::factory()->starred()->create(),
+    'awarded' => fn (): Notification => Notification::factory()->awarded()->create(),
 ]);
 
 it('deletes notifications along with the recipient', function (): void {
@@ -181,6 +204,7 @@ it('hides notifications from muted actors until they are unmuted', function (Not
     'replied' => fn (): Notification => Notification::factory()->replied()->create(),
     'mentioned' => fn (): Notification => Notification::factory()->mentioned()->create(),
     'starred' => fn (): Notification => Notification::factory()->starred()->create(),
+    'awarded' => fn (): Notification => Notification::factory()->awarded()->create(),
 ]);
 
 it('hides replies, mentions and stars across a block in either direction', function (string $state, bool $recipientBlocks): void {
@@ -191,4 +215,4 @@ it('hides replies, mentions and stars across a block in either direction', funct
         : $notification->actor->blocking()->attach($notification->recipient_id);
 
     expect(Notification::query()->relevant()->exists())->toBeFalse();
-})->with(['replied', 'mentioned', 'starred'])->with([true, false]);
+})->with(['replied', 'mentioned', 'starred', 'awarded'])->with([true, false]);
