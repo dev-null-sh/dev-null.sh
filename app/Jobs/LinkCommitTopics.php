@@ -12,14 +12,15 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Backoff;
 use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
-use Illuminate\Queue\Attributes\Tries;
+use Illuminate\Queue\Attributes\MaxExceptions;
 
 /**
  * Runs once a commit is approved, so only commits everyone can read spend GitHub's rate limit, and again once the rate
- * limit resets when it cut the lookups short.
+ * limit resets when it cut the lookups short. Waiting for the reset doesn't count as a try: the job gives up after three
+ * failures, or a day.
  */
 #[Backoff([60, 600])]
-#[Tries(3)]
+#[MaxExceptions(3)]
 #[DeleteWhenMissingModels]
 final class LinkCommitTopics implements ShouldQueue
 {
@@ -47,6 +48,11 @@ final class LinkCommitTopics implements ShouldQueue
             ->where('status', CommitStatus::Approved)
             ->get()
             ->each(fn (Commit $commit) => dispatch(new self($commit))->afterCommit());
+    }
+
+    public function retryUntil(): CarbonImmutable
+    {
+        return CarbonImmutable::now()->addDay();
     }
 
     public function handle(UpdateCommitTopics $action): void
