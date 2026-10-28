@@ -68,6 +68,9 @@ final readonly class CreateWatchNotifications
             }
         }
 
-        Notification::query()->insertOrIgnore($notifications);
+        // A popular author can have more watchers than one statement can bind.
+        foreach (array_chunk($notifications, 500) as $chunk) {
+            Notification::query()->insertOrIgnore($chunk);
+        }
     }
 }
