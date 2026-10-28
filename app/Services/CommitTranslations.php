@@ -22,6 +22,9 @@ final readonly class CommitTranslations
 {
     public const int TTL_SECONDS = 604800;
 
+    /** How long a failed detection is remembered, so a body the provider cannot detect is not queued again on every view. */
+    public const int DETECTION_FAILURE_TTL_SECONDS = 3600;
+
     public function __construct(private Features $features)
     {
         //
@@ -35,6 +38,12 @@ final readonly class CommitTranslations
     public function key(Commit $commit): string
     {
         return 'commit-translations:v1:'.hash('sha256', $commit->body);
+    }
+
+    /** The key remembering that detection failed for this body, like GitHubReadmeQuery's failure key. */
+    public function failedKey(Commit $commit): string
+    {
+        return 'commit-translations-failed:v1:'.hash('sha256', $commit->body);
     }
 
     /** @return list<string> */
@@ -88,7 +97,7 @@ final readonly class CommitTranslations
         /** @var CachedTranslations|null $cached */
         $cached = Cache::memo()->get($this->key($commit));
 
-        if ($cached === null) {
+        if ($cached === null && ! Cache::has($this->failedKey($commit))) {
             try {
                 dispatch(new DetectCommitLanguage($commit->id))->afterCommit();
             } catch (Throwable $exception) {
