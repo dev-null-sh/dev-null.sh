@@ -124,6 +124,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     className={cn(
                         'min-w-0 flex-1 bg-card pb-40 md:max-w-[620px] md:border-x md:pb-0 lg:max-w-[calc(876px-var(--sidebar-width))]',
                         {
+                            'xl:max-w-[calc(1196px-var(--sidebar-width)-var(--aside-width))]':
+                                !isMessages,
                             'pb-20 md:max-w-[940px] lg:max-w-[calc(1196px-var(--sidebar-width))]':
                                 isMessages,
                         },
