@@ -98,7 +98,7 @@ vi.doMock('../../resources/js/lib/chat', async () => ({
 
 const { FollowButton } =
     await import('../../resources/js/components/follow-button');
-const { UserPreview } =
+const { UserPreview, clearUserPreviews } =
     await import('../../resources/js/components/user-preview');
 const { SuggestedUserRow, WhoToFollow, WhoToFollowInLog } =
     await import('../../resources/js/components/who-to-follow');
@@ -380,6 +380,20 @@ test('unfollowing through a cached preview keeps its follower count', () => {
     visits.at(-1)?.onSuccess?.();
 
     assert.equal(changes.at(-1)?.user.followers_count, 0);
+});
+
+test('a follow from their preview that lands after logging out stays out of the cleared previews', () => {
+    const user = suggestion('cleared');
+    const changes: { user: Profile }[] = [];
+
+    (
+        previewFollowButton(user, false, (data) => changes.push(data)).props
+            .onClick as () => void
+    )();
+    clearUserPreviews();
+    visits.at(-1)?.onSuccess?.();
+
+    assert.deepEqual(changes, []);
 });
 
 test('a preview unfollow that fails after a block keeps who to follow unfollowed', () => {

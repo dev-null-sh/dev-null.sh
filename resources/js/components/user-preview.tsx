@@ -85,6 +85,21 @@ export function clearUserPreviews(): void {
     cache.clear();
 }
 
+/**
+ * Drops a change that lands after the previews were cleared. It reads the generation outside the component because the React Compiler would read it again at the comparison.
+ */
+function unlessCleared(
+    onChange: (data: PreviewData) => void,
+): (data: PreviewData) => void {
+    const generation = cacheGeneration;
+
+    return (data) => {
+        if (generation === cacheGeneration) {
+            onChange(data);
+        }
+    };
+}
+
 function positionFor(trigger: HTMLElement): Position {
     const rect = trigger.getBoundingClientRect();
     const left = Math.min(
@@ -373,6 +388,7 @@ function UserPreviewContent({
         }
 
         const follows = !isFollowing;
+        const change = unlessCleared(onChange);
         setPendingFollows(follows);
 
         router.visit(
@@ -387,7 +403,7 @@ function UserPreviewContent({
                 onSuccess: () => {
                     setIsFollowing(follows);
                     router.flushAll();
-                    onChange({
+                    change({
                         ...data,
                         isFollowing: follows,
                         user: {
