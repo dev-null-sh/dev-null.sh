@@ -13,6 +13,16 @@ it('rounds down to the hundred below a thousand, leaving banned people out', fun
     expect(resolve(DevelopersCountQuery::class)->get())->toBe(200);
 });
 
+it('leaves the bots out', function (): void {
+    User::factory()->count(99)->create();
+
+    foreach (User::BOT_GITHUB_IDS as $githubId) {
+        User::factory()->create(['github_id' => $githubId]);
+    }
+
+    expect(resolve(DevelopersCountQuery::class)->get())->toBe(0);
+});
+
 it('rounds down to the thousand from a thousand', function (): void {
     User::query()->insert(User::factory()->count(1250)->make()->map(fn (User $user): array => [...$user->getAttributes(), 'id' => $user->newUniqueId()])->all());
 
