@@ -7,6 +7,7 @@ use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Jobs\CheckUserLevel;
 use App\Jobs\DetectCommitLanguage;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
@@ -14,8 +15,10 @@ use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\Notification;
 use App\Models\User;
+use Illuminate\Database\DatabaseTransactionsManager;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -33,6 +36,36 @@ it('may create a commit', function (): void {
     $response->assertRedirectToRoute('log.show', Log::Following);
 
     expect($user->commits()->sole()->body)->toBe('Hello, devnull!');
+});
+
+it('creates a commit while a unique level-check job already holds a database cache lock', function (): void {
+    config(['cache.default' => 'database']);
+    config(['app.admins' => ['nunomaduro']]);
+
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
+    $lock = Cache::lock('laravel_unique_job:'.CheckUserLevel::class.':'.$user->id, 3600);
+
+    expect($lock->get())->toBeTrue();
+
+    // The test transaction manager runs after-commit callbacks before its wrapping transaction ends.
+    // Use the production manager to keep the callback pending until the outer transaction commits.
+    $connection = DB::connection();
+    $testManager = $this->app['db.transactions'];
+    $manager = new DatabaseTransactionsManager;
+    $manager->begin($connection->getName(), $connection->transactionLevel());
+
+    $connection->setTransactionManager($manager);
+
+    try {
+        $this->actingAs($user)
+            ->fromRoute('log.show', Log::Following)
+            ->post(route('commit.store'), ['body' => 'Second commit'])
+            ->assertRedirectToRoute('log.show', Log::Following);
+    } finally {
+        $connection->setTransactionManager($testManager);
+    }
+
+    expect($user->commits()->sole()->body)->toBe('Second commit');
 });
 
 it('flashes the created commit', function (): void {
