@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Cache;
 
 /**
  * @phpstan-type GitHubAccount array{id: int, login: string, avatar_url: string, type: string}
- * @phpstan-type GitHubCommit array{sha: string, html_url: string, commit: array{message: string, committer: array{date: string}}, author: GitHubAccount|null, committer: GitHubAccount|null, parents: list<array{sha: string}>}
+ * @phpstan-type GitHubCommit array{sha: string, html_url: string, commit: array{message: string, committer: array{date: string}}, author: GitHubAccount|array{}|null, committer: GitHubAccount|array{}|null, parents: list<array{sha: string}>}
  * @phpstan-type ChangelogCommit array{sha: string, type: string|null, breaking: bool, title: string, url: string, pull_request: array{number: int, url: string}|null, committed_at: string, author: array{login: string, avatar: string, handle: string|null, mention: string|null, lane: int|string|null}}
  */
 final readonly class ChangelogQuery
@@ -182,7 +182,7 @@ final readonly class ChangelogQuery
 
     /**
      * The person a commit is shown under: its author, or whoever committed it for an agent or a bot. A commit with no
-     * person on GitHub behind it is left out.
+     * person on GitHub behind it is left out, and GitHub sends some of those as an empty account instead of none.
      *
      * @param  GitHubCommit  $commit
      * @return GitHubAccount|null
@@ -190,7 +190,7 @@ final readonly class ChangelogQuery
     private function author(array $commit): ?array
     {
         foreach ([$commit['author'], $commit['committer']] as $account) {
-            if ($account !== null && $account['type'] === 'User' && ! in_array(mb_strtolower($account['login']), [...ContributorsQuery::Agents, 'web-flow'], true)) {
+            if (($account['type'] ?? null) === 'User' && ! in_array(mb_strtolower($account['login']), [...ContributorsQuery::Agents, 'web-flow'], true)) {
                 return $account;
             }
         }

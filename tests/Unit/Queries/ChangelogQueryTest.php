@@ -124,18 +124,20 @@ it('follows production’s own line, leaving out the commits of merged branches 
     expect(shas(resolve(ChangelogQuery::class)->get('UTC')))->toBe(['merge-pr', 'direct', 'root']);
 });
 
-it('shows a commit an agent or a bot made under the person who committed it, and never the agent or bot', function (): void {
+it('shows a commit an agent or a bot made under the person who committed it, and never the agent, the bot or an empty account', function (): void {
     fakeCommits(commitLine([
         gitHubCommit('amp', '2026-10-18T12:00:00Z', author: ['id' => 1, 'login' => 'ampagent'], committer: ['id' => 2, 'login' => 'paulinevos']),
         gitHubCommit('claude', '2026-10-18T11:00:00Z', author: ['id' => 3, 'login' => 'Claude'], committer: ['id' => 19864447, 'login' => 'web-flow']),
         gitHubCommit('bot', '2026-10-18T10:00:00Z', author: ['id' => 4, 'login' => 'dependabot[bot]', 'type' => 'Bot'], committer: ['id' => 5, 'login' => 'nunomaduro']),
         gitHubCommit('unknown', '2026-10-18T09:00:00Z', author: null, committer: ['id' => 19864447, 'login' => 'web-flow']),
+        [...gitHubCommit('empty-author', '2026-10-18T08:00:00Z', committer: ['id' => 6, 'login' => 'kachelle']), 'author' => []],
+        [...gitHubCommit('empty', '2026-10-18T07:00:00Z'), 'author' => [], 'committer' => []],
     ]));
 
     $changelog = resolve(ChangelogQuery::class)->get('UTC');
 
-    expect(shas($changelog))->toBe(['amp', 'bot'])
-        ->and(array_column(array_column($changelog['commits'] ?? [], 'author'), 'login'))->toBe(['paulinevos', 'nunomaduro']);
+    expect(shas($changelog))->toBe(['amp', 'bot', 'empty-author'])
+        ->and(array_column(array_column($changelog['commits'] ?? [], 'author'), 'login'))->toBe(['paulinevos', 'nunomaduro', 'kachelle']);
 });
 
 it('counts days in the reader’s time zone', function (): void {
