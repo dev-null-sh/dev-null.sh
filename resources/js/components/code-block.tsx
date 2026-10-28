@@ -7,10 +7,12 @@ import { cn } from '@/lib/utils';
 
 export function CodeBlock({
     html,
+    fullHtml,
     language,
     isCopyable = true,
 }: {
     html: string;
+    fullHtml?: string;
     language: string | null;
     isCopyable?: boolean;
 }) {
@@ -34,7 +36,16 @@ export function CodeBlock({
             return;
         }
 
-        if (await copy(codeRef.current.textContent ?? '')) {
+        let code = codeRef.current.textContent ?? '';
+
+        if (fullHtml !== undefined) {
+            // The server escapes the code while highlighting it, and a template runs nothing.
+            const template = document.createElement('template');
+            template.innerHTML = fullHtml;
+            code = template.content.textContent ?? '';
+        }
+
+        if (await copy(code)) {
             setIsCopied(true);
 
             return;

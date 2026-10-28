@@ -50,7 +50,13 @@ export type CommitImage = {
 export type BodySegment =
     | { type: 'text'; text: string }
     | { type: 'code'; code: string }
-    | { type: 'block'; language: string | null; html: string };
+    | {
+          type: 'block';
+          language: string | null;
+          html: string;
+          // The whole block, when a preview shows only its first lines, so copying it still copies all of it.
+          fullHtml?: string;
+      };
 
 export type CommitTranslation = {
     language: string;

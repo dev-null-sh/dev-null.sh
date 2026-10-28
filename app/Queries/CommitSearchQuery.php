@@ -51,19 +51,41 @@ final readonly class CommitSearchQuery
             ->generate(provider: Lab::OpenAI, model: OpenAI::EMBEDDING_MODEL)
             ->first();
 
+        $vector = array_values($embedding);
+
         $candidates = Commit::query()
+            ->whereIn('commits.id', $this->nearest($vector, $viewer, $limit * 2))
             ->visibleTo($viewer)
             ->withoutMutedAuthorsFor($viewer)
-            ->whereNotNull('embedding')
             ->withVisibleReplyCount($viewer)
             ->withContinuationId($viewer)
             ->withCardDataFor($viewer)
-            ->orderByVectorDistance('embedding', array_values($embedding))
+            ->orderByVectorDistance('embedding', $vector)
             ->limit($limit)
             ->get()
             ->toBase();
 
         return $this->onlyRelevant($term, $candidates);
+    }
+
+    /**
+     * The nearest commits are looked up on the vector index before the blocks and mutes are checked. With those checks
+     * in the same query, the database expects so few commits to match that it compares the term against every
+     * embedding instead, reading all of them from disk. Twice as many as asked for leaves room for the ones the checks
+     * then leave out.
+     *
+     * @param  list<float>  $vector
+     */
+    private function nearest(array $vector, ?User $viewer, int $count): CommitBuilder
+    {
+        return Commit::query()
+            ->select('id')
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query
+                ->approved()
+                ->when($viewer, fn (CommitBuilder $query, User $viewer): CommitBuilder => $query->orWhere('user_id', $viewer->id)))
+            ->whereNotNull('embedding')
+            ->orderByVectorDistance('embedding', $vector)
+            ->limit($count);
     }
 
     /**

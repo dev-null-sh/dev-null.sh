@@ -54,7 +54,7 @@ const commit: Commit = {
     ],
 };
 
-void test('keeps the uploaded image until it fails to load', () => {
+ test('keeps the uploaded image until it fails to load', () => {
     assert.ok(
         renderToStaticMarkup(<CommitImages commit={commit} />).includes(
             'src="/images/missing.webp"',
@@ -62,14 +62,14 @@ void test('keeps the uploaded image until it fails to load', () => {
     );
 });
 
-void test('fits a single feed image instead of cropping it to fill the width', () => {
+ test('fits a single feed image instead of cropping it to fill the width', () => {
     const markup = renderToStaticMarkup(<CommitImages commit={commit} />);
 
     assert.match(markup, /class="[^"]*\bobject-contain\b/);
     assert.doesNotMatch(markup, /class="[^"]*\bobject-cover\b/);
 });
 
-void test('covers landscape grid images and contains tall ones', () => {
+ test('covers landscape grid images and contains tall ones', () => {
     assert.equal(gridImageObjectFit({ width: 80, height: 800 }), 'object-contain');
     assert.equal(gridImageObjectFit({ width: 1200, height: 800 }), 'object-cover');
     assert.equal(gridImageObjectFit({ width: 100, height: 100 }), 'object-cover');
@@ -109,7 +109,7 @@ void test('covers landscape grid images and contains tall ones', () => {
     );
 });
 
-void test('shows the short image hash instead of the alt text while the image loads', () => {
+ test('shows the short image hash instead of the alt text while the image loads', () => {
     const markup = renderToStaticMarkup(<CommitImages commit={commit} />);
     const placeholder = markup.match(
         /<div aria-hidden="true" data-test="commit-image-loading".*?<\/div><\/div><\/div>/,
@@ -119,7 +119,7 @@ void test('shows the short image hash instead of the alt text while the image lo
     assert.equal(placeholder[0].replace(/<[^>]+>/g, ''), 'commitb8a0c3d');
 });
 
-void test('scrambles each hash differently, locking it in from left to right, then rolls again', () => {
+ test('scrambles each hash differently, locking it in from left to right, then rolls again', () => {
     const lockedAt = (frame: number) =>
         scrambleHash('9f3a6c1', frame)
             .filter(({ isLocked }) => isLocked)
@@ -150,7 +150,7 @@ void test('scrambles each hash differently, locking it in from left to right, th
     );
 });
 
-void test('replaces a failed image with the site logo without retrying the fallback', () => {
+ test('replaces a failed image with the site logo without retrying the fallback', () => {
     let replacements = 0;
     let source = '/images/missing.webp';
     const target = {
@@ -171,6 +171,6 @@ void test('replaces a failed image with the site logo without retrying the fallb
     assert.equal(replacements, 1);
 });
 
-void test('renders nothing when there are no uploaded images', () => {
+ test('renders nothing when there are no uploaded images', () => {
     assert.equal(CommitImages({ commit: { ...commit, images: [] } }), null);
 });

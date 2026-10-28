@@ -91,6 +91,7 @@ export function BodySegments({
                             <CodeBlock
                                 key={index}
                                 html={segment.html}
+                                fullHtml={segment.fullHtml}
                                 language={segment.language}
                                 isCopyable={!isStatic}
                             />
@@ -147,7 +148,11 @@ export function FoldedCommitBody({
     return (
         <div ref={bodyRef} tabIndex={-1} className="outline-none">
             <CommitBody
-                segments={isUnfolded ? segments : previewSegments}
+                segments={
+                    isUnfolded
+                        ? segments
+                        : withFullBlocks(previewSegments, segments)
+                }
                 mentions={mentions}
                 className={className}
             />
@@ -162,6 +167,24 @@ export function FoldedCommitBody({
                 </button>
             )}
         </div>
+    );
+}
+
+/**
+ * The preview is the start of the body, so its code blocks are the body's first ones, in order. The last may be cut
+ * to its first lines; each gets the whole block to copy.
+ */
+function withFullBlocks(
+    previewSegments: BodySegment[],
+    segments: BodySegment[],
+): BodySegment[] {
+    const blocks = segments.filter((segment) => segment.type === 'block');
+    let index = 0;
+
+    return previewSegments.map((segment) =>
+        segment.type === 'block'
+            ? { ...segment, fullHtml: blocks[index++]?.html }
+            : segment,
     );
 }
 
