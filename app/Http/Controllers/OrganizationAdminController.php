@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Actions\CreateOrganizationAdmin;
-use App\Enums\OrganizationMembership;
+use App\Enums\GitHubOrganizationMembership;
 use App\Enums\ProfileType;
 use App\Http\Requests\CreateOrganizationAdminRequest;
 use App\Models\Profile;
@@ -80,13 +80,13 @@ final readonly class OrganizationAdminController
         // An organization restricting OAuth apps hides its members from those its owners haven't approved, which they
         // do from the app's page in their settings, where members request it.
         $failure = match ($github->organizationMembership($githubUser->token, $handle, $organization->github_id)) {
-            OrganizationMembership::Member => null,
-            OrganizationMembership::NotMember => [__('GitHub says you are not a member of @:handle.', ['handle' => $handle]), null],
-            OrganizationMembership::Restricted => [
+            GitHubOrganizationMembership::Member => null,
+            GitHubOrganizationMembership::NotMember => [__('GitHub says you are not a member of @:handle.', ['handle' => $handle]), null],
+            GitHubOrganizationMembership::Restricted => [
                 __('@:handle only shares its members with apps its owners approved. On GitHub, grant /dev/null access if you are an owner, or request it from them, then try again.', ['handle' => $handle]),
                 'https://github.com/settings/connections/applications/'.config()->string('services.github.client_id'),
             ],
-            OrganizationMembership::SingleSignOn => [
+            GitHubOrganizationMembership::SingleSignOn => [
                 __('@:handle signs its members in with single sign-on. Sign in to @:handle on GitHub, then try again.', ['handle' => $handle]),
                 "https://github.com/orgs/{$handle}/sso",
             ],

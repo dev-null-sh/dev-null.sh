@@ -298,9 +298,8 @@ final readonly class CreateExport
     private function claimedOrganizations(User $user): array
     {
         /** @var Collection<int, object{handle: string, created_at: string}> $claims */
-        $claims = DB::table('organization_admins')
+        $claims = $user->claimedOrganizations()->newPivotQuery()
             ->join('profiles', 'profiles.id', '=', 'organization_admins.organization_id')
-            ->where('organization_admins.user_id', $user->id)
             ->oldest('organization_admins.created_at')
             ->get(['profiles.handle', 'organization_admins.created_at']);
 

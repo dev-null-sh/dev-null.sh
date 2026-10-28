@@ -7,7 +7,7 @@ namespace App\Enums;
 /**
  * What GitHub says about a user's place in an organization, when they ask with the read:org scope.
  */
-enum OrganizationMembership
+enum GitHubOrganizationMembership
 {
     /** An owner or a member, who accepted the invitation. */
     case Member;

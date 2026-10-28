@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Enums\OrganizationMembership;
+use App\Enums\GitHubOrganizationMembership;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Http;
 
@@ -57,20 +57,20 @@ final readonly class GitHub
      * Where the user the token is for stands in the organization. The token needs the read:org scope. Matched by the
      * organization's ID, so a renamed handle that someone else took since doesn't count.
      */
-    public function organizationMembership(string $token, string $handle, string $githubId): OrganizationMembership
+    public function organizationMembership(string $token, string $handle, string $githubId): GitHubOrganizationMembership
     {
         $response = $this->request($token)->get("user/memberships/orgs/{$handle}");
 
         if ($response->notFound()) {
-            return OrganizationMembership::NotMember;
+            return GitHubOrganizationMembership::NotMember;
         }
 
         if ($response->forbidden() && $response->hasHeader('X-GitHub-SSO')) {
-            return OrganizationMembership::SingleSignOn;
+            return GitHubOrganizationMembership::SingleSignOn;
         }
 
         if ($response->forbidden() && str_contains($response->fluent()->string('message')->value(), 'OAuth App access restrictions')) {
-            return OrganizationMembership::Restricted;
+            return GitHubOrganizationMembership::Restricted;
         }
 
         $membership = $response->throw()->fluent();
@@ -78,8 +78,8 @@ final readonly class GitHub
         return $membership->string('state')->value() === 'active'
             && in_array($membership->string('role')->value(), ['admin', 'member'], true)
             && (string) $membership->integer('organization.id') === $githubId
-            ? OrganizationMembership::Member
-            : OrganizationMembership::NotMember;
+            ? GitHubOrganizationMembership::Member
+            : GitHubOrganizationMembership::NotMember;
     }
 
     /**
