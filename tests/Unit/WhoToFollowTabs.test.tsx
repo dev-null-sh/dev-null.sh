@@ -12,7 +12,13 @@ const initialProps = {
     refreshesWhoToFollow: true,
 };
 let props = { ...initialProps };
-const reloads: { only?: string[]; onFinish?: () => void }[] = [];
+type Reload = {
+    only?: string[];
+    onFinish?: () => void;
+    onCancelToken?: (token: { cancel: () => void }) => void;
+    isCancelled?: boolean;
+};
+const reloads: Reload[] = [];
 
 // State lives across renders, and setting it while rendering renders again, as React does.
 let slots: unknown[] = [];
@@ -46,7 +52,16 @@ vi.doMock('@inertiajs/react', async () => ({
     usePage: () => ({ props }),
     router: {
         flushAll: () => {},
-        reload: (options: (typeof reloads)[number]) => reloads.push(options),
+        // Cancelling fires the visit's finish, as Inertia does.
+        reload: (options: Reload) => {
+            reloads.push(options);
+            options.onCancelToken?.({
+                cancel: () => {
+                    options.isCancelled = true;
+                    options.onFinish?.();
+                },
+            });
+        },
         replaceProp: () => {},
     },
 }));
@@ -110,7 +125,7 @@ test('a count picked after hiding the block never shows the count from before', 
     assert.deepEqual(shown, [0, 1, 1, 1]);
 });
 
-test('a count picked again before the first one loads never shows the count from before', async () => {
+test('a count picked again before the first one loads cancels it and never shows the count from before', async () => {
     hideFromBlock();
     const shown = [render().props.value];
 
@@ -124,15 +139,15 @@ test('a count picked again before the first one loads never shows the count from
     const second = reloads.at(-1)!;
     shown.push(render().props.value);
 
-    // Cut short by the second reload, which still fires its finish.
-    first.onFinish?.();
-    shown.push(render().props.value);
+    // The first answer can no longer land after the second and put 1 back.
+    assert.equal(first.isCancelled, true);
+    assert.equal(second.isCancelled, undefined);
 
     props.whoToFollowCount = 5;
     second.onFinish?.();
     shown.push(render().props.value);
 
-    assert.deepEqual(shown, [0, 1, 5, 5, 5]);
+    assert.deepEqual(shown, [0, 1, 5, 5]);
 });
 
 test('a visit that leaves the suggestions out forgets they were hidden from the block', () => {

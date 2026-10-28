@@ -1,4 +1,4 @@
-import type { ReloadOptions } from '@inertiajs/core';
+import type { CancelToken, ReloadOptions } from '@inertiajs/core';
 import { router, usePage } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { setCookie } from '@/hooks/use-appearance';
@@ -6,8 +6,10 @@ import { useSharedState } from '@/hooks/use-shared-state';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { withViewTransition } from '@/lib/utils';
 
-// Counts the reloads that changing the settings sends, so only the latest one brings back a hidden block.
+// Counts the reloads that changing the settings sends, so only the latest one brings back a hidden block, and holds
+// the one still waiting for its answer, so a newer choice can cancel it.
 let latestSettingsReload = 0;
+let settingsReloadInFlight: CancelToken | null = null;
 
 export function currentRound(): number {
     const match = document.cookie.match(/(?:^|; )who_to_follow_round=(\d+)/);
@@ -52,28 +54,41 @@ export function useWhoToFollow() {
     };
 
     /**
-     * A block hidden from its own menu stays hidden until the reload is through, so neither the suggestions nor the
-     * count from before show in between, and then comes back the way the reload's own changes do. A reload cut short
-     * by a newer choice leaves that to the newer one.
+     * Reloads run side by side, so a newer choice cancels the one still waiting: otherwise an older answer that lands
+     * last would put the count from before back on the page. A block hidden from its own menu stays hidden until the
+     * latest reload is through, so neither the suggestions nor the count from before show in between, and then comes
+     * back the way the reload's own changes do.
      */
-    const revealHiddenOnceLatest = (): (() => void) => {
+    const reloadSettings = (options: ReloadOptions): void => {
         const reload = ++latestSettingsReload;
         const wasHidden = isHidden;
 
-        return () => {
-            if (wasHidden && reload === latestSettingsReload) {
-                void withViewTransition(() => setIsHidden(false));
-            }
-        };
+        settingsReloadInFlight?.cancel();
+        router.reload({
+            ...options,
+            viewTransition: true,
+            onCancelToken: (token) => {
+                settingsReloadInFlight = token;
+            },
+            onFinish: () => {
+                if (reload !== latestSettingsReload) {
+                    return;
+                }
+
+                settingsReloadInFlight = null;
+
+                if (wasHidden) {
+                    void withViewTransition(() => setIsHidden(false));
+                }
+            },
+        });
     };
 
     const setShowsWhoToFollow = (shows: boolean): void => {
         rememberShowsWhoToFollow(shows);
-        router.reload({
+        reloadSettings({
             only: ['showsWhoToFollow', 'suggestedUsers'],
             reset: ['suggestedUsers'],
-            viewTransition: true,
-            onFinish: revealHiddenOnceLatest(),
         });
     };
 
@@ -83,11 +98,9 @@ export function useWhoToFollow() {
     const setWhoToFollowCount = (count: number): void => {
         setCookie('who_to_follow_count', String(count));
         rememberShowsWhoToFollow(true);
-        router.reload({
+        reloadSettings({
             only: ['showsWhoToFollow', 'whoToFollowCount', 'suggestedUsers'],
             reset: ['suggestedUsers'],
-            viewTransition: true,
-            onFinish: revealHiddenOnceLatest(),
         });
     };
 
