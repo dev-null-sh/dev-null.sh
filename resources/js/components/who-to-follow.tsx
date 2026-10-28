@@ -1,6 +1,7 @@
 import { Deferred, Link, router, usePage } from '@inertiajs/react';
-import { Ellipsis, EyeOff, RefreshCw, X } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { Ellipsis, EyeOff, RefreshCw, Timer, X } from 'lucide-react';
+import type { RefObject } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import SuggestionDismissalController from '@/actions/App/Http/Controllers/SuggestionDismissalController';
 import {
     FollowButton,
@@ -12,6 +13,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -293,7 +295,7 @@ function WhoToFollowRefreshButton({ disabled }: { disabled: boolean }) {
             variant="ghost"
             size="icon"
             className="size-7 text-muted-foreground"
-            onClick={refreshSuggestedUsers}
+            onClick={() => refreshSuggestedUsers()}
             disabled={disabled}
             aria-disabled={isRefreshing}
             aria-label="Suggest other people"
@@ -338,7 +340,9 @@ function WhoToFollowMenu({ onHide }: { onHide: () => void }) {
                     <Ellipsis />
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent align="end" className="w-60">
+                <AutoRefreshItem />
+                <DropdownMenuSeparator />
                 <DropdownMenuItem onSelect={onHide}>
                     <EyeOff />
                     <span>
@@ -354,30 +358,121 @@ function WhoToFollowMenu({ onHide }: { onHide: () => void }) {
 }
 
 /**
- * Hiding only writes the cookie, so the block stays put with an undo until the next visit leaves it out.
+ * Kept open on select, so the switch can be seen to flip.
  */
+function AutoRefreshItem() {
+    const { refreshesWhoToFollow, setRefreshesWhoToFollow } = useWhoToFollow();
+
+    return (
+        <DropdownMenuItem
+            role="menuitemcheckbox"
+            aria-checked={refreshesWhoToFollow}
+            onSelect={(event) => {
+                event.preventDefault();
+                setRefreshesWhoToFollow(!refreshesWhoToFollow);
+            }}
+            data-test="who-to-follow-auto-refresh"
+        >
+            <Timer />
+            <span className="flex-1">
+                Refresh automatically
+                <span className="block font-mono text-xs text-muted-foreground">
+                    watch -n 60
+                </span>
+            </span>
+            <span
+                aria-hidden
+                className={cn(
+                    'inline-flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors',
+                    refreshesWhoToFollow
+                        ? 'bg-primary'
+                        : 'bg-muted-foreground/30',
+                )}
+            >
+                <span
+                    className={cn(
+                        'size-3 rounded-full bg-background shadow-sm transition-transform motion-reduce:transition-none',
+                        refreshesWhoToFollow && 'translate-x-3',
+                    )}
+                />
+            </span>
+        </DropdownMenuItem>
+    );
+}
+
 function useHideWhoToFollow() {
     const { showsWhoToFollow, suggestedUsers, whoToFollowCount } =
         usePage().props;
-    const { rememberShowsWhoToFollow } = useWhoToFollow();
-    const [isHidden, setIsHidden] = useState(false);
-    const { hasDismissed, isEmptied, dismiss } = useDismissSuggestion();
-
-    const toggle = (hides: boolean) => {
-        rememberShowsWhoToFollow(!hides);
-        setIsHidden(hides);
-    };
+    const { isHidden, hideWhoToFollow } = useWhoToFollow();
+    const { hasDismissed, isEmptied, isSettled, dismiss } =
+        useDismissSuggestion();
+    const isVisible =
+        showsWhoToFollow && (suggestedUsers?.length !== 0 || hasDismissed);
+    const block = useRef<HTMLElement>(null);
+    useAutoRefreshSuggestedUsers(
+        block,
+        !isVisible || isHidden || isEmptied || !isSettled,
+    );
 
     return {
-        isVisible:
-            showsWhoToFollow && (suggestedUsers?.length !== 0 || hasDismissed),
+        isVisible,
         isHidden,
         isEmptied,
-        hide: () => toggle(true),
-        undo: () => toggle(false),
+        hide: () => hideWhoToFollow(true),
+        undo: () => hideWhoToFollow(false),
         suggestedUsers: suggestedUsers?.slice(0, whoToFollowCount),
         dismiss,
+        block,
     };
+}
+
+const autoRefreshInterval = 60_000;
+
+/**
+ * Unless switched off, the suggestions move on to the next people every minute. Only the block in view refreshes, so
+ * the one in the log stays put once scrolled past, and not while the tab is in the background, the pointer or keyboard
+ * focus is in the block, or a menu or preview is open, so nobody is swapped out from under a click. Focus a click
+ * leaves behind, like on the menu button once the menu closes, doesn't count. Any change to the suggestions, like a
+ * refresh or a dismissal, starts the minute over.
+ */
+function useAutoRefreshSuggestedUsers(
+    block: RefObject<HTMLElement | null>,
+    isPaused: boolean,
+): void {
+    const { suggestedUsers } = usePage().props;
+    const { refreshesWhoToFollow, refreshSuggestedUsers } = useWhoToFollow();
+    const isActive =
+        refreshesWhoToFollow && !isPaused && suggestedUsers !== undefined;
+
+    const refresh = useEffectEvent(() => {
+        const element = block.current;
+        const bounds = element?.getBoundingClientRect();
+
+        if (
+            document.visibilityState !== 'visible' ||
+            !element?.checkVisibility() ||
+            !bounds ||
+            bounds.bottom <= 0 ||
+            bounds.top >= window.innerHeight ||
+            element.matches(':hover') ||
+            element.querySelector(':focus-visible, [data-state="open"]') ||
+            document.querySelector('[role="dialog"][data-state="open"]')
+        ) {
+            return;
+        }
+
+        refreshSuggestedUsers(true);
+    });
+
+    useEffect(() => {
+        if (!isActive) {
+            return;
+        }
+
+        const interval = window.setInterval(refresh, autoRefreshInterval);
+
+        return () => window.clearInterval(interval);
+    }, [isActive, suggestedUsers]);
 }
 
 type TopUp = 'idle' | 'running' | 'queued';
@@ -569,6 +664,7 @@ function useDismissSuggestion() {
 
     return {
         hasDismissed,
+        isSettled: dismissingCount === 0 && topUp === 'idle',
         isEmptied:
             hasDismissed &&
             dismissingCount === 0 &&
@@ -632,6 +728,7 @@ export function WhoToFollow() {
         undo,
         suggestedUsers,
         dismiss,
+        block,
     } = useHideWhoToFollow();
 
     if (!isVisible) {
@@ -640,6 +737,7 @@ export function WhoToFollow() {
 
     return (
         <section
+            ref={block}
             aria-labelledby="aside-who-to-follow"
             className="-mt-4 border-t pt-4"
         >
@@ -693,6 +791,7 @@ export function WhoToFollowInLog() {
         undo,
         suggestedUsers,
         dismiss,
+        block,
     } = useHideWhoToFollow();
 
     if (!isVisible) {
@@ -700,7 +799,11 @@ export function WhoToFollowInLog() {
     }
 
     return (
-        <section aria-labelledby="log-who-to-follow" className="flex xl:hidden">
+        <section
+            ref={block}
+            aria-labelledby="log-who-to-follow"
+            className="flex xl:hidden"
+        >
             <div aria-hidden className="w-8 shrink-0 sm:w-9" />
             <div className="min-w-0 flex-1 border-b py-4 pr-4">
                 <div

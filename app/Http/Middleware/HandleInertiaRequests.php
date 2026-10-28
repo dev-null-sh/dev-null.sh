@@ -116,6 +116,7 @@ final class HandleInertiaRequests extends Middleware
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
             'whoToFollowCount' => WhoToFollowCount::of($request)->value,
+            'refreshesWhoToFollow' => $request->cookie('who_to_follow_auto_refresh') !== 'false',
             'liveFollowing' => fn (): Collection => $user instanceof User && $hasAside
                 ? resolve(LiveFollowingQuery::class)->get($user)
                 : collect(),

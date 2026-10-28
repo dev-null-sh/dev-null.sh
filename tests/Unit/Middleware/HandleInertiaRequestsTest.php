@@ -266,6 +266,31 @@ it('dims lanes by default or when enabled', function (string $cookie): void {
     expect($shared['dimsLanes'])->toBeTrue();
 })->with(['', 'true']);
 
+it('refreshes who to follow automatically by default or when enabled', function (string $cookie): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+
+    if ($cookie !== '') {
+        $request->cookies->set('who_to_follow_auto_refresh', $cookie);
+    }
+
+    $shared = $middleware->share($request);
+
+    expect($shared['refreshesWhoToFollow'])->toBeTrue();
+})->with(['', 'true']);
+
+it('does not refresh who to follow automatically when disabled', function (): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+    $request->cookies->set('who_to_follow_auto_refresh', 'false');
+
+    $shared = $middleware->share($request);
+
+    expect($shared['refreshesWhoToFollow'])->toBeFalse();
+});
+
 it('does not dim lanes when disabled', function (): void {
     $middleware = new HandleInertiaRequests();
 

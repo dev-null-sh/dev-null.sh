@@ -43,7 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(StripNullBytes::class);
         $middleware->append(PreventFraming::class);
 
-        $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow', 'who_to_follow_round', 'who_to_follow_count', 'lane_dimming', 'replies_per_page', 'time_zone', 'hour_cycle']);
+        $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow', 'who_to_follow_round', 'who_to_follow_count', 'who_to_follow_auto_refresh', 'lane_dimming', 'replies_per_page', 'time_zone', 'hour_cycle']);
 
         $middleware->redirectGuestsTo(fn (): string => route('home'));
         $middleware->redirectUsersTo(fn (Request $request): string => route('log.show', $request->user()->log ?? Log::Following));

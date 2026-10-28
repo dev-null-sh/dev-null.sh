@@ -32,6 +32,7 @@ declare module '@inertiajs/core' {
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
             whoToFollowCount: number;
+            refreshesWhoToFollow: boolean;
             dimsLanes: boolean;
             repliesPerPage: number;
             clock: SharedClock;

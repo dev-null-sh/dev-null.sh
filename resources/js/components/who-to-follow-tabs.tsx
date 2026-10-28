@@ -8,7 +8,8 @@ import { withViewTransition } from '@/lib/utils';
 const counts = [1, 3, 5];
 
 /**
- * Hide stands for 0, so hiding keeps the count chosen before for when the suggestions come back.
+ * Hide stands for 0, so hiding keeps the count chosen before for when the suggestions come back. Hiding or bringing
+ * them back from the block itself moves the selection along.
  */
 export default function WhoToFollowTabs() {
     const {
@@ -17,9 +18,14 @@ export default function WhoToFollowTabs() {
         whoToFollowCount,
         setWhoToFollowCount,
     } = useWhoToFollow();
-    const [selected, setSelected] = useState(
-        showsWhoToFollow ? whoToFollowCount : 0,
-    );
+    const shown = showsWhoToFollow ? whoToFollowCount : 0;
+    const [selected, setSelected] = useState(shown);
+    const [lastShown, setLastShown] = useState(shown);
+
+    if (shown !== lastShown) {
+        setLastShown(shown);
+        setSelected(shown);
+    }
 
     const tabs: { value: number; icon?: LucideIcon; label: string }[] = [
         { value: 0, icon: EyeOff, label: 'Hide' },
