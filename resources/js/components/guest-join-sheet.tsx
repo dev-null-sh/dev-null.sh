@@ -84,8 +84,10 @@ export function GuestJoinSheet() {
                     <p className="font-mono text-[13px] text-muted-foreground">
                         you&rsquo;re reading /dev/null
                     </p>
+                    {/* It changes with each step, so screen readers hear that the link was sent... */}
                     <h2
                         id="guest-join-sheet"
+                        aria-live="polite"
                         className="text-[22px] leading-tight font-semibold tracking-tight"
                     >
                         {step === 'email'
@@ -191,6 +193,15 @@ export function GuestJoinSheet() {
 }
 
 /**
+ * The page being read, without its query when that's longer than the server takes, since the guest can't fix it.
+ */
+function linkPath(): string {
+    const path = window.location.pathname + window.location.search;
+
+    return path.length <= 2000 ? path : window.location.pathname;
+}
+
+/**
  * The link leads back to the page being read. `homepage` is a field people never see, and bots fill in.
  */
 function JoinLinkForm({ onSent }: { onSent: () => void }) {
@@ -237,13 +248,7 @@ function JoinLinkForm({ onSent }: { onSent: () => void }) {
                             Send
                         </Button>
                     </div>
-                    <input
-                        type="hidden"
-                        name="path"
-                        value={
-                            window.location.pathname + window.location.search
-                        }
-                    />
+                    <input type="hidden" name="path" value={linkPath()} />
                     <input
                         type="text"
                         name="homepage"
