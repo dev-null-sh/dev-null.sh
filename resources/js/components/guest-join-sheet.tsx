@@ -1,4 +1,4 @@
-import { Form } from '@inertiajs/react';
+import { Form, usePage } from '@inertiajs/react';
 import {
     ArrowDown,
     EllipsisVertical,
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { trackJoinLinkSent } from '@/lib/analytics';
 import type { InAppBrowser } from '@/lib/in-app-browser';
 import { inAppBrowser } from '@/lib/in-app-browser';
+import { formatExactCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import { login } from '@/routes';
 
@@ -47,7 +48,8 @@ function dismiss(): void {
 
 /**
  * On a phone, guests don't see the aside that tells desktop visitors what /dev/null is, so this sheet does, with the
- * button where the thumb is. It stays out of the server render and opens once the page has loaded, unless the guest
+ * button where the thumb is. Its title says how many developers are here: a trending commit with two stars could
+ * otherwise pass for an empty network. It stays out of the server render and opens once the page has loaded, unless the guest
  * closed it earlier in this browser session. Signing in leaves for GitHub, so the button is a plain link. In an app's
  * browser, it also shows how to open the page in the phone's browser, where the guest may already be signed in to
  * GitHub. Someone who isn't signed in to GitHub on their phone at all can get a link by email, to join from their
@@ -55,6 +57,7 @@ function dismiss(): void {
  */
 export function GuestJoinSheet() {
     const isHidden = useSyncExternalStore(subscribe, isDismissed, () => true);
+    const { developersCount } = usePage().props;
     const [step, setStep] = useState<'pitch' | 'email' | 'sent'>('pitch');
 
     if (isHidden) {
@@ -85,11 +88,13 @@ export function GuestJoinSheet() {
                         id="guest-join-sheet"
                         className="text-[22px] leading-tight font-semibold tracking-tight"
                     >
-                        {step === 'pitch'
-                            ? 'Only developers post here.'
-                            : step === 'email'
-                              ? 'Join from your computer.'
-                              : 'Sent. See you on your computer.'}
+                        {step === 'email'
+                            ? 'Join from your computer.'
+                            : step === 'sent'
+                              ? 'Sent. See you on your computer.'
+                              : developersCount
+                                ? `Join ${formatExactCount(developersCount)}+ developers.`
+                                : 'Only developers post here.'}
                     </h2>
                 </div>
                 <button

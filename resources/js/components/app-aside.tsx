@@ -16,7 +16,7 @@ import { WordmarkText } from '@/components/wordmark-text';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { commitStateKey } from '@/lib/commit-state';
 import { useKeyLabels } from '@/lib/keyboard';
-import { exactCountTitle, formatCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
 import { laneColor } from '@/lib/utils';
 import { login } from '@/routes';
 import { show } from '@/routes/user';
@@ -29,6 +29,7 @@ export function AppAside({
     onSearch: () => void;
 }) {
     const { user } = usePage().props.auth;
+    const { developersCount } = usePage().props;
     const keys = useKeyLabels();
     const [commitsCount] = useSharedState(
         commitStateKey('commits_count', user?.id ?? ''),
@@ -59,8 +60,9 @@ export function AppAside({
                         <WordmarkText>New to /dev/null?</WordmarkText>
                     </h2>
                     <p className="mt-1 text-sm text-pretty text-muted-foreground">
-                        Sign in with GitHub to follow developers, star commits,
-                        and join the conversation.
+                        {developersCount
+                            ? `${formatExactCount(developersCount)}+ developers are already here. Sign in with GitHub to follow them, star commits, and join the conversation.`
+                            : 'Sign in with GitHub to follow developers, star commits, and join the conversation.'}
                     </p>
                     <Button className="mt-4 w-full" asChild>
                         <a href={login().url} data-test="aside-login-button">
