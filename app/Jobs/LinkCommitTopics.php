@@ -7,6 +7,7 @@ namespace App\Jobs;
 use App\Actions\UpdateCommitTopics;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Backoff;
@@ -14,7 +15,8 @@ use Illuminate\Queue\Attributes\DeleteWhenMissingModels;
 use Illuminate\Queue\Attributes\Tries;
 
 /**
- * Runs once a commit is approved, so only commits everyone can read spend GitHub's rate limit.
+ * Runs once a commit is approved, so only commits everyone can read spend GitHub's rate limit, and again once the rate
+ * limit resets when it cut the lookups short.
  */
 #[Backoff([60, 600])]
 #[Tries(3)]
@@ -49,6 +51,10 @@ final class LinkCommitTopics implements ShouldQueue
 
     public function handle(UpdateCommitTopics $action): void
     {
-        $action->handle($this->commit);
+        $retryAt = $action->handle($this->commit);
+
+        if ($retryAt instanceof CarbonImmutable) {
+            $this->release($retryAt);
+        }
     }
 }

@@ -160,7 +160,7 @@ it('asks GitHub about five handles per commit at most', function (): void {
     Http::assertSentCount(5);
 });
 
-it('waits for the rate limit to reset once few requests are left', function (): void {
+it('waits for the rate limit to reset once few requests are left, and says when to try again', function (): void {
     $resetsAt = now()->addMinutes(30)->startOfSecond();
 
     Http::fake([
@@ -173,16 +173,16 @@ it('waits for the rate limit to reset once few requests are left', function (): 
 
     $commit = Commit::factory()->create(['body' => '@laravel @symfony', 'mentions' => []]);
 
-    resolve(UpdateCommitTopics::class)->handle($commit);
+    $retryAt = resolve(UpdateCommitTopics::class)->handle($commit);
 
     Http::assertSentCount(1);
-    expect($commit->refresh()->organization_mentions)->toHaveKey('laravel')
+    expect($retryAt?->getTimestamp())->toBe($resetsAt->getTimestamp())
+        ->and($commit->refresh()->organization_mentions)->toHaveKey('laravel')
         ->and(Cache::has('github-organizations:paused'))->toBeTrue();
 
     $this->travelTo($resetsAt->addSecond());
 
-    resolve(UpdateCommitTopics::class)->handle($commit);
-
+    expect(resolve(UpdateCommitTopics::class)->handle($commit))->toBeNull();
     Http::assertSentCount(2);
 });
 
@@ -193,8 +193,7 @@ it('keeps asking while enough requests are left', function (): void {
 
     $commit = Commit::factory()->create(['body' => '@laravel @symfony', 'mentions' => []]);
 
-    resolve(UpdateCommitTopics::class)->handle($commit);
-
+    expect(resolve(UpdateCommitTopics::class)->handle($commit))->toBeNull();
     Http::assertSentCount(2);
     expect(Cache::has('github-organizations:paused'))->toBeFalse();
 });

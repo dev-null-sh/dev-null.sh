@@ -43,14 +43,14 @@ final readonly class UpdateCommitTopics
      * Asks GitHub about the handles the commit mentions that are neither a user nor a known organization, and
      * refreshes the known organizations it mentions once their profile is a day old, then links the commit to them.
      * A handle that isn't an organization's isn't asked about again for a day, and an organization GitHub no longer
-     * has is deleted, with the links to it.
+     * has is deleted, with the links to it. Returns when to try again if the rate limit cut the lookups short.
      */
-    public function handle(Commit $commit): void
+    public function handle(Commit $commit): ?CarbonImmutable
     {
         $handles = $commit->mentionedNonUsers();
 
         if ($handles === []) {
-            return;
+            return null;
         }
 
         $known = Profile::query()
@@ -78,8 +78,14 @@ final readonly class UpdateCommitTopics
             ->values()
             ->all();
 
+        $retryAt = null;
+
         foreach ($lookups as [$path, $notFound]) {
-            if (Cache::has('github-organizations:paused')) {
+            $pausedUntil = Cache::get('github-organizations:paused');
+
+            if (is_int($pausedUntil)) {
+                $retryAt = CarbonImmutable::createFromTimestamp($pausedUntil);
+
                 break;
             }
 
@@ -87,7 +93,8 @@ final readonly class UpdateCommitTopics
             $remaining = $response->header('X-RateLimit-Remaining');
 
             if ($remaining !== '' && (int) $remaining < self::RateLimitFloor) {
-                Cache::put('github-organizations:paused', true, CarbonImmutable::createFromTimestamp((int) $response->header('X-RateLimit-Reset')));
+                $resetsAt = CarbonImmutable::createFromTimestamp((int) $response->header('X-RateLimit-Reset'));
+                Cache::put('github-organizations:paused', $resetsAt->getTimestamp(), $resetsAt);
             }
 
             if ($response->notFound() || $response->throw()->json('type') !== 'Organization') {
@@ -103,5 +110,7 @@ final readonly class UpdateCommitTopics
         }
 
         $this->createCommitTopics->handle($commit, $this->mentionedOrganizations->get($commit->body, $commit->mentions ?? []));
+
+        return $retryAt;
     }
 }
