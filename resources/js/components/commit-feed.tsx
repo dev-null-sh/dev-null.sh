@@ -8,6 +8,7 @@ import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { useNow } from '@/hooks/use-now';
 import {
     restoreFeedCommit,
+    restoredCommitBelongsInFeed,
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
 import { isDeliberateHover } from '@/lib/feed-hover';
@@ -54,6 +55,8 @@ export function CommitFeed({
             : null;
     const isProfileReplies =
         profileUserId !== null && page.props.tab === 'replies';
+    const isProfileShipped =
+        profileUserId !== null && page.props.tab === 'shipped';
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
     );
@@ -141,15 +144,15 @@ export function CommitFeed({
                     );
                 }
                 if (restored) {
-                    const belongsInFeed =
-                        (isStarred
-                            ? restored.starred === true
-                            : isProfileReplies
-                              ? restored.parent_id !== null
-                              : restored.parent_id === null) &&
-                        (profileUserId === null ||
-                            (restored.user_id === profileUserId &&
-                                !restored.is_pinned));
+                    const belongsInFeed = restoredCommitBelongsInFeed(
+                        restored,
+                        {
+                            isStarred,
+                            isProfileReplies,
+                            isProfileShipped,
+                            profileUserId,
+                        },
+                    );
 
                     router.replaceProp('commits.data', (rows: Commit[]) =>
                         belongsInFeed
@@ -166,7 +169,14 @@ export function CommitFeed({
                     );
                 }
             }),
-        [profileUserId, isModeration, isProfileReplies, isStarred, isRanked],
+        [
+            profileUserId,
+            isModeration,
+            isProfileReplies,
+            isProfileShipped,
+            isStarred,
+            isRanked,
+        ],
     );
 
     // A ranked commit can move to a later page while the feed scrolls, so each one is only listed once.
