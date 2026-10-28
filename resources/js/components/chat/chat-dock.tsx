@@ -218,17 +218,22 @@ function DockedChat({ user }: { user: User }) {
                                     avatarClassName="size-6"
                                 />
                             )}
-                            <span className="min-w-0 truncate text-sm font-semibold">
-                                {target.kind === 'direct'
-                                    ? target.partner.name
-                                    : orgTitle(
-                                          target.org,
-                                          thread?.members ??
-                                              summary?.members ??
-                                              null,
-                                          user,
-                                      )}
-                            </span>
+                            <div className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-semibold">
+                                    {target.kind === 'direct'
+                                        ? target.partner.name
+                                        : orgTitle(
+                                              target.org,
+                                              thread?.members ??
+                                                  summary?.members ??
+                                                  null,
+                                              user,
+                                          )}
+                                </span>
+                                {target.kind === 'direct' && (
+                                    <RemoteLocalTime partner={target.partner} />
+                                )}
+                            </div>
                             {unread > 0 && (
                                 <span
                                     title={`${unread} unread conversations`}
