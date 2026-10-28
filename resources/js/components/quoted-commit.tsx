@@ -19,9 +19,11 @@ import type { DeletedCommit, QuotedCommit as QuotedCommitData } from '@/types';
 export function QuotedCommit({
     commit,
     isPreview = false,
+    label = 'Quoting',
 }: {
     commit: QuotedCommitData | DeletedCommit | null;
     isPreview?: boolean;
+    label?: string;
 }) {
     const now = useNow();
     if (commit === null || isDeleted(commit)) {
@@ -45,7 +47,7 @@ export function QuotedCommit({
     const content = (
         <>
             <span className="flex min-w-0 items-center gap-1.5 text-sm">
-                <span className="sr-only">Quoting</span>
+                <span className="sr-only">{label}</span>
                 <UserAvatar user={commit.user} className="size-5" />
                 <span className="truncate font-semibold">
                     {commit.user.name}

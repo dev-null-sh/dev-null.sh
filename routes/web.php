@@ -250,6 +250,10 @@ Route::get('mentions/{user}/preview', [UserPreviewController::class, 'show'])
 Route::get('@{user:handle}/preview', [UserPreviewController::class, 'show'])
     ->middleware('throttle:people')
     ->name('user-preview.show');
+Route::get('@{user:handle}/commits/{commit}/preview', [CommitPreviewController::class, 'show'])
+    ->scopeBindings()
+    ->whereUuid('commit')
+    ->name('commit-preview.show');
 Route::get('@{user:handle}/og.png', [UserOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
 Route::get('@{user:handle}/feed.atom', [UserFeedController::class, 'show'])

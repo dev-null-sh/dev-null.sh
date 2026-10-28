@@ -6,6 +6,7 @@ namespace App\Jobs;
 
 use App\Actions\UpdateLinkPreview;
 use App\Models\LinkPreview;
+use App\Services\CommitLinks;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Backoff;
@@ -27,9 +28,15 @@ final class UnfurlLink implements ShouldQueue
     /**
      * Commits that share a link may each queue this job before the first one runs, so only the first one fetches.
      */
-    public function handle(UpdateLinkPreview $action): void
+    public function handle(UpdateLinkPreview $action, CommitLinks $commitLinks): void
     {
         if ($this->linkPreview->fetched_at !== null) {
+            return;
+        }
+
+        if ($commitLinks->previewUrl($this->linkPreview->url) !== null) {
+            $this->linkPreview->update(['fetched_at' => now()]);
+
             return;
         }
 
