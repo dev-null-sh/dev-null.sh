@@ -14,6 +14,7 @@ import OrgController from '@/actions/App/Http/Controllers/OrgController';
 import { ConversationActions } from '@/components/chat/conversation-actions';
 import { ConversationThread } from '@/components/chat/conversation-thread';
 import { InboxPanel } from '@/components/chat/inbox-panel';
+import { RemoteLocalTime } from '@/components/chat/remote-local-time';
 import { MemberStack, OrgHeader, orgTitle } from '@/components/chat/org';
 import { SearchDialog } from '@/components/search-dialog';
 import {
@@ -310,7 +311,7 @@ function DirectDockHeader({
             <Link
                 href={show(partner)}
                 prefetch
-                className="group min-w-0 rounded-md"
+                className="group min-w-0 flex-1 rounded-md"
                 title={partner.name}
             >
                 <span className="block truncate text-sm font-semibold group-hover:underline">
@@ -319,6 +320,7 @@ function DirectDockHeader({
                 <span className="block truncate font-mono text-[11px] text-muted-foreground">
                     @{partner.handle}
                 </span>
+                <RemoteLocalTime partner={partner} />
             </Link>
             <ConversationActions
                 target={{ kind: 'direct', partner }}
