@@ -7,6 +7,8 @@
     "include": [
         "Unit/**/*.test.ts",
         "Unit/**/*.test.tsx",
+        "Browser/**/*.ts",
+        "Browser/**/*.tsx",
         "../resources/js/types/*.d.ts",
         "draft-images.config.ts"
     ]

@@ -1560,6 +1560,9 @@ function ReplyComposer({
                 message={
                     errors.body ??
                     errors.reply_recipients ??
+                    Object.entries(errors).find(([key]) =>
+                        key.startsWith('reply_recipients.'),
+                    )?.[1] ??
                     errors.link_preview_url
                 }
                 className="px-1"
