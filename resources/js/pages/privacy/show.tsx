@@ -119,6 +119,17 @@ export default function Show() {
                                 quotes, and mentions.
                             </>,
                             <>
+                                <strong>
+                                    From the join link, if you ask for one:
+                                </strong>{' '}
+                                the email address you enter on your phone, used
+                                only to send you one email with a link back to
+                                the page you were reading. We keep a keyed hash
+                                of it for 30 days, so the same address doesn't
+                                get it twice, and don't keep the address once
+                                the email is sent.
+                            </>,
+                            <>
                                 <strong>Technical data:</strong> IP address,
                                 browser and device information, logs, and how
                                 you use the service, such as the last day you

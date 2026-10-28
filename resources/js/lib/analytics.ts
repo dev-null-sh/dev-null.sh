@@ -12,11 +12,22 @@ const GUEST_VISIT_TRACKED = 'devnull:guest-visit-tracked';
 /**
  * The Fathom events behind the conversion rate of the Metrics tab: a visit by someone not signed in, once per browser
  * session, a tap on a link to sign in, and a signup, right after an account is created. A tap without a signup is
- * someone who gave up at GitHub. All come from Fathom, so ad blockers hide the same share of each and the rates
+ * someone who gave up at GitHub. A guest on a phone can also ask for a link by email, which counts when it's sent and
+ * when it's opened, from the `ref` the link carries. All come from Fathom, so ad blockers hide the same share of each and the rates
  * between them hold. Fathom's deferred script runs before the app's module script, so it is ready by then, unless it
  * is blocked or left out outside production, and then nothing is sent.
  */
 export function trackAnalyticsEvents(): void {
+    const url = new URL(window.location.href);
+
+    if (url.searchParams.get('ref') === 'join-link') {
+        window.fathom?.trackEvent('join-link-visit');
+
+        // Out of the address bar, so a copied link doesn't count again...
+        url.searchParams.delete('ref');
+        window.history.replaceState(window.history.state, '', url);
+    }
+
     router.on('navigate', (event) => {
         if (event.detail.page.props.auth.user) {
             return;
@@ -62,4 +73,8 @@ export function trackAnalyticsEvents(): void {
  */
 export function trackSignInTap(): void {
     window.fathom?.trackEvent('signin-click');
+}
+
+export function trackJoinLinkSent(): void {
+    window.fathom?.trackEvent('join-link-sent');
 }

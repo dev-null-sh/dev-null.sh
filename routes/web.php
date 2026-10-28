@@ -55,6 +55,7 @@ use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
+use App\Http\Controllers\JoinLinkController;
 use App\Http\Controllers\LinkController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
@@ -158,6 +159,11 @@ Route::middleware('guest')->group(function (): void {
     Route::get('auth/github/callback', [SessionController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('login.store');
+
+    // A link by email, for a guest on a phone who'd rather join from their computer...
+    Route::post('join-links', [JoinLinkController::class, 'store'])
+        ->middleware('throttle:join-links')
+        ->name('join-link.store');
 });
 
 // Log, where guests read Trending and Latest...
