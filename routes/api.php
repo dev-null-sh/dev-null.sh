@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\CommitPastelController;
 use App\Http\Controllers\Api\CommitPinController;
 use App\Http\Controllers\Api\CommitPollVoteController;
 use App\Http\Controllers\Api\CommitPreviewController;
+use App\Http\Controllers\Api\CommitProofController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CommitReportController;
 use App\Http\Controllers\Api\CommitRestorationController;
@@ -101,6 +102,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-user-followers.index');
         Route::get('users/{user:handle}/following', [UserFollowingController::class, 'index'])
             ->name('api-user-following.index');
+        Route::get('commits/{commit}/proof', [CommitProofController::class, 'show'])
+            ->name('api-commit-proof.show');
         Route::get('commits/{commit}', [ApiCommitController::class, 'show'])
             ->name('api-commit.show');
         Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index'])
