@@ -15,6 +15,14 @@ export type GraphNode = Point & {
     dimmed?: boolean;
     /** On its way out, like an end dot scaling out as the thread goes on below it: linked to nothing, it only keeps its cut-out. */
     isLeaving?: boolean;
+    /** What hangs off the node beyond its ring, like a LIVE badge, cut out of the lines too. */
+    overhangs?: Overhang[];
+};
+
+export type Overhang = Point & {
+    width: number;
+    height: number;
+    radius: number;
 };
 
 export type GraphEdge = {
