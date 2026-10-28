@@ -12,6 +12,7 @@ let component = 'user/show';
 let log: string | undefined;
 let loadedCommits: { data: { id: string }[] } | undefined;
 let suggestedUsers: SuggestedUser[] | undefined;
+let viewer: { id: string } | null = { id: 'viewer' };
 type VisitOptions = {
     only?: string[];
     headers?: Record<string, string>;
@@ -57,7 +58,7 @@ vi.doMock('@inertiajs/react', async () => ({
     usePage: () => ({
         component,
         props: {
-            auth: { user: { id: 'viewer' } },
+            auth: { user: viewer },
             log,
             commits: loadedCommits,
             showsWhoToFollow: true,
@@ -120,6 +121,7 @@ afterEach(() => {
     log = undefined;
     loadedCommits = undefined;
     suggestedUsers = undefined;
+    viewer = { id: 'viewer' };
     refreshSharedState(
         new Map<string, boolean | number | string>([
             ['who-to-follow-dismissing', 0],
@@ -394,6 +396,17 @@ test('a follow from their preview that lands after logging out stays out of the 
     visits.at(-1)?.onSuccess?.();
 
     assert.deepEqual(changes, []);
+});
+
+test('after logging out a preview offers to follow someone the last account followed', () => {
+    const user = suggestion('previous');
+    followFromProfile(user);
+    viewer = null;
+
+    assert.equal(
+        previewFollowButton(user, false).props['aria-label'],
+        'Follow @previous',
+    );
 });
 
 test('a preview unfollow that fails after a block keeps who to follow unfollowed', () => {

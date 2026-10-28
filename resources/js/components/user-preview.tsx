@@ -371,7 +371,8 @@ function UserPreviewContent({
     );
 
     const [pendingFollows, setPendingFollows] = useState<boolean | null>(null);
-    const shownIsFollowing = pendingFollows ?? isFollowing;
+    const shownIsFollowing =
+        auth.user !== null && (pendingFollows ?? isFollowing);
 
     /**
      * The button flips right away, but like every other follow control the shared state only changes once the server confirms, so there is nothing to roll back.
