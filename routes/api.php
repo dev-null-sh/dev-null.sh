@@ -5,11 +5,15 @@ declare(strict_types=1);
 use App\Exceptions\ApiException;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
+use App\Http\Controllers\Api\CommitPinController;
 use App\Http\Controllers\Api\CommitPollVoteController;
 use App\Http\Controllers\Api\CommitPreviewController;
 use App\Http\Controllers\Api\CommitReplyController;
 use App\Http\Controllers\Api\CommitReportController;
+use App\Http\Controllers\Api\CommitRestorationController;
+use App\Http\Controllers\Api\CommitSearchController;
 use App\Http\Controllers\Api\CommitStarController;
+use App\Http\Controllers\Api\CommitTranslationController;
 use App\Http\Controllers\Api\ConversationArchiveController;
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\ConversationDropController;
@@ -22,8 +26,10 @@ use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\IssueSuggestionController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\MacAppController;
+use App\Http\Controllers\Api\MentionSuggestionController;
 use App\Http\Controllers\Api\MessageImageController;
 use App\Http\Controllers\Api\MessageLinkPreviewController;
 use App\Http\Controllers\Api\MessagePinController;
@@ -42,9 +48,12 @@ use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\OrgTypingController;
 use App\Http\Controllers\Api\RelatedCommitController;
 use App\Http\Controllers\Api\RemoteCandidateController;
+use App\Http\Controllers\Api\ScheduledCommitController;
+use App\Http\Controllers\Api\ScheduledCommitSubmissionController;
 use App\Http\Controllers\Api\StarredCommitController;
 use App\Http\Controllers\Api\SuggestedUserController;
 use App\Http\Controllers\Api\SuggestionDismissalController;
+use App\Http\Controllers\Api\UserAutomaticTranslationController;
 use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
@@ -57,7 +66,11 @@ use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\UserRemotePreferencesController;
 use App\Http\Controllers\Api\UserRemotesController;
+use App\Http\Controllers\Api\UserSearchController;
+use App\Http\Controllers\Api\UserSettingsController;
 use App\Http\Controllers\Api\UserTermsController;
+use App\Http\Controllers\Api\UserTimezoneController;
+use App\Http\Controllers\Api\UserTranslationLanguageController;
 use App\Http\Controllers\Cli\CommitController;
 use App\Http\Controllers\Cli\KeyLookupController;
 use App\Http\Middleware\AuthenticateSignedRequest;
@@ -132,6 +145,36 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // User Lane...
         Route::put('me/lane', [UserLaneController::class, 'update'])->name('api-user-lane.update');
 
+        // User Settings: what the web's settings show only the user...
+        Route::get('me/settings', [UserSettingsController::class, 'show'])->name('api-user-settings.show');
+
+        // User Timezone and Translation, as the web's settings save them...
+        Route::put('me/timezone', [UserTimezoneController::class, 'update'])->name('api-user-timezone.update');
+        Route::put('me/automatic-translation', [UserAutomaticTranslationController::class, 'update'])->name('api-user-automatic-translation.update');
+        Route::put('me/translation-language', [UserTranslationLanguageController::class, 'update'])->name('api-user-translation-language.update');
+
+        // Devices: the keys approved to sign as the user, as the web's Devices page lists and revokes them...
+        Route::get('me/devices', [DeviceController::class, 'index'])->name('api-device.index');
+        Route::delete('me/devices/{device}', [DeviceController::class, 'destroy'])
+            ->whereUuid('device')
+            ->name('api-device.destroy');
+
+        // Search: people by name or handle, and commits by meaning, as the web's search finds them...
+        Route::get('search/users', [UserSearchController::class, 'index'])
+            ->middleware('throttle:people')
+            ->name('api-user-search.index');
+        Route::get('search/commits', [CommitSearchController::class, 'index'])
+            ->middleware('throttle:search')
+            ->name('api-commit-search.index');
+
+        // Composer suggestions: people to mention and /dev/null issues to reference, as the web's composer suggests them...
+        Route::get('search/mentions', [MentionSuggestionController::class, 'index'])
+            ->middleware('throttle:people')
+            ->name('api-mention-suggestion.index');
+        Route::get('search/issues', [IssueSuggestionController::class, 'index'])
+            ->middleware('throttle:issue-suggestions')
+            ->name('api-issue-suggestion.index');
+
         // User Remotes: the switch from the web's settings, and the settings menu on its Remotes page...
         Route::put('me/remotes', [UserRemotesController::class, 'update'])->name('api-user-remotes.update');
         Route::put('me/remote-preferences', [UserRemotePreferencesController::class, 'update'])
@@ -146,6 +189,37 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
             ->name('api-commit.store');
         Route::delete('commits/{commit}', [ApiCommitController::class, 'destroy'])->name('api-commit.destroy');
+
+        // Commit Restoration: undoing a deletion within its undo window...
+        Route::post('commits/{commit}/restoration', [CommitRestorationController::class, 'store'])
+            ->withTrashed()
+            ->name('api-commit-restoration.store');
+
+        // Scheduled Commits: the queue only the user sees until each one is submitted...
+        Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('api-scheduled-commit.index');
+        Route::post('scheduled-commits', [ScheduledCommitController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, RequireCommitRules::class, ThrottleCommits::class])
+            ->name('api-scheduled-commit.store');
+        Route::delete('scheduled-commits/{scheduledCommit}', [ScheduledCommitController::class, 'destroy'])
+            ->whereUuid('scheduledCommit')
+            ->name('api-scheduled-commit.destroy');
+        Route::post('scheduled-commits/{scheduledCommit}/submission', [ScheduledCommitSubmissionController::class, 'store'])
+            ->whereUuid('scheduledCommit')
+            ->middleware([PreventPostingInTimeout::class, ThrottleCommits::class])
+            ->name('api-scheduled-commit-submission.store');
+
+        // Commit Pin: the author's commit at the top of their profile...
+        Route::put('commits/{commit}/pin', [CommitPinController::class, 'update'])
+            ->middleware('throttle:pins')
+            ->name('api-commit-pin.update');
+        Route::delete('commits/{commit}/pin', [CommitPinController::class, 'destroy'])
+            ->middleware('throttle:pins')
+            ->name('api-commit-pin.destroy');
+
+        // Commit Translation...
+        Route::post('commits/{commit}/translation', [CommitTranslationController::class, 'store'])
+            ->middleware('throttle:10,1,translations:')
+            ->name('api-commit-translation.store');
 
         // Commit Preview: a draft as the commit it would become, which keeps nothing...
         Route::post('commits/preview', [CommitPreviewController::class, 'store'])->name('api-commit-preview.store');

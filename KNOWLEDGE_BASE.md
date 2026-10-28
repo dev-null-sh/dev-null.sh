@@ -483,7 +483,7 @@ An app can use the same `/api/v1` for you with signed requests. It keeps an SSH 
 A signed request sees what the web shows you, such as your own pending commits. It can also, with the web's validation, moderation, and rate limits:
 
 - read your account, logs, replies, notifications (including grouped activity), and starred commits;
-- commit, reply, and quote, with images, and delete your commits;
+- commit, reply, and quote, with images, and delete your commits, with the same undo window as the web;
 - preview commit drafts without publishing them;
 - follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
 - read who to follow, also as it is suggested beside a profile or a commit, and mark a suggestion not interested;
@@ -494,26 +494,36 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - stash or reopen conversations and orgs, pin and mute them, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
 - report commits;
-- sync from GitHub and save your lane color;
+- search people by name or handle, and commits by meaning, with the web's limit of 15 commit searches a minute;
+- schedule commits, list your queue, cancel a scheduled commit, or post it early;
+- pin a commit to your profile, or unpin it;
+- translate commits;
+- suggest people to mention and /dev/null issues to reference while writing;
+- sync from GitHub, save your lane color, timezone, and translation language, and turn automatic translation on or off;
+- list your devices and revoke them;
 - delete your account.
 
-Signed request bodies are JSON, or multipart when they carry images or a voice note, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Scheduling, search, and translations remain web-only. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
+Signed request bodies are JSON, or multipart when they carry images or a voice note, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
 
 ### Mac app
 
-**/dev/null for Mac** is a native Mac app for Remotes: direct remotes and orgs with replies, reactions, images, link cards, voice notes, pull receipts, and notifications. It is free, universal (Apple silicon and Intel), and requires macOS 14 or later. Download it from **/apps**, the home for /dev/null's apps, which shows the version, size, release date, and SHA-256 checksum of the current download (`/mac` redirects there, and **Settings → Devices** links to it).
+**/dev/null for Mac** is a native Mac app for all of /dev/null: the Following, Latest, and Trending logs, writing and scheduling commits, replies, quotes, polls, stars, Starred, notifications, profiles, search, and Remotes. It is free, universal (Apple silicon and Intel), and requires macOS 14 or later. Download it from **/apps**, the home for /dev/null's apps, which shows the version, size, release date, and SHA-256 checksum of the current download (`/mac` redirects there, and **Settings → Devices** links to it).
 
 To install it, open `DevNull.dmg`, drag /dev/null onto Applications, and open it. The file is named `DevNull.app`, because a slash can't go in a file name; everywhere else, the app is called /dev/null. The app is signed and notarized by Apple, so macOS opens it without a warning.
 
-On first launch, choose **Sign in with GitHub**: the app opens `/mobile/authorize` in your browser, you approve its key, and the Mac shows up under **Settings → Devices** like any other device, where you can revoke it. It uses the same signed API as the phone app, with the same limits, and gets new messages by polling while it runs; there are no push notifications after you quit it.
+On first launch, choose **Sign in with GitHub**: the app opens `/mobile/authorize` in your browser, you approve its key, and the Mac shows up under **Settings → Devices** like any other device, where you can revoke it. It uses the same signed API as the phone app, with the same limits, moderation, and rules as the web.
 
-Privacy on the Mac: the device key stays in the Keychain, notification banners never show what a message says, and messages and images are kept in memory only, so besides a few preferences nothing is saved on the Mac. **Sign Out** deletes the key.
+The window is a workspace. The sidebar lists everything you can read in three sections: **Logs** (Following, Latest, Trending), **Remotes** (your pinned and recent remotes and orgs, All Remotes, and Stashed), and **You** (Notifications, Starred, Scheduled, and your profile). The middle shows what you picked, and every log is drawn on the same `git log --graph` rail as the web. Replies open in a pane on the right, so the log never moves; profiles, commit pages, and search results open in the middle with Back and Forward. **⌘K** searches people, remotes, and commits by meaning. Every action is in the menu bar with a shortcut, the web's keyboard shortcuts work in any list, and **?** shows them. **⌘N** writes a new commit; **⇧⌘N** starts a new remote and **⌥⇧⌘N** a new org.
+
+Logs and notifications are checked about every 30 seconds while the app is in front and every few minutes in the background, and new commits wait behind a button instead of moving what you are reading. A log's new-commit count is a quiet number, never a badge; the Dock badge counts unread remotes and notifications only. Activity never shows a banner, and remote banners never show what a message says. There are no push notifications after you quit the app.
+
+Privacy on the Mac: the device key stays in the Keychain, and commits, messages, notifications, profiles, and images are kept in memory only, so besides a few preferences nothing is saved on the Mac. Drafts last until you quit /dev/null. Your profile is mirrored from GitHub and edited there, never in the app; data export and account settings that live on the web open in your browser. **Sign Out** deletes the key.
 
 Updates: **Check for Updates…** in the app menu compares the installed build with the one /apps offers and opens /apps when there is a newer one; the app also checks quietly once a day while it runs. The check is an unsigned request that sends nothing about you or your account. To update, download the new DMG and replace the app in Applications; you stay signed in. The **About /dev/null** window shows the version and build, links to the site, /apps, the privacy policy and Manage Devices, and credits.
 
-Sources: [apps page](resources/js/pages/app/index.tsx), [release endpoint](app/Http/Controllers/Api/MacAppController.php), [About window](https://github.com/dev-null-sh/mac-os-app/blob/main/Sources/DevNull/Views/AboutView.swift), [update check](https://github.com/dev-null-sh/mac-os-app/blob/main/Sources/DevNull/App/Updates.swift), [API routes](routes/api.php).
+Sources: [apps page](resources/js/pages/app/index.tsx), [release endpoint](app/Http/Controllers/Api/MacAppController.php), [design](https://github.com/dev-null-sh/mac-os-app/blob/main/DESIGN.md), [About window](https://github.com/dev-null-sh/mac-os-app/blob/main/Sources/DevNull/Views/AboutView.swift), [update check](https://github.com/dev-null-sh/mac-os-app/blob/main/Sources/DevNull/App/Updates.swift), [API routes](routes/api.php).
 
 ### Bug reports and feature requests
 
