@@ -362,6 +362,14 @@ function overhangsOf(element: HTMLElement, box: DOMRect): Overhang[] {
     });
 }
 
+function isOverhang(node: Node): boolean {
+    return (
+        node instanceof HTMLElement &&
+        (node.dataset.graphOverhang !== undefined ||
+            node.querySelector('[data-graph-overhang]') !== null)
+    );
+}
+
 /**
  * The CSS animations running on a node and on the elements around it, up to the canvas, with the time they have left.
  */
@@ -572,7 +580,8 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
 
         // Nodes also move without anything resizing, like cards trading places when the feed reorders. Other changes
         // inside a card, like an image done loading, move no node unless they resize the container, which the resize
-        // observer reports.
+        // observer reports. An overhang, like the LIVE badge as its user goes live, comes and goes out of the layout,
+        // so nothing resizes either.
         const mutations = new MutationObserver((records) => {
             const elements = [
                 ...[...entries.current.values()].map(({ element }) => element),
@@ -581,11 +590,15 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             departed.current.clear();
 
             if (
-                records.some((record) =>
-                    [...record.addedNodes, ...record.removedNodes].some(
-                        (node) =>
+                records.some(
+                    ({ target, addedNodes, removedNodes }) =>
+                        [...addedNodes, ...removedNodes].some((node) =>
                             elements.some((element) => node.contains(element)),
-                    ),
+                        ) ||
+                        ([...addedNodes, ...removedNodes].some(isOverhang) &&
+                            elements.some((element) =>
+                                element.contains(target),
+                            )),
                 )
             ) {
                 measureNow();
