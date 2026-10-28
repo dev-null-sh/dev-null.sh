@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\Log;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\SyncGitHubSshKeysJob;
 use App\Models\Commit;
 use App\Models\SshKey;
@@ -62,11 +63,16 @@ it('queues the sync again after the short lock expires', function (): void {
 it('does not queue a sync for what a page requests on its own', function (array $headers): void {
     Queue::fake();
 
-    $this->actingAs($this->user)->get(route('log.show', Log::Following), $headers);
+    if (array_key_exists('X-Inertia', $headers)) {
+        $headers['X-Inertia-Version'] = (string) new HandleInertiaRequests()->version(request());
+    }
+
+    $this->actingAs($this->user)->get(route('log.show', Log::Following), $headers)->assertOk();
 
     Queue::assertNotPushed(SyncGitHubSshKeysJob::class);
 })->with([
     'a partial reload' => [['X-Inertia' => 'true', 'X-Inertia-Partial-Component' => 'log/show', 'X-Inertia-Partial-Data' => 'commits']],
+    'an except-only partial reload' => [['X-Inertia' => 'true', 'X-Inertia-Partial-Component' => 'log/show', 'X-Inertia-Partial-Except' => 'commits']],
     'a prefetch' => [['Purpose' => 'prefetch']],
     'a json request' => [['Accept' => 'application/json']],
 ]);
@@ -75,6 +81,27 @@ it('does not queue a sync for a request that fails', function (): void {
     Queue::fake();
 
     $this->actingAs($this->user)->get(route('operations.show'))->assertNotFound();
+
+    Queue::assertNotPushed(SyncGitHubSshKeysJob::class);
+});
+
+it('queues a sync for a full inertia visit', function (): void {
+    Queue::fake();
+
+    $this->actingAs($this->user)->get(route('log.show', Log::Following), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+    ])->assertOk();
+
+    Queue::assertPushed(SyncGitHubSshKeysJob::class, 1);
+});
+
+it('does not queue a sync for the commit status poll', function (): void {
+    Queue::fake();
+
+    $this->actingAs($this->user)
+        ->get(route('commit-status.show', Commit::factory()->for($this->user)->create()))
+        ->assertOk();
 
     Queue::assertNotPushed(SyncGitHubSshKeysJob::class);
 });
