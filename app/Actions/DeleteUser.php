@@ -9,6 +9,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Conversation;
+use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
@@ -34,7 +35,7 @@ final readonly class DeleteUser
      * other people replied to: those stay behind as tombstones with no author or body, so the replies under them keep their thread.
      * The database cascades the image rows of erased commits and the user's scheduled commits, and the voice notes of their
      * messages, but the files are erased here. Orgs the user was the last one in go too, with everything sent in them,
-     * as they do when the last member leaves.
+     * as they do when the last member leaves. So do the previews of links to the erased commits, which hold their bodies.
      */
     public function handle(User $user): void
     {
@@ -43,12 +44,14 @@ final readonly class DeleteUser
 
             $imagePaths = [...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
 
-            $translationKeys = Commit::query()->withTrashed()
-                ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
-                    ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id')))
+            $translationKeys = $this->erasedCommits($user)
                 ->select(['id', 'body'])
                 ->lazyById(500)
                 ->map(resolve(CommitTranslations::class)->key(...))->unique()->all();
+
+            LinkPreview::query()
+                ->whereIn(DB::raw("substring(lower(url) from '/commits/([0-9a-f-]{36})')"), $this->erasedCommits($user)->selectRaw('id::text'))
+                ->delete();
 
             $user->commits()->withTrashed()->topLevel()->forceDelete();
             CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();
@@ -93,6 +96,16 @@ final readonly class DeleteUser
                 ->map(fn (Commit $commit): string => $commit->id)
                 ->all(),
         ];
+    }
+
+    /**
+     * The commits that are erased or emptied with the user: their own, and every reply in the threads they started.
+     */
+    private function erasedCommits(User $user): CommitBuilder
+    {
+        return Commit::query()->withTrashed()
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
+                ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id')));
     }
 
     /**

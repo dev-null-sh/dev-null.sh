@@ -51,6 +51,27 @@ it('erases the commits of a deleted user along with the replies under them', fun
     expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id]);
 });
 
+it('erases the previews of links to the commits it erases, which hold their bodies', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->for($user)->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
+    $tombstone = Commit::factory()->for($user)->for(Commit::factory(), 'parent')->create();
+    Commit::factory()->for($tombstone, 'parent')->create();
+    $previews = collect([$commit, $reply, $tombstone])->map(fn (Commit $linked): LinkPreview => LinkPreview::factory()->create([
+        'url' => route('commit.show', [$linked->user, $linked]),
+        'description' => $linked->body,
+    ]));
+    $shouted = LinkPreview::factory()->create(['url' => str_replace($commit->id, mb_strtoupper($commit->id), route('commit.show', [$user, $commit]))]);
+    $linking = Commit::factory()->create(['link_preview_id' => $previews->first()->id]);
+    $other = LinkPreview::factory()->create(['url' => route('commit.show', [$linking->user, $linking])]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    $previews->push($shouted)->each(fn (LinkPreview $preview) => $this->assertModelMissing($preview));
+    $this->assertModelExists($other);
+    expect($linking->fresh()->link_preview_id)->toBeNull();
+});
+
 it('keeps the quotes of others when erasing the quoted commits of a deleted user', function (): void {
     $user = User::factory()->create();
     $quote = Commit::factory()->for(Commit::factory()->for($user), 'quotedCommit')->create();
