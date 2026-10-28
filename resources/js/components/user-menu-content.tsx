@@ -165,6 +165,7 @@ export function UserMenuContent({ user }: Props) {
                     className="block w-full cursor-pointer"
                     href={logout()}
                     as="button"
+                    preserveState={false}
                     onClick={handleLogout}
                     data-test="logout-button"
                 >
