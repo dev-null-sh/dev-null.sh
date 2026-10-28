@@ -127,7 +127,8 @@ export default function Show() {
                                 the page you were reading. We keep a keyed hash
                                 of it for 30 days, so the same address doesn't
                                 get it twice, and don't keep the address once
-                                the email is sent.
+                                the email is sent, or after 30 days if it can't
+                                be.
                             </>,
                             <>
                                 <strong>Technical data:</strong> IP address,

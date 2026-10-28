@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Schedule;
 Schedule::command('commits:submit-scheduled')->everyMinute()->withoutOverlapping(5);
 Schedule::job(new EmbedKnowledgeBase())->hourly();
 Schedule::job(new EndLiveStreams())->everyFiveMinutes();
+// Failed jobs carry what they were given, such as the address a join link was for...
+Schedule::command('queue:prune-failed', ['--hours' => 24 * 30])->daily();
 
 Schedule::call(function (): void {
     $store = 'cache.stores.'.config()->string('cache.default');
