@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 use App\Mail\JoinLinkEmail;
 use App\Models\User;
+use Illuminate\Mail\SendQueuedMailable;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function (): void {
     Mail::fake();
@@ -85,4 +88,10 @@ it('is only for guests', function (): void {
         ->assertRedirect();
 
     Mail::assertNothingQueued();
+});
+
+it('keeps the address encrypted in the queue', function (): void {
+    Queue::push(new SendQueuedMailable(new JoinLinkEmail('https://dev-null.sh/')->to('ada@example.com')));
+
+    expect(DB::table('jobs')->value('payload'))->not->toContain('ada@example.com');
 });
