@@ -27,6 +27,8 @@ type VisitOptions = {
     onCancel?: () => void;
     onFinish?: () => void;
     onBeforeUpdate?: () => void;
+    onCancelToken?: (token: { cancel: () => void }) => void;
+    isCancelled?: boolean;
 };
 
 const visits: (VisitOptions & { method?: string })[] = [];
@@ -75,7 +77,16 @@ vi.doMock('@inertiajs/react', async () => ({
         flushAll: () => {},
         visit: (url: { method: string }, options: VisitOptions) =>
             visits.push({ ...options, method: url.method }),
-        reload: (options: VisitOptions) => reloads.push(options),
+        // Cancelling fires the visit's finish, as Inertia does.
+        reload: (options: VisitOptions) => {
+            reloads.push(options);
+            options.onCancelToken?.({
+                cancel: () => {
+                    options.isCancelled = true;
+                    options.onFinish?.();
+                },
+            });
+        },
         on: (event: string, listener: () => void) => {
             if (event === 'navigate') {
                 navigateListeners.push(listener);
@@ -837,6 +848,27 @@ test('suggests other people every minute in the background', () => {
         document.cookie,
         'who_to_follow_round=1;path=/;max-age=86400;SameSite=Lax',
     );
+    document.cookie = '';
+});
+
+test('changing the count cancels a refresh still waiting for the people of the count from before', async () => {
+    document.cookie = '';
+    suggestedUsers = suggestions('ada', 'bob', 'cleo', 'dina');
+    showWhoToFollow();
+    intervals[0].callback();
+    const refresh = reloads.at(-1)!;
+
+    (WhoToFollowTabs().props.onChange as (value: number) => void)(5);
+    await Promise.resolve();
+
+    assert.deepEqual(refresh.only, ['suggestedUsers']);
+    assert.equal(refresh.isCancelled, true);
+    assert.deepEqual(reloads.at(-1)?.only, [
+        'showsWhoToFollow',
+        'whoToFollowCount',
+        'suggestedUsers',
+    ]);
+    assert.equal(reloads.at(-1)?.isCancelled, undefined);
     document.cookie = '';
 });
 

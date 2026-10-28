@@ -7,9 +7,10 @@ import { backgroundPollOptions } from '@/lib/background-poll';
 import { withViewTransition } from '@/lib/utils';
 
 // Counts the reloads that changing the settings sends, so only the latest one brings back a hidden block, and holds
-// the one still waiting for its answer, so a newer choice can cancel it.
+// the settings reload and the suggestions refresh still waiting for an answer, so a newer choice can cancel them.
 let latestSettingsReload = 0;
 let settingsReloadInFlight: CancelToken | null = null;
+let refreshInFlight: CancelToken | null = null;
 
 export function currentRound(): number {
     const match = document.cookie.match(/(?:^|; )who_to_follow_round=(\d+)/);
@@ -54,16 +55,18 @@ export function useWhoToFollow() {
     };
 
     /**
-     * Reloads run side by side, so a newer choice cancels the one still waiting: otherwise an older answer that lands
-     * last would put the count from before back on the page. A block hidden from its own menu stays hidden until the
-     * latest reload is through, so neither the suggestions nor the count from before show in between, and then comes
-     * back the way the reload's own changes do.
+     * Reloads run side by side, so a newer choice cancels the one still waiting, and a refresh of the suggestions
+     * fetched for the count from before: otherwise an older answer that lands last would put the count or the people
+     * from before back on the page. A block hidden from its own menu stays hidden until the latest reload is through,
+     * so neither the suggestions nor the count from before show in between, and then comes back the way the reload's
+     * own changes do.
      */
     const reloadSettings = (options: ReloadOptions): void => {
         const reload = ++latestSettingsReload;
         const wasHidden = isHidden;
 
         settingsReloadInFlight?.cancel();
+        refreshInFlight?.cancel();
         router.reload({
             ...options,
             viewTransition: true,
@@ -126,7 +129,13 @@ export function useWhoToFollow() {
             reset: ['suggestedUsers'],
             async: inBackground,
             onStart: () => setIsRefreshing(true),
-            onFinish: () => setIsRefreshing(false),
+            onCancelToken: (token) => {
+                refreshInFlight = token;
+            },
+            onFinish: () => {
+                refreshInFlight = null;
+                setIsRefreshing(false);
+            },
         };
 
         router.reload(
