@@ -704,7 +704,7 @@ it('offers guests and the profile owner no remote', function (): void {
 });
 
 it('shows the github profile readme on the readme tab, without looking for commits', function (): void {
-    $user = User::factory()->create(['handle' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'old-octocat']);
     Commit::factory()->for($user)->create();
 
     Http::fake([
@@ -715,6 +715,7 @@ it('shows the github profile readme on the readme tab, without looking for commi
     $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
         ->where('tab', 'readme')
         ->where('readme', '<div><article><h2>Hi there</h2></article></div>')
+        ->where('readmeRepository', 'octocat')
         ->where('pinnedCommit', null)
         ->where('commits.data', []));
 });
@@ -733,7 +734,8 @@ it('does not ask github for the readme on the other tabs', function (string $tab
     $user = User::factory()->create(['handle' => 'octocat']);
 
     $this->get(route('user.show', ['user' => $user, 'tab' => $tab]))->assertOk()->assertInertia(fn ($page) => $page
-        ->where('readme', null));
+        ->where('readme', null)
+        ->where('readmeRepository', null));
 })->with(['commits', 'replies']);
 
 it('names the followers the viewer knows, the most followed first', function (): void {

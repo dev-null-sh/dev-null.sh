@@ -72,6 +72,7 @@ final readonly class UserController
             'tab' => $request->tab(...),
             'pinnedCommit' => fn (): ?Commit => $request->tab() === 'commits' ? $pinned->get($user, $currentUser) : null,
             'readme' => fn (): string|false|null => $request->tab() === 'readme' ? $readme->get($user) : null,
+            'readmeRepository' => fn (): ?string => $request->tab() === 'readme' ? $readme->repository($user) : null,
             // The README tab shows no commits, so it doesn't look for any.
             'commits' => Inertia::scroll(fn () => $request->tab() === 'readme'
                 ? new CursorPaginator([], 20)

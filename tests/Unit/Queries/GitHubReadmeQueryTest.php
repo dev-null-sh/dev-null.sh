@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Models\User;
 use App\Queries\GitHubReadmeQuery;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 function fakeGitHubReadme(User $user, mixed $readme): void
@@ -107,7 +108,7 @@ it('keeps a readme with uploaded images for a few minutes, as their links expire
     $this->travel($minutes)->minutes();
     resolve(GitHubReadmeQuery::class)->get($user);
 
-    Http::assertSentCount($isFetchedAgain ? 4 : 2);
+    Http::assertSentCount($isFetchedAgain ? 3 : 2);
 })->with([
     'uploaded image, after 4 minutes' => ['<img src="https://private-user-images.githubusercontent.com/1/a.png?jwt=x">', 4, true],
     'uploaded image, after 3 minutes' => ['<img src="https://private-user-images.githubusercontent.com/1/a.png?jwt=x">', 3, false],
@@ -153,6 +154,48 @@ it('keeps the words of the rarer text elements, without the elements', function 
         ->not->toContain('<dl')
         ->not->toContain('secret')
         ->not->toContain('hidden');
+});
+
+it('names the repository after the github login, which the handle can lag behind', function (): void {
+    $user = User::factory()->create(['handle' => 'old-name']);
+    fakeGitHubReadme($user, Http::response(status: 404));
+    $query = resolve(GitHubReadmeQuery::class);
+    $query->get($user);
+
+    expect($query->repository($user))->toBe('octocat');
+    Http::assertSentCount(2);
+});
+
+it('finds the repository of a readme cached before its login was', function (): void {
+    $user = User::factory()->create(['handle' => 'old-name']);
+    Cache::put("github-readme:{$user->github_id}", '<p>Hi</p>', 86400);
+    Http::fake(["api.github.com/user/{$user->github_id}" => Http::response(['login' => 'octocat'])]);
+    $query = resolve(GitHubReadmeQuery::class);
+
+    expect($query->get($user))->toBe('<p>Hi</p>')
+        ->and($query->repository($user))->toBe('octocat')
+        ->and($query->repository($user))->toBe('octocat');
+
+    Http::assertSentCount(1);
+});
+
+it('names the repository after the handle when github cannot tell', function (): void {
+    $user = User::factory()->create(['handle' => 'old-name']);
+    Http::fake(["api.github.com/user/{$user->github_id}" => Http::response(status: 502)]);
+
+    expect(resolve(GitHubReadmeQuery::class)->repository($user))->toBe('old-name');
+});
+
+it('looks the login up once for a readme read again', function (): void {
+    $user = User::factory()->create();
+    fakeGitHubReadme($user, Http::response('<p>Hi</p>'));
+    $query = resolve(GitHubReadmeQuery::class);
+
+    $query->get($user);
+    Cache::forget("github-readme:{$user->github_id}");
+    $query->get($user);
+
+    Http::assertSentCount(3);
 });
 
 it('shows no readme for a github account that no longer exists', function (): void {
