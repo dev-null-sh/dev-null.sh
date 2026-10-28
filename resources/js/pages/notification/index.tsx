@@ -6,6 +6,7 @@ import {
     Check,
     ChevronDown,
     ChevronsUp,
+    Cookie,
     MessageSquareReply,
     Quote,
     Star,
@@ -70,7 +71,7 @@ const filterOptions: {
     {
         type: 'all',
         label: 'All',
-        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, level-ups, and moderation updates for your commits will show up here.',
+        empty: 'Nothing here yet. Follows, stars, replies, quotes, mentions, pastéis, level-ups, and moderation updates for your commits will show up here.',
     },
     {
         type: 'replies',
@@ -745,7 +746,10 @@ export function NotificationContent({
             ('event_count' in notification && notification.event_count > 1));
     const moderation =
         notification.type === 'approved' || notification.type === 'rejected';
-    const isOwnCommit = notification.type === 'starred' || moderation;
+    const isOwnCommit =
+        notification.type === 'starred' ||
+        notification.type === 'awarded' ||
+        moderation;
     const starredImages =
         notification.type === 'starred'
             ? (notification.commit.images ?? [])
@@ -764,6 +768,7 @@ export function NotificationContent({
         replied: MessageSquareReply,
         quoted: Quote,
         starred: Star,
+        awarded: Cookie,
         mentioned: AtSign,
         approved: Check,
         rejected: X,
@@ -803,6 +808,7 @@ export function NotificationContent({
         starred: isImageOnly
             ? `starred your ${starredImages.length === 1 ? 'image' : 'images'}`
             : 'starred your commit',
+        awarded: 'gave your commit a pastel',
         mentioned: 'mentioned you',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',
