@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Dto\LiveStream;
+use App\Enums\LivePlatform;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -51,16 +53,18 @@ final class UserResource extends JsonResource
     }
 
     /**
-     * @return array{platform: string|null, url: string, thumbnail_url: string, ends_at: string|null}|null
+     * @return array{platform: string, url: string, thumbnail_url: string, ends_at: string}|null
      */
     private function live(): ?array
     {
         $stream = $this->liveStream();
+        $platform = $this->live_platform;
+        $endsAt = $this->live_ends_at;
 
-        return $stream instanceof LiveStream ? [
-            'platform' => $this->live_platform?->value,
+        return $stream instanceof LiveStream && $platform instanceof LivePlatform && $endsAt instanceof CarbonInterface ? [
+            'platform' => $platform->value,
             ...$stream->toArray(),
-            'ends_at' => $this->live_ends_at?->toIso8601ZuluString(),
+            'ends_at' => $endsAt->toIso8601ZuluString(),
         ] : null;
     }
 }
