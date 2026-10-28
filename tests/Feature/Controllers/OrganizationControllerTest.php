@@ -108,3 +108,19 @@ it('pages through the mentions with the tab in the link to the next page', funct
             ->has('commits.data', 20)
             ->where('commits.next_page_url', fn (string $url): bool => str_contains($url, 'tab=mentions')));
 });
+
+it('keeps listing the commits that mentioned the organization before it was renamed', function (): void {
+    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $commit = Commit::factory()->create(['body' => 'Thanks @laravel']);
+    resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => $organization->id]);
+
+    $organization->forceFill(['handle' => 'laravel-php'])->save();
+
+    $this->get('/@laravel-php')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('organization/show')
+            ->has('commits.data', 1)
+            ->where('commits.data.0.id', $commit->id)
+            ->where('commits.data.0.organization_mentions.laravel', $organization->id));
+});
