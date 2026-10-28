@@ -44,7 +44,7 @@ function dismiss(): void {
 
 /**
  * On a phone, guests don't see the aside that tells desktop visitors what /dev/null is, so this sheet does, with the
- * button where the thumb is, which says how many developers are here: a trending commit with two stars could
+ * button where the thumb is. Its title says how many developers are here: a trending commit with two stars could
  * otherwise pass for an empty network. It stays out of the server render and opens once the page has loaded, unless the guest
  * closed it earlier in this browser session. Signing in leaves for GitHub, so the button is a plain link. In an app's
  * browser, it also shows how to open the page in the phone's browser, where the guest may already be signed in to
@@ -76,7 +76,9 @@ export function GuestJoinSheet() {
                         id="guest-join-sheet"
                         className="text-[22px] leading-tight font-semibold tracking-tight"
                     >
-                        Only developers post here.
+                        {developersCount
+                            ? `Join ${formatExactCount(developersCount)}+ developers.`
+                            : 'Only developers post here.'}
                     </h2>
                 </div>
                 <button
@@ -110,9 +112,7 @@ export function GuestJoinSheet() {
             <Button className="mt-1.5 h-12 rounded-[10px] text-base" asChild>
                 <a href={login().url} data-test="guest-join-sheet-login-button">
                     <GitHubIcon className="size-[18px]" />
-                    {developersCount
-                        ? `Join ${formatExactCount(developersCount)}+ developers`
-                        : 'Join with GitHub'}
+                    Join with GitHub
                 </a>
             </Button>
 
