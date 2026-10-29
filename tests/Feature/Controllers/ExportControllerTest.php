@@ -137,6 +137,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'blocking' => [],
         'dismissed_suggestions' => [],
         'organizations' => [],
+        'followed_organizations' => [],
         'messages' => [],
         'reports' => [],
         'remote_mutes' => [],
@@ -488,6 +489,24 @@ it('exports today when the export is the first visit of the day', function (): v
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['active_days'])->toBe(['2026-10-29', '2026-10-30']);
+});
+
+it('exports the organizations the user follows, first follow first', function (): void {
+    $this->freezeSecond();
+    $user = User::factory()->create();
+    $laravel = Organization::factory()->create(['handle' => 'laravel']);
+    $bref = Organization::factory()->create(['handle' => 'brefphp']);
+    $user->followedOrganizations()->attach($laravel, ['created_at' => now()]);
+    $user->followedOrganizations()->attach($bref, ['created_at' => now()->subDay()]);
+    User::factory()->create()->followedOrganizations()->attach(Organization::factory()->create());
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['followed_organizations'])->toBe([
+        ['handle' => 'brefphp', 'followed_at' => now()->subDay()->toIso8601String()],
+        ['handle' => 'laravel', 'followed_at' => now()->toIso8601String()],
+    ]);
 });
 
 it('exports the devices approved for the app, oldest first', function (): void {

@@ -121,6 +121,16 @@ final class Organization extends Model
     }
 
     /**
+     * The users who follow the organization, whether they are its members or not.
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function followers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'organization_follows', 'organization_id')->withTimestamps(updatedAt: false);
+    }
+
+    /**
      * The user's role in the organization, or null when they aren't a member.
      */
     public function roleOf(User $user): ?OrganizationRole

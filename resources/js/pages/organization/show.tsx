@@ -7,12 +7,14 @@ import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { GitHubIcon } from '@/components/github-icon';
 import { OrganizationAvatar } from '@/components/organization-avatar';
+import { OrganizationFollowButton } from '@/components/organization-follow-button';
 import { PageTabs } from '@/components/page-tabs';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { organizationLaneColor } from '@/lib/utils';
 import type {
     Commit,
@@ -30,6 +32,8 @@ export default function Show({
     claimUrl,
     settingsUrl,
     admins,
+    followersCount,
+    isFollowing,
 }: {
     organization: Organization & { id: string };
     lane: Lane | null;
@@ -38,6 +42,8 @@ export default function Show({
     claimUrl: string;
     settingsUrl: string | null;
     admins: User[];
+    followersCount: number;
+    isFollowing: boolean;
 }) {
     const { props, flash } = usePage();
     const { auth } = props;
@@ -74,7 +80,7 @@ export default function Show({
                         }
                     />
 
-                    <div className="flex shrink-0 gap-1.5 sm:gap-2">
+                    <div className="flex min-w-0 flex-wrap justify-end gap-1.5 sm:gap-2">
                         {canClaim && (
                             <Button variant="outline" asChild>
                                 {/* A form, so no other site can claim for the user. */}
@@ -99,6 +105,13 @@ export default function Show({
                         <ProfileShareButton
                             handle={organization.handle}
                             href={show(organization).url}
+                        />
+                        <OrganizationFollowButton
+                            organization={organization}
+                            isFollowing={isFollowing}
+                            menu
+                            only={['auth', 'followersCount', 'isFollowing']}
+                            className="min-w-32"
                         />
                     </div>
                 </div>
@@ -159,6 +172,18 @@ export default function Show({
                         </a>
                     </li>
                 </ul>
+
+                <p className="mt-4 flex gap-1.5 text-sm">
+                    <span
+                        className="font-mono font-medium tabular-nums"
+                        title={exactCountTitle(followersCount)}
+                    >
+                        {formatCount(followersCount)}
+                    </span>
+                    <span className="text-muted-foreground">
+                        {followersCount === 1 ? 'follower' : 'followers'}
+                    </span>
+                </p>
 
                 {admins.length > 0 && (
                     <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

@@ -9,7 +9,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * An organization's GitHub profile, as its page on the web shows it.
+ * An organization's GitHub profile, as its page on the web shows it. In a list, a signed request also gets whether its
+ * user follows it.
  *
  * @mixin Organization
  */
@@ -29,6 +30,7 @@ final class OrganizationResource extends JsonResource
             'website' => $this->website,
             'github_url' => "https://github.com/{$this->handle}",
             'html_url' => route('user.show', ['user' => $this->handle]),
+            'is_followed' => $this->whenHas('is_followed'),
         ];
     }
 }

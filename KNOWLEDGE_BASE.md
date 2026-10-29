@@ -120,7 +120,7 @@ After that, members are managed on /dev/null, not mirrored from GitHub. An organ
 
 Every organization has a color, /dev/null's blue until an admin chooses another in the **Profile** tab of its **Settings**, where its admins land: one of the same six lane colors as developers, or a custom one. It rings the organization's avatar, leads its handle, and colors its link preview.
 
-Following organizations is planned, not shipped yet.
+Signed in, you can **Follow** an organization from its page, which shows how many people follow it. Once you follow it, the button opens a menu where you can unfollow. Following will put the organization's own commits in your Following log once organizations can commit, which isn't possible yet. **Watch**, which will also show the commits that mention the organization, is planned and shown as coming soon. The organizations you follow are listed on your Following list, above the people, a few at a time with **Show more organizations**, and count toward your following count. They are in your data export and go when you delete your account.
 
 Sources: [organization page](resources/js/pages/organization/show.tsx), [mentions](app/Queries/OrganizationMentionsQuery.php), [organization lookups](app/Actions/UpdateCommitTopics.php), [claims](app/Http/Controllers/OrganizationAdminController.php), [color](app/Http/Controllers/OrganizationLaneController.php), [members](app/Http/Controllers/OrganizationMemberController.php).
 
@@ -523,7 +523,7 @@ Sources: [GitHub action](.github/actions/commit/action.yml).
 
 ### Public read API and Atom feeds
 
-The read-only JSON API at `/api/v1` requires no authentication or token, except for who follows whom. Read a public profile at `/api/v1/users/{handle}`, that user's commits at `/api/v1/users/{handle}/commits`, or one commit at `/api/v1/commits/{commit}`. `/api/v1/users/{handle}/followers` and `/following` list people the way the profile's people lists do, newest follow first, with each person's lane and whether you follow each other; like on the web, they are for members only and need a [signed request](#signed-api-and-devices). Add `?replies=1` to the user-commits endpoint to read their replies instead of top-level commits. Lists use cursor pagination: 20 commits or 30 people per page. Only public approved, non-deleted content is returned, not private profile data such as email. Unsigned requests are limited to **60 requests per minute per IP** and cannot create posts, follow, or star; terminal posting and the [signed API](#signed-api-and-devices) are separate signed interfaces.
+The read-only JSON API at `/api/v1` requires no authentication or token, except for who follows whom. Read a public profile at `/api/v1/users/{handle}`, that user's commits at `/api/v1/users/{handle}/commits`, or one commit at `/api/v1/commits/{commit}`. `/api/v1/users/{handle}/followers` and `/following` list people the way the profile's people lists do, newest follow first, with each person's lane and whether you follow each other, and `/api/v1/users/{handle}/following/organizations` lists the organizations they follow the same way, with whether you follow each one; like on the web, they are for members only and need a [signed request](#signed-api-and-devices). Add `?replies=1` to the user-commits endpoint to read their replies instead of top-level commits. Lists use cursor pagination: 20 commits, or 30 people or organizations, per page. Only public approved, non-deleted content is returned, not private profile data such as email. Unsigned requests are limited to **60 requests per minute per IP** and cannot create posts, follow, or star; terminal posting and the [signed API](#signed-api-and-devices) are separate signed interfaces.
 
 Subscribe in a feed reader to `/@{handle}/feed.atom` for a profile's latest **50 approved top-level commits**, including image enclosures. Feeds are public and can be cached for five minutes.
 
@@ -538,7 +538,7 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - read your account, logs, replies, notifications (including grouped activity), and starred commits;
 - commit, reply, and quote, with images, and delete your commits, with the same undo window as the web;
 - preview commit drafts without publishing them;
-- follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
+- follow or unfollow people and organizations, mute or unmute, and block or unblock, and list who you muted and blocked;
 - read who to follow, also as it is suggested beside a profile or a commit, and mark a suggestion not interested;
 - star or unstar;
 - create polls on commits that are neither replies nor quotes, and vote on polls;

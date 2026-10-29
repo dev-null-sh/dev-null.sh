@@ -48,6 +48,7 @@ use Traversable;
  *     blocking: Generator<int, ExportUser>,
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     organizations: array<int, array{handle: string, role: string, joined_at: string}>,
+ *     followed_organizations: array<int, array{handle: string, followed_at: string}>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
@@ -117,6 +118,7 @@ final readonly class CreateExport
             'blocking' => $this->handles($user->blocking()),
             'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
             'organizations' => $this->organizations($user),
+            'followed_organizations' => $this->followedOrganizations($user),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
                 'commit_id' => $report->commit_id,
@@ -335,6 +337,23 @@ final readonly class CreateExport
             'handle' => $membership->handle,
             'role' => $membership->role,
             'joined_at' => CarbonImmutable::parse($membership->created_at)->toIso8601String(),
+        ])->all();
+    }
+
+    /**
+     * @return array<int, array{handle: string, followed_at: string}>
+     */
+    private function followedOrganizations(User $user): array
+    {
+        /** @var Collection<int, object{handle: string, created_at: string}> $follows */
+        $follows = $user->followedOrganizations()->newPivotQuery()
+            ->join('profiles', 'profiles.id', '=', 'organization_follows.organization_id')
+            ->oldest('organization_follows.created_at')
+            ->get(['profiles.handle', 'organization_follows.created_at']);
+
+        return $follows->map(fn (object $follow): array => [
+            'handle' => $follow->handle,
+            'followed_at' => CarbonImmutable::parse($follow->created_at)->toIso8601String(),
         ])->all();
     }
 
