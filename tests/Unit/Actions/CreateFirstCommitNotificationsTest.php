@@ -142,3 +142,15 @@ it('leaves out followers it mentions or quotes, who already hear about it', func
 
     expect(Notification::query()->pluck('recipient_id')->all())->toBe([$follower->id]);
 });
+
+it('leaves out followers watching the author, who already hear about it', function (): void {
+    $author = User::factory()->create();
+    [$follower, $watcher] = User::factory()->count(2)->create()->all();
+    $author->followers()->attach($follower);
+    $author->followers()->attach($watcher, ['watching' => true]);
+    $commit = Commit::factory()->for($author)->create();
+
+    resolve(CreateFirstCommitNotifications::class)->handle($commit);
+
+    expect(Notification::query()->pluck('recipient_id')->all())->toBe([$follower->id]);
+});

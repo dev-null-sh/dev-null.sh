@@ -6,6 +6,7 @@ use App\Actions\CreateTomFriendship;
 use App\Actions\UpdateCommitStatuses;
 use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
+use App\Enums\NotificationType;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
@@ -106,6 +107,17 @@ it("tells the author's followers about their first commit once it is approved", 
     resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
 
     expect($follower->notifications()->sole()->commit_id)->toBe($commit->id);
+});
+
+it('tells someone watching the author about their first commit only once', function (): void {
+    $author = User::factory()->create();
+    $watcher = User::factory()->create();
+    $author->followers()->attach($watcher, ['watching' => true]);
+    $commit = Commit::factory()->for($author)->pending()->create();
+
+    resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
+
+    expect($watcher->notifications()->sole()->type)->toBe(NotificationType::Committed);
 });
 
 it('lifts the thread when a reply is approved', function (): void {

@@ -19,8 +19,8 @@ final readonly class CreateFirstCommitNotifications
      * Tells the author's followers about their first commit, so it gets an answer: a newcomer's followers mostly
      * came from GitHub, and never chose to follow them here. Only once the commit is approved, and only for the
      * author's first top-level commit that was ever approved. Never from or to bots, nor to the people it mentions
-     * or quotes, who already hear about it. Nobody hears from people they mute or from across a block. Safe to call
-     * more than once.
+     * or quotes, nor to those watching the author, who already hear about it. Nobody hears from people they mute or
+     * from across a block. Safe to call more than once.
      */
     public function handle(Commit ...$commits): void
     {
@@ -56,6 +56,7 @@ final readonly class CreateFirstCommitNotifications
             assert($author instanceof User);
 
             $followerIds = $author->followers()
+                ->wherePivot('watching', false)
                 ->whereNotIn('users.github_id', User::BOT_GITHUB_IDS)
                 ->whereNotIn('users.id', $author->mutedBy()->newPivotQuery()->select('muter_id'))
                 ->whereNotIn('users.id', $author->idsAcrossBlocks())
