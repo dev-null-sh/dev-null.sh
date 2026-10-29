@@ -35,6 +35,31 @@ it('records a ping from a maintainer or contributor with its sender', function (
     $this->assertDatabaseCount('messages', 2);
 })->with([false, true]);
 
+it('lets only maintainers ping when the org keeps pings to them', function (): void {
+    [$member] = followersOf($this->user, 1);
+    $org = createOrg($this->user, [$member]);
+    $this->actingAs($this->user)->putJson(route('org-pings-from.update', $org), ['pings_from' => 'maintainers'])->assertNoContent();
+
+    $this->actingAs($member)->postJson(route('org-ping.store', $org))
+        ->assertForbidden()
+        ->assertJsonPath('message', 'Only maintainers can ping this org.');
+    $this->actingAs($this->user)->postJson(route('org-ping.store', $org))->assertCreated();
+
+    expect(Message::query()->where('event', OrgEvent::Ping)->pluck('user_id')->all())->toBe([$this->user->id]);
+});
+
+it('lets nobody ping when the org turned pings off', function (bool $contributor): void {
+    [$member] = followersOf($this->user, 1);
+    $org = createOrg($this->user, [$member]);
+    $this->actingAs($this->user)->putJson(route('org-pings-from.update', $org), ['pings_from' => 'nobody'])->assertNoContent();
+
+    $this->actingAs($contributor ? $member : $this->user)->postJson(route('org-ping.store', $org))
+        ->assertForbidden()
+        ->assertJsonPath('message', 'Pings are off in this org.');
+
+    expect(Message::query()->where('event', OrgEvent::Ping)->exists())->toBeFalse();
+})->with([false, true]);
+
 it('hides an org from a nonmember trying to ping it', function (): void {
     $maintainer = User::factory()->withRemotes()->create();
     [$member] = followersOf($maintainer, 1);

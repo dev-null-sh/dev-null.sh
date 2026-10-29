@@ -46,6 +46,7 @@ use App\Http\Controllers\Api\OrgMessageController;
 use App\Http\Controllers\Api\OrgMuteController;
 use App\Http\Controllers\Api\OrgPinController;
 use App\Http\Controllers\Api\OrgPingController;
+use App\Http\Controllers\Api\OrgPingsFromController;
 use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\OrgTypingController;
 use App\Http\Controllers\Api\RelatedCommitController;
@@ -387,12 +388,15 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             Route::post('remotes/orgs', [OrgController::class, 'store'])->middleware('throttle:messages')->name('api-org.store');
         });
 
-        // Remotes: renaming an org and managing its members, as the web's org settings do...
+        // Remotes: renaming an org, choosing who can ping it, and managing its members, as the web's org settings do...
         Route::middleware('throttle:conversations')->group(function (): void {
             Route::put('remotes/orgs/{org}', [OrgController::class, 'update'])
                 ->whereUuid('org')
                 ->middleware(PreventPostingInTimeout::class)
                 ->name('api-org.update');
+            Route::put('remotes/orgs/{org}/pings-from', [OrgPingsFromController::class, 'update'])
+                ->whereUuid('org')
+                ->name('api-org-pings-from.update');
             Route::post('remotes/orgs/{org}/members', [OrgMemberController::class, 'store'])
                 ->whereUuid('org')
                 ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])

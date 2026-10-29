@@ -19,6 +19,13 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useChat } from '@/hooks/use-chat';
@@ -30,11 +37,19 @@ import {
     renameOrg,
     searchCandidates,
     setOrgMemberRole,
+    setOrgPingsFrom,
 } from '@/lib/chat';
 import type { Candidate } from '@/lib/chat';
 import { cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Message, OrgMember, OrgRef, OrgRole, User } from '@/types';
+import type {
+    Message,
+    OrgMember,
+    OrgRef,
+    OrgRole,
+    PingsFrom,
+    User,
+} from '@/types';
 
 export const maxMembers = 100;
 
@@ -137,6 +152,15 @@ export function eventText(message: Message, user: User): string {
             return `${actor} made ${subject} a contributor`;
         case 'inherited':
             return `${actor} inherited maintainer`;
+        case 'pings_changed':
+            switch (message.body) {
+                case 'maintainers':
+                    return `${actor} let only maintainers ping`;
+                case 'nobody':
+                    return `${actor} turned pings off`;
+                default:
+                    return `${actor} let everyone ping`;
+            }
         case 'ping':
             if (message.user_id === user.id) {
                 return 'you sent a ping';
@@ -147,6 +171,22 @@ export function eventText(message: Message, user: User): string {
         default:
             return message.body;
     }
+}
+
+/**
+ * Why the user can't ping the org, as the server would refuse it, or null when they can.
+ */
+export function pingRefusalOf(
+    pingsFrom: PingsFrom,
+    role: OrgRole | null,
+): string | null {
+    if (pingsFrom === 'nobody') {
+        return 'Pings are off in this org';
+    }
+
+    return pingsFrom === 'maintainers' && role !== 'maintainer'
+        ? 'Only maintainers can ping this org'
+        : null;
 }
 
 export function EventLine({ message, user }: { message: Message; user: User }) {
@@ -259,6 +299,7 @@ export function OrgHeader({
                 org={current}
                 members={members}
                 role={thread?.role ?? null}
+                pingsFrom={thread?.pings_from ?? 'everyone'}
                 user={user}
                 open={isShowingMembers}
                 onOpenChange={setIsShowingMembers}
@@ -275,13 +316,14 @@ function errorOf(error: unknown): string {
 }
 
 /**
- * Everyone in the org with their role. Maintainers rename the org, add and remove people, and promote or demote
- * them; anyone can leave.
+ * Everyone in the org with their role. Maintainers rename the org, choose who can ping it, add and remove people, and
+ * promote or demote them; anyone can leave.
  */
 export function OrgMembersDialog({
     org,
     members,
     role,
+    pingsFrom,
     user,
     open,
     onOpenChange,
@@ -290,6 +332,7 @@ export function OrgMembersDialog({
     org: OrgRef;
     members: OrgMember[];
     role: OrgRole | null;
+    pingsFrom: PingsFrom;
     user: User;
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -314,6 +357,14 @@ export function OrgMembersDialog({
             toast.error(errorOf(error));
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const choosePingsFrom = async (from: PingsFrom) => {
+        try {
+            await setOrgPingsFrom(org, from);
+        } catch (error) {
+            toast.error(errorOf(error));
         }
     };
 
@@ -389,6 +440,41 @@ export function OrgMembersDialog({
                                     Rename
                                 </Button>
                             </form>
+                        )}
+                        {isMaintainer && (
+                            <div className="flex items-center gap-2 pt-2">
+                                <span
+                                    id={`org-pings-from-${org.id}`}
+                                    className="min-w-0 flex-1 truncate text-sm text-muted-foreground"
+                                >
+                                    Who can ping
+                                </span>
+                                <Select
+                                    value={pingsFrom}
+                                    onValueChange={(value) =>
+                                        void choosePingsFrom(value as PingsFrom)
+                                    }
+                                >
+                                    <SelectTrigger
+                                        aria-labelledby={`org-pings-from-${org.id}`}
+                                        className="w-40"
+                                        data-test="org-pings-from"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="everyone">
+                                            Everyone
+                                        </SelectItem>
+                                        <SelectItem value="maintainers">
+                                            Maintainers only
+                                        </SelectItem>
+                                        <SelectItem value="nobody">
+                                            Nobody
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         )}
                     </div>
 

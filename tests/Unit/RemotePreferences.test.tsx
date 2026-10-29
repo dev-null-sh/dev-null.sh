@@ -16,7 +16,7 @@ vi.doMock('react', () => ({
     },
 }));
 
-const { chatSnapshot, loadTab, searchConversations, seedInbox, seedThread, setConversationMute, summaryKey, targetOf, watchRemoteAlerts, watchThread } = await import('../../resources/js/lib/chat');
+const { chatSnapshot, loadTab, searchConversations, seedInbox, seedThread, setConversationMute, setOrgPingsFrom, summaryKey, targetKey, targetOf, watchRemoteAlerts, watchThread } = await import('../../resources/js/lib/chat');
 const { useRemoteAlerts } = await import('../../resources/js/hooks/use-chat');
 const { ConversationList } = await import('../../resources/js/components/chat/conversation-list');
 const { ConversationActions } = await import('../../resources/js/components/chat/conversation-actions');
@@ -37,7 +37,7 @@ const orgSummary: ConversationSummary = {
 const thread: OrgThread & { org: typeof org } = {
     org, messages: [], has_older: false, reactions_version: 0, reaction_changes: [],
     read_through_id: 0, members: [], typing: [], is_archived: true, pinned_at: null, muted_until_at: null,
-    role: 'contributor', access: 'open', pinned: [],
+    role: 'contributor', pings_from: 'everyone', access: 'open', pinned: [],
 };
 
 function elements(node: ReactNode): ReactElement<Record<string, unknown>>[] {
@@ -163,6 +163,28 @@ test('fresh thread mute changes beat a stashed summary and older in-flight inbox
     vi.stubGlobal('fetch', async () => Response.json({ conversations: [{ ...orgSummary, muted_until_at: forever }], has_more: false, unread: 0, requests: 0 }));
     await loadTab('stashed');
     assert.equal(muteItem(props).label, 'Unmute');
+});
+
+test('a thread poll that left before the user chose who can ping does not put the old choice back', async () => {
+    seedThread(target, thread);
+    const polls: ((response: Response) => void)[] = [];
+    vi.stubGlobal('fetch', async (url: string, options?: RequestInit) => {
+        if (options?.method === 'PUT') return new Response(null, { status: 204 });
+        if (url.includes('/inbox')) return Response.json({ conversations: [orgSummary], has_more: false, unread: 0, requests: 0 });
+        return new Promise<Response>((resolve) => polls.push(resolve));
+    });
+    cleanups.push(watchThread(target));
+    await vi.advanceTimersByTimeAsync(0);
+
+    const choosing = setOrgPingsFrom(org, 'nobody');
+    assert.equal(chatSnapshot().threads[targetKey(target)].pings_from, 'nobody');
+    polls[0](Response.json({ ...thread, pings_from: 'everyone' }));
+    await vi.advanceTimersByTimeAsync(0);
+    assert.equal(chatSnapshot().threads[targetKey(target)].pings_from, 'nobody');
+
+    polls[1](Response.json({ ...thread, pings_from: 'nobody' }));
+    await choosing;
+    assert.equal(chatSnapshot().threads[targetKey(target)].pings_from, 'nobody');
 });
 
 test.each(['default', 'denied', 'unsupported', 'granted'] as const)('tab-title notifications keep polling independently of banner permission: %s', async (permission) => {

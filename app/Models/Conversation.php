@@ -6,6 +6,7 @@ namespace App\Models;
 
 use App\Enums\ConversationKind;
 use App\Enums\OrgRole;
+use App\Enums\PingsFrom;
 use App\Enums\RemoteStatus;
 use Carbon\CarbonInterface;
 use Database\Factories\ConversationFactory;
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read ConversationKind $kind
  * @property-read string|null $pair
  * @property-read string|null $name
+ * @property-read PingsFrom $pings_from
  * @property-read int|null $last_message_id
  * @property-read int $reactions_version
  * @property-read CarbonInterface $created_at
@@ -107,6 +109,7 @@ final class Conversation extends Model
             'kind' => ConversationKind::class,
             'pair' => 'string',
             'name' => 'string',
+            'pings_from' => PingsFrom::class,
             'last_message_id' => 'integer',
             'reactions_version' => 'integer',
             'created_at' => 'datetime',
