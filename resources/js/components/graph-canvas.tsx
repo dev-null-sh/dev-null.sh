@@ -14,14 +14,13 @@ import {
 import { flushSync } from 'react-dom';
 import {
     bridgeDuration,
-    cutOutGroups,
+    cutOuts,
     entranceDelay,
     entranceDraw,
     graphEdges,
     isOnScreen,
     leavingOf,
     leavingRing,
-    leavingSwell,
     lineArea,
     nodeIdentity,
     nodeStartsIn,
@@ -29,6 +28,7 @@ import {
     scopedNodeId,
 } from '@/lib/graph';
 import type {
+    CutOut,
     Draw,
     GraphEdge,
     GraphNode,
@@ -681,10 +681,9 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                 : graphEdges(nodes, new Set(entering.keys())),
         [edges, nodes, entering],
     );
-    const cutOuts = useMemo(
-        () => cutOutGroups(nodes, leaving),
-        [nodes, leaving],
-    );
+    const holes = useMemo(() => cutOuts(nodes, leaving), [nodes, leaving]);
+    const maskOf = (index: number) =>
+        index === 0 ? `${id}-nodes` : `${id}-nodes-${index}`;
     const clipOf = (row: number) =>
         row === -1 ? undefined : `url(#${id}-leaving-${row})`;
 
@@ -702,92 +701,24 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                     data-test="graph-canvas"
                 >
                     <defs>
-                        <NodeMask
-                            id={`${id}-nodes`}
-                            nodes={cutOuts.still}
-                            size={size}
-                            within={
-                                cutOuts.moving.length > 0
-                                    ? `${id}-moving`
-                                    : undefined
-                            }
-                        />
-                        {cutOuts.moving.length > 0 && (
+                        {holes.map((cutOut, index) => (
                             <NodeMask
-                                id={`${id}-moving`}
-                                nodes={cutOuts.moving}
+                                key={index}
+                                id={maskOf(index)}
+                                cutOut={cutOut}
                                 size={size}
-                            >
-                                {cutOuts.moving.map((node, index) => {
-                                    const row = leaving.findIndex((entry) =>
-                                        entry.ids.has(node.id),
-                                    );
-                                    const ring = node.radius * leavingRing;
-
-                                    return (
-                                        <Fragment key={node.id}>
-                                            {node.isLeaving && (
-                                                // A ring around the node scales out with it: the line running
-                                                // on through it shows wherever the node no longer covers it.
-                                                <g
-                                                    clipPath={`url(#${id}-swell-${index})`}
-                                                >
-                                                    <circle
-                                                        cx={node.x}
-                                                        cy={node.y}
-                                                        r={
-                                                            node.radius +
-                                                            ring / 2
-                                                        }
-                                                        fill="none"
-                                                        stroke="white"
-                                                        strokeWidth={ring}
-                                                        className="motion-safe:animate-node-out-ring"
-                                                        style={{
-                                                            transformBox:
-                                                                'fill-box',
-                                                            transformOrigin:
-                                                                'center',
-                                                            animationDuration: `${bridgeDuration}ms`,
-                                                        }}
-                                                    />
-                                                </g>
-                                            )}
-                                            {row !== -1 && (
-                                                // A node in a collapsing row is cut out only within it.
-                                                <circle
-                                                    cx={node.x}
-                                                    cy={node.y}
-                                                    r={
-                                                        node.isLeaving
-                                                            ? node.radius *
-                                                              leavingSwell
-                                                            : node.radius
-                                                    }
-                                                    fill="white"
-                                                    clipPath={`url(#${id}-outside-${row})`}
-                                                />
-                                            )}
-                                        </Fragment>
-                                    );
-                                })}
-                            </NodeMask>
-                        )}
-                        {cutOuts.moving.map(
-                            (node, index) =>
-                                node.isLeaving && (
-                                    <clipPath
-                                        key={node.id}
-                                        id={`${id}-swell-${index}`}
-                                    >
-                                        <circle
-                                            cx={node.x}
-                                            cy={node.y}
-                                            r={node.radius * leavingSwell}
-                                        />
-                                    </clipPath>
-                                ),
-                        )}
+                                within={
+                                    index + 1 < holes.length
+                                        ? maskOf(index + 1)
+                                        : undefined
+                                }
+                                outside={
+                                    cutOut.row === undefined
+                                        ? undefined
+                                        : `${id}-outside-${cutOut.row}`
+                                }
+                            />
+                        ))}
                         {leaving.map((row, index) => (
                             <Fragment key={index}>
                                 <clipPath id={`${id}-leaving-${index}`}>
@@ -866,39 +797,77 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
 
 /**
  * Where the lines show, cut out by shape rather than by colour: an alpha mask holds whatever colours a dark mode
- * extension paints over the page. Within another mask, it shows only where that one does too, so their cut-outs add up.
+ * extension paints over the page. Within the next cut-out's mask, all it shows, lines it lets back in included, shows
+ * only where that one does too, so their cut-outs add up.
  */
 function NodeMask({
     id,
-    nodes,
+    cutOut,
     size,
     within,
-    children,
+    outside,
 }: {
     id: string;
-    nodes: GraphNode[];
+    cutOut: CutOut;
     size: Size;
     within?: string;
-    children?: ReactNode;
+    outside?: string;
 }) {
+    const { leaving } = cutOut;
+
     return (
-        <mask
-            id={id}
-            maskUnits="userSpaceOnUse"
-            x={0}
-            y={0}
-            width={size.width}
-            height={size.height}
-            style={{ maskType: 'alpha' }}
-        >
-            <path
-                d={lineArea(nodes, size.width, size.height)}
-                fill="white"
-                fillRule="evenodd"
-                mask={within && `url(#${within})`}
-            />
-            {children}
-        </mask>
+        <>
+            <mask
+                id={id}
+                maskUnits="userSpaceOnUse"
+                x={0}
+                y={0}
+                width={size.width}
+                height={size.height}
+                style={{ maskType: 'alpha' }}
+            >
+                <g mask={within && `url(#${within})`}>
+                    <path
+                        d={lineArea(cutOut.holes, size.width, size.height)}
+                        fill="white"
+                        fillRule="evenodd"
+                    />
+                    {leaving && (
+                        // A ring around the node scales out with it: the line running on through it shows wherever
+                        // the node no longer covers it.
+                        <g clipPath={`url(#${id}-swell)`}>
+                            <circle
+                                cx={leaving.x}
+                                cy={leaving.y}
+                                r={leaving.radius * (1 + leavingRing / 2)}
+                                fill="none"
+                                stroke="white"
+                                strokeWidth={leaving.radius * leavingRing}
+                                className="motion-safe:animate-node-out-ring"
+                                style={{
+                                    transformBox: 'fill-box',
+                                    transformOrigin: 'center',
+                                    animationDuration: `${bridgeDuration}ms`,
+                                }}
+                            />
+                        </g>
+                    )}
+                    {outside && (
+                        // A cut-out in a collapsing row holds only within it.
+                        <path
+                            d={cutOut.holes.join(' ')}
+                            fill="white"
+                            clipPath={`url(#${outside})`}
+                        />
+                    )}
+                </g>
+            </mask>
+            {leaving && (
+                <clipPath id={`${id}-swell`}>
+                    <path d={cutOut.holes.join(' ')} />
+                </clipPath>
+            )}
+        </>
     );
 }
 

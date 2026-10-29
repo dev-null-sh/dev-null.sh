@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
     bridgeDuration,
-    cutOutGroups,
+    cutOuts,
     drawnStretch,
     entranceDelay,
     entranceDraw,
@@ -569,40 +569,73 @@ void test('keeps nothing of a line from another node, from where its node stood 
     assert.equal(drawnStretch(toNext, []), 0);
 });
 
-void test('keeps the nodes on the move, scaling out or in a collapsing row, apart from those standing still', () => {
-    const still = node({ id: 'still', y: 40 });
-    const leaving = node({ id: 'leaving', y: 120, isLeaving: true });
-    const collapsing = node({ id: 'collapsing', y: 200 });
-
+void test('cuts the nodes standing still out together, as circles of their radius', () => {
     assert.deepEqual(
-        cutOutGroups(
-            [still, leaving, collapsing],
-            [{ ids: new Set(['collapsing']), opacity: 0.5 }],
+        cutOuts(
+            [node({ id: 'a', y: 40 }), node({ id: 'b', y: 200, radius: 6 })],
+            [],
         ),
-        { still: [still], moving: [leaving, collapsing] },
+        [
+            {
+                holes: [
+                    'M 8 40 A 24 24 0 1 0 56 40 A 24 24 0 1 0 8 40 Z',
+                    'M 26 200 A 6 6 0 1 0 38 200 A 6 6 0 1 0 26 200 Z',
+                ],
+            },
+        ],
     );
 });
 
-void test('lets the lines show over the whole canvas when it holds no node', () => {
-    assert.equal(lineArea([], 300, 500), 'M 0 0 H 300 V 500 H 0 Z');
-});
-
-void test('cuts every node out of where the lines show, as a circle of its radius', () => {
-    assert.equal(
-        lineArea(
-            [node({ id: 'a', y: 40 }), node({ id: 'b', y: 200, radius: 6 })],
-            300,
-            500,
+void test('cuts each node on the move out on its own, so what one lets back in never fills in another', () => {
+    assert.deepEqual(
+        cutOuts(
+            [
+                node({ id: 'still', y: 40 }),
+                node({ id: 'first', y: 120 }),
+                node({ id: 'second', y: 200 }),
+            ],
+            [
+                { ids: new Set(['first']), opacity: 0.5 },
+                { ids: new Set(['second']), opacity: 0.5 },
+            ],
         ),
-        'M 0 0 H 300 V 500 H 0 Z' +
-            ' M 8 40 A 24 24 0 1 0 56 40 A 24 24 0 1 0 8 40 Z' +
-            ' M 26 200 A 6 6 0 1 0 38 200 A 6 6 0 1 0 26 200 Z',
+        [
+            { holes: ['M 8 40 A 24 24 0 1 0 56 40 A 24 24 0 1 0 8 40 Z'] },
+            {
+                holes: ['M 8 120 A 24 24 0 1 0 56 120 A 24 24 0 1 0 8 120 Z'],
+                row: 0,
+            },
+            {
+                holes: ['M 8 200 A 24 24 0 1 0 56 200 A 24 24 0 1 0 8 200 Z'],
+                row: 1,
+            },
+        ],
     );
 });
 
 void test('cuts a node on its way out as wide as it swells before it scales out', () => {
+    const leaving = node({ id: 'a', y: 40, isLeaving: true });
+
+    assert.deepEqual(cutOuts([leaving], []), [
+        { holes: [] },
+        {
+            holes: ['M 2 40 A 30 30 0 1 0 62 40 A 30 30 0 1 0 2 40 Z'],
+            leaving,
+        },
+    ]);
+});
+
+void test('keeps a cut-out with no hole when the canvas holds no node', () => {
+    assert.deepEqual(cutOuts([], []), [{ holes: [] }]);
+});
+
+void test('lets the lines show over the whole canvas when nothing is cut out', () => {
+    assert.equal(lineArea([], 300, 500), 'M 0 0 H 300 V 500 H 0 Z');
+});
+
+void test('lets the lines show over the canvas less every hole', () => {
     assert.equal(
-        lineArea([node({ id: 'a', y: 40, isLeaving: true })], 300, 500),
-        'M 0 0 H 300 V 500 H 0 Z M 2 40 A 30 30 0 1 0 62 40 A 30 30 0 1 0 2 40 Z',
+        lineArea(['M 8 40 A 24 24 0 1 0 56 40 A 24 24 0 1 0 8 40 Z'], 300, 500),
+        'M 0 0 H 300 V 500 H 0 Z M 8 40 A 24 24 0 1 0 56 40 A 24 24 0 1 0 8 40 Z',
     );
 });

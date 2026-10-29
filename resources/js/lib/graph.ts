@@ -289,42 +289,61 @@ export const leavingSwell = 1.25;
 export const leavingRing = 2000;
 
 /**
- * Where the lines show: the canvas less every node, a single path to fill with the even-odd rule. Cut out by shape
- * rather than by colour, it holds whatever colours a dark mode extension paints over the page. A node on its way out is
- * cut out as wide as it swells; what it no longer covers as it scales out is let back in apart from this path.
+ * Holes the lines don't show through, cut out of them in a mask of their own. The masks nest one in the next, so
+ * cut-outs add up where they overlap: no even-odd path fills two overlapping holes back in, and what a cut-out on the
+ * move lets back in never shows a line through another.
  */
-export function lineArea(
-    nodes: GraphNode[],
-    width: number,
-    height: number,
-): string {
+export type CutOut = {
+    /** One path per hole, none overlapping another. */
+    holes: string[];
+    /** The collapsing row, by its index, the holes stay within: outside it, they let the lines back in. */
+    row?: number;
+    /** The node scaling out with the hole, as wide as it swells: a ring lets the line back in as it goes. */
+    leaving?: GraphNode;
+};
+
+/** The nodes standing still, cut out together, then every node on the move, scaling out or in a collapsing row. */
+export function cutOuts(nodes: GraphNode[], rows: LeavingRow[]): CutOut[] {
+    const rowOf = (node: GraphNode) =>
+        rows.findIndex((row) => row.ids.has(node.id));
+    const isMoving = (node: GraphNode) =>
+        node.isLeaving === true || rowOf(node) !== -1;
+
     return [
-        `M 0 0 H ${width} V ${height} H 0 Z`,
-        ...nodes.map((node) =>
-            circlePath(
-                node,
-                node.isLeaving ? node.radius * leavingSwell : node.radius,
-            ),
-        ),
-    ].join(' ');
+        {
+            holes: nodes
+                .filter((node) => !isMoving(node))
+                .map((node) => circlePath(node, node.radius)),
+        },
+        ...nodes.filter(isMoving).map((node) => {
+            const row = rowOf(node);
+
+            return {
+                holes: [
+                    circlePath(
+                        node,
+                        node.isLeaving
+                            ? node.radius * leavingSwell
+                            : node.radius,
+                    ),
+                ],
+                ...(row !== -1 && { row }),
+                ...(node.isLeaving && { leaving: node }),
+            };
+        }),
+    ];
 }
 
 /**
- * The nodes standing still and those on the move, scaling out or in a collapsing row. Each group is cut out of the
- * lines on its own, so their cut-outs add up where a moving node runs over a still one, which a single even-odd path
- * would fill back in.
+ * Where the lines show: the canvas less every hole, a single path to fill with the even-odd rule. Cut out by shape
+ * rather than by colour, it holds whatever colours a dark mode extension paints over the page.
  */
-export function cutOutGroups(
-    nodes: GraphNode[],
-    rows: LeavingRow[],
-): { still: GraphNode[]; moving: GraphNode[] } {
-    const isMoving = (node: GraphNode) =>
-        node.isLeaving === true || rows.some((row) => row.ids.has(node.id));
-
-    return {
-        still: nodes.filter((node) => !isMoving(node)),
-        moving: nodes.filter(isMoving),
-    };
+export function lineArea(
+    holes: string[],
+    width: number,
+    height: number,
+): string {
+    return [`M 0 0 H ${width} V ${height} H 0 Z`, ...holes].join(' ');
 }
 
 function circlePath({ x, y }: Point, radius: number): string {
