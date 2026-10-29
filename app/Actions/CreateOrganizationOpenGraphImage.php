@@ -28,12 +28,12 @@ final readonly class CreateOrganizationOpenGraphImage
     }
 
     /**
-     * Drawn like a profile's card, in the muted color organizations have in the app, since they have no lane.
+     * Drawn like a profile's card, in the organization's lane, /dev/null's blue until its admins choose one.
      */
     private function render(Profile $organization): string
     {
         $canvas = new OpenGraphCanvas;
-        $lane = OpenGraphCanvas::INK_MUTED;
+        $lane = $organization->lane() === null ? OpenGraphCanvas::PRIMARY : $canvas->lane($organization->lane());
         $width = OpenGraphCanvas::CONTENT_RIGHT - OpenGraphCanvas::CONTENT_X;
 
         $bio = $canvas->clamp(

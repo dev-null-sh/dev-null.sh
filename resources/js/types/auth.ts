@@ -56,6 +56,7 @@ export type Auth = {
         pull_receipts: boolean;
         requests: boolean;
         everyone: boolean;
+        calls: boolean;
     } | null;
     pasteis: { remaining: number; day: string } | null;
 };

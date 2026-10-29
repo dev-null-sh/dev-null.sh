@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Providers;
 
 use App\Contracts\Services\DnsResolver;
+use App\Contracts\Services\TurnProvider;
 use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
 use App\Models\User;
 use App\Services\CodeTheme;
 use App\Services\DnsResolvers\SystemDnsResolver;
+use App\Services\TurnProviders\CloudflareTurnProvider;
+use App\Services\TurnProviders\LocalTurnProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -22,9 +25,36 @@ use Tempest\Highlight\Highlighter;
 
 final class AppServiceProvider extends ServiceProvider
 {
+    /**
+     * The services bound in every environment but local.
+     *
+     * @var array<class-string, class-string>
+     */
+    private const array PRODUCTION_SERVICES = [
+        TurnProvider::class => CloudflareTurnProvider::class,
+    ];
+
+    /**
+     * The services bound in the local environment instead, so nothing there needs a third party.
+     *
+     * @var array<class-string, class-string>
+     */
+    private const array LOCAL_SERVICES = [
+        TurnProvider::class => LocalTurnProvider::class,
+    ];
+
     public function register(): void
     {
         $this->app->bind(DnsResolver::class, SystemDnsResolver::class);
+
+        $services = $this->app->isLocal()
+            ? self::LOCAL_SERVICES
+            : self::PRODUCTION_SERVICES;
+
+        foreach ($services as $contract => $implementation) {
+            $this->app->bind($contract, $implementation);
+        }
+
         $this->app->bind(Highlighter::class, fn (): Highlighter => new Highlighter(new CodeTheme()));
     }
 

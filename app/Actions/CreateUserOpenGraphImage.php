@@ -33,7 +33,7 @@ final readonly class CreateUserOpenGraphImage
     private function render(User $user): string
     {
         $canvas = new OpenGraphCanvas;
-        $lane = $canvas->lane($user);
+        $lane = $canvas->lane($user->lane());
         $width = OpenGraphCanvas::CONTENT_RIGHT - OpenGraphCanvas::CONTENT_X;
 
         $bio = $canvas->clamp(

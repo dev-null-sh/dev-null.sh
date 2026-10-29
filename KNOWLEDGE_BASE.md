@@ -36,6 +36,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Notifications](#notifications)
   - [Emails from /dev/null](#emails-from-devnull)
   - [Remotes: direct messages](#remotes-direct-messages)
+  - [Remotes: calls](#remotes-calls)
   - [Orgs: group chats](#orgs-group-chats)
   - [Muting and blocking](#muting-and-blocking)
   - [Reporting commits](#reporting-commits)
@@ -109,15 +110,17 @@ Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](re
 
 ### Organization pages
 
-GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with their GitHub avatar (square, so they never pass for a person), name, description, location, website, and a link to GitHub. An organization gets its page once an approved commit mentions it, from its public GitHub profile, and the profile refreshes when commits keep mentioning it, at most once a day. Nobody signs in as an organization or edits its page: everything on it comes from GitHub. Shared links to an organization's page preview as a card with its square avatar, name, handle, and description, like a developer's profile.
+GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with their GitHub avatar (square, so they never pass for a person), name, description, location, website, and a link to GitHub. An organization gets its page once an approved commit mentions it, from its public GitHub profile, and the profile refreshes when commits keep mentioning it, at most once a day. Nobody signs in as an organization, and everything on its page comes from GitHub, except its color. Shared links to an organization's page preview as a card with its square avatar, name, handle, and description, like a developer's profile.
 
 The **Mentions** tab lists the commits and replies that mention the organization, newest first, a reply with the commit it answers. A commit stays listed after the organization is renamed, since it is linked to the organization rather than to the handle. It follows the usual visibility: guests see approved commits only, you also see your own pending ones, and commits across a block or by people you muted are left out.
 
 A member of an organization can **Claim** its page, which lists them as its admin. Only the first member to claim it becomes its admin: once a page has one, it can't be claimed again, and the Claim button is gone. Claiming asks GitHub once for permission to read your organizations, then checks that you are an owner or a member there, not just invited. Organizations that restrict third-party apps only share their members once an owner approved /dev/null: the page then links to GitHub, where an owner grants access and a member requests it. GitHub is only the way in: leaving the organization on GitHub doesn't remove you as an admin on /dev/null. Claims are in your data export and go when you delete your account.
 
+Every organization has a color, /dev/null's blue until its admin chooses another with **Color** on its page: one of the same six lane colors as developers, or a custom one. It rings the organization's avatar, leads its handle, and colors its link preview.
+
 Following organizations is planned, not shipped yet.
 
-Sources: [organization page](resources/js/pages/organization/show.tsx), [mentions](app/Queries/OrganizationMentionsQuery.php), [organization lookups](app/Actions/UpdateCommitTopics.php), [claims](app/Http/Controllers/OrganizationAdminController.php).
+Sources: [organization page](resources/js/pages/organization/show.tsx), [mentions](app/Queries/OrganizationMentionsQuery.php), [organization lookups](app/Actions/UpdateCommitTopics.php), [claims](app/Http/Controllers/OrganizationAdminController.php), [color](resources/js/components/organization-lane-dialog.tsx).
 
 ### Going live
 
@@ -203,7 +206,7 @@ Livestream history: the team settled on calling posts **commits** and their list
 
 Public commits and replies offer **Translate** when their detected language differs from the reader's translation language. Choose a translation language in **Settings → Profile**, searching by its English or native name (for example, Hungarian or magyar), independently of the device language, or leave **Browser language (automatic)** selected to follow the browser. This private preference is saved to the account, included in the data export, and erased with the account. Regional variants share a language, such as English for `en-US` and `en-GB`. Language detection runs in the background for posts being read; undetermined posts initially offer Translate rather than guessing. Code-only or indeterminate text is not offered once detected. Generating translations requires sign-in and is limited to ten requests per minute.
 
-Pending commits are not offered for translation, even to their author.
+Your own commits and replies are never offered or shown translated.
 
 DeepSeek through OpenCode translates only the post text. The result replaces its displayed text, with **Translated from [language]** and **Show original** to switch back; the original post is never changed. Cached translations are shown automatically on subsequent page loads, including for guests. Signed-in readers can turn off **Automatically show translations** in **Settings → Profile** to read originals first, then choose **Translate** on demand. This private account preference applies across devices, is included in the data export, and is erased with the account. Exact duplicate text shares translations across authors, with separate text for each target language. Translations are cached for seven days, without extending that period on reads or additional target languages. Deleting a post or account clears its shared translations, which surviving duplicates can generate again. No private messages are translated.
 
@@ -392,6 +395,22 @@ Message requests and an **Everyone** contact option may not be available. Where 
 Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contact policy](app/Models/User.php), [push access](app/Queries/PushAccessQuery.php), [reactions](app/Http/Controllers/MessageReactionController.php), [message validation](app/Http/Requests/CreateConversationMessageRequest.php), [message creation](app/Actions/CreateMessage.php), [link-preview storage](app/Models/LinkPreview.php), [voice notes](app/Services/VoiceNotes.php), [remote preferences](resources/js/components/chat/remote-settings-menu.tsx).
 
 Direct remotes disappear from the inbox when the other person deletes their account. An unnamed org can still show **Just you** when you are its only remaining member.
+
+### Remotes: calls
+
+In the web app, a direct remote that has already started can make a one-on-one **call** from the phone button next to Ping in its composer, on the Remotes page or in the dock. Calls work wherever a ping would: both people need Remotes on, no block, and a conversation someone has already said something in. Orgs can't be called yet, and the Mac and mobile apps can't make or answer calls yet.
+
+The call lives on top of that remote's composer: confirming, ringing, and then the call itself with its timer, mute, camera, and **Hang up**. Messages you send during a call are ordinary messages in the same remote. A call is between two people, so it ends for both as soon as either hangs up. Screen sharing is shown as coming soon.
+
+Calls are **relayed and encrypted**. The audio and video go through Cloudflare's relay (TURN), encrypted by the browsers (WebRTC) from one end to the other, so neither the relay nor /dev/null can hear or see a call. Because everything goes through the relay, **neither person ever sees the other's IP address**, only the relay's. Cloudflare's relay does see both people's IP addresses, that a call is happening, and for how long, but not what is said or shown. /dev/null only passes on the two short messages the browsers need to set up the call, held encrypted in a short-lived cache for as long as the call rings and then forgotten, and fetches short-lived relay credentials from Cloudflare for each call without storing them. Nothing about a call is saved: no call history, no recordings, and nothing in your export.
+
+Before calling, the composer asks you to confirm. An incoming call shows **Accept** and **Decline**: in that remote's composer when you have it open, and otherwise in a bar at the top of whatever page you're on, so you can answer from anywhere while /dev/null is open in a visible tab. From any page, the same bar lets you mute, turn the camera on or off, hang up, or jump back to the remote.
+
+Once connected, the call shows a short code such as `fp 3f9a c217`, made from both browsers' encryption keys. If you both read out the same code, nobody is listening in between, /dev/null included.
+
+The camera starts off; turning it on asks the browser for camera access and shows both of you side by side above the composer. A call rings for 45 seconds. It plays the ping sound unless that remote is muted or your sound is off. If the relay can't be reached, the call says **Couldn't connect the call**.
+
+Sources: [call flow](resources/js/lib/call.ts), [call console and bar](resources/js/components/chat/call.tsx), [who can call](app/Http/Requests/CreateConversationCallRequest.php), [call storage](app/Actions/CreateConversationCall.php), [relay](app/Services/TurnProviders/CloudflareTurnProvider.php).
 
 ### Orgs: group chats
 

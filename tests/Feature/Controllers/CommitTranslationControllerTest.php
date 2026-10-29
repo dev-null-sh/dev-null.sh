@@ -145,6 +145,30 @@ it('detects unfamiliar posts in the background without translating on a page rea
     CommitTranslator::assertNeverPrompted();
 });
 
+it('shows translations of a post to its readers but never to its author', function (bool $detected): void {
+    Queue::fake([DetectCommitLanguage::class]);
+    CommitTranslator::fake([['source_language' => 'de', 'body' => 'Good morning']]);
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+    $reader = User::factory()->create();
+    $url = route('commit.show', ['user' => $commit->user, 'commit' => $commit]);
+
+    if ($detected) {
+        $this->actingAs($reader)->postJson(route('commit-translation.store', $commit), ['language' => 'en'])->assertOk();
+    }
+
+    $this->actingAs($commit->user)->get($url)
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation', null));
+
+    Queue::assertPushedTimes(DetectCommitLanguage::class, $detected ? 0 : 1);
+
+    $this->actingAs($reader)->get($url)
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.source_language', $detected ? 'de' : null)
+        ->where('commit.translation.available', true)
+        ->when($detected, fn ($page) => $page->where('commit.translation.translated.body_segments.0.text', 'Good morning')));
+})->with(['undetected' => false, 'detected' => true]);
+
 it('hides translations everywhere and stops queueing detection once an admin switches the feature off', function (): void {
     Queue::fake([DetectCommitLanguage::class]);
     CommitTranslator::fake([

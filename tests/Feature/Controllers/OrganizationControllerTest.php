@@ -26,8 +26,23 @@ it('shows an organization at the handle no user has, to guests too', function ()
             ->where('organization.bio', 'The PHP framework for web artisans.')
             ->where('organization.website', 'https://laravel.com')
             ->missing('organization.github_id')
-            ->missing('organization.github_synced_at'));
+            ->missing('organization.github_synced_at')
+            ->where('lane', null));
 });
+
+it('shows the organization in the lane its admins chose', function (array $attributes, int|string $lane): void {
+    Profile::factory()->organization()->create(['handle' => 'laravel', ...$attributes]);
+
+    $this->get('/@laravel')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('lane', $lane)
+            ->missing('organization.preferred_lane')
+            ->missing('organization.lane_color'));
+})->with([
+    'from the palette' => [['preferred_lane' => 3], 3],
+    'custom' => [['lane_color' => '#1a2b3c'], '#1a2b3c'],
+]);
 
 it('shows who claimed the organization, first claim first, and where to claim it', function (): void {
     $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);

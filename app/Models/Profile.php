@@ -30,6 +30,8 @@ use Illuminate\Database\Eloquent\Relations\Relation;
  * @property-read string|null $bio
  * @property-read string|null $location
  * @property-read string|null $website
+ * @property-read int|null $preferred_lane
+ * @property-read string|null $lane_color
  * @property-read CarbonInterface|null $github_synced_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
@@ -76,6 +78,8 @@ final class Profile extends Model
             'bio' => 'string',
             'location' => 'string',
             'website' => 'string',
+            'preferred_lane' => 'integer',
+            'lane_color' => 'string',
             'github_synced_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
@@ -87,7 +91,16 @@ final class Profile extends Model
      */
     public function openGraphImageVersion(): string
     {
-        return hash('xxh3', (string) json_encode([$this->name, $this->handle, $this->avatar_url, $this->bio]));
+        return hash('xxh3', (string) json_encode([$this->name, $this->handle, $this->avatar_url, $this->bio, $this->lane()]));
+    }
+
+    /**
+     * The lane the organization's admins chose, like a user's, or null for /dev/null's blue, which organizations have
+     * until then.
+     */
+    public function lane(): int|string|null
+    {
+        return $this->lane_color ?? $this->preferred_lane;
     }
 
     /**

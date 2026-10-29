@@ -7,6 +7,7 @@ import {
     MobileHeader,
     MobileNav,
 } from '@/components/app-nav';
+import { CallBar } from '@/components/chat/call';
 import { ChatDock } from '@/components/chat/chat-dock';
 import {
     CommitComposerDialog,
@@ -160,6 +161,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
                 {auth.user !== null && auth.remotes !== null && !isMessages && (
                     <ChatDock user={auth.user} />
+                )}
+                {auth.user !== null && auth.remotes?.calls && (
+                    <CallBar user={auth.user} />
                 )}
 
                 <SearchDialog

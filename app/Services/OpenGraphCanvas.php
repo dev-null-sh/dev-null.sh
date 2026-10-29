@@ -25,6 +25,11 @@ final readonly class OpenGraphCanvas
 
     public const int INK_MUTED = 0x5B616B;
 
+    /**
+     * /dev/null's blue, the lane of organizations until their admins choose one.
+     */
+    public const int PRIMARY = 0x3B6FE0;
+
     public const int RAIL_X = 112;
 
     public const int CONTENT_X = 184;
@@ -54,10 +59,8 @@ final readonly class OpenGraphCanvas
         $this->image = $this->blank(self::WIDTH * self::SCALE, self::HEIGHT * self::SCALE);
     }
 
-    public function lane(User $user): int
+    public function lane(int|string $lane): int
     {
-        $lane = $user->lane();
-
         return is_string($lane) ? (int) hexdec(mb_substr($lane, 1)) : self::LANES[$lane];
     }
 

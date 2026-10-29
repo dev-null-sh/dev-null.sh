@@ -17,6 +17,7 @@ import {
     useState,
 } from 'react';
 import { toast } from 'sonner';
+import { CallButton, CallConsole } from '@/components/chat/call';
 import {
     LiftedMessage,
     MessageImages,
@@ -1659,6 +1660,7 @@ function Composer({
     const body = stash.body;
     const [error, setError] = useState<string | null>(null);
     const [wasReplySent, setWasReplySent] = useState(false);
+    const [isConfirmingCall, setIsConfirmingCall] = useState(false);
     const errorTimer = useRef<number | undefined>(undefined);
     const trimmed = body.trim();
     const length = characterCount(body);
@@ -1850,6 +1852,13 @@ function Composer({
                     isCompact ? 'p-2.5' : 'px-4 py-3',
                 )}
             >
+                {target.kind === 'direct' && (
+                    <CallConsole
+                        partner={target.partner}
+                        isConfirming={isConfirmingCall}
+                        onConfirmingChange={setIsConfirmingCall}
+                    />
+                )}
                 <ReplyPreview
                     reply={replyingTo}
                     author={replyAuthor}
@@ -1951,6 +1960,13 @@ function Composer({
                                 </TooltipTrigger>
                                 <TooltipContent>{pingLabel}</TooltipContent>
                             </Tooltip>
+                            {target.kind === 'direct' && (
+                                <CallButton
+                                    partner={target.partner}
+                                    isCompact={isCompact}
+                                    onClick={() => setIsConfirmingCall(true)}
+                                />
+                            )}
                             <div className="relative min-w-0 flex-1">
                                 <MentionTextarea
                                     id={id}

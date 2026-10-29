@@ -19,8 +19,8 @@ final readonly class OrganizationController
 {
     /**
      * Organization pages are public, at the "@handle" of users, and show the organization's GitHub profile and the
-     * commits that mention it, with the users who claimed it, first claim first, and the organization's link preview.
-     * Like users' pages, they move for good to the handle's own case.
+     * commits that mention it, in the lane its admins chose or /dev/null's blue, with the users who claimed it, first
+     * claim first, and the organization's link preview. Like users' pages, they move for good to the handle's own case.
      */
     public function show(ShowOrganizationRequest $request, #[CurrentUser] ?User $currentUser, OrganizationMentionsQuery $mentions, PageMetadata $metadata): RedirectResponse|Response
     {
@@ -37,6 +37,7 @@ final readonly class OrganizationController
         return Inertia::render('organization/show', [
             // The Mentions tab tells a restored commit belongs to it by the ID, whatever handle the commit mentions.
             'organization' => $organization->makeVisible('id'),
+            'lane' => $organization->lane(),
             'tab' => $request->tab(...),
             'commits' => Inertia::scroll(fn () => $mentions->builder($organization, $currentUser)
                 ->cursorPaginate(20)

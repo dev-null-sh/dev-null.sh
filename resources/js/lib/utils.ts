@@ -187,6 +187,13 @@ export function laneColor(lane: Lane): string {
 }
 
 /**
+ * Organizations are in /dev/null's blue until their admins choose a lane.
+ */
+export function organizationLaneColor(lane: Lane | null): string {
+    return lane === null ? 'var(--primary)' : laneColor(lane);
+}
+
+/**
  * A palette lane is a CSS variable, so a hex alpha cannot be appended to it.
  */
 export function laneTint(color: string, percent: number): string {
