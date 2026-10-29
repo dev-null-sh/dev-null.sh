@@ -848,10 +848,14 @@ it('opens each profile at its own case when a stale profile holds the handle in 
     $this->get((string) $redirect->headers->get('Location'))->assertOk();
 });
 
-it('opens the user rather than an organization holding the handle in another case', function (): void {
+it('opens the user rather than an organization holding the handle in another case, unless the case is exact', function (): void {
     $user = User::factory()->create(['handle' => 'Laravel']);
-    Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
 
     $this->get('/@LARAVEL')->assertRedirect('/@Laravel')->assertMovedPermanently();
     $this->get('/@Laravel')->assertOk()->assertInertia(fn ($page) => $page->component('user/show')->where('user.id', $user->id));
+    $this->get('/@laravel')->assertOk()->assertInertia(fn ($page) => $page->component('organization/show')->where('organization.id', $organization->id));
+
+    expect(new Profile()->resolveRouteBinding('LARAVEL', 'handle')?->getKey())->toBe($user->profile->getKey())
+        ->and(new Profile()->resolveRouteBinding('laravel', 'handle')?->getKey())->toBe($organization->getKey());
 });

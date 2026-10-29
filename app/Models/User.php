@@ -232,7 +232,8 @@ final class User extends Authenticatable
 
     /**
      * Resolves "@handle" URLs through the profile, which holds the handle, whatever its case, like GitHub. A stale
-     * profile may still hold the same handle in another case, so the exact case wins, then always the same one.
+     * profile may still hold the same handle in another case, so the exact case wins, then a user's, then always the
+     * same one, like Profile::resolveRouteBindingQuery() for the link preview images.
      *
      * @param  Model|BuilderContract|Relation<Model, Model, mixed>  $query
      * @param  mixed  $value
@@ -241,7 +242,7 @@ final class User extends Authenticatable
     public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
     {
         return $field === 'handle'
-            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('github_id')->where('type', ProfileType::User)->whereRaw('LOWER(handle) = LOWER(?)', [$value])->orderByRaw('handle = ? desc', [$value])->orderBy('handle')->limit(1), 'github_id')
+            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('github_id')->whereRaw('LOWER(handle) = LOWER(?)', [$value])->orderByRaw('handle = ? desc', [$value])->orderByRaw('type = ? desc', [ProfileType::User])->orderBy('handle')->limit(1), 'github_id')
             : parent::resolveRouteBindingQuery($query, $value, $field);
     }
 
