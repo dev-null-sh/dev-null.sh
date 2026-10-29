@@ -812,7 +812,7 @@ it('moves a profile for good to the handle in its own case, keeping the query st
     $this->get('/@octocat?tab=replies')
         ->assertMovedPermanently()
         ->assertRedirect('/@OctoCat?tab=replies')
-        ->assertHeader('Cache-Control', 'max-age=86400, public');
+        ->assertHeader('Cache-Control', 'max-age=86400, private');
 
     $this->get('/@OctoCat')->assertOk();
 });

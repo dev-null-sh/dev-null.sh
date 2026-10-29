@@ -26,7 +26,7 @@ final readonly class RedirectToHandleCase
         if ($user instanceof User && $route->originalParameter('user') !== $user->handle) {
             $query = $request->getQueryString();
 
-            return redirect(route((string) $route->getName(), [...$route->parameters(), 'user' => $user->handle]).($query === null ? '' : "?{$query}"), 301, ['Cache-Control' => 'max-age=86400, public']);
+            return redirect(route((string) $route->getName(), [...$route->parameters(), 'user' => $user->handle]).($query === null ? '' : "?{$query}"), 301, ['Cache-Control' => 'max-age=86400, private']);
         }
 
         return $next($request);

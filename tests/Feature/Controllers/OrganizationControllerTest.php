@@ -160,7 +160,7 @@ it('moves an organization for good to the handle in its own case, keeping the qu
     $this->get('/@laravel?tab=mentions')
         ->assertMovedPermanently()
         ->assertRedirect('/@Laravel?tab=mentions')
-        ->assertHeader('Cache-Control', 'max-age=86400, public');
+        ->assertHeader('Cache-Control', 'max-age=86400, private');
 
     $this->get('/@Laravel')->assertOk();
 });
