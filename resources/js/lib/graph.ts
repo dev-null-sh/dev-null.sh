@@ -302,34 +302,45 @@ export type CutOut = {
     leaving?: GraphNode;
 };
 
-/** The nodes standing still, cut out together, then every node on the move, scaling out or in a collapsing row. */
+/**
+ * The nodes standing still, cut out together, and what hangs off them, apart since it overlaps their rings. Then every
+ * node on the move, scaling out or in a collapsing row, and each thing hanging off it.
+ */
 export function cutOuts(nodes: GraphNode[], rows: LeavingRow[]): CutOut[] {
     const rowOf = (node: GraphNode) =>
         rows.findIndex((row) => row.ids.has(node.id));
     const isMoving = (node: GraphNode) =>
         node.isLeaving === true || rowOf(node) !== -1;
+    const still = nodes.filter((node) => !isMoving(node));
+    const overhangs = still.flatMap((node) =>
+        (node.overhangs ?? []).map(roundedRectPath),
+    );
 
     return [
-        {
-            holes: nodes
-                .filter((node) => !isMoving(node))
-                .map((node) => circlePath(node, node.radius)),
-        },
-        ...nodes.filter(isMoving).map((node) => {
+        { holes: still.map((node) => circlePath(node, node.radius)) },
+        ...(overhangs.length > 0 ? [{ holes: overhangs }] : []),
+        ...nodes.filter(isMoving).flatMap((node) => {
             const row = rowOf(node);
+            const within = row === -1 ? {} : { row };
 
-            return {
-                holes: [
-                    circlePath(
-                        node,
-                        node.isLeaving
-                            ? node.radius * leavingSwell
-                            : node.radius,
-                    ),
-                ],
-                ...(row !== -1 && { row }),
-                ...(node.isLeaving && { leaving: node }),
-            };
+            return [
+                {
+                    holes: [
+                        circlePath(
+                            node,
+                            node.isLeaving
+                                ? node.radius * leavingSwell
+                                : node.radius,
+                        ),
+                    ],
+                    ...within,
+                    ...(node.isLeaving && { leaving: node }),
+                },
+                ...(node.overhangs ?? []).map((overhang) => ({
+                    holes: [roundedRectPath(overhang)],
+                    ...within,
+                })),
+            ];
         }),
     ];
 }
@@ -348,6 +359,14 @@ export function lineArea(
 
 function circlePath({ x, y }: Point, radius: number): string {
     return `M ${x - radius} ${y} A ${radius} ${radius} 0 1 0 ${x + radius} ${y} A ${radius} ${radius} 0 1 0 ${x - radius} ${y} Z`;
+}
+
+/** A rounded rectangle, its corners no rounder than half its shorter side, as CSS draws a pill. */
+function roundedRectPath({ x, y, width, height, radius }: Overhang): string {
+    const r = Math.min(radius, width / 2, height / 2);
+    const corner = `A ${r} ${r} 0 0 1`;
+
+    return `M ${x + r} ${y} H ${x + width - r} ${corner} ${x + width} ${y + r} V ${y + height - r} ${corner} ${x + width - r} ${y + height} H ${x + r} ${corner} ${x} ${y + height - r} V ${y + r} ${corner} ${x + r} ${y} Z`;
 }
 
 export function sameNodes(a: GraphNode[], b: GraphNode[]): boolean {

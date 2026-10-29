@@ -625,6 +625,61 @@ void test('cuts a node on its way out as wide as it swells before it scales out'
     ]);
 });
 
+void test('cuts what hangs off the nodes standing still out apart from them, as rounded as it is', () => {
+    assert.deepEqual(
+        cutOuts(
+            [
+                node({
+                    id: 'live',
+                    y: 40,
+                    overhangs: [
+                        { x: 10, y: 60, width: 44, height: 16, radius: 9999 },
+                    ],
+                }),
+            ],
+            [],
+        ),
+        [
+            { holes: ['M 8 40 A 24 24 0 1 0 56 40 A 24 24 0 1 0 8 40 Z'] },
+            {
+                holes: [
+                    'M 18 60 H 46 A 8 8 0 0 1 54 68 V 68 A 8 8 0 0 1 46 76 H 18 A 8 8 0 0 1 10 68 V 68 A 8 8 0 0 1 18 60 Z',
+                ],
+            },
+        ],
+    );
+});
+
+void test('cuts what hangs off a node in a collapsing row out on its own, within the row', () => {
+    assert.deepEqual(
+        cutOuts(
+            [
+                node({
+                    id: 'live',
+                    y: 120,
+                    overhangs: [
+                        { x: 10, y: 140, width: 44, height: 16, radius: 4 },
+                    ],
+                }),
+            ],
+            [{ ids: new Set(['live']), opacity: 0.5 }],
+        ),
+        [
+            { holes: [] },
+            {
+                holes: ['M 8 120 A 24 24 0 1 0 56 120 A 24 24 0 1 0 8 120 Z'],
+                row: 0,
+            },
+            {
+                holes: [
+                    'M 14 140 H 50 A 4 4 0 0 1 54 144 V 152 A 4 4 0 0 1 50 156 H 14 A 4 4 0 0 1 10 152 V 144 A 4 4 0 0 1 14 140 Z',
+                ],
+                row: 0,
+            },
+        ],
+    );
+});
+
 void test('keeps a cut-out with no hole when the canvas holds no node', () => {
     assert.deepEqual(cutOuts([], []), [{ holes: [] }]);
 });
