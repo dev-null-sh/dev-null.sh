@@ -67,6 +67,9 @@ final readonly class DeleteUser
 
             $this->deleteOrgs->handle($this->emptyOrgs($user));
 
+            // Sessions have no foreign key to cascade, and keep the IP address and browser of each device.
+            DB::table('sessions')->where('user_id', $user->id)->delete();
+
             $user->delete();
             $user->profile->delete();
 

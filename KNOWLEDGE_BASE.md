@@ -556,11 +556,12 @@ Choose **Download JSON** in Settings → Profile to export your account data. Th
 - profile details and preferences, including live-stream details, translation language, the last day you used /dev/null, and when you accepted the commit rules;
 - your commits and replies (including pending, rejected, and deleted entries still stored), their cached translations, polls, and your votes;
 - stars, followers and people you follow, mutes, blocks, and dismissed **Not interested** suggestions;
-- messages you sent, including links to your voice notes, and notifications;
+- messages you sent, including links to your images and voice notes, the reactions you left, and notifications;
+- scheduled commits, with their polls, link, and image descriptions, and the reports you filed;
 - SSH key fingerprints, approved devices, and your timeout history;
 - active-session metadata: IP address, browser information, and last activity.
 
-Other people's replies and received messages are not included as your authored data. Message images, message reactions, reports you filed, scheduled commits, and ban records are not included either. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
+Other people's replies and received messages are not included as your authored data, and neither are ban records or whether a moderator dismissed your reports. Scheduled commits list their image descriptions, not their images. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
 
 The export does not expose session IDs, authentication tokens, private SSH keys, or other people's poll choices. Keep the downloaded JSON private because it includes personal account information. Exports are limited to **three per hour**.
 
@@ -568,7 +569,7 @@ Sources: [export settings](resources/js/pages/user-profile/edit.tsx), [export co
 
 ### Deleting your account
 
-Settings → Profile → **Delete account** opens a confirmation for permanent deletion of your /dev/null account; an app can also delete it through the signed API. It does not delete your GitHub account. Your top-level commits and every reply under those threads are erased. Your replies are also removed, except that replies from other people beneath them survive under authorless `[deleted]` placeholders. Your devices, the messages and reactions you sent, and all your uploaded images are erased too; other people's messages in your conversations stay with them. Account deletion is not covered by the 30-second commit undo.
+Settings → Profile → **Delete account** opens a confirmation for permanent deletion of your /dev/null account; an app can also delete it through the signed API. It does not delete your GitHub account. Your top-level commits and every reply under those threads are erased. Your replies are also removed, except that replies from other people beneath them survive under authorless `[deleted]` placeholders. Your devices, your sessions, the messages and reactions you sent, and all your uploaded images are erased too; other people's messages in your conversations stay with them. Account deletion is not covered by the 30-second commit undo.
 
 You can sign in with GitHub again later, but start from a new account rather than restoring the deleted one. Export your data first if you want a copy. Deleting from /dev/null cannot retract copies of public content held elsewhere.
 

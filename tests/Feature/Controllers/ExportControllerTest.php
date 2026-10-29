@@ -10,12 +10,16 @@ use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\CommitReport;
 use App\Models\Device;
 use App\Models\Message;
+use App\Models\MessageImage;
+use App\Models\MessageReaction;
 use App\Models\MessageVoice;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\PollVote;
+use App\Models\ScheduledCommit;
 use App\Models\SshKey;
 use App\Models\User;
 use App\Models\UserTimeout;
@@ -130,12 +134,15 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'blocking' => [],
         'dismissed_suggestions' => [],
         'messages' => [],
+        'message_reactions' => [],
         'remote_mutes' => [],
         'remote_pins' => [],
         'notifications' => [],
         'ssh_keys' => [],
         'push_subscriptions' => [],
         'devices' => [],
+        'scheduled_commits' => [],
+        'reports_filed' => [],
         'timeouts' => [],
         'sessions' => [],
     ]);
@@ -531,7 +538,7 @@ it('exports the messages the user sent, and not the ones they received', functio
     $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['messages'])->toBe([
-        ['to' => 'nunomaduro', 'body' => 'merged it this morning', 'voice' => null, 'created_at' => now()->toIso8601String()],
+        ['to' => 'nunomaduro', 'body' => 'merged it this morning', 'images' => [], 'voice' => null, 'created_at' => now()->toIso8601String()],
     ]);
 });
 
@@ -568,4 +575,71 @@ it('exports subscription metadata without delivery endpoints', function (): void
     $subscription = $user->pushSubscriptions()->create(['endpoint_hash' => 'browser', 'endpoint' => 'https://fcm.googleapis.com/wp/private']);
     $export = resolve(CreateExport::class)->handle($user);
     expect($export['push_subscriptions'])->toBe([['id' => $subscription->id]]);
+});
+
+it('exports the images the user sent in remotes as links, in order', function (): void {
+    $user = User::factory()->create();
+    $message = Message::factory()->for($user)->create();
+    $second = MessageImage::factory()->for($message)->create(['position' => 1]);
+    $first = MessageImage::factory()->for($message)->create(['position' => 0]);
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['messages'][0]['images'])->toBe([route('message-image.show', $first), route('message-image.show', $second)])
+        ->and(json_encode($data))->not->toContain($first->path);
+});
+
+it('exports the reactions the user left on messages, and not the reactions of others', function (): void {
+    $user = User::factory()->create();
+    $partner = User::factory()->create(['handle' => 'nunomaduro']);
+    $partner->following()->attach($user);
+    sendChatMessage($user, $partner, 'merged it this morning');
+    $message = sendChatMessage($partner, $user, 'ship it');
+    MessageReaction::factory()->create(['message_id' => $message->id, 'user_id' => $user->id, 'emoji' => '🚀']);
+    MessageReaction::factory()->create(['message_id' => $message->id, 'user_id' => $partner->id, 'emoji' => '👀']);
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['message_reactions'])->toBe([
+        ['to' => 'nunomaduro', 'emoji' => '🚀', 'created_at' => now()->toIso8601String()],
+    ]);
+});
+
+it('exports the scheduled commits of the user without the paths of their images', function (): void {
+    $user = User::factory()->create();
+    ScheduledCommit::factory()->for($user)->create([
+        'body' => 'Launching tomorrow.',
+        'poll' => ['options' => ['Yes', 'No'], 'duration' => 60],
+        'images' => [['path' => 'scheduled/secret-path.webp', 'width' => 10, 'height' => 10, 'description' => 'A rocket', 'position' => 0]],
+        'link_preview_url' => 'https://dev-null.sh',
+        'scheduled_at' => now()->addDay(),
+    ]);
+    ScheduledCommit::factory()->create();
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['scheduled_commits'])->toBe([[
+        'body' => 'Launching tomorrow.',
+        'poll' => ['options' => ['Yes', 'No'], 'duration' => 60],
+        'image_descriptions' => ['A rocket'],
+        'link_preview_url' => 'https://dev-null.sh',
+        'commit_id' => null,
+        'scheduled_at' => now()->addDay()->toIso8601String(),
+        'submitted_at' => null,
+        'canceled_at' => null,
+        'created_at' => now()->toIso8601String(),
+    ]])->and(json_encode($data))->not->toContain('secret-path');
+});
+
+it('exports the reports the user filed, without whether a moderator dismissed them', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+    CommitReport::factory()->for($commit)->create(['reporter_id' => $user->id, 'reason' => 'spam', 'details' => 'Same link everywhere.', 'dismissed_at' => now()]);
+    CommitReport::factory()->for($commit)->create();
+
+    $data = json_decode($this->actingAs($user)->get(route('export'))->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['reports_filed'])->toBe([
+        ['commit_id' => $commit->id, 'reason' => 'spam', 'details' => 'Same link everywhere.', 'created_at' => now()->toIso8601String()],
+    ]);
 });

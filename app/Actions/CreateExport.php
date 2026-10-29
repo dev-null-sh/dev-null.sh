@@ -6,13 +6,17 @@ namespace App\Actions;
 
 use App\Enums\NotificationType;
 use App\Models\CommitImage;
+use App\Models\CommitReport;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
 use App\Models\Message;
+use App\Models\MessageImage;
+use App\Models\MessageReaction;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PushSubscription;
+use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Models\UserTimeout;
 use App\Queries\CommitBuilder;
@@ -29,7 +33,7 @@ use stdClass;
 /**
  * @phpstan-type ExportPoll array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}
  * @phpstan-type ExportPollVote array{commit_id: string, option: string, created_at: string}
- * @phpstan-type ExportMessage array{to: string|null, body: string, voice: string|null, created_at: string}
+ * @phpstan-type ExportMessage array{to: string|null, body: string, images: array<int, string>, voice: string|null, created_at: string}
  * @phpstan-type ExportUser array{handle: string}
  * @phpstan-type UserExport array{
  *     schema_version: int,
@@ -45,12 +49,15 @@ use stdClass;
  *     blocking: Generator<int, ExportUser>,
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     messages: Generator<int, ExportMessage>,
+ *     message_reactions: array<int, array{to: string|null, emoji: string, created_at: string}>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
  *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
  *     notifications: Generator<int, array<string, int|string|null>>,
  *     ssh_keys: array<mixed>,
  *     push_subscriptions: array<int, array{id: string}>,
  *     devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>,
+ *     scheduled_commits: array<int, array{body: string|null, poll: array{options: list<string>, duration: int}|null, image_descriptions: list<string|null>, link_preview_url: string|null, commit_id: string|null, scheduled_at: string, submitted_at: string|null, canceled_at: string|null, created_at: string|null}>,
+ *     reports_filed: array<int, array{commit_id: string, reason: string, details: string|null, created_at: string}>,
  *     timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>,
  *     sessions: Collection<int, stdClass>
  * }
@@ -111,6 +118,7 @@ final readonly class CreateExport
             'blocking' => $this->handles($user->blocking()),
             'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
             'messages' => $this->messages($user),
+            'message_reactions' => $this->messageReactions($user),
             'remote_mutes' => Conversation::query()
                 ->join('conversation_participants as mine', 'mine.conversation_id', '=', 'conversations.id')
                 ->where('mine.user_id', $user->id)
@@ -150,6 +158,37 @@ final readonly class CreateExport
                 'approved_at' => $device->approved_at->toIso8601String(),
                 'last_used_at' => $device->last_used_at?->toIso8601String(),
             ])->all(),
+            // Image files of scheduled commits are never served, so only what the user wrote about them leaves.
+            'scheduled_commits' => ScheduledCommit::query()
+                ->where('user_id', $user->id)
+                ->oldest('scheduled_at')
+                ->oldest('id')
+                ->get()
+                ->map(fn (ScheduledCommit $scheduled): array => [
+                    'body' => $scheduled->body,
+                    'poll' => $scheduled->poll,
+                    'image_descriptions' => array_column($scheduled->images ?? [], 'description'),
+                    'link_preview_url' => $scheduled->link_preview_url,
+                    'commit_id' => $scheduled->commit_id,
+                    'scheduled_at' => $scheduled->scheduled_at->toIso8601String(),
+                    'submitted_at' => $scheduled->submitted_at?->toIso8601String(),
+                    'canceled_at' => $scheduled->canceled_at?->toIso8601String(),
+                    'created_at' => $scheduled->created_at?->toIso8601String(),
+                ])
+                ->all(),
+            // Whether a moderator dismissed a report stays theirs.
+            'reports_filed' => CommitReport::query()
+                ->where('reporter_id', $user->id)
+                ->oldest()
+                ->oldest('id')
+                ->get()
+                ->map(fn (CommitReport $report): array => [
+                    'commit_id' => $report->commit_id,
+                    'reason' => $report->reason,
+                    'details' => $report->details,
+                    'created_at' => $report->created_at->toIso8601String(),
+                ])
+                ->all(),
             'timeouts' => $user->timeouts()->oldest()->get()->map(fn (UserTimeout $timeout): array => [
                 'reason' => $timeout->reason->value,
                 'ends_at' => $timeout->ends_at->toIso8601String(),
@@ -250,20 +289,55 @@ final readonly class CreateExport
      */
     private function messages(User $user): Generator
     {
-        $recipients = Conversation::query()
-            ->whereIn('id', ConversationParticipant::query()->select('conversation_id')->where('user_id', $user->id))
-            ->with('participants.user')
-            ->get()
-            ->mapWithKeys(fn (Conversation $conversation): array => [$conversation->id => $this->recipient($user, $conversation)]);
+        $recipients = $this->recipients($user);
 
-        foreach (Message::query()->where('user_id', $user->id)->whereNull('event')->with('voice')->lazyById(500) as $message) {
+        foreach (Message::query()->where('user_id', $user->id)->whereNull('event')->with(['voice', 'images'])->lazyById(500) as $message) {
             yield [
                 'to' => $recipients->get($message->conversation_id),
                 'body' => $message->body,
+                'images' => $message->images->sortBy('position')->map(fn (MessageImage $image): string => route('message-image.show', $image))->values()->all(),
                 'voice' => $message->voice?->url(),
                 'created_at' => $message->created_at->toIso8601String(),
             ];
         }
+    }
+
+    /**
+     * The reactions the user left on messages, whoever sent them.
+     *
+     * @return array<int, array{to: string|null, emoji: string, created_at: string}>
+     */
+    private function messageReactions(User $user): array
+    {
+        $recipients = $this->recipients($user);
+
+        /** @var Collection<int, object{conversation_id: string, emoji: string, created_at: string}> $reactions */
+        $reactions = MessageReaction::query()
+            ->join('messages', 'messages.id', '=', 'message_reactions.message_id')
+            ->where('message_reactions.user_id', $user->id)
+            ->oldest('message_reactions.id')
+            ->toBase()
+            ->get(['messages.conversation_id', 'message_reactions.emoji', 'message_reactions.created_at']);
+
+        return $reactions->map(fn (object $reaction): array => [
+            'to' => $recipients->get($reaction->conversation_id),
+            'emoji' => $reaction->emoji,
+            'created_at' => CarbonImmutable::parse($reaction->created_at)->toIso8601String(),
+        ])->all();
+    }
+
+    /**
+     * Who each of the user's conversations is with.
+     *
+     * @return Collection<string, string|null>
+     */
+    private function recipients(User $user): Collection
+    {
+        return Conversation::query()
+            ->whereIn('id', ConversationParticipant::query()->select('conversation_id')->where('user_id', $user->id))
+            ->with('participants.user')
+            ->get()
+            ->mapWithKeys(fn (Conversation $conversation): array => [$conversation->id => $this->recipient($user, $conversation)]);
     }
 
     /**

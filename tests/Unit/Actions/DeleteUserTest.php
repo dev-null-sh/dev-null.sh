@@ -362,3 +362,16 @@ it('erases browser push subscriptions with the account', function (): void {
     resolve(DeleteUser::class)->handle($user);
     expect(PushSubscription::query()->count())->toBe(0);
 });
+
+it('deletes the sessions of the user, and not the sessions of others', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    DB::table('sessions')->insert([
+        ['id' => 'mine', 'user_id' => $user->id, 'ip_address' => '203.0.113.7', 'user_agent' => 'Mine', 'payload' => '', 'last_activity' => now()->getTimestamp()],
+        ['id' => 'theirs', 'user_id' => $other->id, 'ip_address' => '198.51.100.9', 'user_agent' => 'Theirs', 'payload' => '', 'last_activity' => now()->getTimestamp()],
+    ]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(DB::table('sessions')->pluck('id')->all())->toBe(['theirs']);
+});
