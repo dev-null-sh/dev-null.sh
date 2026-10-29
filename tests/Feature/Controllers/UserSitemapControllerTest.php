@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 
 it('lists the profiles with approved commits that signed up that month', function (): void {
@@ -24,6 +25,22 @@ it('lists the profiles with approved commits that signed up that month', functio
         ->assertDontSee('pending_only')
         ->assertDontSee('no_commits');
 });
+
+it('dates a profile by the last change of its account, its GitHub profile or its approved commits', function (string $account, string $profile, string $commit, string $lastmod): void {
+    $this->travelTo('2026-10-01 00:00:00');
+    $user = User::factory()->create(['updated_at' => $account]);
+    Profile::query()->where('github_id', $user->github_id)->toBase()->update(['updated_at' => $profile]);
+    Commit::factory()->for($user)->create(['updated_at' => $commit]);
+    Commit::factory()->for($user)->pending()->create(['updated_at' => '2026-10-29 00:00:00']);
+
+    $this->get(route('user-sitemap.show', '2026-10'))
+        ->assertOk()
+        ->assertSee("<lastmod>{$lastmod}</lastmod>", false);
+})->with([
+    'the account' => ['2026-10-20 10:00:00', '2026-10-10 10:00:00', '2026-10-05 10:00:00', '2026-10-20T10:00:00+00:00'],
+    'the GitHub profile' => ['2026-10-05 10:00:00', '2026-10-20 10:00:00', '2026-10-10 10:00:00', '2026-10-20T10:00:00+00:00'],
+    'an approved commit' => ['2026-10-05 10:00:00', '2026-10-10 10:00:00', '2026-10-20 10:00:00', '2026-10-20T10:00:00+00:00'],
+]);
 
 it('has no sitemap for a month that does not exist', function (string $month): void {
     $this->get("/sitemaps/users-{$month}.xml")->assertNotFound();

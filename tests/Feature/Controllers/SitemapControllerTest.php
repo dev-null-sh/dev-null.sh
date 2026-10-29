@@ -52,6 +52,8 @@ it('serves every sitemap without cookies, so a cache can share it', function (st
 })->with(['sitemap.index', 'user-sitemap.show', 'commit-sitemap.show'])->freezeTime();
 
 it('dates every sitemap by the last change of what it lists', function (): void {
+    $this->travelTo('2026-10-01 00:00:00');
+
     $first = User::factory()->create(['created_at' => '2026-09-01 00:00:00', 'updated_at' => '2026-10-20 10:00:00']);
     $second = User::factory()->create(['created_at' => '2026-09-30 00:00:00', 'updated_at' => '2026-10-02 10:00:00']);
     Commit::factory()->for($first)->create(['created_at' => '2026-10-15 08:00:00', 'updated_at' => '2026-10-15 08:00:00']);
@@ -62,7 +64,7 @@ it('dates every sitemap by the last change of what it lists', function (): void 
         ->assertOk()
         ->assertSeeInOrder([
             '<loc>'.route('user-sitemap.show', '2026-09').'</loc>',
-            '<lastmod>2026-10-20T10:00:00+00:00</lastmod>',
+            '<lastmod>2026-10-28T12:00:00+00:00</lastmod>',
             '<loc>'.route('commit-sitemap.show', '2026-10-15').'</loc>',
             '<lastmod>2026-10-28T12:00:00+00:00</lastmod>',
         ], false)

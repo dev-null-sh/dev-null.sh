@@ -26,9 +26,9 @@ final readonly class SitemapQuery
     public function userMonths(): array
     {
         /** @var list<object{month: string, updated_at: string}> $months */
-        $months = $this->users()
-            ->toBase()
-            ->selectRaw("to_char(users.created_at, 'YYYY-MM') as month, max(users.updated_at) as updated_at")
+        $months = DB::query()
+            ->fromSub($this->users(), 'users')
+            ->selectRaw("to_char(created_at, 'YYYY-MM') as month, max(updated_at) as updated_at")
             ->groupBy('month')
             ->orderBy('month')
             ->get()
@@ -72,12 +72,11 @@ final readonly class SitemapQuery
     {
         /** @var list<object{handle: string, updated_at: string}> $users */
         $users = $this->users()
-            ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
             ->where('users.created_at', '>=', $month)
             ->where('users.created_at', '<', $month->addMonth())
             ->orderBy('users.id')
             ->toBase()
-            ->get(['profiles.handle', 'users.updated_at'])
+            ->get()
             ->all();
 
         return array_map(fn (object $user): array => [
@@ -129,13 +128,24 @@ final readonly class SitemapQuery
     }
 
     /**
-     * Profiles without a single approved commit have nothing to read yet.
+     * Profiles without a single approved commit have nothing to read yet. A profile's page changes with the account,
+     * its GitHub profile, and the last of its approved commits.
      *
      * @return Builder<User>
      */
     private function users(): Builder
     {
-        return User::query()->whereHas('commits', fn (CommitBuilder $query): CommitBuilder => $query->approved());
+        $lastCommits = $this->commits()
+            ->toBase()
+            ->select('user_id')
+            ->selectRaw('max(updated_at) as updated_at')
+            ->groupBy('user_id');
+
+        return User::query()
+            ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
+            ->joinSub($lastCommits, 'last_commits', 'last_commits.user_id', '=', 'users.id')
+            ->select(['profiles.handle', 'users.created_at'])
+            ->selectRaw('greatest(users.updated_at, profiles.updated_at, last_commits.updated_at) as updated_at');
     }
 
     private function commits(): CommitBuilder
