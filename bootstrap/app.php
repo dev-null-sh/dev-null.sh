@@ -11,6 +11,7 @@ use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\PreventFraming;
 use App\Http\Middleware\RedirectBannedUsers;
+use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\SerializePushSessions;
 use App\Http\Middleware\StripNullBytes;
 use App\Http\Middleware\UpdateLastSeenAt;
@@ -42,6 +43,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Before the strings are trimmed, so a value that was only NUL bytes ends up empty like any other blank one.
         $middleware->prepend(StripNullBytes::class);
         $middleware->append(PreventFraming::class);
+        $middleware->append(SecurityHeaders::class);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow', 'who_to_follow_round', 'lane_dimming', 'replies_per_page', 'time_zone', 'hour_cycle']);
 

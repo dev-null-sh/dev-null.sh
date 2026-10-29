@@ -428,8 +428,20 @@ final class User extends Authenticatable
         return $this->onboarded_at !== null;
     }
 
+    /**
+     * Admins are matched on their GitHub ID, which never changes. A handle can be renamed away and then
+     * claimed by somebody else, and "UpdateStaleHandles" actively hands released handles over, so a handle
+     * must never grant admin on its own. Handles remain the fallback only while no IDs are configured.
+     */
     public function isAdmin(): bool
     {
+        /** @var list<string> $ids */
+        $ids = config('app.admin_github_ids');
+
+        if ($ids !== []) {
+            return in_array((string) $this->github_id, array_map(strval(...), $ids), true);
+        }
+
         /** @var list<string> $admins */
         $admins = config('app.admins');
 
