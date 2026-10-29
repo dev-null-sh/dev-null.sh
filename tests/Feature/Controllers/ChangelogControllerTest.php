@@ -90,6 +90,15 @@ it('opens the changelog as a page', function (): void {
             ->component('changelog/show'));
 });
 
+it('describes the changelog to search engines and link previews', function (): void {
+    $this->get(route('changelog.index'))
+        ->assertOk()
+        ->assertSee('<title>Changelog - /dev/null</title>', false)
+        ->assertSee('<meta name="robots" content="index, follow', false)
+        ->assertSee('<link rel="canonical" href="'.route('changelog.index').'">', false)
+        ->assertSee('"@type":"WebPage"', false);
+});
+
 it('uses the configured upstream for the changelog and commit links', function (): void {
     config(['services.github.repository' => 'example/upstream']);
     Http::fake(['api.github.com/repos/example/upstream/pulls*' => Http::response([
