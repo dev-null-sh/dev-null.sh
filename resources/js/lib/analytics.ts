@@ -88,9 +88,16 @@ export function trackSignInTap(): void {
     window.fathom?.trackEvent('signin-click');
 }
 
+/**
+ * Forgotten once read: someone who signs out could sign up again in the same tab, without the link.
+ */
 function cameFromJoinLink(): boolean {
     try {
-        return sessionStorage.getItem(FROM_JOIN_LINK) !== null;
+        const cameFromJoinLink =
+            sessionStorage.getItem(FROM_JOIN_LINK) !== null;
+        sessionStorage.removeItem(FROM_JOIN_LINK);
+
+        return cameFromJoinLink;
     } catch {
         return false;
     }
