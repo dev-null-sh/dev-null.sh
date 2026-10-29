@@ -115,6 +115,44 @@ test('keeps stable mention links alongside shortened URLs and their full copyabl
     assert.equal(html.replace(/<[^>]*>/g, '').replace('…', ''), text);
 });
 
+test('links captured organization mentions to their page, a user of the same name first', () => {
+    const userId = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b';
+    const organizationId = '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c';
+    const html = renderToStaticMarkup(
+        <LinkifiedText
+            text="Thanks @Laravel and @tom!"
+            mentions={{ tom: userId }}
+            organizationMentions={{
+                laravel: organizationId,
+                tom: organizationId,
+            }}
+        />,
+    );
+
+    assert.ok(
+        html.includes(`href="/mentions/organizations/${organizationId}"`),
+    );
+    assert.ok(html.includes('>@Laravel</a>'));
+    assert.equal(html.match(/data-test="organization-mention"/g)?.length, 1);
+    assert.ok(html.includes(`href="/mentions/${userId}"`));
+    assert.equal(html.match(/data-test="mention"/g)?.length, 1);
+});
+
+test('leaves organization mentions as plain text in static bodies', () => {
+    const html = renderToStaticMarkup(
+        <LinkifiedText
+            text="Thanks @laravel!"
+            mentions={null}
+            organizationMentions={{
+                laravel: '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5c',
+            }}
+            isStatic
+        />,
+    );
+
+    assert.equal(html, 'Thanks @laravel!');
+});
+
 test('leaves mentions without captured identities as plain text', () => {
     const html = renderToStaticMarkup(
         <LinkifiedText text="Thanks @original!" mentions={null} />,
@@ -133,6 +171,7 @@ test('keeps captured mention identities in regular bodies alongside highlighted 
                 {
                     type: 'block',
                     language: 'php',
+                    filename: null,
                     html: '<span class="hl-comment">// @ORIGINAL</span>',
                 },
             ]}

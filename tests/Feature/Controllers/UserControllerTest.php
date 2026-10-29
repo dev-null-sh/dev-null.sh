@@ -6,6 +6,7 @@ use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -47,6 +48,32 @@ it('renders a user profile', function (): void {
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
+});
+
+it('says which accounts the bio and company mention are on dev/null', function (): void {
+    Profile::factory()->organization()->create(['handle' => 'laravel']);
+    User::factory()->create(['handle' => 'TaylorOtwell']);
+    User::factory()->create(['handle' => 'octocat', 'bio' => 'Thanks @taylorotwell and @nobody', 'company' => '@laravel']);
+
+    $this->get('/@octocat')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('bioProfiles', ['taylorotwell' => 'TaylorOtwell', 'laravel' => 'laravel']));
+});
+
+it('shares which accounts the bio of the signed-in user mentions are on dev/null', function (): void {
+    Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $user = User::factory()->create(['bio' => 'Building @laravel']);
+
+    $this->actingAs($user)
+        ->get('/@laravel')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.bioProfiles', ['laravel' => 'laravel']));
+
+    auth()->logout();
+
+    $this->get('/@laravel')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.bioProfiles', []));
 });
 
 it('only lets guests see the local time of users who opted in', function (): void {

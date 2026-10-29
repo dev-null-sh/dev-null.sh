@@ -62,6 +62,7 @@ function pluralize(count: number, singular: string, plural: string) {
 
 export default function Show({
     user,
+    bioProfiles,
     pasteisReceived,
     isFollowing,
     followsYou,
@@ -78,6 +79,7 @@ export default function Show({
     readme,
 }: {
     user: Profile;
+    bioProfiles: Record<string, string>;
     pasteisReceived: number | null;
     isFollowing: boolean;
     followsYou: boolean;
@@ -265,7 +267,7 @@ export default function Show({
 
                 {user.bio && (
                     <p className="mt-3 max-w-prose text-[15px] leading-relaxed wrap-break-word whitespace-pre-wrap">
-                        <BioText bio={user.bio} />
+                        <BioText bio={user.bio} profiles={bioProfiles} />
                     </p>
                 )}
 
@@ -274,7 +276,10 @@ export default function Show({
                         <li className="flex items-center gap-1.5">
                             <Building2 className="size-4" />
                             <span>
-                                <BioText bio={user.company} />
+                                <BioText
+                                    bio={user.company}
+                                    profiles={bioProfiles}
+                                />
                             </span>
                         </li>
                     )}

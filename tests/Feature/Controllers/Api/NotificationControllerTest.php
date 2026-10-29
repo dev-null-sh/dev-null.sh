@@ -38,6 +38,7 @@ it('lists the notifications of the user, newest first', function (): void {
         'html_url' => route('user.show', $user),
         'feed_url' => route('user-feed.show', $user),
         'created_at' => now()->toIso8601ZuluString(),
+        'live' => null,
         'lane' => $user->lane(),
     ];
 
@@ -310,6 +311,7 @@ it('lists every group through a date when asked, like the web refreshing its inb
 });
 
 it('says which group a notification leads, how many events it has, and whether the user follows the actor', function (): void {
+    $this->travelTo(now()->setTime(12, 0));
     $first = Notification::factory()->for($this->user, 'recipient')->create(['created_at' => now()->subMinutes(2)]);
     $latest = Notification::factory()->for($this->user, 'recipient')->create();
     $this->user->following()->attach($latest->actor);

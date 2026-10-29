@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use App\Services\PageMetadata;
 
@@ -69,3 +70,49 @@ it('omits public metadata for unsaved or partial commits', function (Closure $fa
     'unsaved' => fn (): Commit => Commit::factory()->make(['user_id' => null]),
     'partial' => fn (): Commit => Commit::query()->findOrFail(Commit::factory()->pending()->create()->id, ['id', 'user_id', 'parent_id', 'status', 'deleted_at']),
 ]);
+
+it('describes an organization from its GitHub profile', function (): void {
+    $organization = Profile::factory()->organization()->create([
+        'handle' => 'laravel',
+        'name' => 'Laravel',
+        'avatar_url' => 'https://avatars.githubusercontent.com/u/958072',
+        'bio' => 'The PHP framework for web artisans.',
+        'website' => 'https://laravel.com',
+    ]);
+
+    $metadata = resolve(PageMetadata::class)->organization($organization);
+
+    expect($metadata)->toMatchArray([
+        'type' => 'profile',
+        'title' => 'Laravel (@laravel) on /dev/null',
+        'description' => 'The PHP framework for web artisans.',
+        'url' => route('user.show', 'laravel'),
+        'handle' => 'laravel',
+    ])
+        ->and($metadata['images'][0]['url'])->toBe(route('user-open-graph-image.show', ['profile' => 'laravel', 'v' => $organization->openGraphImageVersion()]))
+        ->and($metadata['structuredData']['mainEntity'])->toMatchArray([
+            '@type' => 'Organization',
+            'name' => 'Laravel',
+            'alternateName' => '@laravel',
+            'description' => 'The PHP framework for web artisans.',
+            'image' => 'https://avatars.githubusercontent.com/u/958072',
+            'sameAs' => ['https://github.com/laravel', 'https://laravel.com'],
+        ]);
+});
+
+it('describes an organization without a name, description, avatar, or website of its own', function (): void {
+    $organization = Profile::factory()->organization()->create([
+        'handle' => 'laravel',
+        'name' => 'laravel',
+        'avatar_url' => null,
+        'bio' => null,
+        'website' => null,
+    ]);
+
+    $metadata = resolve(PageMetadata::class)->organization($organization);
+
+    expect($metadata['title'])->toBe('@laravel on /dev/null')
+        ->and($metadata['description'])->toBe('Read the commits that mention @laravel on /dev/null, a social network for developers.')
+        ->and($metadata['structuredData']['mainEntity'])->not->toHaveKeys(['description', 'image'])
+        ->and($metadata['structuredData']['mainEntity']['sameAs'])->toBe(['https://github.com/laravel']);
+});

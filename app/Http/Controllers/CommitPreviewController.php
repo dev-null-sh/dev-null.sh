@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\CreateCommitPreviewRequest;
+use App\Queries\MentionedOrganizationsQuery;
 use App\Queries\MentionedUsersQuery;
 use App\Services\CodeSpans;
 use App\Services\EmojiShortcodes;
@@ -21,12 +22,15 @@ final readonly class CommitPreviewController
         EmojiShortcodes $emojiShortcodes,
         CodeSpans $codeSpans,
         MentionedUsersQuery $mentionedUsers,
+        MentionedOrganizationsQuery $mentionedOrganizations,
     ): JsonResponse {
         $body = $request->string('body')->value();
+        $mentions = $mentionedUsers->get($body);
 
         return response()->json([
             'segments' => $codeSpans->highlight($emojiShortcodes->replace($body)),
-            'mentions' => $mentionedUsers->get($body),
+            'mentions' => $mentions,
+            'organization_mentions' => $mentionedOrganizations->get($body, $mentions),
         ]);
     }
 }

@@ -121,6 +121,7 @@ const commitsTab = {
     isProfileReplies: false,
     isProfileShipped: false,
     profileUserId: 'author',
+    mentionedOrganizationId: null,
 };
 
 void test('puts a restored commit back only on the feed it belongs to', () => {
@@ -226,6 +227,28 @@ void test('puts a restored commit back only on the feed it belongs to', () => {
         true,
     );
     assert.equal(restoredCommitBelongsInFeed(restoredCommit(), starred), false);
+
+    const mentions = {
+        ...log,
+        mentionedOrganizationId: 'org',
+    };
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({
+                parent_id: 'parent',
+                organization_mentions: { laravel: 'org' },
+            }),
+            mentions,
+        ),
+        true,
+    );
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({ organization_mentions: { laravel: 'other' } }),
+            mentions,
+        ),
+        false,
+    );
 });
 
 void test('restoring a target also refreshes its embeds while preserving the loaded rows', () => {

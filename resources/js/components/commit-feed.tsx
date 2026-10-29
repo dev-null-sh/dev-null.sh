@@ -57,6 +57,11 @@ export function CommitFeed({
         profileUserId !== null && page.props.tab === 'replies';
     const isProfileShipped =
         profileUserId !== null && page.props.tab === 'shipped';
+    // The organization's Mentions tab lists replies too, whatever handle they mention it with.
+    const mentionedOrganizationId =
+        page.component === 'organization/show'
+            ? (page.props.organization as { id: string }).id
+            : null;
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
     );
@@ -151,6 +156,7 @@ export function CommitFeed({
                             isProfileReplies,
                             isProfileShipped,
                             profileUserId,
+                            mentionedOrganizationId,
                         },
                     );
 
@@ -174,6 +180,7 @@ export function CommitFeed({
             isModeration,
             isProfileReplies,
             isProfileShipped,
+            mentionedOrganizationId,
             isStarred,
             isRanked,
         ],

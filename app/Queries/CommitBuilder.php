@@ -6,7 +6,9 @@ namespace App\Queries;
 
 use App\Enums\CommitStatus;
 use App\Enums\RepliesPerPage;
+use App\Enums\TopicType;
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use Illuminate\Contracts\Database\Query\Expression;
@@ -15,6 +17,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Database\Query\Expression as QueryExpression;
 use Illuminate\Pagination\Cursor;
 
 /**
@@ -31,8 +34,14 @@ final class CommitBuilder extends Builder
     ];
 
     /**
+     * The organizations a commit mentions, by lowercase handle, from its topics of type TopicType::Organization.
+     */
+    private const string ORGANIZATION_MENTIONS = "(select json_object_agg(reference, topic_id) from commit_topics where commit_topics.commit_id = commits.id and topic_type = 'organization') as organization_mentions";
+
+    /**
      * Embeddings are only ever compared within the database, so commits are loaded without theirs rather than carry
-     * kilobytes of numbers each that nothing reads.
+     * kilobytes of numbers each that nothing reads. They come with the organizations they mention instead, by lowercase
+     * handle, read from their topics in the same query, so rendering a page of commits takes no query more.
      *
      * @param  array<int, Expression|string>|string  $columns
      * @return array<int, Commit>
@@ -43,7 +52,7 @@ final class CommitBuilder extends Builder
 
         $this->query->columns = array_merge(...array_map(
             fn (Expression|string $column): array => $this->isEveryColumn($column)
-                ? array_map($this->qualifyColumn(...), self::COLUMNS_BUT_EMBEDDING)
+                ? [...array_map($this->qualifyColumn(...), self::COLUMNS_BUT_EMBEDDING), new QueryExpression(self::ORGANIZATION_MENTIONS)]
                 : [$column],
             $selected ?? (array) $columns,
         ));
@@ -203,6 +212,18 @@ final class CommitBuilder extends Builder
     public function approved(): self
     {
         return $this->where('status', CommitStatus::Approved);
+    }
+
+    /**
+     * The commits linked to the organization by a mention, whatever handle it had when they were written.
+     */
+    public function mentioning(Profile $organization): self
+    {
+        return $this->whereExists(fn (QueryBuilder $query): QueryBuilder => $query
+            ->from('commit_topics')
+            ->whereColumn('commit_topics.commit_id', $this->qualifyColumn('id'))
+            ->where('commit_topics.topic_type', TopicType::Organization)
+            ->where('commit_topics.topic_id', $organization->id));
     }
 
     /**

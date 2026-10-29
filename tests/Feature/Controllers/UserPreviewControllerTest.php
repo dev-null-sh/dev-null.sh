@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\DeleteUser;
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -32,6 +33,16 @@ it('returns a summary of the user for the user preview', function (): void {
         ->assertJsonMissingPath('user.email')
         ->assertJsonMissingPath('user.github_id');
 });
+
+it('says which accounts the bio mentions are on dev/null', function (bool $guest): void {
+    Profile::factory()->organization()->create(['handle' => 'Laravel']);
+    User::factory()->create(['handle' => 'octocat', 'bio' => 'Building @laravel, previously @nobody']);
+
+    ($guest ? $this : $this->actingAs(User::factory()->create()))
+        ->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('bioProfiles', ['laravel' => 'Laravel']);
+})->with(['guest' => true, 'member' => false]);
 
 it('does not count deleted commits in the user preview', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);

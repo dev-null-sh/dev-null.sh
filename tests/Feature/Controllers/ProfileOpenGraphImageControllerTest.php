@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -77,6 +78,49 @@ it('reuses the rendered image until the profile changes', function (): void {
     $user->profile->update(['bio' => 'Updated on GitHub.']);
 
     $this->get(route('user-open-graph-image.show', $user))->assertOk();
+
+    Http::assertSentCount(2);
+});
+
+it('renders a link preview image of an organization for guests', function (): void {
+    Http::fake(['avatars.githubusercontent.com/*' => Http::response(fakeAvatar(), 200, ['Content-Type' => 'image/png'])]);
+
+    Profile::factory()->organization()->create(['handle' => 'laravel', 'avatar_url' => 'https://avatars.githubusercontent.com/u/958072']);
+
+    $response = $this->get('/@laravel/og.png');
+
+    $response->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+
+    expect($response->headers->get('Cache-Control'))->toContain('public')->toContain('max-age=3600')
+        ->and(array_slice((array) getimagesizefromstring((string) $response->getContent()), 0, 2))->toBe([1200, 630]);
+
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://avatars.githubusercontent.com/u/958072');
+});
+
+it('renders an organization without an avatar or bio without requesting anything', function (): void {
+    Profile::factory()->organization()->create(['handle' => 'laravel', 'avatar_url' => null, 'bio' => null]);
+
+    $this->get('/@laravel/og.png')
+        ->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+
+    Http::assertNothingSent();
+});
+
+it('reuses the rendered image of an organization until it changes', function (): void {
+    Http::fake(['*' => Http::response(fakeAvatar())]);
+
+    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+
+    $this->get('/@laravel/og.png')->assertOk();
+    $this->get('/@laravel/og.png')->assertOk();
+
+    Http::assertSentCount(1);
+
+    $organization->update(['bio' => 'Updated on GitHub.']);
+
+    $this->get('/@laravel/og.png')->assertOk();
 
     Http::assertSentCount(2);
 });
