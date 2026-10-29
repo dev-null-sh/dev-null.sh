@@ -8,6 +8,7 @@ use App\Enums\ProfileType;
 use App\Models\Profile;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\DB;
 
 final class ShowOrganizationRequest extends FormRequest
 {
@@ -37,7 +38,7 @@ final class ShowOrganizationRequest extends FormRequest
     }
 
     /**
-     * Organizations share the "@handle" pages with users, so this is the handle no user has.
+     * Organizations share the "@handle" pages with users, so this is the handle no user has, whatever its case.
      */
     public function organization(): ?Profile
     {
@@ -46,7 +47,7 @@ final class ShowOrganizationRequest extends FormRequest
 
         return $this->organization ??= Profile::query()
             ->where('type', ProfileType::Organization)
-            ->where('handle', $handle)
+            ->where(DB::raw('LOWER(handle)'), mb_strtolower($handle))
             ->first();
     }
 }

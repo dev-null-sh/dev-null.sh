@@ -230,7 +230,7 @@ final class User extends Authenticatable
     }
 
     /**
-     * Resolves "@handle" URLs through the profile, which holds the handle.
+     * Resolves "@handle" URLs through the profile, which holds the handle, whatever its case, like GitHub.
      *
      * @param  Model|BuilderContract|Relation<Model, Model, mixed>  $query
      * @param  mixed  $value
@@ -239,7 +239,7 @@ final class User extends Authenticatable
     public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
     {
         return $field === 'handle'
-            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('github_id')->where('handle', $value), 'github_id')
+            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('github_id')->where(DB::raw('LOWER(handle)'), mb_strtolower($value)), 'github_id')
             : parent::resolveRouteBindingQuery($query, $value, $field);
     }
 

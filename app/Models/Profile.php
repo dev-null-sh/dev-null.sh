@@ -7,12 +7,15 @@ namespace App\Models;
 use App\Enums\ProfileType;
 use Carbon\CarbonInterface;
 use Database\Factories\ProfileFactory;
+use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Attributes\Touches;
 use Illuminate\Database\Eloquent\Attributes\Visible;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Support\Facades\DB;
 
 /**
  * A GitHub account at its "@handle", mirrored from GitHub: what GitHub calls a profile owner. The handle is GitHub's
@@ -85,6 +88,20 @@ final class Profile extends Model
     public function openGraphImageVersion(): string
     {
         return hash('xxh3', (string) json_encode([$this->name, $this->handle, $this->avatar_url, $this->bio]));
+    }
+
+    /**
+     * Resolves "@handle" URLs whatever the handle's case, like GitHub.
+     *
+     * @param  Model|BuilderContract|Relation<Model, Model, mixed>  $query
+     * @param  mixed  $value
+     * @param  string|null  $field
+     */
+    public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
+    {
+        return $field === 'handle'
+            ? $query->where(DB::raw('LOWER(handle)'), mb_strtolower($value))
+            : parent::resolveRouteBindingQuery($query, $value, $field);
     }
 
     /**

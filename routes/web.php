@@ -130,6 +130,7 @@ use App\Http\Controllers\UserTimeoutController;
 use App\Http\Controllers\UserTimezoneController;
 use App\Http\Controllers\UserTranslationLanguageController;
 use App\Http\Middleware\PreventPostingInTimeout;
+use App\Http\Middleware\RedirectToHandleCase;
 use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\SerializePushSessions;
@@ -197,7 +198,7 @@ Route::get('mac', fn () => to_route('app.index', status: 301));
 Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.index');
 
 // Public pages, readable by guests and crawlers...
-Route::middleware(RememberIntendedUrl::class)->group(function (): void {
+Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->group(function (): void {
     // A handle no user has may be an organization's. Bindings run before the rest of the route's middleware, like
     // the one sharing the page's props, so the organization's page goes through that rest first, like any page.
     Route::get('@{user:handle}', [UserController::class, 'show'])

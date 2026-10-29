@@ -153,3 +153,13 @@ it('keeps listing the commits that mentioned the organization before it was rena
             ->where('commits.data.0.id', $commit->id)
             ->where('commits.data.0.organization_mentions.laravel', $organization->id));
 });
+
+it('moves an organization for good to the handle in its own case, keeping the query string', function (): void {
+    Profile::factory()->organization()->create(['handle' => 'Laravel']);
+
+    $this->get('/@laravel?tab=mentions')
+        ->assertMovedPermanently()
+        ->assertRedirect('/@Laravel?tab=mentions');
+
+    $this->get('/@Laravel')->assertOk();
+});

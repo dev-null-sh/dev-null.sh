@@ -805,3 +805,21 @@ it('names no followers the viewer knows to guests or on their own profile', func
         ->get(route('user.show', $user))
         ->assertInertia(fn ($page) => $page->where('followersYouKnow', null));
 });
+
+it('moves a profile for good to the handle in its own case, keeping the query string', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat?tab=replies')
+        ->assertMovedPermanently()
+        ->assertRedirect('/@OctoCat?tab=replies');
+
+    $this->get('/@OctoCat')->assertOk();
+});
+
+it('moves who a profile follows for good to the handle in its own case', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat/following')
+        ->assertMovedPermanently()
+        ->assertRedirect('/@OctoCat/following');
+});

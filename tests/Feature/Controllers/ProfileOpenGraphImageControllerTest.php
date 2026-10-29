@@ -128,3 +128,13 @@ it('reuses the rendered image of an organization until it changes', function ():
 it('returns not found for unknown handles', function (): void {
     $this->get('/@missing/og.png')->assertNotFound();
 });
+
+it('renders the link preview image of a profile whatever the case of the handle', function (): void {
+    Http::fake(['*' => Http::response('', 500)]);
+
+    Profile::factory()->organization()->create(['handle' => 'Laravel']);
+
+    $this->get('/@laravel/og.png')
+        ->assertOk()
+        ->assertHeader('Content-Type', 'image/png');
+});

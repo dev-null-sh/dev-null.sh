@@ -1498,3 +1498,20 @@ it('includes the images of a commit, its ancestors and its replies', function ()
             ->has('replies.data.0.images', 1)
             ->missing('commit.images.0.path'));
 });
+
+it('moves a commit for good to the handle of its author in its own case', function (): void {
+    $commit = Commit::factory()->for(User::factory()->state(['handle' => 'OctoCat']))->create();
+
+    $this->get("/@octocat/commits/{$commit->id}")
+        ->assertMovedPermanently()
+        ->assertRedirect("/@OctoCat/commits/{$commit->id}");
+});
+
+it('moves a commit for good to the handle of its author in its own case for signed-in users too', function (): void {
+    $commit = Commit::factory()->for(User::factory()->state(['handle' => 'OctoCat']))->create();
+
+    $this->actingAs(User::factory()->create())
+        ->get("/@OCTOCAT/commits/{$commit->id}")
+        ->assertMovedPermanently()
+        ->assertRedirect("/@OctoCat/commits/{$commit->id}");
+});
