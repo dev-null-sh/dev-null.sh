@@ -534,7 +534,7 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - preview commit drafts without publishing them;
 - follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
 - read who to follow, also as it is suggested beside a profile or a commit, and mark a suggestion not interested;
-- star or unstar;
+- star or unstar, and list who starred your own commit, newest first, 20 a page;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
 - change Remotes settings, read and send messages with images, link cards, and voice notes in conversations and orgs, mark them pulled, react to messages and list your reactions, pin and unpin org messages as a maintainer, find people, and start orgs;
 - rename orgs, add people to them, change their roles, remove them, and leave an org, with the same maintainer rules as the web;

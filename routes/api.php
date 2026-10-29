@@ -253,6 +253,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('starred', [StarredCommitController::class, 'index'])->name('api-starred.index');
 
         // Commit Star...
+        Route::get('commits/{commit}/stars', [CommitStarController::class, 'index'])
+            ->name('api-commit-star.index');
         Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
             ->middleware('throttle:stars')
             ->name('api-commit-star.store');
