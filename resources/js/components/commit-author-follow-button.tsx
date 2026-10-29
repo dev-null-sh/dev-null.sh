@@ -15,7 +15,7 @@ export function CommitAuthorFollowButton({
     user,
     keyShortcut,
 }: {
-    user: Pick<User, 'id' | 'username'>;
+    user: Pick<User, 'id' | 'handle'>;
     keyShortcut?: string;
 }) {
     const { auth } = usePage().props;
@@ -56,13 +56,13 @@ export function CommitAuthorFollowButton({
         <button
             type="button"
             onClick={onClick}
-            aria-label={`Follow or unfollow @${user.username}`}
+            aria-label={`Follow or unfollow @${user.handle}`}
             aria-keyshortcuts={keyShortcut}
             tabIndex={-1}
             className="sr-only"
             data-test="commit-follow-author-button"
         >
-            Follow or unfollow @{user.username}
+            Follow or unfollow @{user.handle}
         </button>
     );
 }

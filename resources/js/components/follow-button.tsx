@@ -134,7 +134,7 @@ export function onFollowHttpException(
  * Uses a follow control that already ran in this tab when it can, otherwise asks the preview endpoint once.
  */
 export async function resolveIsFollowing(
-    user: Pick<User, 'id' | 'username'>,
+    user: Pick<User, 'id' | 'handle'>,
 ): Promise<boolean | null> {
     const known = peekSharedState<boolean>(isFollowingKey(user));
 
@@ -180,7 +180,7 @@ export async function resolveIsFollowing(
 
         return data.isFollowing;
     } catch {
-        toast.error(`Could not check @${user.username}. Try again.`);
+        toast.error(`Could not check @${user.handle}. Try again.`);
 
         return null;
     }
@@ -190,7 +190,7 @@ export async function resolveIsFollowing(
  * Follows or unfollows after resolving the current state, keeping every follow control in sync.
  */
 export function toggleFollow(
-    user: Pick<User, 'id' | 'username'>,
+    user: Pick<User, 'id' | 'handle'>,
     isFollowing: boolean,
     setIsFollowing: (isFollowing: boolean) => void,
     onFinish?: () => void,
@@ -218,8 +218,8 @@ export function toggleFollow(
                 toast(
                     <span className="font-mono text-[13px]">
                         {next
-                            ? `Following @${user.username}`
-                            : `Unfollowed @${user.username}`}
+                            ? `Following @${user.handle}`
+                            : `Unfollowed @${user.handle}`}
                     </span>,
                 );
             },

@@ -129,12 +129,12 @@ function find(
     return matches(node.props) ? node : find(node.props.children, matches);
 }
 
-function author(username: string): Pick<User, 'id' | 'username'> {
-    return { id: username, username };
+function author(handle: string): Pick<User, 'id' | 'handle'> {
+    return { id: handle, handle };
 }
 
 function followButton(
-    user: Pick<User, 'id' | 'username'>,
+    user: Pick<User, 'id' | 'handle'>,
 ): ReactElement<Props> | null {
     const node = CommitAuthorFollowButton({
         user,
@@ -151,14 +151,14 @@ function followButton(
     );
 }
 
-async function pressFollow(user: Pick<User, 'id' | 'username'>): Promise<void> {
+async function pressFollow(user: Pick<User, 'id' | 'handle'>): Promise<void> {
     const button = followButton(user);
     assert.ok(button);
     (button.props.onClick as () => void)();
     await new Promise((resolve) => setTimeout(resolve));
 }
 
-function followFromProfile(user: Pick<User, 'id' | 'username'>): void {
+function followFromProfile(user: Pick<User, 'id' | 'handle'>): void {
     const profileButton = find(
         FollowButton({ user, isFollowing: false }),
         (props) => props['data-test'] === 'follow-button',
