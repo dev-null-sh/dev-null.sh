@@ -159,7 +159,29 @@ it('moves an organization for good to the handle in its own case, keeping the qu
 
     $this->get('/@laravel?tab=mentions')
         ->assertMovedPermanently()
-        ->assertRedirect('/@Laravel?tab=mentions');
+        ->assertRedirect('/@Laravel?tab=mentions')
+        ->assertHeader('Cache-Control', 'max-age=86400, public');
 
     $this->get('/@Laravel')->assertOk();
+});
+
+it('keeps the query string out of the handle it moves an organization to', function (): void {
+    Profile::factory()->organization()->create(['handle' => 'Laravel']);
+
+    $this->get('/@laravel?user=evil')->assertRedirect('/@Laravel?user=evil');
+    $this->get('/@laravel?user[]=a&user[]=b')->assertRedirect('/@Laravel?'.http_build_query(['user' => ['a', 'b']]));
+});
+
+it('opens each organization at its own case when a stale one holds the handle in another case', function (): void {
+    $lower = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $mixed = Profile::factory()->organization()->create(['handle' => 'Laravel']);
+
+    $this->get('/@laravel')->assertOk()->assertInertia(fn ($page) => $page->where('organization.id', $lower->id));
+    $this->get('/@Laravel')->assertOk()->assertInertia(fn ($page) => $page->where('organization.id', $mixed->id));
+
+    $location = (string) $this->get('/@LARAVEL')->assertMovedPermanently()->headers->get('Location');
+
+    expect($location)->toBeIn([url('/@laravel'), url('/@Laravel')]);
+
+    $this->get($location)->assertOk();
 });

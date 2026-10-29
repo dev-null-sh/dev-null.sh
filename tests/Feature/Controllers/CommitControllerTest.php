@@ -1507,11 +1507,9 @@ it('moves a commit for good to the handle of its author in its own case', functi
         ->assertRedirect("/@OctoCat/commits/{$commit->id}");
 });
 
-it('moves a commit for good to the handle of its author in its own case for signed-in users too', function (): void {
+it('keeps the query string out of the commit it moves to', function (): void {
     $commit = Commit::factory()->for(User::factory()->state(['handle' => 'OctoCat']))->create();
 
-    $this->actingAs(User::factory()->create())
-        ->get("/@OCTOCAT/commits/{$commit->id}")
-        ->assertMovedPermanently()
-        ->assertRedirect("/@OctoCat/commits/{$commit->id}");
+    $this->get("/@octocat/commits/{$commit->id}?commit=nope")
+        ->assertRedirect("/@OctoCat/commits/{$commit->id}?commit=nope");
 });

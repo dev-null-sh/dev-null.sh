@@ -91,7 +91,8 @@ final class Profile extends Model
     }
 
     /**
-     * Resolves "@handle" URLs whatever the handle's case, like GitHub.
+     * Resolves "@handle" URLs whatever the handle's case, like GitHub. A stale profile may still hold the same handle
+     * in another case, so the exact case wins, then always the same one.
      *
      * @param  Model|BuilderContract|Relation<Model, Model, mixed>  $query
      * @param  mixed  $value
@@ -100,7 +101,7 @@ final class Profile extends Model
     public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
     {
         return $field === 'handle'
-            ? $query->where(DB::raw('LOWER(handle)'), mb_strtolower($value))
+            ? $query->where(DB::raw('LOWER(handle)'), mb_strtolower($value))->orderByRaw('handle = ? desc', [$value])->orderBy('handle')
             : parent::resolveRouteBindingQuery($query, $value, $field);
     }
 

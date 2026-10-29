@@ -27,7 +27,9 @@ final readonly class OrganizationController
         assert($organization instanceof Profile);
 
         if ($request->route('user') !== $organization->handle) {
-            return to_route('user.show', [$organization->handle, ...$request->query()], 301);
+            $query = $request->getQueryString();
+
+            return redirect(route('user.show', $organization->handle).($query === null ? '' : "?{$query}"), 301, ['Cache-Control' => 'max-age=86400, public']);
         }
 
         return Inertia::render('organization/show', [
