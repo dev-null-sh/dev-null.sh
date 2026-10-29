@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Enums\Log;
 use App\Jobs\ImportGitHubFollowsJob;
+use App\Jobs\LookUpUserOrganizations;
 use App\Jobs\SyncGitHubSshKeysJob;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
@@ -46,7 +47,7 @@ it('creates a user and logs them in', function (): void {
     $user = User::query()->where('github_id', '583231')->sole();
 
     expect($user)
-        ->username->toBe('octocat')
+        ->handle->toBe('octocat')
         ->name->toBe('The Octocat')
         ->email->toBe('octocat@github.com')
         ->avatar_url->toBe('https://avatars.githubusercontent.com/u/583231')
@@ -111,7 +112,7 @@ it('updates an existing user on login', function (): void {
 
     $user = User::factory()->create([
         'github_id' => '583231',
-        'username' => 'old-username',
+        'handle' => 'old-handle',
     ]);
 
     Socialite::fake('github', GitHubUser::fake([
@@ -125,7 +126,7 @@ it('updates an existing user on login', function (): void {
         ->assertInertiaFlashMissing('signedUp');
 
     expect(User::query()->count())->toBeOne()
-        ->and($user->refresh()->username)->toBe('octocat');
+        ->and($user->refresh()->handle)->toBe('octocat');
 
     $this->assertAuthenticatedAs($user);
 });
@@ -175,6 +176,22 @@ it('queues a sync of the ssh keys of the user on login', function (): void {
     $user = User::query()->where('github_id', '583231')->sole();
 
     Queue::assertPushed(SyncGitHubSshKeysJob::class, fn (SyncGitHubSshKeysJob $job): bool => $job->user->is($user));
+});
+
+it('queues a lookup of the organizations the bio of the user mentions on login', function (): void {
+    fakeGitHubSponsorsListing();
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+        'company' => '@github',
+    ]));
+
+    $this->get(route('login.store'));
+
+    $user = User::query()->where('github_id', '583231')->sole();
+
+    Queue::assertPushed(LookUpUserOrganizations::class, fn (LookUpUserOrganizations $job): bool => $job->user->is($user));
 });
 
 it('queues an import of the github follows of the user on login, notifying only for new users', function (bool $exists, bool $notify): void {
@@ -229,9 +246,18 @@ it('fails when the user denies access', function (): void {
     $this->assertGuest();
 });
 
-it('fails when the state is invalid', function (): void {
+it('starts the sign-in over once when it started in another browser', function (): void {
     Socialite::shouldReceive('driver->user')->andThrow(new InvalidStateException);
 
+    $this->get(route('login.store'))->assertRedirectToRoute('login');
+
+    $this->assertGuest();
+});
+
+it('fails when the state is still invalid after starting over', function (): void {
+    Socialite::shouldReceive('driver->user')->andThrow(new InvalidStateException);
+
+    $this->get(route('login.store'))->assertRedirectToRoute('login');
     $response = $this->get(route('login.store'));
 
     $response->assertRedirectToRoute('home')
@@ -272,14 +298,14 @@ it('makes tom the first friend of a new user, but not of a returning one', funct
     $this->get(route('login.store'));
 
     $user = User::query()->where('github_id', '583231')->sole();
-    $tom = User::query()->where('username', 'tom')->sole();
+    $tom = User::query()->whereRelation('profile', 'handle', 'tom')->sole();
 
     expect($user->isFollowing($tom))->toBeTrue()
         ->and($tom->isFollowing($user))->toBeTrue();
 
     $returning = User::factory()->create(['github_id' => '1']);
 
-    Socialite::fake('github', GitHubUser::fake(['id' => '1', 'nickname' => $returning->username, 'name' => $returning->name]));
+    Socialite::fake('github', GitHubUser::fake(['id' => '1', 'nickname' => $returning->handle, 'name' => $returning->name]));
 
     $this->post(route('logout'));
     $this->get(route('login.store'));

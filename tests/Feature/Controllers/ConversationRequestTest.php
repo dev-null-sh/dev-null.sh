@@ -21,7 +21,7 @@ function pushTo(User $sender, User $recipient, string $body = 'hello'): TestResp
 
 it('fetches a first message from someone the recipient does not follow as a request', function (): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->withRemotes(RemotesFrom::Following)->create(['username' => 'nunomaduro']);
+    $nuno = User::factory()->withRemotes(RemotesFrom::Following)->create(['handle' => 'nunomaduro']);
 
     pushTo($mark, $nuno, 'hey, saw your polling PR')->assertCreated();
 

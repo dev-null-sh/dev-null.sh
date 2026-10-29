@@ -47,17 +47,27 @@ it('asks the signed-in user to approve the app on the device', function (): void
             ->where('auth.user.id', $user->id));
 });
 
+it('reads a fingerprint whose "+" the app left unencoded', function (): void {
+    $fingerprint = 'SHA256:'.str_repeat('a+', 21).'b';
+
+    $response = $this->actingAs(User::factory()->create())
+        ->get(route('mobile-authorization.show', [...$this->parameters, 'fingerprint' => str_replace('+', ' ', $fingerprint)]));
+
+    $response->assertOk()
+        ->assertInertia(fn (Assert $page): Assert => $page->where('authorization.fingerprint', $fingerprint));
+});
+
 it('sends a guest through the github sign-in, then back to approve the app', function (): void {
     Queue::fake();
     fakeGitHubSponsorsListing();
 
-    $this->get(route('mobile-authorization.show', $this->parameters))->assertRedirectToRoute('home');
+    $this->get(route('mobile-authorization.show', $this->parameters))->assertRedirectToRoute('login');
 
     $user = User::factory()->create(['github_id' => '583231']);
 
     Socialite::fake('github', GitHubUser::fake([
         'id' => '583231',
-        'nickname' => $user->username,
+        'nickname' => $user->handle,
     ]));
 
     $location = (string) $this->get(route('login.store'))->assertRedirect()->headers->get('Location');
@@ -89,8 +99,8 @@ it('answers a request the app did not make right with a plain error page, and ne
     'a plain challenge' => [['code_challenge_method' => 'plain'], 'The selected code challenge method is invalid.'],
     'no state' => [['state' => null], 'The state field is required.'],
     'no redirect' => [['redirect_uri' => null], 'The redirect uri field is required.'],
-    'a redirect to a website' => [['redirect_uri' => 'https://evil.example/callback'], 'The redirect uri field must start with one of the following: devnull://.'],
-    'a redirect to another app' => [['redirect_uri' => 'otherapp://auth/callback'], 'The redirect uri field must start with one of the following: devnull://.'],
+    'a redirect to a website' => [['redirect_uri' => 'https://evil.example/callback'], 'The redirect uri field format is invalid.'],
+    'a redirect to another app' => [['redirect_uri' => 'otherapp://auth/callback'], 'The redirect uri field format is invalid.'],
     'a redirect with a fragment' => [['redirect_uri' => 'devnull://auth/callback#x'], 'The redirect uri field format is invalid.'],
 ]);
 
@@ -129,7 +139,7 @@ it('approves nothing the app did not ask for right', function (): void {
         ->post(route('mobile-authorization.store'), [...$this->parameters, 'redirect_uri' => 'https://evil.example/callback']);
 
     $response->assertBadRequest()
-        ->assertInertia(fn (Assert $page): Assert => $page->where('error', 'The redirect uri field must start with one of the following: devnull://.'));
+        ->assertInertia(fn (Assert $page): Assert => $page->where('error', 'The redirect uri field format is invalid.'));
 
     expect($this->codesHandedOut)->toBe(0);
 });

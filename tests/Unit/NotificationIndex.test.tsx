@@ -1,11 +1,12 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import type { ReactElement } from 'react';
 import { renderToString } from 'react-dom/server';
+import { test } from 'vite-plus/test';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
+import { laneColor } from '../../resources/js/lib/utils';
 import Index, {
     NotificationContent,
 } from '../../resources/js/pages/notification/index';
@@ -19,7 +20,7 @@ import type {
 const actor = {
     id: 'actor',
     name: 'Matthieu Napoli',
-    username: 'mnapoli',
+    handle: 'mnapoli',
     lane: 2,
 } as User;
 
@@ -44,6 +45,7 @@ const notification = {
             {
                 type: 'block',
                 language: 'php',
+                filename: null,
                 html: '<span class="hl-keyword">return</span> round($score, 6);',
             },
         ],
@@ -56,7 +58,7 @@ async function renderPage(page: () => ReactElement): Promise<string> {
             component: 'notification/index',
             props: {
                 auth: {
-                    user: { id: 'recipient', username: 'nunomaduro' },
+                    user: { id: 'recipient', handle: 'nunomaduro' },
                     log: {},
                 },
                 errors: {},
@@ -113,9 +115,48 @@ const previewedNames = (body: string): number =>
         /<span class="relative z-10[^"]*">(?:<a[^>]*>)?(?:<a|<span)[^>]*title="Matthieu Napoli"/g,
     )?.length ?? 0;
 
-const other = { ...actor, id: 'other', name: 'Other', username: 'other' };
+const other = { ...actor, id: 'other', name: 'Other', handle: 'other' };
 
-void test('renders a code block highlighted in a notification', async () => {
+ test('separates last-visit activity without a border under the preceding notification', async () => {
+    const body = await render([
+        { ...notification, read_at: '2026-10-16T12:00:00.000000Z' },
+        {
+            ...notification,
+            id: 'earlier',
+            group_id: 'earlier',
+            read_at: '2026-10-15T12:00:00.000000Z',
+            created_at: '2026-10-15T11:51:00.000000Z',
+        },
+    ]);
+    const [before, after] = body.split('role="separator"');
+
+    assert.match(before, /class="min-w-0 flex-1 py-3 pr-4"/);
+    assert.match(after, /class="my-3 flex bg-muted\/40"/);
+    assert.match(after, /class="flex flex-1 items-center py-4 pr-4"/);
+    assert.match(after, /class="min-w-0 flex-1 py-3 pr-4 border-b"/);
+});
+
+ test('colors each notification rail by actor and ends it in a dot', async () => {
+    const nextActor = { ...other, lane: 5, is_followed: false };
+    const body = await render([
+        notification,
+        {
+            ...notification,
+            id: 'next',
+            group_id: 'next',
+            actor: nextActor,
+            created_at: '2026-10-16T11:50:00.000000Z',
+        },
+    ]);
+
+    assert.ok(body.includes(`--lane:${laneColor(actor.lane)}`));
+    assert.ok(body.includes(`--lane:${laneColor(nextActor.lane)}`));
+    assert.equal(body.match(/group\/rail-node absolute bottom-5/g)?.length, 2);
+    assert.doesNotMatch(body, /data-test="rail-previous"/);
+    assert.match(body, /border-\(--lane\)/);
+});
+
+ test('renders a code block highlighted in a notification', async () => {
     const body = await render([notification]);
 
     assert.match(body, /<pre[^>]*><span class="hl-keyword">return<\/span>/);
@@ -126,7 +167,7 @@ void test('renders a code block highlighted in a notification', async () => {
 });
 
 for (const isFollowing of [false, true]) {
-    void test(`keeps ${isFollowing ? 'unfollow' : 'follow-back'} separate from highlighted notification links`, async () => {
+     test(`keeps ${isFollowing ? 'unfollow' : 'follow-back'} separate from highlighted notification links`, async () => {
         const followed = {
             ...notification,
             id: 'follow-notification',
@@ -146,7 +187,7 @@ for (const isFollowing of [false, true]) {
         assert.match(
             body,
             new RegExp(
-                `aria-label="${isFollowing ? 'Unfollow' : 'Follow'} @mnapoli"`,
+                `aria-label="${isFollowing ? 'Unfollow @mnapoli' : 'Follow @mnapoli back'}"`,
             ),
         );
         assert.match(body, /followed you/);
@@ -154,7 +195,7 @@ for (const isFollowing of [false, true]) {
     });
 }
 
-void test('shows the image of a starred image-only commit beside who starred it', async () => {
+ test('shows the image of a starred image-only commit beside who starred it', async () => {
     const starred = {
         ...notification,
         type: 'starred',
@@ -178,13 +219,13 @@ void test('shows the image of a starred image-only commit beside who starred it'
 
     assert.match(
         body,
-        /and 2 others <a\b[^>]*data-notification-link[^>]*>starred your image<\/a>/,
+        /and 2 others <\/span><a\b[^>]*data-notification-link[^>]*>starred your image<\/a>/,
     );
     assert.match(body, /<img[^>]*src="\/commit-images\/image"/);
     assert.doesNotMatch(body, /<div[^>]*>(?:<div[^>]*>)*(?:<\/div>)+<\/a>/);
 });
 
-void test('links the actor to their profile apart from the commit link', async () => {
+ test('links the actor to their profile apart from the commit link', async () => {
     const starred = { ...notification, type: 'starred' } as NotificationGroup;
     const body = await render([starred]);
     const links = [...body.matchAll(/<a\b[^>]*>/g)].map((match) => match[0]);
@@ -200,14 +241,14 @@ void test('links the actor to their profile apart from the commit link', async (
     assert.match(body, /starred your commit<\/a>/);
 });
 
-void test('previews the person of a single reply from the avatar and the name', async () => {
+ test('previews the person of a single reply from the avatar and the name', async () => {
     const body = await render([notification]);
 
     assert.equal(previewedAvatars(body), 1);
     assert.equal(previewedNames(body), 1);
 });
 
-void test('previews the person of a single star from the avatar and the name', async () => {
+ test('previews the person of a single star from the avatar and the name', async () => {
     const body = await render([
         { ...notification, type: 'starred' } as NotificationGroup,
     ]);
@@ -217,7 +258,7 @@ void test('previews the person of a single star from the avatar and the name', a
 });
 
 for (const type of ['replied', 'starred']) {
-    void test(`leaves the header of a group of ${type} notifications without previews`, async () => {
+     test(`leaves the header of a group of ${type} notifications without previews`, async () => {
         const body = await render([
             {
                 ...notification,
@@ -234,7 +275,7 @@ for (const type of ['replied', 'starred']) {
 }
 
 for (const type of ['replied', 'starred']) {
-    void test(`previews the person of an expanded ${type} notification`, async () => {
+     test(`previews the person of an expanded ${type} notification`, async () => {
         const body = await renderItem({
             ...notification,
             type,
@@ -251,7 +292,7 @@ const avatarLink =
 const nestedLink = /<a\b(?:(?!<\/a>).)*<a\b/s;
 
 for (const type of ['replied', 'starred']) {
-    void test(`links the avatar of a single ${type} notification to the profile`, async () => {
+     test(`links the avatar of a single ${type} notification to the profile`, async () => {
         const body = await render([
             { ...notification, type } as NotificationGroup,
         ]);
@@ -261,7 +302,7 @@ for (const type of ['replied', 'starred']) {
     });
 }
 
-void test('leaves the avatar of a single follow unlinked, as the row already opens the profile', async () => {
+ test('leaves the avatar of a single follow unlinked, as the row already opens the profile', async () => {
     const body = await render([
         {
             ...notification,
@@ -276,7 +317,7 @@ void test('leaves the avatar of a single follow unlinked, as the row already ope
     assert.doesNotMatch(body, avatarLink);
 });
 
-void test('links an expanded reply to its author and to the reply', async () => {
+ test('links an expanded reply to its author and to the reply', async () => {
     const body = await renderItem(notification);
 
     assert.match(body, avatarLink);
@@ -295,7 +336,7 @@ void test('links an expanded reply to its author and to the reply', async () => 
     assert.doesNotMatch(body, nestedLink);
 });
 
-void test('keeps an expanded star as one link to the profile', async () => {
+ test('keeps an expanded star as one link to the profile', async () => {
     const body = await renderItem({
         ...notification,
         type: 'starred',
@@ -305,7 +346,7 @@ void test('keeps an expanded star as one link to the profile', async () => {
     assert.match(body, /<a [^>]*href="\/@mnapoli"/);
 });
 
-void test('says which level and rank a level-up reached, linking to the profile', async () => {
+ test('says which level and rank a level-up reached, linking to the profile', async () => {
     const leveledUp = {
         ...notification,
         id: 'level',

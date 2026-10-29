@@ -16,7 +16,7 @@ it('loads the next commits of the author thread', function (): void {
         ->assertOk()
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.id', $next->id)
-        ->assertJsonPath('data.0.user.username', $author->username)
+        ->assertJsonPath('data.0.user.handle', $author->handle)
         ->assertJsonPath('length', 1)
         ->assertJsonPath('next_id', null);
 });

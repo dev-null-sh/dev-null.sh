@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Profile;
 use App\Models\User;
 use GdImage;
 use Illuminate\Http\Client\ConnectionException;
@@ -78,23 +79,26 @@ final readonly class OpenGraphCanvas
     }
 
     /**
+     * Round for people, and square for organizations, like on GitHub, so they never pass for a person.
+     *
      * @param  positive-int  $size
      */
-    public function avatar(User $user, int $x, int $y, int $size, int $lane): void
+    public function avatar(User|Profile $owner, int $x, int $y, int $size, int $lane): void
     {
         $radius = $size / 2;
+        $corner = $owner instanceof Profile ? $size * 0.18 : $radius;
         $centerX = $x + $radius;
         $centerY = $y + $radius;
 
-        $this->circle($centerX, $centerY, $radius + 10, $lane);
-        $this->circle($centerX, $centerY, $radius + 6, self::SHELL);
+        $this->roundedSquare($x - 10, $y - 10, $size + 20, $corner + 10, $lane);
+        $this->roundedSquare($x - 6, $y - 6, $size + 12, $corner + 6, self::SHELL);
 
-        $source = $this->download($user->avatar_url);
+        $source = $this->download($owner->avatar_url);
 
         if (! $source instanceof GdImage) {
-            $this->circle($centerX, $centerY, $radius, $lane);
+            $this->roundedSquare($x, $y, $size, $corner, $lane);
 
-            $initial = mb_strtoupper(mb_substr($this->name($user), 0, 1));
+            $initial = mb_strtoupper(mb_substr($this->name($owner), 0, 1));
             $fontSize = (int) round($size * 0.474);
             $box = $this->box($initial, 'Geist-SemiBold', $fontSize);
 
@@ -108,12 +112,13 @@ final readonly class OpenGraphCanvas
         imagecopyresampled($avatar, $source, 0, 0, 0, 0, $pixels, $pixels, imagesx($source), imagesy($source));
 
         $center = ($pixels - 1) / 2;
+        $straight = $pixels / 2 - $corner * self::SCALE;
 
         for ($row = 0; $row < $pixels; $row++) {
             for ($column = 0; $column < $pixels; $column++) {
                 $color = imagecolorat($avatar, $column, $row);
 
-                if ($color !== false && ($column - $center) ** 2 + ($row - $center) ** 2 <= ($pixels / 2) ** 2) {
+                if ($color !== false && max(0, abs($column - $center) - $straight) ** 2 + max(0, abs($row - $center) - $straight) ** 2 <= ($corner * self::SCALE) ** 2) {
                     imagesetpixel($this->image, $x * self::SCALE + $column, $y * self::SCALE + $row, $color);
                 }
             }
@@ -123,13 +128,13 @@ final readonly class OpenGraphCanvas
     /**
      * The mono handle, led by a dot in the user's lane.
      */
-    public function handle(User $user, int $size, int $x, int $y, int $width, int $lane): void
+    public function handle(User|Profile $owner, int $size, int $x, int $y, int $width, int $lane): void
     {
         $this->circle($x + $size * 0.22, $y - $size * 0.34, $size * 0.22, $lane);
 
         $offset = (int) round($size * 0.875);
 
-        $this->text($this->truncate($user->mention(), 'GeistMono-Regular', $size, $width - $offset), 'GeistMono-Regular', $size, $x + $offset, $y, self::INK_MUTED);
+        $this->text($this->truncate('@'.$owner->handle, 'GeistMono-Regular', $size, $width - $offset), 'GeistMono-Regular', $size, $x + $offset, $y, self::INK_MUTED);
     }
 
     /**
@@ -173,13 +178,13 @@ final readonly class OpenGraphCanvas
     }
 
     /**
-     * The user's name as Geist can draw it, or their username when nothing is left.
+     * The name as Geist can draw it, or the handle when nothing is left.
      */
-    public function name(User $user): string
+    public function name(User|Profile $owner): string
     {
-        $name = $this->clean($user->name);
+        $name = $this->clean($owner->name);
 
-        return $name === '' ? $user->username : $name;
+        return $name === '' ? $owner->handle : $name;
     }
 
     /**
@@ -363,6 +368,26 @@ final readonly class OpenGraphCanvas
         $diameter = (int) round($radius * 2 * self::SCALE);
 
         imagefilledellipse($this->image, (int) round($x * self::SCALE), (int) round($y * self::SCALE), $diameter, $diameter, $color);
+    }
+
+    /**
+     * A square with rounded corners, which is a circle when the corners meet.
+     */
+    private function roundedSquare(float $x, float $y, float $size, float $corner, int $color): void
+    {
+        if ($corner * 2 >= $size) {
+            $this->circle($x + $size / 2, $y + $size / 2, $size / 2, $color);
+
+            return;
+        }
+
+        foreach ([[$x + $corner, $y, $size - $corner * 2, $size], [$x, $y + $corner, $size, $size - $corner * 2]] as [$left, $top, $width, $height]) {
+            imagefilledrectangle($this->image, (int) round($left * self::SCALE), (int) round($top * self::SCALE), (int) round(($left + $width) * self::SCALE) - 1, (int) round(($top + $height) * self::SCALE) - 1, $color);
+        }
+
+        foreach ([[$x + $corner, $y + $corner], [$x + $size - $corner, $y + $corner], [$x + $corner, $y + $size - $corner], [$x + $size - $corner, $y + $size - $corner]] as [$centerX, $centerY]) {
+            $this->circle($centerX, $centerY, $corner, $color);
+        }
     }
 
     /**

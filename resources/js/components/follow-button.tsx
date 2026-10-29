@@ -1,11 +1,17 @@
 import type { VisitOptions } from '@inertiajs/core';
 import { Link, router, usePage } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
+import { UserCheck, UserPlus } from 'lucide-react';
 import type { ComponentProps } from 'react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
 import { Button } from '@/components/ui/button';
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { toastWhenThrottled } from '@/lib/throttle';
@@ -106,7 +112,7 @@ export function rememberBlock(user: Pick<User, 'id'>): void {
  * The server only refuses a follow across a block, which a suggestion can't know about until it tries, so it toasts instead of swapping in the 403 page.
  */
 export function onFollowHttpException(
-    user: Pick<User, 'id' | 'username'>,
+    user: Pick<User, 'id' | 'handle'>,
     response: { status: number },
 ): boolean {
     if (response.status !== 403) {
@@ -114,7 +120,7 @@ export function onFollowHttpException(
     }
 
     rememberBlock(user);
-    toast.error(`You can't follow @${user.username}.`);
+    toast.error(`You can't follow @${user.handle}.`);
 
     return false;
 }
@@ -159,7 +165,7 @@ export function FollowButton({
     onSuccess,
     ...props
 }: {
-    user: Pick<User, 'id' | 'username'>;
+    user: Pick<User, 'id' | 'handle'>;
     isFollowing: boolean;
     followsYou?: boolean;
     size?: ComponentProps<typeof Button>['size'];
@@ -185,7 +191,7 @@ export function FollowButton({
                 size={size}
                 className={className}
                 onClick={signIn}
-                aria-label={`Follow @${user.username}`}
+                aria-label={`Follow @${user.handle}`}
                 data-test="follow-button"
             >
                 Follow
@@ -218,8 +224,8 @@ export function FollowButton({
                 }
                 aria-label={
                     isFollowing
-                        ? `Unfollow @${user.username}`
-                        : `${followsYou ? 'Follow back' : 'Follow'} @${user.username}`
+                        ? `Unfollow @${user.handle}`
+                        : `${followsYou ? 'Follow back' : 'Follow'} @${user.handle}`
                 }
                 data-test="follow-button"
                 onClick={(event) => {
@@ -242,5 +248,82 @@ export function FollowButton({
                 />
             </Link>
         </Button>
+    );
+}
+
+/**
+ * An icon rather than a full button, for lists that repeat it on every row, like an expanded group of followers or
+ * who to follow.
+ */
+export function FollowIconButton({
+    user,
+    isFollowing: initialIsFollowing,
+    followsYou = false,
+    marksFollowsYou = false,
+    ...props
+}: {
+    user: Pick<User, 'id' | 'handle'>;
+    isFollowing: boolean;
+    followsYou?: boolean;
+    marksFollowsYou?: boolean;
+    'data-test'?: string;
+}) {
+    const {
+        component,
+        props: { log, commits },
+    } = usePage<{ commits?: CursorPaginated<Commit> }>();
+    const [isFollowing, setIsFollowing] = useIsFollowing(
+        user,
+        initialIsFollowing,
+    );
+    const Icon = isFollowing ? UserCheck : UserPlus;
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Link
+                    href={
+                        isFollowing
+                            ? UserFollowController.destroy(user)
+                            : UserFollowController.store(user)
+                    }
+                    as="button"
+                    only={['auth']}
+                    preserveState
+                    preserveScroll
+                    async
+                    onHttpException={(response) =>
+                        onFollowHttpException(user, response)
+                    }
+                    onSuccess={() => {
+                        setIsFollowing(!isFollowing);
+                        router.flushAll();
+                    }}
+                    aria-label={
+                        isFollowing
+                            ? `Unfollow @${user.handle}`
+                            : `Follow @${user.handle}${followsYou ? ' back' : ''}`
+                    }
+                    className={cn(
+                        'shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+                        {
+                            'text-primary hover:text-primary':
+                                isFollowing || (marksFollowsYou && followsYou),
+                        },
+                    )}
+                    {...props}
+                    {...followVisitOptions(component, log, commits)}
+                >
+                    <Icon aria-hidden className="size-4" />
+                </Link>
+            </TooltipTrigger>
+            <TooltipContent>
+                {isFollowing
+                    ? `Following @${user.handle}`
+                    : followsYou
+                      ? `Follow @${user.handle} back`
+                      : `Follow @${user.handle}`}
+            </TooltipContent>
+        </Tooltip>
     );
 }

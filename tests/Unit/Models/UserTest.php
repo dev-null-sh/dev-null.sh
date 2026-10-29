@@ -14,7 +14,7 @@ test('to array', function (): void {
     expect(array_keys($user->toArray()))
         ->toBe([
             'id',
-            'username',
+            'handle',
             'name',
             'avatar_url',
             'bio',
@@ -25,6 +25,7 @@ test('to array', function (): void {
             'updated_at',
             'has_sponsors_listing',
             'timezone',
+            'show_local_time',
             'lane',
             'has_github_account',
             'live',
@@ -169,8 +170,8 @@ it('has no password', function (): void {
 it('knows if it is an admin', function (): void {
     config(['app.admins' => ['NunoMaduro']]);
 
-    expect(User::factory()->create(['username' => 'nunomaduro'])->isAdmin())->toBeTrue()
-        ->and(User::factory()->create(['username' => 'octocat'])->isAdmin())->toBeFalse();
+    expect(User::factory()->create(['handle' => 'nunomaduro'])->isAdmin())->toBeTrue()
+        ->and(User::factory()->create(['handle' => 'octocat'])->isAdmin())->toBeFalse();
 });
 
 it('has the same lane as the frontend', function (string $id, int $lane): void {
@@ -241,4 +242,14 @@ it('knows who it blocks and who blocks it', function (): void {
         ->and($user->hasBlockWith($stranger))->toBeFalse()
         ->and($user->blocking->modelKeys())->toBe([$other->id])
         ->and($other->blockers->modelKeys())->toBe([$user->id]);
+});
+
+it('reads its github identity from its profile, which alone changes it', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat', 'name' => 'The Octocat']);
+
+    $user->profile->update(['handle' => 'renamed']);
+
+    expect($user->handle)->toBe('renamed')
+        ->and($user->name)->toBe('The Octocat')
+        ->and(fn () => $user->update(['handle' => 'elsewhere']))->toThrow(LogicException::class, 'Update the handle of a user on their profile.');
 });

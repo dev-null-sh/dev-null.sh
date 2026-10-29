@@ -1,5 +1,6 @@
 import {
     Award,
+    Bomb,
     BotOff,
     Box,
     ChevronRight,
@@ -17,6 +18,7 @@ import {
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { DragonBallIcon } from '@/components/dragon-ball-icon';
 import {
     Popover,
     PopoverContent,
@@ -27,7 +29,9 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { WordmarkText } from '@/components/wordmark-text';
 import { dropConfetti } from '@/lib/confetti';
+import { formatCount, formatExactCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import type { Achievements } from '@/types';
 
@@ -45,6 +49,8 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     key: Key,
     cookie: Cookie,
     'bot-off': BotOff,
+    bomb: Bomb,
+    'dragon-ball': DragonBallIcon,
 };
 
 export function AchievementsShelf({
@@ -151,7 +157,9 @@ export function AchievementsShelf({
                         Lv. {achievements.level} · {achievements.rank}
                     </span>
                     <span aria-hidden>·</span>
-                    <span>{achievements.xp} XP</span>
+                    <span title={`${formatExactCount(achievements.xp)} XP`}>
+                        {formatCount(achievements.xp)} XP
+                    </span>
                 </button>
                 <button
                     type="button"
@@ -168,14 +176,26 @@ export function AchievementsShelf({
             {/* Integrated XP Progress Bar */}
             <div className="mt-2.5">
                 <div className="flex items-center justify-between font-mono text-[11px] text-muted-foreground">
-                    <span>
+                    <span
+                        title={
+                            achievements.next_level_xp
+                                ? `${formatExactCount(achievements.xp)} / ${formatExactCount(achievements.next_level_xp)} XP`
+                                : `${formatExactCount(achievements.xp)} XP`
+                        }
+                    >
                         {achievements.next_level_xp
-                            ? `${achievements.xp} / ${achievements.next_level_xp} XP`
-                            : `${achievements.xp} XP`}
+                            ? `${formatCount(achievements.xp)} / ${formatCount(achievements.next_level_xp)} XP`
+                            : `${formatCount(achievements.xp)} XP`}
                     </span>
-                    <span>
+                    <span
+                        title={
+                            nextRank
+                                ? `${formatExactCount(nextRank.min_xp - achievements.xp)} XP to ${nextRank.rank}`
+                                : undefined
+                        }
+                    >
                         {nextRank
-                            ? `${nextRank.min_xp - achievements.xp} XP to ${nextRank.rank}`
+                            ? `${formatCount(nextRank.min_xp - achievements.xp)} XP to ${nextRank.rank}`
                             : 'Maximum rank (UID 0)'}
                     </span>
                 </div>
@@ -229,7 +249,7 @@ export function AchievementsShelf({
                                     data-earned-badge
                                     aria-hidden={index >= visibleCount}
                                     className={cn(
-                                        'inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-card px-2.5 py-1 font-mono text-xs whitespace-nowrap text-foreground shadow-xs',
+                                        'inline-flex shrink-0 items-center gap-1.5 rounded-md border bg-card px-2.5 py-1 font-mono text-xs whitespace-nowrap text-foreground shadow-xs',
                                         index >= visibleCount &&
                                             'invisible absolute',
                                     )}
@@ -309,7 +329,7 @@ export function AchievementsShelf({
                                                 onInspect();
                                             }}
                                             className={cn(
-                                                'inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-xs transition-colors select-none',
+                                                'inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1 font-mono text-xs transition-colors select-none',
                                                 badge.unlocked
                                                     ? 'border-border bg-card text-foreground shadow-xs hover:border-(--lane)'
                                                     : 'border-dashed border-muted-foreground/30 bg-muted/20 text-muted-foreground hover:border-muted-foreground/60',
@@ -351,7 +371,9 @@ export function AchievementsShelf({
                                                 : `(${badge.progress}/${badge.target})`}
                                         </p>
                                         <p className="mt-0.5 font-sans text-muted-foreground">
-                                            {badge.description}
+                                            <WordmarkText>
+                                                {badge.description}
+                                            </WordmarkText>
                                         </p>
                                     </TooltipContent>
                                 </Tooltip>

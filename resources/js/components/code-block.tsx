@@ -2,15 +2,20 @@ import { Check, Copy, WrapText } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { withCertificateHashes } from '@/lib/certificate-hashes';
 import { cn } from '@/lib/utils';
 
 export function CodeBlock({
     html,
+    fullHtml,
     language,
+    filename,
     isCopyable = true,
 }: {
     html: string;
+    fullHtml?: string;
     language: string | null;
+    filename: string | null;
     isCopyable?: boolean;
 }) {
     const codeRef = useRef<HTMLPreElement>(null);
@@ -33,7 +38,16 @@ export function CodeBlock({
             return;
         }
 
-        if (await copy(codeRef.current.textContent ?? '')) {
+        let code = codeRef.current.textContent ?? '';
+
+        if (fullHtml !== undefined) {
+            // The server escapes the code while highlighting it, and a template runs nothing.
+            const template = document.createElement('template');
+            template.innerHTML = fullHtml;
+            code = template.content.textContent ?? '';
+        }
+
+        if (await copy(code)) {
             setIsCopied(true);
 
             return;
@@ -51,8 +65,11 @@ export function CodeBlock({
         <div className="my-2 rounded-md border bg-muted/60">
             {(language || isCopyable) && (
                 <div className="flex h-8 items-center justify-between gap-2 border-b pr-1 pl-3">
-                    <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground select-none">
-                        {language}
+                    <span
+                        className="min-w-0 truncate font-mono text-[11px] text-muted-foreground select-none"
+                        title={filename ?? undefined}
+                    >
+                        {filename ?? language}
                     </span>
                     {isCopyable && (
                         <div className="flex shrink-0 items-center gap-0.5">
@@ -113,7 +130,9 @@ export function CodeBlock({
                         ? 'overflow-x-hidden wrap-anywhere whitespace-pre-wrap'
                         : 'overflow-x-auto wrap-normal whitespace-pre',
                 )}
-                dangerouslySetInnerHTML={{ __html: html }}
+                dangerouslySetInnerHTML={{
+                    __html: withCertificateHashes(html),
+                }}
             />
         </div>
     );

@@ -67,15 +67,15 @@ it('starring is idempotent', function (): void {
     expect($user->starredCommits()->count())->toBeOne();
 });
 
-it('may star their own commit', function (CommitStatus $status): void {
+it('may not star their own commit', function (CommitStatus $status): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create(['status' => $status]);
 
     $this->actingAs($user)
         ->postJson(route('commit-star.store', $commit))
-        ->assertOk()->assertExactJson(['starred' => true, 'stars_count' => 1]);
+        ->assertForbidden();
 
-    expect($user->hasStarred($commit))->toBeTrue();
+    expect($user->hasStarred($commit))->toBeFalse();
 })->with(CommitStatus::cases());
 
 it('may not star a commit across a block in either direction', function (bool $userBlocks): void {
@@ -197,8 +197,8 @@ it('may not unstar a commit across a block', function (): void {
 it('lists who starred their commit, newest first', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create();
-    $first = User::factory()->create(['username' => 'first']);
-    $second = User::factory()->create(['username' => 'second']);
+    $first = User::factory()->create(['handle' => 'first']);
+    $second = User::factory()->create(['handle' => 'second']);
 
     $first->starredCommits()->attach($commit, ['created_at' => now()->subMinute()]);
     $second->starredCommits()->attach($commit);
@@ -208,11 +208,11 @@ it('lists who starred their commit, newest first', function (): void {
 
     $response->assertOk()
         ->assertJsonPath('data.0.id', $second->id)
-        ->assertJsonPath('data.0.username', 'second')
+        ->assertJsonPath('data.0.handle', 'second')
         ->assertJsonPath('data.0.avatar_url', $second->avatar_url)
         ->assertJsonMissingPath('data.0.pivot')
         ->assertJsonMissingPath('data.0.email')
-        ->assertJsonPath('data.1.username', 'first')
+        ->assertJsonPath('data.1.handle', 'first')
         ->assertJsonCount(2, 'data')
         ->assertJsonPath('next_cursor', null);
 });

@@ -5,12 +5,88 @@ import type { CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
 import type { DeletedCommit, Lane, ThreadCommit } from '@/types';
-import type { FlashToast } from '@/types/ui';
+import type { FlashToast, TimeoutFlash } from '@/types/ui';
 
 /**
  * The interface is in English, so month and weekday names are too, whatever the browser's language.
  */
 export const dateLocale = 'en-US';
+
+export type HourCycle = 'h11' | 'h12' | 'h23' | 'h24';
+
+/** The time zone times show in, and whether the hours run to 12 or to 24. */
+export type Clock = { timeZone: string; hourCycle: HourCycle };
+
+/** The clock the server shares: the reader's, once their browser has told it. */
+export type SharedClock = {
+    timeZone: string | null;
+    hourCycle: HourCycle | null;
+};
+
+/** What the server renders with until the reader's browser has told it its clock. */
+const serverClock: Clock = { timeZone: 'UTC', hourCycle: 'h23' };
+
+let currentClock: Clock | null = null;
+
+/** How this browser shows times: its time zone, and the hour cycle of its language. */
+export function browserClock(): Clock {
+    const { timeZone, hourCycle } = new Intl.DateTimeFormat(undefined, {
+        hour: 'numeric',
+    }).resolvedOptions();
+
+    return { timeZone, hourCycle: hourCycle ?? 'h23' };
+}
+
+export function clockOf(shared: SharedClock | undefined): Clock | null {
+    return shared?.timeZone && shared.hourCycle
+        ? { timeZone: shared.timeZone, hourCycle: shared.hourCycle }
+        : null;
+}
+
+/**
+ * Sets the clock every time shows on, so the server renders a page with the clock the reader's browser hydrates it
+ * with. Null goes back to the browser's own, or to UTC on the server.
+ */
+export function setReaderClock(clock: Clock | null): void {
+    currentClock = clock;
+}
+
+export function readerClock(): Clock {
+    return (
+        currentClock ??
+        (typeof window === 'undefined' ? serverClock : browserClock())
+    );
+}
+
+const dayFormats = new Map<string, Intl.DateTimeFormat>();
+
+/** The calendar day a moment falls on in a time zone. */
+function dayIn(
+    date: Date,
+    timeZone: string,
+): { year: number; month: number; day: number } {
+    let format = dayFormats.get(timeZone);
+
+    if (format === undefined) {
+        format = new Intl.DateTimeFormat(dateLocale, {
+            timeZone,
+            year: 'numeric',
+            month: 'numeric',
+            day: 'numeric',
+        });
+        dayFormats.set(timeZone, format);
+    }
+
+    const parts = Object.fromEntries(
+        format.formatToParts(date).map((part) => [part.type, part.value]),
+    );
+
+    return {
+        year: Number(parts.year),
+        month: Number(parts.month),
+        day: Number(parts.day),
+    };
+}
 
 export function characterCount(value: string): number {
     return Array.from(value).length;
@@ -49,28 +125,38 @@ export function formatRelativeTime(date: string, now: Date = new Date()) {
         return `${Math.floor(seconds / 86400)}d`;
     }
 
+    const { timeZone } = readerClock();
+
     return new Date(date).toLocaleDateString(dateLocale, {
         month: 'short',
         day: 'numeric',
         year:
-            new Date(date).getFullYear() === now.getFullYear()
+            dayIn(new Date(date), timeZone).year === dayIn(now, timeZone).year
                 ? undefined
                 : 'numeric',
+        timeZone,
+    });
+}
+
+export function formatFullDate(date: string): string {
+    return new Date(date).toLocaleDateString(dateLocale, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        timeZone: readerClock().timeZone,
     });
 }
 
 export function formatFullDateTime(date: string, timeZone?: string): string {
-    const value = new Date(date);
+    const zone = timeZone ?? readerClock().timeZone;
 
-    return `${value.toLocaleTimeString(undefined, {
-        hour: 'numeric',
-        minute: '2-digit',
-        timeZone,
-    })} · ${value.toLocaleDateString(dateLocale, {
+    return `${formatZonedTime(date, zone)} · ${new Date(
+        date,
+    ).toLocaleDateString(dateLocale, {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
-        timeZone,
+        timeZone: zone,
     })}`;
 }
 
@@ -147,10 +233,13 @@ export function isDeleted(commit: {
 /**
  * Whether a commit submission came back without a commit. The `committed` and `scheduled` flashes can't tell:
  * they live in the session, so a poll or another tab landing before the redirect takes them. The rejections
- * that still redirect back (rate limited, page expired) always flash an error toast instead.
+ * that still redirect back flash an error toast (rate limited, page expired), or the timeout the user is in.
  */
-export function isRejectedSubmission(flash: { toast?: FlashToast }): boolean {
-    return flash.toast?.type === 'error';
+export function isRejectedSubmission(flash: {
+    toast?: FlashToast;
+    timeout?: TimeoutFlash;
+}): boolean {
+    return flash.toast?.type === 'error' || flash.timeout !== undefined;
 }
 
 export function laneOf(commit: ThreadCommit): string {
@@ -169,26 +258,21 @@ export function isWithinSeconds(
     return now.getTime() - new Date(date).getTime() < seconds * 1000;
 }
 
+/** The reader's calendar day a moment falls on, like `2026-10-21`. */
 export function localDayKey(date: string): string {
-    const day = new Date(date);
+    const { year, month, day } = dayIn(new Date(date), readerClock().timeZone);
 
-    return `${day.getFullYear()}-${day.getMonth() + 1}-${day.getDate()}`;
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
 export function formatDayLabel(date: string, now: Date = new Date()): string {
-    const day = new Date(date);
-    const startOfToday = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-    );
-    const startOfDay = new Date(
-        day.getFullYear(),
-        day.getMonth(),
-        day.getDate(),
-    );
+    const { timeZone } = readerClock();
+    const day = dayIn(new Date(date), timeZone);
+    const today = dayIn(now, timeZone);
     const daysAgo = Math.round(
-        (startOfToday.getTime() - startOfDay.getTime()) / 86_400_000,
+        (Date.UTC(today.year, today.month - 1, today.day) -
+            Date.UTC(day.year, day.month - 1, day.day)) /
+            86_400_000,
     );
 
     if (daysAgo === 0) {
@@ -199,11 +283,12 @@ export function formatDayLabel(date: string, now: Date = new Date()): string {
         return 'Yesterday';
     }
 
-    return day.toLocaleDateString(dateLocale, {
+    return new Date(date).toLocaleDateString(dateLocale, {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
-        year: day.getFullYear() === now.getFullYear() ? undefined : 'numeric',
+        year: day.year === today.year ? undefined : 'numeric',
+        timeZone,
     });
 }
 
@@ -211,12 +296,74 @@ export function browserTimeZone(): string {
     return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
+/** A time of day in a time zone, its hours running as the reader's clock does. */
 export function formatZonedTime(date: string, timeZone: string): string {
-    return new Date(date).toLocaleTimeString(undefined, {
+    return new Date(date).toLocaleTimeString(dateLocale, {
         hour: 'numeric',
         minute: '2-digit',
+        hourCycle: readerClock().hourCycle,
         timeZone,
     });
+}
+
+/** A time of day on the reader's clock, like `9:00 AM`. */
+export function formatClockTime(date: string): string {
+    return formatZonedTime(date, readerClock().timeZone);
+}
+
+/** A date and time of day on the reader's clock, like `Oct 26, 2026, 9:00 AM`. */
+export function formatClockDateTime(date: string): string {
+    const { timeZone, hourCycle } = readerClock();
+
+    return new Date(date).toLocaleString(dateLocale, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+        hourCycle,
+        timeZone,
+    });
+}
+
+/** The month a moment falls in on the reader's calendar, like `October 2026`. */
+export function formatClockMonth(date: string): string {
+    return new Date(date).toLocaleDateString(dateLocale, {
+        month: 'long',
+        year: 'numeric',
+        timeZone: readerClock().timeZone,
+    });
+}
+
+/** The hour, from 0 to 23, and the minute a moment falls on on the reader's clock. */
+export function clockTimeOf(date: string): { hour: number; minute: number } {
+    const parts = Object.fromEntries(
+        new Intl.DateTimeFormat(dateLocale, {
+            hour: 'numeric',
+            minute: 'numeric',
+            hourCycle: 'h23',
+            timeZone: readerClock().timeZone,
+        })
+            .formatToParts(new Date(date))
+            .map((part) => [part.type, part.value]),
+    );
+
+    return { hour: Number(parts.hour), minute: Number(parts.minute) };
+}
+
+/**
+ * The offset a timezone has at a moment, like `UTC +02:00`, or `UTC` when it has none.
+ */
+export function formatUtcOffset(date: Date, timeZone: string): string {
+    const offset = new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        timeZoneName: 'longOffset',
+    })
+        .formatToParts(date)
+        .find((part) => part.type === 'timeZoneName')?.value;
+
+    if (offset === undefined || offset === 'GMT' || offset === 'GMT+00:00') {
+        return 'UTC';
+    }
+
+    return offset.replace('GMT', 'UTC ');
 }
 
 export function formatZonedDate(date: string, timeZone: string): string {
@@ -226,7 +373,7 @@ export function formatZonedDate(date: string, timeZone: string): string {
         month: 'short',
         day: 'numeric',
         year:
-            value.getFullYear() === new Date().getFullYear()
+            dayIn(value, timeZone).year === dayIn(new Date(), timeZone).year
                 ? undefined
                 : 'numeric',
         timeZone,

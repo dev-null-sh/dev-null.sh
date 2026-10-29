@@ -7,15 +7,18 @@ import {
     Description,
     Field,
 } from '@headlessui/react';
-import { Form, router } from '@inertiajs/react';
+import { Form, router, usePage } from '@inertiajs/react';
 import { Check, ChevronsUpDown } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
+import { update } from '@/actions/App/Http/Controllers/UserAutomaticTranslationController';
 import UserTranslationLanguageController from '@/actions/App/Http/Controllers/UserTranslationLanguageController';
 import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { searchTranslationLanguages } from '@/lib/translation-languages';
 import type { TranslationLanguage } from '@/lib/translation-languages';
+import { cn } from '@/lib/utils';
 
 export default function TranslationLanguageSetting({
     language,
@@ -24,6 +27,29 @@ export default function TranslationLanguageSetting({
     language: string | null;
     languages: TranslationLanguage[];
 }) {
+    const { auth } = usePage().props;
+    const [savingAutomatic, setSavingAutomatic] = useState(false);
+    const toggleAutomatic = () => {
+        if (savingAutomatic) {
+            return;
+        }
+
+        router.put(
+            update.url(),
+            { enabled: !auth.automaticTranslation },
+            {
+                preserveScroll: true,
+                only: ['auth'],
+                onStart: () => setSavingAutomatic(true),
+                onFinish: () => setSavingAutomatic(false),
+                onError: () =>
+                    toast.error(
+                        'Could not save automatic translation. Please try again.',
+                    ),
+                onSuccess: () => router.flushAll(),
+            },
+        );
+    };
     const [selected, setSelected] = useState(language ?? '');
     const [query, setQuery] = useState('');
     const choices = [
@@ -150,6 +176,46 @@ export default function TranslationLanguageSetting({
                     </Field>
                 )}
             </Form>
+            <div className="mt-6 flex items-start justify-between gap-6 border-t pt-6">
+                <div className="min-w-0 space-y-2">
+                    <h3
+                        id="automatic-translation-label"
+                        className="text-sm font-medium"
+                    >
+                        Automatically show translations
+                    </h3>
+                    <p
+                        id="automatic-translation-description"
+                        className="text-sm text-muted-foreground"
+                    >
+                        Show available translations in your chosen language.
+                        Turn off to read originals first and choose Translate
+                        when you need it.
+                    </p>
+                </div>
+                <button
+                    type="button"
+                    role="switch"
+                    aria-checked={auth.automaticTranslation}
+                    aria-labelledby="automatic-translation-label"
+                    aria-describedby="automatic-translation-description"
+                    aria-disabled={savingAutomatic}
+                    onClick={toggleAutomatic}
+                    className={cn(
+                        'mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-transparent p-0.5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
+                        auth.automaticTranslation
+                            ? 'bg-primary'
+                            : 'bg-muted-foreground/30',
+                    )}
+                >
+                    <span
+                        className={cn(
+                            'size-4.5 rounded-full bg-background shadow-sm transition-transform motion-reduce:transition-none',
+                            auth.automaticTranslation && 'translate-x-5',
+                        )}
+                    />
+                </button>
+            </div>
         </section>
     );
 }

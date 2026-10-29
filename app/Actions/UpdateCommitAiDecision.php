@@ -26,9 +26,8 @@ final readonly class UpdateCommitAiDecision
 
     /**
      * Asks the AI whether the commit, images included, should be approved. The decision is mostly a hint for
-     * moderators: a clean commit is approved unless its author has recent reports, and it is rejected,
-     * without a reason, when the AI is all but certain. Failures, such as timeouts or rate limits, are thrown, so the
-     * caller can try again later.
+     * moderators: a clean commit is approved, and it is rejected, without a reason, when the AI is all but certain.
+     * Failures, such as timeouts or rate limits, are thrown, so the caller can try again later.
      */
     public function handle(Commit $commit): void
     {
@@ -44,10 +43,6 @@ final readonly class UpdateCommitAiDecision
             $categories[] = 'harmful-text';
         }
 
-        if ($images !== [] && $this->openAI->showsMinors($images)) {
-            $categories[] = 'minor-in-image';
-        }
-
         $commit->update([
             'ai_decision' => $categories === [] ? CommitStatus::Approved : CommitStatus::Rejected,
             'ai_categories' => $categories,
@@ -57,7 +52,7 @@ final readonly class UpdateCommitAiDecision
             $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Rejected, onlyPending: true);
         }
 
-        if ($categories === [] && $commit->user !== null && ! $commit->user->hasRecentReports()) {
+        if ($categories === [] && $commit->user !== null) {
             $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Approved, onlyPending: true);
         }
     }

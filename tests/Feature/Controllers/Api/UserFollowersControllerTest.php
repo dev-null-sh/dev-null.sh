@@ -6,7 +6,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 it('lists the followers of a user to guests, newest follow first', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
     $earlier = User::factory()->create(['bio' => 'Ships on Fridays.']);
     $later = User::factory()->create();
     $user->followers()->attach($earlier, ['created_at' => now()->subMinute()]);
@@ -16,7 +16,7 @@ it('lists the followers of a user to guests, newest follow first', function (): 
     $this->getJson('/api/v1/users/octocat/followers')
         ->assertOk()
         ->assertJsonPath('data.*.id', [$later->id, $earlier->id])
-        ->assertJsonPath('data.1.username', $earlier->username)
+        ->assertJsonPath('data.1.handle', $earlier->handle)
         ->assertJsonPath('data.1.bio', 'Ships on Fridays.')
         ->assertJsonMissingPath('data.0.lane')
         ->assertJsonMissingPath('data.0.is_followed')
@@ -128,6 +128,6 @@ it('lists no followers of a profile across a block for a signed request', functi
     'blocked' => [fn (User $viewer, User $user) => $user->blocking()->attach($viewer), 'user_unavailable', false],
 ]);
 
-it('returns not found for unknown usernames', function (): void {
+it('returns not found for unknown handles', function (): void {
     $this->getJson('/api/v1/users/missing/followers')->assertNotFound();
 });

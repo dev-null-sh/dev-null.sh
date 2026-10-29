@@ -15,15 +15,17 @@ use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 it('answers a casual public Tom mention in the same thread', function (): void {
-    config(['app.admins' => ['alice', 'tom'], 'ai.providers.opencode.key' => 'test']);
+    config(['app.admins' => ['alice', 'tom'], 'ai.providers.opencode.key' => 'test', 'ai.providers.openai.key' => 'test']);
     Queue::fake([ReplyAsTom::class, DetectCommitLanguage::class]);
     Tom::fake(['A little rusty, but happy to see you. :-D'])->preventStrayPrompts();
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
-    $user = User::factory()->create(['username' => 'alice']);
+    Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $user = User::factory()->create(['handle' => 'alice']);
     $parent = Commit::factory()->create();
 
     $response = $this->actingAs($user)->postJson(route('commit-reply.store', $parent), ['body' => '@tom how are your rusty joints?'])->assertCreated();
@@ -37,6 +39,7 @@ it('answers a casual public Tom mention in the same thread', function (): void {
         ->assertJsonPath('data.0.user.id', $tom->id)
         ->assertJsonPath('data.0.root_id', $parent->id);
     Tom::assertPrompted('@tom how are your rusty joints?');
+    Http::assertSentCount(1);
 });
 
 it('rejects non-text reply bodies with a validation error', function (mixed $body): void {
@@ -304,7 +307,7 @@ it('may reply to a commit', function (): void {
 
     $response->assertCreated()
         ->assertExactJson([
-            'committed' => ['id' => $reply->id, 'body' => 'Agreed, ship it.'],
+            'committed' => ['id' => $reply->id, 'body' => 'Agreed, ship it.', 'user' => ['handle' => $user->handle]],
             'parent' => ['id' => $parent->id, 'replies_count' => 1, 'continuation_id' => null],
             'toast' => [
                 'type' => 'info',
@@ -335,7 +338,7 @@ it('continues the author thread with their first reply to their own commit, leav
 it('publishes replies of admins right away', function (): void {
     config(['app.admins' => ['nunomaduro']]);
 
-    $user = User::factory()->create(['username' => 'nunomaduro']);
+    $user = User::factory()->create(['handle' => 'nunomaduro']);
     $parent = Commit::factory()->create();
 
     $response = $this->actingAs($user)
@@ -754,7 +757,7 @@ it('keeps account deletion tombstones in threads while filtering silenced author
 ]);
 
 it('keeps approved account deletion tombstones readable to guests without exposing the deleted author', function (): void {
-    $user = User::factory()->create(['username' => 'deletedauthor']);
+    $user = User::factory()->create(['handle' => 'deletedauthor']);
     $root = Commit::factory()->create();
     $parent = Commit::factory()->for($user)->for($root, 'parent')->create([
         'body' => 'Deleted body @deletedauthor',

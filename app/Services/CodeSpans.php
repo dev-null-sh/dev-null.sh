@@ -14,10 +14,11 @@ use Tempest\Highlight\Highlighter;
 final readonly class CodeSpans
 {
     /**
-     * A fenced code block, from a line starting with ``` or more (and maybe a language) to a line that is only ``` or
-     * more, or inline code between two backticks on one line. Keep in sync with resources/js/lib/code.ts.
+     * A fenced code block, from a line starting with ``` or more (and maybe a language) to a line that is only as many
+     * backticks or more, so a block can hold a shorter fence, or inline code between two backticks on one line. Keep in
+     * sync with resources/js/lib/code.ts.
      */
-    private const string PATTERN = '/((?<![^\n])`{3,}[^`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?`{3,}[ \t]*(?![^\r\n])|`[^`\r\n]+`)/';
+    private const string PATTERN = '/(?<![^\n])(?<fence>`{3,})[^`\r\n]*\r?\n(?:[\s\S]*?\r?\n)?\k<fence>`*[ \t]*(?![^\r\n])|`[^`\r\n]+`/';
 
     public function __construct(private Highlighter $highlighter)
     {
@@ -35,7 +36,21 @@ final readonly class CodeSpans
             return [$text];
         }
 
-        return preg_split(self::PATTERN, $text, flags: PREG_SPLIT_DELIM_CAPTURE) ?: [$text];
+        // The prose and the code are found apart, since the fence the pattern captures isn't a part.
+        $prose = preg_split(self::PATTERN, $text) ?: [$text];
+        preg_match_all(self::PATTERN, $text, $matches);
+
+        $parts = [];
+
+        foreach ($prose as $index => $part) {
+            $parts[] = $part;
+
+            if (isset($matches[0][$index])) {
+                $parts[] = $matches[0][$index];
+            }
+        }
+
+        return $parts;
     }
 
     /**
@@ -76,7 +91,7 @@ final readonly class CodeSpans
      * Splits the text into prose, inline code and highlighted code blocks. The highlighter escapes the code, so a
      * block's HTML is safe to render as is. The line breaks around a block are dropped, since it is a block already.
      *
-     * @return list<array{type: 'text', text: string}|array{type: 'code', code: string}|array{type: 'block', language: string|null, html: string}>
+     * @return list<array{type: 'text', text: string}|array{type: 'code', code: string}|array{type: 'block', language: string|null, filename: string|null, html: string}>
      */
     public function highlight(string $text): array
     {
@@ -124,17 +139,26 @@ final readonly class CodeSpans
     }
 
     /**
-     * @return array{type: 'block', language: string|null, html: string}
+     * @return array{type: 'block', language: string|null, filename: string|null, html: string}
      */
     private function block(string $part): array
     {
         $lines = explode("\n", str_replace("\r\n", "\n", $part));
-        $language = strtok(mb_ltrim($lines[0], '`'), " \t") ?: null;
+        [$language, $meta] = array_pad(preg_split('/[ \t]+/', mb_trim(mb_ltrim($lines[0], '`'), " \t"), 2) ?: [], 2, '');
+        preg_match_all('/\{[^}]*\}|([A-Za-z][\w-]*)="([^"]*)"|[^ \t]+/', $meta, $tokens, PREG_SET_ORDER | PREG_UNMATCHED_AS_NULL);
+        $attributes = [];
+
+        foreach ($tokens as [, $key, $value]) {
+            if ($key !== null && $value !== '') {
+                $attributes[$key] ??= $value;
+            }
+        }
 
         return [
             'type' => 'block',
-            'language' => $language,
-            'html' => $this->highlighter->parse(implode("\n", array_slice($lines, 1, -1)), $language === null ? null : mb_strtolower($language)),
+            'language' => $language === '' ? null : $language,
+            'filename' => $attributes['title'] ?? $attributes['filename'] ?? null,
+            'html' => $this->highlighter->parse(implode("\n", array_slice($lines, 1, -1)), $language === '' ? null : mb_strtolower($language)),
         ];
     }
 }

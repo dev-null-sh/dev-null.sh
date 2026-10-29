@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Actions\UpdateStaleUsernames;
+use App\Actions\UpdateStaleHandles;
 use App\Ai\Tools\SearchRepositoryHistory;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
@@ -10,14 +10,14 @@ use Illuminate\Support\Facades\Http;
 use Laravel\Ai\Tools\Request as ToolRequest;
 
 it('searches bounded upstream history and distinguishes authors from mergers without leaking raw identities', function (): void {
-    User::factory()->create(['github_id' => '123', 'username' => 'alice-local']);
-    User::factory()->create(['github_id' => '999', 'username' => 'alice']);
-    User::factory()->notOnboarded()->create(['github_id' => '456', 'username' => 'bob']);
+    User::factory()->create(['github_id' => '123', 'handle' => 'alice-local']);
+    User::factory()->create(['github_id' => '999', 'handle' => 'alice']);
+    User::factory()->notOnboarded()->create(['github_id' => '456', 'handle' => 'bob']);
     Http::fake([
         'api.github.com/search/issues*' => Http::response([
             'incomplete_results' => false,
             'items' => collect(range(1, 6))->map(fn (int $number): array => [
-                'title' => 'feat: '.str_repeat('x', 400), 'html_url' => "https://github.com/nunomaduro/dev-null.sh/pull/{$number}",
+                'title' => 'feat: '.str_repeat('x', 400), 'html_url' => "https://github.com/dev-null-sh/dev-null.sh/pull/{$number}",
                 'user' => ['login' => 'alice', 'id' => 123], 'body' => 'Not for the model',
                 'pull_request' => ['merged_at' => '2025-01-02T03:04:05Z'],
             ])->all(),
@@ -25,7 +25,7 @@ it('searches bounded upstream history and distinguishes authors from mergers wit
         'api.github.com/search/commits*' => Http::response([
             'incomplete_results' => false,
             'items' => collect(range(1, 6))->map(fn (int $number): array => [
-                'html_url' => "https://github.com/nunomaduro/dev-null.sh/commit/{$number}",
+                'html_url' => "https://github.com/dev-null-sh/dev-null.sh/commit/{$number}",
                 'author' => $number === 2 ? null : ['login' => 'bob', 'id' => 456], 'committer' => ['login' => 'merger'],
                 'commit' => ['message' => "feat: dark mode\n\nCo-authored-by: Raw Name <private@example.com>", 'author' => [
                     'name' => 'Raw Name', 'email' => 'private@example.com', 'date' => '2025-01-01T03:04:05Z',
@@ -38,30 +38,30 @@ it('searches bounded upstream history and distinguishes authors from mergers wit
 
     expect($result['pull_requests'])->toHaveCount(5);
     expect($result['pull_requests'][0])->toBe([
-        'title' => 'feat: '.str_repeat('x', 294), 'url' => 'https://github.com/nunomaduro/dev-null.sh/pull/1',
+        'title' => 'feat: '.str_repeat('x', 294), 'url' => 'https://github.com/dev-null-sh/dev-null.sh/pull/1',
         'pr_author' => 'alice', 'merged_at' => '2025-01-02T03:04:05Z', 'mention' => '@alice-local',
     ]);
     expect($result['commits'])->toHaveCount(5);
     expect($result['commits'][0])->toBe([
-        'title' => 'feat: dark mode', 'url' => 'https://github.com/nunomaduro/dev-null.sh/commit/1',
+        'title' => 'feat: dark mode', 'url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/1',
         'commit_author' => 'bob', 'authored_at' => '2025-01-01T03:04:05Z', 'mention' => null,
     ]);
     expect($result['commits'][1])->toMatchArray(['commit_author' => null, 'mention' => null]);
-    expect($result)->toMatchArray(['repository' => 'nunomaduro/dev-null.sh', 'complete' => false]);
+    expect($result)->toMatchArray(['repository' => 'dev-null-sh/dev-null.sh', 'complete' => false]);
     expect($result['coverage'])->toContain('follow-up fixes');
     expect($result['attribution'])->toContain('Neither proves sole implementation');
-    Http::assertSent(fn (Request $request): bool => $request['q'] === 'repo:nunomaduro/dev-null.sh is:pr is:merged base:production in:title,body "dark" "mode"' && $request['per_page'] === 5);
-    Http::assertSent(fn (Request $request): bool => $request['q'] === 'repo:nunomaduro/dev-null.sh merge:false "dark" "mode"' && $request['per_page'] === 5);
+    Http::assertSent(fn (Request $request): bool => $request['q'] === 'repo:dev-null-sh/dev-null.sh is:pr is:merged base:production in:title,body "dark" "mode"' && $request['per_page'] === 5);
+    Http::assertSent(fn (Request $request): bool => $request['q'] === 'repo:dev-null-sh/dev-null.sh merge:false "dark" "mode"' && $request['per_page'] === 5);
     Http::assertSentCount(2);
 });
 
 it('resolves current onboarded members even when GitHub history is cached', function (): void {
-    $author = User::factory()->notOnboarded()->create(['github_id' => '123', 'username' => 'alice']);
+    $author = User::factory()->notOnboarded()->create(['github_id' => '123', 'handle' => 'alice']);
     Http::fake([
         'api.github.com/search/issues*' => Http::response(['items' => []]),
         'api.github.com/search/commits*' => Http::response(['items' => [[
             'author' => ['login' => 'alice', 'id' => 123],
-            'html_url' => 'https://github.com/nunomaduro/dev-null.sh/commit/abc',
+            'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/abc',
             'commit' => ['message' => 'feat: bookmarks'],
         ]]]),
     ]);
@@ -69,17 +69,18 @@ it('resolves current onboarded members even when GitHub history is cached', func
 
     expect(json_decode(new SearchRepositoryHistory()->handle($request), true)['commits'][0]['mention'])->toBeNull();
 
-    $author->update(['onboarded_at' => now(), 'username' => 'alice-renamed']);
-    User::factory()->create(['github_id' => '456', 'username' => 'alice']);
+    $author->update(['onboarded_at' => now()]);
+    $author->profile->update(['handle' => 'alice-renamed']);
+    User::factory()->create(['github_id' => '456', 'handle' => 'alice']);
     expect(json_decode(new SearchRepositoryHistory()->handle($request), true)['commits'][0]['mention'])->toBe('@alice-renamed');
 
-    resolve(UpdateStaleUsernames::class)->handle('alice-renamed', '789');
+    resolve(UpdateStaleHandles::class)->handle('alice-renamed', '789');
     $result = new SearchRepositoryHistory()->handle($request);
-    expect($author->refresh()->username)->toBe('_renamed-123');
+    expect($author->refresh()->handle)->toBe('_renamed-123');
     expect($result)->not->toContain('_renamed-123', 'github_id');
     expect(json_decode($result, true)['commits'][0])->toMatchArray(['mention' => null, 'commit_author' => 'alice']);
 
-    $author->update(['username' => 'alice-restored']);
+    $author->profile->update(['handle' => 'alice-restored']);
     expect(json_decode(new SearchRepositoryHistory()->handle($request), true)['commits'][0]['mention'])->toBe('@alice-restored');
 
     $author->delete();

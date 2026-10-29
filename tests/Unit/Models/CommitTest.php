@@ -29,6 +29,7 @@ test('to array', function (): void {
             'root_id',
             'hot_score',
             'pasteis_count',
+            'organization_mentions',
             'body_segments',
             'preview_segments',
             'is_checking',
@@ -423,7 +424,7 @@ it('shows images when approved, to the author, or to moderators', function (): v
 
     $author = User::factory()->create();
     $viewer = User::factory()->create();
-    $moderator = User::factory()->create(['username' => 'admin']);
+    $moderator = User::factory()->create(['handle' => 'admin']);
     $approved = Commit::factory()->for($author)->create();
     $pending = Commit::factory()->for($author)->pending()->create();
     $rejected = Commit::factory()->for($author)->rejected()->create();

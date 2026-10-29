@@ -28,7 +28,7 @@ it('creates a user from github', function (): void {
 
     expect($user->exists)->toBeTrue()
         ->and($user->github_id)->toBe('583231')
-        ->and($user->username)->toBe('octocat')
+        ->and($user->handle)->toBe('octocat')
         ->and($user->name)->toBe('The Octocat')
         ->and($user->email)->toBe('octocat@github.com')
         ->and($user->avatar_url)->toBe('https://avatars.githubusercontent.com/u/583231')
@@ -43,7 +43,7 @@ it('updates an existing user from github', function (): void {
 
     $existing = User::factory()->create([
         'github_id' => '583231',
-        'username' => 'old-username',
+        'handle' => 'old-handle',
         'bio' => 'Old bio',
     ]);
 
@@ -57,11 +57,11 @@ it('updates an existing user from github', function (): void {
 
     expect($user->is($existing))->toBeTrue()
         ->and(User::query()->count())->toBeOne()
-        ->and($existing->refresh()->username)->toBe('octocat')
+        ->and($existing->refresh()->handle)->toBe('octocat')
         ->and($existing->bio)->toBe('New bio');
 });
 
-it('falls back to the username when the name is blank', function (): void {
+it('falls back to the handle when the name is blank', function (): void {
     fakeGitHubSponsorsListing();
 
     $action = resolve(UpdateOrCreateUser::class);
@@ -169,7 +169,7 @@ it('keeps the last known sponsors listing when github cannot say', function (Clo
 
     $stale = User::factory()->create([
         'github_id' => '1',
-        'username' => 'octocat',
+        'handle' => 'octocat',
     ]);
 
     $existing = User::factory()->create([
@@ -189,15 +189,15 @@ it('keeps the last known sponsors listing when github cannot say', function (Clo
     ]));
 
     expect($existing->refresh())
-        ->username->toBe('octocat')
+        ->handle->toBe('octocat')
         ->has_sponsors_listing->toBeTrue()
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 
-    expect($stale->refresh()->username)->toBe('_renamed-1');
+    expect($stale->refresh()->handle)->toBe('_renamed-1');
 
     Log::shouldHaveReceived('warning')
         ->once()
-        ->with('Could not check the GitHub Sponsors listing.', Mockery::on(fn (array $context): bool => $context['username'] === 'octocat'));
+        ->with('Could not check the GitHub Sponsors listing.', Mockery::on(fn (array $context): bool => $context['handle'] === 'octocat'));
 })->with([
     'server error' => fn () => Http::response(status: 502),
     'graphql error' => fn () => Http::response(['errors' => [['message' => 'API rate limit exceeded']]]),
@@ -225,7 +225,7 @@ it('logs why github could not say', function (): void {
     Log::shouldHaveReceived('warning')
         ->once()
         ->with('Could not check the GitHub Sponsors listing.', [
-            'username' => 'octocat',
+            'handle' => 'octocat',
             'status' => 200,
             'errors' => $errors,
         ]);
@@ -253,12 +253,12 @@ it('records when the profile was synced from github', function (): void {
     expect($user->refresh()->github_synced_at->toDateTimeString())->toBe(now()->toDateTimeString());
 });
 
-it('frees a username still held by a stale user who renamed on github', function (string $staleUsername): void {
+it('frees a handle still held by a stale user who renamed on github', function (string $staleUsername): void {
     fakeGitHubSponsorsListing(hasSponsorsListing: true);
 
     $stale = User::factory()->create([
         'github_id' => '1',
-        'username' => $staleUsername,
+        'handle' => $staleUsername,
         'bio' => 'Renamed away',
     ]);
 
@@ -269,19 +269,19 @@ it('frees a username still held by a stale user who renamed on github', function
         'nickname' => 'octocat',
     ]));
 
-    expect($user->username)->toBe('octocat')
+    expect($user->handle)->toBe('octocat')
         ->and($user->github_id)->toBe('583231')
         ->and($user->has_sponsors_listing)->toBeTrue()
         ->and($user->is($stale))->toBeFalse()
         ->and(User::query()->count())->toBe(2)
-        ->and($stale->refresh()->username)->toBe('_renamed-1')
+        ->and($stale->refresh()->handle)->toBe('_renamed-1')
         ->and($stale->github_id)->toBe('1')
         ->and($stale->bio)->toBe('Renamed away');
 })->with(['octocat', 'OctoCat']);
 
-it('moves an existing bot to its reserved handle when the github owner signs in', function (string $githubId, string $username, string $fallback): void {
+it('moves an existing bot to its reserved handle when the github owner signs in', function (string $githubId, string $handle, string $fallback): void {
     fakeGitHubSponsorsListing();
-    $bot = User::factory()->create(['github_id' => $githubId, 'username' => mb_strtolower($username)]);
+    $bot = User::factory()->create(['github_id' => $githubId, 'handle' => mb_strtolower($handle)]);
     $profile = $bot->only(['id', 'name', 'avatar_url', 'bio', 'onboarded_at', 'remotes_enabled']);
     $post = $bot->commits()->create(['body' => 'An existing bot post.']);
     $friend = User::factory()->create();
@@ -289,18 +289,18 @@ it('moves an existing bot to its reserved handle when the github owner signs in'
     $friend->following()->attach($bot);
 
     $action = resolve(UpdateOrCreateUser::class);
-    $githubUser = GitHubUser::fake(['id' => '583231', 'nickname' => $username]);
+    $githubUser = GitHubUser::fake(['id' => '583231', 'nickname' => $handle]);
     $owner = $action->handle($githubUser);
     $returning = $action->handle($githubUser);
 
-    expect($owner->username)->toBe($username)
+    expect($owner->handle)->toBe($handle)
         ->and($owner->github_id)->toBe('583231')
         ->and($returning->is($owner))->toBeTrue()
         ->and($owner->is($bot))->toBeFalse()
         ->and($owner->commits()->count())->toBe(0)
         ->and($owner->following()->count())->toBe(0)
         ->and($owner->followers()->count())->toBe(0);
-    expect($bot->refresh()->username)->toBe($fallback)
+    expect($bot->refresh()->handle)->toBe($fallback)
         ->and($bot->only(array_keys($profile)))->toEqual($profile)
         ->and($bot->commits()->sole()->is($post))->toBeTrue()
         ->and($bot->isFollowing($friend))->toBeTrue()

@@ -103,10 +103,11 @@ test('a guest following from a profile preview goes to sign in', () => {
     const user = {
         id: 'author',
         name: 'Author',
-        username: 'author',
+        handle: 'author',
         avatar_url: null,
         lane: 1,
         timezone: null,
+        show_local_time: false,
         followers_count: 0,
     } as unknown as User;
 

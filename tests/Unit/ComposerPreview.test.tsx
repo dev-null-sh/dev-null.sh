@@ -3,13 +3,14 @@ import assert from 'node:assert/strict';
 import { App } from '@inertiajs/react';
 import type { ComponentProps, KeyboardEvent, ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { test } from 'vite-plus/test';
+import { test, vi } from 'vite-plus/test';
 import { CommitBody } from '../../resources/js/components/commit-body';
 import { CommitComposer } from '../../resources/js/components/commit-composer';
 import { revokeObjectUrls } from '../../resources/js/components/commit-image-picker';
 import {
     ComposerPollPreview,
     ComposerPreviewBody,
+    PreviewToggle,
     useComposerPreview,
     type ComposerPreview,
 } from '../../resources/js/components/composer-preview';
@@ -148,7 +149,7 @@ function renderComposer(body: string, isInDialog = false): string {
                                 user: {
                                     id: 'preview-user',
                                     name: 'Preview User',
-                                    username: 'previewuser',
+                                    handle: 'previewuser',
                                     lane: 0,
                                 },
                                 log: {},
@@ -254,16 +255,17 @@ test('retains the link card picker and scheduling beside preview', () => {
 
 const secret = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
 
-test('keeps the sensitive text warning beside preview', () => {
+test('keeps token-shaped text editable with preview and no secret warning', () => {
     const markup = renderComposer(secret);
 
     assert.equal(
         (markup.match(/aria-label="Sensitive text warning"/g) ?? []).length,
-        1,
+        0,
     );
     assert.equal((markup.match(/data-test="preview-toggle"/g) ?? []).length, 1);
-    assert.ok(markup.includes('Remove detected secrets'));
-    assert.ok(markup.includes('data-test="secret-warning-minimize"'));
+    assert.ok(markup.includes(secret));
+    assert.ok(!markup.includes('Remove detected secrets'));
+    assert.ok(!markup.includes('data-test="secret-warning-minimize"'));
     assert.ok(!markup.includes('Publish possible secrets?'));
 });
 
@@ -308,6 +310,56 @@ for (const [body, expected] of [
 ] as const) {
     test(`${expected ? 'finds' : 'finds no'} mention in "${body}"`, () => {
         assert.equal(hasMention(bodySegments(body)), expected);
+    });
+}
+
+for (const fence of [
+    '``` php\ttitle="app/Models/User.php" \t',
+    '```php filename="app/Models/User.php"',
+]) {
+    test(`labels the code block of "${fence}" with its filename`, () => {
+        const markup = renderPage(
+            <CommitBody
+                segments={bodySegments(`${fence}\n$name;\n\`\`\``)}
+                mentions={null}
+            />,
+        );
+
+        assert.match(
+            markup,
+            /<span[^>]*title="app\/Models\/User\.php"[^>]*>app\/Models\/User\.php<\/span>/,
+        );
+        assert.ok(!markup.includes('>php<'));
+    });
+}
+
+for (const [fence, language, filename] of [
+    ['``` php\ttitle="app/Models/User.php" \t', 'php', 'app/Models/User.php'],
+    ['```php filename="app/Models/User.php"', 'php', 'app/Models/User.php'],
+    ['```php filename="a.php" title="b.php"', 'php', 'b.php'],
+    ['```php title="" filename="a.php"', 'php', 'a.php'],
+    ['```php title="a.php" title="b.php"', 'php', 'a.php'],
+    ['```php title="My Model.php"', 'php', 'My Model.php'],
+    [
+        '```php {1, 3} showLineNumbers title="app.php" tab="Pest 4"',
+        'php',
+        'app.php',
+    ],
+    ['```php app/Models/User.php', 'php', null],
+    ['```php {1,3}', 'php', null],
+    ['```php tab=Pest', 'php', null],
+    ['```php title=""', 'php', null],
+    ['```php title="app.php', 'php', null],
+    ['```php caption="see title="app.php"', 'php', null],
+    ['```php {1 title="app.php"}', 'php', null],
+    ['```php\u00a0title="app.php"', 'php\u00a0title="app.php"', null],
+    ['```php', 'php', null],
+    ['```', null, null],
+] as const) {
+    test(`reads the language and filename of "${fence}" like the server`, () => {
+        assert.deepEqual(bodySegments(`${fence}\n$name;\n\`\`\``), [
+            { type: 'block', language, filename, html: '$name;' },
+        ]);
     });
 }
 
@@ -420,7 +472,7 @@ for (const pasteisMode of [false, true]) {
             }
         });
 
-        test(`preserves code, URLs, usernames and larger words with mode ${pasteisMode ? 'on' : 'off'} in ${isStatic ? 'excerpts' : 'commits'}`, () => {
+        test(`preserves code, URLs, handles and larger words with mode ${pasteisMode ? 'on' : 'off'} in ${isStatic ? 'excerpts' : 'commits'}`, () => {
             const preview = previewFor({
                 body: 'pastel https://pasteis.com/pastel @pastel pastels pastelaria épastel pastelé pastel_1\n`pasteis`\n```text\npastéis\n```',
                 isSubmittable: true,
@@ -458,3 +510,37 @@ for (const pasteisMode of [false, true]) {
         });
     }
 }
+
+test('clicking Preview moves focus into the preview, where Escape returns to writing', () => {
+    const preview = previewFor({ isSubmittable: true });
+    const focus = vi.fn();
+    const getElementById = vi.fn(() => ({ focus }));
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
+        callback(),
+    );
+    vi.stubGlobal('document', { getElementById });
+
+    try {
+        const toggles: ReactElement<{
+            children: ReactElement<{ onClick: () => void }>;
+        }>[] = [];
+
+        function Toggle() {
+            toggles.push(
+                PreviewToggle({ preview }) as (typeof toggles)[number],
+            );
+
+            return null;
+        }
+
+        renderToStaticMarkup(<Toggle />);
+        const tooltip = toggles[0];
+        assert.ok(tooltip);
+        tooltip.props.children.props.onClick();
+
+        assert.deepEqual(getElementById.mock.calls, [[preview.previewId]]);
+        assert.equal(focus.mock.calls.length, 1);
+    } finally {
+        vi.unstubAllGlobals();
+    }
+});

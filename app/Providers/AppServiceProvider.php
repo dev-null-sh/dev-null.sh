@@ -120,6 +120,15 @@ final class AppServiceProvider extends ServiceProvider
         RateLimiter::for('conversations', fn (Request $request): Limit => Limit::perMinute(300)->by($this->userId($request)));
         RateLimiter::for('messages', fn (Request $request): Limit => Limit::perMinute(30)->by($this->userId($request)));
 
+        // Pings: MSN wouldn't let you ping that often either...
+        RateLimiter::for('pings', fn (Request $request): Limit => Limit::perMinute(3)
+            ->by($this->userId($request))
+            ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
+                ['message' => 'Three pings a minute, tops. Try again in a bit.'],
+                429,
+                $headers,
+            )));
+
         // Social graph...
         RateLimiter::for('follows', fn (Request $request): Limit => Limit::perMinute(30)->by($this->userId($request)));
 
@@ -127,6 +136,13 @@ final class AppServiceProvider extends ServiceProvider
         RateLimiter::for('people', fn (Request $request): Limit => Limit::perMinute(120)->by(
             $request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip(),
         ));
+
+        // Every issue lookup GitHub hasn't answered in the last five minutes costs a request out of the shared hourly budget,
+        // which also keeps SSH keys in sync for the CLI, so it gets a budget of its own...
+        RateLimiter::for('issue-suggestions', fn (Request $request): array => [
+            Limit::perMinute(30)->by($this->userId($request)),
+            Limit::perDay(300)->by('day:'.$this->userId($request)),
+        ]);
 
         // Every commit search pays for an embedding and a relevance verdict, so it gets a budget of its own...
         RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(15)
@@ -136,6 +152,11 @@ final class AppServiceProvider extends ServiceProvider
                 429,
                 $headers,
             )));
+
+        // Every commit page asks for its related commits, a vector index scan with no outside call...
+        RateLimiter::for('related-commits', fn (Request $request): Limit => Limit::perMinute(60)->by(
+            $request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip(),
+        ));
 
         // Exports stream every commit a user ever made...
         RateLimiter::for('exports', fn (Request $request): Limit => Limit::perHour(3)->by($this->userId($request)));
