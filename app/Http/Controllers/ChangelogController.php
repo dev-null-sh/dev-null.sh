@@ -13,9 +13,11 @@ use Inertia\Response;
 
 final readonly class ChangelogController
 {
-    public function index(ListChangelogRequest $request, ChangelogQuery $changelog, PageMetadata $metadata): JsonResponse|Response
+    public function index(ListChangelogRequest $request, ChangelogQuery $changelog): JsonResponse|Response
     {
         if (! $request->expectsJson()) {
+            $metadata = resolve(PageMetadata::class);
+
             return Inertia::render('changelog/show')->withViewData(['preview' => $metadata->page(
                 'Changelog - /dev/null',
                 'What was merged into /dev/null, day by day: every pull request that shipped to production, newest first, with who made it.',
