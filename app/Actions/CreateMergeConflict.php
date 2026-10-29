@@ -12,8 +12,10 @@ use App\Models\MergeConflict;
 use App\Models\User;
 use App\Queries\TomQuery;
 use App\Services\Features;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Date;
 use Throwable;
 
 /**
@@ -50,7 +52,7 @@ final readonly class CreateMergeConflict
         $replies = $this->replies($commit);
 
         if ($replies->pluck('user_id')->unique()->count() < 2
-            || ! Cache::add("merge-conflict-read:{$commit->id}", true, self::ReadEvery)) {
+            || ! Cache::add("merge-conflict-read:{$commit->id}", now()->addSeconds(self::ReadEvery)->getTimestamp(), self::ReadEvery)) {
             return null;
         }
 
@@ -86,6 +88,16 @@ final readonly class CreateMergeConflict
             'theirs_id' => $theirs->id,
             'closes_at' => now()->addHours(MergeConflict::VotingHours),
         ]);
+    }
+
+    /**
+     * When Tom may read the thread again: right away, or once the hour since he last read it is up.
+     */
+    public function nextReadAt(string $commitId): CarbonInterface
+    {
+        $readAgainAt = Cache::get("merge-conflict-read:{$commitId}");
+
+        return is_int($readAgainAt) ? Date::createFromTimestamp($readAgainAt) : now();
     }
 
     /**

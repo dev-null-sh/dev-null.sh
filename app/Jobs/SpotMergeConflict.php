@@ -31,14 +31,17 @@ final class SpotMergeConflict implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * Looks at the threads the given approved replies are in, once each.
+     * Looks at the threads the given approved replies are in, once each. A thread Tom read within the hour waits until
+     * he may read it again, so a reply that came in meanwhile still gets read.
      */
     public static function dispatchFor(Commit ...$replies): void
     {
         $parentIds = array_unique(array_filter(array_map(fn (Commit $reply): ?string => $reply->parent_id, $replies)));
 
         foreach ($parentIds as $parentId) {
-            dispatch(new self($parentId))->delay(now()->addMinutes(5))->afterCommit();
+            $readAt = resolve(CreateMergeConflict::class)->nextReadAt($parentId)->max(now()->addMinutes(5));
+
+            dispatch(new self($parentId))->delay($readAt)->afterCommit();
         }
     }
 
