@@ -6,6 +6,7 @@ use App\Models\Commit;
 use App\Models\User;
 
 it('responds with the related commits as the API shows commits', function (): void {
+    fakeSearch();
     $commit = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $related = Commit::factory()->create(['embedding' => embeddingVector(0)]);
 
@@ -19,6 +20,7 @@ it('responds with the related commits as the API shows commits', function (): vo
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('shows a signed request whether it starred each related commit', function (): void {
+    fakeSearch();
     $user = User::factory()->create();
     $keyPair = apiKeyPairFor($user);
     $commit = Commit::factory()->create(['embedding' => embeddingVector(0)]);

@@ -274,7 +274,7 @@ Sources: [reply validation](app/Http/Requests/CreateCommitReplyRequest.php), [co
 
 ### Related commits
 
-Under a commit, /dev/null shows up to three commits from other threads that say something close to it. It only suggests commits you could find through search: nothing from people you block, who block you or whom you mute, and nothing still pending. When nothing is close, nothing shows.
+Under a commit, /dev/null shows up to three top-level commits from other threads using the same semantic search and AI relevance check as commit search. Suggestions respect visibility, blocks, and mutes; authors can see their own pending commits. When no candidates pass the relevance check, nothing shows.
 
 Sources: [related commits query](app/Queries/RelatedCommitsQuery.php), [related commits rail](resources/js/components/related-commits.tsx).
 

@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 
 it('responds with the related commits, without their vectors', function (): void {
+    fakeSearch();
     $viewer = User::factory()->create();
     $commit = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $related = Commit::factory()->create(['embedding' => embeddingVector(0)]);
@@ -22,6 +23,7 @@ it('responds with the related commits, without their vectors', function (): void
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('lets guests see the related commits of an approved commit', function (): void {
+    fakeSearch();
     $commit = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $related = Commit::factory()->create(['embedding' => embeddingVector(0)]);
 

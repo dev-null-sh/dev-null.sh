@@ -8,6 +8,7 @@ use App\Models\Commit;
 use App\Models\Poll;
 use App\Models\User;
 use App\Queries\RelatedCommitsQuery;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -21,6 +22,7 @@ function relatedCommitIds(Commit $commit, ?User $viewer = null): array
 }
 
 it('lists the nearest top-level commits, nearest first', function (): void {
+    fakeSearch();
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $farther = Commit::factory()->create(['embedding' => embeddingAtDistance(0.3)]);
     $nearest = Commit::factory()->create(['embedding' => embeddingAtDistance(0.1)]);
@@ -29,6 +31,7 @@ it('lists the nearest top-level commits, nearest first', function (): void {
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('never lists the thread being read', function (): void {
+    fakeSearch();
     $root = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $reply = Commit::factory()->for($root, 'parent')->create(['embedding' => embeddingVector(0)]);
     Commit::factory()->for($root, 'parent')->create(['embedding' => embeddingVector(0)]);
@@ -39,6 +42,7 @@ it('never lists the thread being read', function (): void {
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it("uses a reply's own vector as the question", function (): void {
+    fakeSearch([true, false]);
     $root = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $reply = Commit::factory()->for($root, 'parent')->create(['embedding' => embeddingVector(1)]);
     Commit::factory()->create(['embedding' => embeddingVector(0)]);
@@ -48,6 +52,7 @@ it("uses a reply's own vector as the question", function (): void {
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('leaves replies out', function (): void {
+    fakeSearch([false]);
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $otherRoot = Commit::factory()->create(['embedding' => embeddingVector(1)]);
     Commit::factory()->for($otherRoot, 'parent')->create(['embedding' => embeddingVector(0)]);
@@ -56,6 +61,7 @@ it('leaves replies out', function (): void {
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('finds top-level commits through the vector index behind many closer replies', function (): void {
+    fakeSearch();
     DB::statement('set local enable_sort = off');
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $otherRoot = Commit::factory()->create(['embedding' => embeddingVector(1)]);
@@ -68,21 +74,24 @@ it('finds top-level commits through the vector index behind many closer replies'
     expect(relatedCommitIds($source))->toEqualCanonicalizing($related->pluck('id')->all());
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
-it('drops commits past the distance cutoff', function (): void {
+it('drops candidates the search relevance model rejects', function (): void {
+    fakeSearch([false]);
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
-    Commit::factory()->create(['embedding' => embeddingAtDistance(RelatedCommitsQuery::MAX_DISTANCE + 0.01)]);
+    Commit::factory()->create(['embedding' => embeddingAtDistance(0.1)]);
 
     expect(relatedCommitIds($source))->toBeEmpty();
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
-it('includes a commit right at the cutoff', function (): void {
+it('keeps relevant candidates beyond the former distance cutoff', function (): void {
+    fakeSearch([true]);
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
-    $atCutoff = Commit::factory()->create(['embedding' => embeddingAtDistance(RelatedCommitsQuery::MAX_DISTANCE)]);
+    $related = Commit::factory()->create(['embedding' => embeddingAtDistance(0.8)]);
 
-    expect(relatedCommitIds($source))->toBe([$atCutoff->id]);
+    expect(relatedCommitIds($source))->toBe([$related->id]);
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('caps the rail', function (): void {
+    fakeSearch();
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     Commit::factory()->count(RelatedCommitsQuery::LIMIT + 1)->create(['embedding' => embeddingVector(0)]);
 
@@ -109,6 +118,7 @@ it("returns nothing after the commit's content was erased", function (): void {
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('skips candidates without an embedding', function (): void {
+    fakeSearch();
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $embedded = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     Commit::factory()->create(['embedding' => null]);
@@ -117,6 +127,7 @@ it('skips candidates without an embedding', function (): void {
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('hides pending and rejected commits from other viewers', function (): void {
+    fakeSearch();
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $approved = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     Commit::factory()->pending()->create(['embedding' => embeddingVector(0)]);
@@ -126,6 +137,7 @@ it('hides pending and rejected commits from other viewers', function (): void {
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('shows an author their own pending commit', function (): void {
+    fakeSearch();
     $author = User::factory()->create();
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $pending = Commit::factory()->for($author)->pending()->create(['embedding' => embeddingVector(0)]);
@@ -134,6 +146,7 @@ it('shows an author their own pending commit', function (): void {
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('hides approved commits across a block in either direction', function (): void {
+    fakeSearch();
     $viewer = User::factory()->create();
     $blocked = User::factory()->create();
     $blocker = User::factory()->create();
@@ -149,6 +162,7 @@ it('hides approved commits across a block in either direction', function (): voi
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('hides muted authors', function (): void {
+    fakeSearch();
     $viewer = User::factory()->create();
     $muted = User::factory()->create();
     $viewer->muting()->attach($muted);
@@ -161,6 +175,7 @@ it('hides muted authors', function (): void {
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('hides deleted commits', function (): void {
+    fakeSearch();
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $kept = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     Commit::factory()->create(['embedding' => embeddingVector(0)])->delete();
@@ -169,6 +184,7 @@ it('hides deleted commits', function (): void {
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('gives guests approved commits only', function (): void {
+    fakeSearch();
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $approved = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     Commit::factory()->pending()->create(['embedding' => embeddingVector(0)]);
@@ -178,6 +194,7 @@ it('gives guests approved commits only', function (): void {
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('loads the commits as the feeds do, so the card renders them', function (): void {
+    fakeSearch();
     $viewer = User::factory()->create();
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $commit = Commit::factory()->create(['embedding' => embeddingVector(0)]);
@@ -196,6 +213,7 @@ it('loads the commits as the feeds do, so the card renders them', function (): v
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
 it('finds the candidates in one query', function (): void {
+    fakeSearch();
     $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     Commit::factory()->create(['embedding' => embeddingVector(0)]);
 
@@ -205,12 +223,14 @@ it('finds the candidates in one query', function (): void {
     expect(collect(DB::getQueryLog())->pluck('query')->filter(fn (string $query): bool => str_contains($query, '<=>')))->toHaveCount(1);
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');
 
-it('asks no outside service anything', function (): void {
-    Http::fake();
-    $source = Commit::factory()->create(['embedding' => embeddingVector(0)]);
+it('judges relevance against the source body without embedding it again', function (): void {
+    fakeSearch();
+    $source = Commit::factory()->create(['body' => 'Database indexing', 'embedding' => embeddingVector(0)]);
     Commit::factory()->create(['embedding' => embeddingVector(0)]);
 
     relatedCommitIds($source);
 
-    Http::assertNothingSent();
+    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/decisions')
+        && str_contains($request['input'], 'Query: Database indexing'));
+    Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/embeddings'));
 })->skip(fn (): bool => pgvectorLacksIterativeScan(), 'Needs pgvector 0.8 or newer for hnsw.iterative_scan.');

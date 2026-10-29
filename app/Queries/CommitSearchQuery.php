@@ -10,6 +10,7 @@ use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 final readonly class CommitSearchQuery
 {
@@ -34,31 +35,46 @@ final readonly class CommitSearchQuery
      * The commits nearest in meaning to the term, closest first, loaded as the feeds load them so the same card renders
      * them. Commits the viewer may not see, and commits whose author they muted or blocked, are left out, as are
      * commits that have not been embedded yet.
+     * A commit uses its stored embedding and body to find top-level commits outside its own thread.
      *
      * @return Collection<int, Commit>
      */
-    public function get(string $term, ?User $viewer, int $limit = 20): Collection
+    public function get(string|Commit $term, ?User $viewer, int $limit = 20): Collection
     {
-        $term = mb_trim($term);
+        $source = $term instanceof Commit
+            ? Commit::query()->whereKey($term->id)->first(['id', 'body', 'embedding', 'parent_id', 'root_id'])
+            : null;
 
-        if (mb_strlen($term) < self::MINIMUM_TERM_LENGTH) {
+        if ($term instanceof Commit && $source?->embedding === null) {
+            return new Collection();
+        }
+
+        $term = mb_trim($term instanceof Commit ? $source->body : $term);
+
+        if ($source === null && mb_strlen($term) < self::MINIMUM_TERM_LENGTH) {
             return new Collection();
         }
 
         /** @var list<float> $vector */
-        $vector = Cache::remember('search-embedding:'.hash('sha256', $term), self::CACHE_SECONDS, fn (): array => $this->embeddings->embed($term));
+        $vector = $source->embedding ?? Cache::remember('search-embedding:'.hash('sha256', $term), self::CACHE_SECONDS, fn (): array => $this->embeddings->embed($term));
 
-        $candidates = Commit::query()
-            ->whereIn('commits.id', $this->nearest($vector, $viewer, $limit * 2))
-            ->visibleTo($viewer)
-            ->withoutMutedAuthorsFor($viewer)
-            ->withVisibleReplyCount($viewer)
-            ->withContinuationId($viewer)
-            ->withCardDataFor($viewer)
-            ->orderByVectorDistance('embedding', $vector)
-            ->limit($limit)
-            ->get()
-            ->toBase();
+        $candidates = DB::transaction(function () use ($source, $vector, $viewer, $limit): Collection {
+            if ($source instanceof Commit) {
+                DB::statement('set local hnsw.iterative_scan = strict_order');
+            }
+
+            return Commit::query()
+                ->whereIn('commits.id', $this->nearest($vector, $viewer, $limit * 2, $source))
+                ->visibleTo($viewer)
+                ->withoutMutedAuthorsFor($viewer)
+                ->withVisibleReplyCount($viewer)
+                ->withContinuationId($viewer)
+                ->withCardDataFor($viewer)
+                ->orderByVectorDistance('embedding', $vector)
+                ->limit($limit)
+                ->get()
+                ->toBase();
+        });
 
         return $this->onlyRelevant($term, $candidates);
     }
@@ -71,10 +87,13 @@ final readonly class CommitSearchQuery
      *
      * @param  list<float>  $vector
      */
-    private function nearest(array $vector, ?User $viewer, int $count): CommitBuilder
+    private function nearest(array $vector, ?User $viewer, int $count, ?Commit $source): CommitBuilder
     {
         return Commit::query()
             ->select('id')
+            ->when($source, fn (CommitBuilder $query, Commit $source): CommitBuilder => $query
+                ->topLevel()
+                ->whereKeyNot($source->threadRootId()))
             ->where(fn (CommitBuilder $query): CommitBuilder => $query
                 ->approved()
                 ->when($viewer, fn (CommitBuilder $query, User $viewer): CommitBuilder => $query->orWhere('user_id', $viewer->id)))
