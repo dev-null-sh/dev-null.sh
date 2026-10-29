@@ -109,6 +109,22 @@ it('reads a thread at most once an hour', function (): void {
     ConflictSpotter::assertPromptedTimes(2);
 });
 
+it('reads the thread again when Tom failed to answer', function (): void {
+    $prompts = 0;
+    ConflictSpotter::fake(function () use (&$prompts): array {
+        throw_if($prompts++ === 0, RuntimeException::class, 'Tom is down');
+
+        return ['conflict' => true, 'ours' => 1, 'theirs' => 2];
+    });
+    $commit = Commit::factory()->create();
+    repliesTo($commit, 'Yes', 'No');
+
+    expect(fn (): ?MergeConflict => resolve(CreateMergeConflict::class)->handle($commit))->toThrow(RuntimeException::class);
+
+    expect(resolve(CreateMergeConflict::class)->handle($commit))->toBeInstanceOf(MergeConflict::class)
+        ->and($prompts)->toBe(2);
+});
+
 it('opens one merge conflict per commit', function (): void {
     ConflictSpotter::fake()->preventStrayPrompts();
     $mergeConflict = MergeConflict::factory()->create();

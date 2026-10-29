@@ -25,8 +25,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read Commit $commit
- * @property-read Commit $ours
- * @property-read Commit $theirs
+ * @property-read Commit|null $ours
+ * @property-read Commit|null $theirs
  * @property-read Collection<int, MergeConflictVote> $votes
  */
 final class MergeConflict extends Model
@@ -99,7 +99,10 @@ final class MergeConflict extends Model
      */
     public function canBeVotedOnBy(User $user): bool
     {
-        return ! $this->isClosed() && ! in_array($user->id, [$this->ours->user_id, $this->theirs->user_id], true);
+        return ! $this->isClosed()
+            && $this->ours instanceof Commit
+            && $this->theirs instanceof Commit
+            && ! in_array($user->id, [$this->ours->user_id, $this->theirs->user_id], true);
     }
 
     public function sideOf(User $user): ?MergeConflictSide

@@ -8,6 +8,7 @@ use App\Enums\MergeConflictSide;
 use App\Models\Commit;
 use App\Models\MergeConflict;
 use App\Models\User;
+use App\Queries\MergeConflictQuery;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -15,12 +16,16 @@ use Illuminate\Validation\Rules\Enum;
 
 final class CreateMergeConflictVoteRequest extends FormRequest
 {
+    /**
+     * Only readers who are shown the merge conflict, so who can see both sides, get to vote on it.
+     */
     public function authorize(): bool
     {
         $mergeConflict = $this->commit()->mergeConflict;
 
         return $this->commit()->isVisibleTo($this->voter())
             && $mergeConflict instanceof MergeConflict
+            && resolve(MergeConflictQuery::class)->get($this->commit(), $this->voter()) !== null
             && $mergeConflict->canBeVotedOnBy($this->voter());
     }
 

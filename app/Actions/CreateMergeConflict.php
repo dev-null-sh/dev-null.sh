@@ -14,6 +14,7 @@ use App\Queries\TomQuery;
 use App\Services\Features;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Cache;
+use Throwable;
 
 /**
  * Asks Tom whether two replies to a commit take opposite sides, and opens a merge conflict between them when they do.
@@ -53,14 +54,21 @@ final readonly class CreateMergeConflict
             return null;
         }
 
-        $response = new ConflictSpotter()->prompt(collect([
-            'post' => mb_substr($commit->body, 0, self::MaxReplyLength),
-            'replies' => $replies->values()->map(fn (Commit $reply, int $index): array => [
-                'number' => $index + 1,
-                'author' => '@'.$reply->user?->handle,
-                'body' => mb_substr($reply->body, 0, self::MaxReplyLength),
-            ]),
-        ])->toJson());
+        try {
+            $response = new ConflictSpotter()->prompt(collect([
+                'post' => mb_substr($commit->body, 0, self::MaxReplyLength),
+                'replies' => $replies->values()->map(fn (Commit $reply, int $index): array => [
+                    'number' => $index + 1,
+                    'author' => '@'.$reply->user?->handle,
+                    'body' => mb_substr($reply->body, 0, self::MaxReplyLength),
+                ]),
+            ])->toJson());
+        } catch (Throwable $throwable) {
+            // A read that failed doesn't count, so the job can retry it.
+            Cache::forget("merge-conflict-read:{$commit->id}");
+
+            throw $throwable;
+        }
 
         $ours = $replies->values()->get(is_int($response['ours'] ?? null) ? $response['ours'] - 1 : -1);
         $theirs = $replies->values()->get(is_int($response['theirs'] ?? null) ? $response['theirs'] - 1 : -1);
