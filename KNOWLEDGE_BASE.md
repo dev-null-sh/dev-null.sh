@@ -27,6 +27,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Replies and threads](#replies-and-threads)
   - [Quoting commits](#quoting-commits)
   - [Polls and voting](#polls-and-voting)
+  - [Merge conflicts](#merge-conflicts)
   - [Scheduled commits](#scheduled-commits)
   - [Deleting commits and undo](#deleting-commits-and-undo)
   - [Stars](#stars)
@@ -299,6 +300,14 @@ Add a poll to a top-level commit with **two to four distinct options**, each up 
 Signed-in readers can choose one option and vote once while an approved, visible poll is open; a vote cannot be changed or withdrawn. The author cannot vote in their own poll. Results are visible to the author and people who have voted, and to everyone once the poll closes. Other people's individual votes are not revealed.
 
 Sources: [poll editor](resources/js/components/poll-editor.tsx), [poll results](app/Models/Poll.php), [voting rules](app/Rules/OpenPoll.php), [approval and poll opening](app/Actions/UpdateCommitStatuses.php).
+
+### Merge conflicts
+
+When two people take opposite sides in the direct replies to a commit, Tom can open a **merge conflict** on it. A few minutes after a reply is approved, Tom reads the first 30 replies, leaving out his own. Only a clear disagreement between two different authors counts. Tom reads a thread at most once an hour, and a commit gets at most one merge conflict.
+
+The two replies are shown on the commit's page between git conflict markers. For **24 hours**, signed-in readers who can see both replies can accept one side. Picking a side is final, and the two authors cannot vote. Counts are visible to those who picked a side and to the two authors, and to everyone once voting closes. The side with more votes is then shown as kept. The conflict is hidden from readers who cannot see one of the replies, for example across a block or a mute. Admins can switch merge conflicts off from the operations dashboard, which also hides those already opened.
+
+Sources: [spotting a conflict](app/Actions/CreateMergeConflict.php), [Tom's instructions](app/Ai/Agents/ConflictSpotter.php), [what readers see](app/Queries/MergeConflictQuery.php), [conflict view](resources/js/components/merge-conflict.tsx).
 
 ### Scheduled commits
 

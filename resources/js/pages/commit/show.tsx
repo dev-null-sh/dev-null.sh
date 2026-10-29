@@ -12,6 +12,7 @@ import { home } from '@/routes';
 import type {
     Commit,
     CursorPaginated,
+    MergeConflict,
     ThreadCommit,
     ThreadContinuation,
 } from '@/types';
@@ -23,11 +24,13 @@ export default function Show({
     ancestors,
     continuation,
     replies,
+    mergeConflict,
 }: {
     commit: Commit;
     ancestors: ThreadCommit[];
     continuation: ThreadContinuation;
     replies: CursorPaginated<ThreadCommit> | null;
+    mergeConflict: MergeConflict | null;
 }) {
     const { auth } = usePage().props;
     const { shown, nextId, size, isCapped, isLoading, loadMore } =
@@ -117,6 +120,7 @@ export default function Show({
                     exceptReplyId={shown[0]?.id}
                     endsWithDot={shown.length === 0}
                     threadPosition={positionAt(focusedPosition)}
+                    mergeConflict={mergeConflict}
                     isFocused
                 />
 

@@ -36,7 +36,7 @@ export type Connectivity = {
 };
 
 export type Feature = {
-    name: 'translations';
+    name: 'translations' | 'merge_conflicts';
     enabled: boolean;
 };
 
