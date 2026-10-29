@@ -63,6 +63,16 @@ final readonly class SitemapQuery
         ], $days);
     }
 
+    public function hasUsersIn(CarbonImmutable $month): bool
+    {
+        return $this->usersSignedUpIn($month)->exists();
+    }
+
+    public function hasCommitsOn(CarbonImmutable $day): bool
+    {
+        return $this->commitsWrittenOn($day)->exists();
+    }
+
     /**
      * Read as plain rows rather than models, since a month lists thousands of them.
      *
@@ -71,9 +81,7 @@ final readonly class SitemapQuery
     public function usersIn(CarbonImmutable $month): array
     {
         /** @var list<object{handle: string, updated_at: string}> $users */
-        $users = $this->users()
-            ->where('users.created_at', '>=', $month)
-            ->where('users.created_at', '<', $month->addMonth())
+        $users = $this->usersSignedUpIn($month)
             ->orderBy('users.id')
             ->toBase()
             ->get()
@@ -93,10 +101,7 @@ final readonly class SitemapQuery
      */
     public function commitsOn(CarbonImmutable $day): array
     {
-        $onDay = $this->commits()
-            ->select(['id', 'user_id', 'updated_at'])
-            ->where('created_at', '>=', $day)
-            ->where('created_at', '<', $day->addDay());
+        $onDay = $this->commitsWrittenOn($day)->select(['id', 'user_id', 'updated_at']);
 
         /** @var list<object{id: string, handle: string, updated_at: string, image_id: string|null}> $rows */
         $rows = DB::query()
@@ -148,8 +153,25 @@ final readonly class SitemapQuery
             ->selectRaw('greatest(users.updated_at, profiles.updated_at, last_commits.updated_at) as updated_at');
     }
 
+    /**
+     * @return Builder<User>
+     */
+    private function usersSignedUpIn(CarbonImmutable $month): Builder
+    {
+        return $this->users()
+            ->where('users.created_at', '>=', $month)
+            ->where('users.created_at', '<', $month->addMonth());
+    }
+
     private function commits(): CommitBuilder
     {
         return Commit::query()->approved();
+    }
+
+    private function commitsWrittenOn(CarbonImmutable $day): CommitBuilder
+    {
+        return $this->commits()
+            ->where('created_at', '>=', $day)
+            ->where('created_at', '<', $day->addDay());
     }
 }

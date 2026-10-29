@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Queries\SitemapQuery;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
@@ -11,11 +12,14 @@ use Illuminate\Foundation\Http\FormRequest;
 final class ShowUserSitemapRequest extends FormRequest
 {
     /**
-     * A month that doesn't exist, like 2026-13, has no sitemap.
+     * A month that doesn't exist, like 2026-13, or without a profile to list, has no sitemap, so search engines
+     * drop a sitemap once everything it listed is gone.
      */
     public function authorize(): Response
     {
-        return $this->month()->format('Y-m') === $this->route('month') ? Response::allow() : Response::denyAsNotFound();
+        return $this->month()->format('Y-m') === $this->route('month') && resolve(SitemapQuery::class)->hasUsersIn($this->month())
+            ? Response::allow()
+            : Response::denyAsNotFound();
     }
 
     /**

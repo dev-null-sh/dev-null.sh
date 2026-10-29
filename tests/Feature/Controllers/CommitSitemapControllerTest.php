@@ -68,3 +68,10 @@ it('lists the commits written that day', function (): void {
 it('has no sitemap for a day that does not exist', function (string $day): void {
     $this->get("/sitemaps/commits-{$day}.xml")->assertNotFound();
 })->with(['2026-02-30', '2026-13-01', '2026-10-00', '2026-10-1', '1', 'abc']);
+
+it('has no sitemap for a day without approved commits', function (): void {
+    Commit::factory()->pending()->create(['created_at' => '2026-10-29 08:00:00']);
+    Commit::factory()->create(['created_at' => '2026-10-29 09:00:00'])->delete();
+
+    $this->get(route('commit-sitemap.show', '2026-10-29'))->assertNotFound();
+});

@@ -45,3 +45,10 @@ it('dates a profile by the last change of its account, its GitHub profile or its
 it('has no sitemap for a month that does not exist', function (string $month): void {
     $this->get("/sitemaps/users-{$month}.xml")->assertNotFound();
 })->with(['2026-13', '2026-00', '2026-1', '20261-01', 'abc']);
+
+it('has no sitemap for a month without profiles to list', function (): void {
+    Commit::factory()->for(User::factory()->state(['created_at' => '2026-10-01 00:00:00']))->pending()->create();
+    User::factory()->create(['created_at' => '2026-10-02 00:00:00']);
+
+    $this->get(route('user-sitemap.show', '2026-10'))->assertNotFound();
+});
