@@ -16,3 +16,13 @@ it('lists a sitemap for every page of profiles and commits', function (): void {
         ->assertSee('<loc>'.route('commit-sitemap.show', 1).'</loc>', false)
         ->assertDontSee(route('commit-sitemap.show', 2));
 });
+
+it('serves every sitemap without cookies, so a cache can share it', function (string $route): void {
+    Commit::factory()->create();
+
+    $response = $this->get(route($route, $route === 'sitemap.index' ? [] : 1));
+
+    $response->assertOk()
+        ->assertHeader('Cache-Control', 'max-age=3600, public')
+        ->assertHeaderMissing('Set-Cookie');
+})->with(['sitemap.index', 'user-sitemap.show', 'commit-sitemap.show']);

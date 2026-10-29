@@ -225,8 +225,8 @@ Route::middleware(RememberIntendedUrl::class)->group(function (): void {
         ->name('commit-photo.show');
 });
 
-// Sitemaps...
-Route::middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
+// Sitemaps, the same for everyone, so they skip the web group's session and cookies, which would keep a cache from sharing them...
+Route::withoutMiddleware('web')->middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
     Route::get('sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.index');
     Route::get('sitemaps/users-{page}.xml', [UserSitemapController::class, 'show'])
         ->where('page', '[1-9][0-9]*')
