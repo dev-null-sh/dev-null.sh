@@ -20,11 +20,12 @@ final readonly class ConversationController
     public function index(ListApiConversationsRequest $request, #[CurrentUser] User $user, ConversationsQuery $conversations): AnonymousResourceCollection
     {
         $page = $conversations->get($user, $request->tab(), $request->term(), $request->beforeId());
+        $requests = $conversations->requestCount($user);
 
         return ConversationResource::collection($page['conversations'])->additional([
             'has_more' => $page['has_more'],
-            'unread_count' => $conversations->unreadCount($user),
-            'requests_count' => $conversations->requestCount($user),
+            'unread_count' => $conversations->unreadCount($user, $requests),
+            'requests_count' => $requests,
         ]);
     }
 }

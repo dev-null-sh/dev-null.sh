@@ -165,9 +165,10 @@ final readonly class ConversationsQuery
     }
 
     /**
-     * Open conversations with unread messages plus fetched requests, for the nav badge.
+     * Open conversations with unread messages plus fetched requests, for the nav badge. A caller that also shows the
+     * requests count passes it, so it isn't counted twice.
      */
-    public function unreadCount(User $user): int
+    public function unreadCount(User $user, ?int $requests = null): int
     {
         $unread = Message::query()
             ->join('conversation_participants as mine', fn (JoinClause $join): JoinClause => $join
@@ -182,7 +183,7 @@ final readonly class ConversationsQuery
             ->distinct()
             ->count('messages.conversation_id');
 
-        return $unread + $this->requestCount($user);
+        return $unread + ($requests ?? $this->requestCount($user));
     }
 
     /**
