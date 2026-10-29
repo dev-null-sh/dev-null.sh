@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\OrgEvent;
+use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\CallQuery;
 use Illuminate\Support\Facades\Cache;
 
 final readonly class DeleteConversationCall
 {
-    public function __construct(private CallQuery $calls)
+    public function __construct(private CallQuery $calls, private CreateConversationEvent $events)
     {
         //
     }
@@ -22,8 +24,17 @@ final readonly class DeleteConversationCall
     public function handle(User $user, User $partner): void
     {
         foreach ([[$partner, $user], [$user, $partner]] as [$callee, $caller]) {
-            if (($this->calls->get($callee)['caller_id'] ?? null) === $caller->id) {
-                Cache::forget(CreateConversationCall::key($callee));
+            $call = $this->calls->get($callee);
+
+            if (($call['caller_id'] ?? null) !== $caller->id) {
+                continue;
+            }
+
+            Cache::forget(CreateConversationCall::key($callee));
+
+            if ($call['answer'] === null) {
+                $event = $user->is($caller) ? OrgEvent::CallCancelled : OrgEvent::CallDeclined;
+                $this->events->handle($user, Conversation::betweenOrFail($user, $partner), $event);
             }
         }
     }

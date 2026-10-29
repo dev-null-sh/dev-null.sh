@@ -1044,7 +1044,13 @@ const ThreadItem = memo(function ThreadItem({
     }
 
     if (item.kind === 'event') {
-        return <EventLine message={item.message} user={user} />;
+        return (
+            <EventLine
+                message={item.message}
+                user={user}
+                partner={target.kind === 'direct' ? target.partner : undefined}
+            />
+        );
     }
 
     return (
