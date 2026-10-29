@@ -10,35 +10,60 @@ use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Profiles are listed by the month they signed up and commits by the day they were written, in UTC, so a URL never
+ * moves to another sitemap and the older sitemaps rarely change. A sitemap may list 50,000 URLs, far more than a month
+ * of sign-ups or a day of commits.
+ */
 final readonly class SitemapQuery
 {
     /**
-     * Well under the 50,000 URLs a sitemap may list, so every page stays quick to build.
+     * The months, as "2026-10", in which the profiles with approved commits signed up, oldest first.
+     *
+     * @return list<string>
      */
-    public const int PER_PAGE = 10_000;
-
-    public function userPages(): int
+    public function userMonths(): array
     {
-        return (int) ceil($this->users()->count() / self::PER_PAGE);
-    }
-
-    public function commitPages(): int
-    {
-        return (int) ceil($this->commits()->count() / self::PER_PAGE);
+        /** @var list<string> */
+        return $this->users()
+            ->toBase()
+            ->selectRaw("to_char(users.created_at, 'YYYY-MM') as month")
+            ->groupBy('month')
+            ->orderBy('month')
+            ->pluck('month')
+            ->all();
     }
 
     /**
-     * Read as plain rows rather than models, since a page lists thousands of them.
+     * The days, as "2026-10-29", on which approved commits were written, oldest first.
+     *
+     * @return list<string>
+     */
+    public function commitDays(): array
+    {
+        /** @var list<string> */
+        return $this->commits()
+            ->toBase()
+            ->selectRaw("to_char(created_at, 'YYYY-MM-DD') as day")
+            ->groupBy('day')
+            ->orderBy('day')
+            ->pluck('day')
+            ->all();
+    }
+
+    /**
+     * Read as plain rows rather than models, since a month lists thousands of them.
      *
      * @return list<array{handle: string, updated_at: CarbonImmutable}>
      */
-    public function usersOn(int $page): array
+    public function usersIn(CarbonImmutable $month): array
     {
         /** @var list<object{handle: string, updated_at: string}> $users */
         $users = $this->users()
             ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
+            ->where('users.created_at', '>=', $month)
+            ->where('users.created_at', '<', $month->addMonth())
             ->orderBy('users.id')
-            ->forPage($page, self::PER_PAGE)
             ->toBase()
             ->get(['profiles.handle', 'users.updated_at'])
             ->all();
@@ -50,21 +75,21 @@ final readonly class SitemapQuery
     }
 
     /**
-     * Read as plain rows rather than models, with the author and the images in the same query, since a page lists
+     * Read as plain rows rather than models, with the author and the images in the same query, since a day lists
      * thousands of them.
      *
      * @return list<array{id: string, handle: string, updated_at: CarbonImmutable, image_ids: list<string>}>
      */
-    public function commitsOn(int $page): array
+    public function commitsOn(CarbonImmutable $day): array
     {
-        $onPage = $this->commits()
+        $onDay = $this->commits()
             ->select(['id', 'user_id', 'updated_at'])
-            ->orderBy('id')
-            ->forPage($page, self::PER_PAGE);
+            ->where('created_at', '>=', $day)
+            ->where('created_at', '<', $day->addDay());
 
         /** @var list<object{id: string, handle: string, updated_at: string, image_id: string|null}> $rows */
         $rows = DB::query()
-            ->fromSub($onPage, 'commits')
+            ->fromSub($onDay, 'commits')
             ->join('users', 'users.id', '=', 'commits.user_id')
             ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
             ->leftJoin('commit_images', 'commit_images.commit_id', '=', 'commits.id')

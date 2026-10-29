@@ -13,8 +13,8 @@ final readonly class SitemapController
     {
         return response()->view('sitemaps.index', [
             'sitemaps' => [
-                ...array_map(fn (int $page): string => route('user-sitemap.show', $page), range(1, max(1, $sitemaps->userPages()))),
-                ...array_map(fn (int $page): string => route('commit-sitemap.show', $page), range(1, max(1, $sitemaps->commitPages()))),
+                ...array_map(fn (string $month): string => route('user-sitemap.show', $month), $sitemaps->userMonths()),
+                ...array_map(fn (string $day): string => route('commit-sitemap.show', $day), $sitemaps->commitDays()),
             ],
         ], headers: ['Content-Type' => 'application/xml; charset=UTF-8']);
     }
