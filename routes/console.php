@@ -8,7 +8,6 @@ use App\Jobs\EndLiveStreams;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
-use UnexpectedValueException;
 
 Schedule::command('commits:submit-scheduled')->everyMinute()->withoutOverlapping(5);
 Schedule::job(new EmbedKnowledgeBase())->hourly();
@@ -17,14 +16,10 @@ Schedule::job(new EndLiveStreams())->everyFiveMinutes();
 Schedule::call(function (): void {
     DB::table('pending_file_deletions')->orderBy('id')->chunkById(100, function (Collection $pending): void {
         foreach ($pending as $deletion) {
-            if (! is_object($deletion) || ! isset($deletion->id)) {
-                throw new UnexpectedValueException('Invalid pending file deletion record.');
-            }
+            throw_if(! isset($deletion->id), UnexpectedValueException::class, 'Invalid pending file deletion record.');
 
             $id = $deletion->id;
-            if (! is_int($id) && (! is_string($id) || ! ctype_digit($id))) {
-                throw new UnexpectedValueException('Invalid pending file deletion ID.');
-            }
+            throw_if(! is_int($id) && (! is_string($id) || ! ctype_digit($id)), UnexpectedValueException::class, 'Invalid pending file deletion ID.');
 
             resolve(DeleteStoredFiles::class)->handle((int) $id);
         }

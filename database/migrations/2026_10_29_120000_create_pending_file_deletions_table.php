@@ -16,5 +16,4 @@ return new class extends Migration
             $table->json('paths');
         });
     }
-
 };
