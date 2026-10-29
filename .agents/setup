@@ -108,4 +108,8 @@ DB_URL= DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5432 DB_DATABASE=devnull D
 step 'Generating routes and building assets'
 php artisan wayfinder:generate --with-form
 bun run build
+
+step 'Compiling Boost guidelines and installing skills'
+php artisan boost:install --guidelines --skills --no-interaction
+
 step 'Orb setup ready; use amp orb services ensure to start PostgreSQL and the app'
