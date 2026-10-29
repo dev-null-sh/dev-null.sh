@@ -143,6 +143,7 @@ function ReportForm({
             }));
         },
         `report:${commit.id}:${id}`,
+        form.processing,
     );
 
     return (
