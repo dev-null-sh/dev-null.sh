@@ -33,6 +33,27 @@ it('records a ping from a maintainer or contributor with its sender', function (
     $this->assertDatabaseCount('messages', 2);
 })->with([false, true]);
 
+it('keeps to who the org lets ping, as the web does', function (): void {
+    [$member] = followersOf($this->user, 1);
+    $org = createOrg($this->user, [$member]);
+    $memberKeyPair = apiKeyPairFor($member);
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-org-pings-from.update', $org), ['pings_from' => 'maintainers'])->assertNoContent();
+
+    signedApiRequest($memberKeyPair, 'POST', route('api-org-ping.store', $org))
+        ->assertForbidden()
+        ->assertJsonPath('message', 'Only maintainers can ping this org.');
+    signedApiRequest($this->keyPair, 'POST', route('api-org-ping.store', $org))->assertCreated();
+
+    signedApiRequest($this->keyPair, 'PUT', route('api-org-pings-from.update', $org), ['pings_from' => 'nobody'])->assertNoContent();
+
+    signedApiRequest($this->keyPair, 'POST', route('api-org-ping.store', $org))
+        ->assertForbidden()
+        ->assertJsonPath('message', 'Pings are off in this org.');
+
+    expect(Message::query()->where('event', OrgEvent::Ping)->count())->toBe(1);
+});
+
 it('hides an org from a nonmember trying to ping it', function (): void {
     $maintainer = User::factory()->withRemotes()->create();
     [$member] = followersOf($maintainer, 1);

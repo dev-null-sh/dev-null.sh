@@ -83,6 +83,7 @@ use App\Http\Controllers\OrgMessageController;
 use App\Http\Controllers\OrgMuteController;
 use App\Http\Controllers\OrgPinController;
 use App\Http\Controllers\OrgPingController;
+use App\Http\Controllers\OrgPingsFromController;
 use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
 use App\Http\Controllers\PrivacyController;
@@ -411,6 +412,7 @@ Route::middleware('auth')->group(function (): void {
         Route::get('remotes/candidates', [RemoteCandidateController::class, 'index'])->name('remote-candidate.index');
         Route::post('remotes/orgs', [OrgController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:messages'])->name('org.store');
         Route::put('remotes/orgs/{org}', [OrgController::class, 'update'])->whereUuid('org')->middleware(PreventPostingInTimeout::class)->name('org.update');
+        Route::put('remotes/orgs/{org}/pings-from', [OrgPingsFromController::class, 'update'])->whereUuid('org')->name('org-pings-from.update');
         Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
         Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');

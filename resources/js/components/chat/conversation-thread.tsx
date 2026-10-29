@@ -35,7 +35,7 @@ import {
     useTouchReactions,
 } from '@/components/chat/message-reactions';
 import { MessageStatusGlyph } from '@/components/chat/message-status';
-import { EventLine, typingText } from '@/components/chat/org';
+import { EventLine, pingRefusalOf, typingText } from '@/components/chat/org';
 import { PinnedBanner, usePinMessage } from '@/components/chat/pinned-messages';
 import { VoiceNote, VoiceNoteComposer } from '@/components/chat/voice-note';
 import {
@@ -835,6 +835,14 @@ export function ConversationThread({
                     target={current}
                     draft={draft}
                     members={isOrg ? thread?.members : undefined}
+                    pingRefusal={
+                        isOrg
+                            ? pingRefusalOf(
+                                  thread?.pings_from ?? 'everyone',
+                                  thread?.role ?? null,
+                              )
+                            : null
+                    }
                     replyingTo={replyingTo}
                     replyAuthor={
                         replyingTo === null
@@ -1622,6 +1630,7 @@ function ReplyPreview({
 function Composer({
     target,
     members,
+    pingRefusal,
     draft,
     replyingTo,
     replyAuthor,
@@ -1633,6 +1642,10 @@ function Composer({
 }: {
     target: ChatTarget;
     members: OrgMember[] | undefined;
+    /**
+     * Why the org won't take a ping from the user, which keeps the ping button disabled, or null when it will.
+     */
+    pingRefusal: string | null;
     draft: MessageDraftState;
     replyingTo: MessageReply | null;
     replyAuthor: Author | null;
@@ -1924,32 +1937,39 @@ function Composer({
                             </Tooltip>
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() =>
-                                            void sendPing(target).catch(
-                                                (error: unknown) =>
-                                                    showError(
-                                                        error instanceof
-                                                            ChatRequestError
-                                                            ? error.firstError()
-                                                            : 'Could not ping. Try again.',
-                                                    ),
-                                            )
-                                        }
-                                        aria-label={pingLabel}
-                                        className={cn(
-                                            '-mx-1 shrink-0 text-muted-foreground',
-                                            isCompact ? 'size-9' : 'size-10',
-                                        )}
-                                        data-test="send-ping"
-                                    >
-                                        <Vibrate className="size-5" />
-                                    </Button>
+                                    <span className="-mx-1 inline-flex shrink-0">
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="icon"
+                                            disabled={pingRefusal !== null}
+                                            onClick={() =>
+                                                void sendPing(target).catch(
+                                                    (error: unknown) =>
+                                                        showError(
+                                                            error instanceof
+                                                                ChatRequestError
+                                                                ? error.firstError()
+                                                                : 'Could not ping. Try again.',
+                                                        ),
+                                                )
+                                            }
+                                            aria-label={pingLabel}
+                                            className={cn(
+                                                'text-muted-foreground',
+                                                isCompact
+                                                    ? 'size-9'
+                                                    : 'size-10',
+                                            )}
+                                            data-test="send-ping"
+                                        >
+                                            <Vibrate className="size-5" />
+                                        </Button>
+                                    </span>
                                 </TooltipTrigger>
-                                <TooltipContent>{pingLabel}</TooltipContent>
+                                <TooltipContent>
+                                    {pingRefusal ?? pingLabel}
+                                </TooltipContent>
                             </Tooltip>
                             <div className="relative min-w-0 flex-1">
                                 <MentionTextarea

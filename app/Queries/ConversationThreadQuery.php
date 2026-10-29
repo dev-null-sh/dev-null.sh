@@ -6,6 +6,7 @@ namespace App\Queries;
 
 use App\Actions\UpdateConversationTyping;
 use App\Enums\OrgRole;
+use App\Enums\PingsFrom;
 use App\Enums\PushAccess;
 use App\Enums\RemoteStatus;
 use App\Models\Conversation;
@@ -47,6 +48,7 @@ use Illuminate\Support\Facades\Cache;
  *     pinned_at: string|null,
  *     muted_until_at: string|null,
  *     role: OrgRole|null,
+ *     pings_from: PingsFrom,
  *     access: PushAccess
  * }
  */
@@ -144,6 +146,7 @@ final readonly class ConversationThreadQuery
             'pinned_at' => $mine->pinned_at?->toJSON(),
             'muted_until_at' => $mine->muted_until_at?->isFuture() ? $mine->muted_until_at->toJSON() : null,
             'role' => $mine->role,
+            'pings_from' => $org->pings_from,
             'access' => PushAccess::Open,
         ];
     }

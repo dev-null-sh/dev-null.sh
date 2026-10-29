@@ -20,6 +20,7 @@ import OrgMessageController from '@/actions/App/Http/Controllers/OrgMessageContr
 import OrgMuteController from '@/actions/App/Http/Controllers/OrgMuteController';
 import OrgPinController from '@/actions/App/Http/Controllers/OrgPinController';
 import OrgPingController from '@/actions/App/Http/Controllers/OrgPingController';
+import OrgPingsFromController from '@/actions/App/Http/Controllers/OrgPingsFromController';
 import OrgReadController from '@/actions/App/Http/Controllers/OrgReadController';
 import OrgTypingController from '@/actions/App/Http/Controllers/OrgTypingController';
 import RemoteCandidateController from '@/actions/App/Http/Controllers/RemoteCandidateController';
@@ -56,6 +57,7 @@ import type {
     OrgRef,
     OrgRole,
     OrgThread,
+    PingsFrom,
     PushAccess,
     Thread,
     User,
@@ -104,6 +106,7 @@ export type ThreadState = {
     members: OrgMember[];
     typing: string[];
     role: OrgRole | null;
+    pings_from: PingsFrom;
     /**
      * The org's pinned messages, latest pinned first, which everyone in the org sees whatever history they were given.
      * Whether the user pinned the conversation itself in their inbox is pinned_at.
@@ -214,6 +217,10 @@ let isAlertingTab = false;
 let isFetchingInbox = false;
 let muteVersion = 0;
 let pinVersion = 0;
+/**
+ * When the user last chose who can ping each org, so a poll that left before then can't put the old choice back.
+ */
+const pingsFromChosenAt = new Map<string, number>();
 let inboxRevision = 0;
 const invalidatedInboxTabs = new Set<InboxTab>();
 
@@ -808,6 +815,7 @@ function emptyThread(target: ChatTarget): ThreadState {
         members: [],
         typing: [],
         role: null,
+        pings_from: 'everyone',
         pinned: [],
         pinnedMessagesVersion: null,
         is_archived: false,
@@ -830,6 +838,7 @@ function fromServer(thread: Thread | OrgThread): Partial<ThreadState> {
               members: thread.members,
               typing: thread.typing,
               role: thread.role,
+              pings_from: thread.pings_from,
               is_archived: thread.is_archived,
               pinned_at: thread.pinned_at,
               muted_until_at: thread.muted_until_at,
@@ -1242,6 +1251,9 @@ async function pollThread(target: ChatTarget): Promise<void> {
             [key]: {
                 ...current,
                 ...fromServer(fresh),
+                ...((pingsFromChosenAt.get(key) ?? 0) > polledAt
+                    ? { pings_from: current.pings_from }
+                    : {}),
                 target:
                     'org' in fresh
                         ? { kind: 'org', org: fresh.org }
@@ -2203,6 +2215,37 @@ export async function addOrgMembers(
         members,
         share_history: sharesHistory,
     });
+    await refreshOrg(org);
+}
+
+/**
+ * Chooses who can ping the org. The thread takes the choice straight away, keeps it over polls that left before it,
+ * and puts it back when the server refuses.
+ */
+export async function setOrgPingsFrom(
+    org: OrgRef,
+    from: PingsFrom,
+): Promise<void> {
+    const key = targetKey({ kind: 'org', org });
+    const previous = state.threads[key]?.pings_from ?? 'everyone';
+
+    pingsFromChosenAt.set(key, performance.now());
+    updateThread(key, () => ({ pings_from: from }));
+
+    try {
+        await request(
+            OrgPingsFromController.update.url({ org: org.id }),
+            'PUT',
+            {
+                pings_from: from,
+            },
+        );
+    } catch (error) {
+        updateThread(key, () => ({ pings_from: previous }));
+
+        throw error;
+    }
+
     await refreshOrg(org);
 }
 

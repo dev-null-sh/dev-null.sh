@@ -69,7 +69,7 @@ export type ConversationKind = 'direct' | 'org';
 export type OrgRole = 'maintainer' | 'contributor';
 
 /**
- * What happened in a remote, logged between its messages: an org's membership changes, and pings.
+ * What happened in a remote, logged between its messages: an org's membership changes, who can ping it, and pings.
  */
 export type OrgEvent =
     | 'created'
@@ -80,7 +80,13 @@ export type OrgEvent =
     | 'promoted'
     | 'demoted'
     | 'inherited'
+    | 'pings_changed'
     | 'ping';
+
+/**
+ * Who can ping an org, as its maintainers chose.
+ */
+export type PingsFrom = 'everyone' | 'maintainers' | 'nobody';
 
 export type OrgRef = { id: string; name: string | null };
 
@@ -137,6 +143,7 @@ export type OrgThread = {
     pinned_at: string | null;
     muted_until_at: string | null;
     role: OrgRole | null;
+    pings_from: PingsFrom;
     access: PushAccess;
     /**
      * The org's pinned messages, latest pinned first, unlike pinned_at, which is when the user pinned the org in their
