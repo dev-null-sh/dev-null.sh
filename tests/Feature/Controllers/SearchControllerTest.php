@@ -21,3 +21,9 @@ it('rejects a query longer than 100 characters', function (): void {
         ->assertRedirect()
         ->assertSessionHasErrors('q');
 });
+
+it('keeps search result pages out of search engines while their links are followed', function (): void {
+    $this->get('/search?q=laravel')
+        ->assertOk()
+        ->assertSee('<meta name="robots" content="noindex, follow">', false);
+});
