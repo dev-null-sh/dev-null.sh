@@ -52,6 +52,23 @@ it('does not take votes once the conflict closed', function (): void {
         ->assertForbidden();
 });
 
+it('does not let a reader vote on a conflict they are not shown', function (Closure $hide): void {
+    $mergeConflict = MergeConflict::factory()->create();
+    $voter = User::factory()->create();
+    $hide($mergeConflict, $voter);
+
+    $this->actingAs($voter)
+        ->postJson(route('merge-conflict-vote.store', $mergeConflict->commit), ['side' => 'ours'])
+        ->assertForbidden();
+
+    $this->assertDatabaseCount('merge_conflict_votes', 0);
+})->with([
+    'switched off' => [fn () => resolve(Features::class)->update(Feature::MergeConflicts, false)],
+    'a side is blocked' => [fn (MergeConflict $mergeConflict, User $voter) => $voter->blocking()->attach($mergeConflict->theirs->user)],
+    'a side is muted' => [fn (MergeConflict $mergeConflict, User $voter) => $voter->muting()->attach($mergeConflict->ours->user)],
+    'a side is deleted' => [fn (MergeConflict $mergeConflict) => $mergeConflict->theirs->delete()],
+]);
+
 it('only takes ours or theirs', function (): void {
     $mergeConflict = MergeConflict::factory()->create();
 
