@@ -1,6 +1,6 @@
 import { Link, router, useHttp, usePage } from '@inertiajs/react';
 import { Check, GitMerge } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import MergeConflictVoteController from '@/actions/App/Http/Controllers/MergeConflictVoteController';
 import { timeLeft } from '@/components/commit-poll';
@@ -109,6 +109,12 @@ export function MergeConflict({
     const commitNotFound = useCommitNotFound();
     const now = useNow();
     const [mergeConflict, setMergeConflict] = useState(initialMergeConflict);
+    const [previousInitial, setPreviousInitial] =
+        useState(initialMergeConflict);
+    if (initialMergeConflict !== previousInitial) {
+        setPreviousInitial(initialMergeConflict);
+        setMergeConflict(initialMergeConflict);
+    }
     const request = useHttp<
         { side: Side | '' },
         { mergeConflict: MergeConflictData | null }
@@ -122,6 +128,14 @@ export function MergeConflict({
         : null;
     const winner = isClosed && hasCounts ? winnerOf(mergeConflict) : null;
     const canVote = auth.user !== null && mergeConflict.can_vote && !isClosed;
+    const nowTimestamp = now.getTime();
+
+    // Voting closed while the page was open: fetch the final count, which the reader may not have seen yet.
+    useEffect(() => {
+        if (isClosed && !hasCounts) {
+            router.reload({ only: ['mergeConflict'] });
+        }
+    }, [isClosed, hasCounts, nowTimestamp]);
 
     const status = !isClosed
         ? timeLeft(mergeConflict.closes_at, now)
