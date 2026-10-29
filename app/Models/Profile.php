@@ -15,7 +15,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\Facades\DB;
 
 /**
  * A GitHub account at its "@handle", mirrored from GitHub: what GitHub calls a profile owner. The handle is GitHub's
@@ -101,7 +100,7 @@ final class Profile extends Model
     public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
     {
         return $field === 'handle'
-            ? $query->where(DB::raw('LOWER(handle)'), mb_strtolower($value))->orderByRaw('handle = ? desc', [$value])->orderBy('handle')
+            ? $query->whereRaw('LOWER(handle) = LOWER(?)', [$value])->orderByRaw('handle = ? desc', [$value])->orderBy('handle')
             : parent::resolveRouteBindingQuery($query, $value, $field);
     }
 

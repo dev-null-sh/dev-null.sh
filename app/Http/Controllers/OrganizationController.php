@@ -27,9 +27,10 @@ final readonly class OrganizationController
         assert($organization instanceof Profile);
 
         if ($request->route('user') !== $organization->handle) {
-            $query = $request->getQueryString();
+            // The raw query, since Symfony's normalized one keeps only the last value of a repeated key...
+            $query = $request->server->getString('QUERY_STRING');
 
-            return redirect(route('user.show', $organization->handle).($query === null ? '' : "?{$query}"), 301, ['Cache-Control' => 'max-age=86400, private']);
+            return redirect(route('user.show', $organization->handle).($query === '' ? '' : "?{$query}"), 301, ['Cache-Control' => 'max-age=86400, private']);
         }
 
         return Inertia::render('organization/show', [

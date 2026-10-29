@@ -169,7 +169,8 @@ it('keeps the query string out of the handle it moves an organization to', funct
     Profile::factory()->organization()->create(['handle' => 'Laravel']);
 
     $this->get('/@laravel?user=evil')->assertRedirect('/@Laravel?user=evil');
-    $this->get('/@laravel?user[]=a&user[]=b')->assertRedirect('/@Laravel?'.http_build_query(['user' => ['a', 'b']]));
+    $this->get('/@laravel?user[]=a&user[]=b')->assertRedirect('/@Laravel?user[]=a&user[]=b');
+    $this->get('/@laravel?tag=one&tag=two')->assertRedirect('/@Laravel?tag=one&tag=two');
 });
 
 it('opens each organization at its own case when a stale one holds the handle in another case', function (): void {

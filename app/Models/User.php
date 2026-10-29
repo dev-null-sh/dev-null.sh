@@ -9,6 +9,7 @@ use App\Actions\CreateWorldReply;
 use App\Dto\LiveStream;
 use App\Enums\LivePlatform;
 use App\Enums\Log;
+use App\Enums\ProfileType;
 use App\Enums\RemotesFrom;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
@@ -240,7 +241,7 @@ final class User extends Authenticatable
     public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
     {
         return $field === 'handle'
-            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('github_id')->where(DB::raw('LOWER(handle)'), mb_strtolower($value))->orderByRaw('handle = ? desc', [$value])->orderBy('handle')->limit(1), 'github_id')
+            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('github_id')->where('type', ProfileType::User)->whereRaw('LOWER(handle) = LOWER(?)', [$value])->orderByRaw('handle = ? desc', [$value])->orderBy('handle')->limit(1), 'github_id')
             : parent::resolveRouteBindingQuery($query, $value, $field);
     }
 

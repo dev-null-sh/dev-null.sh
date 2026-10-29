@@ -821,7 +821,8 @@ it('keeps the query string out of the handle it moves a profile to', function ()
     User::factory()->create(['handle' => 'OctoCat']);
 
     $this->get('/@octocat?user=evil')->assertRedirect('/@OctoCat?user=evil');
-    $this->get('/@octocat?user[]=a&user[]=b')->assertRedirect('/@OctoCat?'.http_build_query(['user' => ['a', 'b']]));
+    $this->get('/@octocat?tag=one&tag=two')->assertRedirect('/@OctoCat?tag=one&tag=two');
+    $this->get('/@octocat?user[]=a&user[]=b')->assertRedirect('/@OctoCat?user[]=a&user[]=b');
 });
 
 it('moves the people lists of a profile for good to the handle in its own case', function (string $list): void {
@@ -845,4 +846,12 @@ it('opens each profile at its own case when a stale profile holds the handle in 
         ->and($this->get('/@OCTOCAT')->headers->get('Location'))->toBe($redirect->headers->get('Location'));
 
     $this->get((string) $redirect->headers->get('Location'))->assertOk();
+});
+
+it('opens the user rather than an organization holding the handle in another case', function (): void {
+    $user = User::factory()->create(['handle' => 'Laravel']);
+    Profile::factory()->organization()->create(['handle' => 'laravel']);
+
+    $this->get('/@LARAVEL')->assertRedirect('/@Laravel')->assertMovedPermanently();
+    $this->get('/@Laravel')->assertOk()->assertInertia(fn ($page) => $page->component('user/show')->where('user.id', $user->id));
 });
