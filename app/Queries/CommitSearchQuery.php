@@ -93,7 +93,9 @@ final readonly class CommitSearchQuery
             ->select('id')
             ->when($source, fn (CommitBuilder $query, Commit $source): CommitBuilder => $query
                 ->topLevel()
-                ->whereKeyNot($source->threadRootId()))
+                ->whereKeyNot($source->threadRootId())
+                ->visibleTo($viewer)
+                ->withoutMutedAuthorsFor($viewer))
             ->where(fn (CommitBuilder $query): CommitBuilder => $query
                 ->approved()
                 ->when($viewer, fn (CommitBuilder $query, User $viewer): CommitBuilder => $query->orWhere('user_id', $viewer->id)))
