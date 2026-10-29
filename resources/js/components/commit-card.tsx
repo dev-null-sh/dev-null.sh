@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { CornerDownRight, Trash2 } from 'lucide-react';
+import { CornerDownRight, Eye, Trash2 } from 'lucide-react';
 import type { MouseEvent, PointerEvent, ReactNode } from 'react';
 import { useCallback, useContext, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -524,6 +524,9 @@ export function CommitCard({
                             {commit.replies_count === undefined ? (
                                 <div className="mt-1 -ml-2 flex flex-wrap items-center justify-between gap-0.5 text-[13px] not-has-[button]:hidden">
                                     <div className="flex flex-wrap items-center gap-0.5">
+                                        <CommitViewsCount
+                                            count={commit.views_count}
+                                        />
                                         <CommitStarButton
                                             commit={commit}
                                             keyShortcut="s"
@@ -560,6 +563,9 @@ export function CommitCard({
                                             <CommitQuoteButton
                                                 commit={commit}
                                                 keyShortcut="q"
+                                            />
+                                            <CommitViewsCount
+                                                count={commit.views_count}
                                             />
                                             {translation.button}
                                             {threadActions}
@@ -684,6 +690,19 @@ export function CommitCard({
                 )}
             </div>
         </article>
+    );
+}
+
+function CommitViewsCount({ count }: { count: number }) {
+    return (
+        <span
+            aria-label={`${count} views`}
+            title={`${count} views`}
+            className="inline-flex h-8 items-center gap-1 px-2 text-muted-foreground"
+        >
+            <Eye aria-hidden className="size-4" />
+            <span>{count}</span>
+        </span>
     );
 }
 

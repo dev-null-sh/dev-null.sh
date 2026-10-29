@@ -40,6 +40,7 @@ const quoteCommit: Omit<Commit, 'user'> = {
     updated_at: timestamp,
     stars_count: 0,
     pasteis_count: 0,
+    views_count: 0,
     starred: false,
     quoted_commit_id: 'quoted-commit',
 };

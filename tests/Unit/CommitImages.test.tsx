@@ -25,6 +25,7 @@ const commit: Commit = {
     updated_at: '2026-10-16T10:00:00Z',
     stars_count: 0,
     pasteis_count: 0,
+    views_count: 0,
     starred: false,
     user: {
         id: 'user-1',

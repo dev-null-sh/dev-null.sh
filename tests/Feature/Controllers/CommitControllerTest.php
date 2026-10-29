@@ -676,6 +676,20 @@ it('shows a commit with its ancestors and reply count', function (): void {
             ->missing('commit.user.email'));
 });
 
+it('counts and displays one view per session for a commit page', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('commit.views_count', 1));
+
+    $this->get(route('commit.show', [$commit->user, $commit]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('commit.views_count', 1));
+
+    expect($commit->refresh()->views_count)->toBe(1);
+});
+
 it('shows as many replies at a time as the viewer picked', function (): void {
     $commit = Commit::factory()->create();
     Commit::factory()->for($commit, 'parent')->count(4)->create();
