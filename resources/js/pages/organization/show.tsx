@@ -1,5 +1,5 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { AlertCircleIcon, Link2, MapPin, Palette, Settings } from 'lucide-react';
+import { AlertCircleIcon, Link2, MapPin, Settings } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
@@ -7,7 +7,6 @@ import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { GitHubIcon } from '@/components/github-icon';
 import { OrganizationAvatar } from '@/components/organization-avatar';
-import { OrganizationLaneDialog } from '@/components/organization-lane-dialog';
 import { PageTabs } from '@/components/page-tabs';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -47,8 +46,6 @@ export default function Show({
     // Only the first claim makes an admin. While a claim failed, its alert offers to try again instead.
     const claimable = auth.user !== null && admins.length === 0;
     const canClaim = claimable && claimFailed === undefined;
-    const isAdmin = admins.some((admin) => admin.id === auth.user?.id);
-    const [isLaneDialogOpen, setIsLaneDialogOpen] = useState(false);
 
     return (
         <>
@@ -77,24 +74,6 @@ export default function Show({
                     />
 
                     <div className="flex shrink-0 gap-1.5 sm:gap-2">
-                        {isAdmin && (
-                            <>
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setIsLaneDialogOpen(true)}
-                                    data-test="organization-lane-button"
-                                >
-                                    <Palette />
-                                    Color
-                                </Button>
-                                <OrganizationLaneDialog
-                                    organization={organization}
-                                    lane={lane}
-                                    open={isLaneDialogOpen}
-                                    onOpenChange={setIsLaneDialogOpen}
-                                />
-                            </>
-                        )}
                         {canClaim && (
                             <Button variant="outline" asChild>
                                 {/* A form, so no other site can claim for the user. The server sends them on to GitHub. */}

@@ -3,8 +3,6 @@ import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import OrganizationMemberController from '@/actions/App/Http/Controllers/OrganizationMemberController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
-import { OrganizationAvatar } from '@/components/organization-avatar';
-import { PageTabs } from '@/components/page-tabs';
 import { Button } from '@/components/ui/button';
 import {
     Select,
@@ -17,6 +15,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
+import OrganizationSettingsLayout from '@/layouts/organization-settings/layout';
 import { cn, formatFullDateTime, formatRelativeTime } from '@/lib/utils';
 import type { Organization, User } from '@/types';
 
@@ -58,35 +57,6 @@ export default function Index({
     return (
         <>
             <Head title={`Members of @${organization.handle}`} />
-
-            <div className="sticky top-0 z-10 bg-card">
-                <div className="flex h-14 items-center gap-3 border-b px-4 sm:px-6">
-                    <h1 className="shrink-0 font-semibold">Settings</h1>
-                    <Link
-                        href={show(organization.handle)}
-                        className="flex min-w-0 items-center gap-1.5 font-mono text-[13px] text-muted-foreground hover:text-foreground"
-                    >
-                        <OrganizationAvatar
-                            organization={organization}
-                            className="size-5 rounded text-[10px]"
-                            pixels={40}
-                        />
-                        <span className="truncate">@{organization.handle}</span>
-                    </Link>
-                </div>
-                <PageTabs
-                    label="Organization settings"
-                    tabs={[
-                        {
-                            title: 'Members',
-                            href: OrganizationMemberController.index(
-                                organization.id,
-                            ),
-                            isActive: true,
-                        },
-                    ]}
-                />
-            </div>
 
             <section className="px-4 py-6 sm:px-6">
                 <header className="mb-5">
@@ -427,4 +397,4 @@ function MemberRow({
     );
 }
 
-Index.layout = AppLayout;
+Index.layout = [AppLayout, OrganizationSettingsLayout];

@@ -1,52 +1,35 @@
-import { Form, router } from '@inertiajs/react';
+import { Form, Head, router } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import OrganizationLaneController from '@/actions/App/Http/Controllers/OrganizationLaneController';
+import Heading from '@/components/heading';
 import InputError from '@/components/input-error';
 import { LaneOptions } from '@/components/lane-picker';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import AppLayout from '@/layouts/app-layout';
+import OrganizationSettingsLayout from '@/layouts/organization-settings/layout';
 import { organizationLaneColor, withViewTransition } from '@/lib/utils';
 import type { Lane, Organization } from '@/types';
 
-export function OrganizationLaneDialog({
+export default function Edit({
     organization,
     lane,
-    open,
-    onOpenChange,
 }: {
     organization: Organization & { id: string };
     lane: Lane | null;
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
 }) {
     const [selected, setSelected] = useState<Lane | null>(lane);
 
     return (
-        <Dialog
-            open={open}
-            onOpenChange={(isOpen) => {
-                onOpenChange(isOpen);
+        <>
+            <Head title={`Color of @${organization.handle}`} />
 
-                if (!isOpen) {
-                    setSelected(lane);
-                }
-            }}
-        >
-            <DialogContent>
-                <DialogTitle>Color</DialogTitle>
-                <DialogDescription>
-                    @{organization.handle}'s lane: the ring around its avatar
-                    and the dot before its handle.
-                </DialogDescription>
+            <section className="px-4 py-6 sm:px-6">
+                <Heading
+                    title="Color"
+                    description={`@${organization.handle}'s lane: the ring around its avatar, the dot before its handle, and its link preview. /dev/null's blue until you choose another.`}
+                />
 
                 <div
                     aria-hidden
@@ -78,10 +61,8 @@ export function OrganizationLaneDialog({
                 <Form
                     {...OrganizationLaneController.update.form(organization.id)}
                     options={{ preserveScroll: true }}
-                    onSuccess={() => {
-                        onOpenChange(false);
-                        router.flushAll();
-                    }}
+                    onSuccess={() => router.flushAll()}
+                    className="mt-5"
                 >
                     {({ processing, errors }) => (
                         <>
@@ -89,6 +70,7 @@ export function OrganizationLaneDialog({
                                 selected={selected}
                                 automaticLane={null}
                                 onSelect={(choice) => {
+                                    // Dragging through the custom color picker shouldn't animate every step...
                                     if (
                                         typeof choice === 'string' &&
                                         typeof selected === 'string'
@@ -109,22 +91,20 @@ export function OrganizationLaneDialog({
                                 className="mt-2"
                             />
 
-                            <DialogFooter className="mt-5">
-                                <DialogClose asChild>
-                                    <Button variant="outline">Cancel</Button>
-                                </DialogClose>
-                                <Button
-                                    type="submit"
-                                    disabled={processing || selected === lane}
-                                    data-test="save-organization-lane-button"
-                                >
-                                    Save color
-                                </Button>
-                            </DialogFooter>
+                            <Button
+                                type="submit"
+                                className="mt-5"
+                                disabled={processing || selected === lane}
+                                data-test="save-organization-lane-button"
+                            >
+                                Save color
+                            </Button>
                         </>
                     )}
                 </Form>
-            </DialogContent>
-        </Dialog>
+            </section>
+        </>
     );
 }
+
+Edit.layout = [AppLayout, OrganizationSettingsLayout];

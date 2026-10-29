@@ -340,11 +340,6 @@ Route::middleware('auth')->group(function (): void {
         ->middleware('throttle:10,1')
         ->name('organization-admin.store');
 
-    // An organization's color, which its admins choose...
-    Route::put('organizations/{organization}/lane', [OrganizationLaneController::class, 'update'])
-        ->whereUuid('organization')
-        ->name('organization-lane.update');
-
     // Organization Members, which admins manage in the organization's settings...
     Route::get('organizations/{organization}/settings/members', [OrganizationMemberController::class, 'index'])
         ->whereUuid('organization')
@@ -361,6 +356,14 @@ Route::middleware('auth')->group(function (): void {
         ->whereUuid('organization')
         ->withoutScopedBindings()
         ->name('organization-member.destroy');
+
+    // An organization's color, which its admins choose in its settings...
+    Route::get('organizations/{organization}/settings/color', [OrganizationLaneController::class, 'edit'])
+        ->whereUuid('organization')
+        ->name('organization-lane.edit');
+    Route::put('organizations/{organization}/settings/color', [OrganizationLaneController::class, 'update'])
+        ->whereUuid('organization')
+        ->name('organization-lane.update');
 
     // Followers the viewer knows...
     Route::get('@{user:handle}/followers-you-know', [UserFollowersYouKnowController::class, 'index'])

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\OrganizationRole;
 use App\Models\Profile;
 use App\Models\User;
 
@@ -16,6 +17,29 @@ function organizationAdmin(array $attributes = []): array
 
     return [$user, $organization];
 }
+
+it('shows admins the color of the organization in its settings', function (): void {
+    [$user, $organization] = organizationAdmin(['lane_color' => '#1a2b3c']);
+
+    $this->actingAs($user)
+        ->get(route('organization-lane.edit', $organization))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('organization-lane/edit')
+            ->where('organization.id', $organization->id)
+            ->where('role', 'admin')
+            ->where('lane', '#1a2b3c')
+            ->missing('organization.lane_color'));
+});
+
+it('hides the color settings from members who are not admins, and from everyone else', function (): void {
+    [, $organization] = organizationAdmin();
+    $member = User::factory()->create();
+    $organization->members()->attach($member->id, ['role' => OrganizationRole::Member]);
+
+    $this->actingAs($member)->get(route('organization-lane.edit', $organization))->assertNotFound();
+    $this->actingAs(User::factory()->create())->get(route('organization-lane.edit', $organization))->assertNotFound();
+});
 
 it('lets an admin choose the lane of the organization', function (array $input, ?int $lane, ?string $color): void {
     [$user, $organization] = organizationAdmin(['preferred_lane' => 2, 'lane_color' => null]);
