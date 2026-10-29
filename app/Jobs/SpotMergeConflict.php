@@ -6,7 +6,7 @@ namespace App\Jobs;
 
 use App\Actions\CreateMergeConflict;
 use App\Models\Commit;
-use Illuminate\Contracts\Queue\ShouldBeUnique;
+use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Attributes\Backoff;
@@ -15,13 +15,14 @@ use Illuminate\Queue\Attributes\Tries;
 use Illuminate\Queue\Attributes\UniqueFor;
 
 /**
- * Waits a few minutes after a reply, so a burst of replies is read together.
+ * Waits a few minutes after a reply, so a burst of replies is read together. The lock lets go once the read starts, so a
+ * reply that comes in during it queues the next read.
  */
 #[Backoff([60, 600])]
 #[Timeout(120)]
 #[Tries(2)]
 #[UniqueFor(3600)]
-final class SpotMergeConflict implements ShouldBeUnique, ShouldQueue
+final class SpotMergeConflict implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
     use Queueable;
 

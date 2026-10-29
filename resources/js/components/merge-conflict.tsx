@@ -50,9 +50,11 @@ function ConflictSide({
     total: number | null;
 }) {
     const share =
-        total === null || total === 0 || side.votes === null
+        total === null || side.votes === null
             ? null
-            : Math.round((side.votes / total) * 100);
+            : total === 0
+              ? 0
+              : Math.round((side.votes / total) * 100);
 
     return (
         <div className="px-3 py-2">
@@ -130,12 +132,12 @@ export function MergeConflict({
     const canVote = auth.user !== null && mergeConflict.can_vote && !isClosed;
     const nowTimestamp = now.getTime();
 
-    // Voting closed while the page was open: fetch the final count, which the reader may not have seen yet.
+    // Voting closed while the page was open: fetch the final count, as the one the reader has may be missing or stale.
     useEffect(() => {
-        if (isClosed && !hasCounts) {
+        if (isClosed && !mergeConflict.is_closed) {
             router.reload({ only: ['mergeConflict'] });
         }
-    }, [isClosed, hasCounts, nowTimestamp]);
+    }, [isClosed, mergeConflict.is_closed, nowTimestamp]);
 
     const status = !isClosed
         ? timeLeft(mergeConflict.closes_at, now)
