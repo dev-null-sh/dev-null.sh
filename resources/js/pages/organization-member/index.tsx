@@ -1,0 +1,430 @@
+import { Form, Head, Link, router } from '@inertiajs/react';
+import { useRef, useState } from 'react';
+import { toast } from 'sonner';
+import OrganizationMemberController from '@/actions/App/Http/Controllers/OrganizationMemberController';
+import { show } from '@/actions/App/Http/Controllers/UserController';
+import { OrganizationAvatar } from '@/components/organization-avatar';
+import { PageTabs } from '@/components/page-tabs';
+import { Button } from '@/components/ui/button';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { UserAvatar } from '@/components/user-avatar';
+import { useNow } from '@/hooks/use-now';
+import { useUser } from '@/hooks/use-user';
+import AppLayout from '@/layouts/app-layout';
+import { cn, formatFullDateTime, formatRelativeTime } from '@/lib/utils';
+import type { Organization, User } from '@/types';
+
+type Role = 'admin' | 'member';
+
+type Member = User & { role: Role; joined_at: string };
+
+type OrganizationWithId = Organization & { id: string };
+
+export default function Index({
+    organization,
+    role,
+    members,
+}: {
+    organization: OrganizationWithId;
+    role: Role;
+    members: Member[];
+}) {
+    const headingRef = useRef<HTMLHeadingElement>(null);
+    const isAdmin = role === 'admin';
+    const adminCount = members.filter(
+        (member) => member.role === 'admin',
+    ).length;
+
+    // A removed row unmounts with the focus inside it, so it moves to the next row, or the heading...
+    const focusAfter = (handle: string) => {
+        const index = members.findIndex((member) => member.handle === handle);
+        const next = members[index + 1] ?? members[index - 1];
+
+        const target = next
+            ? document.querySelector<HTMLElement>(
+                  `[data-member="${next.handle}"] [data-remove]`,
+              )
+            : null;
+
+        (target ?? headingRef.current)?.focus({ preventScroll: true });
+    };
+
+    return (
+        <>
+            <Head title={`Members of @${organization.handle}`} />
+
+            <div className="sticky top-0 z-10 bg-card">
+                <div className="flex h-14 items-center gap-3 border-b px-4 sm:px-6">
+                    <h1 className="shrink-0 font-semibold">Settings</h1>
+                    <Link
+                        href={show(organization.handle)}
+                        className="flex min-w-0 items-center gap-1.5 font-mono text-[13px] text-muted-foreground hover:text-foreground"
+                    >
+                        <OrganizationAvatar
+                            organization={organization}
+                            className="size-5 rounded text-[10px]"
+                            pixels={40}
+                        />
+                        <span className="truncate">@{organization.handle}</span>
+                    </Link>
+                </div>
+                <PageTabs
+                    label="Organization settings"
+                    tabs={[
+                        {
+                            title: 'Members',
+                            href: OrganizationMemberController.index(
+                                organization.id,
+                            ),
+                            isActive: true,
+                        },
+                    ]}
+                />
+            </div>
+
+            <section className="px-4 py-6 sm:px-6">
+                <header className="mb-5">
+                    <h2
+                        ref={headingRef}
+                        tabIndex={-1}
+                        className="text-lg font-semibold tracking-tight outline-none"
+                    >
+                        Members
+                    </h2>
+                    <p className="mt-1 max-w-prose text-sm text-pretty text-muted-foreground">
+                        {isAdmin
+                            ? 'Admins add and remove members, and choose who else is an admin. Only members see this list.'
+                            : 'Only members see this list. Admins add and remove members.'}
+                    </p>
+                </header>
+
+                {isAdmin && <AddMemberForm organization={organization} />}
+
+                <ul className="overflow-hidden rounded-lg border">
+                    {members.map((member) => (
+                        <MemberRow
+                            key={member.id}
+                            organization={organization}
+                            member={member}
+                            isAdmin={isAdmin}
+                            isLastAdmin={
+                                member.role === 'admin' && adminCount === 1
+                            }
+                            onRemoved={() => focusAfter(member.handle)}
+                        />
+                    ))}
+                </ul>
+            </section>
+        </>
+    );
+}
+
+/**
+ * Admins add people by their handle. They join as members, and can then be made admins.
+ */
+function AddMemberForm({ organization }: { organization: OrganizationWithId }) {
+    return (
+        <Form
+            {...OrganizationMemberController.store.form(organization.id)}
+            options={{ preserveScroll: true }}
+            resetOnSuccess
+            className="mb-5"
+        >
+            {({ errors, processing }) => (
+                <>
+                    <label htmlFor="member-handle" className="sr-only">
+                        Handle of the person to add
+                    </label>
+                    <div className="flex max-w-md gap-2">
+                        <input
+                            id="member-handle"
+                            name="handle"
+                            required
+                            maxLength={40}
+                            autoComplete="off"
+                            autoCapitalize="none"
+                            spellCheck={false}
+                            placeholder="@handle"
+                            aria-invalid={errors.handle ? true : undefined}
+                            aria-describedby="member-handle-error"
+                            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-transparent px-3 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive md:text-sm dark:bg-input/30"
+                        />
+                        <Button type="submit" disabled={processing}>
+                            Add
+                        </Button>
+                    </div>
+                    {/* The line is kept, so an error doesn't push the list down. */}
+                    <p
+                        id="member-handle-error"
+                        className="mt-1 h-5 truncate text-sm text-destructive"
+                        title={errors.handle}
+                    >
+                        {errors.handle}
+                    </p>
+                </>
+            )}
+        </Form>
+    );
+}
+
+function MemberRow({
+    organization,
+    member,
+    isAdmin,
+    isLastAdmin,
+    onRemoved,
+}: {
+    organization: OrganizationWithId;
+    member: Member;
+    isAdmin: boolean;
+    isLastAdmin: boolean;
+    onRemoved: () => void;
+}) {
+    const { user } = useUser();
+    const now = useNow();
+    const isSelf = member.id === user.id;
+    const [removal, setRemoval] = useState<'idle' | 'confirming' | 'removing'>(
+        'idle',
+    );
+    const [hasCancelled, setHasCancelled] = useState(false);
+    // The role the select shows until the change is saved, so it doesn't flip back meanwhile.
+    const [pendingRole, setPendingRole] = useState<Role | null>(null);
+    const route = { organization: organization.id, member: member.handle };
+    const lastAdminReason = `@${organization.handle} needs at least one admin.`;
+    const joined = formatRelativeTime(member.joined_at, now);
+
+    const changeRole = (role: Role) => {
+        setPendingRole(role);
+
+        router.visit(OrganizationMemberController.update(route), {
+            data: { role },
+            preserveScroll: true,
+            // Another admin may have changed the members since the page loaded...
+            onError: (errors) => toast.error(Object.values(errors)[0]),
+            onFinish: () => setPendingRole(null),
+        });
+    };
+
+    const cancel = () => {
+        setRemoval('idle');
+        setHasCancelled(true);
+    };
+
+    const remove = () => {
+        setRemoval('removing');
+
+        const prefersReducedMotion = window.matchMedia(
+            '(prefers-reduced-motion: reduce)',
+        ).matches;
+
+        window.setTimeout(
+            () => {
+                let isRemoved = false;
+
+                router.visit(OrganizationMemberController.destroy(route), {
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        isRemoved = true;
+
+                        if (!isSelf) {
+                            onRemoved();
+                        }
+                    },
+                    onError: (errors) => toast.error(Object.values(errors)[0]),
+                    // A visit that failed or was cancelled brings the row back, so it can be removed again...
+                    onFinish: () => {
+                        if (!isRemoved) {
+                            setRemoval('idle');
+                        }
+                    },
+                });
+            },
+            prefersReducedMotion ? 0 : 700,
+        );
+    };
+
+    const removeLabel = isSelf ? 'Leave' : 'Remove';
+    const confirmation = isSelf
+        ? `Leave @${organization.handle}? An admin would have to add you back.`
+        : `Remove @${member.handle} from @${organization.handle}?`;
+
+    return (
+        <li
+            data-member={member.handle}
+            className={cn(
+                'grid border-b transition-[grid-template-rows,opacity,background-color] duration-300 ease-out last:border-b-0',
+                removal === 'removing'
+                    ? 'grid-rows-[0fr] opacity-0 delay-400'
+                    : 'grid-rows-[1fr]',
+                { 'bg-destructive/8': removal !== 'idle' },
+            )}
+        >
+            <div className="min-h-0 overflow-hidden">
+                {/* On phones the controls get their own line under the name, which stays readable. */}
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+                    <Link href={show(member.handle)} className="shrink-0">
+                        <UserAvatar
+                            user={member}
+                            className="size-9"
+                            pixels={72}
+                        />
+                    </Link>
+
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium" title={member.name}>
+                            <Link
+                                href={show(member.handle)}
+                                className="hover:underline"
+                            >
+                                {member.name}
+                            </Link>
+                            {isSelf && (
+                                <span className="font-normal text-muted-foreground">
+                                    {' '}
+                                    (you)
+                                </span>
+                            )}
+                        </p>
+
+                        {removal === 'idle' && (
+                            <p className="h-5 truncate text-sm leading-5 text-muted-foreground">
+                                <span className="font-mono text-[13px]">
+                                    @{member.handle}
+                                </span>
+                                <span aria-hidden> · </span>
+                                joined{' '}
+                                <time
+                                    dateTime={member.joined_at}
+                                    title={formatFullDateTime(member.joined_at)}
+                                    className="font-mono text-[13px] tabular-nums"
+                                >
+                                    {joined === 'now'
+                                        ? 'just now'
+                                        : /^\d+[mhd]$/.test(joined)
+                                          ? `${joined} ago`
+                                          : joined}
+                                </time>
+                            </p>
+                        )}
+
+                        {removal === 'confirming' && (
+                            <p
+                                className="h-5 truncate text-sm leading-5"
+                                title={confirmation}
+                            >
+                                {confirmation}
+                            </p>
+                        )}
+
+                        {removal === 'removing' && (
+                            <p
+                                className="h-5 truncate font-mono text-[13px] leading-5 text-muted-foreground"
+                                role="status"
+                            >
+                                rm @{member.handle} → /dev/null
+                            </p>
+                        )}
+                    </div>
+
+                    {removal === 'idle' && (
+                        <div className="flex w-full shrink-0 items-center gap-2 pl-12 sm:w-auto sm:pl-0">
+                            {isAdmin ? (
+                                <Select
+                                    value={pendingRole ?? member.role}
+                                    onValueChange={(role) =>
+                                        changeRole(role as Role)
+                                    }
+                                    disabled={isLastAdmin}
+                                >
+                                    <SelectTrigger
+                                        size="sm"
+                                        aria-label={`Role of @${member.handle}`}
+                                        title={
+                                            isLastAdmin
+                                                ? lastAdminReason
+                                                : undefined
+                                        }
+                                        className="w-[6.5rem]"
+                                    >
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="admin">
+                                            Admin
+                                        </SelectItem>
+                                        <SelectItem value="member">
+                                            Member
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <span className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                                    {member.role === 'admin'
+                                        ? 'Admin'
+                                        : 'Member'}
+                                </span>
+                            )}
+
+                            {(isAdmin || isSelf) && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setRemoval('confirming')}
+                                    disabled={isLastAdmin}
+                                    title={
+                                        isLastAdmin
+                                            ? lastAdminReason
+                                            : undefined
+                                    }
+                                    className="w-[4.75rem] hover:bg-destructive/10 hover:text-destructive"
+                                    // Focus comes back here when the confirm is cancelled...
+                                    autoFocus={hasCancelled}
+                                    data-remove
+                                >
+                                    {removeLabel}
+                                </Button>
+                            )}
+                        </div>
+                    )}
+
+                    {removal === 'confirming' && (
+                        <div
+                            role="group"
+                            aria-label={`Confirm ${removeLabel.toLowerCase()}`}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Escape') {
+                                    cancel();
+                                }
+                            }}
+                            className="flex w-full shrink-0 gap-2 pl-12 sm:w-auto sm:pl-0"
+                        >
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={remove}
+                            >
+                                {removeLabel}
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                autoFocus
+                                onClick={cancel}
+                            >
+                                Cancel
+                            </Button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </li>
+    );
+}
+
+Index.layout = AppLayout;

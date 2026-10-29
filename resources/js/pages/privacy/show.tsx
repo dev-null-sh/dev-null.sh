@@ -66,6 +66,15 @@ export default function Show() {
                             </>,
                             <>
                                 <strong>
+                                    From an organization's admins, when they add
+                                    you:
+                                </strong>{' '}
+                                that you are a member or an admin of that
+                                organization, which its members see. Admins are
+                                also listed on the organization's page.
+                            </>,
+                            <>
+                                <strong>
                                     From Apple, when you sign in with Apple in
                                     the iOS app:
                                 </strong>{' '}

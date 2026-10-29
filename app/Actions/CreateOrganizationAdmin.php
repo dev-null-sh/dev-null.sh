@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\OrganizationRole;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -24,7 +25,8 @@ final readonly class CreateOrganizationAdmin
                 return false;
             }
 
-            $organization->admins()->attach($user->id);
+            // A member is left without an admin when the last one erased their account...
+            $organization->members()->syncWithoutDetaching([$user->id => ['role' => OrganizationRole::Admin]]);
 
             return true;
         });

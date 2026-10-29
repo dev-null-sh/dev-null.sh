@@ -1,0 +1,72 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Requests;
+
+use App\Enums\OrganizationRole;
+use App\Models\Profile;
+use App\Models\User;
+use Illuminate\Auth\Access\Response;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\Validator;
+
+final class UpdateOrganizationMemberRequest extends FormRequest
+{
+    public function authorize(): Response
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return match (true) {
+            ! $this->organization()->roleOf($user) instanceof OrganizationRole || ! $this->organization()->roleOf($this->member()) instanceof OrganizationRole => Response::denyAsNotFound(),
+            $this->organization()->roleOf($user) !== OrganizationRole::Admin => Response::deny('Only admins can change roles.'),
+            default => Response::allow(),
+        };
+    }
+
+    /**
+     * @return array<string, list<string|Enum>>
+     */
+    public function rules(): array
+    {
+        return [
+            'role' => ['required', Rule::enum(OrganizationRole::class)],
+        ];
+    }
+
+    /**
+     * @return list<callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            if ($this->role() === OrganizationRole::Member && $this->organization()->admins()->whereKeyNot($this->member()->id)->doesntExist()) {
+                $validator->errors()->add('role', "@{$this->organization()->handle} needs at least one admin.");
+            }
+        }];
+    }
+
+    public function organization(): Profile
+    {
+        $organization = $this->route('organization');
+        assert($organization instanceof Profile);
+
+        return $organization;
+    }
+
+    public function member(): User
+    {
+        $member = $this->route('member');
+        assert($member instanceof User);
+
+        return $member;
+    }
+
+    public function role(): ?OrganizationRole
+    {
+        return $this->enum('role', OrganizationRole::class);
+    }
+}

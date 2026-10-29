@@ -134,7 +134,7 @@ final readonly class OrganizationAdminController
      */
     private function claimed(Profile $organization): ?string
     {
-        $admin = $organization->admins()->oldest('organization_admins.created_at')->first();
+        $admin = $organization->admins()->oldest('organization_members.created_at')->first();
 
         if ($admin === null) {
             return null;

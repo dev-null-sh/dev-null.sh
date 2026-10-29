@@ -8,6 +8,7 @@ use App\Actions\DeleteUser;
 use App\Contracts\Services\TranslationProvider;
 use App\Enums\ModerationReason;
 use App\Enums\NotificationType;
+use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Device;
@@ -130,7 +131,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'muting' => [],
         'blocking' => [],
         'dismissed_suggestions' => [],
-        'claimed_organizations' => [],
+        'organizations' => [],
         'messages' => [],
         'remote_mutes' => [],
         'remote_pins' => [],
@@ -441,20 +442,20 @@ it('exports ssh key fingerprints and sessions without session ids or payloads', 
         );
 });
 
-it('exports the organizations the user claimed, first claim first, without their other admins', function (): void {
+it('exports the organizations the user is a member of with their role, first joined first, without their other members', function (): void {
     $this->freezeSecond();
     $user = User::factory()->create();
     $laravel = Profile::factory()->organization()->create(['handle' => 'laravel']);
     $bref = Profile::factory()->organization()->create(['handle' => 'brefphp']);
     $bref->admins()->attach($user->id, ['created_at' => now()->subDay()]);
-    $laravel->admins()->attach([$user->id => ['created_at' => now()], User::factory()->create()->id => ['created_at' => now()]]);
+    $laravel->members()->attach([$user->id => ['role' => OrganizationRole::Member, 'created_at' => now()], User::factory()->create()->id => ['role' => OrganizationRole::Admin, 'created_at' => now()]]);
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
-    expect($data['claimed_organizations'])->toBe([
-        ['handle' => 'brefphp', 'claimed_at' => now()->subDay()->toIso8601String()],
-        ['handle' => 'laravel', 'claimed_at' => now()->toIso8601String()],
+    expect($data['organizations'])->toBe([
+        ['handle' => 'brefphp', 'role' => 'admin', 'joined_at' => now()->subDay()->toIso8601String()],
+        ['handle' => 'laravel', 'role' => 'member', 'joined_at' => now()->toIso8601String()],
     ]);
 });
 

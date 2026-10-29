@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\OrganizationRole;
 use App\Enums\ProfileType;
 use Carbon\CarbonInterface;
 use Database\Factories\ProfileFactory;
@@ -127,13 +128,33 @@ final class Profile extends Model
     }
 
     /**
-     * The users who claimed the organization's page. GitHub only lets them in: leaving the organization there doesn't
-     * remove them here.
+     * The organization's members on /dev/null, each an admin or a member. GitHub only lets the first admin in, who
+     * claimed the page: leaving the organization there doesn't remove anyone here.
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function members(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'organization_members', 'organization_id')->withPivot('role')->withTimestamps(updatedAt: false);
+    }
+
+    /**
+     * The members who manage the organization's members. Attaching through it makes an admin.
      *
      * @return BelongsToMany<User, $this>
      */
     public function admins(): BelongsToMany
     {
-        return $this->belongsToMany(User::class, 'organization_admins', 'organization_id')->withTimestamps(updatedAt: false);
+        return $this->members()->withPivotValue('role', OrganizationRole::Admin->value);
+    }
+
+    /**
+     * The user's role in the organization, or null when they aren't a member.
+     */
+    public function roleOf(User $user): ?OrganizationRole
+    {
+        $role = $this->members()->newPivotQuery()->where('user_id', $user->id)->value('role');
+
+        return is_string($role) ? OrganizationRole::from($role) : null;
     }
 }

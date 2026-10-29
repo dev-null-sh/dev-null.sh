@@ -334,13 +334,13 @@ final class User extends Authenticatable
     }
 
     /**
-     * The organizations whose page the user claimed, see `Profile::admins()`.
+     * The organizations the user is a member of, see `Profile::members()`.
      *
      * @return BelongsToMany<Profile, $this>
      */
-    public function claimedOrganizations(): BelongsToMany
+    public function organizations(): BelongsToMany
     {
-        return $this->belongsToMany(Profile::class, 'organization_admins', 'user_id', 'organization_id')->withTimestamps(updatedAt: false);
+        return $this->belongsToMany(Profile::class, 'organization_members', 'user_id', 'organization_id')->withPivot('role')->withTimestamps(updatedAt: false);
     }
 
     /**

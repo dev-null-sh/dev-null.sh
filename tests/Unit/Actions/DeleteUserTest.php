@@ -8,6 +8,7 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Contracts\Services\TranslationProvider;
 use App\Dto\ThreadEngagement;
+use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\Conversation;
@@ -189,15 +190,16 @@ it('erases authored polls and the users votes while keeping other polls and vote
         ->and(PollVote::query()->sole()->is($keptVote))->toBeTrue();
 });
 
-it('erases the organizations a deleted user claimed, keeping their other admins', function (): void {
+it('erases the organization memberships of a deleted user, keeping their other members', function (): void {
     $user = User::factory()->create();
     $other = User::factory()->create();
     $organization = Profile::factory()->organization()->create();
-    $organization->admins()->attach([$user->id => ['created_at' => now()], $other->id => ['created_at' => now()]]);
+    $organization->admins()->attach($user->id);
+    $organization->members()->attach($other->id, ['role' => OrganizationRole::Member]);
 
     resolve(DeleteUser::class)->handle($user);
 
-    expect($organization->admins()->pluck('users.id')->all())->toBe([$other->id]);
+    expect($organization->members()->pluck('users.id')->all())->toBe([$other->id]);
 });
 
 it('erases the devices of a deleted user', function (): void {

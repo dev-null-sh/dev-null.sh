@@ -1,5 +1,5 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { AlertCircleIcon, Link2, MapPin, Palette } from 'lucide-react';
+import { AlertCircleIcon, Link2, MapPin, Palette, Settings } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
@@ -29,6 +29,7 @@ export default function Show({
     tab,
     commits,
     claimUrl,
+    settingsUrl,
     admins,
 }: {
     organization: Organization & { id: string };
@@ -36,6 +37,7 @@ export default function Show({
     tab: 'mentions';
     commits: CursorPaginated<Commit>;
     claimUrl: string;
+    settingsUrl: string | null;
     admins: User[];
 }) {
     const { props, flash } = usePage();
@@ -98,6 +100,14 @@ export default function Show({
                                 {/* A form, so no other site can claim for the user. The server sends them on to GitHub. */}
                                 <Link href={claimUrl} method="post" as="button">
                                     Claim
+                                </Link>
+                            </Button>
+                        )}
+                        {settingsUrl && (
+                            <Button variant="outline" asChild>
+                                <Link href={settingsUrl}>
+                                    <Settings />
+                                    Settings
                                 </Link>
                             </Button>
                         )}

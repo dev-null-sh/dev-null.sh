@@ -67,7 +67,7 @@ final readonly class DeleteUser
 
             $this->deleteOrgs->handle($this->emptyOrgs($user));
 
-            $user->claimedOrganizations()->detach();
+            $user->organizations()->detach();
 
             $user->delete();
             $user->profile->delete();

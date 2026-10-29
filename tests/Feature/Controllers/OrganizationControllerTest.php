@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitTopics;
+use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\Profile;
 use App\Models\User;
@@ -44,21 +45,35 @@ it('shows the organization in the lane its admins chose', function (array $attri
     'custom' => [['lane_color' => '#1a2b3c'], '#1a2b3c'],
 ]);
 
-it('shows who claimed the organization, first claim first, and where to claim it', function (): void {
+it('shows the admins of the organization but not its other members, first admin first, and where to claim it', function (): void {
     $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
     $first = User::factory()->create();
     $second = User::factory()->create();
     $organization->admins()->attach([$second->id => ['created_at' => now()], $first->id => ['created_at' => now()->subDay()]]);
+    $organization->members()->attach(User::factory()->create()->id, ['role' => OrganizationRole::Member, 'created_at' => now()->subWeek()]);
 
     $this->get('/@laravel')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('claimUrl', route('organization-admin.create', $organization))
+            ->where('settingsUrl', null)
             ->where('admins.0.id', $first->id)
             ->where('admins.0.handle', $first->profile->handle)
             ->where('admins.1.id', $second->id)
             ->missing('admins.0.pivot')
             ->has('admins', 2));
+});
+
+it('links its members to the settings of the organization', function (): void {
+    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $member = User::factory()->create();
+    $organization->members()->attach($member->id, ['role' => OrganizationRole::Member]);
+
+    $this->actingAs($member)->get('/@laravel')
+        ->assertInertia(fn ($page) => $page->where('settingsUrl', route('organization-member.index', $organization)));
+
+    $this->actingAs(User::factory()->create())->get('/@laravel')
+        ->assertInertia(fn ($page) => $page->where('settingsUrl', null));
 });
 
 it('shows guests the link preview of the organization', function (): void {

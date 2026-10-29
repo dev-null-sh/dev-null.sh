@@ -9,7 +9,6 @@ use App\Models\User;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\DB;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\GithubProvider as GitHubOAuthProvider;
 use Laravel\Socialite\Two\InvalidStateException;
@@ -115,10 +114,7 @@ it('refuses a claim when someone else claimed the page while the user was on git
     [$user, $organization] = claimingUserAndOrganization();
     $first = User::factory()->create();
     $second = User::factory()->create();
-    DB::table('organization_admins')->insert([
-        ['organization_id' => $organization->id, 'user_id' => $second->id, 'created_at' => now()],
-        ['organization_id' => $organization->id, 'user_id' => $first->id, 'created_at' => now()->subDay()],
-    ]);
+    $organization->admins()->attach([$second->id => ['created_at' => now()], $first->id => ['created_at' => now()->subDay()]]);
 
     $this->actingAs($user)
         ->withSession(['claiming-organization' => $organization->id])
