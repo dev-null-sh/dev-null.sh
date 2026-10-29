@@ -76,6 +76,7 @@ use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\OperationsEventController;
 use App\Http\Controllers\OrganizationAdminController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\OrganizationLaneController;
 use App\Http\Controllers\OrganizationMentionController;
 use App\Http\Controllers\OrganizationSitemapController;
 use App\Http\Controllers\OrgArchiveController;
@@ -332,6 +333,11 @@ Route::middleware('auth')->group(function (): void {
     Route::get('auth/github/callback/organizations', [OrganizationAdminController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('organization-admin.store');
+
+    // An organization's color, which its admins choose...
+    Route::put('organizations/{organization}/lane', [OrganizationLaneController::class, 'update'])
+        ->whereUuid('organization')
+        ->name('organization-lane.update');
 
     // Followers the viewer knows...
     Route::get('@{user:handle}/followers-you-know', [UserFollowersYouKnowController::class, 'index'])

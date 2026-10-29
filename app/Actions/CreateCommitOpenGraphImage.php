@@ -51,7 +51,7 @@ final readonly class CreateCommitOpenGraphImage
     private function render(User $user, Commit $commit): string
     {
         $canvas = new OpenGraphCanvas;
-        $lane = $canvas->lane($user);
+        $lane = $canvas->lane($user->lane());
         $replyingTo = $commit->parent?->user?->handle;
 
         $headerHeight = self::AVATAR_SIZE + ($replyingTo === null ? 0 : self::REPLYING_TO_HEIGHT) + self::BODY_GAP;

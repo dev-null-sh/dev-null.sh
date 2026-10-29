@@ -17,17 +17,31 @@ it('draws the avatar of an organization square, where a person is round', functi
 
     expect($organizationImage)->toBeInstanceOf(GdImage::class)
         ->and($userImage)->toBeInstanceOf(GdImage::class)
-        ->and(imagecolorat($organizationImage, 204, 162))->toBe(OpenGraphCanvas::INK_MUTED)
+        ->and(imagecolorat($organizationImage, 204, 162))->toBe(OpenGraphCanvas::PRIMARY)
         ->and(imagecolorat($userImage, 204, 162))->toBe(0xF6F7F8);
 });
 
-it('draws the rail in the muted color, since organizations have no lane', function (): void {
+it('draws the rail in the blue of /dev/null while the admins chose no lane', function (): void {
     $organization = Profile::factory()->organization()->create(['avatar_url' => null, 'bio' => null]);
 
     $image = imagecreatefromstring(resolve(CreateOrganizationOpenGraphImage::class)->handle($organization));
 
     expect($image)->toBeInstanceOf(GdImage::class)
-        ->and(imagecolorat($image, OpenGraphCanvas::RAIL_X, 440))->toBe(OpenGraphCanvas::INK_MUTED);
+        ->and(imagecolorat($image, OpenGraphCanvas::RAIL_X, 440))->toBe(OpenGraphCanvas::PRIMARY);
+});
+
+it('draws the rail in the lane the admins chose, drawing it again once they change it', function (): void {
+    $organization = Profile::factory()->organization()->create(['avatar_url' => null, 'bio' => null, 'preferred_lane' => 1]);
+    $action = resolve(CreateOrganizationOpenGraphImage::class);
+
+    $palette = imagecreatefromstring($action->handle($organization));
+    $organization->update(['preferred_lane' => null, 'lane_color' => '#1a2b3c']);
+    $custom = imagecreatefromstring($action->handle($organization));
+
+    expect($palette)->toBeInstanceOf(GdImage::class)
+        ->and($custom)->toBeInstanceOf(GdImage::class)
+        ->and(imagecolorat($palette, OpenGraphCanvas::RAIL_X, 440))->toBe(0x2F9E44)
+        ->and(imagecolorat($custom, OpenGraphCanvas::RAIL_X, 440))->toBe(0x1A2B3C);
 });
 
 it('fits descriptions that would overflow the card', function (): void {

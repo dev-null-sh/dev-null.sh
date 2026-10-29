@@ -109,15 +109,17 @@ Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](re
 
 ### Organization pages
 
-GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with their GitHub avatar (square, so they never pass for a person), name, description, location, website, and a link to GitHub. An organization gets its page once an approved commit mentions it, from its public GitHub profile, and the profile refreshes when commits keep mentioning it, at most once a day. Nobody signs in as an organization or edits its page: everything on it comes from GitHub. Shared links to an organization's page preview as a card with its square avatar, name, handle, and description, like a developer's profile.
+GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with their GitHub avatar (square, so they never pass for a person), name, description, location, website, and a link to GitHub. An organization gets its page once an approved commit mentions it, from its public GitHub profile, and the profile refreshes when commits keep mentioning it, at most once a day. Nobody signs in as an organization, and everything on its page comes from GitHub, except its color. Shared links to an organization's page preview as a card with its square avatar, name, handle, and description, like a developer's profile.
 
 The **Mentions** tab lists the commits and replies that mention the organization, newest first, a reply with the commit it answers. A commit stays listed after the organization is renamed, since it is linked to the organization rather than to the handle. It follows the usual visibility: guests see approved commits only, you also see your own pending ones, and commits across a block or by people you muted are left out.
 
 A member of an organization can **Claim** its page, which lists them as its admin. Only the first member to claim it becomes its admin: once a page has one, it can't be claimed again, and the Claim button is gone. Claiming asks GitHub once for permission to read your organizations, then checks that you are an owner or a member there, not just invited. Organizations that restrict third-party apps only share their members once an owner approved /dev/null: the page then links to GitHub, where an owner grants access and a member requests it. GitHub is only the way in: leaving the organization on GitHub doesn't remove you as an admin on /dev/null. Claims are in your data export and go when you delete your account.
 
+Every organization has a color, /dev/null's blue until its admin chooses another with **Color** on its page: one of the same six lane colors as developers, or a custom one. It rings the organization's avatar, leads its handle, and colors its link preview.
+
 Following organizations is planned, not shipped yet.
 
-Sources: [organization page](resources/js/pages/organization/show.tsx), [mentions](app/Queries/OrganizationMentionsQuery.php), [organization lookups](app/Actions/UpdateCommitTopics.php), [claims](app/Http/Controllers/OrganizationAdminController.php).
+Sources: [organization page](resources/js/pages/organization/show.tsx), [mentions](app/Queries/OrganizationMentionsQuery.php), [organization lookups](app/Actions/UpdateCommitTopics.php), [claims](app/Http/Controllers/OrganizationAdminController.php), [color](resources/js/components/organization-lane-dialog.tsx).
 
 ### Going live
 

@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useInitials } from '@/hooks/use-initials';
 import { sizedAvatarUrl } from '@/lib/urls';
@@ -10,10 +11,12 @@ import type { Organization } from '@/types';
 export function OrganizationAvatar({
     organization,
     className,
+    style,
     pixels = 80,
 }: {
     organization: Pick<Organization, 'name' | 'avatar_url'>;
     className?: string;
+    style?: CSSProperties;
     /**
      * The image size to fetch: twice the largest size the avatar is drawn at, for high-density screens.
      */
@@ -27,6 +30,7 @@ export function OrganizationAvatar({
                 'size-8 overflow-hidden rounded-md border bg-muted',
                 className,
             )}
+            style={style}
         >
             <AvatarImage
                 src={
