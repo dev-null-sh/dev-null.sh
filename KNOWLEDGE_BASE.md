@@ -289,7 +289,9 @@ Add a poll to a top-level commit with **two to four distinct options**, each up 
 
 Signed-in readers can choose one option and vote once while an approved, visible poll is open; a vote cannot be changed or withdrawn. The author cannot vote in their own poll. Results are visible to the author and people who have voted, and to everyone once the poll closes. Other people's individual votes are not revealed.
 
-Sources: [poll editor](resources/js/components/poll-editor.tsx), [poll results](app/Models/Poll.php), [voting rules](app/Rules/OpenPoll.php), [approval and poll opening](app/Actions/UpdateCommitStatuses.php).
+When a poll closes, people who voted are notified that the results are in; the notification opens the poll's commit, so a vote from days before never needs scrolling back for. The author is not notified: they set the duration and see the results throughout.
+
+Sources: [poll editor](resources/js/components/poll-editor.tsx), [poll results](app/Models/Poll.php), [voting rules](app/Rules/OpenPoll.php), [approval and poll opening](app/Actions/UpdateCommitStatuses.php), [poll result notifications](app/Actions/CreatePollEndedNotifications.php), [closing scan](app/Console/Commands/NotifyEndedPollsCommand.php).
 
 ### Scheduled commits
 
@@ -337,7 +339,7 @@ Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [
 
 ### Notifications
 
-Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, and moderation messages about rejected commits (approvals do not notify). The navigation shows unread activity and checks for more every 30 seconds. While you have unread notifications or messages, the browser tab's icon shows an orange dot; a tab in the background checks about every five minutes. Related activity is grouped, with expandable details: stars per commit, follows per day, and replies and mentions per thread. Filters (Replies, Quotes, Stars, Mentions, Follows, Moderation) are remembered, and the unread count follows them. Opening the inbox marks all notifications read. You can follow back or unfollow from follower notifications.
+Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, poll results, and moderation messages about rejected commits (approvals do not notify). The navigation shows unread activity and checks for more every 30 seconds. While you have unread notifications or messages, the browser tab's icon shows an orange dot; a tab in the background checks about every five minutes. Related activity is grouped, with expandable details: stars per commit, follows per day, and replies and mentions per thread. Filters (Replies, Quotes, Stars, Mentions, Follows, Moderation) are remembered, and the unread count follows them. Poll results show under **All**, outside the activity filters, like level-ups. Opening the inbox marks all notifications read. You can follow back or unfollow from follower notifications.
 
 Level-up notifications announce your new Unix rank under **All**, rather than one of the activity filters. Each level can notify you only once, even if you later lose and regain enough XP to reach it.
 

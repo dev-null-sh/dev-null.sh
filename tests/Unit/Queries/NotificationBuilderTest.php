@@ -160,6 +160,20 @@ it('deletes notifications along with the actor', function (Notification $notific
     'starred' => fn (): Notification => Notification::factory()->starred()->create(),
 ]);
 
+it('keeps poll results for approved polls', function (): void {
+    $notification = Notification::factory()->pollEnded()->create();
+
+    expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
+});
+
+it('hides poll results once the poll commit is rejected', function (): void {
+    $notification = Notification::factory()->pollEnded()->create();
+
+    resolve(UpdateCommitStatus::class)->handle($notification->commit, CommitStatus::Rejected);
+
+    expect(Notification::query()->whereKey($notification->id)->relevant()->exists())->toBeFalse();
+});
+
 it('deletes notifications along with the recipient', function (): void {
     $notification = Notification::factory()->create();
 
@@ -181,6 +195,7 @@ it('hides notifications from muted actors until they are unmuted', function (Not
     'replied' => fn (): Notification => Notification::factory()->replied()->create(),
     'mentioned' => fn (): Notification => Notification::factory()->mentioned()->create(),
     'starred' => fn (): Notification => Notification::factory()->starred()->create(),
+    'poll ended' => fn (): Notification => Notification::factory()->pollEnded()->create(),
 ]);
 
 it('hides replies, mentions and stars across a block in either direction', function (string $state, bool $recipientBlocks): void {
@@ -191,4 +206,4 @@ it('hides replies, mentions and stars across a block in either direction', funct
         : $notification->actor->blocking()->attach($notification->recipient_id);
 
     expect(Notification::query()->relevant()->exists())->toBeFalse();
-})->with(['replied', 'mentioned', 'starred'])->with([true, false]);
+})->with(['replied', 'mentioned', 'starred', 'pollEnded'])->with([true, false]);
