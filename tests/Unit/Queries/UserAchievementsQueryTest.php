@@ -10,6 +10,8 @@ use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
 use App\Queries\UserAchievementsQuery;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 22)->setTime(12, 0));
@@ -28,7 +30,7 @@ it('calculates initial rank and zero progress for a new user without activity', 
         ->and($result['ranks'])->toHaveCount(6)
         ->and($result['xp_breakdown']['commits']['xp'])->toBe(0)
         ->and($result['xp_breakdown']['shell_shocked']['xp'])->toBe(0)
-        ->and($result['badges'])->toHaveCount(15);
+        ->and($result['badges'])->toHaveCount(16);
 
     foreach ($result['badges'] as $badge) {
         expect($badge['unlocked'])->toBeFalse()
@@ -360,3 +362,34 @@ it('awards shell shocked and 100 xp only to accounts created before the UTC cuto
     'exactly at cutoff' => ['2026-10-21 14:00:00', false, 0, 1],
     'just after cutoff' => ['2026-10-21 14:00:01', false, 0, 1],
 ]);
+
+it('unlocks git blame with a commit in the /dev/null repository, matching the GitHub account', function (): void {
+    $contributor = User::factory()->create(['github_id' => (string) crc32('xHeaven'), 'handle' => 'renamed']);
+    $other = User::factory()->create(['handle' => 'xHeaven']);
+    fakeGitHubContributors([gitHubContributor('xHeaven', 187)]);
+
+    $query = resolve(UserAchievementsQuery::class);
+    $result = $query->get($contributor, null);
+
+    expect(collect($result['badges'])->firstWhere('id', 'git_blame'))->toBe([
+        'id' => 'git_blame',
+        'name' => 'git blame',
+        'description' => 'Landed a commit in the /dev/null repo itself. git blame now points at you.',
+        'icon' => 'git-commit-horizontal',
+        'unlocked' => true,
+        'progress' => 1,
+        'target' => 1,
+    ])->and($result['xp'])->toBe(0)
+        ->and(collect($query->get($other, null)['badges'])->firstWhere('id', 'git_blame')['unlocked'])->toBeFalse();
+});
+
+it('keeps git blame locked while GitHub does not answer', function (): void {
+    $user = User::factory()->create(['github_id' => (string) crc32('xHeaven')]);
+    Cache::forget(gitHubContributorsCacheKey());
+    Http::fake(['api.github.com/*' => Http::response(status: 500)]);
+
+    $badge = collect(resolve(UserAchievementsQuery::class)->get($user, null)['badges'])->firstWhere('id', 'git_blame');
+
+    expect($badge['unlocked'])->toBeFalse()
+        ->and($badge['progress'])->toBe(0);
+});

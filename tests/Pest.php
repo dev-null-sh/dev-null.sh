@@ -15,6 +15,7 @@ use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
@@ -30,6 +31,9 @@ pest()->extend(TestCase::class)
         Str::createRandomStringsNormally();
         Str::createUuidsNormally();
         Http::preventStrayRequests();
+        // Achievements read the repository contributors, so every page that shows them would ask GitHub;
+        // fakeGitHubContributors() clears this to serve a list instead
+        Cache::put(gitHubContributorsCacheKey(), []);
         Process::preventStrayProcesses();
         Sleep::fake();
 
@@ -155,6 +159,11 @@ function gitHubContributor(string $login, int $commits, string $type = 'User', ?
     return ['login' => $login, 'id' => $id ?? crc32($login), 'contributions' => $commits, 'type' => $type];
 }
 
+function gitHubContributorsCacheKey(): string
+{
+    return 'about:contributor-accounts:'.config()->string('services.github.repository');
+}
+
 /**
  * Serves the contributors of the repository like GitHub does: most commits first, a page at a time.
  *
@@ -162,6 +171,8 @@ function gitHubContributor(string $login, int $commits, string $type = 'User', ?
  */
 function fakeGitHubContributors(array $contributors): void
 {
+    Cache::forget(gitHubContributorsCacheKey());
+
     Http::fake(['api.github.com/repos/'.config()->string('services.github.repository').'/contributors*' => function (Request $request) use ($contributors): PromiseInterface {
         $perPage = (int) $request['per_page'];
 

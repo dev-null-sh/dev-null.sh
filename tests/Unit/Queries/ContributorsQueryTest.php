@@ -2,10 +2,15 @@
 
 declare(strict_types=1);
 
+use App\Models\User;
 use App\Queries\ContributorsQuery;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+
+beforeEach(function (): void {
+    Cache::forget(gitHubContributorsCacheKey());
+});
 
 it('lists everyone with a commit, as GitHub counts them', function (): void {
     fakeGitHubContributors([gitHubContributor('xHeaven', 187), gitHubContributor('jubianchi', 1)]);
@@ -130,4 +135,20 @@ it('discards a partial list after a later page fails and recovers when the failu
 
     expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'recovered', 'commits' => 12, 'handle' => null]]);
     Http::assertSentCount(3);
+});
+
+it('counts the commits of a user by their GitHub account, and none for anyone else', function (): void {
+    fakeGitHubContributors([gitHubContributor('xHeaven', 187), gitHubContributor('jubianchi', 1)]);
+    $query = resolve(ContributorsQuery::class);
+
+    expect($query->commits(User::factory()->make(['github_id' => (string) crc32('jubianchi')])))->toBe(1)
+        ->and($query->commits(User::factory()->make(['handle' => 'xHeaven'])))->toBe(0);
+
+    Http::assertSentCount(1);
+});
+
+it('counts no commits while GitHub does not answer', function (): void {
+    Http::fake(['api.github.com/*' => Http::response(status: 500)]);
+
+    expect(resolve(ContributorsQuery::class)->commits(User::factory()->make(['github_id' => (string) crc32('xHeaven')])))->toBe(0);
 });
