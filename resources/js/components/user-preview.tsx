@@ -36,6 +36,7 @@ type PreviewData = {
     followsYou: boolean;
     isMuting: boolean;
     isBlocking: boolean;
+    canPush: boolean;
 } & (
     | { isUnavailable: false; user: Profile }
     | { isUnavailable: true; user: User }
@@ -312,6 +313,12 @@ export function UserPreview({
                                     scheduleClose();
                                 }
                             }}
+                            onRelationChange={() =>
+                                fetchPreview(previewUrl).then(
+                                    setData,
+                                    () => undefined,
+                                )
+                            }
                         />
                     </div>,
                     document.body,
@@ -325,11 +332,13 @@ function UserPreviewContent({
     data,
     onChange,
     onMenuOpenChange,
+    onRelationChange,
 }: {
     user: User | Profile;
     data: PreviewData | null;
     onChange: (data: PreviewData) => void;
     onMenuOpenChange: (isOpen: boolean) => void;
+    onRelationChange: () => void;
 }) {
     const {
         component,
@@ -417,8 +426,10 @@ function UserPreviewContent({
                                     user={user}
                                     isMuting={data.isMuting}
                                     isBlocking={data.isBlocking}
+                                    canPush={data.canPush}
                                     className="size-8"
                                     onOpenChange={onMenuOpenChange}
+                                    onRelationChange={onRelationChange}
                                 />
                             )}
                             {!data.isUnavailable && (
