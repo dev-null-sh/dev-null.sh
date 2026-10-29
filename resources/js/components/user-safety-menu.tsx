@@ -1,7 +1,8 @@
 import type { VisitOptions } from '@inertiajs/core';
-import { router } from '@inertiajs/react';
-import { Ban, Ellipsis, Volume2, VolumeX } from 'lucide-react';
+import { Link, router } from '@inertiajs/react';
+import { Ban, Ellipsis, MessagesSquare, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
+import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
 import { rememberBlock } from '@/components/follow-button';
@@ -19,6 +20,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useSharedState } from '@/hooks/use-shared-state';
@@ -36,14 +38,18 @@ export function UserSafetyMenu({
     user,
     isMuting: initialIsMuting,
     isBlocking,
+    canPush = false,
     className,
     onOpenChange,
+    onBlockChange,
 }: {
     user: Pick<User, 'id' | 'handle'>;
     isMuting: boolean;
     isBlocking: boolean;
+    canPush?: boolean;
     className?: string;
     onOpenChange?: (isOpen: boolean) => void;
+    onBlockChange?: () => void;
 }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isConfirmingBlock, setIsConfirmingBlock] = useState(false);
@@ -124,6 +130,20 @@ export function UserSafetyMenu({
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-52">
+                    {canPush && (
+                        <>
+                            <DropdownMenuItem asChild>
+                                <Link
+                                    href={ConversationController.show(user)}
+                                    data-test="user-remote"
+                                >
+                                    <MessagesSquare />
+                                    Remote @{user.handle}
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                        </>
+                    )}
                     <DropdownMenuItem disabled={isSaving} onSelect={toggleMute}>
                         {isMuting ? <Volume2 /> : <VolumeX />}
                         {isMuting
@@ -135,7 +155,9 @@ export function UserSafetyMenu({
                         disabled={isSaving}
                         onSelect={() =>
                             isBlocking
-                                ? visit(UserBlockController.destroy(user), {})
+                                ? visit(UserBlockController.destroy(user), {
+                                      onSuccess: () => onBlockChange?.(),
+                                  })
                                 : changeOpen(false, true)
                         }
                     >
@@ -171,7 +193,10 @@ export function UserSafetyMenu({
                             disabled={isSaving}
                             onClick={() =>
                                 visit(UserBlockController.store(user), {
-                                    onSuccess: () => rememberBlock(user),
+                                    onSuccess: () => {
+                                        rememberBlock(user);
+                                        onBlockChange?.();
+                                    },
                                 })
                             }
                             data-test="confirm-block-button"
