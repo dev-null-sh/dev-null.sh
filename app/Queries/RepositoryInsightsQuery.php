@@ -34,14 +34,14 @@ final readonly class RepositoryInsightsQuery
                     }
 
                     $data = [
-                        'definition' => 'Up to ten recent pull requests merged into production, from the changelog. Merge time is not a verified deployment time.',
+                        'definition' => 'Up to ten recent commits on production, from the changelog, linking to their pull request when they came from one. Commit time is not a verified deployment time.',
                         'complete' => false,
-                        'coverage' => 'Changelog scans at most 1,000 closed PRs for the three latest UTC days with merges. This list is not an exhaustive count or guaranteed latest under truncation.',
-                        'pull_requests' => collect($changelog['pullRequests'])->take(10)->map(fn (array $pullRequest): array => [
-                            'title' => mb_substr($pullRequest['title'], 0, 300),
-                            'url' => $pullRequest['url'],
-                            'author' => $pullRequest['author']['login'],
-                            'merged_at' => $pullRequest['merged_at'],
+                        'coverage' => 'Changelog reads at most 2,000 commits of production history for the three latest UTC days with commits. This list is not an exhaustive count or guaranteed latest under truncation.',
+                        'commits' => collect($changelog['commits'])->take(10)->map(fn (array $commit): array => [
+                            'title' => mb_substr($commit['title'], 0, 300),
+                            'url' => $commit['pull_request']['url'] ?? $commit['url'],
+                            'author' => $commit['author']['login'],
+                            'committed_at' => $commit['committed_at'],
                         ])->all(),
                     ];
                 } else {
@@ -121,7 +121,7 @@ final readonly class RepositoryInsightsQuery
                 'repository' => $repository,
                 'source_url' => 'https://github.com/'.$repository,
                 'as_of' => now()->toIso8601String(),
-                'freshness' => 'Cached for 15 minutes. GitHub contributor counts can lag by hours; changelog pages are cached for another 30 minutes. This is not a live deployment status.',
+                'freshness' => 'Cached for 15 minutes. GitHub contributor counts can lag by hours; the changelog for the current day is cached for another 30 minutes. This is not a live deployment status.',
                 ...$data,
             ];
         });

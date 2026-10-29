@@ -65,22 +65,23 @@ it('finds contribution opportunities using either helpful label and returns only
         && $request['per_page'] === 10 && $request['sort'] === 'updated' && $request['order'] === 'desc');
 });
 
-it('returns recent production merges from the changelog without internal author data', function (): void {
-    Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/pulls*' => Http::response(collect(range(12, 1))->map(fn (int $number): array => [
-        'number' => $number, 'title' => "feat: change {$number}",
-        'html_url' => "https://github.com/dev-null-sh/dev-null.sh/pull/{$number}",
-        'merged_at' => sprintf('2026-10-19T00:00:%02dZ', $number), 'updated_at' => sprintf('2026-10-19T00:00:%02dZ', $number),
-        'merge_commit_sha' => 'abc', 'user' => ['id' => 1, 'login' => 'alice', 'avatar_url' => 'https://github.com/alice.png'],
+it('returns recent production commits from the changelog without internal author data', function (): void {
+    Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/commits*' => Http::response(collect(range(12, 1))->map(fn (int $number): array => [
+        'sha' => "sha-{$number}", 'html_url' => "https://github.com/dev-null-sh/dev-null.sh/commit/sha-{$number}",
+        'commit' => ['message' => $number === 11 ? 'feat: change 11' : "feat: change {$number} (#{$number})", 'committer' => ['date' => sprintf('2026-10-19T00:00:%02dZ', $number)]],
+        'author' => ['id' => 1, 'login' => 'alice', 'type' => 'User', 'avatar_url' => 'https://github.com/alice.png'], 'committer' => null,
+        'parents' => $number === 1 ? [] : [['sha' => 'sha-'.($number - 1)]],
     ])->all())]);
 
     $result = json_decode(new RepositoryInsights()->handle(new ToolRequest(['metric' => 'recent_changes'])), true);
 
-    expect($result['pull_requests'])->toHaveCount(10);
-    expect($result['pull_requests'][0])->toBe([
-        'title' => 'Change 12', 'url' => 'https://github.com/dev-null-sh/dev-null.sh/pull/12', 'author' => 'alice', 'merged_at' => '2026-10-19T00:00:12Z',
+    expect($result['commits'])->toHaveCount(10);
+    expect($result['commits'][0])->toBe([
+        'title' => 'Change 12', 'url' => 'https://github.com/dev-null-sh/dev-null.sh/pull/12', 'author' => 'alice', 'committed_at' => '2026-10-19T00:00:12Z',
     ]);
+    expect($result['commits'][1]['url'])->toBe('https://github.com/dev-null-sh/dev-null.sh/commit/sha-11');
     expect($result['definition'])->toContain('not a verified deployment time');
-    Http::assertSent(fn (Request $request): bool => $request['base'] === 'production' && $request['state'] === 'closed');
+    Http::assertSent(fn (Request $request): bool => $request['sha'] === 'production');
 });
 
 it('keeps the original freshness timestamp until the repository cache expires', function (): void {
@@ -114,7 +115,7 @@ it('does not turn GitHub failures into zero counts or cache the failure', functi
 it('reports unavailable changelogs and incomplete searches instead of claiming complete evidence', function (string $metric): void {
     Http::fake([
         'api.github.com/repos/dev-null-sh/dev-null.sh' => Http::response(['stargazers_count' => 42, 'forks_count' => 9]),
-        'api.github.com/repos/dev-null-sh/dev-null.sh/pulls*' => Http::response([], 503),
+        'api.github.com/repos/dev-null-sh/dev-null.sh/commits*' => Http::response([], 503),
         'api.github.com/search/issues*' => Http::response(['total_count' => 0, 'incomplete_results' => true]),
     ]);
 

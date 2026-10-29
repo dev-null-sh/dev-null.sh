@@ -12,8 +12,9 @@ use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Support\Facades\Cache;
 
 /**
- * @phpstan-type GitHubPullRequest array{number: int, title: string, html_url: string, merged_at: string|null, updated_at: string, merge_commit_sha: string, user: array{id: int, login: string, avatar_url: string}}
- * @phpstan-type ChangelogPullRequest array{number: int, type: string|null, breaking: bool, title: string, url: string, sha: string, commit_url: string, merged_at: string, author: array{login: string, avatar: string, handle: string|null, mention: string|null, lane: int|string|null}}
+ * @phpstan-type GitHubAccount array{id: int, login: string, avatar_url: string, type: string}
+ * @phpstan-type GitHubCommit array{sha: string, html_url: string, commit: array{message: string, committer: array{date: string}}, author: GitHubAccount|array{}|null, committer: GitHubAccount|array{}|null, parents: list<array{sha: string}>}
+ * @phpstan-type ChangelogCommit array{sha: string, type: string|null, breaking: bool, title: string, url: string, pull_request: array{number: int, url: string}|null, committed_at: string, author: array{login: string, avatar: string, handle: string|null, mention: string|null, lane: int|string|null}}
  */
 final readonly class ChangelogQuery
 {
@@ -23,7 +24,13 @@ final readonly class ChangelogQuery
 
     private const int MaxPages = 10;
 
+    private const int MaxDaysRead = 10;
+
     private const int Days = 3;
+
+    private const int TodayTtl = 1800; // 30 minutes
+
+    private const int PastTtl = 43200; // 12 hours
 
     public function __construct(private GitHub $github, private PullRequestTitles $titles)
     {
@@ -31,147 +38,230 @@ final readonly class ChangelogQuery
     }
 
     /**
-     * The pull requests merged into production on the three latest days with merges before the given moment, in the
-     * reader's time zone, newest merge first, and where to carry on from for the three days before them.
+     * The commits on production on the three latest days with commits before the given moment, in the reader's time
+     * zone, newest first, and where to carry on from for the three days before them.
      *
-     * GitHub can't list pull requests by merge date, only by when they were last updated, and a pull request is
-     * always updated when it merges. So once a page reaches pull requests last updated before a day began, every
-     * merge of that day has been seen. Pages are read until that is true of the third day, up to ten pages a time.
+     * Production's own line runs from its newest commit through each commit's first parent, so the commits of a branch
+     * merged into it are left out, and so is the merge of a branch, which says nothing of its own. The line is read a
+     * day at a time, newest day first, and a day without commits is skipped by asking for the latest commit before it.
+     * Up to ten days are read a time. Where the line goes on is kept with the moment handed back, so the next three
+     * days carry on from there instead of reading down from the newest commit again. Without it, the line is picked up
+     * at the latest commit of the day before the given moment.
      *
-     * @return array{pullRequests: list<ChangelogPullRequest>, olderBefore: string|null}|null
+     * @return array{commits: list<ChangelogCommit>, olderBefore: string|null}|null
      */
     public function get(string $timeZone, ?CarbonImmutable $before = null): ?array
     {
-        /** @var array<int, GitHubPullRequest> $merged */
-        $merged = [];
+        /** @var array<string, GitHubCommit> $loaded */
+        $loaded = [];
+        $line = [];
+        $days = [];
+        $next = $before instanceof CarbonImmutable ? Cache::get($this->resumeKey($before)) : null;
+        $next = is_string($next) ? $next : null;
 
-        for ($page = 1; $page <= self::MaxPages; $page++) {
-            $pullRequests = $this->page($page);
+        $start = ($before?->subSecond() ?? CarbonImmutable::now())->setTimezone($timeZone)->startOfDay();
 
-            if ($pullRequests === null) {
+        for ($read = 1; $read <= self::MaxDaysRead; $read++) {
+            $commits = $this->day($next ?? self::Branch, $start);
+
+            if ($commits === null) {
                 return null;
             }
 
-            foreach ($pullRequests as $pullRequest) {
-                if ($pullRequest['merged_at'] !== null && (! $before instanceof CarbonImmutable || CarbonImmutable::parse($pullRequest['merged_at'])->lessThan($before))) {
-                    $merged[$pullRequest['number']] = $pullRequest;
+            if ($commits === []) {
+                $latest = $this->read($next ?? self::Branch, $start->subSecond(), ['per_page' => 1]);
+
+                if ($latest === null) {
+                    return null;
                 }
+
+                if ($latest === []) {
+                    return $this->result($line, null);
+                }
+
+                $start = CarbonImmutable::parse($latest[0]['commit']['committer']['date'])->setTimezone($timeZone)->startOfDay();
+
+                continue;
             }
 
-            $days = $this->days($merged, $timeZone);
-            $isLastPage = count($pullRequests) < self::PerPage;
-
-            if (count($days) >= self::Days) {
-                $start = CarbonImmutable::parse($days[self::Days - 1], $timeZone)->startOfDay();
-                $oldestUpdate = $pullRequests === [] ? null : CarbonImmutable::parse($pullRequests[count($pullRequests) - 1]['updated_at']);
-
-                if ($isLastPage || $oldestUpdate?->lessThan($start)) {
-                    $hasOlder = ! $isLastPage || count($days) > self::Days;
-
-                    return $this->result(
-                        array_filter($merged, fn (array $pullRequest): bool => ! CarbonImmutable::parse((string) $pullRequest['merged_at'])->lessThan($start)),
-                        $hasOlder ? $start : null,
-                    );
-                }
-            } elseif ($isLastPage) {
-                return $this->result($merged, null);
+            foreach ($commits as $commit) {
+                $loaded[$commit['sha']] = $commit;
             }
+
+            $next ??= $commits[0]['sha'];
+
+            while ($next !== null && isset($loaded[$next])) {
+                $commit = $loaded[$next];
+                $next = $commit['parents'][0]['sha'] ?? null;
+                $committedAt = CarbonImmutable::parse($commit['commit']['committer']['date']);
+                $author = $this->author($commit);
+
+                if (($before instanceof CarbonImmutable && ! $committedAt->lessThan($before)) || $author === null || $this->isBranchMerge($commit)) {
+                    continue;
+                }
+
+                $day = $committedAt->setTimezone($timeZone)->startOfDay();
+                $days[$day->toDateString()] = $day;
+
+                if (count($days) > self::Days) {
+                    return $this->result($line, array_values($days)[self::Days - 1], $commit['sha']);
+                }
+
+                $line[] = ['commit' => $commit, 'author' => $author];
+            }
+
+            if ($next === null) {
+                return $this->result($line, null);
+            }
+
+            $start = $start->subDay();
         }
 
-        $oldest = min(array_map(fn (array $pullRequest): string => (string) $pullRequest['merged_at'], $merged) ?: [null]);
-
-        return $this->result($merged, $oldest === null ? null : CarbonImmutable::parse($oldest));
+        return $this->result($line, $start->addDay(), $next);
     }
 
     /**
-     * One page of the closed pull requests, most recently updated first. Each page is cached for half an hour, and a
-     * failed read is not cached, so the next request tries again.
+     * Production's commits made on the day that starts at the given moment, newest first, from the given commit.
      *
-     * @return list<GitHubPullRequest>|null
+     * @return list<GitHubCommit>|null
      */
-    private function page(int $page): ?array
+    private function day(string $sha, CarbonImmutable $start): ?array
+    {
+        $commits = [];
+
+        for ($page = 1; $page <= self::MaxPages; $page++) {
+            $read = $this->read($sha, $start->addDay()->subSecond(), [
+                'since' => $start->utc()->toIso8601ZuluString(),
+                'per_page' => self::PerPage,
+                'page' => $page,
+            ]);
+
+            if ($read === null) {
+                return null;
+            }
+
+            $commits = [...$commits, ...$read];
+
+            if (count($read) < self::PerPage) {
+                break;
+            }
+        }
+
+        return $commits;
+    }
+
+    /**
+     * Production's commits up to the given moment, newest first, from the given commit. A day that is still going is
+     * cached for half an hour, and one that is over for twelve hours. A failed read is not cached, so the next request
+     * tries again.
+     *
+     * @param  array<string, int|string>  $query
+     * @return list<GitHubCommit>|null
+     */
+    private function read(string $sha, CarbonImmutable $until, array $query): ?array
     {
         $repository = config()->string('services.github.repository');
+        $query = ['sha' => $sha, 'until' => $until->utc()->toIso8601ZuluString(), ...$query];
 
-        /** @var list<GitHubPullRequest>|null */
-        return Cache::remember("changelog:{$repository}:page:{$page}", 1800, function () use ($repository, $page): ?array {
+        /** @var list<GitHubCommit>|null */
+        return Cache::remember("changelog:{$repository}:commits:".http_build_query($query), $until->isFuture() ? self::TodayTtl : self::PastTtl, function () use ($repository, $query): ?array {
             try {
-                $pullRequests = $this->github->request()->get("repos/{$repository}/pulls", [
-                    'state' => 'closed',
-                    'base' => self::Branch,
-                    'sort' => 'updated',
-                    'direction' => 'desc',
-                    'per_page' => self::PerPage,
-                    'page' => $page,
-                ])->throw()->json();
+                $commits = $this->github->request()->get("repos/{$repository}/commits", $query)->throw()->json();
             } catch (HttpClientException) {
                 return null;
             }
 
-            return is_array($pullRequests) && array_is_list($pullRequests) ? $pullRequests : null;
+            return is_array($commits) && array_is_list($commits) ? $commits : null;
         });
     }
 
-    /**
-     * The days with merges in the reader's time zone, latest first.
-     *
-     * @param  array<int, GitHubPullRequest>  $merged
-     * @return list<string>
-     */
-    private function days(array $merged, string $timeZone): array
+    private function resumeKey(CarbonImmutable $before): string
     {
-        $days = array_unique(array_map(
-            fn (array $pullRequest): string => CarbonImmutable::parse((string) $pullRequest['merged_at'])->setTimezone($timeZone)->toDateString(),
-            array_values($merged),
-        ));
-
-        rsort($days);
-
-        return $days;
+        return 'changelog:'.config()->string('services.github.repository').":resume:{$before->getTimestamp()}";
     }
 
     /**
-     * Authors who are on /dev/null keep the lane they chose there, and link to their profile. They are found by their
-     * GitHub account, since a handle can change on either side.
+     * The person a commit is shown under: its author, or whoever committed it for an agent or a bot. A commit with no
+     * person on GitHub behind it is left out, and GitHub sends some of those as an empty account instead of none.
      *
-     * @param  array<int, GitHubPullRequest>  $merged
-     * @return array{pullRequests: list<ChangelogPullRequest>, olderBefore: string|null}
+     * @param  GitHubCommit  $commit
+     * @return GitHubAccount|null
      */
-    private function result(array $merged, ?CarbonImmutable $olderBefore): array
+    private function author(array $commit): ?array
     {
-        usort($merged, fn (array $a, array $b): int => strcmp((string) $b['merged_at'], (string) $a['merged_at']));
+        foreach ([$commit['author'], $commit['committer']] as $account) {
+            if (($account['type'] ?? null) === 'User' && ! in_array(mb_strtolower($account['login']), [...ContributorsQuery::Agents, 'web-flow'], true)) {
+                return $account;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  GitHubCommit  $commit
+     */
+    private function isBranchMerge(array $commit): bool
+    {
+        return count($commit['parents']) > 1 && ! str_starts_with($commit['commit']['message'], 'Merge pull request #');
+    }
+
+    /**
+     * Commits from a pull request link to it: a squash merge ends its subject with the number, and a merge commit names
+     * it, with the pull request's title underneath. Authors who are on /dev/null keep the lane they chose there, and
+     * link to their profile. They are found by their GitHub account, since a handle can change on either side.
+     *
+     * Where the line goes on from is kept with the moment handed back, for the next three days.
+     *
+     * @param  list<array{commit: GitHubCommit, author: GitHubAccount}>  $line
+     * @return array{commits: list<ChangelogCommit>, olderBefore: string|null}
+     */
+    private function result(array $line, ?CarbonImmutable $olderBefore, ?string $resumeFrom = null): array
+    {
+        $repository = config()->string('services.github.repository');
+
+        if ($olderBefore instanceof CarbonImmutable && $resumeFrom !== null) {
+            Cache::put($this->resumeKey($olderBefore), $resumeFrom, self::PastTtl);
+        }
 
         $users = User::query()
-            ->whereIn('github_id', array_unique(array_map(fn (array $pullRequest): string => (string) $pullRequest['user']['id'], $merged)))
+            ->whereIn('github_id', array_unique(array_map(fn (array $entry): string => (string) $entry['author']['id'], $line)))
             ->get()
             ->keyBy('github_id');
 
         return [
-            'pullRequests' => array_map(fn (array $pullRequest): array => [
-                'number' => $pullRequest['number'],
-                ...$this->titles->parse($pullRequest['title']),
-                'url' => $pullRequest['html_url'],
-                'sha' => $pullRequest['merge_commit_sha'],
-                'commit_url' => 'https://github.com/'.config()->string('services.github.repository').'/commit/'.$pullRequest['merge_commit_sha'],
-                'merged_at' => (string) $pullRequest['merged_at'],
-                'author' => $this->author($pullRequest['user'], $users->get((string) $pullRequest['user']['id'])),
-            ], $merged),
-            'olderBefore' => $olderBefore?->utc()->toIso8601String(),
-        ];
-    }
+            'commits' => array_map(function (array $entry) use ($repository, $users): array {
+                ['commit' => $commit, 'author' => $author] = $entry;
+                $lines = explode("\n", $commit['commit']['message']);
+                $title = $lines[0];
+                $number = null;
 
-    /**
-     * @param  array{id: int, login: string, avatar_url: string}  $author
-     * @return array{login: string, avatar: string, handle: string|null, mention: string|null, lane: int|string|null}
-     */
-    private function author(array $author, ?User $user): array
-    {
-        return [
-            'login' => $author['login'],
-            'avatar' => $author['avatar_url'],
-            'handle' => $user?->handle,
-            'mention' => $user?->mention(),
-            'lane' => $user?->lane(),
+                if (preg_match('/^Merge pull request #(\d+) /', $title, $matches) === 1) {
+                    $number = (int) $matches[1];
+                    $title = mb_trim($lines[2] ?? '') ?: $title;
+                } elseif (preg_match('/^(.+) \(#(\d+)\)$/', $title, $matches) === 1) {
+                    $title = $matches[1];
+                    $number = (int) $matches[2];
+                }
+
+                $user = $users->get((string) $author['id']);
+
+                return [
+                    'sha' => $commit['sha'],
+                    ...$this->titles->parse($title),
+                    'url' => $commit['html_url'],
+                    'pull_request' => $number === null ? null : ['number' => $number, 'url' => "https://github.com/{$repository}/pull/{$number}"],
+                    'committed_at' => $commit['commit']['committer']['date'],
+                    'author' => [
+                        'login' => $author['login'],
+                        'avatar' => $author['avatar_url'],
+                        'handle' => $user?->handle,
+                        'mention' => $user?->mention(),
+                        'lane' => $user?->lane(),
+                    ],
+                ];
+            }, $line),
+            'olderBefore' => $olderBefore?->utc()->toIso8601String(),
         ];
     }
 }
