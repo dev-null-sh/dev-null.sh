@@ -190,6 +190,34 @@ it('asks GitHub for a page at most once every thirty minutes', function (): void
     Http::assertSentCount(2);
 });
 
+it('refreshes every cached page when the asset version changes', function (): void {
+    $firstPage = array_map(fn (int $number): array => pullRequest($number, '2026-10-18T12:00:00Z'), range(101, 2));
+
+    Http::fake(['api.github.com/*' => Http::sequence()
+        ->push($firstPage)
+        ->push([pullRequest(1, '2026-10-18T12:00:00Z')])
+        ->push([pullRequest(102, '2026-10-18T13:00:00Z'), ...array_slice($firstPage, 0, 99)])
+        ->push([pullRequest(2, '2026-10-18T12:00:00Z'), pullRequest(1, '2026-10-18T12:00:00Z')])]);
+
+    config(['app.asset_url' => 'https://before-deploy.example.com']);
+    $query = resolve(ChangelogQuery::class);
+
+    expect(numbers($query->get('UTC')))->toHaveCount(101)->not->toContain(102)
+        ->and(numbers($query->get('Europe/Budapest')))->toHaveCount(101);
+
+    Http::assertSentCount(2);
+
+    config(['app.asset_url' => 'https://after-deploy.example.com']);
+
+    expect(numbers($query->get('UTC')))->toHaveCount(102)->toContain(102, 2, 1);
+
+    Http::assertSentCount(4);
+
+    $query->get('UTC');
+
+    Http::assertSentCount(4);
+});
+
 it('is null when GitHub cannot be reached, and asks again next time', function (mixed $response): void {
     Http::fake(['api.github.com/*' => Http::sequence()->pushResponse($response)->push([pullRequest(377, '2026-10-18T00:53:44Z')])]);
 

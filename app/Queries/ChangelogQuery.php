@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Queries;
 
 use App\Models\User;
+use App\Services\AssetVersion;
 use App\Services\GitHub;
 use App\Services\PullRequestTitles;
 use Carbon\CarbonImmutable;
@@ -25,7 +26,7 @@ final readonly class ChangelogQuery
 
     private const int Days = 3;
 
-    public function __construct(private GitHub $github, private PullRequestTitles $titles)
+    public function __construct(private GitHub $github, private PullRequestTitles $titles, private AssetVersion $assetVersion)
     {
         //
     }
@@ -84,17 +85,18 @@ final readonly class ChangelogQuery
     }
 
     /**
-     * One page of the closed pull requests, most recently updated first. Each page is cached for half an hour, and a
-     * failed read is not cached, so the next request tries again.
+     * One page of the closed pull requests, most recently updated first. Each page is cached for half an hour per
+     * asset version, and a failed read is not cached, so the next request tries again.
      *
      * @return list<GitHubPullRequest>|null
      */
     private function page(int $page): ?array
     {
         $repository = config()->string('services.github.repository');
+        $version = $this->assetVersion->get();
 
         /** @var list<GitHubPullRequest>|null */
-        return Cache::remember("changelog:{$repository}:page:{$page}", 1800, function () use ($repository, $page): ?array {
+        return Cache::remember("changelog:{$repository}:{$version}:page:{$page}", 1800, function () use ($repository, $page): ?array {
             try {
                 $pullRequests = $this->github->request()->get("repos/{$repository}/pulls", [
                     'state' => 'closed',
