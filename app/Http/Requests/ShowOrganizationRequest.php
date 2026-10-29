@@ -37,7 +37,8 @@ final class ShowOrganizationRequest extends FormRequest
     }
 
     /**
-     * Organizations share the "@handle" pages with users, so this is the handle no user has.
+     * Organizations share the "@handle" pages with users, so this is the handle no user has, whatever its case,
+     * the exact case first.
      */
     public function organization(): ?Profile
     {
@@ -46,7 +47,9 @@ final class ShowOrganizationRequest extends FormRequest
 
         return $this->organization ??= Profile::query()
             ->where('type', ProfileType::Organization)
-            ->where('handle', $handle)
+            ->whereRaw('LOWER(handle) = LOWER(?)', [$handle])
+            ->orderByRaw('handle = ? desc', [$handle])
+            ->orderBy('handle')
             ->first();
     }
 }

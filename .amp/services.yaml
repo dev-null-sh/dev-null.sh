@@ -1,0 +1,24 @@
+services:
+  postgres:
+    command: exec /usr/lib/postgresql/18/bin/postgres -D "$HOME/.local/share/devnull/postgres"
+    port: 5432
+  web:
+    command: >-
+      timeout 10s bash -c 'until pg_isready -q -h 127.0.0.1 -p 5432 -U root -d devnull; do sleep 0.2; done' &&
+      php artisan config:clear &&
+      APP_URL="$PUBLIC_URL" ASSET_URL="$PUBLIC_URL"
+      php artisan serve --host=0.0.0.0 --port="$PORT"
+    env:
+      APP_ENV: local
+      NIGHTWATCH_ENABLED: "false"
+      DB_URL: ""
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_DATABASE: devnull
+      DB_USERNAME: root
+      DB_PASSWORD: ""
+    health: /up
+    portal:
+      title: /dev/null
+      description: Use the existing local development sign-in. Assets are prebuilt; rerun bun run build after frontend edits.

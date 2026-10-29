@@ -21,6 +21,7 @@ declare module '@inertiajs/core' {
             submitted?: string;
             localSignIn?: boolean;
             signedUp?: boolean;
+            claimFailed?: { message: string; approvalUrl: string | null };
         };
         sharedPageProps: {
             name: string;

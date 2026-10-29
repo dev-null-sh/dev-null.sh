@@ -55,6 +55,7 @@ use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
+use App\Http\Controllers\JoinLinkController;
 use App\Http\Controllers\LinkController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
@@ -73,8 +74,10 @@ use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\OperationsEventController;
+use App\Http\Controllers\OrganizationAdminController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationMentionController;
+use App\Http\Controllers\OrganizationSitemapController;
 use App\Http\Controllers\OrgArchiveController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
@@ -130,6 +133,7 @@ use App\Http\Controllers\UserTimeoutController;
 use App\Http\Controllers\UserTimezoneController;
 use App\Http\Controllers\UserTranslationLanguageController;
 use App\Http\Middleware\PreventPostingInTimeout;
+use App\Http\Middleware\RedirectToHandleCase;
 use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\SerializePushSessions;
@@ -166,6 +170,11 @@ Route::middleware('guest')->group(function (): void {
     Route::get('auth/github/callback', [SessionController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('login.store');
+
+    // A link by email, for a guest on a phone who'd rather join from their computer...
+    Route::post('join-links', [JoinLinkController::class, 'store'])
+        ->middleware('throttle:join-links')
+        ->name('join-link.store');
 });
 
 // Log, where guests read Trending and Latest...
@@ -197,7 +206,7 @@ Route::get('mac', fn () => to_route('app.index', status: 301));
 Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.index');
 
 // Public pages, readable by guests and crawlers...
-Route::middleware(RememberIntendedUrl::class)->group(function (): void {
+Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->group(function (): void {
     // A handle no user has may be an organization's. Bindings run before the rest of the route's middleware, like
     // the one sharing the page's props, so the organization's page goes through that rest first, like any page.
     Route::get('@{user:handle}', [UserController::class, 'show'])
@@ -225,14 +234,17 @@ Route::middleware(RememberIntendedUrl::class)->group(function (): void {
         ->name('commit-photo.show');
 });
 
-// Sitemaps...
-Route::middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
+// Sitemaps, the same for everyone, so they skip the web group's session and cookies, which would keep a cache from sharing them...
+Route::withoutMiddleware('web')->middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
     Route::get('sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.index');
-    Route::get('sitemaps/users-{page}.xml', [UserSitemapController::class, 'show'])
-        ->where('page', '[1-9][0-9]*')
+    Route::get('sitemaps/users-{month}.xml', [UserSitemapController::class, 'show'])
+        ->where('month', '[0-9]{4}-[0-9]{2}')
         ->name('user-sitemap.show');
-    Route::get('sitemaps/commits-{page}.xml', [CommitSitemapController::class, 'show'])
-        ->where('page', '[1-9][0-9]*')
+    Route::get('sitemaps/organizations-{month}.xml', [OrganizationSitemapController::class, 'show'])
+        ->where('month', '[0-9]{4}-[0-9]{2}')
+        ->name('organization-sitemap.show');
+    Route::get('sitemaps/commits-{day}.xml', [CommitSitemapController::class, 'show'])
+        ->where('day', '[0-9]{4}-[0-9]{2}-[0-9]{2}')
         ->name('commit-sitemap.show');
 });
 
@@ -311,6 +323,15 @@ Route::middleware('auth')->group(function (): void {
 
     // Banned, where a banned user is sent from everywhere else...
     Route::get('banned', [BannedController::class, 'show'])->name('banned.show');
+
+    // Claiming an organization's page, which GitHub confirms the user belongs to...
+    Route::post('organizations/{organization}/claim', [OrganizationAdminController::class, 'create'])
+        ->whereUuid('organization')
+        ->middleware('throttle:10,1')
+        ->name('organization-admin.create');
+    Route::get('auth/github/callback/organizations', [OrganizationAdminController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('organization-admin.store');
 
     // Followers the viewer knows...
     Route::get('@{user:handle}/followers-you-know', [UserFollowersYouKnowController::class, 'index'])

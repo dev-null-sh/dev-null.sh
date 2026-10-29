@@ -56,6 +56,16 @@ export default function Show() {
                             </>,
                             <>
                                 <strong>
+                                    From GitHub, when you claim an
+                                    organization's page:
+                                </strong>{' '}
+                                whether you belong to that organization, asked
+                                once with your permission to read your
+                                organizations. Nothing else about them is kept,
+                                and your claim shows on the organization's page.
+                            </>,
+                            <>
+                                <strong>
                                     From Apple, when you sign in with Apple in
                                     the iOS app:
                                 </strong>{' '}
@@ -117,6 +127,18 @@ export default function Show() {
                                 <strong>From others:</strong> what other users
                                 post, say, or report about you, such as replies,
                                 quotes, and mentions.
+                            </>,
+                            <>
+                                <strong>
+                                    From the join link, if you ask for one:
+                                </strong>{' '}
+                                the email address you enter on your phone, used
+                                only to send you one email with a link back to
+                                the page you were reading. We keep a keyed hash
+                                of it for 30 days, so the same address doesn't
+                                get it twice, and don't keep the address once
+                                the email is sent, except, encrypted, in our
+                                error logs if it can't be sent.
                             </>,
                             <>
                                 <strong>Technical data:</strong> IP address,

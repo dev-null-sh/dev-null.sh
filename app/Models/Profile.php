@@ -7,12 +7,15 @@ namespace App\Models;
 use App\Enums\ProfileType;
 use Carbon\CarbonInterface;
 use Database\Factories\ProfileFactory;
+use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Attributes\Touches;
 use Illuminate\Database\Eloquent\Attributes\Visible;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\Relation;
 
 /**
  * A GitHub account at its "@handle", mirrored from GitHub: what GitHub calls a profile owner. The handle is GitHub's
@@ -88,10 +91,36 @@ final class Profile extends Model
     }
 
     /**
+     * Resolves "@handle" URLs whatever the handle's case, like GitHub. A stale profile may still hold the same handle
+     * in another case, so the exact case wins, then a user's, then always the same one, like users' pages.
+     *
+     * @param  Model|BuilderContract|Relation<Model, Model, mixed>  $query
+     * @param  mixed  $value
+     * @param  string|null  $field
+     */
+    public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
+    {
+        return $field === 'handle'
+            ? $query->whereRaw('LOWER(handle) = LOWER(?)', [$value])->orderByRaw('handle = ? desc', [$value])->orderByRaw('type = ? desc', [ProfileType::User])->orderBy('handle')
+            : parent::resolveRouteBindingQuery($query, $value, $field);
+    }
+
+    /**
      * @return HasOne<User, $this>
      */
     public function user(): HasOne
     {
         return $this->hasOne(User::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * The users who claimed the organization's page. GitHub only lets them in: leaving the organization there doesn't
+     * remove them here.
+     *
+     * @return BelongsToMany<User, $this>
+     */
+    public function admins(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'organization_admins', 'organization_id')->withTimestamps(updatedAt: false);
     }
 }
