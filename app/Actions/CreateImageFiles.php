@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Image;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 
 final readonly class CreateImageFiles
 {
@@ -46,10 +47,16 @@ final readonly class CreateImageFiles
             if ($encrypted) {
                 $path = $directory.'/'.Str::uuid7()->toString();
                 $stored = Storage::disk()->put($path, $this->encryptedFiles->encrypt($image->toBytes()));
-                assert($stored);
+
+                if (! $stored) {
+                    throw new RuntimeException('Unable to store image.');
+                }
             } else {
                 $path = $image->storeAs($directory, Str::uuid7()->toString().'.webp');
-                assert(is_string($path));
+
+                if (! is_string($path)) {
+                    throw new RuntimeException('Unable to store image.');
+                }
             }
 
             DB::afterRollBack(fn (): bool => Storage::disk()->delete($path));
