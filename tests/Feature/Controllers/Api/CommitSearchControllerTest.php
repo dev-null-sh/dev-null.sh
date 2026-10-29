@@ -31,7 +31,7 @@ it('drops the candidates the decision model calls irrelevant', function (): void
     Commit::factory()->create(['body' => 'About something else', 'embedding' => embeddingVector(1)]);
 
     $relevance = $this->mock(RelevanceProvider::class);
-    $relevance->shouldReceive('decideRelevance')->with('indexing', ['About indexing', 'About something else'])->once()->andReturn([true, false]);
+    $relevance->shouldReceive('decideRelevance')->with('indexing', ['About indexing', 'About something else'], false)->once()->andReturn([true, false]);
 
     signedApiRequest($this->keyPair, 'GET', route('api-commit-search.index', ['q' => 'indexing']))
         ->assertOk()

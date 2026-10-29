@@ -3,9 +3,10 @@
 declare(strict_types=1);
 
 use App\Services\RelevanceProviders\OpenAIRelevanceProvider;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Http\Client\Request;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 it('asks the decision model about every post, one predicate each', function (): void {
     config(['ai.providers.openai.key' => 'sk-test']);
@@ -58,8 +59,48 @@ it('asks openai nothing for nothing to judge', function (): void {
     Http::assertNothingSent();
 });
 
-it('fails when openai refuses', function (): void {
-    Http::fake(['api.openai.com/v1/decisions' => Http::response([], 500)]);
+it('keeps every candidate when optional classification is unavailable', function (int $status, bool $related): void {
+    Http::fake([
+        'api.openai.com/v1/decisions' => $status === 0
+            ? Http::failedConnection()
+            : Http::response([], $status),
+    ]);
 
-    expect(fn (): array => new OpenAIRelevanceProvider()->decideRelevance('a query', ['A post']))->toThrow(RequestException::class);
+    expect(new OpenAIRelevanceProvider()->decideRelevance('indexing', ['Database indexes', 'Search indexes'], related: $related))
+        ->toBe([true, true]);
+
+    Http::assertSentCount(1);
+})->with([429, 500, 0])->with([false, true]);
+
+it('gives optional classification a short deadline', function (): void {
+    Http::fake([
+        'api.openai.com/v1/decisions' => function (Request $request, array $options): PromiseInterface {
+            expect($options['timeout'])->toBe(2)
+                ->and($options['connect_timeout'])->toBe(1);
+
+            return Http::response(['answers' => [
+                ['type' => 'predicate', 'name' => 'post_1', 'probability' => 0.9],
+                ['type' => 'predicate', 'name' => 'post_2', 'probability' => 0.1],
+            ]]);
+        },
+    ]);
+
+    expect(new OpenAIRelevanceProvider()->decideRelevance('indexing', ['Database indexes', 'A dog photo']))
+        ->toBe([true, false]);
 });
+
+it('warns about classifier timeouts without logging content or mislabelling other connection failures', function (int $errno, bool $related): void {
+    Log::spy();
+    Http::fake([
+        'api.openai.com/v1/decisions' => Http::failedConnection('cURL error '.$errno.': Provider error with private content'),
+    ]);
+
+    expect(new OpenAIRelevanceProvider()->decideRelevance('Private query', ['Private candidate'], related: $related))
+        ->toBe([true]);
+
+    if ($errno === 28) {
+        Log::shouldHaveReceived('warning')->once()->with('Commit relevance classifier timed out.', ['related' => $related, 'timeout_seconds' => 2]);
+    } else {
+        Log::shouldNotHaveReceived('warning');
+    }
+})->with([28, 6])->with([false, true]);

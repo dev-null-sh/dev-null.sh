@@ -274,7 +274,9 @@ Sources: [reply validation](app/Http/Requests/CreateCommitReplyRequest.php), [co
 
 ### Related commits
 
-Under a commit, /dev/null shows up to three top-level commits from other threads using the same semantic search and AI relevance check as commit search. Suggestions respect visibility, blocks, and mutes; authors can see their own pending commits. When no candidates pass the relevance check, nothing shows.
+Under a commit, /dev/null shows up to three top-level commits from other threads using the same semantic search and AI relevance check as commit search. Semantic similarity finds candidates; the relevance check looks for a concrete connection between their subjects. Similar reactions or sentiment alone do not make commits related, while different approaches and opposing opinions about connected subjects can qualify. Generic reactions without an identifiable subject are not evidence of relatedness. Suggestions respect visibility, blocks, and mutes; authors can see their own pending commits. When no candidates pass the relevance check, nothing shows.
+
+For both commit search and related commits, the AI relevance check is best-effort. If it is unavailable or takes too long, semantic matches are returned without that extra filtering; visibility, blocks, and mutes still apply.
 
 Sources: [related commits query](app/Queries/RelatedCommitsQuery.php), [related commits rail](resources/js/components/related-commits.tsx).
 

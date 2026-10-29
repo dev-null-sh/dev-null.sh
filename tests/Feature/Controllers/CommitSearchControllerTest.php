@@ -25,7 +25,7 @@ it('returns the commits matching the query, to guests too, with what the card re
 
 it('drops the candidates the decision model calls irrelevant', function (): void {
     $relevance = $this->mock(RelevanceProvider::class);
-    $relevance->shouldReceive('decideRelevance')->with('indexing', ['About indexing', 'About something else'])->once()->andReturn([true, false]);
+    $relevance->shouldReceive('decideRelevance')->with('indexing', ['About indexing', 'About something else'], false)->once()->andReturn([true, false]);
 
     $relevant = Commit::factory()->create(['body' => 'About indexing', 'embedding' => embeddingVector(0)]);
     Commit::factory()->create(['body' => 'About something else', 'embedding' => embeddingVector(1)]);

@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace App\Services\RelevanceProviders;
 
 use App\Contracts\Services\RelevanceProvider;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 final readonly class OpenAIRelevanceProvider implements RelevanceProvider
 {
@@ -30,16 +33,29 @@ final readonly class OpenAIRelevanceProvider implements RelevanceProvider
         Answer with one boolean per post, in the same order.
         TEXT;
 
+    private const string RELATED_COMMIT_INSTRUCTIONS = <<<'TEXT'
+        You select related commits to show beneath an original commit on devnull, a social network for developers.
+        The candidates came from a semantic similarity search, but similarity does not establish relatedness.
+        Classify each candidate by whether its actual subject has a meaningful connection to the original commit's
+        subject. Related discussions, complementary experiences, different approaches and opposing opinions can qualify.
+        Similar sentiment, tone, reactions or conversational intent do not establish a shared subject. For example,
+        "that's so cool!" about a dog photo is not related to "that's cool!" about a devnull feature announcement.
+        Generic reactions without an identifiable subject are not evidence of relatedness: do not invent missing
+        context. A candidate must offer a concrete connection to what the original is about, not merely sound similar.
+        Answer with one boolean per candidate, in the same order.
+        TEXT;
+
     /**
      * Whether each body is meaningfully related to the query, in the order they were given. The vector search returns
      * the nearest by meaning, which can include posts that merely share a word; the decision model filters those out
      * while keeping plausible connections. Anything but a clear answer, such as a refusal, a post the model
      * skipped, or a probability that can't be read, counts as relevant, so a flaky model never hides a post.
+     * Classification is optional: timeouts and HTTP failures keep every candidate.
      *
      * @param  list<string>  $bodies
      * @return list<bool>
      */
-    public function decideRelevance(string $query, array $bodies): array
+    public function decideRelevance(string $query, array $bodies, bool $related = false): array
     {
         if ($bodies === []) {
             return [];
@@ -51,19 +67,31 @@ final readonly class OpenAIRelevanceProvider implements RelevanceProvider
             $questions[] = [
                 'name' => 'post_'.($index + 1),
                 'type' => 'predicate',
-                'instructions' => 'Does post '.($index + 1).' have a meaningful connection to the query, even if it only covers part of the topic or does not directly answer it?',
+                'instructions' => $related
+                    ? 'Does the actual subject of post '.($index + 1)." have a concrete connection to the original commit's subject, rather than merely expressing a similar reaction, sentiment or conversational intent?"
+                    : 'Does post '.($index + 1).' have a meaningful connection to the query, even if it only covers part of the topic or does not directly answer it?',
             ];
         }
 
-        $response = $this->request()
-            ->timeout(60)
-            ->post('decisions', [
-                'model' => self::DECISION_MODEL,
-                'input' => self::RELEVANCE_INSTRUCTIONS."\n\n".$this->relevancePrompt($query, $bodies),
-                'questions' => $questions,
-            ])
-            ->throw()
-            ->json();
+        try {
+            $response = $this->request()
+                ->connectTimeout(1)
+                ->timeout(2)
+                ->post('decisions', [
+                    'model' => self::DECISION_MODEL,
+                    'input' => ($related ? self::RELATED_COMMIT_INSTRUCTIONS : self::RELEVANCE_INSTRUCTIONS)
+                        ."\n\n".$this->relevancePrompt($query, $bodies, $related),
+                    'questions' => $questions,
+                ])
+                ->throw()
+                ->json();
+        } catch (ConnectionException|RequestException $exception) {
+            if ($exception instanceof ConnectionException && str_contains($exception->getMessage(), 'cURL error 28:')) {
+                Log::warning('Commit relevance classifier timed out.', ['related' => $related, 'timeout_seconds' => 2]);
+            }
+
+            return array_fill(0, count($bodies), true);
+        }
 
         return $this->relevanceVerdicts($response, count($bodies));
     }
@@ -71,7 +99,7 @@ final readonly class OpenAIRelevanceProvider implements RelevanceProvider
     /**
      * @param  list<string>  $bodies
      */
-    private function relevancePrompt(string $query, array $bodies): string
+    private function relevancePrompt(string $query, array $bodies, bool $related): string
     {
         $posts = [];
 
@@ -79,7 +107,7 @@ final readonly class OpenAIRelevanceProvider implements RelevanceProvider
             $posts[] = ($index + 1).'. '.$body;
         }
 
-        return "Query: {$query}\n\nPosts:\n".implode("\n", $posts);
+        return ($related ? 'Original commit' : 'Query').": {$query}\n\nPosts:\n".implode("\n", $posts);
     }
 
     /**

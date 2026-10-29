@@ -24,7 +24,7 @@ it('returns the commits nearest in meaning, closest first', function (): void {
 it('reads the term against the candidates with the decision model, keeping only the relevant ones', function (): void {
     $relevance = $this->mock(RelevanceProvider::class);
     $relevance->shouldReceive('decideRelevance')
-        ->with('indexing strategies', ['About indexing', 'About something else'])
+        ->with('indexing strategies', ['About indexing', 'About something else'], false)
         ->once()
         ->andReturn([true, false]);
 

@@ -76,7 +76,7 @@ final readonly class CommitSearchQuery
                 ->toBase();
         });
 
-        return $this->onlyRelevant($term, $candidates);
+        return $this->onlyRelevant($term, $candidates, related: $source instanceof Commit);
     }
 
     /**
@@ -110,13 +110,13 @@ final readonly class CommitSearchQuery
      * @param  Collection<int, Commit>  $candidates
      * @return Collection<int, Commit>
      */
-    private function onlyRelevant(string $term, Collection $candidates): Collection
+    private function onlyRelevant(string $term, Collection $candidates, bool $related): Collection
     {
         if ($candidates->isEmpty()) {
             return $candidates;
         }
 
-        $relevant = $this->relevance->decideRelevance($term, array_values($candidates->map(fn (Commit $commit): string => $commit->body)->all()));
+        $relevant = $this->relevance->decideRelevance($term, array_values($candidates->map(fn (Commit $commit): string => $commit->body)->all()), related: $related);
 
         return $candidates
             ->filter(fn (Commit $commit, int $index): bool => $relevant[$index] ?? true)
