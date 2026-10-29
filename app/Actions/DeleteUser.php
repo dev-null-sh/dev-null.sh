@@ -20,7 +20,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteUser
 {
@@ -38,7 +37,7 @@ final readonly class DeleteUser
      */
     public function handle(User $user): void
     {
-        $imagePaths = DB::transaction(function () use ($user): array {
+        DB::transaction(function () use ($user): void {
             User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
 
             $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
@@ -55,6 +54,7 @@ final readonly class DeleteUser
 
             // Report creation holds shared reporter and commit locks until its attachment paths are saved.
             $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
+            resolve(DeleteStoredFiles::class)->retain($imagePaths);
 
             DB::table('commit_topics')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
             $user->commits()->withTrashed()->topLevel()->forceDelete();
@@ -76,11 +76,7 @@ final readonly class DeleteUser
             foreach ($translationKeys as $key) {
                 Cache::forget($key);
             }
-
-            return $imagePaths;
         });
-
-        Storage::disk()->delete($imagePaths);
     }
 
     /**

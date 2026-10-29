@@ -9,8 +9,6 @@ use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 final readonly class DeleteOrgs
 {
@@ -29,8 +27,8 @@ final readonly class DeleteOrgs
             ...MessageVoice::query()->whereIn('message_id', $messageIds)->get(['path'])->map(fn (MessageVoice $voice): string => $voice->path),
         ];
 
-        $orgs->delete();
+        resolve(DeleteStoredFiles::class)->retain($paths);
 
-        DB::afterCommit(fn (): bool => Storage::disk()->delete($paths));
+        $orgs->delete();
     }
 }
