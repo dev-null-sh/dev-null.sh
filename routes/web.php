@@ -76,6 +76,7 @@ use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\OperationsEventController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationMentionController;
+use App\Http\Controllers\OrganizationSitemapController;
 use App\Http\Controllers\OrgArchiveController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
@@ -237,6 +238,9 @@ Route::withoutMiddleware('web')->middleware('cache.headers:public;max_age=3600;e
     Route::get('sitemaps/users-{month}.xml', [UserSitemapController::class, 'show'])
         ->where('month', '[0-9]{4}-[0-9]{2}')
         ->name('user-sitemap.show');
+    Route::get('sitemaps/organizations-{month}.xml', [OrganizationSitemapController::class, 'show'])
+        ->where('month', '[0-9]{4}-[0-9]{2}')
+        ->name('organization-sitemap.show');
     Route::get('sitemaps/commits-{day}.xml', [CommitSitemapController::class, 'show'])
         ->where('day', '[0-9]{4}-[0-9]{2}-[0-9]{2}')
         ->name('commit-sitemap.show');

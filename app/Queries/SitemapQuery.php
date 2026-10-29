@@ -4,16 +4,19 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Enums\ProfileType;
+use App\Enums\TopicType;
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Profiles are listed by the month they signed up and commits by the day they were written, in UTC, so a URL never
- * moves to another sitemap and the older sitemaps rarely change. A sitemap may list 50,000 URLs, far more than a month
- * of sign-ups or a day of commits.
+ * Profiles are listed by the month they signed up, organizations by the month their page was made, and commits by the
+ * day they were written, in UTC, so a URL never moves to another sitemap and the older sitemaps rarely change. A
+ * sitemap may list 50,000 URLs, far more than a month of sign-ups or a day of commits.
  */
 final readonly class SitemapQuery
 {
@@ -28,6 +31,29 @@ final readonly class SitemapQuery
         /** @var list<object{month: string, updated_at: string}> $months */
         $months = DB::query()
             ->fromSub($this->users(), 'users')
+            ->selectRaw("to_char(created_at, 'YYYY-MM') as month, max(updated_at) as updated_at")
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->all();
+
+        return array_map(fn (object $month): array => [
+            'month' => $month->month,
+            'updated_at' => CarbonImmutable::parse($month->updated_at),
+        ], $months);
+    }
+
+    /**
+     * The months, as "2026-10", in which the organizations' pages were made, oldest first, with when the last of them
+     * changed.
+     *
+     * @return list<array{month: string, updated_at: CarbonImmutable}>
+     */
+    public function organizationMonths(): array
+    {
+        /** @var list<object{month: string, updated_at: string}> $months */
+        $months = DB::query()
+            ->fromSub($this->organizations(), 'organizations')
             ->selectRaw("to_char(created_at, 'YYYY-MM') as month, max(updated_at) as updated_at")
             ->groupBy('month')
             ->orderBy('month')
@@ -68,6 +94,11 @@ final readonly class SitemapQuery
         return $this->usersSignedUpIn($month)->exists();
     }
 
+    public function hasOrganizationsIn(CarbonImmutable $month): bool
+    {
+        return $this->organizationsMadeIn($month)->exists();
+    }
+
     public function hasCommitsOn(CarbonImmutable $day): bool
     {
         return $this->commitsWrittenOn($day)->exists();
@@ -91,6 +122,26 @@ final readonly class SitemapQuery
             'handle' => $user->handle,
             'updated_at' => CarbonImmutable::parse($user->updated_at),
         ], $users);
+    }
+
+    /**
+     * Read as plain rows rather than models, like the profiles.
+     *
+     * @return list<array{handle: string, updated_at: CarbonImmutable}>
+     */
+    public function organizationsIn(CarbonImmutable $month): array
+    {
+        /** @var list<object{handle: string, updated_at: string}> $organizations */
+        $organizations = $this->organizationsMadeIn($month)
+            ->orderBy('profiles.id')
+            ->toBase()
+            ->get()
+            ->all();
+
+        return array_map(fn (object $organization): array => [
+            'handle' => $organization->handle,
+            'updated_at' => CarbonImmutable::parse($organization->updated_at),
+        ], $organizations);
     }
 
     /**
@@ -161,6 +212,41 @@ final readonly class SitemapQuery
         return $this->users()
             ->where('users.created_at', '>=', $month)
             ->where('users.created_at', '<', $month->addMonth());
+    }
+
+    /**
+     * Every organization has a page, but not the placeholder handle of a profile whose handle was taken on GitHub,
+     * which its next sync replaces. An organization's page changes with its GitHub profile and the approved commits
+     * that mention it.
+     *
+     * @return Builder<Profile>
+     */
+    private function organizations(): Builder
+    {
+        $lastMentions = $this->commits()
+            ->toBase()
+            ->join('commit_topics', 'commit_topics.commit_id', '=', 'commits.id')
+            ->where('commit_topics.topic_type', TopicType::Organization)
+            ->select('commit_topics.topic_id')
+            ->selectRaw('max(commits.updated_at) as updated_at')
+            ->groupBy('commit_topics.topic_id');
+
+        return Profile::query()
+            ->leftJoinSub($lastMentions, 'last_mentions', 'last_mentions.topic_id', '=', 'profiles.id')
+            ->where('profiles.type', ProfileType::Organization)
+            ->where('profiles.handle', 'not like', '\_%')
+            ->select(['profiles.handle', 'profiles.created_at'])
+            ->selectRaw('greatest(profiles.updated_at, last_mentions.updated_at) as updated_at');
+    }
+
+    /**
+     * @return Builder<Profile>
+     */
+    private function organizationsMadeIn(CarbonImmutable $month): Builder
+    {
+        return $this->organizations()
+            ->where('profiles.created_at', '>=', $month)
+            ->where('profiles.created_at', '<', $month->addMonth());
     }
 
     private function commits(): CommitBuilder

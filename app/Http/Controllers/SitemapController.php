@@ -17,6 +17,10 @@ final readonly class SitemapController
                     'loc' => route('user-sitemap.show', $month['month']),
                     'lastmod' => $month['updated_at']->toAtomString(),
                 ], $sitemaps->userMonths()),
+                ...array_map(fn (array $month): array => [
+                    'loc' => route('organization-sitemap.show', $month['month']),
+                    'lastmod' => $month['updated_at']->toAtomString(),
+                ], $sitemaps->organizationMonths()),
                 ...array_map(fn (array $day): array => [
                     'loc' => route('commit-sitemap.show', $day['day']),
                     'lastmod' => $day['updated_at']->toAtomString(),

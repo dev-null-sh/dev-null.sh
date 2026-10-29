@@ -3,9 +3,11 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 
-it('lists a sitemap for every month of sign-ups and every day of commits', function (): void {
+it('lists a sitemap for every month of sign-ups, every month of organizations and every day of commits', function (): void {
+    Profile::factory()->organization()->create(['created_at' => '2026-08-15 00:00:00']);
     $user = User::factory()->create(['created_at' => '2026-09-30 23:59:59']);
     Commit::factory()->for($user)->create(['created_at' => '2026-10-15 08:00:00']);
     Commit::factory()->for($user)->create(['created_at' => '2026-10-15 23:59:59']);
@@ -19,11 +21,12 @@ it('lists a sitemap for every month of sign-ups and every day of commits', funct
         ->assertSeeInOrder([
             '<loc>'.route('user-sitemap.show', '2026-09').'</loc>',
             '<loc>'.route('user-sitemap.show', now()->format('Y-m')).'</loc>',
+            '<loc>'.route('organization-sitemap.show', '2026-08').'</loc>',
             '<loc>'.route('commit-sitemap.show', '2026-10-15').'</loc>',
             '<loc>'.route('commit-sitemap.show', '2026-10-29').'</loc>',
         ], false);
 
-    expect(mb_substr_count($response->getContent(), '<sitemap>'))->toBe(4);
+    expect(mb_substr_count($response->getContent(), '<sitemap>'))->toBe(5);
 })->freezeTime();
 
 it('leaves out the days and months with nothing approved', function (): void {
@@ -39,17 +42,18 @@ it('leaves out the days and months with nothing approved', function (): void {
 
 it('serves every sitemap without cookies, so a cache can share it', function (string $route): void {
     Commit::factory()->create();
+    Profile::factory()->organization()->create();
 
     $response = $this->get(route($route, match ($route) {
         'sitemap.index' => [],
-        'user-sitemap.show' => now()->format('Y-m'),
+        'user-sitemap.show', 'organization-sitemap.show' => now()->format('Y-m'),
         'commit-sitemap.show' => now()->toDateString(),
     }));
 
     $response->assertOk()
         ->assertHeader('Cache-Control', 'max-age=3600, public')
         ->assertHeaderMissing('Set-Cookie');
-})->with(['sitemap.index', 'user-sitemap.show', 'commit-sitemap.show'])->freezeTime();
+})->with(['sitemap.index', 'user-sitemap.show', 'organization-sitemap.show', 'commit-sitemap.show'])->freezeTime();
 
 it('dates every sitemap by the last change of what it lists', function (): void {
     $this->travelTo('2026-10-01 00:00:00');
