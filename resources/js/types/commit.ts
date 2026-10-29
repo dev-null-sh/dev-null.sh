@@ -1,3 +1,4 @@
+import type { GifProviderId } from '@/lib/gif-providers';
 import type { User } from '@/types/auth';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
@@ -45,6 +46,17 @@ export type CommitImage = {
     width: number;
     height: number;
     description: string | null;
+};
+
+export type CommitGif = {
+    provider: GifProviderId;
+    id: string;
+    url: string;
+    page_url: string;
+    title: string | null;
+    username: string | null;
+    width: number;
+    height: number;
 };
 
 export type BodySegment =
@@ -101,6 +113,7 @@ export type Commit = {
     quoted_commit_id: string | null;
     quoted_commit?: QuotedCommit | DeletedCommit | null;
     images?: CommitImage[];
+    gif?: CommitGif | null;
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;
     ai_categories?: string[] | null;
 };

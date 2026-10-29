@@ -211,3 +211,16 @@ it('serves an empty feed for users without public commits', function (): void {
 it('returns not found for unknown handles', function (): void {
     $this->get('/@missing/feed.atom')->assertNotFound();
 });
+
+it('lists an attached gif as an enclosure', function (): void {
+    $user = User::factory()->create();
+    Commit::factory()->for($user)->withGif()->create();
+
+    $response = $this->get(route('user-feed.show', $user));
+
+    $response->assertOk();
+    expect($response->getContent())
+        ->toContain('rel="enclosure"')
+        ->toContain('type="image/gif"')
+        ->toContain('https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc123');
+});

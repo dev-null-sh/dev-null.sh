@@ -43,6 +43,7 @@ it('shows an approved commit to anyone', function (): void {
             'replies_count' => 0,
             'link_preview' => null,
             'images' => [],
+            'gif' => null,
             'author' => [
                 'id' => $user->id,
                 'handle' => 'octocat',
@@ -203,6 +204,25 @@ it('limits each address to 60 requests a minute', function (): void {
     $this->getJson(route('api-commit.show', $commit), ['REMOTE_ADDR' => '10.0.0.2'])->assertOk();
 });
 
+it('includes the gif of a commit', function (): void {
+    $commit = Commit::factory()->withGif()->create();
+
+    $this->getJson("/api/v1/commits/{$commit->id}")
+        ->assertOk()
+        ->assertJsonPath('data.gif.provider', 'giphy')
+        ->assertJsonPath('data.gif.id', 'xT9IgzoKnwFNmISR8I')
+        ->assertJsonPath('data.gif.url', 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc123')
+        ->assertJsonPath('data.gif.width', 480);
+});
+
+it('includes a null gif for a plain commit', function (): void {
+    $commit = Commit::factory()->create();
+
+    $this->getJson("/api/v1/commits/{$commit->id}")
+        ->assertOk()
+        ->assertJsonPath('data.gif', null);
+});
+
 it('shows a signed request the commit as its page shows it to its user', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
     $keyPair = apiKeyPairFor($user);
@@ -251,6 +271,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'images' => [
                     ['id' => $image->id, 'width' => 1200, 'height' => 800, 'description' => null, 'url' => route('commit-image.show', $image)],
                 ],
+                'gif' => null,
                 'author' => $author($user),
                 'body_segments' => [
                     ['type' => 'text', 'text' => 'Ask @nunomaduro about '],
@@ -277,6 +298,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'stars_count' => 0,
                 'link_preview' => null,
                 'images' => [],
+                'gif' => null,
                 'author' => $author($root->user),
                 'body_segments' => [['type' => 'text', 'text' => 'Who broke prod?']],
                 'preview_segments' => null,

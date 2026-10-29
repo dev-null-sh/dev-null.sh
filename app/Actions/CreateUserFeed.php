@@ -71,6 +71,10 @@ final readonly class CreateUserFeed
             $this->link($xml, 'enclosure', $image->url(), 'image/webp');
         }
 
+        if ($commit->gif !== null) {
+            $this->link($xml, 'enclosure', $commit->gif->url, 'image/gif');
+        }
+
         $xml->writeElement('published', $commit->created_at->toAtomString());
         $xml->writeElement('updated', $commit->created_at->toAtomString());
 

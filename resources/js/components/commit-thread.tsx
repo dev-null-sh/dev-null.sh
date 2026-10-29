@@ -22,12 +22,13 @@ import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyCon
 import { ActionTooltip } from '@/components/action-tooltip';
 import { BodyCounter } from '@/components/body-counter';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { CommitGif, GifAttachmentPreview } from '@/components/commit-gif';
 import {
     ImageDropOverlay,
-    ImagePickerButton,
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
+import { ComposerMediaButton } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
@@ -84,6 +85,9 @@ import {
     minBodyLength,
 } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
+import { useGifProviderKey } from '@/lib/gif-provider-key';
+import { gifFormFields, toCommitGif } from '@/lib/gif-providers';
+import type { GifProviderId } from '@/lib/gif-providers';
 import { hasModKey } from '@/lib/keyboard';
 import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
 import {
@@ -1343,15 +1347,19 @@ function ReplyComposer({
     onReplied: (parent: RepliedParent) => void;
 }) {
     const { user } = useUser();
+    const gifKey = useGifProviderKey(user.id);
+    const [gifOpen, setGifOpen] = useState(false);
     const commitNotFound = useCommitNotFound();
     const {
         body,
         images,
         descriptions,
+        gif,
         isRestored,
         key: stashKey,
         updateBody,
         updateImages,
+        updateGif,
         drop,
     } = useStash(user.id, `reply-${parent.id}`);
     const attachments = useImageAttachments(
@@ -1369,6 +1377,14 @@ function ReplyComposer({
             image_descriptions: string[];
             link_preview_url?: string;
             commit_rules_accepted?: boolean;
+            gif_provider?: GifProviderId;
+            gif_id?: string;
+            gif_url?: string;
+            gif_page_url?: string;
+            gif_title?: string;
+            gif_username?: string;
+            gif_width?: number;
+            gif_height?: number;
         },
         CreatedReply
     >({
@@ -1386,6 +1402,12 @@ function ReplyComposer({
         textareaRef,
         isSubmittable: isReplyable,
     });
+
+    useEffect(() => {
+        if (attachments.images.length > 0 && gif !== null) {
+            updateGif(null);
+        }
+    }, [attachments.images.length, gif, updateGif]);
 
     const returnFocusToCommit = () => {
         const commit =
@@ -1433,8 +1455,9 @@ function ReplyComposer({
 
         request.setData(() => ({
             body,
-            images,
-            image_descriptions: descriptions,
+            images: gif === null ? images : [],
+            image_descriptions: gif === null ? descriptions : [],
+            ...(gif !== null ? gifFormFields(gif) : {}),
             commit_rules_accepted: commitRules.hasAccepted(),
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
@@ -1514,6 +1537,9 @@ function ReplyComposer({
                     />
                 )}
             </div>
+            {preview.isPreviewing && gif !== null && (
+                <CommitGif gif={toCommitGif(gif)} />
+            )}
             <InputError
                 message={errors.body ?? errors.link_preview_url}
                 className="px-1"
@@ -1526,6 +1552,12 @@ function ReplyComposer({
                     onRemove={attachments.remove}
                 />
             )}
+            {!preview.isPreviewing && (
+                <GifAttachmentPreview
+                    gif={gif}
+                    onRemove={() => updateGif(null)}
+                />
+            )}
             <CommitRulesDialog rules={commitRules} textarea={textareaRef} />
             <InputError
                 message={attachments.error ?? imageErrorFrom(errors)}
@@ -1533,11 +1565,22 @@ function ReplyComposer({
             />
             <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                 <div className="mr-auto flex min-w-0 items-center gap-2">
-                    <ImagePickerButton
+                    <ComposerMediaButton
+                        gifKey={gifKey}
+                        gifOpen={gifOpen}
+                        onGifOpenChange={setGifOpen}
+                        hasGif={gif !== null}
                         count={images.length}
                         disabled={processing}
                         reading={attachments.reading}
-                        onPick={attachments.pick}
+                        onPickImages={(files) => {
+                            updateGif(null);
+                            return attachments.pick(files);
+                        }}
+                        onPickGif={(picked) => {
+                            attachments.clear();
+                            updateGif(picked);
+                        }}
                         className="size-8"
                     />
                     <PreviewToggle preview={preview} className="-ml-2 size-8" />

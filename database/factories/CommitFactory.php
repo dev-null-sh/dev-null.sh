@@ -6,6 +6,7 @@ namespace Database\Factories;
 
 use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
+use App\Enums\GifProvider;
 use App\Models\Commit;
 use App\Models\User;
 use App\Services\TheAlgorithm;
@@ -57,5 +58,33 @@ final class CommitFactory extends Factory
         return $this->state(fn (array $attributes): array => [
             'status' => CommitStatus::Rejected,
         ]);
+    }
+
+    public function withGif(GifProvider $provider = GifProvider::Giphy): self
+    {
+        $gif = match ($provider) {
+            GifProvider::Giphy => [
+                'provider_gif_id' => 'xT9IgzoKnwFNmISR8I',
+                'url' => 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc123',
+                'page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+                'title' => 'Deal With It GIF',
+                'username' => 'giphy',
+                'width' => 480,
+                'height' => 270,
+            ],
+            GifProvider::Klipy => [
+                'provider_gif_id' => 'hello-hi-662',
+                'url' => 'https://static.klipy.com/ii/935d7ab9/kLipy.gif',
+                'page_url' => 'https://klipy.com/gifs/hello-hi-662',
+                'title' => 'Hello',
+                'username' => null,
+                'width' => 498,
+                'height' => 498,
+            ],
+        };
+
+        return $this->afterCreating(function (Commit $commit) use ($provider, $gif): void {
+            $commit->gif()->create(['provider' => $provider->value, ...$gif]);
+        });
     }
 }

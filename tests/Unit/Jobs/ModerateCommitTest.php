@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Enums\GifProvider;
 use App\Enums\NotificationType;
 use App\Exceptions\CommitProcessingFailed;
 use App\Jobs\ModerateCommit;
@@ -23,6 +24,11 @@ use Illuminate\Support\Facades\Storage;
 beforeEach(function (): void {
     config(['ai.providers.openai.key' => 'sk-test']);
 });
+
+function tinyGif(): string
+{
+    return base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
+}
 
 /**
  * @param  list<string>  $flagged
@@ -411,6 +417,36 @@ it('throws when the ai is unavailable, so the job is retried', function (): void
             ->and($exception->getCode())->toBe(503)
             ->and($exception->getPrevious())->toBeNull();
     })->and($commit->refresh())->ai_decision->toBeNull()->status->toBe(CommitStatus::Pending);
+});
+
+it('moderates an attached giphy gif by its first frame', function (): void {
+    Http::fake([
+        'media2.giphy.com/*' => Http::response(tinyGif()),
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $commit = Commit::factory()->pending()->withGif()->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'moderations')
+        && str_contains($request->body(), 'data:image'));
+});
+
+it('moderates an attached klipy gif by its first frame', function (): void {
+    Http::fake([
+        'static.klipy.com/*' => Http::response(tinyGif()),
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
+
+    $commit = Commit::factory()->pending()->withGif(GifProvider::Klipy)->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'moderations')
+        && str_contains($request->body(), 'data:image'));
 });
 
 it('keeps unavailable moderation pending and recovers on a later queued attempt', function (bool $recovers): void {

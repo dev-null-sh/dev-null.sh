@@ -53,6 +53,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string|null $continuation_id
  * @property-read LinkPreview|null $linkPreview
  * @property-read Poll|null $poll
+ * @property-read CommitGif|null $gif
  * @property-read Commit|null $quotedCommit
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
@@ -148,7 +149,7 @@ final class Commit extends Model
             $this->segments = resolve(CommitBodies::class)->segments($this->body);
         }
 
-        return [...parent::toArray(), ...$this->segments, 'is_checking' => $this->isBeingChecked()];
+        return [...parent::toArray(), 'gif' => $this->gif?->toPayload(), ...$this->segments, 'is_checking' => $this->isBeingChecked()];
     }
 
     /**
@@ -249,6 +250,14 @@ final class Commit extends Model
     public function poll(): HasOne
     {
         return $this->hasOne(Poll::class);
+    }
+
+    /**
+     * @return HasOne<CommitGif, $this>
+     */
+    public function gif(): HasOne
+    {
+        return $this->hasOne(CommitGif::class);
     }
 
     /**

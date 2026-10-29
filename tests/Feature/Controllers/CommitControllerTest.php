@@ -1040,6 +1040,31 @@ it('previews the images of a commit before its drawn card', function (): void {
         ->and(mb_strpos($content, $second->url()))->toBeLessThan(mb_strpos($content, route('commit-open-graph-image.show', [$user, $commit])));
 });
 
+it('uses the attached gif as an open graph image', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat', 'name' => 'The Octocat']);
+    $commit = Commit::factory()->for($user)->withGif()->create(['body' => 'Deal with it']);
+
+    $content = (string) $this->get(route('commit.show', [$user, $commit]))->assertOk()->getContent();
+
+    expect($content)
+        ->toContain('<meta property="og:image" content="https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc123">
+                <meta property="og:image:type" content="image/gif">
+                <meta property="og:image:width" content="480">
+                <meta property="og:image:height" content="270">
+                <meta property="og:image:alt" content="Deal With It GIF">')
+        ->toContain('<meta name="twitter:image" content="https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc123">')
+        ->toContain('"image":["https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc123","'.route('commit-open-graph-image.show', [$user, $commit]).'?v=')
+        ->and(mb_strpos($content, 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc123'))->toBeLessThan(mb_strpos($content, route('commit-open-graph-image.show', [$user, $commit])));
+});
+
+it('does not use a gif as an open graph image without an attached gif', function (): void {
+    $commit = Commit::factory()->create();
+
+    $content = (string) $this->get(route('commit.show', [$commit->user, $commit]))->assertOk()->getContent();
+
+    expect($content)->not->toContain('image/gif');
+});
+
 it('previews the drawn card of a commit without images', function (): void {
     $commit = Commit::factory()->create();
 
@@ -1497,4 +1522,193 @@ it('includes the images of a commit, its ancestors and its replies', function ()
             ->has('ancestors.0.images', 1)
             ->has('replies.data.0.images', 1)
             ->missing('commit.images.0.path'));
+});
+
+it('may attach a giphy gif to a commit', function (): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Shipping it',
+        'gif_provider' => 'giphy',
+        'gif_id' => 'xT9IgzoKnwFNmISR8I',
+        'gif_url' => 'https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/giphy-downsized-medium.gif?cid=abc123&rid=giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+        'gif_title' => 'Deal With It GIF',
+        'gif_username' => 'giphy',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    $commit = $user->commits()->sole();
+    expect($commit->gif?->provider_gif_id)->toBe('xT9IgzoKnwFNmISR8I')
+        ->and($commit->gif?->url)->toBe('https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjEx/giphy-downsized-medium.gif?cid=abc123&rid=giphy.gif')
+        ->and($commit->gif?->width)->toBe(480);
+});
+
+it('accepts a klipy gif', function (): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Klipy time',
+        'gif_provider' => 'klipy',
+        'gif_id' => 'hello-hi-662',
+        'gif_url' => 'https://static.klipy.com/ii/935d7ab9/8GCrVAB7.gif',
+        'gif_page_url' => 'https://klipy.com/gifs/hello-hi-662',
+        'gif_width' => 498,
+        'gif_height' => 498,
+    ]);
+
+    $response->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->gif?->provider->value)->toBe('klipy');
+});
+
+it('rejects a gif url from another provider', function (): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->postJson(route('commit.store'), [
+        'body' => 'Mismatch',
+        'gif_provider' => 'klipy',
+        'gif_id' => 'abc123',
+        'gif_url' => 'https://media2.giphy.com/media/abc123/giphy.gif',
+        'gif_page_url' => 'https://klipy.com/gifs/abc123',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ]);
+
+    $response->assertUnprocessable()->assertJsonValidationErrors('gif_url');
+});
+
+it('rejects invalid providers', function (array $payload): void {
+    $user = User::factory()->create();
+
+    $response = $this->actingAs($user)->postJson(route('commit.store'), $payload);
+
+    $response->assertUnprocessable()->assertJsonValidationErrors('gif_provider');
+})->with([
+    'missing provider' => [fn (): array => [
+        'body' => 'No provider',
+        'gif_id' => 'abc123',
+        'gif_url' => 'https://media2.giphy.com/media/abc123/giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/abc123',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ]],
+    'non-string provider' => [fn (): array => [
+        'body' => 'Array provider',
+        'gif_provider' => ['giphy'],
+        'gif_id' => 'abc123',
+        'gif_url' => 'https://media2.giphy.com/media/abc123/giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/abc123',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ]],
+    'unknown provider string' => [fn (): array => [
+        'body' => 'Unknown provider',
+        'gif_provider' => 'other',
+        'gif_id' => 'abc123',
+        'gif_url' => 'https://media2.giphy.com/media/abc123/giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/abc123',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ]],
+]);
+
+it('rejects a gif media url that is not on giphy', function (string $url): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Nice try',
+        'gif_provider' => 'giphy',
+        'gif_id' => 'xT9IgzoKnwFNmISR8I',
+        'gif_url' => $url,
+        'gif_page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ])->assertSessionHasErrors('gif_url');
+
+    expect($user->commits()->count())->toBe(0);
+})->with([
+    'another host' => ['https://evil.example/media/xT9IgzoKnwFNmISR8I/giphy.gif'],
+    'lookalike host' => ['https://media2.giphy.com.evil.example/media/x/giphy.gif'],
+    'plain http' => ['http://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif'],
+    'not a gif rendition' => ['https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.webp'],
+    'with a fragment' => ['https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif#frag'],
+    'with userinfo' => ['https://user@media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif'],
+    'with a port' => ['https://media2.giphy.com:8443/media/xT9IgzoKnwFNmISR8I/giphy.gif'],
+    'dot-segment traversal' => ['https://media2.giphy.com/media/../avatars/evil.gif'],
+    'single-dot segment' => ['https://media2.giphy.com/media/./xT9IgzoKnwFNmISR8I/giphy.gif'],
+]);
+
+it('rejects a partial gif submission', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Half a gif',
+        'gif_provider' => 'giphy',
+        'gif_id' => 'xT9IgzoKnwFNmISR8I',
+    ])->assertSessionHasErrors(['gif_url', 'gif_page_url', 'gif_width', 'gif_height']);
+});
+
+it('rejects a gif alongside uploaded images', function (): void {
+    Storage::fake();
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Both at once',
+        'images' => [UploadedFile::fake()->image('cabin.jpg', 40, 30)],
+        'gif_provider' => 'giphy',
+        'gif_id' => 'xT9IgzoKnwFNmISR8I',
+        'gif_url' => 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ])->assertSessionHasErrors('gif_id');
+});
+
+it('rejects a gif alongside a poll', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Gif or poll',
+        'poll' => ['options' => ['Yes', 'No'], 'duration' => 1440],
+        'gif_provider' => 'giphy',
+        'gif_id' => 'xT9IgzoKnwFNmISR8I',
+        'gif_url' => 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ])->assertSessionHasErrors('gif_id');
+});
+
+it('may quote a commit with a gif attached', function (): void {
+    $user = User::factory()->create();
+    $quoted = Commit::factory()->create();
+
+    $this->actingAs($user)->post(route('commit.store'), [
+        'body' => 'Quoting with style',
+        'quoted_commit_id' => $quoted->id,
+        'gif_provider' => 'giphy',
+        'gif_id' => 'xT9IgzoKnwFNmISR8I',
+        'gif_url' => 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy.gif',
+        'gif_page_url' => 'https://giphy.com/gifs/deal-with-it-xT9IgzoKnwFNmISR8I',
+        'gif_width' => 480,
+        'gif_height' => 270,
+    ])->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->quoted_commit_id)->toBe($quoted->id);
+});
+
+it('shows the gif in the commit payload', function (): void {
+    $commit = Commit::factory()->withGif()->create();
+
+    $this->actingAs($commit->user)
+        ->get(route('commit.show', [$commit->user, $commit]))
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.gif.id', 'xT9IgzoKnwFNmISR8I')
+            ->where('commit.gif.url', 'https://media2.giphy.com/media/xT9IgzoKnwFNmISR8I/giphy-downsized-medium.gif?cid=abc123')
+            ->missing('commit.gif_url'));
 });
