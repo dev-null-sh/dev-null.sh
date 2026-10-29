@@ -18,37 +18,49 @@ use Illuminate\Support\Facades\DB;
 final readonly class SitemapQuery
 {
     /**
-     * The months, as "2026-10", in which the profiles with approved commits signed up, oldest first.
+     * The months, as "2026-10", in which the profiles with approved commits signed up, oldest first, with when the
+     * last of them changed, so search engines only read again the sitemaps that changed.
      *
-     * @return list<string>
+     * @return list<array{month: string, updated_at: CarbonImmutable}>
      */
     public function userMonths(): array
     {
-        /** @var list<string> */
-        return $this->users()
+        /** @var list<object{month: string, updated_at: string}> $months */
+        $months = $this->users()
             ->toBase()
-            ->selectRaw("to_char(users.created_at, 'YYYY-MM') as month")
+            ->selectRaw("to_char(users.created_at, 'YYYY-MM') as month, max(users.updated_at) as updated_at")
             ->groupBy('month')
             ->orderBy('month')
-            ->pluck('month')
+            ->get()
             ->all();
+
+        return array_map(fn (object $month): array => [
+            'month' => $month->month,
+            'updated_at' => CarbonImmutable::parse($month->updated_at),
+        ], $months);
     }
 
     /**
-     * The days, as "2026-10-29", on which approved commits were written, oldest first.
+     * The days, as "2026-10-29", on which approved commits were written, oldest first, with when the last of them
+     * changed, so search engines only read again the sitemaps that changed.
      *
-     * @return list<string>
+     * @return list<array{day: string, updated_at: CarbonImmutable}>
      */
     public function commitDays(): array
     {
-        /** @var list<string> */
-        return $this->commits()
+        /** @var list<object{day: string, updated_at: string}> $days */
+        $days = $this->commits()
             ->toBase()
-            ->selectRaw("to_char(created_at, 'YYYY-MM-DD') as day")
+            ->selectRaw("to_char(created_at, 'YYYY-MM-DD') as day, max(updated_at) as updated_at")
             ->groupBy('day')
             ->orderBy('day')
-            ->pluck('day')
+            ->get()
             ->all();
+
+        return array_map(fn (object $day): array => [
+            'day' => $day->day,
+            'updated_at' => CarbonImmutable::parse($day->updated_at),
+        ], $days);
     }
 
     /**
