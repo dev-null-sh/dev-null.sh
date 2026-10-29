@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Throwable;
+use UnexpectedValueException;
 
 final readonly class DeleteStoredFiles
 {
@@ -40,17 +41,36 @@ final readonly class DeleteStoredFiles
         }
 
         try {
-            /** @var list<string> $paths */
-            $paths = json_decode($pending->paths, true, flags: JSON_THROW_ON_ERROR);
+            if (! is_object($pending)
+                || ! isset($pending->paths, $pending->disk)
+                || ! is_string($pending->paths)
+                || ! is_string($pending->disk)) {
+                throw new UnexpectedValueException('Invalid pending file deletion record '.$id);
+            }
+
+            $decodedPaths = json_decode($pending->paths, true, flags: JSON_THROW_ON_ERROR);
+
+            if (! is_array($decodedPaths) || ! array_is_list($decodedPaths)) {
+                throw new UnexpectedValueException('Invalid paths for pending file deletion '.$id);
+            }
+
+            $paths = [];
+            foreach ($decodedPaths as $path) {
+                if (! is_string($path)) {
+                    throw new UnexpectedValueException('Invalid path for pending file deletion '.$id);
+                }
+
+                $paths[] = $path;
+            }
 
             if (! Storage::disk($pending->disk)->delete($paths)) {
                 throw new RuntimeException('File cleanup failed for pending deletion '.$id);
             }
 
             DB::table('pending_file_deletions')->where('id', $id)->delete();
-        } catch (Throwable $exception) {
+        } catch (Throwable $throwable) {
             // Keep the durable record for the scheduled retry, including when the disk throws.
-            report($exception);
+            report($throwable);
         }
     }
 }

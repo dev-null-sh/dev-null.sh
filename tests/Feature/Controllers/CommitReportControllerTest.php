@@ -430,7 +430,7 @@ it('stores report screenshots encrypted and only serves them to moderators', fun
     $this->get($url)->assertOk();
     $this->actingAs(User::factory()->create())->get($url)->assertNotFound();
     $this->actingAs($commit->user)->get($url)->assertNotFound();
-    $this->actingAs(User::factory()->create(['username' => 'moderator-demo']))->get($url)
+    $this->actingAs(User::factory()->create(['handle' => 'moderator-demo']))->get($url)
         ->assertOk()->assertHeader('Content-Type', 'image/webp')->assertHeader('Cache-Control', 'no-store, private');
     $this->get(route('commit-report-image.show', ['report' => $report, 'image' => 1]))->assertNotFound();
     $this->get(route('reported-commit.index'))->assertInertia(fn ($page) => $page
