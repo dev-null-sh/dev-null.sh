@@ -118,6 +118,20 @@ test('names the side that won once the conflict closed, or a tie', () => {
     );
 });
 
+test('shows zero counts once the conflict closed without votes', () => {
+    const html = render(
+        conflict({
+            is_closed: true,
+            can_vote: false,
+            ours: { ...conflict().ours, votes: 0 },
+            theirs: { ...conflict().theirs, votes: 0 },
+        }),
+    );
+
+    assert.match(html, /Closed/);
+    assert.match(html, /@alice.*0% · 0.*@bob.*0% · 0/s);
+});
+
 test('offers guests no buttons', () => {
     assert.doesNotMatch(
         render(conflict({ can_vote: false }), false),

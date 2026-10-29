@@ -91,13 +91,14 @@ final readonly class CreateMergeConflict
     }
 
     /**
-     * When Tom may read the thread again: right away, or once the hour since he last read it is up.
+     * When Tom may read the thread again: right away, or once the hour since he last read it is up. A second later than
+     * the hour, as the cache may let the slot go a little after it.
      */
     public function nextReadAt(string $commitId): CarbonInterface
     {
         $readAgainAt = Cache::get("merge-conflict-read:{$commitId}");
 
-        return is_int($readAgainAt) ? Date::createFromTimestamp($readAgainAt) : now();
+        return is_int($readAgainAt) ? Date::createFromTimestamp($readAgainAt)->addSecond() : now();
     }
 
     /**
