@@ -39,9 +39,9 @@ final readonly class DeleteUser
     public function handle(User $user): void
     {
         $imagePaths = DB::transaction(function () use ($user): array {
-            $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
+            User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
 
-            $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
+            $this->updateCommitHotScores->handle($this->engagedCommitIds($user));
 
             $translationKeys = $this->touchedCommits($user)
                 ->select(['id', 'body'])
@@ -52,6 +52,9 @@ final readonly class DeleteUser
             // links or finds the commit erased. The threads are locked before their replies, so no reply joins them in between.
             $user->commits()->withTrashed()->topLevel()->orderBy('id')->lockForUpdate()->pluck('id');
             $this->touchedCommits($user)->orderBy('id')->lockForUpdate()->pluck('id');
+
+            // Report creation holds shared reporter and commit locks until its attachment paths are saved.
+            $imagePaths = [...$this->reportImagePaths($user), ...$this->imagePaths($user), ...$this->scheduledImagePaths($user), ...$this->messageImagePaths($user), ...$this->messageVoicePaths($user)];
 
             DB::table('commit_topics')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
             $user->commits()->withTrashed()->topLevel()->forceDelete();

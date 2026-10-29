@@ -24,6 +24,10 @@ final readonly class CreateCommitReport
     public function handle(User $user, Commit $commit, string $reason, ?string $details, array $images = [], array $imageDescriptions = []): void
     {
         DB::transaction(function () use ($user, $commit, $reason, $details, $images, $imageDescriptions): void {
+            // Match account deletion's lock order and recheck models that may have been deleted since the request began.
+            User::query()->whereKey($user->id)->sharedLock()->firstOrFail();
+            Commit::query()->whereKey($commit->id)->sharedLock()->firstOrFail();
+
             $report = CommitReport::query()->createOrFirst([
                 'commit_id' => $commit->id,
                 'reporter_id' => $user->id,
