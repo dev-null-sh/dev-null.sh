@@ -6,6 +6,7 @@ use App\Actions\UpdateUserProfile;
 use App\Jobs\LookUpUserOrganizations;
 use App\Models\SshKey;
 use App\Models\User;
+use App\Queries\GitHubReadmeQuery;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -97,6 +98,34 @@ it('mirrors the ssh keys of the user', function (): void {
 
     expect($removed->fresh())->toBeNull()
         ->and($user->sshKeys()->sole()->fingerprint)->toBe($publicKey->fingerprint());
+});
+
+it('reads the readme from github again, so an edited one shows after syncing', function (): void {
+    $user = User::factory()->create();
+
+    fakeGitHubAccount($user);
+    Http::fake(['api.github.com/repos/octocat/octocat/readme' => Http::sequence()->push('<p>Old</p>')->push('<p>New</p>')]);
+
+    expect(resolve(GitHubReadmeQuery::class)->get($user))->toBe('<p>Old</p>');
+
+    resolve(UpdateUserProfile::class)->handle($user);
+
+    expect(resolve(GitHubReadmeQuery::class)->get($user))->toBe('<p>New</p>');
+});
+
+it('keeps the cached readme when the sync fails', function (): void {
+    $user = User::factory()->create();
+
+    Http::fake([
+        "api.github.com/user/{$user->github_id}" => Http::sequence()->push(['login' => 'octocat'])->push(['message' => 'Error'], 500),
+        'api.github.com/repos/octocat/octocat/readme' => Http::sequence()->push('<p>Old</p>')->push('<p>New</p>'),
+    ]);
+
+    expect(resolve(GitHubReadmeQuery::class)->get($user))->toBe('<p>Old</p>');
+
+    resolve(UpdateUserProfile::class)->handle($user);
+
+    expect(resolve(GitHubReadmeQuery::class)->get($user))->toBe('<p>Old</p>');
 });
 
 it('looks the account up by its github id, so a renamed handle cannot be claimed', function (): void {

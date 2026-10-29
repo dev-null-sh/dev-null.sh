@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Dto\GitHubProfile;
 use App\Jobs\LookUpUserOrganizations;
 use App\Models\User;
+use App\Queries\GitHubReadmeQuery;
 use App\Services\GitHub;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Client\ConnectionException;
@@ -14,8 +15,8 @@ use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Mirrors the GitHub profile and SSH keys of a user again, without them having to sign in, and looks the organizations
- * their bio and company mention up.
+ * Mirrors the GitHub profile, profile README and SSH keys of a user again, without them having to sign in, and looks
+ * the organizations their bio and company mention up.
  */
 final readonly class UpdateUserProfile
 {
@@ -23,6 +24,7 @@ final readonly class UpdateUserProfile
         private GitHub $github,
         private UpdateUserSshKeys $updateUserSshKeys,
         private UpdateStaleHandles $updateStaleHandles,
+        private GitHubReadmeQuery $readme,
     ) {
         //
     }
@@ -49,6 +51,8 @@ final readonly class UpdateUserProfile
                 // The email is left alone: the public API only has the public one, sign-in also knows the private one.
                 $user->update(['company' => $profile->company]);
             });
+
+            $this->readme->forget($user);
 
             LookUpUserOrganizations::dispatchFor($user);
         } catch (ConnectionException|RequestException|UniqueConstraintViolationException $exception) {

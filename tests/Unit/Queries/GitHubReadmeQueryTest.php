@@ -98,6 +98,22 @@ it('remembers a failed read for a few minutes only', function (): void {
     expect(resolve(GitHubReadmeQuery::class)->get($user))->toBe('<p>Hi</p>');
 });
 
+it('reads the readme again once forgotten, a failed read included', function (): void {
+    $user = User::factory()->create();
+
+    Http::fake([
+        "api.github.com/user/{$user->github_id}" => Http::response(['login' => 'octocat']),
+        'api.github.com/repos/octocat/octocat/readme' => Http::sequence()->push('<p>Old</p>')->pushStatus(502)->push('<p>New</p>'),
+    ]);
+    $readme = resolve(GitHubReadmeQuery::class);
+
+    expect($readme->get($user))->toBe('<p>Old</p>');
+    $readme->forget($user);
+    expect($readme->get($user))->toBeFalse();
+    $readme->forget($user);
+    expect($readme->get($user))->toBe('<p>New</p>');
+});
+
 it('keeps a readme with uploaded images for a few minutes, as their links expire', function (string $html, int $minutes, bool $isFetchedAgain): void {
     $user = User::factory()->create();
 
