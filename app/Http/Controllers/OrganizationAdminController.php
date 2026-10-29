@@ -34,6 +34,12 @@ final readonly class OrganizationAdminController
      */
     public function create(CreateOrganizationAdminRequest $request, Profile $organization): SymfonyResponse
     {
+        $claimed = $this->claimed($organization);
+
+        if ($claimed !== null) {
+            return $this->failed($claimed, to_route('user.show', $organization->handle));
+        }
+
         $request->session()->put(self::CLAIMING, $organization->id);
 
         return Inertia::location($this->github()->scopes(['read:org'])->redirect()->getTargetUrl());
@@ -55,6 +61,13 @@ final readonly class OrganizationAdminController
         }
 
         $page = to_route('user.show', $organization->handle);
+
+        // Claimed by someone else while the user was on GitHub...
+        $claimed = $this->claimed($organization);
+
+        if ($claimed !== null) {
+            return $this->failed($claimed, $page);
+        }
 
         if ($request->has('error')) {
             return $this->failed(__('GitHub was not asked about your organizations, so the page was not claimed.'), $page);
@@ -96,7 +109,9 @@ final readonly class OrganizationAdminController
             return $this->failed($failure[0], $page, $failure[1]);
         }
 
-        $action->handle($organization, $user);
+        if (! $action->handle($organization, $user)) {
+            return $this->failed($this->claimed($organization) ?? __('Unable to claim this organization. Please try again.'), $page);
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => __('You are now an admin of @:handle.', ['handle' => $organization->handle])]);
 
@@ -112,6 +127,20 @@ final readonly class OrganizationAdminController
         assert($provider instanceof GithubProvider);
 
         return $provider->redirectUrl(route('organization-admin.store'));
+    }
+
+    /**
+     * Only the first claim through GitHub makes an admin. Why another one fails, if the page was claimed.
+     */
+    private function claimed(Profile $organization): ?string
+    {
+        $admin = $organization->admins()->oldest('organization_admins.created_at')->first();
+
+        if ($admin === null) {
+            return null;
+        }
+
+        return __('@:handle was already claimed by @:admin.', ['handle' => $organization->handle, 'admin' => $admin->handle]);
     }
 
     /**

@@ -113,19 +113,57 @@ it('makes a member of the organization on github an admin of its page', function
     Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer claim-token'));
 })->with(['admin', 'member']);
 
-it('keeps the first claim when the user claims again', function (): void {
+it('does not send anyone to github for a page someone already claimed', function (): void {
+    [$user, $organization] = claimingUserAndOrganization();
+    $admin = User::factory()->create();
+    $organization->admins()->attach($admin);
+
+    $this->actingAs($user)
+        ->post(route('organization-admin.create', $organization))
+        ->assertRedirect('/@brefphp')
+        ->assertInertiaFlash('claimFailed', ['message' => "@brefphp was already claimed by @{$admin->handle}.", 'approvalUrl' => null]);
+});
+
+it('refuses a claim when someone else claimed the page while the user was on github', function (): void {
     fakeClaimingGitHubAccount('720328');
     fakeGitHubMembership();
     [$user, $organization] = claimingUserAndOrganization();
-    $claimedAt = now()->subWeek()->startOfSecond();
-    DB::table('organization_admins')->insert(['organization_id' => $organization->id, 'user_id' => $user->id, 'created_at' => $claimedAt]);
+    $first = User::factory()->create();
+    $second = User::factory()->create();
+    DB::table('organization_admins')->insert([
+        ['organization_id' => $organization->id, 'user_id' => $second->id, 'created_at' => now()],
+        ['organization_id' => $organization->id, 'user_id' => $first->id, 'created_at' => now()->subDay()],
+    ]);
+
+    $this->actingAs($user)
+        ->withSession(['claiming-organization' => $organization->id])
+        ->get(route('organization-admin.store', ['code' => 'code', 'state' => 'state']))
+        ->assertRedirect('/@brefphp')
+        ->assertSessionMissing('claiming-organization')
+        ->assertInertiaFlash('claimFailed.message', "@brefphp was already claimed by @{$first->handle}.");
+
+    expect($organization->admins()->pluck('users.id')->sort()->values()->all())->toBe(collect([$first->id, $second->id])->sort()->values()->all());
+    Http::assertNothingSent();
+});
+
+it('refuses a member who loses the claim to another coming back from github at the same moment', function (): void {
+    fakeClaimingGitHubAccount('720328');
+    [$user, $organization] = claimingUserAndOrganization();
+    $other = User::factory()->create();
+    Http::fake(['api.github.com/user/memberships/orgs/brefphp' => function () use ($organization, $other) {
+        $organization->admins()->attach($other);
+
+        return Http::response(['state' => 'active', 'role' => 'member', 'organization' => ['id' => 45861341]]);
+    }]);
 
     $this->actingAs($user)
         ->withSession(['claiming-organization' => $organization->id])
         ->get(route('organization-admin.store'))
-        ->assertRedirect('/@brefphp');
+        ->assertRedirect('/@brefphp')
+        ->assertInertiaFlash('claimFailed.message', "@brefphp was already claimed by @{$other->handle}.")
+        ->assertInertiaFlashMissing('toast');
 
-    expect(DB::table('organization_admins')->sole()->created_at)->toBe($claimedAt->toDateTimeString());
+    expect($organization->admins()->pluck('users.id')->all())->toBe([$other->id]);
 });
 
 it('refuses users github does not say are members', function (array $membership, int $status): void {

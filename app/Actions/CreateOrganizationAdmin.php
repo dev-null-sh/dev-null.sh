@@ -6,15 +6,27 @@ namespace App\Actions;
 
 use App\Models\Profile;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 final readonly class CreateOrganizationAdmin
 {
     /**
-     * Makes the user an admin of the organization's page, once GitHub confirmed they belong to it. Claiming again
-     * changes nothing.
+     * Makes the user the admin of the organization's page, once GitHub confirmed they belong to it, unless someone
+     * claimed it first. The organization is locked while it's checked, as two members coming back from GitHub at once
+     * can both pass the request's check: the second claim then just doesn't happen.
      */
-    public function handle(Profile $organization, User $user): void
+    public function handle(Profile $organization, User $user): bool
     {
-        $organization->admins()->syncWithoutDetaching([$user->id]);
+        return DB::transaction(function () use ($organization, $user): bool {
+            Profile::query()->whereKey($organization->id)->lockForUpdate()->first();
+
+            if ($organization->admins()->exists()) {
+                return false;
+            }
+
+            $organization->admins()->attach($user->id);
+
+            return true;
+        });
     }
 }

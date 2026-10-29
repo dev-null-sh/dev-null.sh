@@ -31,11 +31,9 @@ export default function Show({
     const { auth } = props;
     // Kept until the user leaves the page, as the background reloads bring no flash and would hide it.
     const [claimFailed] = useState(flash.claimFailed);
-    // While a claim failed, its alert offers to try again instead.
-    const canClaim =
-        auth.user !== null &&
-        claimFailed === undefined &&
-        !admins.some((admin) => admin.id === auth.user?.id);
+    // Only the first claim makes an admin. While a claim failed, its alert offers to try again instead.
+    const claimable = auth.user !== null && admins.length === 0;
+    const canClaim = claimable && claimFailed === undefined;
 
     return (
         <>
@@ -155,29 +153,37 @@ export default function Show({
                         {/* The reason in the text color, as red at this size is hard to read. */}
                         <AlertDescription className="text-foreground">
                             <p>{claimFailed.message}</p>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                                {claimFailed.approvalUrl && (
-                                    <Button size="sm" asChild>
-                                        <a
-                                            href={claimFailed.approvalUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
+                            {(claimFailed.approvalUrl || claimable) && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {claimFailed.approvalUrl && (
+                                        <Button size="sm" asChild>
+                                            <a
+                                                href={claimFailed.approvalUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                <GitHubIcon className="size-4" />
+                                                Open GitHub
+                                            </a>
+                                        </Button>
+                                    )}
+                                    {claimable && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            asChild
                                         >
-                                            <GitHubIcon className="size-4" />
-                                            Open GitHub
-                                        </a>
-                                    </Button>
-                                )}
-                                <Button size="sm" variant="outline" asChild>
-                                    <Link
-                                        href={claimUrl}
-                                        method="post"
-                                        as="button"
-                                    >
-                                        Try again
-                                    </Link>
-                                </Button>
-                            </div>
+                                            <Link
+                                                href={claimUrl}
+                                                method="post"
+                                                as="button"
+                                            >
+                                                Try again
+                                            </Link>
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
                         </AlertDescription>
                     </Alert>
                 )}
