@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import CommitTranslationController from '@/actions/App/Http/Controllers/CommitTranslationController';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { signIn } from '@/lib/auth';
-import type { Commit, CommitTranslation } from '@/types';
+import type { Commit, CommitTranslation, LinkPreview } from '@/types';
 
 export function useCommitTranslation(commit: Commit) {
     const { auth } = usePage().props;
@@ -91,6 +91,10 @@ export function useCommitTranslation(commit: Commit) {
         previewSegments: translated
             ? translated.preview_segments
             : commit.preview_segments,
+        linkPreview: (preview: LinkPreview): LinkPreview =>
+            translated && translation?.link_preview
+                ? { ...preview, ...translation.link_preview }
+                : preview,
         notice: translation?.available ? (
             <div className="flex min-h-5 min-w-0 items-center gap-1 text-xs text-muted-foreground">
                 {translated && (

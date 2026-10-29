@@ -68,6 +68,10 @@ export type CommitTranslation = {
         body_segments: BodySegment[];
         preview_segments: BodySegment[] | null;
     } | null;
+    link_preview?: {
+        title: string;
+        description: string | null;
+    } | null;
 };
 
 export type Commit = {

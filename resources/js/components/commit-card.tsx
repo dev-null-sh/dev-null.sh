@@ -492,7 +492,9 @@ export function CommitCard({
                                         refreshUrl={CommitLinkPreviewController.show.url(
                                             commit.id,
                                         )}
-                                        preview={commit.link_preview}
+                                        preview={translation.linkPreview(
+                                            commit.link_preview,
+                                        )}
                                     />
                                 )}
                             {isFocused && (

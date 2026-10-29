@@ -1277,7 +1277,9 @@ function CommitReply({
                                 refreshUrl={CommitLinkPreviewController.show.url(
                                     reply.id,
                                 )}
-                                preview={reply.link_preview}
+                                preview={translation.linkPreview(
+                                    reply.link_preview,
+                                )}
                             />
                         )}
                     <ShowThreadLink thread={thread} />

@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommitTranslation;
 use App\Ai\Agents\CommitTranslator;
+use App\Ai\Agents\LinkPreviewTranslator;
 use App\Enums\CommitStatus;
 use App\Enums\Feature;
 use App\Exceptions\CommitProcessingFailed;
 use App\Jobs\DetectCommitLanguage;
+use App\Jobs\TranslateLinkPreview;
 use App\Models\Commit;
+use App\Models\LinkPreview;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use App\Services\Features;
@@ -542,4 +545,141 @@ it('lets readers translate on demand after disabling automatic translations with
         ->assertInertia(fn ($page) => $page->where('auth.automaticTranslation', true));
 
     CommitTranslator::assertPromptedTimes(1);
+});
+
+it('translates the link preview with the post and shares it between posts linking the same page', function (): void {
+    CommitTranslator::fake([
+        ['source_language' => 'de', 'body' => 'Software is not just made of code'],
+        ['source_language' => 'de', 'body' => 'Worth reading'],
+    ])->preventStrayPrompts();
+    LinkPreviewTranslator::fake([
+        ['title' => 'Photoshop rebuilt with AI', 'description' => 'Software is not just code.'],
+    ])->preventStrayPrompts();
+    $linkPreview = LinkPreview::factory()->fetched()->create([
+        'title' => 'Photoshop per KI nachgebaut',
+        'description' => 'Software besteht nicht nur aus Code.',
+    ]);
+    $first = Commit::factory()->create(['body' => 'Software besteht nicht nur aus Code', 'link_preview_id' => $linkPreview->id]);
+    $second = Commit::factory()->create(['body' => 'Lesenswert', 'link_preview_id' => $linkPreview->id]);
+    $this->actingAs(User::factory()->create());
+
+    $this->postJson(route('commit-translation.store', $first), ['language' => 'en'])
+        ->assertOk()
+        ->assertJsonPath('translation.translated.body_segments.0.text', 'Software is not just made of code')
+        ->assertJsonPath('translation.link_preview', ['title' => 'Photoshop rebuilt with AI', 'description' => 'Software is not just code.']);
+
+    $this->postJson(route('commit-translation.store', $second), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.link_preview.title', 'Photoshop rebuilt with AI');
+
+    $this->withHeader('Accept-Language', 'en')
+        ->get(route('commit.show', ['user' => $first->user, 'commit' => $first]))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.link_preview.title', 'Photoshop per KI nachgebaut')
+        ->where('commit.translation.link_preview.title', 'Photoshop rebuilt with AI'));
+
+    expect($linkPreview->refresh()->title)->toBe('Photoshop per KI nachgebaut');
+    LinkPreviewTranslator::assertPrompted(fn (AgentPrompt $prompt): bool => json_decode($prompt->prompt, true) === [
+        'title' => 'Photoshop per KI nachgebaut',
+        'description' => 'Software besteht nicht nur aus Code.',
+    ]);
+    LinkPreviewTranslator::assertPromptedTimes(1);
+});
+
+it('keeps the post translated and reports it when the link preview cannot be translated', function (): void {
+    Exceptions::fake();
+    CommitTranslator::fake([['source_language' => 'de', 'body' => 'Good morning']]);
+    LinkPreviewTranslator::fake([['title' => '', 'description' => '']]);
+    $commit = Commit::factory()->create([
+        'body' => 'Guten morgen',
+        'link_preview_id' => LinkPreview::factory()->fetched()->create()->id,
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()
+        ->assertJsonPath('translation.translated.body_segments.0.text', 'Good morning')
+        ->assertJsonPath('translation.link_preview', null);
+
+    Exceptions::assertReported(fn (CommitProcessingFailed $exception): bool => str_contains($exception->getMessage(), 'Link preview translation failed for commit '.$commit->id));
+});
+
+it('does not translate link previews without a title, or with a post that needs no translation', function (LinkPreview $linkPreview, string $source): void {
+    CommitTranslator::fake([['source_language' => $source, 'body' => 'Good morning']]);
+    LinkPreviewTranslator::fake()->preventStrayPrompts();
+    $commit = Commit::factory()->create(['body' => 'Guten morgen', 'link_preview_id' => $linkPreview->id]);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.link_preview', null);
+
+    LinkPreviewTranslator::assertNeverPrompted();
+})->with([
+    'no title' => [fn (): LinkPreview => LinkPreview::factory()->withoutTitle()->create(), 'de'],
+    'not fetched yet' => [fn (): LinkPreview => LinkPreview::factory()->create(['title' => 'Photoshop per KI nachgebaut']), 'de'],
+    'post in the readers language' => [fn (): LinkPreview => LinkPreview::factory()->fetched()->create(), 'en'],
+]);
+
+it('translates the link preview on a later request when the post translation is already cached', function (): void {
+    Queue::fake([TranslateLinkPreview::class]);
+    CommitTranslator::fake([['source_language' => 'de', 'body' => 'Good morning']])->preventStrayPrompts();
+    LinkPreviewTranslator::fake([['title' => 'Photoshop rebuilt with AI', 'description' => 'Software is not just code.']])->preventStrayPrompts();
+    $first = Commit::factory()->create(['body' => 'Guten morgen']);
+    $second = Commit::factory()->create(['body' => 'Guten morgen', 'link_preview_id' => LinkPreview::factory()->fetched()->create()->id]);
+    $this->actingAs(User::factory()->create());
+
+    $this->postJson(route('commit-translation.store', $first), ['language' => 'en'])->assertOk();
+
+    $this->postJson(route('commit-translation.store', $second), ['language' => 'en'])
+        ->assertOk()
+        ->assertJsonPath('translation.translated.body_segments.0.text', 'Good morning')
+        ->assertJsonPath('translation.link_preview.title', 'Photoshop rebuilt with AI');
+
+    CommitTranslator::assertPromptedTimes(1);
+    LinkPreviewTranslator::assertPromptedTimes(1);
+});
+
+it('catches untranslated previews up in the background when their post is shown translated', function (): void {
+    Queue::fake([TranslateLinkPreview::class]);
+    LinkPreviewTranslator::fake([['title' => 'Photoshop rebuilt with AI', 'description' => 'Software is not just code.']])->preventStrayPrompts();
+    $linkPreview = LinkPreview::factory()->fetched()->create();
+    $commit = Commit::factory()->create(['body' => 'Guten morgen', 'link_preview_id' => $linkPreview->id]);
+    Cache::put(resolve(CommitTranslations::class)->key($commit), ['source_language' => 'de', 'translations' => ['en' => 'Good morning'], 'expires_at' => now()->addDay()->getTimestamp()]);
+
+    $this->withHeader('Accept-Language', 'en')
+        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.translated.body_segments.0.text', 'Good morning')
+        ->where('commit.translation.link_preview', null));
+
+    Queue::assertPushedOn('translations', TranslateLinkPreview::class, fn (TranslateLinkPreview $job): bool => $job->linkPreviewId === $linkPreview->id && $job->language === 'en');
+    LinkPreviewTranslator::assertNeverPrompted();
+
+    new TranslateLinkPreview($linkPreview->id, 'en')->handle(resolve(CreateCommitTranslation::class), resolve(CommitTranslations::class));
+
+    $this->withHeader('Accept-Language', 'en')
+        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.link_preview.title', 'Photoshop rebuilt with AI'));
+
+    Queue::assertPushed(TranslateLinkPreview::class, 1);
+});
+
+it('does not queue preview translations for posts that are not shown translated', function (): void {
+    Queue::fake([TranslateLinkPreview::class, DetectCommitLanguage::class]);
+    $commit = Commit::factory()->create(['body' => 'Guten morgen', 'link_preview_id' => LinkPreview::factory()->fetched()->create()->id]);
+
+    $this->withHeader('Accept-Language', 'en')
+        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertOk();
+
+    Queue::assertNotPushed(TranslateLinkPreview::class);
+});
+
+it('rejects a blank translated description when the preview has one', function (): void {
+    $linkPreview = LinkPreview::factory()->fetched()->create();
+    LinkPreviewTranslator::fake([['title' => 'Photoshop rebuilt with AI', 'description' => '']]);
+
+    expect(fn () => resolve(CreateCommitTranslation::class)->translateLinkPreview($linkPreview, 'en'))
+        ->toThrow(RuntimeException::class, 'Invalid link preview translation response.');
+    expect(resolve(CommitTranslations::class)->cachedLinkPreview($linkPreview))->toBeNull();
 });
