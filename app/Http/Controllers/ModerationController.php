@@ -35,10 +35,11 @@ final readonly class ModerationController
                 ->withStarsFor($user)
                 ->withPollFor($user)
                 ->afterQuery(fn (Collection $commits) => resolve(CommitTranslations::class)->attach($commits, includePending: true))
+                ->orderByDesc('moderation_score')
                 ->oldest()
                 ->oldest('id')
                 ->cursorPaginate(20)
-                ->through($this->withAiDecision(...))),
+                ->through($this->withModeration(...))),
         ]);
     }
 
@@ -56,10 +57,10 @@ final readonly class ModerationController
     }
 
     /**
-     * The AI's decision is hidden everywhere else, but moderators see it.
+     * The AI's decision and the risk score are hidden everywhere else, but moderators see them.
      */
-    private function withAiDecision(Commit $commit): Commit
+    private function withModeration(Commit $commit): Commit
     {
-        return $commit->makeVisible(['ai_decision', 'ai_categories']);
+        return $commit->makeVisible(['ai_decision', 'ai_categories', 'moderation_score', 'moderation_signals']);
     }
 }

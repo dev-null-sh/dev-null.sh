@@ -12,5 +12,6 @@ export default defineConfig({
             VITE_APP_NAME: '/dev/null',
         },
         include: ['tests/Unit/*.test.tsx'],
+
     },
 });

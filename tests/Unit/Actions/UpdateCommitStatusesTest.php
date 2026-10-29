@@ -10,6 +10,7 @@ use App\Jobs\CheckUserLevel;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\User;
+use App\Moderation\DeterministicModerationSignals;
 use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -69,6 +70,19 @@ it('may only update the commits that are still pending', function (): void {
 
     expect($pending->refresh()->status)->toBe(CommitStatus::Approved)
         ->and($rejected->refresh()->status)->toBe(CommitStatus::Rejected);
+});
+
+it('hashes the bodies of commits it rejects so pending copies match them', function (): void {
+    $approved = Commit::factory()->create(['body' => 'Buy my stuff', 'body_hash' => null]);
+
+    resolve(UpdateCommitStatuses::class)->handle([$approved->id], CommitStatus::Rejected);
+
+    $copy = Commit::factory()->pending()->create(['body' => 'buy my  stuff']);
+
+    $codes = array_column(resolve(DeterministicModerationSignals::class)->handle($copy), 'code');
+
+    expect($approved->refresh()->body_hash)->not->toBeNull()
+        ->and($codes)->toContain('duplicate');
 });
 
 it('notifies the parent authors of the approved replies', function (): void {
