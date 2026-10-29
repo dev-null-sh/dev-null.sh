@@ -285,13 +285,22 @@ function CommitComposerBody({
                             aria-invalid={error ? true : undefined}
                             aria-describedby={`${id}-count`}
                             className={cn(
-                                'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
+                                'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 pr-9 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
                                 {
                                     invisible: preview.isPreviewing,
                                     'max-h-none': isInDialog,
                                 },
                             )}
                         />
+                        {!preview.isPreviewing && (
+                            <div className="sticky bottom-0 col-start-1 row-start-1 self-end justify-self-end">
+                                <EmojiPickerButton
+                                    disabled={processing}
+                                    onPick={insertEmoji}
+                                    className="size-8"
+                                />
+                            </div>
+                        )}
                         {preview.isPreviewing && (
                             <ComposerPreviewBody
                                 preview={preview}
@@ -423,10 +432,6 @@ function CommitComposerBody({
                                         reading={attachments.reading}
                                         onPick={attachments.pick}
                                         className="-ml-2"
-                                    />
-                                    <EmojiPickerButton
-                                        disabled={processing}
-                                        onPick={insertEmoji}
                                     />
                                     <ActionTooltip
                                         label={

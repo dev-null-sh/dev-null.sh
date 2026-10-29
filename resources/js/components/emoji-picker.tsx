@@ -46,7 +46,7 @@ export function EmojiPickerButton({
                 </PopoverTrigger>
             </ActionTooltip>
             <PopoverContent
-                align="start"
+                align="end"
                 collisionPadding={8}
                 className="flex h-[min(25rem,var(--radix-popover-content-available-height))] w-76 flex-col overflow-hidden rounded-lg p-0 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)]"
                 onCloseAutoFocus={(event) => {
