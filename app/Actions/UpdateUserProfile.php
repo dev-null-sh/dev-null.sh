@@ -52,9 +52,9 @@ final readonly class UpdateUserProfile
                 $user->update(['company' => $profile->company]);
             });
 
-            $this->readme->forget($user);
-
             LookUpUserOrganizations::dispatchFor($user);
+
+            $this->readme->forget($user);
         } catch (ConnectionException|RequestException|UniqueConstraintViolationException $exception) {
             report($exception);
 
