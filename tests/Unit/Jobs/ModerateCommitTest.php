@@ -373,11 +373,21 @@ it('skips commits that were moderated in the meantime', function (): void {
     expect($commit->refresh()->ai_decision)->toBeNull();
 });
 
-it('approves queued commits without calling the ai when the author has good reputation', function (): void {
-    Http::fake();
+it('only skips ai review for queued commits with daemon public xp', function (bool $daemon): void {
+    Http::fake([
+        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
+        'api.openai.com/v1/responses' => reviewResponses(),
+    ]);
 
     $user = User::factory()->create(['created_at' => now()->subHour()->subSecond()]);
-    Commit::factory()->for($user)->create();
+    $history = Commit::factory()->for($user)->count(3)->create();
+    if ($daemon) {
+        User::factory()->create()->starredCommits()->attach($history->first());
+    } else {
+        $user->starredCommits()->attach(Commit::factory()->count(2)->create()->modelKeys());
+    }
+
+    Commit::factory()->for($user)->rejected()->count(5)->create();
     $commit = Commit::factory()->for($user)->pending()->create();
     followersOf($user, 10);
 
@@ -385,10 +395,14 @@ it('approves queued commits without calling the ai when the author has good repu
 
     expect($commit->refresh())
         ->status->toBe(CommitStatus::Approved)
-        ->ai_decision->toBeNull();
+        ->ai_decision->toBe($daemon ? null : CommitStatus::Approved);
 
-    Http::assertNothingSent();
-});
+    if ($daemon) {
+        Http::assertNothingSent();
+    } else {
+        Http::assertSentCount(2);
+    }
+})->with([false, true]);
 
 it('skips commits that were deleted in the meantime', function (): void {
     Http::fake();
@@ -469,6 +483,7 @@ it('approves reputable authors without calling the ai even when they have been r
     $user = User::factory()->create(['created_at' => now()->subHours(2)]);
     $reported = Commit::factory()->for($user)->create();
     followersOf($user, 10);
+    Commit::factory()->for($user)->count(3)->create();
     $commit = Commit::factory()->for($user)->pending()->create();
     CommitReport::factory()->for($reported)->create();
 
