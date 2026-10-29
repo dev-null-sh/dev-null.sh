@@ -1,6 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Search } from 'lucide-react';
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
+import AppController from '@/actions/App/Http/Controllers/AppController';
 import ChangelogController from '@/actions/App/Http/Controllers/ChangelogController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
@@ -16,7 +17,7 @@ import { WordmarkText } from '@/components/wordmark-text';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { commitStateKey } from '@/lib/commit-state';
 import { useKeyLabels } from '@/lib/keyboard';
-import { exactCountTitle, formatCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
 import { laneColor } from '@/lib/utils';
 import { login } from '@/routes';
 import { show } from '@/routes/user';
@@ -28,7 +29,8 @@ export function AppAside({
     onShowShortcuts: () => void;
     onSearch: () => void;
 }) {
-    const { user } = usePage().props.auth;
+    const { user, bioProfiles } = usePage().props.auth;
+    const { developersCount } = usePage().props;
     const keys = useKeyLabels();
     const [commitsCount] = useSharedState(
         commitStateKey('commits_count', user?.id ?? ''),
@@ -59,8 +61,9 @@ export function AppAside({
                         <WordmarkText>New to /dev/null?</WordmarkText>
                     </h2>
                     <p className="mt-1 text-sm text-pretty text-muted-foreground">
-                        Sign in with GitHub to follow developers, star commits,
-                        and join the conversation.
+                        {developersCount
+                            ? `${formatExactCount(developersCount)}+ developers are already here. Sign in with GitHub to follow them, star commits, and join the conversation.`
+                            : 'Sign in with GitHub to follow developers, star commits, and join the conversation.'}
                     </p>
                     <Button className="mt-4 w-full" asChild>
                         <a href={login().url} data-test="aside-login-button">
@@ -161,7 +164,7 @@ export function AppAside({
                     </dl>
                     {user.bio && (
                         <p className="mt-3 text-sm text-pretty text-muted-foreground">
-                            <BioText bio={user.bio} />
+                            <BioText bio={user.bio} profiles={bioProfiles} />
                         </p>
                     )}
                 </section>
@@ -170,14 +173,20 @@ export function AppAside({
             <LiveFollowing />
             <WhoToFollow />
 
-            <div className="-mt-4 flex gap-4 border-t pt-4 text-sm text-muted-foreground">
+            <div className="-mt-4 flex flex-wrap gap-x-2.5 gap-y-1 border-t pt-4 text-sm text-muted-foreground">
                 <Link
                     href={AboutController.show()}
                     className="transition-colors hover:text-foreground"
                 >
                     About
                 </Link>
-                <nav aria-label="Legal" className="flex gap-4">
+                <Link
+                    href={AppController.index()}
+                    className="transition-colors hover:text-foreground"
+                >
+                    Apps
+                </Link>
+                <nav aria-label="Legal" className="flex gap-2.5">
                     <Link
                         href={TermsController.show()}
                         className="transition-colors hover:text-foreground"

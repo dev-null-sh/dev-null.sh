@@ -934,6 +934,7 @@ export default function Show({
                 open={isShowingShortcuts}
                 onOpenChange={setIsShowingShortcuts}
                 canModerate={auth.isAdmin}
+                hasRemotes={auth.remotes !== null}
             />
         </>
     );

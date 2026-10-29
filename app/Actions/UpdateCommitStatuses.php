@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Jobs\CheckUserLevel;
+use App\Jobs\LinkCommitTopics;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\Notification;
@@ -23,6 +24,7 @@ final readonly class UpdateCommitStatuses
         private CreateReplyNotifications $createReplyNotifications,
         private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
+        private CreateFirstCommitNotifications $createFirstCommitNotifications,
         private CreateWorldReply $createWorldReply,
         private UpdateCommitHotScores $updateCommitHotScores,
         private TomQuery $tomQuery,
@@ -82,8 +84,10 @@ final readonly class UpdateCommitStatuses
                 $this->createReplyNotifications->handle(...$commits);
                 $this->createQuoteNotifications->handle(...$commits);
                 $this->createMentionNotifications->handle(...$commits);
+                $this->createFirstCommitNotifications->handle(...$commits);
 
                 $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
+                LinkCommitTopics::dispatchFor(...$commits->all());
 
                 if (($tom = $this->tomQuery->get()) instanceof User) {
                     foreach ($commits as $commit) {

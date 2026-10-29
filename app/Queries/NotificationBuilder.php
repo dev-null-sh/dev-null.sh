@@ -31,7 +31,7 @@ final class NotificationBuilder extends Builder
                     ->whereColumn('follows.followed_id', 'notifications.recipient_id')
                     ->offset(0)))
             ->orWhere(fn (Builder $query): Builder => $query
-                ->whereIn('type', [NotificationType::Replied, NotificationType::Quoted, NotificationType::Mentioned, NotificationType::Starred])
+                ->whereIn('type', [NotificationType::Replied, NotificationType::Quoted, NotificationType::Mentioned, NotificationType::Starred, NotificationType::FirstCommit])
                 ->whereHas('commit', fn (CommitBuilder $commit): CommitBuilder => $commit
                     ->where('status', CommitStatus::Approved)
                     ->offset(0)))

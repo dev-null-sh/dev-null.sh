@@ -6,6 +6,7 @@ use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -47,6 +48,32 @@ it('renders a user profile', function (): void {
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
+});
+
+it('says which accounts the bio and company mention are on dev/null', function (): void {
+    Profile::factory()->organization()->create(['handle' => 'laravel']);
+    User::factory()->create(['handle' => 'TaylorOtwell']);
+    User::factory()->create(['handle' => 'octocat', 'bio' => 'Thanks @taylorotwell and @nobody', 'company' => '@laravel']);
+
+    $this->get('/@octocat')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('bioProfiles', ['taylorotwell' => 'TaylorOtwell', 'laravel' => 'laravel']));
+});
+
+it('shares which accounts the bio of the signed-in user mentions are on dev/null', function (): void {
+    Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $user = User::factory()->create(['bio' => 'Building @laravel']);
+
+    $this->actingAs($user)
+        ->get('/@laravel')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.bioProfiles', ['laravel' => 'laravel']));
+
+    auth()->logout();
+
+    $this->get('/@laravel')
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
+            ->where('auth.bioProfiles', []));
 });
 
 it('only lets guests see the local time of users who opted in', function (): void {
@@ -777,4 +804,58 @@ it('names no followers the viewer knows to guests or on their own profile', func
     $this->actingAs($user)
         ->get(route('user.show', $user))
         ->assertInertia(fn ($page) => $page->where('followersYouKnow', null));
+});
+
+it('moves a profile for good to the handle in its own case, keeping the query string, for a day', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat?tab=replies')
+        ->assertMovedPermanently()
+        ->assertRedirect('/@OctoCat?tab=replies')
+        ->assertHeader('Cache-Control', 'max-age=86400, private');
+
+    $this->get('/@OctoCat')->assertOk();
+});
+
+it('keeps the query string out of the handle it moves a profile to', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat?user=evil')->assertRedirect('/@OctoCat?user=evil');
+    $this->get('/@octocat?tag=one&tag=two')->assertRedirect('/@OctoCat?tag=one&tag=two');
+    $this->get('/@octocat?user[]=a&user[]=b')->assertRedirect('/@OctoCat?user[]=a&user[]=b');
+});
+
+it('moves the people lists of a profile for good to the handle in its own case', function (string $list): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get("/@octocat/{$list}")
+        ->assertMovedPermanently()
+        ->assertRedirect("/@OctoCat/{$list}");
+})->with(['following', 'followers', 'mutuals']);
+
+it('opens each profile at its own case when a stale profile holds the handle in another case', function (): void {
+    $lower = User::factory()->create(['handle' => 'octocat']);
+    $mixed = User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat')->assertOk()->assertInertia(fn ($page) => $page->where('user.id', $lower->id));
+    $this->get('/@OctoCat')->assertOk()->assertInertia(fn ($page) => $page->where('user.id', $mixed->id));
+
+    $redirect = $this->get('/@OCTOCAT')->assertMovedPermanently();
+
+    expect($redirect->headers->get('Location'))->toBeIn([url('/@octocat'), url('/@OctoCat')])
+        ->and($this->get('/@OCTOCAT')->headers->get('Location'))->toBe($redirect->headers->get('Location'));
+
+    $this->get((string) $redirect->headers->get('Location'))->assertOk();
+});
+
+it('opens the user rather than an organization holding the handle in another case, unless the case is exact', function (): void {
+    $user = User::factory()->create(['handle' => 'Laravel']);
+    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+
+    $this->get('/@LARAVEL')->assertRedirect('/@Laravel')->assertMovedPermanently();
+    $this->get('/@Laravel')->assertOk()->assertInertia(fn ($page) => $page->component('user/show')->where('user.id', $user->id));
+    $this->get('/@laravel')->assertOk()->assertInertia(fn ($page) => $page->component('organization/show')->where('organization.id', $organization->id));
+
+    expect(new Profile()->resolveRouteBinding('LARAVEL', 'handle')?->getKey())->toBe($user->profile->getKey())
+        ->and(new Profile()->resolveRouteBinding('laravel', 'handle')?->getKey())->toBe($organization->getKey());
 });

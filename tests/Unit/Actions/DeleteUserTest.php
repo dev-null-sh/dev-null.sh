@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitTopics;
 use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
@@ -19,6 +20,7 @@ use App\Models\MessageVoice;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
+use App\Models\Profile;
 use App\Models\PushSubscription;
 use App\Models\User;
 use App\Services\CommitTranslations;
@@ -43,12 +45,17 @@ it('erases the commits of a deleted user along with the replies under them', fun
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->create()->delete();
-    Commit::factory()->for($commit, 'parent')->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
     $unrelated = Commit::factory()->create();
+    $organization = Profile::factory()->organization()->create();
+    resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => $organization->id]);
+    resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => $organization->id]);
+    resolve(CreateCommitTopics::class)->handle($unrelated, ['laravel' => $organization->id]);
 
     resolve(DeleteUser::class)->handle($user);
 
-    expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id]);
+    expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id])
+        ->and(DB::table('commit_topics')->pluck('commit_id')->all())->toBe([$unrelated->id]);
 });
 
 it('keeps the quotes of others when erasing the quoted commits of a deleted user', function (): void {
@@ -85,10 +92,11 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
     $mentioned = User::factory()->create();
     $commit = Commit::factory()->create();
     $reply = Commit::factory()->for($user)->for($commit, 'parent')->for(LinkPreview::factory())->create([
-        'body' => "@{$mentioned->handle} have a look at https://example.com",
+        'body' => "@{$mentioned->handle} and @laravel have a look at https://example.com",
         'mentions' => [$mentioned->handle => $mentioned->id],
         'embedding' => embeddingVector(0),
     ]);
+    resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => Profile::factory()->organization()->create()->id]);
     $deletedReply = Commit::factory()->for($user)->for($commit, 'parent')->create();
     Commit::factory()->for($reply, 'parent')->create();
     Commit::factory()->for($deletedReply, 'parent')->create();
@@ -101,6 +109,7 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
     expect($tombstones->count())->toBe(2)
         ->and($tombstones->pluck('body')->all())->toBe(['', ''])
         ->and($tombstones->pluck('mentions')->all())->toBe([null, null])
+        ->and(DB::table('commit_topics')->where('commit_id', $reply->id)->exists())->toBeFalse()
         ->and($tombstones->pluck('embedding')->all())->toBe([null, null])
         ->and($tombstones->pluck('link_preview_id')->all())->toBe([null, null]);
 });
@@ -178,6 +187,17 @@ it('erases authored polls and the users votes while keeping other polls and vote
     expect(Poll::query()->sole()->is($other))->toBeTrue()
         ->and(PollOption::query()->pluck('id')->sort()->values()->all())->toBe($other->options->pluck('id')->sort()->values()->all())
         ->and(PollVote::query()->sole()->is($keptVote))->toBeTrue();
+});
+
+it('erases the organizations a deleted user claimed, keeping their other admins', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $organization = Profile::factory()->organization()->create();
+    $organization->admins()->attach([$user->id => ['created_at' => now()], $other->id => ['created_at' => now()]]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($organization->admins()->pluck('users.id')->all())->toBe([$other->id]);
 });
 
 it('erases the devices of a deleted user', function (): void {

@@ -3,12 +3,14 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitRestoration;
+use App\Actions\CreateCommitTopics;
 use App\Actions\DeleteCommit;
 use App\Actions\DeleteCommitContent;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\Poll;
+use App\Models\Profile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -73,7 +75,8 @@ it('keeps the images of a commit deleted again within its new undo window', func
 });
 
 it('erases the content once the undo window has closed', function (): void {
-    $commit = Commit::factory()->create(['body' => 'Hello @taylor', 'mentions' => ['taylor'], 'link_preview_id' => LinkPreview::factory()]);
+    $commit = Commit::factory()->create(['body' => 'Hello @taylor and @laravel', 'mentions' => ['taylor'], 'link_preview_id' => LinkPreview::factory()]);
+    resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => Profile::factory()->organization()->create()->id]);
     $poll = Poll::factory()->withOptions('Yes', 'No')->create(['commit_id' => $commit->id]);
     resolve(DeleteCommit::class)->handle($commit);
     $this->travel(30)->seconds();
@@ -84,9 +87,11 @@ it('erases the content once the undo window has closed', function (): void {
     expect($commit)
         ->body->toBe('')
         ->mentions->toBeNull()
+        ->organization_mentions->toBeNull()
         ->link_preview_id->toBeNull()
         ->user_id->not->toBeNull();
     $this->assertModelMissing($poll);
+    $this->assertDatabaseMissing('commit_topics', ['commit_id' => $commit->id]);
 });
 
 it('erases the previews of links to the commit, which hold its body', function (): void {

@@ -206,3 +206,73 @@ it('limits each address to 60 tries a minute, before checking signatures', funct
         ->assertTooManyRequests()
         ->assertJsonPath('code', 'rate_limited');
 });
+
+it('lists the approved devices of the user, last approved first', function (): void {
+    $keyPair = apiKeyPairFor($user = User::factory()->create());
+    $signing = Device::query()->sole();
+    $signing->update(['approved_at' => now()->subMonth()]);
+
+    $older = Device::factory()->for($user)->create([
+        'name' => 'devnull on iPad',
+        'approved_at' => now()->subWeek(),
+        'last_used_at' => now()->subDay(),
+    ]);
+    $newer = Device::factory()->for($user)->create(['name' => 'devnull on Mac']);
+
+    Device::factory()->create();
+
+    $response = signedApiRequest($keyPair, 'GET', route('api-device.index'));
+
+    $response->assertOk()
+        ->assertJsonCount(3, 'data')
+        ->assertJsonPath('data.0', [
+            'id' => $newer->id,
+            'name' => 'devnull on Mac',
+            'fingerprint' => $newer->fingerprint,
+            'approved_at' => now()->toIso8601ZuluString(),
+            'last_used_at' => null,
+        ])
+        ->assertJsonPath('data.1.id', $older->id)
+        ->assertJsonPath('data.1.last_used_at', now()->subDay()->toIso8601ZuluString())
+        ->assertJsonPath('data.2.id', $signing->id);
+});
+
+it('revokes a device', function (): void {
+    $keyPair = apiKeyPairFor($user = User::factory()->create());
+    $device = Device::factory()->for($user)->create();
+
+    signedApiRequest($keyPair, 'DELETE', route('api-device.destroy', $device))->assertNoContent();
+
+    expect($device->fresh())->toBeNull();
+
+    signedApiRequest($keyPair, 'GET', route('api-current-user.show'))->assertOk();
+});
+
+it('signs the app out when revoking the device that signed the request', function (): void {
+    $keyPair = apiKeyPairFor(User::factory()->create());
+
+    signedApiRequest($keyPair, 'DELETE', route('api-device.destroy', Device::query()->sole()))->assertNoContent();
+
+    signedApiRequest($keyPair, 'GET', route('api-current-user.show'))
+        ->assertUnauthorized()
+        ->assertJsonPath('code', 'device_not_approved');
+});
+
+it("never revokes someone else's device", function (): void {
+    $device = Device::factory()->create();
+
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'DELETE', route('api-device.destroy', $device))->assertNotFound();
+
+    expect($device->fresh())->not->toBeNull();
+});
+
+it('requires a signed request to list or revoke devices', function (string $method, Closure $uri): void {
+    $device = Device::factory()->create();
+
+    $this->json($method, $uri($device))->assertUnauthorized();
+
+    expect($device->fresh())->not->toBeNull();
+})->with([
+    'the list' => ['GET', fn (Device $device): string => route('api-device.index')],
+    'revoking' => ['DELETE', fn (Device $device): string => route('api-device.destroy', $device)],
+]);

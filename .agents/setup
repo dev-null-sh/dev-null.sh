@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+SECONDS=0
+step() { printf '\n[%ss] %s\n' "$SECONDS" "$*"; }
+
+step 'Checking system packages (PHP 8.5 and PostgreSQL 18)'
+packages=(php8.5-cli php8.5-curl php8.5-gd php8.5-intl php8.5-mbstring
+    php8.5-pgsql php8.5-xml php8.5-zip php8.5-pcov postgresql-18
+    postgresql-18-pgvector)
+missing=()
+for package in "${packages[@]}"; do
+    if ! dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -qx 'install ok installed'; then
+        missing+=("$package")
+    fi
+done
+if ((${#missing[@]})); then
+    if [[ ! -f /etc/apt/sources.list.d/php.list ]]; then
+        keyring=$(mktemp)
+        curl -fsSL https://packages.sury.org/debsuryorg-archive-keyring.deb -o "$keyring"
+        sudo dpkg -i "$keyring"
+        rm "$keyring"
+        echo 'deb [signed-by=/usr/share/keyrings/debsuryorg-archive-keyring.gpg] https://packages.sury.org/php/ bookworm main' |
+            sudo tee /etc/apt/sources.list.d/php.list >/dev/null
+    fi
+    if [[ ! -f /etc/apt/sources.list.d/pgdg.list ]]; then
+        curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc |
+            sudo tee /usr/share/keyrings/postgresql.asc >/dev/null
+        echo 'deb [signed-by=/usr/share/keyrings/postgresql.asc] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main' |
+            sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+    fi
+    sudo apt-get update -qq
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
+fi
+# Use the same PHP CLI configuration in setup, later shells, and supervised services.
+printf 'memory_limit=-1\nzend.assertions=1\n' |
+    sudo tee /etc/php/8.5/cli/conf.d/99-orb.ini >/dev/null
+
+step 'Checking Composer, Node 26, and the repository Bun version'
+if ! command -v composer >/dev/null; then
+    installer=$(mktemp)
+    curl -fsSL https://getcomposer.org/installer -o "$installer"
+    expected=$(curl -fsSL https://composer.github.io/installer.sig)
+    [[ "$(sha384sum "$installer" | cut -d ' ' -f 1)" == "$expected" ]]
+    php "$installer" --2 --install-dir=/tmp --filename=composer
+    sudo install -m 0755 /tmp/composer /usr/local/bin/composer
+    rm "$installer" /tmp/composer
+fi
+if ! command -v node >/dev/null || [[ "$(node -p 'process.versions.node.split(".")[0]')" != 26 ]]; then
+    archive=$(mktemp -d)
+    curl -fsSL https://nodejs.org/dist/latest-v26.x/SHASUMS256.txt -o "$archive/SHASUMS256.txt"
+    node_archive=$(awk '/ node-v.*-linux-x64.tar.xz$/ {print $2}' "$archive/SHASUMS256.txt")
+    curl -fsSL "https://nodejs.org/dist/latest-v26.x/$node_archive" -o "$archive/$node_archive"
+    (cd "$archive" && grep " $node_archive\$" SHASUMS256.txt | sha256sum -c -)
+    sudo tar -xJf "$archive/$node_archive" -C /usr/local --strip-components=1
+    rm -r "$archive"
+fi
+bun_version=$(node -p 'JSON.parse(require("fs").readFileSync("package.json", "utf8")).devEngines.packageManager.version')
+if [[ "$(bun --version 2>/dev/null || true)" != "$bun_version" ]]; then
+    installer=$(mktemp)
+    curl -fsSL https://bun.com/install -o "$installer"
+    bash "$installer" "bun-v$bun_version"
+    sudo install -m 0755 "$HOME/.bun/bin/bun" /usr/local/bin/bun
+    rm "$installer"
+fi
+
+step 'Installing locked PHP and JavaScript dependencies'
+[[ -f .env ]] || cp -- .env.example .env
+composer install --no-interaction --prefer-dist --no-progress
+bun install --frozen-lockfile
+if ! grep -qE '^APP_KEY=.+$' .env; then
+    php artisan key:generate --no-interaction
+fi
+
+step 'Preparing the orb-local PostgreSQL databases'
+pg_bin=/usr/lib/postgresql/18/bin
+pg_data="$HOME/.local/share/devnull/postgres"
+mkdir -p "$pg_data"
+if [[ ! -f "$pg_data/PG_VERSION" ]]; then
+    # This isolated development database is reachable only over loopback / its private socket.
+    "$pg_bin/initdb" -D "$pg_data" --username=root --auth=trust --no-locale --encoding=UTF8
+    cat >> "$pg_data/postgresql.conf" <<EOF
+listen_addresses = '127.0.0.1'
+unix_socket_directories = '$pg_data'
+fsync = off
+synchronous_commit = off
+full_page_writes = off
+max_connections = 200
+EOF
+fi
+# Setup needs a temporary database process for migrations. The declared service owns it afterward.
+if ! "$pg_bin/pg_ctl" -D "$pg_data" status >/dev/null 2>&1; then
+    "$pg_bin/pg_ctl" -D "$pg_data" -l "$pg_data/server.log" -w start
+    trap '"$pg_bin/pg_ctl" -D "$pg_data" -m fast -w stop' EXIT
+fi
+for database in template1 devnull testing; do
+    if ! "$pg_bin/psql" -h "$pg_data" -U root -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$database'" | grep -qx 1; then
+        "$pg_bin/createdb" -h "$pg_data" -U root "$database"
+    fi
+    "$pg_bin/psql" -h "$pg_data" -U root -d "$database" -v ON_ERROR_STOP=1 \
+        -c 'CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm;'
+done
+# Explicit local connection settings prevent inherited project DB credentials from targeting a remote DB.
+DB_URL= DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5432 DB_DATABASE=devnull DB_USERNAME=root DB_PASSWORD= \
+    php artisan migrate --force --no-interaction
+
+step 'Generating routes and building assets'
+php artisan wayfinder:generate --with-form
+bun run build
+
+step 'Compiling Boost guidelines and installing skills'
+php artisan boost:install --guidelines --skills --no-interaction
+
+step 'Orb setup ready; use amp orb services ensure to start PostgreSQL and the app'

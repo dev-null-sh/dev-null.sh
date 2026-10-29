@@ -734,7 +734,7 @@ it('shows the commit and its replies split into prose and highlighted code', fun
                 ['type' => 'text', 'text' => 'Run '],
                 ['type' => 'code', 'code' => 'make'],
                 ['type' => 'text', 'text' => ' :fire'],
-                ['type' => 'block', 'language' => 'php', 'html' => '<span class="hl-variable">$name</span> = <span class="hl-value">\'&lt;b&gt;\'</span>;'],
+                ['type' => 'block', 'language' => 'php', 'filename' => null, 'html' => '<span class="hl-variable">$name</span> = <span class="hl-value">\'&lt;b&gt;\'</span>;'],
             ])
             ->where('replies.data.0.body_segments.1', ['type' => 'code', 'code' => 'make test'])
             ->missing('replies.data.0.body_segments.2'));
@@ -1497,4 +1497,27 @@ it('includes the images of a commit, its ancestors and its replies', function ()
             ->has('ancestors.0.images', 1)
             ->has('replies.data.0.images', 1)
             ->missing('commit.images.0.path'));
+});
+
+it('moves a commit for good to the handle of its author in its own case', function (): void {
+    $commit = Commit::factory()->for(User::factory()->state(['handle' => 'OctoCat']))->create();
+
+    $this->get("/@octocat/commits/{$commit->id}")
+        ->assertMovedPermanently()
+        ->assertRedirect("/@OctoCat/commits/{$commit->id}");
+});
+
+it('does not move a commit the visitor cannot see, so it answers like a missing one', function (): void {
+    $author = User::factory()->create(['handle' => 'OctoCat']);
+    $pending = Commit::factory()->for($author)->pending()->create();
+
+    $this->get("/@octocat/commits/{$pending->id}")->assertNotFound();
+    $this->actingAs($author)->get("/@octocat/commits/{$pending->id}")->assertRedirect("/@OctoCat/commits/{$pending->id}");
+});
+
+it('keeps the query string out of the commit it moves to', function (): void {
+    $commit = Commit::factory()->for(User::factory()->state(['handle' => 'OctoCat']))->create();
+
+    $this->get("/@octocat/commits/{$commit->id}?commit=nope")
+        ->assertRedirect("/@OctoCat/commits/{$commit->id}?commit=nope");
 });

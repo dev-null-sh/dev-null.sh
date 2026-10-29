@@ -68,6 +68,11 @@ final class AppServiceProvider extends ServiceProvider
 
     private function bootRateLimitingDefaults(): void
     {
+        // Each email costs us sender reputation, so a network gets a few an hour...
+        RateLimiter::for('join-links', fn (Request $request): Limit => Limit::perHour(3)->by((string) $request->ip())->response(
+            fn (): RedirectResponse => back()->withErrors(['email' => __('Too many links sent from here. Try again later.')]),
+        ));
+
         RateLimiter::for('commit-reports', fn (Request $request): Limit => Limit::perMinute(5)->by($this->userId($request)));
 
         // Every sync costs four GitHub API requests, out of a shared hourly budget. The mobile app shares it, and gets the

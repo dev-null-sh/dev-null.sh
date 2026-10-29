@@ -4,43 +4,118 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Enums\ProfileType;
+use App\Enums\TopicType;
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Profiles are listed by the month they signed up, organizations by the month their page was made, and commits by the
+ * day they were written, in UTC, so a URL never moves to another sitemap and the older sitemaps rarely change. A
+ * sitemap may list 50,000 URLs, far more than a month of sign-ups or a day of commits.
+ */
 final readonly class SitemapQuery
 {
     /**
-     * Well under the 50,000 URLs a sitemap may list, so every page stays quick to build.
+     * The months, as "2026-10", in which the profiles with approved commits signed up, oldest first, with when the
+     * last of them changed, so search engines only read again the sitemaps that changed.
+     *
+     * @return list<array{month: string, updated_at: CarbonImmutable}>
      */
-    public const int PER_PAGE = 10_000;
-
-    public function userPages(): int
+    public function userMonths(): array
     {
-        return (int) ceil($this->users()->count() / self::PER_PAGE);
-    }
+        /** @var list<object{month: string, updated_at: string}> $months */
+        $months = DB::query()
+            ->fromSub($this->users(), 'users')
+            ->selectRaw("to_char(created_at, 'YYYY-MM') as month, max(updated_at) as updated_at")
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->all();
 
-    public function commitPages(): int
-    {
-        return (int) ceil($this->commits()->count() / self::PER_PAGE);
+        return array_map(fn (object $month): array => [
+            'month' => $month->month,
+            'updated_at' => CarbonImmutable::parse($month->updated_at),
+        ], $months);
     }
 
     /**
-     * Read as plain rows rather than models, since a page lists thousands of them.
+     * The months, as "2026-10", in which the organizations' pages were made, oldest first, with when the last of them
+     * changed.
+     *
+     * @return list<array{month: string, updated_at: CarbonImmutable}>
+     */
+    public function organizationMonths(): array
+    {
+        /** @var list<object{month: string, updated_at: string}> $months */
+        $months = DB::query()
+            ->fromSub($this->organizations(), 'organizations')
+            ->selectRaw("to_char(created_at, 'YYYY-MM') as month, max(updated_at) as updated_at")
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get()
+            ->all();
+
+        return array_map(fn (object $month): array => [
+            'month' => $month->month,
+            'updated_at' => CarbonImmutable::parse($month->updated_at),
+        ], $months);
+    }
+
+    /**
+     * The days, as "2026-10-29", on which approved commits were written, oldest first, with when the last of them
+     * changed, so search engines only read again the sitemaps that changed.
+     *
+     * @return list<array{day: string, updated_at: CarbonImmutable}>
+     */
+    public function commitDays(): array
+    {
+        /** @var list<object{day: string, updated_at: string}> $days */
+        $days = $this->commits()
+            ->toBase()
+            ->selectRaw("to_char(created_at, 'YYYY-MM-DD') as day, max(updated_at) as updated_at")
+            ->groupBy('day')
+            ->orderBy('day')
+            ->get()
+            ->all();
+
+        return array_map(fn (object $day): array => [
+            'day' => $day->day,
+            'updated_at' => CarbonImmutable::parse($day->updated_at),
+        ], $days);
+    }
+
+    public function hasUsersIn(CarbonImmutable $month): bool
+    {
+        return $this->usersSignedUpIn($month)->exists();
+    }
+
+    public function hasOrganizationsIn(CarbonImmutable $month): bool
+    {
+        return $this->organizationsMadeIn($month)->exists();
+    }
+
+    public function hasCommitsOn(CarbonImmutable $day): bool
+    {
+        return $this->commitsWrittenOn($day)->exists();
+    }
+
+    /**
+     * Read as plain rows rather than models, since a month lists thousands of them.
      *
      * @return list<array{handle: string, updated_at: CarbonImmutable}>
      */
-    public function usersOn(int $page): array
+    public function usersIn(CarbonImmutable $month): array
     {
         /** @var list<object{handle: string, updated_at: string}> $users */
-        $users = $this->users()
-            ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
+        $users = $this->usersSignedUpIn($month)
             ->orderBy('users.id')
-            ->forPage($page, self::PER_PAGE)
             ->toBase()
-            ->get(['profiles.handle', 'users.updated_at'])
+            ->get()
             ->all();
 
         return array_map(fn (object $user): array => [
@@ -50,21 +125,38 @@ final readonly class SitemapQuery
     }
 
     /**
-     * Read as plain rows rather than models, with the author and the images in the same query, since a page lists
+     * Read as plain rows rather than models, like the profiles.
+     *
+     * @return list<array{handle: string, updated_at: CarbonImmutable}>
+     */
+    public function organizationsIn(CarbonImmutable $month): array
+    {
+        /** @var list<object{handle: string, updated_at: string}> $organizations */
+        $organizations = $this->organizationsMadeIn($month)
+            ->orderBy('profiles.id')
+            ->toBase()
+            ->get()
+            ->all();
+
+        return array_map(fn (object $organization): array => [
+            'handle' => $organization->handle,
+            'updated_at' => CarbonImmutable::parse($organization->updated_at),
+        ], $organizations);
+    }
+
+    /**
+     * Read as plain rows rather than models, with the author and the images in the same query, since a day lists
      * thousands of them.
      *
      * @return list<array{id: string, handle: string, updated_at: CarbonImmutable, image_ids: list<string>}>
      */
-    public function commitsOn(int $page): array
+    public function commitsOn(CarbonImmutable $day): array
     {
-        $onPage = $this->commits()
-            ->select(['id', 'user_id', 'updated_at'])
-            ->orderBy('id')
-            ->forPage($page, self::PER_PAGE);
+        $onDay = $this->commitsWrittenOn($day)->select(['id', 'user_id', 'updated_at']);
 
         /** @var list<object{id: string, handle: string, updated_at: string, image_id: string|null}> $rows */
         $rows = DB::query()
-            ->fromSub($onPage, 'commits')
+            ->fromSub($onDay, 'commits')
             ->join('users', 'users.id', '=', 'commits.user_id')
             ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
             ->leftJoin('commit_images', 'commit_images.commit_id', '=', 'commits.id')
@@ -92,17 +184,80 @@ final readonly class SitemapQuery
     }
 
     /**
-     * Profiles without a single approved commit have nothing to read yet.
+     * Profiles without a single approved commit have nothing to read yet. A profile's page changes with the account,
+     * its GitHub profile, and the last of its approved commits.
      *
      * @return Builder<User>
      */
     private function users(): Builder
     {
-        return User::query()->whereHas('commits', fn (CommitBuilder $query): CommitBuilder => $query->approved());
+        $lastCommits = $this->commits()
+            ->toBase()
+            ->select('user_id')
+            ->selectRaw('max(updated_at) as updated_at')
+            ->groupBy('user_id');
+
+        return User::query()
+            ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
+            ->joinSub($lastCommits, 'last_commits', 'last_commits.user_id', '=', 'users.id')
+            ->select(['profiles.handle', 'users.created_at'])
+            ->selectRaw('greatest(users.updated_at, profiles.updated_at, last_commits.updated_at) as updated_at');
+    }
+
+    /**
+     * @return Builder<User>
+     */
+    private function usersSignedUpIn(CarbonImmutable $month): Builder
+    {
+        return $this->users()
+            ->where('users.created_at', '>=', $month)
+            ->where('users.created_at', '<', $month->addMonth());
+    }
+
+    /**
+     * Every organization has a page, but not the placeholder handle of a profile whose handle was taken on GitHub,
+     * which its next sync replaces. An organization's page changes with its GitHub profile and the approved commits
+     * that mention it.
+     *
+     * @return Builder<Profile>
+     */
+    private function organizations(): Builder
+    {
+        $lastMentions = $this->commits()
+            ->toBase()
+            ->join('commit_topics', 'commit_topics.commit_id', '=', 'commits.id')
+            ->where('commit_topics.topic_type', TopicType::Organization)
+            ->select('commit_topics.topic_id')
+            ->selectRaw('max(commits.updated_at) as updated_at')
+            ->groupBy('commit_topics.topic_id');
+
+        return Profile::query()
+            ->leftJoinSub($lastMentions, 'last_mentions', 'last_mentions.topic_id', '=', 'profiles.id')
+            ->where('profiles.type', ProfileType::Organization)
+            ->where('profiles.handle', 'not like', '\_%')
+            ->select(['profiles.handle', 'profiles.created_at'])
+            ->selectRaw('greatest(profiles.updated_at, last_mentions.updated_at) as updated_at');
+    }
+
+    /**
+     * @return Builder<Profile>
+     */
+    private function organizationsMadeIn(CarbonImmutable $month): Builder
+    {
+        return $this->organizations()
+            ->where('profiles.created_at', '>=', $month)
+            ->where('profiles.created_at', '<', $month->addMonth());
     }
 
     private function commits(): CommitBuilder
     {
         return Commit::query()->approved();
+    }
+
+    private function commitsWrittenOn(CarbonImmutable $day): CommitBuilder
+    {
+        return $this->commits()
+            ->where('created_at', '>=', $day)
+            ->where('created_at', '<', $day->addDay());
     }
 }

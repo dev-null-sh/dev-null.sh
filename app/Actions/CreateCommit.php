@@ -9,12 +9,14 @@ use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
+use App\Jobs\LinkCommitTopics;
 use App\Jobs\ModerateCommit;
 use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Queries\MentionedOrganizationsQuery;
 use App\Queries\MentionedUsersQuery;
 use App\Queries\TomQuery;
 use App\Services\EmojiShortcodes;
@@ -29,6 +31,7 @@ final readonly class CreateCommit
         private CreateReplyNotifications $createReplyNotifications,
         private CreateQuoteNotifications $createQuoteNotifications,
         private CreateMentionNotifications $createMentionNotifications,
+        private CreateFirstCommitNotifications $createFirstCommitNotifications,
         private CreateCommitImages $createCommitImages,
         private CreateWorldReply $createWorldReply,
         private UpdateCommitHotScores $updateCommitHotScores,
@@ -36,6 +39,8 @@ final readonly class CreateCommit
         private EmojiShortcodes $emojiShortcodes,
         private Urls $urls,
         private MentionedUsersQuery $mentionedUsers,
+        private MentionedOrganizationsQuery $mentionedOrganizations,
+        private CreateCommitTopics $createCommitTopics,
         private TomQuery $tomQuery,
     ) {
         //
@@ -59,10 +64,11 @@ final readonly class CreateCommit
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
+            $mentions = $this->mentionedUsers->get($body);
 
             $commit = $user->commits()->create([
                 'body' => $this->emojiShortcodes->replace($body),
-                'mentions' => $this->mentionedUsers->get($body),
+                'mentions' => $mentions,
                 'parent_id' => $parent?->id,
                 'root_id' => $parent?->threadRootId(),
                 'status' => $user->isAdmin() || $hasGoodReputation ? CommitStatus::Approved : CommitStatus::Pending,
@@ -72,6 +78,7 @@ final readonly class CreateCommit
                 'created_at' => $createdAt,
             ]);
 
+            $this->createCommitTopics->handle($commit, $this->mentionedOrganizations->get($body, $mentions));
             $this->createCommitImages->handle($commit, $images, $imageDescriptions);
 
             if ($poll instanceof NewPoll) {
@@ -85,6 +92,7 @@ final readonly class CreateCommit
             $this->createReplyNotifications->handle($commit);
             $this->createQuoteNotifications->handle($commit);
             $this->createMentionNotifications->handle($commit);
+            $this->createFirstCommitNotifications->handle($commit);
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
                 dispatch(new UnfurlLink($linkPreview));
@@ -105,6 +113,8 @@ final readonly class CreateCommit
             if ($commit->status === CommitStatus::Approved) {
                 dispatch(new CheckUserLevel($user))->afterCommit();
             }
+
+            LinkCommitTopics::dispatchFor($commit);
 
             if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation) {
                 dispatch(new ModerateCommit($commit))->afterCommit();

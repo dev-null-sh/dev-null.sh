@@ -457,6 +457,9 @@ export function CommitCard({
                                 <FoldedCommitBody
                                     segments={translation.segments}
                                     mentions={commit.mentions}
+                                    organizationMentions={
+                                        commit.organization_mentions
+                                    }
                                     previewSegments={
                                         isFolded && !isFocused
                                             ? translation.previewSegments

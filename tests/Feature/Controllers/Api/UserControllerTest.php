@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\LivePlatform;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\User;
@@ -43,6 +44,7 @@ it('shows a public profile with public counts', function (): void {
             'html_url' => route('user.show', $user),
             'feed_url' => route('user-feed.show', $user),
             'created_at' => now()->toIso8601ZuluString(),
+            'live' => null,
             'commits_count' => 2,
             'followers_count' => 3,
             'following_count' => 1,
@@ -66,6 +68,43 @@ it('never exposes hidden fields', function (): void {
         ->assertJsonMissingPath('data.preferred_lane')
         ->assertJsonMissingPath('data.lane')
         ->assertJsonMissingPath('data.remember_token');
+});
+
+it('shows the stream of a user who is live', function (LivePlatform $platform, string $url, array $live): void {
+    $this->freezeSecond();
+
+    $user = User::factory()->create([
+        'live_platform' => $platform,
+        'live_url' => $url,
+        'live_ends_at' => now()->addHours(2),
+    ]);
+
+    $this->getJson(route('api-user.show', $user))
+        ->assertOk()
+        ->assertJsonPath('data.live', [...$live, 'ends_at' => now()->addHours(2)->toIso8601ZuluString()]);
+})->with([
+    'youtube' => [LivePlatform::YouTube, 'https://youtu.be/dQw4w9WgXcQ', [
+        'platform' => 'youtube',
+        'url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'thumbnail_url' => 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault_live.jpg',
+    ]],
+    'twitch' => [LivePlatform::Twitch, 'https://www.twitch.tv/octocat', [
+        'platform' => 'twitch',
+        'url' => 'https://www.twitch.tv/octocat',
+        'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_octocat-1280x720.jpg',
+    ]],
+]);
+
+it('shows no stream once it has run out, before the scheduler clears it', function (): void {
+    $user = User::factory()->create([
+        'live_platform' => LivePlatform::YouTube,
+        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'live_ends_at' => now()->subMinute(),
+    ]);
+
+    $this->getJson(route('api-user.show', $user))
+        ->assertOk()
+        ->assertJsonPath('data.live', null);
 });
 
 it('returns not found for unknown handles', function (): void {
@@ -112,6 +151,7 @@ it('shows a signed request the profile as the web shows it to its user', functio
                 'html_url' => route('user.show', $user),
                 'feed_url' => route('user-feed.show', $user),
                 'created_at' => now()->toIso8601ZuluString(),
+                'live' => null,
                 'commits_count' => 3,
                 'followers_count' => 1,
                 'following_count' => 2,

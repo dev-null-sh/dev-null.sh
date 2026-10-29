@@ -55,6 +55,7 @@ use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
+use App\Http\Controllers\JoinLinkController;
 use App\Http\Controllers\LinkController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
@@ -73,6 +74,10 @@ use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\OperationsEventController;
+use App\Http\Controllers\OrganizationAdminController;
+use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\OrganizationMentionController;
+use App\Http\Controllers\OrganizationSitemapController;
 use App\Http\Controllers\OrgArchiveController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
@@ -84,6 +89,7 @@ use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\ProductMetricsController;
+use App\Http\Controllers\ProfileOpenGraphImageController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\RelatedCommitController;
 use App\Http\Controllers\RemoteCandidateController;
@@ -116,7 +122,6 @@ use App\Http\Controllers\UserLaneController;
 use App\Http\Controllers\UserLiveController;
 use App\Http\Controllers\UserMuteController;
 use App\Http\Controllers\UserMutualsController;
-use App\Http\Controllers\UserOpenGraphImageController;
 use App\Http\Controllers\UserPasteisModeController;
 use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
@@ -128,14 +133,21 @@ use App\Http\Controllers\UserTimeoutController;
 use App\Http\Controllers\UserTimezoneController;
 use App\Http\Controllers\UserTranslationLanguageController;
 use App\Http\Middleware\PreventPostingInTimeout;
+use App\Http\Middleware\RedirectToHandleCase;
 use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\SerializePushSessions;
 use App\Http\Middleware\SerializePushSubscriptions;
 use App\Http\Middleware\ThrottleCommits;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Routing\Pipeline;
+use Illuminate\Routing\Route as RoutingRoute;
+use Illuminate\Routing\Router;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 // Commit from the terminal: curl -fsSL https://dev-null.sh/commit | bash -s -- 'Hello world!'
 Route::get('commit', [ScriptController::class, 'show'])->name('cli-script.show');
@@ -158,6 +170,11 @@ Route::middleware('guest')->group(function (): void {
     Route::get('auth/github/callback', [SessionController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('login.store');
+
+    // A link by email, for a guest on a phone who'd rather join from their computer...
+    Route::post('join-links', [JoinLinkController::class, 'store'])
+        ->middleware('throttle:join-links')
+        ->name('join-link.store');
 });
 
 // Log, where guests read Trending and Latest...
@@ -189,8 +206,19 @@ Route::get('mac', fn () => to_route('app.index', status: 301));
 Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.index');
 
 // Public pages, readable by guests and crawlers...
-Route::middleware(RememberIntendedUrl::class)->group(function (): void {
-    Route::get('@{user:handle}', [UserController::class, 'show'])->name('user.show');
+Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->group(function (): void {
+    // A handle no user has may be an organization's. Bindings run before the rest of the route's middleware, like
+    // the one sharing the page's props, so the organization's page goes through that rest first, like any page.
+    Route::get('@{user:handle}', [UserController::class, 'show'])
+        ->missing(function (Request $request): mixed {
+            $router = resolve(Router::class);
+
+            return new Pipeline(app())
+                ->send($request)
+                ->through(collect($router->gatherRouteMiddleware(resolve(RoutingRoute::class)))->skipUntil(SubstituteBindings::class)->skip(1)->all())
+                ->then(fn (Request $request): SymfonyResponse => $router->prepareResponse($request, app()->call(resolve(OrganizationController::class)->show(...))));
+        })
+        ->name('user.show');
     Route::get('@{user:handle}/following', [UserFollowingController::class, 'index'])
         ->name('user-following.index');
     Route::get('@{user:handle}/followers', [UserFollowersController::class, 'index'])
@@ -206,14 +234,17 @@ Route::middleware(RememberIntendedUrl::class)->group(function (): void {
         ->name('commit-photo.show');
 });
 
-// Sitemaps...
-Route::middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
+// Sitemaps, the same for everyone, so they skip the web group's session and cookies, which would keep a cache from sharing them...
+Route::withoutMiddleware('web')->middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
     Route::get('sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.index');
-    Route::get('sitemaps/users-{page}.xml', [UserSitemapController::class, 'show'])
-        ->where('page', '[1-9][0-9]*')
+    Route::get('sitemaps/users-{month}.xml', [UserSitemapController::class, 'show'])
+        ->where('month', '[0-9]{4}-[0-9]{2}')
         ->name('user-sitemap.show');
-    Route::get('sitemaps/commits-{page}.xml', [CommitSitemapController::class, 'show'])
-        ->where('page', '[1-9][0-9]*')
+    Route::get('sitemaps/organizations-{month}.xml', [OrganizationSitemapController::class, 'show'])
+        ->where('month', '[0-9]{4}-[0-9]{2}')
+        ->name('organization-sitemap.show');
+    Route::get('sitemaps/commits-{day}.xml', [CommitSitemapController::class, 'show'])
+        ->where('day', '[0-9]{4}-[0-9]{2}-[0-9]{2}')
         ->name('commit-sitemap.show');
 });
 
@@ -221,6 +252,9 @@ Route::middleware('cache.headers:public;max_age=3600;etag')->group(function (): 
 Route::get('mentions/{user}', [MentionController::class, 'show'])
     ->whereUuid('user')
     ->name('mention.show');
+Route::get('mentions/organizations/{organization}', [OrganizationMentionController::class, 'show'])
+    ->whereUuid('organization')
+    ->name('organization-mention.show');
 Route::get('mentions/{user}/preview', [UserPreviewController::class, 'show'])
     ->middleware('throttle:people')
     ->whereUuid('user')
@@ -228,7 +262,7 @@ Route::get('mentions/{user}/preview', [UserPreviewController::class, 'show'])
 Route::get('@{user:handle}/preview', [UserPreviewController::class, 'show'])
     ->middleware('throttle:people')
     ->name('user-preview.show');
-Route::get('@{user:handle}/og.png', [UserOpenGraphImageController::class, 'show'])
+Route::get('@{profile:handle}/og.png', [ProfileOpenGraphImageController::class, 'show'])
     ->name('user-open-graph-image.show');
 Route::get('@{user:handle}/feed.atom', [UserFeedController::class, 'show'])
     ->middleware('cache.headers:public;max_age=300;etag')
@@ -289,6 +323,15 @@ Route::middleware('auth')->group(function (): void {
 
     // Banned, where a banned user is sent from everywhere else...
     Route::get('banned', [BannedController::class, 'show'])->name('banned.show');
+
+    // Claiming an organization's page, which GitHub confirms the user belongs to...
+    Route::post('organizations/{organization}/claim', [OrganizationAdminController::class, 'create'])
+        ->whereUuid('organization')
+        ->middleware('throttle:10,1')
+        ->name('organization-admin.create');
+    Route::get('auth/github/callback/organizations', [OrganizationAdminController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('organization-admin.store');
 
     // Followers the viewer knows...
     Route::get('@{user:handle}/followers-you-know', [UserFollowersYouKnowController::class, 'index'])
