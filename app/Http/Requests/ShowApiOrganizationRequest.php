@@ -26,7 +26,8 @@ final class ShowApiOrganizationRequest extends FormRequest
     }
 
     /**
-     * Only organizations that already have a page, so looking one up never asks GitHub.
+     * Only organizations that already have a page, so looking one up never asks GitHub. Like their web page, whatever
+     * the handle's case, the exact case first.
      */
     public function organization(): ?Organization
     {
@@ -34,7 +35,11 @@ final class ShowApiOrganizationRequest extends FormRequest
         assert(is_string($handle));
 
         return $this->organization ??= Organization::query()
-            ->whereRelation('profile', 'handle', $handle)
+            ->select('organizations.*')
+            ->join('profiles', 'profiles.id', '=', 'organizations.id')
+            ->whereRaw('LOWER(profiles.handle) = LOWER(?)', [$handle])
+            ->orderByRaw('profiles.handle = ? desc', [$handle])
+            ->orderBy('profiles.handle')
             ->first();
     }
 }

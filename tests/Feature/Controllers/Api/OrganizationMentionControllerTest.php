@@ -52,3 +52,13 @@ it('does not find the mentions of a handle that is no organization', function ()
 
     $this->getJson('/api/v1/organizations/octocat/mentions')->assertNotFound();
 });
+
+it('lists the mentions of an organization whatever the handle\'s case', function (): void {
+    $laravel = Organization::factory()->create(['handle' => 'Laravel']);
+    $commit = Commit::factory()->create(['body' => 'Thanks @laravel']);
+    resolve(CreateCommitTopics::class)->handle($commit, ['Laravel' => $laravel->id]);
+
+    $this->getJson('/api/v1/organizations/laravel/mentions')
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$commit->id]);
+});
