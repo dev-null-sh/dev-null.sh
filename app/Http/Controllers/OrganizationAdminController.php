@@ -7,9 +7,8 @@ namespace App\Http\Controllers;
 use App\Actions\CreateOrganizationAdmin;
 use App\Contracts\Services\GitHubProvider;
 use App\Enums\GitHubOrganizationMembership;
-use App\Enums\ProfileType;
 use App\Http\Requests\CreateOrganizationAdminRequest;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
@@ -32,7 +31,7 @@ final readonly class OrganizationAdminController
     /**
      * Claiming starts from a form, so no other site can send a user who already granted the scope through it.
      */
-    public function create(CreateOrganizationAdminRequest $request, Profile $organization): SymfonyResponse
+    public function create(CreateOrganizationAdminRequest $request, Organization $organization): SymfonyResponse
     {
         $claimed = $this->claimed($organization);
 
@@ -50,11 +49,10 @@ final readonly class OrganizationAdminController
      */
     public function store(Request $request, #[CurrentUser] User $user, GitHubProvider $github, CreateOrganizationAdmin $action): RedirectResponse
     {
-        $organization = Profile::query()
-            ->where('type', ProfileType::Organization)
+        $organization = Organization::query()
             ->find($request->session()->pull(self::CLAIMING));
 
-        if (! $organization instanceof Profile) {
+        if (! $organization instanceof Organization) {
             Inertia::flash('toast', ['type' => 'error', 'message' => __('Unable to claim this organization. Please try again.')]);
 
             return to_route('log.show', $user->log);
@@ -132,7 +130,7 @@ final readonly class OrganizationAdminController
     /**
      * Only the first claim through GitHub makes an admin. Why another one fails, if the page was claimed.
      */
-    private function claimed(Profile $organization): ?string
+    private function claimed(Organization $organization): ?string
     {
         $admin = $organization->admins()->oldest('organization_members.created_at')->first();
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
 use App\Enums\GitHubOrganizationMembership;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\RequestException;
@@ -27,13 +27,13 @@ function fakeClaimingGitHubAccount(string $id): void
 }
 
 /**
- * @return array{0: User, 1: Profile}
+ * @return array{0: User, 1: Organization}
  */
 function claimingUserAndOrganization(): array
 {
     return [
         User::factory()->create(['github_id' => '720328']),
-        Profile::factory()->organization()->create(['github_id' => '45861341', 'handle' => 'brefphp']),
+        Organization::factory()->create(['github_id' => '45861341', 'handle' => 'brefphp']),
     ];
 }
 
@@ -79,7 +79,7 @@ it('only lets users claim organizations', function (): void {
 });
 
 it('asks guests to sign in first', function (): void {
-    $this->post(route('organization-admin.create', Profile::factory()->organization()->create()))->assertRedirect(route('home'));
+    $this->post(route('organization-admin.create', Organization::factory()->create()))->assertRedirect(route('home'));
 });
 
 it('makes a member of the organization on github an admin of its page', function (): void {

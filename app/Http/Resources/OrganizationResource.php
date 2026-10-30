@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
-use App\Models\Profile;
+use App\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * An organization's GitHub profile, as its page on the web shows it.
  *
- * @mixin Profile
+ * @mixin Organization
  */
 final class OrganizationResource extends JsonResource
 {

@@ -6,7 +6,7 @@ namespace App\Actions;
 
 use App\Enums\OrganizationRole;
 use App\Exceptions\OrganizationMustHaveAnAdmin;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -19,10 +19,10 @@ final readonly class DeleteOrganizationMember
      *
      * @throws OrganizationMustHaveAnAdmin
      */
-    public function handle(Profile $organization, User $member): void
+    public function handle(Organization $organization, User $member): void
     {
         DB::transaction(function () use ($organization, $member): void {
-            Profile::query()->whereKey($organization->id)->lockForUpdate()->first();
+            Organization::query()->whereKey($organization->id)->lockForUpdate()->first();
 
             if ($organization->roleOf($member) === OrganizationRole::Admin && $organization->admins()->whereKeyNot($member->id)->doesntExist()) {
                 throw new OrganizationMustHaveAnAdmin($organization);

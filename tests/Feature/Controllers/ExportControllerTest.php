@@ -17,9 +17,9 @@ use App\Models\Device;
 use App\Models\Message;
 use App\Models\MessageVoice;
 use App\Models\Notification;
+use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\PollVote;
-use App\Models\Profile;
 use App\Models\SshKey;
 use App\Models\User;
 use App\Models\UserTimeout;
@@ -450,8 +450,8 @@ it('exports ssh key fingerprints and sessions without session ids or payloads', 
 it('exports the organizations the user is a member of with their role, first joined first, without their other members', function (): void {
     $this->freezeSecond();
     $user = User::factory()->create();
-    $laravel = Profile::factory()->organization()->create(['handle' => 'laravel']);
-    $bref = Profile::factory()->organization()->create(['handle' => 'brefphp']);
+    $laravel = Organization::factory()->create(['handle' => 'laravel']);
+    $bref = Organization::factory()->create(['handle' => 'brefphp']);
     $bref->admins()->attach($user->id, ['created_at' => now()->subDay()]);
     $laravel->members()->attach([$user->id => ['role' => OrganizationRole::Member, 'created_at' => now()], User::factory()->create()->id => ['role' => OrganizationRole::Admin, 'created_at' => now()]]);
 

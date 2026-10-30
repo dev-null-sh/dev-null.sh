@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Contracts\Services\GitHubProvider;
 use App\Enums\ProfileType;
+use App\Models\Organization;
 use App\Models\Profile;
 use Carbon\CarbonImmutable;
 use Closure;
@@ -47,7 +48,7 @@ final readonly class UpdateMentionedOrganizations
     public function handle(array $handles): ?CarbonImmutable
     {
         $profiles = Profile::query()->whereIn(DB::raw('LOWER(handle)'), $handles)->get();
-        $known = $profiles->where('type', ProfileType::Organization);
+        $known = Organization::query()->whereKey($profiles->where('type', ProfileType::Organization)->modelKeys())->get();
 
         /** @var list<array{Closure(): (array<array-key, mixed>|null), Closure(): mixed}> $lookups */
         $lookups = collect($handles)
@@ -58,8 +59,8 @@ final readonly class UpdateMentionedOrganizations
                 fn (): bool => Cache::put("github-organizations:not-found:{$handle}", true, now()->addDays(self::NotFoundDays)),
             ])
             ->merge($known
-                ->filter(fn (Profile $organization): bool => $organization->github_synced_at?->addHours(Profile::FRESH_FOR_HOURS)->isPast() ?? true)
-                ->map(fn (Profile $organization): array => [
+                ->filter(fn (Organization $organization): bool => $organization->github_synced_at?->addHours(Organization::FRESH_FOR_HOURS)->isPast() ?? true)
+                ->map(fn (Organization $organization): array => [
                     fn (): ?array => $this->github->account($organization->github_id),
                     function () use ($organization): void {
                         $this->deleteOrganization->handle($organization);

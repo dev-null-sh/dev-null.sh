@@ -8,7 +8,7 @@ use App\Enums\CommitStatus;
 use App\Enums\RepliesPerPage;
 use App\Enums\TopicType;
 use App\Models\Commit;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use Illuminate\Contracts\Database\Query\Expression;
@@ -217,7 +217,7 @@ final class CommitBuilder extends Builder
     /**
      * The commits linked to the organization by a mention, whatever handle it had when they were written.
      */
-    public function mentioning(Profile $organization): self
+    public function mentioning(Organization $organization): self
     {
         return $this->whereExists(fn (QueryBuilder $query): QueryBuilder => $query
             ->from('commit_topics')

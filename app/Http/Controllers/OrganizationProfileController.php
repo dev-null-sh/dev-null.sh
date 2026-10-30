@@ -6,7 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\OrganizationRole;
 use App\Http\Requests\ShowOrganizationProfileRequest;
-use App\Models\Profile;
+use App\Models\Organization;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -15,7 +15,7 @@ use Inertia\Response;
  */
 final readonly class OrganizationProfileController
 {
-    public function edit(ShowOrganizationProfileRequest $request, Profile $organization): Response
+    public function edit(ShowOrganizationProfileRequest $request, Organization $organization): Response
     {
         return Inertia::render('organization-profile/edit', [
             'organization' => $organization->makeVisible('id'),

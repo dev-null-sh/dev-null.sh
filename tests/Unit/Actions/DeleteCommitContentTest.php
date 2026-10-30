@@ -9,8 +9,8 @@ use App\Actions\DeleteCommitContent;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\Poll;
-use App\Models\Profile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -76,7 +76,7 @@ it('keeps the images of a commit deleted again within its new undo window', func
 
 it('erases the content once the undo window has closed', function (): void {
     $commit = Commit::factory()->create(['body' => 'Hello @taylor and @laravel', 'mentions' => ['taylor'], 'link_preview_id' => LinkPreview::factory()]);
-    resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => Profile::factory()->organization()->create()->id]);
+    resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => Organization::factory()->create()->id]);
     $poll = Poll::factory()->withOptions('Yes', 'No')->create(['commit_id' => $commit->id]);
     resolve(DeleteCommit::class)->handle($commit);
     $this->travel(30)->seconds();

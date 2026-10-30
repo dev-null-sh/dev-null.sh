@@ -3,10 +3,12 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateOrCreateOrganization;
+use App\Enums\ProfileType;
+use App\Models\Organization;
 use App\Models\Profile;
 
 it('updates the organization with the same GitHub ID when it is renamed', function (): void {
-    $organization = Profile::factory()->organization()->create(['github_id' => '958072', 'handle' => 'laravel-old', 'github_synced_at' => now()->subWeek()]);
+    $organization = Organization::factory()->create(['github_id' => '958072', 'handle' => 'laravel-old', 'github_synced_at' => now()->subWeek()]);
 
     $updated = resolve(UpdateOrCreateOrganization::class)->handle([
         'login' => 'laravel',
@@ -28,12 +30,21 @@ it('updates the organization with the same GitHub ID when it is renamed', functi
 });
 
 it('gives the handle up when another profile renamed away from it on GitHub', function (): void {
-    $stale = Profile::factory()->organization()->create(['github_id' => '1', 'handle' => 'Laravel']);
-    $other = Profile::factory()->organization()->create(['github_id' => '2', 'handle' => 'symfony']);
+    $stale = Organization::factory()->create(['github_id' => '1', 'handle' => 'Laravel']);
+    $other = Organization::factory()->create(['github_id' => '2', 'handle' => 'symfony']);
 
     $organization = resolve(UpdateOrCreateOrganization::class)->handle(['login' => 'laravel', 'id' => 958072]);
 
     expect($organization->handle)->toBe('laravel')
         ->and($stale->refresh()->handle)->toBe('_renamed-1')
         ->and($other->refresh()->handle)->toBe('symfony');
+});
+
+it('makes an organization of a profile whose GitHub account turned from a user into an organization', function (): void {
+    $profile = Profile::factory()->create(['github_id' => '958072', 'handle' => 'laravel']);
+
+    $organization = resolve(UpdateOrCreateOrganization::class)->handle(['login' => 'laravel', 'id' => 958072]);
+
+    expect($organization->id)->toBe($profile->id)
+        ->and($profile->refresh()->type)->toBe(ProfileType::Organization);
 });

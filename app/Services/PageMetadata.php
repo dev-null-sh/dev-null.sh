@@ -8,7 +8,7 @@ use App\Enums\CommitStatus;
 use App\Enums\ConnectionType;
 use App\Models\Commit;
 use App\Models\LinkPreview;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\MacAppReleaseQuery;
 use Illuminate\Support\Arr;
@@ -305,7 +305,7 @@ final readonly class PageMetadata
      *
      * @return OrganizationMetadata
      */
-    public function organization(Profile $organization): array
+    public function organization(Organization $organization): array
     {
         $nameWithHandle = $organization->name === $organization->handle ? "@{$organization->handle}" : "{$organization->name} (@{$organization->handle})";
         $title = "{$nameWithHandle} on /dev/null";

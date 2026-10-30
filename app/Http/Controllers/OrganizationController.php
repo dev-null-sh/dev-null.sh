@@ -6,7 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\OrganizationRole;
 use App\Http\Requests\ShowOrganizationRequest;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\OrganizationMentionsQuery;
 use App\Services\PageMetadata;
@@ -27,7 +27,7 @@ final readonly class OrganizationController
     public function show(ShowOrganizationRequest $request, #[CurrentUser] ?User $currentUser, OrganizationMentionsQuery $mentions, PageMetadata $metadata): RedirectResponse|Response
     {
         $organization = $request->organization();
-        assert($organization instanceof Profile);
+        assert($organization instanceof Organization);
 
         if ($request->route('user') !== $organization->handle) {
             // The raw query, since Symfony's normalized one keeps only the last value of a repeated key...

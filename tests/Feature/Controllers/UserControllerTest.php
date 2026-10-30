@@ -7,6 +7,7 @@ use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
@@ -52,7 +53,7 @@ it('renders a user profile', function (): void {
 });
 
 it('says which accounts the bio and company mention are on dev/null', function (): void {
-    Profile::factory()->organization()->create(['handle' => 'laravel']);
+    Organization::factory()->create(['handle' => 'laravel']);
     User::factory()->create(['handle' => 'TaylorOtwell']);
     User::factory()->create(['handle' => 'octocat', 'bio' => 'Thanks @taylorotwell and @nobody', 'company' => '@laravel']);
 
@@ -62,7 +63,7 @@ it('says which accounts the bio and company mention are on dev/null', function (
 });
 
 it('shares which accounts the bio of the signed-in user mentions are on dev/null', function (): void {
-    Profile::factory()->organization()->create(['handle' => 'laravel']);
+    Organization::factory()->create(['handle' => 'laravel']);
     $user = User::factory()->create(['bio' => 'Building @laravel']);
 
     $this->actingAs($user)
@@ -853,7 +854,7 @@ it('opens each profile at its own case when a stale profile holds the handle in 
 
 it('opens the user rather than an organization holding the handle in another case, unless the case is exact', function (): void {
     $user = User::factory()->create(['handle' => 'Laravel']);
-    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
 
     $this->get('/@LARAVEL')->assertRedirect('/@Laravel')->assertMovedPermanently();
     $this->get('/@Laravel')->assertOk()->assertInertia(fn ($page) => $page->component('user/show')->where('user.id', $user->id));

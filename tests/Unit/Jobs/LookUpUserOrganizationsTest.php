@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 use App\Actions\UpdateMentionedOrganizations;
 use App\Contracts\Services\GitHubProvider;
-use App\Enums\ProfileType;
 use App\Jobs\LookUpUserOrganizations;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
@@ -22,7 +21,7 @@ it('looks the organizations the bio and company mention up, but not the users', 
 
     dispatch_sync(new LookUpUserOrganizations($user));
 
-    expect(Profile::query()->where('type', ProfileType::Organization)->pluck('handle')->all())->toBe(['laravel']);
+    expect(Organization::query()->pluck('handle')->all())->toBe(['laravel']);
 });
 
 it('runs again once the rate limit resets when it cut the lookups short', function (): void {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Queries;
 
 use App\Models\Commit;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -16,7 +16,7 @@ final readonly class OrganizationMentionsQuery
      * guest, may see them. It's the community's feed rather than anyone's profile, so muted authors are left out like
      * in a log, and replies come with the parents the viewer may see.
      */
-    public function builder(Profile $organization, ?User $viewer): CommitBuilder
+    public function builder(Organization $organization, ?User $viewer): CommitBuilder
     {
         return Commit::query()
             ->mentioning($organization)

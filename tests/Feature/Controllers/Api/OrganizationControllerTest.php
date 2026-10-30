@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 
 it('shows an organization profile', function (): void {
-    Profile::factory()->organization()->create([
+    Organization::factory()->create([
         'handle' => 'laravel',
         'name' => 'Laravel',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/958072',

@@ -6,7 +6,7 @@ namespace App\Actions;
 
 use App\Dto\GitHubProfile;
 use App\Enums\ProfileType;
-use App\Models\Profile;
+use App\Models\Organization;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
@@ -23,16 +23,17 @@ final readonly class UpdateOrCreateOrganization
      *
      * @param  array<array-key, mixed>  $account
      */
-    public function handle(array $account): Profile
+    public function handle(array $account): Organization
     {
         $profile = GitHubProfile::fromAccount($account);
         $githubId = Arr::get($account, 'id');
         assert(is_int($githubId));
 
-        return DB::transaction(function () use ($profile, $githubId): Profile {
+        return DB::transaction(function () use ($profile, $githubId): Organization {
             $this->updateStaleHandles->handle($profile->handle, (string) $githubId);
 
-            return Profile::query()->updateOrCreate(['github_id' => (string) $githubId], [
+            // A user's account GitHub has since turned into an organization becomes one here too...
+            return Organization::query()->withoutGlobalScope('organization')->updateOrCreate(['github_id' => (string) $githubId], [
                 ...$profile->attributes(),
                 'type' => ProfileType::Organization,
                 'github_synced_at' => now(),

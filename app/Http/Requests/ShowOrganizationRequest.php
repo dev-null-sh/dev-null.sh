@@ -4,18 +4,17 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Enums\ProfileType;
-use App\Models\Profile;
+use App\Models\Organization;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 
 final class ShowOrganizationRequest extends FormRequest
 {
-    private ?Profile $organization = null;
+    private ?Organization $organization = null;
 
     public function authorize(): Response
     {
-        return $this->organization() instanceof Profile ? Response::allow() : Response::denyAsNotFound();
+        return $this->organization() instanceof Organization ? Response::allow() : Response::denyAsNotFound();
     }
 
     /**
@@ -40,13 +39,12 @@ final class ShowOrganizationRequest extends FormRequest
      * Organizations share the "@handle" pages with users, so this is the handle no user has, whatever its case,
      * the exact case first.
      */
-    public function organization(): ?Profile
+    public function organization(): ?Organization
     {
         $handle = $this->route('user');
         assert(is_string($handle));
 
-        return $this->organization ??= Profile::query()
-            ->where('type', ProfileType::Organization)
+        return $this->organization ??= Organization::query()
             ->whereRaw('LOWER(handle) = LOWER(?)', [$handle])
             ->orderByRaw('handle = ? desc', [$handle])
             ->orderBy('handle')

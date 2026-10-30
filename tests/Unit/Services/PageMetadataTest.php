@@ -5,7 +5,7 @@ declare(strict_types=1);
 use App\Actions\DeleteUser;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\PageMetadata;
 
@@ -72,7 +72,7 @@ it('omits public metadata for unsaved or partial commits', function (Closure $fa
 ]);
 
 it('describes an organization from its GitHub profile', function (): void {
-    $organization = Profile::factory()->organization()->create([
+    $organization = Organization::factory()->create([
         'handle' => 'laravel',
         'name' => 'Laravel',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/958072',
@@ -101,7 +101,7 @@ it('describes an organization from its GitHub profile', function (): void {
 });
 
 it('describes an organization without a name, description, avatar, or website of its own', function (): void {
-    $organization = Profile::factory()->organization()->create([
+    $organization = Organization::factory()->create([
         'handle' => 'laravel',
         'name' => 'laravel',
         'avatar_url' => null,

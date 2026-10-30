@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
@@ -21,7 +21,7 @@ final class UpdateOrganizationLaneRequest extends FormRequest
         assert($user instanceof User);
 
         $organization = $this->route('organization');
-        assert($organization instanceof Profile);
+        assert($organization instanceof Organization);
 
         return $organization->admins()->whereKey($user->id)->exists() ? Response::allow() : Response::denyAsNotFound();
     }
