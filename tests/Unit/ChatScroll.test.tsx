@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { afterEach, test, vi } from 'vite-plus/test';
+import * as chatStore from '../../resources/js/lib/chat';
 import type { ChatTarget } from '../../resources/js/lib/chat';
 import type { Message, User } from '../../resources/js/types';
 
@@ -68,9 +69,16 @@ function elements(node: ReactNode): Element[] {
         ),
     ];
 }
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+});
 
-function setup(reducedMotion = false, initialScrollTop = 0) {
+function setup(
+    reducedMotion = false,
+    initialScrollTop = 0,
+    kind: 'direct' | 'org' = 'org',
+) {
     slots = [];
     thread = {
         isLoaded: true,
@@ -127,16 +135,16 @@ function setup(reducedMotion = false, initialScrollTop = 0) {
         },
         getBoundingClientRect: () => ({ top: 0 }),
         querySelectorAll: () => [row],
-        querySelector: () => row,
+        querySelector: (_selector: string): unknown => row,
         scrollTo,
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
     };
     const user = { id: 'me' } as User;
-    const target: ChatTarget = {
-        kind: 'org',
-        org: { id: 'org', name: 'Demo' },
-    };
+    const target: ChatTarget =
+        kind === 'direct'
+            ? { kind, partner: { id: 'partner', handle: 'demo' } as User }
+            : { kind, org: { id: 'org', name: 'Demo' } };
     const render = () => {
         cursor = 0;
         layouts = [];
@@ -155,6 +163,7 @@ function setup(reducedMotion = false, initialScrollTop = 0) {
         for (const effect of layouts) effect();
         for (const effect of effects) effect();
         return {
+            nodes,
             scroll,
             reply: nodes.find(
                 (node) => typeof node.props.onReply === 'function',
@@ -183,6 +192,7 @@ function setup(reducedMotion = false, initialScrollTop = 0) {
         scroller,
         scrollTo,
         writes,
+        nodes: () => render().nodes,
         reply: initial.reply,
         resize: () => {
             rowTop += 150;
@@ -282,3 +292,84 @@ test('settles a send near the latest message without a scroll animation', () => 
     assert.equal(chat.scroller.scrollTop, 0);
     assert.equal(chat.scrollTo.mock.calls.length, 0);
 });
+
+test.each([
+    ['direct', false],
+    ['direct', true],
+    ['org', false],
+    ['org', true],
+] as const)(
+    'jumps to an image-only original in a %s chat (paginated: %s)',
+    async (kind, paginated) => {
+        const chat = setup(false, 0, kind);
+        thread.messages = [
+            {
+                id: 1,
+                client_id: 'photo',
+                user_id: 'partner',
+                body: '',
+                created_at: new Date().toISOString(),
+                images: [
+                    {
+                        id: 'photo',
+                        url: '/photo.webp',
+                        description: 'Build dashboard',
+                    },
+                ],
+            },
+        ];
+        const group = chat
+            .nodes()
+            .find(
+                (node) =>
+                    (node.props.item as { kind?: string } | undefined)?.kind ===
+                    'group',
+            )!;
+        const renderGroup = (
+            group.type as unknown as {
+                type: (props: typeof group.props) => ReactNode;
+            }
+        ).type;
+        const bubble = elements(renderGroup(group.props)).find(
+            (node) => node.props.bubble !== undefined,
+        )!;
+        const renderBubble = bubble.type as (
+            props: typeof bubble.props,
+        ) => ReactNode;
+        const targets = elements(renderBubble(bubble.props)).filter(
+            (node) => node.props['data-message-id'] === 1,
+        );
+        const scrollIntoView = vi.fn();
+        const original = {
+            dataset: {} as Record<string, string>,
+            scrollIntoView,
+        };
+        const load = vi.spyOn(chatStore, 'loadMessage').mockResolvedValue(true);
+        chat.scroller.querySelector = (selector: string) =>
+            targets.some(
+                (node) =>
+                    selector ===
+                    `[data-message-id="${String(node.props['data-message-id'])}"]`,
+            ) &&
+            (!paginated || load.mock.calls.length > 0)
+                ? original
+                : null;
+        vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
+            callback(),
+        );
+        const timers: (() => void)[] = [];
+        Object.assign(window, {
+            setTimeout: (callback: () => void) => timers.push(callback),
+        });
+
+        await (group.props.onJump as (id: number) => Promise<void>)(1);
+
+        assert.deepEqual(scrollIntoView.mock.calls, [
+            [{ block: 'center', behavior: 'instant' }],
+        ]);
+        assert.equal(original.dataset.flash, '');
+        assert.equal(load.mock.calls.length, paginated ? 1 : 0);
+        timers.forEach((callback) => callback());
+        assert.equal(original.dataset.flash, undefined);
+    },
+);

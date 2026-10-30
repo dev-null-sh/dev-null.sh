@@ -1312,7 +1312,14 @@ function BubbleWithMeta({
                         />
                     )}
                     {images.length > 0 && (
-                        <div className="relative max-w-full">
+                        <div
+                            data-message-id={
+                                bubble.kind === 'message'
+                                    ? bubble.message.id
+                                    : undefined
+                            }
+                            className="relative max-w-full rounded-lg ring-primary ring-offset-2 ring-offset-background transition-shadow duration-200 data-flash:ring-2 motion-reduce:transition-none"
+                        >
                             <MessageImages images={images} />
                             {message.body === '' &&
                                 voice === null &&
