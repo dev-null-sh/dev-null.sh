@@ -1347,9 +1347,6 @@ function ReplyComposer({
 }) {
     const { user } = useUser();
     const commitNotFound = useCommitNotFound();
-    const [excludedRecipientIds, setExcludedRecipientIds] = useState<string[]>(
-        [],
-    );
     const participants = Array.from(
         new Map(
             [
@@ -1372,6 +1369,8 @@ function ReplyComposer({
         descriptions,
         isRestored,
         key: stashKey,
+        excludedRecipientIds,
+        updateExcludedRecipientIds,
         updateBody,
         updateImages,
         drop,
@@ -1520,7 +1519,7 @@ function ReplyComposer({
                     participants={participants}
                     authorId={parent.user.id}
                     excludedIds={excludedRecipientIds}
-                    onExcludedIdsChange={setExcludedRecipientIds}
+                    onExcludedIdsChange={updateExcludedRecipientIds}
                 />
             )}
             <div className="grid">

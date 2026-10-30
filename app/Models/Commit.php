@@ -179,7 +179,9 @@ final class Commit extends Model
 
     public function isAddressedTo(User $user): bool
     {
-        return in_array($user->id, $this->mentions ?? [], true) || $this->parent?->user_id === $user->id;
+        $explicitMentions = array_intersect_key($this->mentions ?? [], array_flip(resolve(Mentions::class)->handles($this->body)));
+
+        return in_array($user->id, $explicitMentions, true) || $this->parent?->user_id === $user->id;
     }
 
     /**

@@ -292,3 +292,34 @@ it('does not queue or answer a mention of the real tom', function (bool $approve
     Tom::assertNeverPrompted();
     expect($commit->replies()->count())->toBe(0);
 })->with([true, false]);
+
+it('notifies selected Tom recipients but only invokes him for an explicit body mention', function (bool $approved, string $body, bool $invoked): void {
+    Queue::fake([ReplyAsTom::class]);
+    Tom::fake()->preventStrayPrompts();
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $parent = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
+    $user = User::factory()->create();
+    config(['app.admins' => $approved ? [$user->handle] : []]);
+
+    $commit = resolve(CreateCommit::class)->handle($user, $body, parent: $parent, replyRecipients: ['tom' => $tom->id]);
+
+    if (! $approved) {
+        Queue::assertNotPushed(ReplyAsTom::class);
+        resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
+    }
+
+    expect($commit->refresh()->mentions)->toBe(['tom' => $tom->id])
+        ->and($commit->isAddressedTo($tom))->toBe($invoked);
+    expect($tom->notifications()->where('commit_id', $commit->id)->exists())->toBeTrue();
+    Queue::assertPushed(ReplyAsTom::class, $invoked ? 1 : 0);
+
+    if (! $invoked) {
+        resolve(CreateTomReply::class)->handle($commit->id);
+        Tom::assertNeverPrompted();
+        expect($commit->replies()->count())->toBe(0);
+    }
+})->with([true, false])->with([
+    'notification only' => ['Thanks for explaining!', false],
+    'code mention' => ['This is code: `@tom`', false],
+    'explicit mention' => ['@ToM what do you think?', true],
+]);
