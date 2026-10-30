@@ -61,11 +61,16 @@ final readonly class OrganizationMemberController
     }
 
     /**
-     * Leaving takes the user to the organization's page, as its settings are for members only.
+     * Leaving takes the user to the organization's page, as its settings are for members only. A removal that didn't
+     * happen, as another admin left meanwhile, says why.
      */
     public function destroy(DeleteOrganizationMemberRequest $request, #[CurrentUser] User $user, Profile $organization, User $member, DeleteOrganizationMember $action): RedirectResponse
     {
-        $action->handle($organization, $member);
+        if (! $action->handle($organization, $member)) {
+            Inertia::flash('toast', ['type' => 'error', 'message' => __('@:handle needs at least one admin.', ['handle' => $organization->handle])]);
+
+            return back();
+        }
 
         if ($user->is($member)) {
             Inertia::flash('toast', ['type' => 'success', 'message' => __('You left @:handle.', ['handle' => $organization->handle])]);

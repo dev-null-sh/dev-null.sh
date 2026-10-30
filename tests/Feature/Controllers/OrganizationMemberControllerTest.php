@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteOrganizationMember;
+use App\Actions\UpdateOrganizationMemberRole;
 use App\Enums\OrganizationRole;
 use App\Models\Profile;
 use App\Models\User;
@@ -146,6 +148,35 @@ it('keeps the last admin of the organization', function (): void {
     $this->actingAs($admin)
         ->delete(route('organization-member.destroy', memberRoute($organization, $admin)))
         ->assertSessionHasErrors(['member' => '@laravel needs at least one admin.']);
+
+    expect($organization->roleOf($admin))->toBe(OrganizationRole::Admin);
+});
+
+it('keeps the last admin when another admin was made a member after the request was allowed', function (): void {
+    [$organization, $admin, $member] = organizationWithAdminAndMember();
+    $organization->members()->updateExistingPivot($member->id, ['role' => OrganizationRole::Admin]);
+
+    app()->resolving(UpdateOrganizationMemberRole::class, fn () => $organization->members()->updateExistingPivot($admin->id, ['role' => OrganizationRole::Member]));
+
+    $this->actingAs($admin)
+        ->put(route('organization-member.update', memberRoute($organization, $member)), ['role' => 'member'])
+        ->assertSessionHasNoErrors();
+
+    expect($organization->roleOf($member))->toBe(OrganizationRole::Admin);
+});
+
+it('keeps the last admin when another admin left after the request was allowed', function (): void {
+    [$organization, $admin, $member] = organizationWithAdminAndMember();
+    $organization->members()->updateExistingPivot($member->id, ['role' => OrganizationRole::Admin]);
+
+    app()->resolving(DeleteOrganizationMember::class, fn () => $organization->members()->detach($member->id));
+
+    $this->actingAs($admin)
+        ->from(route('organization-member.index', $organization))
+        ->delete(route('organization-member.destroy', memberRoute($organization, $admin)))
+        ->assertRedirect(route('organization-member.index', $organization))
+        ->assertInertiaFlash('toast.type', 'error')
+        ->assertInertiaFlash('toast.message', '@laravel needs at least one admin.');
 
     expect($organization->roleOf($admin))->toBe(OrganizationRole::Admin);
 });

@@ -199,10 +199,13 @@ function MemberRow({
 
                 router.visit(OrganizationMemberController.destroy(route), {
                     preserveScroll: true,
-                    onSuccess: () => {
-                        isRemoved = true;
+                    // A removal the server refused, as another admin left meanwhile, keeps the member listed...
+                    onSuccess: (page) => {
+                        isRemoved = !(
+                            page.props.members as Member[] | undefined
+                        )?.some(({ id }) => id === member.id);
 
-                        if (!isSelf) {
+                        if (isRemoved && !isSelf) {
                             onRemoved();
                         }
                     },
