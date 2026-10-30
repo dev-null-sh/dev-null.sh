@@ -6,8 +6,10 @@ use App\Actions\CreateCommitTopics;
 use App\Jobs\LinkCommitTopics;
 use App\Models\Commit;
 use App\Models\Organization;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Str;
 
 it('links known organizations right away, a user of the same handle first', function (): void {
     Queue::fake();
@@ -60,10 +62,12 @@ it('links always the same organization when no stale one holds the handle in the
     $this->actingAs($author)->post('/commits', ['body' => 'Thanks @LARAVEL'])->assertRedirect();
     $this->actingAs($author)->post('/commits', ['body' => 'Thanks again @LARAVEL'])->assertRedirect();
 
-    [$first, $second] = $author->commits()->oldest('id')->get()->all();
+    $location = (string) $this->get('/@LARAVEL')->assertMovedPermanently()->headers->get('Location');
+    $page = Profile::query()->where('handle', Str::after($location, '/@'))->sole();
 
-    expect($first->organization_mentions)->toHaveCount(1)
-        ->and($second->organization_mentions)->toBe($first->organization_mentions);
+    foreach ($author->commits()->get() as $commit) {
+        expect($commit->organization_mentions)->toBe(['laravel' => $page->id]);
+    }
 });
 
 it('asks GitHub about the other handles of a commit approved right away', function (): void {
