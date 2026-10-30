@@ -6,6 +6,7 @@ import ActivityGraphEmbed from '@/components/activity-graph-embed';
 import DeleteUser from '@/components/delete-user';
 import { GitHubProfile } from '@/components/github-profile';
 import Heading from '@/components/heading';
+import KnownLanguagesSetting from '@/components/known-languages-setting';
 import LanePicker from '@/components/lane-picker';
 import { PasteisModeSetting } from '@/components/pasteis-mode-setting';
 import { RemotesSetting } from '@/components/remotes-setting';
@@ -25,6 +26,7 @@ import type { Lane } from '@/types';
 export default function Edit({
     translationLanguage,
     translationLanguages,
+    knownLanguages,
     preferredLane,
     automaticLane,
     githubSyncedAt,
@@ -33,6 +35,7 @@ export default function Edit({
 }: {
     translationLanguage: string | null;
     translationLanguages: TranslationLanguage[];
+    knownLanguages: string[];
     preferredLane: Lane | null;
     automaticLane: number;
     githubSyncedAt: string | null;
@@ -118,6 +121,11 @@ export default function Edit({
             <TranslationLanguageSetting
                 language={translationLanguage}
                 languages={translationLanguages}
+            />
+
+            <KnownLanguagesSetting
+                languages={knownLanguages}
+                choices={translationLanguages}
             />
 
             <PasteisModeSetting />

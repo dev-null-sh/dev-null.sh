@@ -55,6 +55,16 @@ final readonly class CommitTranslations
         return in_array($language, $this->languages(), true) ? $language : 'en';
     }
 
+    /**
+     * Languages the reader already reads, which are never offered for translation.
+     *
+     * @return list<string>
+     */
+    public function knownLanguages(): array
+    {
+        return request()->user()->known_languages ?? [];
+    }
+
     /** @return CachedTranslations|null */
     public function cached(Commit $commit): ?array
     {
@@ -101,13 +111,14 @@ final readonly class CommitTranslations
 
         $language ??= $this->language();
         $source = $cached['source_language'] ?? null;
-        $body = $cached['translations'][$language] ?? null;
+        $known = in_array($source, $this->knownLanguages(), true);
+        $body = $known ? null : $cached['translations'][$language] ?? null;
 
         return [
             'language' => $language,
             'source_language' => $source,
             'source_name' => $source === null ? null : Locale::getDisplayLanguage($source, 'en'),
-            'available' => $source !== $language && $source !== 'und',
+            'available' => $source !== $language && $source !== 'und' && ! $known,
             'translated' => $body === null ? null : resolve(CommitBodies::class)->segments($body),
         ];
     }

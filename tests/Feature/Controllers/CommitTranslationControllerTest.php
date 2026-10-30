@@ -80,6 +80,35 @@ it('expires translations after seven days even when readers keep requesting them
         ->assertJsonPath('translation.translated.body_segments.0.text', 'Morning!');
 });
 
+it('keeps posts in languages the reader reads untranslated even when a translation is cached', function (): void {
+    CommitTranslator::fake([
+        ['source_language' => 'de', 'body' => 'Good morning'],
+    ])->preventStrayPrompts();
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.translated.body_segments.0.text', 'Good morning');
+
+    $this->actingAs(User::factory()->create(['known_languages' => ['fr', 'de']]))
+        ->withHeader('Accept-Language', 'en-GB,en;q=0.9')
+        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.body', 'Guten morgen')
+        ->where('commit.translation.source_language', 'de')
+        ->where('commit.translation.available', false)
+        ->where('commit.translation.translated', null));
+
+    $this->actingAs(User::factory()->create(['known_languages' => ['fr']]))
+        ->withHeader('Accept-Language', 'en-GB,en;q=0.9')
+        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commit.translation.available', true)
+        ->where('commit.translation.translated.body_segments.0.text', 'Good morning'));
+
+    CommitTranslator::assertPromptedTimes(1);
+});
+
 it('does not offer translation for the readers language or indeterminate text', function (string $source): void {
     $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with('Good morning', null)
         ->andReturn(['source_language' => $source, 'body' => '']);

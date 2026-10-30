@@ -202,12 +202,14 @@ it('requires authentication to sync', function (): void {
 });
 
 it('shows the private translation preference and supported choices only in own settings', function (): void {
-    $user = User::factory()->create(['translation_language' => 'ja']);
-    $other = User::factory()->create(['translation_language' => 'de']);
+    $user = User::factory()->create(['translation_language' => 'ja', 'known_languages' => ['de', 'fr']]);
+    $other = User::factory()->create(['translation_language' => 'de', 'known_languages' => ['pt']]);
 
     $this->actingAs($user)->get(route('user-profile.edit', ['user_id' => $other->id]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('translationLanguage', 'ja')
+        ->where('knownLanguages', ['de', 'fr'])
         ->where('translationLanguages', fn ($languages): bool => collect($languages)->contains(fn ($language): bool => $language['code'] === 'hu' && $language['name'] === 'Hungarian' && $language['nativeName'] === 'magyar'))
-        ->missing('auth.user.translation_language'));
+        ->missing('auth.user.translation_language')
+        ->missing('auth.user.known_languages'));
 });
