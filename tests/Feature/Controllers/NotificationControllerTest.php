@@ -129,6 +129,22 @@ it('groups stars per commit, newest stargazer first', function (): void {
     expect($user->notifications()->unread()->exists())->toBeFalse();
 });
 
+it('says whether the user starred the commit of a notification, so they can star it from there', function (): void {
+    $user = User::factory()->create();
+    $replied = Notification::factory()->for($user, 'recipient')->replied()->create();
+    $replied->commit->stars()->attach([$user->id, User::factory()->create()->id]);
+
+    $this->actingAs($user)->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('notifications.data.0.commit.starred', true)
+            ->where('notifications.data.0.commit.stars_count', 2));
+
+    $this->getJson(route('notification-group.show', $replied))
+        ->assertOk()
+        ->assertJsonPath('data.0.commit.starred', true)
+        ->assertJsonPath('data.0.commit.stars_count', 2);
+});
+
 it('shows the images of a starred commit', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create(['body' => '']);

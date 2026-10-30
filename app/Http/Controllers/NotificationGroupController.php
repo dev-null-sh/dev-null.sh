@@ -9,6 +9,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Queries\NotificationGroupsQuery;
 use Illuminate\Container\Attributes\CurrentUser;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Http\JsonResponse;
 
 final readonly class NotificationGroupController
@@ -16,6 +17,6 @@ final readonly class NotificationGroupController
     public function show(ShowNotificationGroupRequest $request, #[CurrentUser] User $user, Notification $notification, NotificationGroupsQuery $query): JsonResponse
     {
         return response()->json($query->members($user, $notification, $request->type())
-            ->with('commit')->latest()->latest('id')->cursorPaginate(20)->withQueryString());
+            ->with(['commit' => fn (BelongsTo $query): BelongsTo => $query->withStarsFor($user)])->latest()->latest('id')->cursorPaginate(20)->withQueryString());
     }
 }

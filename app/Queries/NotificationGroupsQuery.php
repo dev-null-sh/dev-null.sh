@@ -22,7 +22,11 @@ final readonly class NotificationGroupsQuery
 
     private const int STACKED_ACTORS = 3;
 
-    /** @return CursorPaginator<int, Notification> */
+    /**
+     * The groups come without their commits, which each caller loads with what it shows of them.
+     *
+     * @return CursorPaginator<int, Notification>
+     */
     public function paginate(User $user, string $type = 'all', ?CarbonImmutable $through = null): CursorPaginator
     {
         $order = 'PARTITION BY group_id ORDER BY CASE WHEN actor_position = 1 THEN 0 ELSE 1 END, created_at DESC, id DESC
@@ -33,11 +37,8 @@ final readonly class NotificationGroupsQuery
 
         $query = Notification::query()->fromSub($events, 'notifications')
             ->where('group_rank', 1)
-            ->with([
-                'actor' => fn (BelongsTo $query): BelongsTo => $query
-                    ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
-                'commit',
-            ])
+            ->with(['actor' => fn (BelongsTo $query): BelongsTo => $query
+                ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)])])
             ->latest()->latest('id');
         $perPage = $through instanceof CarbonImmutable
             ? max(self::PER_PAGE, $this->groupsSince($user, $through, $type)->where('group_rank', 1)->count())
@@ -62,6 +63,20 @@ final readonly class NotificationGroupsQuery
         new Collection($groups->items())->loadMissing([
             'commit.quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->whereBelongsTo($user),
         ]);
+
+        return $groups;
+    }
+
+    /**
+     * The inbox loads the commits of its notifications with whether the recipient starred each and how many stars it has,
+     * so they can star it from there.
+     *
+     * @param  CursorPaginator<int, Notification>  $groups
+     * @return CursorPaginator<int, Notification>
+     */
+    public function withCommitStars(User $user, CursorPaginator $groups): CursorPaginator
+    {
+        new Collection($groups->items())->load(['commit' => fn (BelongsTo $query): BelongsTo => $query->withStarsFor($user)]);
 
         return $groups;
     }
