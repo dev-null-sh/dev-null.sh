@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Queries\ConversationsQuery;
 use App\Queries\NotificationGroupsQuery;
 use Database\Seeders\DatabaseSeeder;
+use Illuminate\Support\Facades\Event;
 
 it('gives the local developer people to follow and followers', function (): void {
     $this->seed(DatabaseSeeder::class);
@@ -27,6 +28,32 @@ it('reuses an existing local developer', function (): void {
     expect(User::query()->where('github_id', 'local')->sole()->id)->toBe($localDeveloper->id)
         ->and($localDeveloper->following()->count())->toBe(3)
         ->and($localDeveloper->followers()->count())->toBe(5);
+});
+
+it('rolls back incomplete seed data so initialization can be retried', function (): void {
+    $localDeveloper = User::factory()->create(['github_id' => 'local']);
+
+    Event::listen('eloquent.creating: '.Notification::class, function (): never {
+        throw new RuntimeException('Seed interrupted');
+    });
+
+    try {
+        expect(fn () => $this->seed(DatabaseSeeder::class))->toThrow(RuntimeException::class, 'Seed interrupted');
+    } finally {
+        Event::forget('eloquent.creating: '.Notification::class);
+    }
+
+    $this->assertModelExists($localDeveloper);
+    $this->assertDatabaseCount('users', 1);
+    $this->assertDatabaseCount('profiles', 1);
+    $this->assertDatabaseEmpty('commits');
+    $this->assertDatabaseEmpty('follows');
+    $this->assertDatabaseEmpty('notifications');
+
+    $this->seed(DatabaseSeeder::class);
+
+    expect($localDeveloper->commits()->topLevel()->count())->toBe(3)
+        ->and(resolve(ConversationsQuery::class)->get($localDeveloper)['conversations'])->toHaveCount(4);
 });
 
 it('gives the local developer separate notifications for replies to one commit', function (): void {

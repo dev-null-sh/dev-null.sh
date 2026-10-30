@@ -5,6 +5,20 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 SECONDS=0
 step() { printf '\n[%ss] %s\n' "$SECONDS" "$*"; }
 
+step 'Removing legacy PostgreSQL 17 packages'
+legacy_packages=()
+for package in postgresql-17 postgresql-17-pgvector postgresql-client-17; do
+    if dpkg-query -W -f='${Status}' "$package" 2>/dev/null | grep -qx 'install ok installed'; then
+        legacy_packages+=("$package")
+    fi
+done
+if ((${#legacy_packages[@]})); then
+    if sudo systemctl is-active --quiet postgresql@17-main; then
+        sudo systemctl stop postgresql@17-main
+    fi
+    sudo env DEBIAN_FRONTEND=noninteractive apt-get remove -y "${legacy_packages[@]}"
+fi
+
 step 'Checking system packages (PHP 8.5 and PostgreSQL 18)'
 packages=(php8.5-cli php8.5-curl php8.5-gd php8.5-intl php8.5-mbstring
     php8.5-pgsql php8.5-xml php8.5-zip php8.5-pcov postgresql-18
@@ -72,6 +86,7 @@ bun install --frozen-lockfile
 if ! grep -qE '^APP_KEY=.+$' .env; then
     php artisan key:generate --no-interaction
 fi
+php artisan config:clear --no-interaction
 
 step 'Preparing the orb-local PostgreSQL databases'
 pg_bin=/usr/lib/postgresql/18/bin
@@ -104,6 +119,12 @@ done
 # Explicit local connection settings prevent inherited project DB credentials from targeting a remote DB.
 DB_URL= DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5432 DB_DATABASE=devnull DB_USERNAME=root DB_PASSWORD= \
     php artisan migrate --force --no-interaction
+
+step 'Seeding local development activity when there are no commits'
+if [[ "$("$pg_bin/psql" -h "$pg_data" -U root -d devnull -v ON_ERROR_STOP=1 -tAc 'SELECT EXISTS (SELECT 1 FROM commits)')" == f ]]; then
+    APP_ENV=local DB_URL= DB_CONNECTION=pgsql DB_HOST=127.0.0.1 DB_PORT=5432 DB_DATABASE=devnull DB_USERNAME=root DB_PASSWORD= \
+        php artisan db:seed --no-interaction
+fi
 
 step 'Generating routes and building assets'
 php artisan wayfinder:generate --with-form
