@@ -1,7 +1,7 @@
 import { Form, Link, usePage } from '@inertiajs/react';
 import { ChartBar, Clock3 } from 'lucide-react';
 import type { KeyboardEvent } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
@@ -32,10 +32,6 @@ import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
 import type { PollDraft } from '@/components/poll-editor';
 import { emptyPollDraft, PollEditor } from '@/components/poll-editor';
-import {
-    isExistingLocalTime,
-    SchedulePicker,
-} from '@/components/schedule-picker';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
@@ -57,6 +53,7 @@ import {
 } from '@/lib/commit';
 import type { IssueKind } from '@/lib/issue-commands';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
+import { isExistingLocalTime } from '@/lib/schedule';
 import {
     characterCount,
     cn,
@@ -65,6 +62,16 @@ import {
 } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { User } from '@/types';
+
+/**
+ * Scheduling is behind a toggle, and the calendar it opens is heavy, so it loads when the composer is used
+ * rather than with the composer itself. Validating a time only needs the arithmetic in "@/lib/schedule".
+ */
+const SchedulePicker = lazy(() =>
+    import('@/components/schedule-picker').then((module) => ({
+        default: module.SchedulePicker,
+    })),
+);
 
 // The ring moves quickly while a post starts and slows toward the limit, yet only closes at the limit.
 function bodyProgress(count: number): number {
@@ -370,13 +377,15 @@ function CommitComposerBody({
                             >
                                 Submit at
                             </label>
-                            <SchedulePicker
-                                id={`${id}-scheduled-at`}
-                                value={scheduledAt}
-                                onChange={setScheduledAt}
-                                invalid={scheduleError ? true : undefined}
-                                describedBy={`${id}-schedule-help ${id}-schedule-error`}
-                            />
+                            <Suspense fallback={null}>
+                                <SchedulePicker
+                                    id={`${id}-scheduled-at`}
+                                    value={scheduledAt}
+                                    onChange={setScheduledAt}
+                                    invalid={scheduleError ? true : undefined}
+                                    describedBy={`${id}-schedule-help ${id}-schedule-error`}
+                                />
+                            </Suspense>
                             <p
                                 id={`${id}-schedule-help`}
                                 className="text-xs leading-relaxed text-muted-foreground"

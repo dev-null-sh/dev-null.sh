@@ -1,5 +1,5 @@
 import { Head, usePage, usePoll } from '@inertiajs/react';
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { AppAside } from '@/components/app-aside';
 import {
     AppNav,
@@ -13,7 +13,6 @@ import {
     CommitComposerDialog,
     focusVisibleComposer,
 } from '@/components/commit-composer-dialog';
-import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
 import { DeletedPageDialog } from '@/components/deleted-page-dialog';
 import { endStream, GoLiveDialog } from '@/components/go-live-dialog';
@@ -36,6 +35,17 @@ import type { IssueKind } from '@/lib/issue-commands';
 import type { SearchAction } from '@/lib/search-actions';
 import { cn } from '@/lib/utils';
 import type { AppLayoutProps } from '@/types';
+
+/**
+ * The photo lightbox is only needed once a photo is opened, and it is heavy enough (a viewer, three plugins and
+ * their stylesheets) to keep off the first load every page pays for. Loading it lazily leaves it out of the
+ * bundle the layout is part of, and the browser fetches it right after hydration instead of blocking on it.
+ */
+const CommitImageViewer = lazy(() =>
+    import('@/components/commit-image-viewer').then((module) => ({
+        default: module.CommitImageViewer,
+    })),
+);
 
 export default function AppLayout({ children }: AppLayoutProps) {
     const {
@@ -154,7 +164,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 </MobileNav>
 
                 {deletedPage === null ? (
-                    <CommitImageViewer />
+                    <Suspense fallback={null}>
+                        <CommitImageViewer />
+                    </Suspense>
                 ) : (
                     <DeletedPageDialog page={deletedPage} />
                 )}

@@ -15,30 +15,13 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { useNow } from '@/hooks/use-now';
+import { localDateTime, pad } from '@/lib/schedule';
 import { cn, dateLocale } from '@/lib/utils';
 
 export const maxScheduleDays = 30;
 
 const hours = Array.from({ length: 24 }, (_, hour) => hour);
 const minutes = Array.from({ length: 12 }, (_, index) => index * 5);
-
-function pad(value: number): string {
-    return String(value).padStart(2, '0');
-}
-
-/**
- * Writes a date the way a `datetime-local` input does, in the browser's timezone.
- */
-export function localDateTime(date: Date): string {
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
-/**
- * A local time skipped by a daylight saving change, like 02:30 on the night clocks go forward, comes back shifted.
- */
-export function isExistingLocalTime(value: string): boolean {
-    return localDateTime(new Date(value)) === value;
-}
 
 function startOfDay(date: Date): Date {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());

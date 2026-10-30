@@ -1,6 +1,6 @@
 import { Image, Mic, Pin, Reply, SmilePlus } from 'lucide-react';
 import type { ReactNode, RefObject } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { show as showMessageImage } from '@/actions/App/Http/Controllers/MessageImageController';
 import MessageLinkPreviewController from '@/actions/App/Http/Controllers/MessageLinkPreviewController';
 import { preloadEmojiGroups } from '@/components/chat/message-reactions';
@@ -9,7 +9,6 @@ import { CommitBody } from '@/components/commit-body';
 import { objectUrlFor } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import type { ShownImage } from '@/components/commit-images';
-import { ImageViewer } from '@/components/image-viewer';
 import { LinkPreview } from '@/components/link-preview';
 import { bodySegments } from '@/lib/code';
 import { isReplySwipe, replyPull, replyThreshold } from '@/lib/reply-swipe';
@@ -21,6 +20,16 @@ import type {
     MessageImage,
     MessageReply,
 } from '@/types';
+
+/**
+ * Only needed once an image in a message is opened, which keeps the viewer and its styles out of the chat dock's
+ * bundle, and so out of the first load of every page the dock is part of.
+ */
+const ImageViewer = lazy(() =>
+    import('@/components/image-viewer').then((module) => ({
+        default: module.ImageViewer,
+    })),
+);
 
 /**
  * Who wrote a message, as a reply's ghost names them.
@@ -128,13 +137,15 @@ export function MessageImages({ images }: { images: MessageImage[] | File[] }) {
             ) : (
                 <>
                     <CommitImages images={images} onOpen={setViewedIndex} />
-                    <ImageViewer
-                        images={images}
-                        index={viewedIndex}
-                        onView={setViewedIndex}
-                        onClose={() => setViewedIndex(null)}
-                        downloadUrl={downloadUrl}
-                    />
+                    <Suspense fallback={null}>
+                        <ImageViewer
+                            images={images}
+                            index={viewedIndex}
+                            onView={setViewedIndex}
+                            onClose={() => setViewedIndex(null)}
+                            downloadUrl={downloadUrl}
+                        />
+                    </Suspense>
                 </>
             )}
         </div>
