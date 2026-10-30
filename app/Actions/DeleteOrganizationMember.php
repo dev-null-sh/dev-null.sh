@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\OrganizationRole;
-use App\Exceptions\LastOrganizationAdmin;
+use App\Exceptions\OrganizationMustHaveAnAdmin;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -17,7 +17,7 @@ final readonly class DeleteOrganizationMember
      * while its last admin is checked again, as two admins removing each other at once can both pass the request's
      * check: the second removal then throws instead.
      *
-     * @throws LastOrganizationAdmin
+     * @throws OrganizationMustHaveAnAdmin
      */
     public function handle(Profile $organization, User $member): void
     {
@@ -25,7 +25,7 @@ final readonly class DeleteOrganizationMember
             Profile::query()->whereKey($organization->id)->lockForUpdate()->first();
 
             if ($organization->roleOf($member) === OrganizationRole::Admin && $organization->admins()->whereKeyNot($member->id)->doesntExist()) {
-                throw new LastOrganizationAdmin($organization);
+                throw new OrganizationMustHaveAnAdmin($organization);
             }
 
             $organization->members()->detach($member->id);

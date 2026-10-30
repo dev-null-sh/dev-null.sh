@@ -8,7 +8,7 @@ use App\Actions\CreateOrganizationMember;
 use App\Actions\DeleteOrganizationMember;
 use App\Actions\UpdateOrganizationMemberRole;
 use App\Enums\OrganizationRole;
-use App\Exceptions\LastOrganizationAdmin;
+use App\Exceptions\OrganizationMustHaveAnAdmin;
 use App\Http\Requests\CreateOrganizationMemberRequest;
 use App\Http\Requests\DeleteOrganizationMemberRequest;
 use App\Http\Requests\ListOrganizationMembersRequest;
@@ -58,8 +58,8 @@ final readonly class OrganizationMemberController
 
         try {
             $action->handle($organization, $member, $role);
-        } catch (LastOrganizationAdmin $lastOrganizationAdmin) {
-            return $this->refused($lastOrganizationAdmin);
+        } catch (OrganizationMustHaveAnAdmin $organizationMustHaveAnAdmin) {
+            return $this->refused($organizationMustHaveAnAdmin);
         }
 
         return back();
@@ -72,8 +72,8 @@ final readonly class OrganizationMemberController
     {
         try {
             $action->handle($organization, $member);
-        } catch (LastOrganizationAdmin $lastOrganizationAdmin) {
-            return $this->refused($lastOrganizationAdmin);
+        } catch (OrganizationMustHaveAnAdmin $organizationMustHaveAnAdmin) {
+            return $this->refused($organizationMustHaveAnAdmin);
         }
 
         if ($user->is($member)) {
@@ -88,7 +88,7 @@ final readonly class OrganizationMemberController
     /**
      * Another admin was made a member or left meanwhile, so the change would have left no admin.
      */
-    private function refused(LastOrganizationAdmin $exception): RedirectResponse
+    private function refused(OrganizationMustHaveAnAdmin $exception): RedirectResponse
     {
         Inertia::flash('toast', ['type' => 'error', 'message' => $exception->getMessage()]);
 
