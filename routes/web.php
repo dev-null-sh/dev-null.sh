@@ -228,12 +228,15 @@ Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->gr
                 ->then(fn (Request $request): SymfonyResponse => $router->prepareResponse($request, app()->call(resolve(OrganizationController::class)->show(...))));
         })
         ->name('user.show');
-    Route::get('@{user:handle}/following', [UserFollowingController::class, 'index'])
-        ->name('user-following.index');
-    Route::get('@{user:handle}/followers', [UserFollowersController::class, 'index'])
-        ->name('user-followers.index');
-    Route::get('@{user:handle}/mutuals', [UserMutualsController::class, 'index'])
-        ->name('user-mutuals.index');
+    // Who follows whom is for members, so scrapers can't walk the graph page by page...
+    Route::middleware('auth')->group(function (): void {
+        Route::get('@{user:handle}/following', [UserFollowingController::class, 'index'])
+            ->name('user-following.index');
+        Route::get('@{user:handle}/followers', [UserFollowersController::class, 'index'])
+            ->name('user-followers.index');
+        Route::get('@{user:handle}/mutuals', [UserMutualsController::class, 'index'])
+            ->name('user-mutuals.index');
+    });
     Route::get('@{user:handle}/commits/{commit}', [CommitController::class, 'show'])
         ->scopeBindings()
         ->name('commit.show');
