@@ -28,6 +28,44 @@ it('links known organizations right away, a user of the same handle first', func
         ->assertInertia(fn ($page) => $page->where('commit.organization_mentions.laravel', $laravel->id));
 });
 
+it('links the organization in the case it is written when a stale one holds the handle in another case', function (string $written, string $linked): void {
+    config(['app.admins' => ['admin']]);
+    Queue::fake();
+
+    $author = User::factory()->create(['handle' => 'admin']);
+    $organizations = [
+        'laravel' => Organization::factory()->create(['handle' => 'laravel']),
+        'Laravel' => Organization::factory()->create(['handle' => 'Laravel']),
+    ];
+
+    $this->actingAs($author)->post('/commits', ['body' => "Thanks @{$written}"])->assertRedirect();
+
+    $commit = $author->commits()->sole();
+
+    expect($commit->organization_mentions)->toBe(['laravel' => $organizations[$linked]->id]);
+
+    $this->getJson("/api/v1/organizations/{$written}/mentions")->assertOk()->assertJsonPath('data.*.id', [$commit->id]);
+})->with([
+    'lowercase' => ['laravel', 'laravel'],
+    'capitalized' => ['Laravel', 'Laravel'],
+]);
+
+it('links always the same organization when no stale one holds the handle in the case it is written', function (): void {
+    Queue::fake();
+
+    $author = User::factory()->create();
+    Organization::factory()->create(['handle' => 'laravel']);
+    Organization::factory()->create(['handle' => 'Laravel']);
+
+    $this->actingAs($author)->post('/commits', ['body' => 'Thanks @LARAVEL'])->assertRedirect();
+    $this->actingAs($author)->post('/commits', ['body' => 'Thanks again @LARAVEL'])->assertRedirect();
+
+    [$first, $second] = $author->commits()->oldest('id')->get()->all();
+
+    expect($first->organization_mentions)->toHaveCount(1)
+        ->and($second->organization_mentions)->toBe($first->organization_mentions);
+});
+
 it('asks GitHub about the other handles of a commit approved right away', function (): void {
     config(['app.admins' => ['admin']]);
     Queue::fake();

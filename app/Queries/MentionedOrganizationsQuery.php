@@ -6,7 +6,6 @@ namespace App\Queries;
 
 use App\Models\Organization;
 use App\Services\Mentions;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -19,7 +18,8 @@ final readonly class MentionedOrganizationsQuery
 
     /**
      * The organizations mentioned in the text, by lowercase handle. A handle that is also a user's mentions the user,
-     * so it is left out.
+     * so it is left out. A stale profile may still hold the same handle in another case, so the case it is written in
+     * wins, then always the same one, like organization pages.
      *
      * @param  array<string, string>  $mentionedUsers
      * @return array<string, string>
@@ -32,9 +32,16 @@ final readonly class MentionedOrganizationsQuery
             return [];
         }
 
+        $written = $this->mentions->handlesAsWritten($body);
+
         return Organization::query()
-            ->whereHas('profile', fn (Builder $query): Builder => $query->whereIn(DB::raw('LOWER(handle)'), $handles))
+            ->select('organizations.*')
+            ->join('profiles', 'profiles.id', '=', 'organizations.id')
+            ->whereIn(DB::raw('LOWER(profiles.handle)'), $handles)
+            ->orderBy('profiles.handle')
             ->get()
+            ->sortByDesc(fn (Organization $organization): bool => in_array($organization->handle, $written, true))
+            ->unique(fn (Organization $organization): string => Str::lower($organization->handle))
             ->mapWithKeys(fn (Organization $organization): array => [Str::lower($organization->handle) => $organization->id])
             ->all();
     }

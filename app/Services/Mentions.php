@@ -24,13 +24,24 @@ final readonly class Mentions
      */
     public function handles(string $text): array
     {
+        return array_values(array_unique(array_map(strtolower(...), $this->handlesAsWritten($text))));
+    }
+
+    /**
+     * Finds the handles mentioned as "@handle" in the text by the same rules, in the case they are written, once each, in
+     * order.
+     *
+     * @return list<string>
+     */
+    public function handlesAsWritten(string $text): array
+    {
         if (! str_contains($text, '@')) {
             return [];
         }
 
         preg_match_all(self::Pattern, $this->codeSpans->withoutCode($text), $matches);
 
-        return array_values(array_unique(array_map(strtolower(...), $matches[1])));
+        return array_values(array_unique($matches[1]));
     }
 
     /**

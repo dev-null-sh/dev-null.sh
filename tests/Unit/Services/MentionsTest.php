@@ -11,6 +11,14 @@ it('finds mentions, lowercased and once each, in order', function (): void {
         ->toBe(['nunomaduro', 'taylorotwell']);
 });
 
+it('finds mentions in the case they are written, once each, in order', function (): void {
+    $mentions = resolve(Mentions::class);
+
+    expect($mentions->handlesAsWritten('@NunoMaduro and @taylorotwell, thanks! cc @NunoMaduro and @nunomaduro, not `@Override`'))
+        ->toBe(['NunoMaduro', 'taylorotwell', 'nunomaduro'])
+        ->and($mentions->handlesAsWritten('No mentions here'))->toBe([]);
+});
+
 it('finds mentions next to punctuation', function (string $text, array $handles): void {
     $mentions = resolve(Mentions::class);
 
