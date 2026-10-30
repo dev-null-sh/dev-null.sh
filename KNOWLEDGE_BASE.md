@@ -118,7 +118,7 @@ A member of an organization can **Claim** its page, which lists them as its admi
 
 After that, members are managed on /dev/null, not mirrored from GitHub. An organization's members open its **Settings** from its page, where the **Members** tab lists everyone, each an **admin** or a **member**. Admins add people by their /dev/null handle, except people they blocked or who blocked them, make them admins or members, and remove them. Any member can leave. Its last admin can't leave or become a member. Only its members see who its members are; its page lists its admins to everyone. Your organizations and your role in each are in your data export and go when you delete your account.
 
-Every organization has a color, /dev/null's blue until an admin chooses another in the **Color** tab of its **Settings**: one of the same six lane colors as developers, or a custom one. It rings the organization's avatar, leads its handle, and colors its link preview.
+Every organization has a color, /dev/null's blue until an admin chooses another in the **Profile** tab of its **Settings**, where its admins land: one of the same six lane colors as developers, or a custom one. It rings the organization's avatar, leads its handle, and colors its link preview.
 
 Following organizations is planned, not shipped yet.
 

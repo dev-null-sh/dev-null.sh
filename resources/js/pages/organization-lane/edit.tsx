@@ -23,7 +23,7 @@ export default function Edit({
 
     return (
         <>
-            <Head title={`Color of @${organization.handle}`} />
+            <Head title={`Profile of @${organization.handle}`} />
 
             <section className="px-4 py-6 sm:px-6">
                 <Heading

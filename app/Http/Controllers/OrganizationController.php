@@ -45,7 +45,12 @@ final readonly class OrganizationController
                 ->cursorPaginate(20)
                 ->appends(['tab' => $request->tab()])),
             'claimUrl' => route('organization-admin.create', $organization),
-            'settingsUrl' => $currentUser instanceof User && $organization->roleOf($currentUser) instanceof OrganizationRole ? route('organization-member.index', $organization) : null,
+            // Admins land on the Profile tab, which only they have...
+            'settingsUrl' => match ($currentUser instanceof User ? $organization->roleOf($currentUser) : null) {
+                OrganizationRole::Admin => route('organization-lane.edit', $organization),
+                OrganizationRole::Member => route('organization-member.index', $organization),
+                null => null,
+            },
             'admins' => fn (): Collection => $organization->admins()->oldest('organization_members.created_at')->get()->makeHidden('pivot'),
         ])->withViewData(['preview' => $currentUser instanceof User || $request->inertia() ? null : $metadata->organization($organization)]);
     }

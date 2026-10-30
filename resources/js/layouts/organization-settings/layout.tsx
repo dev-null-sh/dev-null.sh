@@ -9,7 +9,7 @@ import { useCurrentUrl } from '@/hooks/use-current-url';
 import type { Organization } from '@/types';
 
 /**
- * An organization's settings, like the user's. Every member sees its members; only admins choose its color.
+ * An organization's settings, like the user's. Only admins have its profile, first; every member sees its members.
  */
 export default function OrganizationSettingsLayout({
     children,
@@ -21,18 +21,18 @@ export default function OrganizationSettingsLayout({
     const { isCurrentUrl } = useCurrentUrl();
 
     const tabs = [
-        {
-            title: 'Members',
-            href: OrganizationMemberController.index(organization.id),
-        },
         ...(role === 'admin'
             ? [
                   {
-                      title: 'Color',
+                      title: 'Profile',
                       href: OrganizationLaneController.edit(organization.id),
                   },
               ]
             : []),
+        {
+            title: 'Members',
+            href: OrganizationMemberController.index(organization.id),
+        },
     ];
 
     return (

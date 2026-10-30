@@ -357,11 +357,11 @@ Route::middleware('auth')->group(function (): void {
         ->withoutScopedBindings()
         ->name('organization-member.destroy');
 
-    // An organization's color, which its admins choose in its settings...
-    Route::get('organizations/{organization}/settings/color', [OrganizationLaneController::class, 'edit'])
+    // An organization's color, which its admins choose in the Profile tab of its settings...
+    Route::get('organizations/{organization}/settings/profile', [OrganizationLaneController::class, 'edit'])
         ->whereUuid('organization')
         ->name('organization-lane.edit');
-    Route::put('organizations/{organization}/settings/color', [OrganizationLaneController::class, 'update'])
+    Route::put('organizations/{organization}/settings/lane', [OrganizationLaneController::class, 'update'])
         ->whereUuid('organization')
         ->name('organization-lane.update');
 

@@ -39,6 +39,7 @@ export default function Index({
     const adminCount = members.filter(
         (member) => member.role === 'admin',
     ).length;
+    const isOnlyAdmin = isAdmin && adminCount === 1;
 
     // A removed row unmounts with the focus inside it, so it moves to the next row, or the heading...
     const focusAfter = (handle: string) => {
@@ -90,6 +91,14 @@ export default function Index({
                         />
                     ))}
                 </ul>
+
+                {isOnlyAdmin && (
+                    <p className="mt-3 max-w-prose text-sm text-pretty text-muted-foreground">
+                        You're the only admin of @{organization.handle}, so you
+                        can't leave or become a member. Make someone else an
+                        admin first.
+                    </p>
+                )}
             </section>
         </>
     );

@@ -64,10 +64,15 @@ it('shows the admins of the organization but not its other members, first admin 
             ->has('admins', 2));
 });
 
-it('links its members to the settings of the organization', function (): void {
+it('links its members to the settings of the organization, admins to its profile', function (): void {
     $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $admin = User::factory()->create();
     $member = User::factory()->create();
+    $organization->admins()->attach($admin->id);
     $organization->members()->attach($member->id, ['role' => OrganizationRole::Member]);
+
+    $this->actingAs($admin)->get('/@laravel')
+        ->assertInertia(fn ($page) => $page->where('settingsUrl', route('organization-lane.edit', $organization)));
 
     $this->actingAs($member)->get('/@laravel')
         ->assertInertia(fn ($page) => $page->where('settingsUrl', route('organization-member.index', $organization)));

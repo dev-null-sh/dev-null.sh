@@ -14,7 +14,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 
 /**
- * An organization's color, in its settings. Only its admins choose it.
+ * An organization's color, in the Profile tab of its settings. Only its admins choose it.
  */
 final readonly class OrganizationLaneController
 {
