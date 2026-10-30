@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Enums\OrganizationRole;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
@@ -23,7 +22,7 @@ final class ShowOrganizationProfileRequest extends FormRequest
         $organization = $this->route('organization');
         assert($organization instanceof Organization);
 
-        return $organization->roleOf($user) === OrganizationRole::Admin ? Response::allow() : Response::denyAsNotFound();
+        return $organization->isAdmin($user) ? Response::allow() : Response::denyAsNotFound();
     }
 
     /**

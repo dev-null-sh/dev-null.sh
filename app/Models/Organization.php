@@ -140,4 +140,17 @@ final class Organization extends Model
 
         return is_string($role) ? OrganizationRole::from($role) : null;
     }
+
+    /**
+     * Whether the user is one of the organization's members, admin or not.
+     */
+    public function isMember(User $user): bool
+    {
+        return $this->roleOf($user) instanceof OrganizationRole;
+    }
+
+    public function isAdmin(User $user): bool
+    {
+        return $this->roleOf($user) === OrganizationRole::Admin;
+    }
 }

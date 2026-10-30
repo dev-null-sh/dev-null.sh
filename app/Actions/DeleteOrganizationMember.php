@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Enums\OrganizationRole;
 use App\Exceptions\OrganizationMustHaveAnAdmin;
 use App\Models\Organization;
 use App\Models\User;
@@ -24,7 +23,7 @@ final readonly class DeleteOrganizationMember
         DB::transaction(function () use ($organization, $member): void {
             Organization::query()->whereKey($organization->id)->lockForUpdate()->first();
 
-            if ($organization->roleOf($member) === OrganizationRole::Admin && $organization->admins()->whereKeyNot($member->id)->doesntExist()) {
+            if ($organization->isAdmin($member) && $organization->admins()->whereKeyNot($member->id)->doesntExist()) {
                 throw new OrganizationMustHaveAnAdmin($organization);
             }
 
