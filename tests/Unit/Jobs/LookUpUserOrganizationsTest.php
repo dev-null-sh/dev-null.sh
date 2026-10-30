@@ -8,6 +8,9 @@ use App\Enums\ProfileType;
 use App\Jobs\LookUpUserOrganizations;
 use App\Models\Profile;
 use App\Models\User;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 
@@ -23,6 +26,26 @@ it('looks the organizations the bio and company mention up, but not the users', 
     dispatch_sync(new LookUpUserOrganizations($user));
 
     expect(Profile::query()->where('type', ProfileType::Organization)->pluck('handle')->all())->toBe(['laravel']);
+});
+
+it('skips the accounts GitHub does not show, such as behind an IP allow list, and looks the others up', function (): void {
+    $forbidden = new RequestException(new Response(new Psr7Response(403, [], '{"message":"The organization has an IP allow list enabled"}')));
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('rateLimit')->andReturnNull();
+    $github->shouldReceive('accountByLogin')->with('restricted')->once()->andThrow($forbidden);
+    $github->shouldReceive('accountByLogin')->with('laravel')->once()->andReturn(['login' => 'laravel', 'id' => 958072, 'type' => 'Organization', 'name' => 'Laravel', 'avatar_url' => null, 'bio' => null, 'location' => null, 'blog' => '', 'company' => null]);
+    $github->shouldReceive('account')->with('1')->once()->andThrow($forbidden);
+    $github->shouldReceive('account')->with('6764390')->once()->andReturn(['login' => 'symfony', 'id' => 6764390, 'type' => 'Organization', 'name' => 'Symfony, SAS', 'avatar_url' => null, 'bio' => null, 'location' => null, 'blog' => '', 'company' => null]);
+
+    $private = Profile::factory()->organization()->create(['github_id' => '1', 'handle' => 'private', 'name' => 'Private', 'github_synced_at' => now()->subDays(2)]);
+    $symfony = Profile::factory()->organization()->create(['github_id' => '6764390', 'handle' => 'symfony', 'name' => 'Symfony', 'github_synced_at' => now()->subDays(2)]);
+    $user = User::factory()->create(['bio' => 'Thanks @restricted and @laravel', 'company' => '@private @symfony']);
+
+    dispatch_sync(new LookUpUserOrganizations($user));
+
+    expect(Profile::query()->where('type', ProfileType::Organization)->orderBy('handle')->pluck('handle')->all())->toBe(['laravel', 'private', 'symfony'])
+        ->and($private->refresh()->name)->toBe('Private')
+        ->and($symfony->refresh()->name)->toBe('Symfony, SAS');
 });
 
 it('runs again once the rate limit resets when it cut the lookups short', function (): void {

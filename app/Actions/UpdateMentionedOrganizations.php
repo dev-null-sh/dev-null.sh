@@ -9,6 +9,7 @@ use App\Enums\ProfileType;
 use App\Models\Profile;
 use Carbon\CarbonImmutable;
 use Closure;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -39,8 +40,9 @@ final readonly class UpdateMentionedOrganizations
     /**
      * Asks GitHub about the lowercase handles that are neither a user's nor a known organization's, and refreshes the
      * known organizations among them once their profile is a day old. A handle that isn't an organization's isn't asked
-     * about again for a day, and an organization GitHub no longer has is deleted, with the links to it. Returns when to
-     * try again if the rate limit cut the lookups short.
+     * about again for a day, and an organization GitHub no longer has is deleted, with the links to it. An account GitHub
+     * won't show, such as one behind an IP allow list, is skipped. Returns when to try again if the rate limit cut the
+     * lookups short.
      *
      * @param  list<string>  $handles
      */
@@ -89,7 +91,16 @@ final readonly class UpdateMentionedOrganizations
         }
 
         foreach ($lookups as [$lookUp, $notFound]) {
-            $account = $lookUp();
+            try {
+                $account = $lookUp();
+            } catch (RequestException $exception) {
+                // GitHub forbids its rate limits too, and says so in these headers.
+                if (! $exception->response->forbidden() || $exception->response->header('X-RateLimit-Remaining') === '0' || $exception->response->hasHeader('Retry-After')) {
+                    throw $exception;
+                }
+
+                continue;
+            }
 
             if (($account['type'] ?? null) !== 'Organization') {
                 $notFound();
