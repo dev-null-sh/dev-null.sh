@@ -61,7 +61,7 @@ final readonly class UpdateMentionedOrganizations
             ->merge($known
                 ->filter(fn (Organization $organization): bool => $organization->github_synced_at?->addHours(Organization::FRESH_FOR_HOURS)->isPast() ?? true)
                 ->map(fn (Organization $organization): array => [
-                    fn (): ?array => $this->github->account($organization->github_id),
+                    fn (): ?array => $this->github->account($organization->profile->github_id),
                     function () use ($organization): void {
                         $this->deleteOrganization->handle($organization);
                     },

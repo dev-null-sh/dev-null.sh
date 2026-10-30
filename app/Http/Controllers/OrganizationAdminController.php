@@ -90,7 +90,7 @@ final readonly class OrganizationAdminController
 
         // An organization restricting OAuth apps hides its members from those its owners haven't approved, which they
         // do from the app's page in their settings, where members request it.
-        $failure = match ($github->organizationMembership($githubUser->token, $handle, $organization->github_id)) {
+        $failure = match ($github->organizationMembership($githubUser->token, $handle, $organization->profile->github_id)) {
             GitHubOrganizationMembership::Member => null,
             GitHubOrganizationMembership::NotMember => [__('GitHub says you are not a member of @:handle.', ['handle' => $handle]), null],
             GitHubOrganizationMembership::Restricted => [

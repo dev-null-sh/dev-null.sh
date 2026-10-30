@@ -26,7 +26,7 @@ final class OrganizationFactory extends Factory
                 'handle' => fake()->unique()->slug(2),
                 'name' => fake()->company(),
                 'github_synced_at' => now(),
-                ...array_intersect_key($attributes, array_flip([...Organization::PROFILE_ATTRIBUTES, 'created_at'])),
+                ...array_intersect_key($attributes, array_flip([...Profile::USER_ATTRIBUTES, 'github_id', 'created_at'])),
             ])->id,
             'preferred_lane' => null,
             'lane_color' => null,
@@ -34,13 +34,14 @@ final class OrganizationFactory extends Factory
     }
 
     /**
-     * The GitHub identity given to the factory, like a handle, goes to the profile it makes, not to the organization.
+     * The GitHub identity given to the factory, like a handle or a GitHub ID, goes to the profile it makes, not to the
+     * organization.
      *
      * @param  array<string, mixed>  $attributes
      */
     public function newModel(array $attributes = []): Organization
     {
-        return parent::newModel(array_diff_key($attributes, array_flip(Organization::PROFILE_ATTRIBUTES)));
+        return parent::newModel(array_diff_key($attributes, array_flip([...Profile::USER_ATTRIBUTES, 'github_id'])));
     }
 
     /**

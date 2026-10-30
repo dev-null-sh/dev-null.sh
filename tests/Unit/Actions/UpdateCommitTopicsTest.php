@@ -45,8 +45,8 @@ it('links the organizations GitHub has to the commit, from their GitHub profile'
 
     $organization = Organization::query()->sole();
 
-    expect($organization)
-        ->github_id->toBe('958072')
+    expect($organization->profile->github_id)->toBe('958072')
+        ->and($organization)
         ->handle->toBe('laravel')
         ->name->toBe('Laravel')
         ->avatar_url->toBe('https://avatars.githubusercontent.com/u/958072?v=4')

@@ -20,7 +20,6 @@ use LogicException;
  * identity lives on its profile, whose ID it shares, as users' lives on theirs.
  *
  * @property-read string $id
- * @property-read string $github_id
  * @property-read string $handle
  * @property-read string $name
  * @property-read string|null $avatar_url
@@ -53,11 +52,6 @@ final class Organization extends Model
      * Organizations are refreshed from GitHub when a commit mentions them, at most this often.
      */
     public const int FRESH_FOR_HOURS = 24;
-
-    /**
-     * The GitHub identity an organization shows, which lives on its profile.
-     */
-    public const array PROFILE_ATTRIBUTES = [...Profile::USER_ATTRIBUTES, 'github_id'];
 
     /**
      * Every organization shows its GitHub identity, so its profile comes with it.
@@ -172,7 +166,7 @@ final class Organization extends Model
      */
     public function getAttribute($key): mixed
     {
-        return in_array($key, self::PROFILE_ATTRIBUTES, true) ? $this->profile->getAttribute($key) : parent::getAttribute($key);
+        return in_array($key, Profile::USER_ATTRIBUTES, true) ? $this->profile->getAttribute($key) : parent::getAttribute($key);
     }
 
     /**
@@ -180,7 +174,7 @@ final class Organization extends Model
      */
     public function setAttribute($key, $value): mixed
     {
-        throw_if(in_array($key, self::PROFILE_ATTRIBUTES, true), LogicException::class, "Update the {$key} of an organization on its profile.");
+        throw_if(in_array($key, Profile::USER_ATTRIBUTES, true), LogicException::class, "Update the {$key} of an organization on its profile.");
 
         return parent::setAttribute($key, $value);
     }
