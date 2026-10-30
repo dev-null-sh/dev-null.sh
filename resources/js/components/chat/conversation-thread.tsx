@@ -21,6 +21,7 @@ import {
     CallButton,
     CallConsole,
     OrgCallConsole,
+    useIsOnCall,
 } from '@/components/chat/call';
 import {
     LiftedMessage,
@@ -1707,6 +1708,7 @@ function Composer({
 
     const voiceNote = useVoiceNote(showError);
     const isVoicing = voiceNote.state.status !== 'idle';
+    const isOnCall = useIsOnCall();
 
     const pushVoiceNote = async () => {
         const voice = await voiceNote.stop();
@@ -1928,67 +1930,73 @@ function Composer({
                                     isCompact ? 'size-9' : 'size-10',
                                 )}
                             />
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <span className="-mx-1 inline-flex shrink-0">
+                            {!isOnCall && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="-mx-1 inline-flex shrink-0">
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                disabled={
+                                                    trimmed !== '' || hasImages
+                                                }
+                                                onClick={() =>
+                                                    void voiceNote.start()
+                                                }
+                                                aria-label="Record a voice note"
+                                                className={cn(
+                                                    'text-muted-foreground',
+                                                    isCompact
+                                                        ? 'size-9'
+                                                        : 'size-10',
+                                                )}
+                                                data-test="record-voice-note"
+                                            >
+                                                <Mic className="size-5" />
+                                            </Button>
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        {trimmed !== '' || hasImages
+                                            ? 'Voice notes go on their own'
+                                            : 'Record a voice note (max. 1 min)'}
+                                    </TooltipContent>
+                                </Tooltip>
+                            )}
+                            {!isOnCall && (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
                                         <Button
                                             type="button"
                                             variant="ghost"
                                             size="icon"
-                                            disabled={
-                                                trimmed !== '' || hasImages
-                                            }
                                             onClick={() =>
-                                                void voiceNote.start()
+                                                void sendPing(target).catch(
+                                                    (error: unknown) =>
+                                                        showError(
+                                                            error instanceof
+                                                                ChatRequestError
+                                                                ? error.firstError()
+                                                                : 'Could not ping. Try again.',
+                                                        ),
+                                                )
                                             }
-                                            aria-label="Record a voice note"
+                                            aria-label={pingLabel}
                                             className={cn(
-                                                'text-muted-foreground',
+                                                '-mx-1 shrink-0 text-muted-foreground',
                                                 isCompact
                                                     ? 'size-9'
                                                     : 'size-10',
                                             )}
-                                            data-test="record-voice-note"
+                                            data-test="send-ping"
                                         >
-                                            <Mic className="size-5" />
+                                            <Vibrate className="size-5" />
                                         </Button>
-                                    </span>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    {trimmed !== '' || hasImages
-                                        ? 'Voice notes go on their own'
-                                        : 'Record a voice note (max. 1 min)'}
-                                </TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() =>
-                                            void sendPing(target).catch(
-                                                (error: unknown) =>
-                                                    showError(
-                                                        error instanceof
-                                                            ChatRequestError
-                                                            ? error.firstError()
-                                                            : 'Could not ping. Try again.',
-                                                    ),
-                                            )
-                                        }
-                                        aria-label={pingLabel}
-                                        className={cn(
-                                            '-mx-1 shrink-0 text-muted-foreground',
-                                            isCompact ? 'size-9' : 'size-10',
-                                        )}
-                                        data-test="send-ping"
-                                    >
-                                        <Vibrate className="size-5" />
-                                    </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>{pingLabel}</TooltipContent>
-                            </Tooltip>
+                                    </TooltipTrigger>
+                                    <TooltipContent>{pingLabel}</TooltipContent>
+                                </Tooltip>
+                            )}
                             <CallButton
                                 label={
                                     target.kind === 'direct'

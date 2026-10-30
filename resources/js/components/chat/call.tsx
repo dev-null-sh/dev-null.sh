@@ -89,9 +89,9 @@ function useRingingOrgCall(): OrgCall | null {
 }
 
 /**
- * Whether the user is on a call of either kind, which keeps them from starting or joining another.
+ * Whether the user is placing, receiving, or participating in a call of either kind.
  */
-function useIsBusy(): boolean {
+export function useIsOnCall(): boolean {
     const call = useCall();
     const orgCall = useOrgCall();
 
@@ -114,7 +114,7 @@ export function CallButton({
     isCompact: boolean;
     onClick: () => void;
 }) {
-    const isOnCall = useIsBusy();
+    const isOnCall = useIsOnCall();
     const { auth } = usePage().props;
 
     if (!auth.remotes) {
@@ -163,7 +163,7 @@ export function CallConsole({
     onConfirmingChange: (isConfirming: boolean) => void;
 }) {
     const call = useCall();
-    const isOnCall = useIsBusy();
+    const isOnCall = useIsOnCall();
     const handle = `@${partner.handle}`;
     const isThisCall =
         call.status !== 'idle' && call.partner.handle === partner.handle;
