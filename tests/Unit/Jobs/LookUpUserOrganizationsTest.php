@@ -28,8 +28,8 @@ it('looks the organizations the bio and company mention up, but not the users', 
     expect(Profile::query()->where('type', ProfileType::Organization)->pluck('handle')->all())->toBe(['laravel']);
 });
 
-it('skips the accounts GitHub does not show, such as behind an IP allow list, and looks the others up', function (): void {
-    $forbidden = new RequestException(new Response(new Psr7Response(403, [], '{"message":"The organization has an IP allow list enabled"}')));
+it('skips the organizations that keep GitHub from showing them, and looks the others up', function (Psr7Response $response): void {
+    $forbidden = new RequestException(new Response($response));
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('rateLimit')->andReturnNull();
     $github->shouldReceive('accountByLogin')->with('restricted')->once()->andThrow($forbidden);
@@ -45,8 +45,13 @@ it('skips the accounts GitHub does not show, such as behind an IP allow list, an
 
     expect(Profile::query()->where('type', ProfileType::Organization)->orderBy('handle')->pluck('handle')->all())->toBe(['laravel', 'private', 'symfony'])
         ->and($private->refresh()->name)->toBe('Private')
-        ->and($symfony->refresh()->name)->toBe('Symfony, SAS');
-});
+        ->and($symfony->refresh()->name)->toBe('Symfony, SAS')
+        ->and(Cache::has('github-organizations:not-found:restricted'))->toBeFalse();
+})->with([
+    'an IP allow list' => fn (): Psr7Response => new Psr7Response(403, [], '{"message":"Although you appear to have the correct authorization credentials, the `acme` organization has an IP allow list enabled, and your IP address is not permitted to access this resource."}'),
+    'SAML single sign-on' => fn (): Psr7Response => new Psr7Response(403, ['X-GitHub-SSO' => 'required; url=https://github.com/orgs/acme/sso'], '{"message":"Resource protected by organization SAML enforcement."}'),
+    'OAuth app access restrictions' => fn (): Psr7Response => new Psr7Response(403, [], '{"message":"Although you appear to have the correct authorization credentials, the `acme` organization has enabled OAuth App access restrictions, meaning that data access to third-parties is limited."}'),
+]);
 
 it('runs again once the rate limit resets when it cut the lookups short', function (): void {
     $github = $this->mock(GitHubProvider::class);

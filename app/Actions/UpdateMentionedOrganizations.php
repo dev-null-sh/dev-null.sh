@@ -40,9 +40,9 @@ final readonly class UpdateMentionedOrganizations
     /**
      * Asks GitHub about the lowercase handles that are neither a user's nor a known organization's, and refreshes the
      * known organizations among them once their profile is a day old. A handle that isn't an organization's isn't asked
-     * about again for a day, and an organization GitHub no longer has is deleted, with the links to it. An account GitHub
-     * won't show, such as one behind an IP allow list, is skipped. Returns when to try again if the rate limit cut the
-     * lookups short.
+     * about again for a day, and an organization GitHub no longer has is deleted, with the links to it. An
+     * organization that keeps GitHub from showing it to the app, with an IP allow list for one, is skipped. Returns when
+     * to try again if the rate limit cut the lookups short.
      *
      * @param  list<string>  $handles
      */
@@ -94,8 +94,12 @@ final readonly class UpdateMentionedOrganizations
             try {
                 $account = $lookUp();
             } catch (RequestException $exception) {
-                // GitHub forbids its rate limits too, and says so in these headers.
-                if (! $exception->response->forbidden() || $exception->response->header('X-RateLimit-Remaining') === '0' || $exception->response->hasHeader('Retry-After')) {
+                // The refusals an organization sets up, as in HttpGitHubProvider::organizationMembership(): an IP
+                // allow list, SAML single sign-on or OAuth App access restrictions. Any other one, a rate limit among
+                // them, is retried.
+                $response = $exception->response;
+
+                if (! $response->forbidden() || (! $response->hasHeader('X-GitHub-SSO') && ! Str::contains($response->fluent()->string('message')->value(), ['IP allow list', 'OAuth App access restrictions']))) {
                     throw $exception;
                 }
 
