@@ -35,3 +35,10 @@ it('returns not found for handles without an organization page', function (): vo
     $this->getJson('/api/v1/organizations/octocat')->assertNotFound();
     $this->getJson('/api/v1/organizations/missing')->assertNotFound();
 });
+
+it('shows an organization whatever the case of its handle', function (): void {
+    Organization::factory()->create(['handle' => 'Laravel']);
+
+    $this->getJson('/api/v1/organizations/LARAVEL')->assertOk()->assertJsonPath('data.handle', 'Laravel');
+    $this->getJson('/api/v1/organizations/laravel/mentions')->assertOk();
+});

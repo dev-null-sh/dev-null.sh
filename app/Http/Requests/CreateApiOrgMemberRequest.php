@@ -38,7 +38,7 @@ final class CreateApiOrgMemberRequest extends FormRequest
     {
         return [
             'members' => ['required', 'array', 'min:1', 'max:'.(Conversation::MAX_MEMBERS - 1)],
-            'members.*' => ['required', 'string', 'distinct', Rule::exists('profiles', 'handle')->where('type', ProfileType::User->value)],
+            'members.*' => ['required', 'string', 'distinct:ignore_case', Rule::exists('profiles', 'handle')->where('type', ProfileType::User->value)],
             'share_history' => ['required', 'boolean'],
         ];
     }
@@ -86,6 +86,6 @@ final class CreateApiOrgMemberRequest extends FormRequest
         /** @var list<string> $handles */
         $handles = $this->array('members');
 
-        return User::query()->whereHas('profile', fn (Builder $query): Builder => $query->whereIn('handle', $handles))->get()->sortBy(fn (User $user): int|false => array_search($user->handle, $handles, true))->values()->toBase();
+        return User::query()->whereHas('profile', fn (Builder $query): Builder => $query->whereIn('handle', $handles))->get()->sortBy(fn (User $user): int|false => array_search(mb_strtolower($user->handle), array_map(mb_strtolower(...), $handles), true))->values()->toBase();
     }
 }

@@ -7,7 +7,6 @@ namespace App\Queries;
 use App\Models\Organization;
 use App\Services\Mentions;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final readonly class MentionedOrganizationsQuery
@@ -33,7 +32,7 @@ final readonly class MentionedOrganizationsQuery
         }
 
         return Organization::query()
-            ->whereHas('profile', fn (Builder $query): Builder => $query->whereIn(DB::raw('LOWER(handle)'), $handles))
+            ->whereHas('profile', fn (Builder $query): Builder => $query->whereIn('handle', $handles))
             ->get()
             ->mapWithKeys(fn (Organization $organization): array => [Str::lower($organization->handle) => $organization->id])
             ->all();

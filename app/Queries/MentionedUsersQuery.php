@@ -7,7 +7,6 @@ namespace App\Queries;
 use App\Models\User;
 use App\Services\Mentions;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final readonly class MentionedUsersQuery
@@ -29,7 +28,7 @@ final readonly class MentionedUsersQuery
         }
 
         return User::query()
-            ->whereHas('profile', fn (Builder $query): Builder => $query->whereIn(DB::raw('LOWER(handle)'), $handles))
+            ->whereHas('profile', fn (Builder $query): Builder => $query->whereIn('handle', $handles))
             ->get()
             ->mapWithKeys(fn (User $user): array => [Str::lower($user->handle) => $user->id])
             ->all();

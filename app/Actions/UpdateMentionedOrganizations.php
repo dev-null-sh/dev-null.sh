@@ -12,7 +12,6 @@ use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final readonly class UpdateMentionedOrganizations
@@ -49,7 +48,7 @@ final readonly class UpdateMentionedOrganizations
      */
     public function handle(array $handles): ?CarbonImmutable
     {
-        $profiles = Profile::query()->whereIn(DB::raw('LOWER(handle)'), $handles)->get();
+        $profiles = Profile::query()->whereIn('handle', $handles)->get();
         $known = Organization::query()->whereKey($profiles->where('type', ProfileType::Organization)->modelKeys())->get();
 
         /** @var list<array{Closure(): (array<array-key, mixed>|null), Closure(): mixed}> $lookups */

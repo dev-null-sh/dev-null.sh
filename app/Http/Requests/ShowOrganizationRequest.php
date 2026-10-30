@@ -36,20 +36,13 @@ final class ShowOrganizationRequest extends FormRequest
     }
 
     /**
-     * Organizations share the "@handle" pages with users, so this is the handle no user has, whatever its case,
-     * the exact case first.
+     * Organizations share the "@handle" pages with users, so this is the handle no user has, whatever its case.
      */
     public function organization(): ?Organization
     {
         $handle = $this->route('user');
         assert(is_string($handle));
 
-        return $this->organization ??= Organization::query()
-            ->select('organizations.*')
-            ->join('profiles', 'profiles.id', '=', 'organizations.id')
-            ->whereRaw('LOWER(profiles.handle) = LOWER(?)', [$handle])
-            ->orderByRaw('profiles.handle = ? desc', [$handle])
-            ->orderBy('profiles.handle')
-            ->first();
+        return $this->organization ??= Organization::query()->whereRelation('profile', 'handle', $handle)->first();
     }
 }

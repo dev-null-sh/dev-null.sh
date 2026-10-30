@@ -244,17 +244,3 @@ it('keeps the query string out of the handle it moves an organization to', funct
     $this->get('/@laravel?user[]=a&user[]=b')->assertRedirect('/@Laravel?user[]=a&user[]=b');
     $this->get('/@laravel?tag=one&tag=two')->assertRedirect('/@Laravel?tag=one&tag=two');
 });
-
-it('opens each organization at its own case when a stale one holds the handle in another case', function (): void {
-    $lower = Organization::factory()->create(['handle' => 'laravel']);
-    $mixed = Organization::factory()->create(['handle' => 'Laravel']);
-
-    $this->get('/@laravel')->assertOk()->assertInertia(fn ($page) => $page->where('organization.id', $lower->id));
-    $this->get('/@Laravel')->assertOk()->assertInertia(fn ($page) => $page->where('organization.id', $mixed->id));
-
-    $location = (string) $this->get('/@LARAVEL')->assertMovedPermanently()->headers->get('Location');
-
-    expect($location)->toBeIn([url('/@laravel'), url('/@Laravel')]);
-
-    $this->get($location)->assertOk();
-});
