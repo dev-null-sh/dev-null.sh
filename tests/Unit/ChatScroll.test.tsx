@@ -58,6 +58,8 @@ vi.doMock('../../resources/js/hooks/use-link-card', () => ({
 }));
 const { ConversationThread } =
     await import('../../resources/js/components/chat/conversation-thread');
+const { MessageImages, MessageText } =
+    await import('../../resources/js/components/chat/message-parts');
 type Element = ReactElement<Record<string, unknown>>;
 function elements(node: ReactNode): Element[] {
     if (!React.isValidElement(node)) return [];
@@ -294,20 +296,24 @@ test('settles a send near the latest message without a scroll animation', () => 
 });
 
 test.each([
-    ['direct', false],
-    ['direct', true],
-    ['org', false],
-    ['org', true],
+    ['direct', false, false],
+    ['direct', true, false],
+    ['org', false, false],
+    ['org', true, false],
+    ['direct', false, true],
+    ['direct', true, true],
+    ['org', false, true],
+    ['org', true, true],
 ] as const)(
-    'jumps to an image-only original in a %s chat (paginated: %s)',
-    async (kind, paginated) => {
+    'jumps to the quoted content in a %s chat (paginated: %s, caption: %s)',
+    async (kind, paginated, caption) => {
         const chat = setup(false, 0, kind);
         thread.messages = [
             {
                 id: 1,
                 client_id: 'photo',
                 user_id: 'partner',
-                body: '',
+                body: caption ? 'Release dashboard ready for review.' : '',
                 created_at: new Date().toISOString(),
                 images: [
                     {
@@ -336,23 +342,21 @@ test.each([
         const renderBubble = bubble.type as (
             props: typeof bubble.props,
         ) => ReactNode;
-        const targets = elements(renderBubble(bubble.props)).filter(
-            (node) => node.props['data-message-id'] === 1,
-        );
-        const scrollIntoView = vi.fn();
-        const original = {
-            dataset: {} as Record<string, string>,
-            scrollIntoView,
-        };
+        const targets = elements(renderBubble(bubble.props))
+            .filter((node) => node.props['data-message-id'] === 1)
+            .map((node) => ({
+                node,
+                dataset: {} as Record<string, string>,
+                scrollIntoView: vi.fn(),
+            }));
         const load = vi.spyOn(chatStore, 'loadMessage').mockResolvedValue(true);
         chat.scroller.querySelector = (selector: string) =>
-            targets.some(
-                (node) =>
-                    selector ===
-                    `[data-message-id="${String(node.props['data-message-id'])}"]`,
-            ) &&
-            (!paginated || load.mock.calls.length > 0)
-                ? original
+            !paginated || load.mock.calls.length > 0
+                ? (targets.find(
+                      ({ node }) =>
+                          selector ===
+                          `[data-message-id="${String(node.props['data-message-id'])}"]`,
+                  ) ?? null)
                 : null;
         vi.stubGlobal('requestAnimationFrame', (callback: () => void) =>
             callback(),
@@ -364,7 +368,13 @@ test.each([
 
         await (group.props.onJump as (id: number) => Promise<void>)(1);
 
-        assert.deepEqual(scrollIntoView.mock.calls, [
+        const original = targets.find(({ node }) =>
+            elements(node).some(
+                (child) =>
+                    child.type === (caption ? MessageText : MessageImages),
+            ),
+        )!;
+        assert.deepEqual(original.scrollIntoView.mock.calls, [
             [{ block: 'center', behavior: 'instant' }],
         ]);
         assert.equal(original.dataset.flash, '');

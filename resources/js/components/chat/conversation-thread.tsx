@@ -1314,7 +1314,9 @@ function BubbleWithMeta({
                     {images.length > 0 && (
                         <div
                             data-message-id={
-                                bubble.kind === 'message'
+                                bubble.kind === 'message' &&
+                                message.body === '' &&
+                                voice === null
                                     ? bubble.message.id
                                     : undefined
                             }
