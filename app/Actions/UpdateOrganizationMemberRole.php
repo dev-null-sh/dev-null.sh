@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\OrganizationRole;
+use App\Exceptions\LastOrganizationAdmin;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -13,8 +14,10 @@ final readonly class UpdateOrganizationMemberRole
 {
     /**
      * Makes the member an admin or a member. The organization is locked while its last admin is checked again, as two
-     * admins making each other members at once can both pass the request's check: the second change then just doesn't
-     * happen.
+     * admins making each other members at once can both pass the request's check: the second change then throws
+     * instead.
+     *
+     * @throws LastOrganizationAdmin
      */
     public function handle(Profile $organization, User $member, OrganizationRole $role): void
     {
@@ -22,7 +25,7 @@ final readonly class UpdateOrganizationMemberRole
             Profile::query()->whereKey($organization->id)->lockForUpdate()->first();
 
             if ($role === OrganizationRole::Member && $organization->admins()->whereKeyNot($member->id)->doesntExist()) {
-                return;
+                throw new LastOrganizationAdmin($organization);
             }
 
             $organization->members()->updateExistingPivot($member->id, ['role' => $role]);

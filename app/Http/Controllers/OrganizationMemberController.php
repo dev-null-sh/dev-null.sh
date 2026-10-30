@@ -8,6 +8,7 @@ use App\Actions\CreateOrganizationMember;
 use App\Actions\DeleteOrganizationMember;
 use App\Actions\UpdateOrganizationMemberRole;
 use App\Enums\OrganizationRole;
+use App\Exceptions\LastOrganizationAdmin;
 use App\Http\Requests\CreateOrganizationMemberRequest;
 use App\Http\Requests\DeleteOrganizationMemberRequest;
 use App\Http\Requests\ListOrganizationMembersRequest;
@@ -55,21 +56,24 @@ final readonly class OrganizationMemberController
         $role = $request->role();
         assert($role instanceof OrganizationRole);
 
-        $action->handle($organization, $member, $role);
+        try {
+            $action->handle($organization, $member, $role);
+        } catch (LastOrganizationAdmin $lastOrganizationAdmin) {
+            return $this->refused($lastOrganizationAdmin);
+        }
 
         return back();
     }
 
     /**
-     * Leaving takes the user to the organization's page, as its settings are for members only. A removal that didn't
-     * happen, as another admin left meanwhile, says why.
+     * Leaving takes the user to the organization's page, as its settings are for members only.
      */
     public function destroy(DeleteOrganizationMemberRequest $request, #[CurrentUser] User $user, Profile $organization, User $member, DeleteOrganizationMember $action): RedirectResponse
     {
-        if (! $action->handle($organization, $member)) {
-            Inertia::flash('toast', ['type' => 'error', 'message' => __('@:handle needs at least one admin.', ['handle' => $organization->handle])]);
-
-            return back();
+        try {
+            $action->handle($organization, $member);
+        } catch (LastOrganizationAdmin $lastOrganizationAdmin) {
+            return $this->refused($lastOrganizationAdmin);
         }
 
         if ($user->is($member)) {
@@ -77,6 +81,16 @@ final readonly class OrganizationMemberController
 
             return to_route('user.show', $organization->handle);
         }
+
+        return back();
+    }
+
+    /**
+     * Another admin was made a member or left meanwhile, so the change would have left no admin.
+     */
+    private function refused(LastOrganizationAdmin $exception): RedirectResponse
+    {
+        Inertia::flash('toast', ['type' => 'error', 'message' => $exception->getMessage()]);
 
         return back();
     }

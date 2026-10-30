@@ -159,8 +159,11 @@ it('keeps the last admin when another admin was made a member after the request 
     app()->resolving(UpdateOrganizationMemberRole::class, fn () => $organization->members()->updateExistingPivot($admin->id, ['role' => OrganizationRole::Member]));
 
     $this->actingAs($admin)
+        ->from(route('organization-member.index', $organization))
         ->put(route('organization-member.update', memberRoute($organization, $member)), ['role' => 'member'])
-        ->assertSessionHasNoErrors();
+        ->assertRedirect(route('organization-member.index', $organization))
+        ->assertInertiaFlash('toast.type', 'error')
+        ->assertInertiaFlash('toast.message', '@laravel needs at least one admin.');
 
     expect($organization->roleOf($member))->toBe(OrganizationRole::Admin);
 });
