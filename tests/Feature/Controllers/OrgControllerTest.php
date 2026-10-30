@@ -135,3 +135,22 @@ it('requires remotes and authentication', function (): void {
     $this->postJson(route('org.store'), ['members' => ['x']])->assertUnauthorized();
     $this->actingAs(User::factory()->create(['remotes_enabled' => false]))->postJson(route('org.store'), ['members' => ['x']])->assertNotFound();
 });
+
+it('creates an org with people whatever the case of their handles', function (): void {
+    $mark = User::factory()->create();
+    $nuno = User::factory()->create(['handle' => 'NunoMaduro']);
+    $nuno->following()->attach($mark);
+
+    $this->actingAs($mark)->postJson(route('org.store'), ['members' => ['nunomaduro']])->assertCreated();
+
+    expect(Conversation::query()->sole()->roleOf($nuno)?->value)->toBe('contributor');
+});
+
+it('refuses people with no profile on /dev/null', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+
+    $this->actingAs($mark)->postJson(route('org.store'), ['members' => [$nuno->handle, 'nobody-by-that-name']])
+        ->assertUnprocessable()
+        ->assertOnlyJsonValidationErrors('members.1');
+});

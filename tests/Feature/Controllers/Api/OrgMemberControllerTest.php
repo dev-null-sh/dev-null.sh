@@ -160,3 +160,15 @@ it('rejects requests that are not signed', function (): void {
 
     $this->deleteJson(route('api-org-member.destroy', [$org, $nuno->handle]))->assertUnauthorized();
 });
+
+it('adds people whatever the case of their handles', function (): void {
+    [$nuno] = followersOf($this->user, 1);
+    $org = createOrg($this->user, [$nuno]);
+    $taylor = User::factory()->create(['handle' => 'TaylorOtwell']);
+    $taylor->following()->attach($this->user);
+
+    signedApiRequest($this->keyPair, 'POST', route('api-org-member.store', $org), ['members' => ['taylorotwell'], 'share_history' => true])
+        ->assertNoContent();
+
+    expect(Conversation::query()->findOrFail($org)->roleOf($taylor)?->value)->toBe('contributor');
+});

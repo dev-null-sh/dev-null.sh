@@ -125,6 +125,7 @@ it('refuses an org it cannot start', function (Closure $data, array $fields): vo
     'an empty list' => [fn (User $nuno): array => ['members' => []], ['members']],
     'someone who does not exist' => [fn (User $nuno): array => ['members' => [$nuno->handle, 'nobody-by-that-name']], ['members.1']],
     'the same person twice' => [fn (User $nuno): array => ['members' => [$nuno->handle, $nuno->handle]], ['members.0', 'members.1']],
+    'the same person twice in another case' => [fn (User $nuno): array => ['members' => [$nuno->handle, Str::upper($nuno->handle)]], ['members.0', 'members.1']],
     'a long name' => [fn (User $nuno): array => ['name' => Str::repeat('a', 61), 'members' => [$nuno->handle]], ['name']],
 ]);
 
@@ -196,4 +197,25 @@ it('refuses renaming during a timeout', function (): void {
         ->assertJsonPath('code', 'timed_out');
 
     expect(Conversation::query()->findOrFail($org)->name)->toBe('dev/null core');
+});
+
+it('starts an org with people whatever the case of their handles', function (): void {
+    $nuno = User::factory()->create(['handle' => 'NunoMaduro']);
+    $nuno->following()->attach($this->user);
+
+    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => ['nunomaduro']])->assertCreated();
+
+    expect(Conversation::query()->sole()->roleOf($nuno)?->value)->toBe('contributor');
+});
+
+it('adds the person in the exact case when a stale profile holds the handle in another case', function (): void {
+    $lower = User::factory()->create(['handle' => 'nunomaduro']);
+    $mixed = User::factory()->create(['handle' => 'NunoMaduro']);
+    $lower->following()->attach($this->user);
+    $mixed->following()->attach($this->user);
+
+    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['members' => ['NunoMaduro']])->assertCreated();
+
+    expect(Conversation::query()->sole()->roleOf($mixed)?->value)->toBe('contributor')
+        ->and(Conversation::query()->sole()->roleOf($lower))->toBeNull();
 });

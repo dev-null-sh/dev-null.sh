@@ -5,16 +5,13 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Enums\ConversationKind;
-use App\Enums\ProfileType;
 use App\Models\Conversation;
 use App\Models\User;
 use App\Queries\RemoteCandidatesQuery;
+use App\Queries\UsersByHandleQuery;
 use Illuminate\Auth\Access\Response;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Collection;
-use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Exists;
 use Illuminate\Validation\Validator;
 
 final class CreateOrgRequest extends FormRequest
@@ -28,14 +25,14 @@ final class CreateOrgRequest extends FormRequest
     }
 
     /**
-     * @return array<string, list<string|Exists>>
+     * @return array<string, list<string>>
      */
     public function rules(): array
     {
         return [
             'name' => ['nullable', 'string', 'max:60'],
             'members' => ['required', 'array', 'min:1', 'max:'.(Conversation::MAX_MEMBERS - 1)],
-            'members.*' => ['required', 'string', 'distinct', Rule::exists('profiles', 'handle')->where('type', ProfileType::User->value)],
+            'members.*' => ['required', 'string', 'distinct:ignore_case'],
         ];
     }
 
@@ -45,6 +42,18 @@ final class CreateOrgRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
+            if ($validator->errors()->isNotEmpty()) {
+                return;
+            }
+
+            $members = $this->members();
+
+            foreach (array_keys($this->array('members')) as $index) {
+                if (! $members->has($index)) {
+                    $validator->addFailure("members.{$index}", 'exists');
+                }
+            }
+
             if ($validator->errors()->isNotEmpty()) {
                 return;
             }
@@ -70,6 +79,6 @@ final class CreateOrgRequest extends FormRequest
         /** @var list<string> $handles */
         $handles = $this->array('members');
 
-        return User::query()->whereHas('profile', fn (Builder $query): Builder => $query->whereIn('handle', $handles))->get()->sortBy(fn (User $user): int|false => array_search($user->handle, $handles, true))->values()->toBase();
+        return resolve(UsersByHandleQuery::class)->get($handles);
     }
 }

@@ -123,3 +123,15 @@ it('erases the images and voice notes of an org everyone has left', function ():
 
     expect(Storage::disk()->allFiles())->toBe([$elsewhere->path]);
 });
+
+it('adds people whatever the case of their handles', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+    $org = createOrg($mark, [$nuno]);
+    $taylor = User::factory()->create(['handle' => 'TaylorOtwell']);
+    $taylor->following()->attach($mark);
+
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => ['taylorotwell'], 'share_history' => true])->assertNoContent();
+
+    expect(Conversation::query()->findOrFail($org)->roleOf($taylor)?->value)->toBe('contributor');
+});
