@@ -740,6 +740,9 @@ export function NotificationContent({
         notification.type === 'followed' || notification.type === 'starred'
             ? actorsCount - 1
             : 0;
+    // Two people are both named; "and N others" is kept for three or more.
+    const secondActor =
+        otherActors === 1 && actors[1]?.id !== actor.id ? actors[1] : undefined;
     const grouped =
         summary &&
         (actorsCount > 1 ||
@@ -1140,14 +1143,33 @@ export function NotificationContent({
                                                     >
                                                         {actor.name}
                                                     </Link>{' '}
-                                                    {otherActors > 0 && (
-                                                        <span
-                                                            title={exactCountTitle(
-                                                                otherActors,
-                                                            )}
-                                                        >
-                                                            {`and ${formatCount(otherActors)} ${otherActors === 1 ? 'other' : 'others'} `}
-                                                        </span>
+                                                    {secondActor ? (
+                                                        <>
+                                                            and{' '}
+                                                            <Link
+                                                                href={show(
+                                                                    secondActor,
+                                                                )}
+                                                                className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
+                                                                title={
+                                                                    secondActor.name
+                                                                }
+                                                            >
+                                                                {
+                                                                    secondActor.name
+                                                                }
+                                                            </Link>{' '}
+                                                        </>
+                                                    ) : (
+                                                        otherActors > 0 && (
+                                                            <span
+                                                                title={exactCountTitle(
+                                                                    otherActors,
+                                                                )}
+                                                            >
+                                                                {`and ${formatCount(otherActors)} ${otherActors === 1 ? 'other' : 'others'} `}
+                                                            </span>
+                                                        )
                                                     )}
                                                 </>
                                             ) : (
