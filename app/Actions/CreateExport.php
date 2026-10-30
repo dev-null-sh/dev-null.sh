@@ -189,7 +189,7 @@ final readonly class CreateExport
     {
         $commits = $user->commits()
             ->withTrashed()
-            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
+            ->select(['id', 'parent_id', 'quoted_commit_id', 'body', 'source', 'status', 'pasteis_count', 'created_at', 'updated_at', 'deleted_at'])
             ->with('images:id,commit_id')
             ->lazyById(500);
 
@@ -204,6 +204,7 @@ final readonly class CreateExport
                     'parent_id' => $commit->parent_id,
                     'quoted_commit_id' => $commit->quoted_commit_id,
                     'body' => $commit->body,
+                    'source' => $commit->source?->value,
                     'cached_translations' => $cached[$translations->key($commit)],
                     'status' => $commit->status->value,
                     'pasteis_count' => $commit->pasteis_count,

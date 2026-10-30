@@ -26,6 +26,7 @@ final class ScheduledCommitResource extends JsonResource
         return [
             'id' => $this->id,
             'author' => $this->author === null ? null : ProfileResource::make($this->author)->resolve($request),
+            'source' => $this->source?->value,
             ...($this->submitted_at === null && $this->body !== null
                 ? ['body' => $this->body, ...resolve(CommitBodies::class)->segments($this->body)]
                 : ['body' => null, 'body_segments' => [], 'preview_segments' => null]),

@@ -56,6 +56,7 @@ final class CommitResource extends JsonResource
             'id' => $this->id,
             'short_hash' => mb_substr(str_replace('-', '', $this->id), -7),
             'body' => $this->body,
+            'source' => $this->source?->value,
             'parent_id' => $isSigned ? $this->parent_id : $this->parent?->id,
             'html_url' => route('commit.show', [$this->author, $this->resource]),
             'created_at' => $this->created_at->toIso8601ZuluString(),

@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Dto\NewPoll;
 use App\Dto\ThreadEngagement;
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
@@ -55,7 +56,7 @@ final readonly class CreateCommit
      * @param  array<int, string|null>  $imageDescriptions
      * @param  array<string, string>  $replyRecipients
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, array $replyRecipients = [], ?Organization $organization = null): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, array $replyRecipients = [], ?Organization $organization = null, ?CommitSource $source = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -63,7 +64,7 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $replyRecipients, $organization): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $replyRecipients, $organization, $source): Commit {
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
@@ -73,6 +74,7 @@ final readonly class CreateCommit
                 'user_id' => $user->id,
                 'author_id' => $organization->id ?? $user->id,
                 'body' => $this->emojiShortcodes->replace($body),
+                'source' => $source,
                 'mentions' => [...$replyRecipients, ...$mentions],
                 'parent_id' => $parent?->id,
                 'root_id' => $parent?->threadRootId(),
