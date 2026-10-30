@@ -36,6 +36,14 @@ test('to array', function (): void {
         ]);
 });
 
+it('includes shipped only when the commit was marked shipped', function (): void {
+    $shipped = Commit::factory()->create(['shipped' => true]);
+    $plain = Commit::factory()->create();
+
+    expect($shipped->toArray())->toHaveKey('shipped', true)
+        ->and($plain->toArray())->not->toHaveKey('shipped');
+});
+
 it('splits its body into segments', function (): void {
     $commit = Commit::factory()->create(['body' => 'run `make`']);
 

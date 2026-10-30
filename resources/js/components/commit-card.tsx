@@ -387,6 +387,15 @@ export function CommitCard({
 
                                 <CommitStatusBadge commit={commit} />
 
+                                {commit.shipped && (
+                                    <span
+                                        className="shrink-0 font-mono text-[13px] text-muted-foreground"
+                                        data-test="shipped-marker"
+                                    >
+                                        Shipped
+                                    </span>
+                                )}
+
                                 <span
                                     data-commit-hash
                                     className="relative ml-auto flex shrink-0 items-center self-center"

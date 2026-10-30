@@ -43,6 +43,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CarbonInterface|null $deleted_at
  * @property-read int $stars_count
  * @property-read int $pasteis_count
+ * @property-read bool $shipped
  * @property-read bool $starred
  * @property-read User|null $user
  * @property-read Collection<int, User> $stars
@@ -95,6 +96,7 @@ final class Commit extends Model
      */
     protected $attributes = [
         'pasteis_count' => 0,
+        'shipped' => false,
     ];
 
     /**
@@ -114,6 +116,7 @@ final class Commit extends Model
             'root_id' => 'string',
             'hot_score' => 'float',
             'pasteis_count' => 'integer',
+            'shipped' => 'boolean',
             'body' => 'string',
             'mentions' => 'array',
             'organization_mentions' => 'array',
@@ -148,7 +151,13 @@ final class Commit extends Model
             $this->segments = resolve(CommitBodies::class)->segments($this->body);
         }
 
-        return [...parent::toArray(), ...$this->segments, 'is_checking' => $this->isBeingChecked()];
+        $commit = [...parent::toArray(), ...$this->segments, 'is_checking' => $this->isBeingChecked()];
+
+        if (($commit['shipped'] ?? false) !== true) {
+            unset($commit['shipped']);
+        }
+
+        return $commit;
     }
 
     /**

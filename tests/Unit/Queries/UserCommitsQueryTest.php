@@ -34,6 +34,31 @@ it('only includes the commits the viewer may see', function (): void {
         ->and(resolve(UserCommitsQuery::class)->builder($user, null)->get()->modelKeys())->toBe([$approved->id]);
 });
 
+it('lists only the visible shipped commits, including a pinned one', function (): void {
+    $user = User::factory()->create();
+    $viewer = User::factory()->create();
+    $shipped = Commit::factory()->for($user)->create(['shipped' => true, 'created_at' => now()->subMinute()]);
+    $pending = Commit::factory()->for($user)->pending()->create(['shipped' => true, 'created_at' => now()]);
+    $pinned = Commit::factory()->for($user)->create(['shipped' => true, 'created_at' => now()->subMinutes(2)]);
+    $user->update(['pinned_commit_id' => $pinned->id]);
+    $rejected = Commit::factory()->for($user)->rejected()->create(['shipped' => true, 'created_at' => now()->subMinutes(3)]);
+    Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->for($shipped, 'parent')->create(['shipped' => true]);
+    Commit::factory()->create(['shipped' => true]);
+
+    $query = resolve(UserCommitsQuery::class);
+
+    expect($query->builder($user, $viewer, shipped: true)->get()->modelKeys())->toBe([$shipped->id, $pinned->id])
+        ->and($query->builder($user, null, shipped: true)->get()->modelKeys())->toBe([$shipped->id, $pinned->id])
+        ->and($query->builder($user, $user, shipped: true)->get()->modelKeys())->toBe([
+            $pending->id,
+            $shipped->id,
+            $pinned->id,
+            $rejected->id,
+        ])
+        ->and($query->builder($user, $user)->get()->modelKeys())->not->toContain($pinned->id);
+});
+
 it('leaves the pinned commit out of the commits tab', function (): void {
     $user = User::factory()->create();
     $pinned = Commit::factory()->for($user)->create();

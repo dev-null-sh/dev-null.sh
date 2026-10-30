@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
     restoreFeedCommit,
+    restoredCommitBelongsInFeed,
     updateQuotedCommits,
 } from '../../resources/js/lib/commit-mutation-options.ts';
 import type { Commit, DeletedCommit } from '../../resources/js/types';
@@ -102,6 +103,151 @@ void test('restores a latest row by creation time and a starred row by star time
     assert.deepEqual(
         restoreFeedCommit(rows, restored, 'starred').map((row) => row.id),
         ['restored', 'newest', 'oldest'],
+    );
+});
+
+const restoredCommit = (overrides: Partial<Commit> = {}) =>
+    ({
+        id: 'restored',
+        user_id: 'author',
+        parent_id: null,
+        starred: false,
+        is_pinned: false,
+        ...overrides,
+    }) as Commit;
+
+const commitsTab = {
+    isStarred: false,
+    isProfileReplies: false,
+    isProfileShipped: false,
+    profileUserId: 'author',
+    mentionedOrganizationId: null,
+};
+
+void test('puts a restored commit back only on the feed it belongs to', () => {
+    assert.equal(
+        restoredCommitBelongsInFeed(restoredCommit(), commitsTab),
+        true,
+    );
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({ is_pinned: true }),
+            commitsTab,
+        ),
+        false,
+    );
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({ parent_id: 'parent' }),
+            commitsTab,
+        ),
+        false,
+    );
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({ user_id: 'someone' }),
+            commitsTab,
+        ),
+        false,
+    );
+
+    const repliesTab = { ...commitsTab, isProfileReplies: true };
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({ parent_id: 'parent' }),
+            repliesTab,
+        ),
+        true,
+    );
+    assert.equal(
+        restoredCommitBelongsInFeed(restoredCommit(), repliesTab),
+        false,
+    );
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({ parent_id: 'parent', is_pinned: true }),
+            repliesTab,
+        ),
+        false,
+    );
+
+    const shippedTab = { ...commitsTab, isProfileShipped: true };
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({ shipped: true }),
+            shippedTab,
+        ),
+        true,
+    );
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({ shipped: true, is_pinned: true }),
+            shippedTab,
+        ),
+        true,
+    );
+    assert.equal(
+        restoredCommitBelongsInFeed(restoredCommit(), shippedTab),
+        false,
+    );
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({ shipped: true, parent_id: 'parent' }),
+            shippedTab,
+        ),
+        false,
+    );
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({ shipped: true, user_id: 'someone' }),
+            shippedTab,
+        ),
+        false,
+    );
+
+    const log = { ...commitsTab, profileUserId: null };
+    assert.equal(
+        restoredCommitBelongsInFeed(restoredCommit({ is_pinned: true }), log),
+        true,
+    );
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({ parent_id: 'parent' }),
+            log,
+        ),
+        false,
+    );
+
+    const starred = { ...log, isStarred: true };
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({ starred: true, parent_id: 'parent' }),
+            starred,
+        ),
+        true,
+    );
+    assert.equal(restoredCommitBelongsInFeed(restoredCommit(), starred), false);
+
+    const mentions = {
+        ...log,
+        mentionedOrganizationId: 'org',
+    };
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({
+                parent_id: 'parent',
+                organization_mentions: { laravel: 'org' },
+            }),
+            mentions,
+        ),
+        true,
+    );
+    assert.equal(
+        restoredCommitBelongsInFeed(
+            restoredCommit({ organization_mentions: { laravel: 'other' } }),
+            mentions,
+        ),
+        false,
     );
 });
 

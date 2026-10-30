@@ -18,6 +18,30 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
+it('includes shipped only when a commit was marked shipped', function (): void {
+    $shipped = Commit::factory()->create(['shipped' => true]);
+    $plain = Commit::factory()->create();
+
+    $this->getJson(route('api-commit.show', $shipped))
+        ->assertOk()
+        ->assertJsonPath('data.shipped', true);
+
+    $this->getJson(route('api-commit.show', $plain))
+        ->assertOk()
+        ->assertJsonMissingPath('data.shipped');
+});
+
+it('does not let a signed request mark a commit shipped', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'Shipped from the app.', 'shipped' => true])
+        ->assertCreated()
+        ->assertJsonMissingPath('data.shipped');
+
+    expect($user->commits()->sole()->shipped)->toBeFalse();
+});
+
 it('shows an approved commit to anyone', function (): void {
     $user = User::factory()->create([
         'handle' => 'octocat',

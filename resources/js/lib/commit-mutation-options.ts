@@ -33,6 +33,40 @@ export function updateQuotedCommits(
     );
 }
 
+// The Commits tab shows a pin in its own card, so a restored pin stays out of that list. Shipped has no
+// pin card, and only a commit marked shipped belongs there. An organization's Mentions tab lists replies
+// too, whatever handle they mention it with.
+export function restoredCommitBelongsInFeed(
+    restored: Commit,
+    feed: {
+        isStarred: boolean;
+        isProfileReplies: boolean;
+        isProfileShipped: boolean;
+        profileUserId: string | null;
+        mentionedOrganizationId: string | null;
+    },
+): boolean {
+    const matchesKind = feed.isStarred
+        ? restored.starred === true
+        : feed.mentionedOrganizationId !== null
+          ? Object.values(restored.organization_mentions ?? {}).includes(
+                feed.mentionedOrganizationId,
+            )
+          : feed.isProfileReplies
+            ? restored.parent_id !== null
+            : restored.parent_id === null;
+    const matchesProfile =
+        feed.profileUserId === null ||
+        (restored.user_id === feed.profileUserId &&
+            (feed.isProfileShipped || !restored.is_pinned));
+
+    return (
+        matchesKind &&
+        matchesProfile &&
+        (!feed.isProfileShipped || restored.shipped === true)
+    );
+}
+
 export function restoreFeedCommit(
     rows: Commit[],
     restored: Commit,

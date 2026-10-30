@@ -91,7 +91,7 @@ export default function Show({
     streaks: Streaks;
     achievements: Achievements;
     commits: CursorPaginated<Commit>;
-    tab: 'commits' | 'replies' | 'readme';
+    tab: 'commits' | 'replies' | 'readme' | 'shipped';
     pinnedCommit: Commit | null;
     readme: string | false | null;
 }) {
@@ -448,6 +448,11 @@ export default function Show({
                             isActive: tab === 'commits',
                         },
                         {
+                            title: 'Shipped',
+                            href: show(user, { query: { tab: 'shipped' } }),
+                            isActive: tab === 'shipped',
+                        },
+                        {
                             title: 'Replies',
                             href: show(user, { query: { tab: 'replies' } }),
                             isActive: tab === 'replies',
@@ -489,9 +494,13 @@ export default function Show({
                                 ? isCurrentUser
                                     ? 'That was your first reply.'
                                     : `That's @${user.handle}'s first reply.`
-                                : isCurrentUser
-                                  ? 'That was your first commit. Everyone starts somewhere.'
-                                  : `That's @${user.handle}'s root commit.`
+                                : tab === 'shipped'
+                                  ? isCurrentUser
+                                      ? 'That was your first shipped commit.'
+                                      : `That's @${user.handle}'s first shipped commit.`
+                                  : isCurrentUser
+                                    ? 'That was your first commit. Everyone starts somewhere.'
+                                    : `That's @${user.handle}'s root commit.`
                         }
                         empty={
                             tab === 'replies' ? (
@@ -499,6 +508,12 @@ export default function Show({
                                     {isCurrentUser
                                         ? 'Your replies show up here. Join a conversation from your log.'
                                         : `@${user.handle} hasn't replied to anything yet.`}
+                                </EmptyFeed>
+                            ) : tab === 'shipped' ? (
+                                <EmptyFeed command="fatal: no shipped commits yet">
+                                    {isCurrentUser
+                                        ? 'Your shipped commits show up here. Check Shipped in the composer when you ship something.'
+                                        : `@${user.handle} hasn't marked a commit as shipped yet.`}
                                 </EmptyFeed>
                             ) : isCurrentUser ? (
                                 <EmptyFeed command="fatal: you do not have any commits yet">

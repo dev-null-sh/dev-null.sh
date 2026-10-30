@@ -239,6 +239,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
         ],
         'status' => 'approved',
         'pasteis_count' => 3,
+        'shipped' => false,
         'images' => [],
         'created_at' => $approved->created_at->toIso8601String(),
         'updated_at' => $approved->updated_at->toIso8601String(),

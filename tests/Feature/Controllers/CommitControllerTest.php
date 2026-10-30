@@ -290,6 +290,72 @@ it('requires authentication to create a commit', function (): void {
     expect(Commit::query()->count())->toBe(0);
 });
 
+it('does not let a guest mark a commit shipped', function (): void {
+    $this->post(route('commit.store'), [
+        'body' => 'Shipped the parser.',
+        'shipped' => true,
+    ])->assertRedirectToRoute('home');
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('may mark a top-level commit as shipped', function (mixed $shipped): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Shipped the parser.', 'shipped' => $shipped])
+        ->assertRedirectToRoute('log.show', Log::Following)
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->shipped)->toBeTrue();
+})->with([
+    'boolean' => true,
+    'form value' => '1',
+]);
+
+it('leaves a commit unshipped when shipped is omitted or false', function (array $extra): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Still working.', ...$extra])
+        ->assertSessionHasNoErrors();
+
+    expect($user->commits()->sole()->shipped)->toBeFalse();
+})->with([
+    'omitted' => [[]],
+    'false' => [['shipped' => false]],
+    'zero' => [['shipped' => '0']],
+]);
+
+it('rejects a shipped value that is not true or false', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Hello', 'shipped' => 'maybe'])
+        ->assertSessionHasErrors(['shipped' => 'The shipped field must be true or false.']);
+
+    expect(Commit::query()->count())->toBe(0);
+});
+
+it('rejects shipped on a reply or a quote', function (string $kind): void {
+    $commit = Commit::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Not an announcement.',
+            'shipped' => true,
+            ...($kind === 'reply' ? ['parent_id' => $commit->id] : ['quoted_commit_id' => $commit->id]),
+        ])
+        ->assertSessionHasErrors(['shipped' => 'The shipped field prohibits parent id / quoted commit id from being present.']);
+
+    expect(Commit::query()->count())->toBe(1);
+})->with([
+    'reply' => ['reply'],
+    'quote' => ['quote'],
+]);
+
 it('may delete own commit', function (): void {
     $commit = Commit::factory()->create();
 
