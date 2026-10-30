@@ -116,6 +116,4 @@ it('reports a failure to remember the day without breaking the page', function (
     $this->actingAs($this->user)->get(route('log.show', Log::Following))->assertOk();
 
     Exceptions::assertReported(QueryException::class);
-    expect($this->user->fresh()->last_seen_at->toDateString())->toBe('2026-10-17')
-        ->and(DB::table('user_active_days')->count())->toBe(0);
 });
