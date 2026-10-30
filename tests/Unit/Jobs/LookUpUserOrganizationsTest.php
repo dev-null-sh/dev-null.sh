@@ -36,13 +36,13 @@ it('skips the organizations that keep GitHub from showing them, and looks the ot
     $github->shouldReceive('account')->with('1')->once()->andThrow($forbidden);
     $github->shouldReceive('account')->with('6764390')->once()->andReturn(['login' => 'symfony', 'id' => 6764390, 'type' => 'Organization', 'name' => 'Symfony, SAS', 'avatar_url' => null, 'bio' => null, 'location' => null, 'blog' => '', 'company' => null]);
 
-    $private = Profile::factory()->organization()->create(['github_id' => '1', 'handle' => 'private', 'name' => 'Private', 'github_synced_at' => now()->subDays(2)]);
-    $symfony = Profile::factory()->organization()->create(['github_id' => '6764390', 'handle' => 'symfony', 'name' => 'Symfony', 'github_synced_at' => now()->subDays(2)]);
+    $private = Organization::factory()->create(['github_id' => '1', 'handle' => 'private', 'name' => 'Private', 'github_synced_at' => now()->subDays(2)]);
+    $symfony = Organization::factory()->create(['github_id' => '6764390', 'handle' => 'symfony', 'name' => 'Symfony', 'github_synced_at' => now()->subDays(2)]);
     $user = User::factory()->create(['bio' => 'Thanks @restricted and @laravel', 'company' => '@private @symfony']);
 
     dispatch_sync(new LookUpUserOrganizations($user));
 
-    expect(Profile::query()->where('type', ProfileType::Organization)->orderBy('handle')->pluck('handle')->all())->toBe(['laravel', 'private', 'symfony'])
+    expect(Organization::query()->get()->pluck('handle')->sort()->values()->all())->toBe(['laravel', 'private', 'symfony'])
         ->and($private->refresh()->name)->toBe('Private')
         ->and($symfony->refresh()->name)->toBe('Symfony, SAS')
         ->and(Cache::has('github-organizations:not-found:restricted'))->toBeFalse();
