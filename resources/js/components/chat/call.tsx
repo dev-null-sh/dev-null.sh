@@ -89,9 +89,9 @@ function useRingingOrgCall(): OrgCall | null {
 }
 
 /**
- * Whether the user is on a call of either kind, which keeps them from starting or joining another.
+ * Whether the user is placing, receiving, or participating in a call of either kind.
  */
-function useIsBusy(): boolean {
+export function useIsOnCall(): boolean {
     const call = useCall();
     const orgCall = useOrgCall();
 
@@ -100,6 +100,16 @@ function useIsBusy(): boolean {
         orgCall.status === 'joining' ||
         orgCall.status === 'joined'
     );
+}
+
+/**
+ * Whether the composer should hide actions that do not make sense while a call is ringing or underway.
+ */
+export function useIsCallActive(): boolean {
+    const isOnCall = useIsOnCall();
+    const ringingOrgCall = useRingingOrgCall();
+
+    return isOnCall || ringingOrgCall !== null;
 }
 
 /**
@@ -114,7 +124,7 @@ export function CallButton({
     isCompact: boolean;
     onClick: () => void;
 }) {
-    const isOnCall = useIsBusy();
+    const isOnCall = useIsOnCall();
     const { auth } = usePage().props;
 
     if (!auth.remotes) {
@@ -163,7 +173,7 @@ export function CallConsole({
     onConfirmingChange: (isConfirming: boolean) => void;
 }) {
     const call = useCall();
-    const isOnCall = useIsBusy();
+    const isOnCall = useIsOnCall();
     const handle = `@${partner.handle}`;
     const isThisCall =
         call.status !== 'idle' && call.partner.handle === partner.handle;
@@ -724,7 +734,7 @@ export function OrgCallConsole({
     onConfirmingChange: (isConfirming: boolean) => void;
 }) {
     const call = useOrgCall();
-    const isOnCall = useIsBusy();
+    const isOnCall = useIsOnCall();
     const ongoing =
         useOngoingOrgCalls().find((candidate) => candidate.org.id === org.id) ??
         null;
