@@ -39,6 +39,8 @@ import { AuthorAvatar } from '@/components/author-avatar';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
 import { replaceFailedImage } from '@/components/commit-images';
+import { CommitQuoteButton } from '@/components/commit-quote-button';
+import { CommitStarButton } from '@/components/commit-star-button';
 import { FollowIconButton } from '@/components/follow-button';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
@@ -70,6 +72,7 @@ import type {
     Actor,
     BodySegment,
     Commit,
+    CommitAuthor,
     CursorPaginated,
     DeletedCommit,
     Notification,
@@ -1080,6 +1083,28 @@ function QuotedOwnCommit({
     return <OwnCommitExcerpt segments={commit.body_segments} />;
 }
 
+/**
+ * Stars and quotes the actor's commit right from the notification, as a commit card would. The actor stands in for
+ * the commit's author, which the inbox doesn't load: replies, quotes and mentions come from the author, and a first
+ * commit from whoever posted it.
+ */
+function CommitActions({
+    commit,
+    author,
+}: {
+    commit: Omit<Commit, 'author' | 'quoted_commit'>;
+    author: CommitAuthor;
+}) {
+    const card = { ...commit, author };
+
+    return (
+        <div className="relative z-10 mt-1 -ml-2 flex w-fit items-center gap-0.5 text-[13px] not-has-[button]:hidden">
+            <CommitStarButton commit={card} className="px-2 py-0.5" />
+            <CommitQuoteButton commit={card} />
+        </div>
+    );
+}
+
 export function ActorAvatar({
     user,
     anchor,
@@ -1176,6 +1201,9 @@ export function NotificationContent({
         notification.type === 'mentioned' ||
         notification.type === 'first_commit';
     const level = notification.type === 'leveled_up' ? notification : null;
+    const actions = isActorsCommit && (
+        <CommitActions commit={notification.commit} author={actor} />
+    );
     const Icon = {
         followed: UserPlus,
         leveled_up: ChevronsUp,
@@ -1322,6 +1350,7 @@ export function NotificationContent({
                     <Link href={href} prefetch tabIndex={-1} className="block">
                         {excerpt}
                     </Link>
+                    {actions}
                 </div>
             </div>
         );
@@ -1666,6 +1695,7 @@ export function NotificationContent({
                         {excerpt}
                         {quote}
                         {reason}
+                        {actions}
                     </div>
                     {notification.type === 'followed' &&
                         actorsCount === 1 &&

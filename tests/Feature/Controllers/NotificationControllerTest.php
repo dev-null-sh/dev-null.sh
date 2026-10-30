@@ -127,6 +127,23 @@ it('groups stars per commit, newest stargazer first', function (): void {
         ->missing('notifications.data.0.position'));
 });
 
+it('says how starred the commit of a notification is and whether the user starred it, so they can star it from there', function (bool $starred): void {
+    $user = User::factory()->create();
+    $replied = Notification::factory()->for($user, 'recipient')->replied()->create();
+    $replied->commit->stars()->attach([User::factory()->create()->id, ...$starred ? [$user->id] : []]);
+    $count = $starred ? 2 : 1;
+
+    $this->actingAs($user)->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('notifications.data.0.commit.starred', $starred)
+            ->where('notifications.data.0.commit.stars_count', $count));
+
+    $this->getJson(route('notification-group.show', $replied))
+        ->assertOk()
+        ->assertJsonPath('data.0.commit.starred', $starred)
+        ->assertJsonPath('data.0.commit.stars_count', $count);
+})->with(['starred' => true, 'not starred' => false]);
+
 it('shows the images of a starred commit', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create(['body' => '']);
@@ -138,7 +155,8 @@ it('shows the images of a starred commit', function (): void {
     $response->assertInertia(fn ($page) => $page
         ->where('notifications.data.0.type', 'starred')
         ->has('notifications.data.0.commit.images', 1)
-        ->where('notifications.data.0.commit.images.0.url', route('commit-image.show', $image)));
+        ->where('notifications.data.0.commit.images.0.url', route('commit-image.show', $image))
+        ->missing('notifications.data.0.commit.starred'));
 });
 
 it('shows the level reached with its rank, in all notifications only', function (): void {
