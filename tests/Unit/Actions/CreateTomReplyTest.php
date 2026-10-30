@@ -9,6 +9,7 @@ use App\Actions\UpdateCommitStatuses;
 use App\Ai\Agents\Tom;
 use App\Contracts\Services\ToolDecisionProvider;
 use App\Enums\CommitStatus;
+use App\Exceptions\CommitProcessingFailed;
 use App\Jobs\EmbedCommit;
 use App\Jobs\ModerateCommit;
 use App\Jobs\ReplyAsTom;
@@ -127,7 +128,7 @@ it('queues Tom replies and surfaces provider failures instead of silently skippi
 
     Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $commit->id);
     expect(fn () => new ReplyAsTom($commit->id)->handle(resolve(CreateTomReply::class)))
-        ->toThrow(RuntimeException::class, 'Tom reply failed for commit '.$commit->id.'.');
+        ->toThrow(CommitProcessingFailed::class, 'Tom reply failed for commit '.$commit->id.' (');
     expect($commit->refresh()->status)->toBe(CommitStatus::Approved);
     expect($commit->replies()->count())->toBe(0);
 })->with([true, false])->with(['openai', 'opencode']);
@@ -195,7 +196,10 @@ it('does not ask Tom to answer when the tool decision fails', function (): void 
     $commit = Commit::factory()->create(['body' => '@tom hello', 'mentions' => ['tom' => $tom->id]]);
 
     expect(fn () => new ReplyAsTom($commit->id)->handle(resolve(CreateTomReply::class)))
-        ->toThrow(RuntimeException::class, 'Tom reply failed for commit '.$commit->id.'.');
+        ->toThrow(function (CommitProcessingFailed $exception) use ($commit): void {
+            expect($exception->getMessage())->toBe('Tom reply failed for commit '.$commit->id.' ('.RuntimeException::class.', code 0).')
+                ->and($exception->getPrevious())->toBeNull();
+        });
 
     Tom::assertNeverPrompted();
     expect($commit->replies()->count())->toBe(0);
@@ -227,7 +231,10 @@ it('retries failed or blank responses without retaining provider content', funct
 
     $job = new ReplyAsTom($commit->id);
     expect(fn () => $job->handle(resolve(CreateTomReply::class)))
-        ->toThrow(RuntimeException::class, 'Tom reply failed for commit '.$commit->id.'.');
+        ->toThrow(function (CommitProcessingFailed $exception) use ($commit): void {
+            expect($exception->getMessage())->toBe('Tom reply failed for commit '.$commit->id.' ('.RuntimeException::class.', code 0).')
+                ->and($exception->getPrevious())->toBeNull();
+        });
     expect($commit->replies()->count())->toBe(0);
 
     Tom::fake(['Back online. :-D']);
