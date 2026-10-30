@@ -196,6 +196,16 @@ it('only lets admins change roles, of members', function (): void {
         ->and($organization->roleOf($user))->toBeNull();
 });
 
+it('never lets admins make themselves admins, which would undo another admin making them a member meanwhile', function (): void {
+    [$organization, $admin] = organizationWithAdminAndMember();
+
+    $this->actingAs($admin)
+        ->put(route('organization-member.update', memberRoute($organization, $admin)), ['role' => 'admin'])
+        ->assertForbidden();
+
+    expect($organization->roleOf($admin))->toBe(OrganizationRole::Admin);
+});
+
 it('lets admins remove members', function (): void {
     [$organization, $admin, $member] = organizationWithAdminAndMember();
 

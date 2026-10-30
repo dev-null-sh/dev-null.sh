@@ -15,6 +15,10 @@ use Illuminate\Validation\Validator;
 
 final class UpdateOrganizationMemberRequest extends FormRequest
 {
+    /**
+     * Only admins change roles, and never to make themselves admins: they already are, and another admin making them a
+     * member after this check would be undone.
+     */
     public function authorize(): Response
     {
         $user = $this->user();
@@ -23,6 +27,7 @@ final class UpdateOrganizationMemberRequest extends FormRequest
         return match (true) {
             ! $this->organization()->roleOf($user) instanceof OrganizationRole || ! $this->organization()->roleOf($this->member()) instanceof OrganizationRole => Response::denyAsNotFound(),
             $this->organization()->roleOf($user) !== OrganizationRole::Admin => Response::deny('Only admins can change roles.'),
+            $user->is($this->member()) && $this->role() === OrganizationRole::Admin => Response::deny("You're already an admin."),
             default => Response::allow(),
         };
     }
