@@ -33,6 +33,21 @@ it('shows the product metrics of all time to admins', function (): void {
                 ->where('funnel.visitors', null)));
 });
 
+it('shows retention by signup day and by weekly cohort, and when active days started being recorded', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin', 'created_at' => '2026-10-16 09:00:00']);
+    DB::table('user_active_days')->insert(['user_id' => $admin->id, 'seen_at' => '2026-10-17']);
+
+    $this->actingAs($admin)
+        ->get(route('product-metrics.show', ['all_time' => 1]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('retentionByDay.day_1', [['date' => '2026-10-16', 'eligible' => 1, 'retained' => 1, 'backfilled' => true]])
+            ->where('retentionByDay.day_7', [])
+            ->where('retentionCohorts.cohorts.0.week', '2026-10-12')
+            ->where('retentionCohorts.curve.0', ['day' => 1, 'eligible' => 1, 'retained' => 1, 'backfilled' => 1])
+            ->where('retentionRecordedSince', '2026-10-30'));
+});
+
 it('shows the product metrics of the last 30 days by default', function (): void {
     $this->actingAs(User::factory()->create(['handle' => 'admin', 'created_at' => '2026-01-01 09:00:00']))
         ->get(route('product-metrics.show'))
