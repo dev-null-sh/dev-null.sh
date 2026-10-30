@@ -126,7 +126,6 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
-        'active_days' => [],
         'commits' => [],
         'polls' => [],
         'poll_votes' => [],
@@ -463,20 +462,6 @@ it('exports the organizations the user is a member of with their role, first joi
         ['handle' => 'brefphp', 'role' => 'admin', 'joined_at' => now()->subDay()->toIso8601String()],
         ['handle' => 'laravel', 'role' => 'member', 'joined_at' => now()->toIso8601String()],
     ]);
-});
-
-it('exports the days the user was seen, oldest first, without the days of others', function (): void {
-    $user = User::factory()->create();
-    DB::table('user_active_days')->insert([
-        ['user_id' => $user->id, 'seen_at' => '2026-10-21'],
-        ['user_id' => $user->id, 'seen_at' => '2026-10-19'],
-        ['user_id' => User::factory()->create()->id, 'seen_at' => '2026-10-20'],
-    ]);
-
-    $response = $this->actingAs($user)->get(route('export'));
-    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
-
-    expect($data['active_days'])->toBe(['2026-10-19', '2026-10-21']);
 });
 
 it('exports the devices approved for the app, oldest first', function (): void {
