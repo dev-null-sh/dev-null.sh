@@ -26,6 +26,7 @@ import {
     rememberSearch,
     useRecentSearches,
 } from '@/hooks/use-recent-searches';
+import { signIn } from '@/lib/auth';
 import { searchCandidates } from '@/lib/chat';
 import {
     searchCommits,
@@ -59,7 +60,7 @@ type Option =
     | { kind: 'action'; id: string; action: SearchAction }
     | { kind: 'developer'; id: string; user: User; reason?: string | null }
     | { kind: 'commit'; id: string; commit: Commit }
-    | { kind: 'all'; id: string }
+    | { kind: 'all'; id: string; needsSignIn: boolean }
     | { kind: 'suggestion'; id: string; term: string }
     | { kind: 'recent'; id: string; term: string };
 
@@ -70,7 +71,8 @@ const suggestionOptions: Option[] = suggestedQueries.map((term, index) => ({
 }));
 
 /**
- * Searches developers and commits. Picking a developer for a new conversation narrows it to developers, says why
+ * Searches developers and commits. Guests only search developers: each commit search pays for AI, so they're asked to
+ * sign in for those instead. Picking a developer for a new conversation narrows it to developers, says why
  * anyone can't be messaged, and hands the pick back instead of opening their profile. Given `onAction`, it also offers
  * to write a commit, open an issue or go live when the search names one, above what it found.
  */
@@ -104,11 +106,13 @@ export function SearchDialog({
     const input = useRef<HTMLInputElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const isPicking = onPickDeveloper !== undefined;
+    const isMember = userId !== null;
 
     const term = query.trim();
     const developerTerm = term.replace(/^@/u, '');
     const intent = isPicking ? 'developer' : searchIntent(term);
-    const commitTerm = searchesCommits(intent) ? term : '';
+    const commitQuery = searchesCommits(intent) ? term : '';
+    const commitTerm = isMember ? commitQuery : '';
 
     const developers = useDebouncedSearch(
         developerTerm,
@@ -132,7 +136,8 @@ export function SearchDialog({
         intent,
         intent === 'topic' ? visibleDevelopers.slice(0, 2) : visibleDevelopers,
         visibleCommits,
-        commitTerm,
+        commitQuery,
+        !isMember,
         onAction && !isPicking ? searchActions(term, { isLive }) : [],
     );
     const isLoading = developers.isLoading || commits.isLoading;
@@ -186,6 +191,12 @@ export function SearchDialog({
         }
 
         close();
+
+        if (option.kind === 'all' && option.needsSignIn) {
+            signIn();
+
+            return;
+        }
 
         if (option.kind === 'action') {
             onAction?.(option.action);
@@ -511,6 +522,7 @@ function optionsFor(
     developers: FoundDeveloper[],
     commits: Commit[],
     commitTerm: string,
+    needsSignIn: boolean,
     actions: SearchAction[],
 ): Option[] {
     const actionOptions: Option[] = actions.map((action) => ({
@@ -530,7 +542,7 @@ function optionsFor(
         commit,
     }));
     const seeAll: Option[] =
-        commitTerm === '' ? [] : [{ kind: 'all', id: 'all' }];
+        commitTerm === '' ? [] : [{ kind: 'all', id: 'all', needsSignIn }];
 
     if (intent === 'topic') {
         return [
@@ -647,6 +659,7 @@ function ResultOption({
                 {option.kind === 'action' ||
                 option.kind === 'suggestion' ||
                 option.kind === 'recent' ||
+                (option.kind === 'all' && option.needsSignIn) ||
                 (option.kind === 'developer' && onPickDeveloper) ? (
                     <button
                         type="button"
@@ -709,7 +722,9 @@ function OptionContent({ option }: { option: Option }): ReactNode {
 
     return (
         <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-primary">
-            See all matching commits
+            {option.needsSignIn
+                ? 'Sign in to search commits'
+                : 'See all matching commits'}
             <ArrowRight aria-hidden className="size-4" />
         </span>
     );

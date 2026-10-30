@@ -305,8 +305,9 @@ Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index']
     ->middleware('throttle:related-commits')
     ->name('related-commit.index');
 
-// Search...
+// Search: commits by meaning are for members, as each search pays for AI that bots could run up...
 Route::get('search', [SearchController::class, 'index'])
+    ->middleware('auth')
     ->name('search.index');
 
 // User Search...
@@ -316,7 +317,7 @@ Route::get('search/users', [UserSearchController::class, 'index'])
 
 // Commit Search...
 Route::get('search/commits', [CommitSearchController::class, 'index'])
-    ->middleware('throttle:search')
+    ->middleware(['auth', 'throttle:search'])
     ->name('commit-search.index');
 
 Route::middleware('auth')->group(function (): void {

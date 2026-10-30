@@ -227,7 +227,7 @@ final class AppServiceProvider extends ServiceProvider
 
         // Every commit search pays for an embedding and a relevance verdict, so it gets a budget of its own...
         RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(15)
-            ->by($request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip())
+            ->by($this->userId($request))
             ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
                 ['message' => 'Slow down: too many searches. Give it a few seconds.'],
                 429,

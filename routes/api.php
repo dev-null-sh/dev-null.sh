@@ -99,10 +99,6 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-user.show');
         Route::get('users/{user:handle}/commits', [UserCommitController::class, 'index'])
             ->name('api-user-commit.index');
-        Route::get('users/{user:handle}/followers', [UserFollowersController::class, 'index'])
-            ->name('api-user-followers.index');
-        Route::get('users/{user:handle}/following', [UserFollowingController::class, 'index'])
-            ->name('api-user-following.index');
         Route::get('commits/{commit}', [ApiCommitController::class, 'show'])
             ->name('api-commit.show');
         Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index'])
@@ -164,6 +160,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('me/devices/{device}', [DeviceController::class, 'destroy'])
             ->whereUuid('device')
             ->name('api-device.destroy');
+
+        // Who follows whom, for members like on the web, so scrapers can't walk the graph...
+        Route::get('users/{user:handle}/followers', [UserFollowersController::class, 'index'])
+            ->name('api-user-followers.index');
+        Route::get('users/{user:handle}/following', [UserFollowingController::class, 'index'])
+            ->name('api-user-following.index');
 
         // Search: people by name or handle, and commits by meaning, as the web's search finds them...
         Route::get('search/users', [UserSearchController::class, 'index'])
