@@ -12,8 +12,8 @@ return new class extends Migration
     /**
      * Each day a person was seen, a date with no time, so retention can be read day by day for each signup cohort:
      * last_seen_at only keeps the latest day, and active_user_counts has no user ids. Only admins see it, as
-     * aggregates. DeleteUser erases the rows with the account. Everyone's last day is copied in: people already seen
-     * today aren't recorded again until tomorrow, so today would be missing for them.
+     * aggregates, and the person in their export. DeleteUser erases the rows with the account. Everyone's last day is
+     * copied in: people already seen today aren't recorded again until tomorrow, so today would be missing for them.
      */
     public function up(): void
     {
