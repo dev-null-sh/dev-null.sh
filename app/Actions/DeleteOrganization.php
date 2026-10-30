@@ -24,6 +24,7 @@ final readonly class DeleteOrganization
 
             $organization->members()->detach();
             $organization->delete();
+            $organization->profile->delete();
         });
     }
 }

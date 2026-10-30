@@ -34,7 +34,7 @@ final class ShowApiOrganizationRequest extends FormRequest
         assert(is_string($handle));
 
         return $this->organization ??= Organization::query()
-            ->where('handle', $handle)
+            ->whereRelation('profile', 'handle', $handle)
             ->first();
     }
 }

@@ -29,6 +29,16 @@ it('updates the organization with the same GitHub ID when it is renamed', functi
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 });
 
+it('keeps the color its admins chose when it syncs again', function (): void {
+    $organization = Organization::factory()->create(['github_id' => '958072', 'handle' => 'laravel', 'lane_color' => '#1a2b3c']);
+
+    resolve(UpdateOrCreateOrganization::class)->handle(['login' => 'laravel', 'id' => 958072, 'bio' => 'Updated on GitHub.']);
+
+    expect($organization->refresh())
+        ->bio->toBe('Updated on GitHub.')
+        ->lane_color->toBe('#1a2b3c');
+});
+
 it('gives the handle up when another profile renamed away from it on GitHub', function (): void {
     $stale = Organization::factory()->create(['github_id' => '1', 'handle' => 'Laravel']);
     $other = Organization::factory()->create(['github_id' => '2', 'handle' => 'symfony']);

@@ -45,9 +45,11 @@ final class ShowOrganizationRequest extends FormRequest
         assert(is_string($handle));
 
         return $this->organization ??= Organization::query()
-            ->whereRaw('LOWER(handle) = LOWER(?)', [$handle])
-            ->orderByRaw('handle = ? desc', [$handle])
-            ->orderBy('handle')
+            ->select('organizations.*')
+            ->join('profiles', 'profiles.id', '=', 'organizations.id')
+            ->whereRaw('LOWER(profiles.handle) = LOWER(?)', [$handle])
+            ->orderByRaw('profiles.handle = ? desc', [$handle])
+            ->orderBy('profiles.handle')
             ->first();
     }
 }

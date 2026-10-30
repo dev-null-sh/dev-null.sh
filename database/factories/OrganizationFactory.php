@@ -6,6 +6,7 @@ namespace Database\Factories;
 
 use App\Enums\ProfileType;
 use App\Models\Organization;
+use App\Models\Profile;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -19,15 +20,34 @@ final class OrganizationFactory extends Factory
     public function definition(): array
     {
         return [
-            'type' => ProfileType::Organization,
-            'github_id' => (string) fake()->unique()->numberBetween(1, 999_999_999),
-            'handle' => fake()->unique()->slug(2),
-            'name' => fake()->company(),
-            'avatar_url' => 'https://avatars.githubusercontent.com/u/'.fake()->numberBetween(1, 999_999),
-            'bio' => fake()->sentence(),
-            'location' => fake()->city(),
-            'website' => fake()->url(),
-            'github_synced_at' => now(),
+            // The organization's profile, made from the GitHub identity given to the factory, like a handle...
+            'id' => fn (array $attributes): string => Profile::factory()->create([
+                'type' => ProfileType::Organization,
+                'handle' => fake()->unique()->slug(2),
+                'name' => fake()->company(),
+                'github_synced_at' => now(),
+                ...array_intersect_key($attributes, array_flip([...Organization::PROFILE_ATTRIBUTES, 'created_at'])),
+            ])->id,
+            'preferred_lane' => null,
+            'lane_color' => null,
         ];
+    }
+
+    /**
+     * The GitHub identity given to the factory, like a handle, goes to the profile it makes, not to the organization.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function newModel(array $attributes = []): Organization
+    {
+        return parent::newModel(array_diff_key($attributes, array_flip(Organization::PROFILE_ATTRIBUTES)));
+    }
+
+    /**
+     * Like organizations loaded from the database, which come with their profile.
+     */
+    public function configure(): self
+    {
+        return $this->afterMaking(fn (Organization $organization): Organization => $organization->setRelation('profile', Profile::query()->findOrFail($organization->id)));
     }
 }

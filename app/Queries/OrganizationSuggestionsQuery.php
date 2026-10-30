@@ -32,14 +32,16 @@ final readonly class OrganizationSuggestionsQuery
         $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
 
         return Organization::query()
+            ->select('organizations.*')
+            ->join('profiles', 'profiles.id', '=', 'organizations.id')
             ->where(fn (Builder $query): Builder => $query
-                ->whereRaw("LOWER(handle) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
-                ->orWhereRaw("LOWER(name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
+                ->whereRaw("LOWER(profiles.handle) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
+                ->orWhereRaw("LOWER(profiles.name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
             ->orderByRaw(
-                "CASE WHEN LOWER(handle) = ? THEN 0 WHEN LOWER(handle) LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
+                "CASE WHEN LOWER(profiles.handle) = ? THEN 0 WHEN LOWER(profiles.handle) LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(profiles.name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
                 [$term, "{$escaped}%", "{$escaped}%"],
             )
-            ->orderBy('handle')
+            ->orderBy('profiles.handle')
             ->limit($limit)
             ->get()
             ->toBase();

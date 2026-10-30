@@ -101,7 +101,7 @@ it('reuses the rendered image of an organization until it changes', function ():
     $this->get('/@laravel/og.png')->assertOk();
 
     $github->shouldReceive('avatar')->once()->andReturn(fakeAvatar());
-    $organization->update(['bio' => 'Updated on GitHub.']);
+    $organization->profile->update(['bio' => 'Updated on GitHub.']);
 
     $this->get('/@laravel/og.png')->assertOk();
 });

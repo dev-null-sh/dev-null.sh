@@ -205,6 +205,19 @@ it('erases the organization memberships of a deleted user, keeping their other m
     expect($organization->members()->pluck('users.id')->all())->toBe([$other->id]);
 });
 
+it("erases the organization a deleted user's GitHub account turned into, with its profile, keeping its other members", function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $organization = Organization::factory()->create(['id' => $user->profile->id]);
+    $organization->members()->attach($other->id, ['role' => OrganizationRole::Admin]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($organization->fresh())->toBeNull()
+        ->and($user->profile->fresh())->toBeNull()
+        ->and($other->fresh())->not->toBeNull();
+});
+
 it('erases the devices of a deleted user', function (): void {
     $user = User::factory()->create();
     Device::factory()->for($user)->create();

@@ -5,24 +5,21 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\OrganizationRole;
-use App\Enums\ProfileType;
 use Carbon\CarbonInterface;
 use Database\Factories\OrganizationFactory;
-use Illuminate\Database\Eloquent\Attributes\Boot;
-use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Attributes\Visible;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use LogicException;
 
 /**
- * A GitHub organization at its "@handle": the profiles that are organizations, with what only organizations have on
- * /dev/null, their members and their color. Users' profiles are never organizations.
+ * A GitHub organization on /dev/null: what only organizations have, like their members and their color. Its GitHub
+ * identity lives on its profile, whose ID it shares, as users' lives on theirs.
  *
  * @property-read string $id
- * @property-read ProfileType $type
  * @property-read string $github_id
  * @property-read string $handle
  * @property-read string $name
@@ -30,13 +27,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property-read string|null $bio
  * @property-read string|null $location
  * @property-read string|null $website
+ * @property-read CarbonInterface|null $github_synced_at
  * @property-read int|null $preferred_lane
  * @property-read string|null $lane_color
- * @property-read CarbonInterface|null $github_synced_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
+ * @property-read Profile $profile
  */
-#[Table('profiles')]
 #[Visible([
     'handle',
     'name',
@@ -58,17 +55,16 @@ final class Organization extends Model
     public const int FRESH_FOR_HOURS = 24;
 
     /**
-     * @var array<string, mixed>
+     * The GitHub identity an organization shows, which lives on its profile.
      */
-    protected $attributes = [
-        'type' => ProfileType::Organization->value,
-    ];
+    public const array PROFILE_ATTRIBUTES = [...Profile::USER_ATTRIBUTES, 'github_id'];
 
-    #[Boot]
-    public static function onlyOrganizations(): void
-    {
-        self::addGlobalScope('organization', fn (Builder $query): Builder => $query->where('profiles.type', ProfileType::Organization));
-    }
+    /**
+     * Every organization shows its GitHub identity, so its profile comes with it.
+     *
+     * @var list<string>
+     */
+    protected $with = ['profile'];
 
     /**
      * @return array<string, string>
@@ -77,20 +73,19 @@ final class Organization extends Model
     {
         return [
             'id' => 'string',
-            'type' => ProfileType::class,
-            'github_id' => 'string',
-            'handle' => 'string',
-            'name' => 'string',
-            'avatar_url' => 'string',
-            'bio' => 'string',
-            'location' => 'string',
-            'website' => 'string',
             'preferred_lane' => 'integer',
             'lane_color' => 'string',
-            'github_synced_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    /**
+     * @return BelongsTo<Profile, $this>
+     */
+    public function profile(): BelongsTo
+    {
+        return $this->belongsTo(Profile::class, 'id');
     }
 
     /**
@@ -152,5 +147,41 @@ final class Organization extends Model
     public function isAdmin(User $user): bool
     {
         return $this->roleOf($user) === OrganizationRole::Admin;
+    }
+
+    /**
+     * @return array<mixed>
+     */
+    public function toArray(): array
+    {
+        return [
+            'handle' => $this->handle,
+            'name' => $this->name,
+            'avatar_url' => $this->avatar_url,
+            'bio' => $this->bio,
+            'location' => $this->location,
+            'website' => $this->website,
+            ...parent::toArray(),
+        ];
+    }
+
+    /**
+     * The GitHub identity lives on the profile: it reads through, and only the profile changes it.
+     *
+     * @param  string  $key
+     */
+    public function getAttribute($key): mixed
+    {
+        return in_array($key, self::PROFILE_ATTRIBUTES, true) ? $this->profile->getAttribute($key) : parent::getAttribute($key);
+    }
+
+    /**
+     * @param  string  $key
+     */
+    public function setAttribute($key, $value): mixed
+    {
+        throw_if(in_array($key, self::PROFILE_ATTRIBUTES, true), LogicException::class, "Update the {$key} of an organization on its profile.");
+
+        return parent::setAttribute($key, $value);
     }
 }

@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Dto\GitHubProfile;
 use App\Enums\ProfileType;
 use App\Models\Organization;
+use App\Models\Profile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
@@ -33,11 +34,13 @@ final readonly class UpdateOrCreateOrganization
             $this->updateStaleHandles->handle($profile->handle, (string) $githubId);
 
             // A user's account GitHub has since turned into an organization becomes one here too...
-            return Organization::query()->withoutGlobalScope('organization')->updateOrCreate(['github_id' => (string) $githubId], [
+            $organization = Profile::query()->updateOrCreate(['github_id' => (string) $githubId], [
                 ...$profile->attributes(),
                 'type' => ProfileType::Organization,
                 'github_synced_at' => now(),
             ]);
+
+            return Organization::query()->firstOrCreate(['id' => $organization->id]);
         });
     }
 }

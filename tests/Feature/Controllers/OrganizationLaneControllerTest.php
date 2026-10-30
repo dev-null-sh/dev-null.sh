@@ -78,7 +78,7 @@ it('hides the color of profiles of users, which are not organizations', function
         ->put(route('organization-lane.update', $user->profile), ['lane' => 1])
         ->assertNotFound();
 
-    expect($user->profile->refresh()->getAttribute('preferred_lane'))->toBeNull();
+    expect(Organization::query()->exists())->toBeFalse();
 });
 
 it('requires authentication', function (): void {

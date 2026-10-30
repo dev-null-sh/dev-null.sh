@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 use App\Actions\UpdateMentionedOrganizations;
 use App\Contracts\Services\GitHubProvider;
+use App\Enums\ProfileType;
 use App\Jobs\LookUpUserOrganizations;
 use App\Models\Organization;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
@@ -21,7 +23,19 @@ it('looks the organizations the bio and company mention up, but not the users', 
 
     dispatch_sync(new LookUpUserOrganizations($user));
 
-    expect(Organization::query()->pluck('handle')->all())->toBe(['laravel']);
+    expect(Organization::query()->get()->pluck('handle')->all())->toBe(['laravel']);
+});
+
+it('looks an organization up again when its profile was made before organizations had their own table', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('rateLimit')->andReturnNull();
+    $github->shouldReceive('accountByLogin')->with('laravel')->once()->andReturn(['login' => 'laravel', 'id' => 958072, 'type' => 'Organization', 'name' => 'Laravel', 'avatar_url' => null, 'bio' => null, 'location' => null, 'blog' => '', 'company' => null]);
+    $profile = Profile::factory()->create(['type' => ProfileType::Organization, 'github_id' => '958072', 'handle' => 'laravel']);
+    $user = User::factory()->create(['bio' => 'Thanks @laravel']);
+
+    dispatch_sync(new LookUpUserOrganizations($user));
+
+    expect(Organization::query()->find($profile->id)?->handle)->toBe('laravel');
 });
 
 it('runs again once the rate limit resets when it cut the lookups short', function (): void {

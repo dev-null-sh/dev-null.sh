@@ -35,7 +35,8 @@ it('lists every organization whose page was made that month', function (): void 
 it('dates an organization by the last change of its GitHub profile or the approved commits that mention it', function (string $profile, string $mention, string $lastmod): void {
     $this->travelTo('2026-10-01 00:00:00');
     $laravel = Organization::factory()->create(['handle' => 'laravel']);
-    Organization::query()->whereKey($laravel->id)->toBase()->update(['updated_at' => $profile]);
+    $this->travelTo($profile);
+    $laravel->profile->update(['bio' => 'Updated on GitHub.']);
     resolve(CreateCommitTopics::class)->handle(Commit::factory()->create(['body' => '@laravel', 'updated_at' => $mention]), ['laravel' => $laravel->id]);
     resolve(CreateCommitTopics::class)->handle(Commit::factory()->pending()->create(['body' => '@laravel', 'updated_at' => '2026-10-29 00:00:00']), ['laravel' => $laravel->id]);
     resolve(CreateCommitTopics::class)->handle(Commit::factory()->create(['body' => '@symfony', 'updated_at' => '2026-10-28 00:00:00']), ['symfony' => Organization::factory()->create()->id]);

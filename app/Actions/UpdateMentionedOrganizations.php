@@ -52,7 +52,10 @@ final readonly class UpdateMentionedOrganizations
 
         /** @var list<array{Closure(): (array<array-key, mixed>|null), Closure(): mixed}> $lookups */
         $lookups = collect($handles)
-            ->diff($profiles->map(fn (Profile $profile): string => Str::lower($profile->handle)))
+            // An organization's profile made before organizations had their own table, with none, is unknown...
+            ->diff($profiles
+                ->filter(fn (Profile $profile): bool => $profile->type === ProfileType::User || $known->contains($profile->id))
+                ->map(fn (Profile $profile): string => Str::lower($profile->handle)))
             ->reject(fn (string $handle): bool => Cache::has("github-organizations:not-found:{$handle}"))
             ->map(fn (string $handle): array => [
                 fn (): ?array => $this->github->accountByLogin($handle),

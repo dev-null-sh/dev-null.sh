@@ -195,7 +195,7 @@ it('keeps listing the commits that mentioned the organization before it was rena
     $commit = Commit::factory()->create(['body' => 'Thanks @laravel']);
     resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => $organization->id]);
 
-    $organization->forceFill(['handle' => 'laravel-php'])->save();
+    $organization->profile->forceFill(['handle' => 'laravel-php'])->save();
 
     $this->get('/@laravel-php')
         ->assertOk()

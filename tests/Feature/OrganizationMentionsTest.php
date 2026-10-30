@@ -73,7 +73,7 @@ it('links mentions to the organization they captured, even after it is renamed',
 
     $this->get(route('organization-mention.show', $organization))->assertRedirect('/@laravel');
 
-    $organization->update(['handle' => 'laravel-renamed']);
+    $organization->profile->update(['handle' => 'laravel-renamed']);
 
     $this->get(route('organization-mention.show', $organization))->assertRedirect('/@laravel-renamed');
 });

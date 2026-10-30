@@ -34,6 +34,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read User|null $user
+ * @property-read Organization|null $organization
  */
 #[Visible([
     'handle',
@@ -43,7 +44,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
     'location',
     'website',
 ])]
-#[Touches(['user'])]
+#[Touches(['user', 'organization'])]
 final class Profile extends Model
 {
     /** @use HasFactory<ProfileFactory> */
@@ -98,5 +99,13 @@ final class Profile extends Model
     public function user(): HasOne
     {
         return $this->hasOne(User::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * @return HasOne<Organization, $this>
+     */
+    public function organization(): HasOne
+    {
+        return $this->hasOne(Organization::class, 'id');
     }
 }

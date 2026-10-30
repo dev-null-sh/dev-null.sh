@@ -215,8 +215,8 @@ final readonly class SitemapQuery
 
     /**
      * Every organization has a page, but not the placeholder handle of a profile whose handle was taken on GitHub,
-     * which its next sync replaces. An organization's page changes with its GitHub profile and the approved commits
-     * that mention it.
+     * which its next sync replaces. An organization's page changes with its GitHub profile, which touches it, its color
+     * and the approved commits that mention it.
      *
      * @return Builder<Organization>
      */
@@ -231,10 +231,11 @@ final readonly class SitemapQuery
             ->groupBy('commit_topics.topic_id');
 
         return Organization::query()
-            ->leftJoinSub($lastMentions, 'last_mentions', 'last_mentions.topic_id', '=', 'profiles.id')
+            ->join('profiles', 'profiles.id', '=', 'organizations.id')
+            ->leftJoinSub($lastMentions, 'last_mentions', 'last_mentions.topic_id', '=', 'organizations.id')
             ->where('profiles.handle', 'not like', '\_%')
             ->select(['profiles.handle', 'profiles.created_at'])
-            ->selectRaw('greatest(profiles.updated_at, last_mentions.updated_at) as updated_at');
+            ->selectRaw('greatest(organizations.updated_at, last_mentions.updated_at) as updated_at');
     }
 
     /**
