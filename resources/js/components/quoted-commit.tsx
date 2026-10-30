@@ -4,6 +4,7 @@ import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLi
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
+import { CommitSourceBadge } from '@/components/commit-source-badge';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
 import { LinkPreview } from '@/components/link-preview';
 import { UserAvatar } from '@/components/user-avatar';
@@ -46,7 +47,7 @@ export function QuotedCommit({
 
     const content = (
         <>
-            <span className="flex min-w-0 items-center gap-1.5 text-sm">
+            <span className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm">
                 <span className="sr-only">{label}</span>
                 <UserAvatar user={commit.user} className="size-5" />
                 <span className="truncate font-semibold">
@@ -65,6 +66,7 @@ export function QuotedCommit({
                 >
                     {formatRelativeTime(commit.created_at, now)}
                 </time>
+                <CommitSourceBadge source={commit.source} size="small" />
                 <CommitStatusBadge commit={commit} size="small" isStatic />
             </span>
             <CommitBodyExcerpt

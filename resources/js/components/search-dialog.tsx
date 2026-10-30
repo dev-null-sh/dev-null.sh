@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import UserSearchController from '@/actions/App/Http/Controllers/UserSearchController';
+import { CommitSourceBadge } from '@/components/commit-source-badge';
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
@@ -808,6 +809,7 @@ function CommitResult({ commit }: { commit: Commit }) {
                     >
                         {formatRelativeTime(commit.created_at, now)}
                     </time>
+                    <CommitSourceBadge source={commit.source} size="small" />
                 </span>
                 <span
                     className="line-clamp-2 text-sm text-pretty"
