@@ -33,7 +33,7 @@ The funnel follows the people who **signed up in the selected range** (the last 
 
 ### Acquisition
 
-- **Visitors**: people **not signed in** who opened dev-null.sh in the range, counted by Fathom: the browser sends a `guest-visit` event once per session to someone not signed in, and Fathom counts the people who sent it (`unique_conversions`).
+- **Visitors**: people **not signed in** who opened dev-null.sh in the range, counted by Fathom: the browser sends a `guest-visit` event once per session to someone not signed in, and Fathom counts the people who sent it (`unique_conversions`). A browser driven by a program (`navigator.webdriver`) doesn't send it.
 - **Signups**: accounts created in the range, from the database. This is the absolute number.
 - **Conversion rate** = people who sent a `signup` event ÷ people who sent a `guest-visit` event, both from Fathom. The browser sends `signup` once, on the page right after an account is created (the server flashes `signedUp`).
 - Why both sides of the rate come from Fathom: Fathom is blocked by uBlock Origin, Brave and Firefox's tracking protection, which developers use a lot. Signups from the database over visitors from Fathom would overstate the rate by an unknown amount. With both from Fathom, ad blockers hide the same share of each, as long as people who sign up block Fathom as often as other visitors.
@@ -44,6 +44,7 @@ The funnel follows the people who **signed up in the selected range** (the last 
   - The events only exist since the release that added them; the rate reads "–" before.
   - Fathom's API doesn't define `unique_conversions` precisely; check on real data that it counts people, not events.
   - A member signed out (another device, an expired session) counts as a visitor.
+  - Fathom filters bots out of pageviews, not out of events. From 2026-10-29 16:00 UTC, a scraper running a real browser sent thousands of `guest-visit` a day, from desktops all over the world, one profile page each, with no taps or signups, and the conversion rate fell to about 1%. Since then, browsers that say they are automated (`navigator.webdriver`) don't send it. A scraper can hide that, so if visitors jump again with no taps, check `guest-visit` in Fathom by hour and by `pathname`: a crawl hits many pages once each.
   - Events may count against Fathom's monthly quota, which is why `guest-visit` is sent once per session, not on every page.
 
 ### Activation

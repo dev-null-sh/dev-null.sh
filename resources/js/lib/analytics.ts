@@ -38,7 +38,8 @@ export function trackAnalyticsEvents(): void {
     }
 
     router.on('navigate', (event) => {
-        if (event.detail.page.props.auth.user) {
+        // A browser driven by a program, like a scraper's, isn't a prospect, and Fathom only leaves it out of pageviews...
+        if (event.detail.page.props.auth.user || navigator.webdriver) {
             return;
         }
 
