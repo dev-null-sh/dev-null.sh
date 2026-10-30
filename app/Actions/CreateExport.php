@@ -37,7 +37,7 @@ use Traversable;
  *     schema_version: int,
  *     exported_at: string,
  *     profile: array<string, bool|int|string|null>,
- *     active_days: array<mixed>,
+ *     active_days: Generator<int, string>,
  *     commits: Generator<int, array<string, mixed>>,
  *     polls: Generator<int, ExportPoll>,
  *     poll_votes: Generator<int, ExportPollVote>,
@@ -106,7 +106,7 @@ final readonly class CreateExport
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
-            'active_days' => DB::table('user_active_days')->where('user_id', $user->id)->oldest('seen_at')->pluck('seen_at')->all(),
+            'active_days' => $this->activeDays($user),
             'commits' => $this->commits($user),
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
@@ -241,6 +241,22 @@ final readonly class CreateExport
                 'option' => $vote->option->label,
                 'created_at' => $vote->created_at->toIso8601String(),
             ];
+        }
+    }
+
+    /**
+     * The days the user was seen, oldest first. They are read while the export streams, after the request asking for it
+     * was recorded, so an export that is the first visit of the day includes that day.
+     *
+     * @return Generator<int, string>
+     */
+    private function activeDays(User $user): Generator
+    {
+        /** @var LazyCollection<int, object{seen_at: string}> $days */
+        $days = DB::table('user_active_days')->where('user_id', $user->id)->oldest('seen_at')->cursor();
+
+        foreach ($days as $day) {
+            yield $day->seen_at;
         }
     }
 

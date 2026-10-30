@@ -466,7 +466,7 @@ it('exports the organizations the user is a member of with their role, first joi
 });
 
 it('exports the days the user was seen, oldest first, without the days of others', function (): void {
-    $user = User::factory()->create();
+    $user = User::factory()->create(['last_seen_at' => now()]);
     DB::table('user_active_days')->insert([
         ['user_id' => $user->id, 'seen_at' => '2026-10-21'],
         ['user_id' => $user->id, 'seen_at' => '2026-10-19'],
@@ -477,6 +477,17 @@ it('exports the days the user was seen, oldest first, without the days of others
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['active_days'])->toBe(['2026-10-19', '2026-10-21']);
+});
+
+it('exports today when the export is the first visit of the day', function (): void {
+    $this->travelTo(now()->setDate(2026, 10, 30)->setTime(12, 0));
+    $user = User::factory()->create(['last_seen_at' => '2026-10-29']);
+    DB::table('user_active_days')->insert(['user_id' => $user->id, 'seen_at' => '2026-10-29']);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['active_days'])->toBe(['2026-10-29', '2026-10-30']);
 });
 
 it('exports the devices approved for the app, oldest first', function (): void {
