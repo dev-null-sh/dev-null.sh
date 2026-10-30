@@ -62,3 +62,15 @@ it('lists the mentions of an organization whatever the handle\'s case', function
         ->assertOk()
         ->assertJsonPath('data.*.id', [$commit->id]);
 });
+
+it('lists the mentions of the organization in the exact case when a stale one holds the handle in another case', function (): void {
+    $lower = Organization::factory()->create(['handle' => 'laravel']);
+    $mixed = Organization::factory()->create(['handle' => 'Laravel']);
+    $lowerCommit = Commit::factory()->create(['body' => 'Thanks @laravel']);
+    $mixedCommit = Commit::factory()->create(['body' => 'Thanks @Laravel']);
+    resolve(CreateCommitTopics::class)->handle($lowerCommit, ['laravel' => $lower->id]);
+    resolve(CreateCommitTopics::class)->handle($mixedCommit, ['Laravel' => $mixed->id]);
+
+    $this->getJson('/api/v1/organizations/laravel/mentions')->assertOk()->assertJsonPath('data.*.id', [$lowerCommit->id]);
+    $this->getJson('/api/v1/organizations/Laravel/mentions')->assertOk()->assertJsonPath('data.*.id', [$mixedCommit->id]);
+});
