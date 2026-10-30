@@ -62,6 +62,17 @@ it('keeps target languages and exact source text separate', function (): void {
     }
 });
 
+it('translates posts written in languages that are not translation targets', function (): void {
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with('Quod erat demonstrandum', 'en')
+        ->andReturn(['source_language' => 'la', 'body' => 'Which was to be demonstrated']);
+    $commit = Commit::factory()->create(['body' => 'Quod erat demonstrandum']);
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
+        ->assertOk()->assertJsonPath('translation.source_name', 'Latin')
+        ->assertJsonPath('translation.translated.body_segments.0.text', 'Which was to be demonstrated');
+});
+
 it('expires translations after seven days even when readers keep requesting them', function (): void {
     $this->mock(TranslationProvider::class)->shouldReceive('translate')->twice()->andReturn(
         ['source_language' => 'de', 'body' => 'Good morning'],
@@ -358,6 +369,8 @@ it('reports why provider answers are rejected without logging their contents', f
     'wrong shape' => [fn (): never => throw new InvalidTranslation('invalid_response_shape'), 'invalid_response_shape'],
     'unsupported language' => [fn (): array => ['source_language' => 'invented', 'body' => 'Sensitive translation'], 'unsupported_source_language', 'The translation service returned an unsupported source language. Try again.'],
     'regional language code' => [fn (): array => ['source_language' => 'de-DE', 'body' => 'Sensitive translation'], 'unsupported_source_language', 'The translation service returned an unsupported source language. Try again.'],
+    'uppercase language code' => [fn (): array => ['source_language' => 'DE', 'body' => 'Sensitive translation'], 'unsupported_source_language', 'The translation service returned an unsupported source language. Try again.'],
+    'language code with a trailing newline' => [fn (): array => ['source_language' => "de\n", 'body' => 'Sensitive translation'], 'unsupported_source_language', 'The translation service returned an unsupported source language. Try again.'],
     'blank translation' => [fn (): array => ['source_language' => 'de', 'body' => '   '], 'empty_translation'],
     'oversized translation' => [fn (): array => ['source_language' => 'de', 'body' => str_repeat('x', 16001)], 'translation_too_long'],
 ]);
