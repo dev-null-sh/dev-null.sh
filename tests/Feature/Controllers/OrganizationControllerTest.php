@@ -72,7 +72,7 @@ it('links its members to the settings of the organization, admins to its profile
     $organization->members()->attach($member->id, ['role' => OrganizationRole::Member]);
 
     $this->actingAs($admin)->get('/@laravel')
-        ->assertInertia(fn ($page) => $page->where('settingsUrl', route('organization-lane.edit', $organization)));
+        ->assertInertia(fn ($page) => $page->where('settingsUrl', route('organization-profile.edit', $organization)));
 
     $this->actingAs($member)->get('/@laravel')
         ->assertInertia(fn ($page) => $page->where('settingsUrl', route('organization-member.index', $organization)));

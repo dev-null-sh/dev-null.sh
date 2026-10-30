@@ -10,10 +10,10 @@ use App\Models\User;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 
-final class ShowOrganizationLaneRequest extends FormRequest
+final class ShowOrganizationProfileRequest extends FormRequest
 {
     /**
-     * Only the organization's admins choose its color, so to everyone else, members included, the tab does not exist.
+     * Only the organization's admins edit its profile, so to everyone else, members included, the tab does not exist.
      */
     public function authorize(): Response
     {

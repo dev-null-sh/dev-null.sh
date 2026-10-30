@@ -47,7 +47,7 @@ final readonly class OrganizationController
             'claimUrl' => route('organization-admin.create', $organization),
             // Admins land on the Profile tab, which only they have...
             'settingsUrl' => match ($currentUser instanceof User ? $organization->roleOf($currentUser) : null) {
-                OrganizationRole::Admin => route('organization-lane.edit', $organization),
+                OrganizationRole::Admin => route('organization-profile.edit', $organization),
                 OrganizationRole::Member => route('organization-member.index', $organization),
                 null => null,
             },

@@ -82,6 +82,7 @@ use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationLaneController;
 use App\Http\Controllers\OrganizationMemberController;
 use App\Http\Controllers\OrganizationMentionController;
+use App\Http\Controllers\OrganizationProfileController;
 use App\Http\Controllers\OrganizationSitemapController;
 use App\Http\Controllers\OrgArchiveController;
 use App\Http\Controllers\OrgCallController;
@@ -357,10 +358,10 @@ Route::middleware('auth')->group(function (): void {
         ->withoutScopedBindings()
         ->name('organization-member.destroy');
 
-    // An organization's color, which its admins choose in the Profile tab of its settings...
-    Route::get('organizations/{organization}/settings/profile', [OrganizationLaneController::class, 'edit'])
+    // An organization's profile, which its admins edit in its settings, starting with its color...
+    Route::get('organizations/{organization}/settings/profile', [OrganizationProfileController::class, 'edit'])
         ->whereUuid('organization')
-        ->name('organization-lane.edit');
+        ->name('organization-profile.edit');
     Route::put('organizations/{organization}/settings/lane', [OrganizationLaneController::class, 'update'])
         ->whereUuid('organization')
         ->name('organization-lane.update');

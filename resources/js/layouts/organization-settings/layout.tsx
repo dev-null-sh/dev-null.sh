@@ -1,7 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import type { PropsWithChildren } from 'react';
-import OrganizationLaneController from '@/actions/App/Http/Controllers/OrganizationLaneController';
 import OrganizationMemberController from '@/actions/App/Http/Controllers/OrganizationMemberController';
+import OrganizationProfileController from '@/actions/App/Http/Controllers/OrganizationProfileController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { PageTabs } from '@/components/page-tabs';
@@ -25,7 +25,7 @@ export default function OrganizationSettingsLayout({
             ? [
                   {
                       title: 'Profile',
-                      href: OrganizationLaneController.edit(organization.id),
+                      href: OrganizationProfileController.edit(organization.id),
                   },
               ]
             : []),
