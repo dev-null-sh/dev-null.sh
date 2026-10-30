@@ -7,8 +7,10 @@
 - Inject dependencies via constructor using private properties.
 - Create new actions with `php artisan make:action "{name}" --no-interaction`
 - Wrap complex operations in `DB::transaction()` within actions when multiple models are involved.
+- Transactions and row locks that guard a write live in actions, never in HTTP middleware: that puts database rules in the HTTP layer and holds the transaction open for the whole request.
+- When a concurrent request can pass the same check before the write (a limit, the last admin), the action locks the parent row (the conversation, the organization) in a short `DB::transaction()`, checks the condition again under the lock, and skips the write if it no longer holds. This is not validation: it never aborts or throws, and the request keeps its own check and error message. Return `false` when the write was skipped and the caller must tell the user (`CreateOrganizationAdmin`); return nothing when the request's error is enough (`UpdateMessagePin`).
 - Some actions won't require dependencies via `__construct` and they can use just the `handle()` method.
-- Actions never authorize or validate anything: that lives in the form request of the endpoint calling them.
+- Actions never authorize or validate anything: that lives in the form request of the endpoint calling them. Checking again under a lock, above, is the only exception.
 
 ## CRUD by design
 
