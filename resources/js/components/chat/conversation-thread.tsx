@@ -21,7 +21,7 @@ import {
     CallButton,
     CallConsole,
     OrgCallConsole,
-    useIsOnCall,
+    useIsCallActive,
 } from '@/components/chat/call';
 import {
     LiftedMessage,
@@ -1708,7 +1708,14 @@ function Composer({
 
     const voiceNote = useVoiceNote(showError);
     const isVoicing = voiceNote.state.status !== 'idle';
-    const isOnCall = useIsOnCall();
+    const isCallActive = useIsCallActive();
+    const discardVoiceNote = voiceNote.discard;
+
+    useEffect(() => {
+        if (isCallActive && isVoicing) {
+            discardVoiceNote();
+        }
+    }, [discardVoiceNote, isCallActive, isVoicing]);
 
     const pushVoiceNote = async () => {
         const voice = await voiceNote.stop();
@@ -1930,7 +1937,7 @@ function Composer({
                                     isCompact ? 'size-9' : 'size-10',
                                 )}
                             />
-                            {!isOnCall && (
+                            {!isCallActive && (
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <span className="-mx-1 inline-flex shrink-0">
@@ -1964,7 +1971,7 @@ function Composer({
                                     </TooltipContent>
                                 </Tooltip>
                             )}
-                            {!isOnCall && (
+                            {!isCallActive && (
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Button

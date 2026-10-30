@@ -103,6 +103,16 @@ export function useIsOnCall(): boolean {
 }
 
 /**
+ * Whether the composer should hide actions that do not make sense while a call is ringing or underway.
+ */
+export function useIsCallActive(): boolean {
+    const isOnCall = useIsOnCall();
+    const ringingOrgCall = useRingingOrgCall();
+
+    return isOnCall || ringingOrgCall !== null;
+}
+
+/**
  * Sits next to Ping in a remote's composer and asks the composer to confirm the call in place.
  */
 export function CallButton({
@@ -724,7 +734,7 @@ export function OrgCallConsole({
     onConfirmingChange: (isConfirming: boolean) => void;
 }) {
     const call = useOrgCall();
-    const isOnCall = useIsBusy();
+    const isOnCall = useIsOnCall();
     const ongoing =
         useOngoingOrgCalls().find((candidate) => candidate.org.id === org.id) ??
         null;
