@@ -205,6 +205,19 @@ it('erases the organization memberships of a deleted user, keeping their other m
     expect($organization->members()->pluck('users.id')->all())->toBe([$other->id]);
 });
 
+it('erases the days a deleted user was seen, keeping the days of others', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    DB::table('user_active_days')->insert([
+        ['user_id' => $user->id, 'seen_at' => '2026-10-19'],
+        ['user_id' => $other->id, 'seen_at' => '2026-10-19'],
+    ]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(DB::table('user_active_days')->pluck('user_id')->all())->toBe([$other->id]);
+});
+
 it('erases the devices of a deleted user', function (): void {
     $user = User::factory()->create();
     Device::factory()->for($user)->create();

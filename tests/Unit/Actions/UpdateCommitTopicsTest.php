@@ -230,12 +230,18 @@ it('keeps asking while enough requests are left', function (): void {
     expect(Cache::has('github-organizations:paused'))->toBeFalse();
 });
 
-it('throws when GitHub fails, so the job tries again', function (): void {
+it('throws when GitHub fails, rate limits or forbids anything else, so the job tries again', function (Psr7Response $response): void {
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('rateLimit')->andReturnNull();
-    $github->shouldReceive('accountByLogin')->with('laravel')->andThrow(new RequestException(new Response(new Psr7Response(502))));
+    $github->shouldReceive('accountByLogin')->with('laravel')->andThrow(new RequestException(new Response($response)));
 
     $commit = Commit::factory()->create(['body' => '@laravel', 'mentions' => []]);
 
     expect(fn () => resolve(UpdateCommitTopics::class)->handle($commit))->toThrow(RequestException::class);
-});
+})->with([
+    'an error' => fn (): Psr7Response => new Psr7Response(502),
+    'the primary rate limit' => fn (): Psr7Response => new Psr7Response(403, ['X-RateLimit-Remaining' => '0']),
+    'a secondary rate limit' => fn (): Psr7Response => new Psr7Response(403, ['Retry-After' => '60']),
+    'a secondary rate limit without headers' => fn (): Psr7Response => new Psr7Response(403, [], '{"message":"You have exceeded a secondary rate limit. Please wait a few minutes before you try again."}'),
+    'any other refusal' => fn (): Psr7Response => new Psr7Response(403, [], '{"message":"Resource not accessible by integration"}'),
+]);

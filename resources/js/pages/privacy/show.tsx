@@ -152,8 +152,8 @@ export default function Show() {
                             <>
                                 <strong>Technical data:</strong> IP address,
                                 browser and device information, logs, and how
-                                you use the service, such as the last day you
-                                used it.
+                                you use the service, such as the days you used
+                                it.
                             </>,
                             <>
                                 <strong>From the iOS app:</strong> a key the app

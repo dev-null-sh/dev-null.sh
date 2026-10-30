@@ -71,6 +71,7 @@ final readonly class DeleteUser
             $this->deleteOrgs->handle($this->emptyOrgs($user));
 
             $user->organizations()->detach();
+            DB::table('user_active_days')->where('user_id', $user->id)->delete();
 
             $user->delete();
             $user->profile->delete();

@@ -8,7 +8,7 @@ Status: **implemented** metrics are on the Growth page. **Not yet** metrics are 
 
 ## Principles
 
-- **Store as little as possible.** Most metrics are computed from data the app already has (users, commits, stars, follows) and from Fathom, which is anonymous. Only three things were added for metrics: the last day each person was seen, one anonymous count of active people per day, and anonymous Fathom events, for the conversion rate and for the link guests can ask for by email.
+- **Store as little as possible.** Most metrics are computed from data the app already has (users, commits, stars, follows) and from Fathom, which is anonymous. Only four things were added for metrics: the last day each person was seen, the days each person was seen, one anonymous count of active people per day, and anonymous Fathom events, for the conversion rate and for the link guests can ask for by email.
 - **No personal attribution.** Nobody's referrer, landing page or campaign is stored. Where people come from is read from Fathom, in aggregate.
 - **Bots are left out** everywhere: Tom and @world (`User::BOT_GITHUB_IDS`).
 - **Read trends, not thresholds, at first.** With a few days of history, metrics say little on their own. a16z notes that they only become predictive with a few thousand active users and several cohorts past day 30.
@@ -20,6 +20,7 @@ Each answers the three questions of the [data guidelines](.ai/guidelines/data.bl
 | Data | Where | Why the feature needs it | Who sees it | When it is deleted |
 |---|---|---|---|---|
 | The last day a person was seen (a date, no time) | `users.last_seen_at`, hidden | Retention and active users can't be derived from anything else: reading alone leaves no trace. Written at most once a day, without touching `updated_at`. | Admins, only as aggregates on the Growth page; the person in their export | With the account |
+| Each day a person was seen (dates, no time) | `user_active_days` (`user_id`, `seen_at`) | Retention by signup cohort, day by day (active on day 1, 7, 14), comparable with public benchmarks: `last_seen_at` only keeps the latest day, and `active_user_counts` has no user ids. Written with `last_seen_at`, the first time each person is seen in a day. | Admins, only as aggregates. Not in the person's export, which has `last_seen_at` | With the account |
 | The number of people seen each day | `active_user_counts` (`seen_at`, `count`), no user ids | The daily active users history: `last_seen_at` only keeps each person's latest day, so past days can't be recomputed. Incremented the first time each person is seen in a day, so the count is exact. | Admins, on the Growth page | Never: it is an anonymous count |
 | Three anonymous events, `guest-visit`, `signin-click` and `signup` | Fathom | The conversion rate, counted on both sides by the same tool, and where in between visitors give up. No user id is sent. | Admins, through Fathom | Per Fathom's retention |
 | Three anonymous events, `join-link-sent`, `join-link-visit` and `join-link-signup` | Fathom | Whether the link a guest on a phone can ask for by email brings people back: sent when the email is asked for, when the page opens from its link (`#join-link`, then removed from the address), and when that tab then signs up, next to `signup`. Signing up leaves for GitHub, so Fathom sees the signup as a new visit; the tab remembers the link in its session storage instead. Someone who opens the link in one browser and signs up in another counts as any other signup, so it's a floor. | Admins, through Fathom | Per Fathom's retention |
@@ -66,7 +67,7 @@ The funnel follows the people who **signed up in the selected range** (the last 
 
 - **Retained**: seen again **from day 1 after signing up, or later** ("unbounded" retention), as told by `last_seen_at`. Day 1 is temporary, while /dev/null is days old and changes day by day; the goal is day 14.
 - **Retention rate** = retained ÷ signups whose day 1 is over. A signup whose day 1 is today isn't counted yet: they may still come back today.
-- Why `last_seen_at` and not one row per person per day: it is one date per person, overwritten, with no history, which is the least data that answers "is this person still coming back after 14 days?".
+- Why `last_seen_at` and not one row per person per day: it was one date per person, overwritten, with no history, the least data that answers "is this person still coming back after 14 days?". It can't tell someone active on day 7 from someone who came back once on day 60, so `user_active_days` was added on 2026-10-30 (see Decisions). This rate still reads `last_seen_at` until bounded retention is built on the new table.
 - Caveats:
   - Unbounded retention is always higher than the bounded "active on day N" retention that public benchmarks use. Someone who comes back once on day 60 counts as retained at day 1. **Do not compare it with the a16z numbers below.**
   - A cohort's retention keeps rising a little as late visitors come back, so older cohorts look slightly better than recent ones.
@@ -150,8 +151,8 @@ A handful of accounts star or follow every newcomer. Leaving out the 5 that reac
 
 | Metric | What it would tell | What it needs |
 |---|---|---|
-| Bounded retention (active on day 1, 7, 30) | A number comparable with public benchmarks | One row per person per active day, which was turned down to store less |
-| Power user curve (L7, L5+) | Whether a daily core forms, cohort after cohort | The same per-day activity |
+| Bounded retention (active on day 1, 7, 30) | A number comparable with public benchmarks, for each signup cohort | `user_active_days`, recorded since 2026-10-30. Days before are only backfilled from what people wrote or did (see Decisions) |
+| Power user curve (L7, L5+) | Whether a daily core forms, cohort after cohort | `user_active_days`, a few weeks of it |
 | Quick ratio and growth accounting | (new + resurrected) ÷ churned: whether growth hides a leaking bucket ([Social Capital, via](https://davidjaxon.wordpress.com/2016/03/15/a-simple-metric-to-measure-the-quality-of-your-user-growth/)) | A few weeks of history; best with per-day activity |
 | Resurrection rate | Share of people away 14+ days who come back | A few weeks of history |
 | Retention by core action | Whether people come back to post, star or reply, not only to look | Computable from existing data |
@@ -171,6 +172,7 @@ Taken on 2026-10-19, when /dev/null was a few days old, had about 6,000 people a
 - On 2026-10-23, activation was measured against day-1 returns for the first time (see "How activation is defined"). It moved from 3 starred authors to 2, and gained following 10+ people: a wider definition with the same power to tell who comes back.
 - Retention is unbounded, from `last_seen_at`, headline day 14, with a fallback to day 7 and day 1 meanwhile.
 - On 2026-10-20, retention was set to day 1 alone, without the fallback: /dev/null was days old and changed day by day, so the next day is what mattered. Moving to day 14 means bringing back the fallback to day 7 and day 1, from the history of `ProductFunnelQuery`.
+- On 2026-10-30, one row per person per active day (`user_active_days`) was added, reversing the choice to store only the last day. Unbounded retention rose with late returns and couldn't be read day by day for each signup cohort, nor compared with benchmarks. Days before 2026-10-30 can only be backfilled from what left a trace (signing up, posting, starring, voting, following, sending a message, and `last_seen_at` itself): someone who only read on a day left none, so backfilled days are a floor, closer to the truth for authors than for readers.
 - No per-person referrer or source: Fathom covers acquisition, anonymously.
 - Signups are counted from the database; the conversion rate is counted entirely by Fathom, so ad blockers cancel out, and only over visitors not signed in.
 - Daily active users come from `last_seen_at`, not from Fathom, which ad blockers hide and which can't see the mobile app.

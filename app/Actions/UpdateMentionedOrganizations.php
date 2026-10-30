@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Models\Profile;
 use Carbon\CarbonImmutable;
 use Closure;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -40,8 +41,9 @@ final readonly class UpdateMentionedOrganizations
     /**
      * Asks GitHub about the lowercase handles that are neither a user's nor a known organization's, and refreshes the
      * known organizations among them once their profile is a day old. A handle that isn't an organization's isn't asked
-     * about again for a day, and an organization GitHub no longer has is deleted, with the links to it. Returns when to
-     * try again if the rate limit cut the lookups short.
+     * about again for a day, and an organization GitHub no longer has is deleted, with the links to it. An
+     * organization that keeps GitHub from showing it to the app, with an IP allow list for one, is skipped. Returns when
+     * to try again if the rate limit cut the lookups short.
      *
      * @param  list<string>  $handles
      */
@@ -90,7 +92,20 @@ final readonly class UpdateMentionedOrganizations
         }
 
         foreach ($lookups as [$lookUp, $notFound]) {
-            $account = $lookUp();
+            try {
+                $account = $lookUp();
+            } catch (RequestException $exception) {
+                // The refusals an organization sets up, as in HttpGitHubProvider::organizationMembership(): an IP
+                // allow list, SAML single sign-on or OAuth App access restrictions. Any other one, a rate limit among
+                // them, is retried.
+                $response = $exception->response;
+
+                if (! $response->forbidden() || (! $response->hasHeader('X-GitHub-SSO') && ! Str::contains($response->fluent()->string('message')->value(), ['IP allow list', 'OAuth App access restrictions']))) {
+                    throw $exception;
+                }
+
+                continue;
+            }
 
             if (($account['type'] ?? null) !== 'Organization') {
                 $notFound();
