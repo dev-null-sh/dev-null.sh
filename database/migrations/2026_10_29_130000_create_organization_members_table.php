@@ -17,6 +17,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // The migration runs in one transaction. Claims and their removals wait until it commits, so none lands between
+        // the copy and the drop: once it commits, they fail on the dropped table instead of being lost. The drop needs
+        // this lock anyway, and taking it first keeps a claim already reading the table from deadlocking with it...
+        DB::statement('lock table organization_admins in access exclusive mode');
+
         Schema::create('organization_members', function (Blueprint $table): void {
             $table->foreignUuid('organization_id')->constrained('profiles');
             $table->foreignUuid('user_id')->constrained();
