@@ -1001,18 +1001,21 @@ const STRIPES_SWATCH = (
 
 /**
  * The share of each signup day's sign-ups seen again exactly N days later, once that day is over, and the line at the
- * share of the whole range.
+ * share of the whole range. The note about backfilled bars depends on both days, so switching days doesn't move the
+ * chart.
  */
 function RetentionByDay({
     range,
     days,
     day,
     recordedSince,
+    hasBackfilled,
 }: {
     range: TrafficRange;
     days: RetentionDay[];
     day: RetentionDayNumber;
     recordedSince: string;
+    hasBackfilled: boolean;
 }) {
     const label = RETENTION_DAYS.find((option) => option.key === day)?.label;
     const eligible = days.reduce((sum, item) => sum + item.eligible, 0);
@@ -1020,7 +1023,7 @@ function RetentionByDay({
 
     return (
         <div className="flex flex-1 flex-col">
-            {days.some((item) => item.backfilled) && (
+            {hasBackfilled && (
                 <BackfilledNote
                     recordedSince={recordedSince}
                     marker={STRIPES_SWATCH}
@@ -1123,7 +1126,7 @@ function RetentionTable({ cohorts }: { cohorts: RetentionCohort[] }) {
                 <tr className="text-muted-foreground">
                     <th
                         scope="col"
-                        className="w-22 pb-1 text-left font-normal sm:w-28"
+                        className="w-24 pb-1 text-left font-normal sm:w-28"
                     >
                         signed up
                     </th>
@@ -1150,6 +1153,7 @@ function RetentionTable({ cohorts }: { cohorts: RetentionCohort[] }) {
                             <span>{formatZonedDate(cohort.week, 'UTC')}</span>
                             <span className="ml-1.5 text-muted-foreground">
                                 {formatCount(cohort.signups)}
+                                <span className="sr-only"> sign-ups</span>
                             </span>
                         </th>
                         {cohort.days.map((cell, column) => {
@@ -1466,6 +1470,10 @@ export default function Show({
                         days={retentionByDay[retentionDay]}
                         day={retentionDay}
                         recordedSince={retentionRecordedSince}
+                        hasBackfilled={[
+                            ...retentionByDay.day_1,
+                            ...retentionByDay.day_7,
+                        ].some((item) => item.backfilled)}
                     />
                 </Panel>
 

@@ -56,32 +56,28 @@ final readonly class RetentionCohortsQuery
             RetentionByDayQuery::RECORDED_SINCE,
         ]);
 
-        $cell = fn (int $day, int $eligible, int $retained, int $backfilled): array => [
-            'day' => $day,
-            'eligible' => $eligible,
-            'retained' => $retained,
-            'backfilled' => $backfilled,
+        $cohorts = [];
+        $curve = [];
+
+        foreach ($rows as $row) {
+            $day = (int) $row->day;
+            $cell = ['day' => $day, 'eligible' => (int) $row->eligible, 'retained' => (int) $row->retained, 'backfilled' => (int) $row->backfilled];
+
+            $cohorts[$row->week] ??= ['week' => $row->week, 'signups' => (int) $row->signups, 'days' => []];
+
+            if (in_array($day, self::DAYS, true)) {
+                $cohorts[$row->week]['days'][] = $cell;
+            }
+
+            $curve[$day] ??= ['day' => $day, 'eligible' => 0, 'retained' => 0, 'backfilled' => 0];
+            $curve[$day]['eligible'] += $cell['eligible'];
+            $curve[$day]['retained'] += $cell['retained'];
+            $curve[$day]['backfilled'] += $cell['backfilled'];
+        }
+
+        return [
+            'cohorts' => array_values($cohorts),
+            'curve' => array_values(array_filter($curve, fn (array $point): bool => $point['eligible'] > 0)),
         ];
-
-        $cohorts = collect($rows)->groupBy('week')->map(fn ($days, string $week): array => [
-            'week' => $week,
-            'signups' => (int) $days->first()->signups,
-            'days' => $days
-                ->filter(fn (object $row): bool => in_array((int) $row->day, self::DAYS, true))
-                ->map(fn (object $row): array => $cell((int) $row->day, (int) $row->eligible, (int) $row->retained, (int) $row->backfilled))
-                ->values()
-                ->all(),
-        ]);
-
-        $curve = collect($rows)->groupBy('day')
-            ->map(fn ($weeks, int $day): array => $cell(
-                $day,
-                (int) $weeks->sum('eligible'),
-                (int) $weeks->sum('retained'),
-                (int) $weeks->sum('backfilled'),
-            ))
-            ->filter(fn (array $point): bool => $point['eligible'] > 0);
-
-        return ['cohorts' => $cohorts->values()->all(), 'curve' => $curve->values()->all()];
     }
 }
