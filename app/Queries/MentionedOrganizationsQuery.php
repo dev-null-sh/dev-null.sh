@@ -41,7 +41,7 @@ final readonly class MentionedOrganizationsQuery
             ->orderBy('profiles.handle')
             ->get()
             ->sortByDesc(fn (Organization $organization): bool => in_array($organization->handle, $written, true))
-            ->unique(fn (Organization $organization): string => Str::lower($organization->handle))
+            ->uniqueStrict(fn (Organization $organization): string => Str::lower($organization->handle))
             ->mapWithKeys(fn (Organization $organization): array => [Str::lower($organization->handle) => $organization->id])
             ->all();
     }

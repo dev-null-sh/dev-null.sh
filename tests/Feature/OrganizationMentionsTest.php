@@ -70,6 +70,18 @@ it('links always the same organization when no stale one holds the handle in the
     }
 });
 
+it('links organizations whose handles only look like the same number', function (): void {
+    Queue::fake();
+
+    $author = User::factory()->create();
+    $hundred = Organization::factory()->create(['handle' => '100']);
+    $scientific = Organization::factory()->create(['handle' => '1e2']);
+
+    $this->actingAs($author)->post('/commits', ['body' => 'Thanks @100 and @1e2'])->assertRedirect();
+
+    expect($author->commits()->sole()->organization_mentions)->toBe(['100' => $hundred->id, '1e2' => $scientific->id]);
+});
+
 it('asks GitHub about the other handles of a commit approved right away', function (): void {
     config(['app.admins' => ['admin']]);
     Queue::fake();
