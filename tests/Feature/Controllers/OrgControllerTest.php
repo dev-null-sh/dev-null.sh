@@ -154,3 +154,12 @@ it('refuses people with no profile on /dev/null', function (): void {
         ->assertUnprocessable()
         ->assertOnlyJsonValidationErrors('members.1');
 });
+
+it('refuses someone with no profile on /dev/null at their own place in the list', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+
+    $this->actingAs($mark)->postJson(route('org.store'), ['members' => ['nobody-by-that-name', $nuno->handle]])
+        ->assertUnprocessable()
+        ->assertOnlyJsonValidationErrors('members.0');
+});
