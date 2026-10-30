@@ -31,6 +31,7 @@ final readonly class ScheduledCommitController
         ]);
     }
 
+    /** Schedules a web commit and marks the session so its queue refreshes. */
     public function store(CreateScheduledCommitRequest $request, #[CurrentUser] User $user, CreateScheduledCommit $action): RedirectResponse
     {
         $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images(), $request->imageDescriptions(), $request->poll(), $request->linkPreview(), CommitSource::Web);
