@@ -63,6 +63,7 @@ use App\Http\Controllers\Api\UserFollowController;
 use App\Http\Controllers\Api\UserFollowersController;
 use App\Http\Controllers\Api\UserFollowingController;
 use App\Http\Controllers\Api\UserLaneController;
+use App\Http\Controllers\Api\UserLiveController;
 use App\Http\Controllers\Api\UserMuteController;
 use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
@@ -150,6 +151,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // User Lane...
         Route::put('me/lane', [UserLaneController::class, 'update'])->name('api-user-lane.update');
+
+        // User Live: going live on a stream for a few hours, as Go live does on the web's profile...
+        Route::put('me/live', [UserLiveController::class, 'update'])
+            ->middleware(PreventPostingInTimeout::class)
+            ->name('api-user-live.update');
+        Route::delete('me/live', [UserLiveController::class, 'destroy'])->name('api-user-live.destroy');
 
         // User Settings: what the web's settings show only the user...
         Route::get('me/settings', [UserSettingsController::class, 'show'])->name('api-user-settings.show');

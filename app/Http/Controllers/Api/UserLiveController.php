@@ -1,0 +1,44 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api;
+
+use App\Actions\DeleteUserLive;
+use App\Actions\UpdateUserLive;
+use App\Http\Requests\UpdateApiUserLiveRequest;
+use App\Http\Resources\CurrentUserResource;
+use App\Models\User;
+use App\Queries\NotificationGroupsQuery;
+use Illuminate\Container\Attributes\CurrentUser;
+
+final readonly class UserLiveController
+{
+    /**
+     * Goes live on a YouTube or Twitch stream for a few hours, as Go live does on the web's profile, and answers as
+     * GET /api/v1/me does. Going live again moves to the new stream and restarts the hours.
+     */
+    public function update(UpdateApiUserLiveRequest $request, #[CurrentUser] User $user, UpdateUserLive $action, NotificationGroupsQuery $notifications): CurrentUserResource
+    {
+        $action->handle($user, $request->platform(), $request->url(), $request->integer('hours'));
+
+        return $this->currentUser($user, $notifications);
+    }
+
+    /**
+     * Ends the stream before its hours are up, and answers as GET /api/v1/me does.
+     */
+    public function destroy(#[CurrentUser] User $user, DeleteUserLive $action, NotificationGroupsQuery $notifications): CurrentUserResource
+    {
+        $action->handle($user);
+
+        return $this->currentUser($user, $notifications);
+    }
+
+    private function currentUser(User $user, NotificationGroupsQuery $notifications): CurrentUserResource
+    {
+        return CurrentUserResource::make($user->loadCounts())->additional([
+            'unread_notifications_count' => $notifications->unreadCount($user),
+        ]);
+    }
+}
