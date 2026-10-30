@@ -24,7 +24,7 @@ final readonly class ActiveUserCountsQuery
      * started. Today's count is still growing. Each count is split into the people who came back, returning, and the
      * people who signed up that day, as every signup is seen on the page it lands on: activated, not activated, or
      * younger than 12 hours, too young to tell. Returning is what's left once the signups are taken out, so it can't
-     * be split further: only the last day each person was seen is kept.
+     * be split further for the days before user_active_days was recorded.
      *
      * @return array<int, ActiveUserCount>
      */
