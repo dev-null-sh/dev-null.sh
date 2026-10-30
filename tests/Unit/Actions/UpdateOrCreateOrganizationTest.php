@@ -6,6 +6,7 @@ use App\Actions\UpdateOrCreateOrganization;
 use App\Enums\ProfileType;
 use App\Models\Organization;
 use App\Models\Profile;
+use Illuminate\Database\UniqueConstraintViolationException;
 
 it('updates the organization with the same GitHub ID when it is renamed', function (): void {
     $organization = Organization::factory()->create(['github_id' => '958072', 'handle' => 'laravel-old', 'github_synced_at' => now()->subWeek()]);
@@ -50,11 +51,12 @@ it('gives the handle up when another profile renamed away from it on GitHub', fu
         ->and($other->refresh()->handle)->toBe('symfony');
 });
 
-it('makes an organization of a profile whose GitHub account turned from a user into an organization', function (): void {
+it("fails rather than turn a user's profile into an organization, which GitHub allows but /dev/null does not handle", function (): void {
     $profile = Profile::factory()->create(['github_id' => '958072', 'handle' => 'laravel']);
 
-    $organization = resolve(UpdateOrCreateOrganization::class)->handle(['login' => 'laravel', 'id' => 958072]);
+    expect(fn () => resolve(UpdateOrCreateOrganization::class)->handle(['login' => 'laravel', 'id' => 958072]))
+        ->toThrow(UniqueConstraintViolationException::class);
 
-    expect($organization->id)->toBe($profile->id)
-        ->and($profile->refresh()->type)->toBe(ProfileType::Organization);
+    expect($profile->refresh()->type)->toBe(ProfileType::User)
+        ->and(Organization::query()->exists())->toBeFalse();
 });

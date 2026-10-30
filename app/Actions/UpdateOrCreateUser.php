@@ -31,10 +31,11 @@ final readonly class UpdateOrCreateUser
         return DB::transaction(function () use ($githubId, $profile, $email, $hasSponsorsListing): User {
             $this->updateStaleHandles->handle($profile->handle, $githubId);
 
+            // A profile never changes type, so an organization's GitHub ID would fail here, but GitHub never signs one in...
             Profile::query()->updateOrCreate([
                 'github_id' => $githubId,
-            ], [
                 'type' => ProfileType::User,
+            ], [
                 ...$profile->attributes(),
                 'github_synced_at' => now(),
             ]);

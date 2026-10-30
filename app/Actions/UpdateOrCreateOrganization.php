@@ -33,10 +33,10 @@ final readonly class UpdateOrCreateOrganization
         return DB::transaction(function () use ($profile, $githubId): Organization {
             $this->updateStaleHandles->handle($profile->handle, (string) $githubId);
 
-            // A user's account GitHub has since turned into an organization becomes one here too...
-            $organization = Profile::query()->updateOrCreate(['github_id' => (string) $githubId], [
+            // A profile never changes type: a user's account GitHub has since turned into an organization fails on its
+            // GitHub ID, until that case is handled...
+            $organization = Profile::query()->updateOrCreate(['github_id' => (string) $githubId, 'type' => ProfileType::Organization], [
                 ...$profile->attributes(),
-                'type' => ProfileType::Organization,
                 'github_synced_at' => now(),
             ]);
 

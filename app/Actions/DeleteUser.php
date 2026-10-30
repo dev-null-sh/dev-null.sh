@@ -12,7 +12,6 @@ use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
-use App\Models\Organization;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
@@ -24,7 +23,7 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class DeleteUser
 {
-    public function __construct(private UpdateCommitHotScores $updateCommitHotScores, private DeleteOrgs $deleteOrgs, private DeleteOrganization $deleteOrganization)
+    public function __construct(private UpdateCommitHotScores $updateCommitHotScores, private DeleteOrgs $deleteOrgs)
     {
         //
     }
@@ -74,13 +73,7 @@ final readonly class DeleteUser
             $user->organizations()->detach();
 
             $user->delete();
-
-            // A user whose GitHub account turned into an organization takes the organization along with their profile...
-            if ($user->profile->organization instanceof Organization) {
-                $this->deleteOrganization->handle($user->profile->organization);
-            } else {
-                $user->profile->delete();
-            }
+            $user->profile->delete();
 
             foreach ($translationKeys as $key) {
                 Cache::forget($key);
