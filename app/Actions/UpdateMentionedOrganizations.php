@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\GitHubProvider;
 use App\Enums\ProfileType;
 use App\Models\Profile;
-use App\Services\GitHub;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Support\Facades\Cache;
@@ -29,7 +29,7 @@ final readonly class UpdateMentionedOrganizations
     private const int NotFoundDays = 1;
 
     public function __construct(
-        private GitHub $github,
+        private GitHubProvider $github,
         private UpdateOrCreateOrganization $updateOrCreateOrganization,
         private DeleteOrganization $deleteOrganization,
     ) {
@@ -49,18 +49,18 @@ final readonly class UpdateMentionedOrganizations
         $profiles = Profile::query()->whereIn(DB::raw('LOWER(handle)'), $handles)->get();
         $known = $profiles->where('type', ProfileType::Organization);
 
-        /** @var list<array{string, Closure(): mixed}> $lookups */
+        /** @var list<array{Closure(): (array<array-key, mixed>|null), Closure(): mixed}> $lookups */
         $lookups = collect($handles)
             ->diff($profiles->map(fn (Profile $profile): string => Str::lower($profile->handle)))
             ->reject(fn (string $handle): bool => Cache::has("github-organizations:not-found:{$handle}"))
             ->map(fn (string $handle): array => [
-                "users/{$handle}",
+                fn (): ?array => $this->github->accountByLogin($handle),
                 fn (): bool => Cache::put("github-organizations:not-found:{$handle}", true, now()->addDays(self::NotFoundDays)),
             ])
             ->merge($known
                 ->filter(fn (Profile $organization): bool => $organization->github_synced_at?->addHours(Profile::FRESH_FOR_HOURS)->isPast() ?? true)
                 ->map(fn (Profile $organization): array => [
-                    "user/{$organization->github_id}",
+                    fn (): ?array => $this->github->account($organization->github_id),
                     function () use ($organization): void {
                         $this->deleteOrganization->handle($organization);
                     },
@@ -69,37 +69,37 @@ final readonly class UpdateMentionedOrganizations
             ->values()
             ->all();
 
-        $retryAt = null;
+        if ($lookups === []) {
+            return null;
+        }
 
-        foreach ($lookups as [$path, $notFound]) {
-            $pausedUntil = Cache::integer('github-organizations:paused', 0);
+        $pausedUntil = Cache::integer('github-organizations:paused', 0);
 
-            if ($pausedUntil > 0) {
-                $retryAt = CarbonImmutable::createFromTimestamp($pausedUntil);
+        if ($pausedUntil === 0) {
+            $rateLimit = $this->github->rateLimit();
 
-                break;
+            if ($rateLimit !== null && $rateLimit['remaining'] < self::RateLimitFloor) {
+                $pausedUntil = $rateLimit['resets_at']->getTimestamp();
+                Cache::put('github-organizations:paused', $pausedUntil, $rateLimit['resets_at']);
             }
+        }
 
-            $response = $this->github->request()->get($path);
-            $remaining = $response->header('X-RateLimit-Remaining');
+        if ($pausedUntil > 0) {
+            return CarbonImmutable::createFromTimestamp($pausedUntil);
+        }
 
-            if ($remaining !== '' && (int) $remaining < self::RateLimitFloor) {
-                $resetsAt = CarbonImmutable::createFromTimestamp((int) $response->header('X-RateLimit-Reset'));
-                Cache::put('github-organizations:paused', $resetsAt->getTimestamp(), $resetsAt);
-            }
+        foreach ($lookups as [$lookUp, $notFound]) {
+            $account = $lookUp();
 
-            if ($response->notFound() || $response->throw()->json('type') !== 'Organization') {
+            if (($account['type'] ?? null) !== 'Organization') {
                 $notFound();
 
                 continue;
             }
 
-            /** @var array<array-key, mixed> $account */
-            $account = $response->json();
-
             $this->updateOrCreateOrganization->handle($account);
         }
 
-        return $retryAt;
+        return null;
     }
 }

@@ -22,8 +22,7 @@ final class CreatePushSubscriptionRequest extends FormRequest
             return Response::deny('Your signed-in account changed.');
         }
 
-        return $user->remotes_enabled && config('services.web_push.public_key') && config('services.web_push.private_key')
-            ? Response::allow() : Response::deny();
+        return $user->remotes_enabled ? Response::allow() : Response::deny();
     }
 
     /**

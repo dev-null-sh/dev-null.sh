@@ -4,20 +4,15 @@ declare(strict_types=1);
 
 namespace App\Services;
 
-use App\Ai\Agents\EmailWriter;
+use App\Contracts\Services\EmailDraftProvider;
 use App\Enums\EmailDraft;
 use App\Queries\ChangelogQuery;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Fluent;
 use RuntimeException;
 
-/**
- * @phpstan-import-type ChangelogPullRequest from ChangelogQuery
- */
 final readonly class EmailDrafts
 {
-    public function __construct(private ChangelogQuery $changelog)
+    public function __construct(private ChangelogQuery $changelog, private EmailDraftProvider $emails)
     {
         //
     }
@@ -40,24 +35,8 @@ final readonly class EmailDrafts
             $before = $changelog['olderBefore'] === null ? null : CarbonImmutable::parse($changelog['olderBefore']);
         } while ($before?->isAfter($since));
 
-        $response = new EmailWriter($draft->days())->prompt($pullRequests
+        return $this->emails->draft($draft->days(), array_values($pullRequests
             ->filter(fn (array $pullRequest): bool => CarbonImmutable::parse($pullRequest['merged_at'])->isAfter($since))
-            ->map(fn (array $pullRequest): string => sprintf(
-                '- [%s] %s (#%d, %s) by %s',
-                $pullRequest['type'] ?? 'other',
-                $pullRequest['title'],
-                $pullRequest['number'],
-                $pullRequest['url'],
-                $pullRequest['author']['mention'] ?? $pullRequest['author']['login'],
-            ))
-            ->whenEmpty(fn (): Collection => collect(['No pull requests were merged.']))
-            ->implode("\n"));
-
-        $email = new Fluent($response->structured);
-
-        return [
-            'subject' => $email->string('subject')->value(),
-            'body' => $email->string('body')->value(),
-        ];
+            ->all()));
     }
 }

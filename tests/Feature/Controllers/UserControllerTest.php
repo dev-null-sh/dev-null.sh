@@ -2,14 +2,15 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Profile;
 use App\Models\User;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia;
 
@@ -734,10 +735,9 @@ it('shows the github profile readme on the readme tab, without looking for commi
     $user = User::factory()->create(['handle' => 'octocat']);
     Commit::factory()->for($user)->create();
 
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => 'octocat']),
-        'api.github.com/repos/octocat/octocat/readme' => Http::response('<div id="readme"><article class="markdown-body"><h2>Hi there</h2></article></div>'),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('readme')->with('octocat')->andReturn('<div id="readme"><article class="markdown-body"><h2>Hi there</h2></article></div>');
 
     $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
         ->where('tab', 'readme')
@@ -749,14 +749,17 @@ it('shows the github profile readme on the readme tab, without looking for commi
 it('tells the readme tab when github did not answer', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
 
-    Http::fake(["api.github.com/user/{$user->github_id}" => Http::response(status: 502)]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->andThrow(new ConnectionException('timed out'));
 
     $this->get(route('user.show', ['user' => $user, 'tab' => 'readme']))->assertOk()->assertInertia(fn ($page) => $page
         ->where('readme', false));
 });
 
 it('does not ask github for the readme on the other tabs', function (string $tab): void {
-    Http::preventStrayRequests();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldNotReceive('login', 'readme');
+
     $user = User::factory()->create(['handle' => 'octocat']);
 
     $this->get(route('user.show', ['user' => $user, 'tab' => $tab]))->assertOk()->assertInertia(fn ($page) => $page
@@ -804,4 +807,58 @@ it('names no followers the viewer knows to guests or on their own profile', func
     $this->actingAs($user)
         ->get(route('user.show', $user))
         ->assertInertia(fn ($page) => $page->where('followersYouKnow', null));
+});
+
+it('moves a profile for good to the handle in its own case, keeping the query string, for a day', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat?tab=replies')
+        ->assertMovedPermanently()
+        ->assertRedirect('/@OctoCat?tab=replies')
+        ->assertHeader('Cache-Control', 'max-age=86400, private');
+
+    $this->get('/@OctoCat')->assertOk();
+});
+
+it('keeps the query string out of the handle it moves a profile to', function (): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat?user=evil')->assertRedirect('/@OctoCat?user=evil');
+    $this->get('/@octocat?tag=one&tag=two')->assertRedirect('/@OctoCat?tag=one&tag=two');
+    $this->get('/@octocat?user[]=a&user[]=b')->assertRedirect('/@OctoCat?user[]=a&user[]=b');
+});
+
+it('moves the people lists of a profile for good to the handle in its own case', function (string $list): void {
+    User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get("/@octocat/{$list}")
+        ->assertMovedPermanently()
+        ->assertRedirect("/@OctoCat/{$list}");
+})->with(['following', 'followers', 'mutuals']);
+
+it('opens each profile at its own case when a stale profile holds the handle in another case', function (): void {
+    $lower = User::factory()->create(['handle' => 'octocat']);
+    $mixed = User::factory()->create(['handle' => 'OctoCat']);
+
+    $this->get('/@octocat')->assertOk()->assertInertia(fn ($page) => $page->where('user.id', $lower->id));
+    $this->get('/@OctoCat')->assertOk()->assertInertia(fn ($page) => $page->where('user.id', $mixed->id));
+
+    $redirect = $this->get('/@OCTOCAT')->assertMovedPermanently();
+
+    expect($redirect->headers->get('Location'))->toBeIn([url('/@octocat'), url('/@OctoCat')])
+        ->and($this->get('/@OCTOCAT')->headers->get('Location'))->toBe($redirect->headers->get('Location'));
+
+    $this->get((string) $redirect->headers->get('Location'))->assertOk();
+});
+
+it('opens the user rather than an organization holding the handle in another case, unless the case is exact', function (): void {
+    $user = User::factory()->create(['handle' => 'Laravel']);
+    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+
+    $this->get('/@LARAVEL')->assertRedirect('/@Laravel')->assertMovedPermanently();
+    $this->get('/@Laravel')->assertOk()->assertInertia(fn ($page) => $page->component('user/show')->where('user.id', $user->id));
+    $this->get('/@laravel')->assertOk()->assertInertia(fn ($page) => $page->component('organization/show')->where('organization.id', $organization->id));
+
+    expect(new Profile()->resolveRouteBinding('LARAVEL', 'handle')?->getKey())->toBe($user->profile->getKey())
+        ->and(new Profile()->resolveRouteBinding('laravel', 'handle')?->getKey())->toBe($organization->getKey());
 });

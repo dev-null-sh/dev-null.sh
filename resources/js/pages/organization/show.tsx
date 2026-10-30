@@ -1,24 +1,53 @@
-import { Head } from '@inertiajs/react';
-import { Link2, MapPin } from 'lucide-react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { AlertCircleIcon, Link2, MapPin, Palette } from 'lucide-react';
+import type { CSSProperties } from 'react';
+import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { GitHubIcon } from '@/components/github-icon';
 import { OrganizationAvatar } from '@/components/organization-avatar';
+import { OrganizationLaneDialog } from '@/components/organization-lane-dialog';
 import { PageTabs } from '@/components/page-tabs';
 import { ProfileShareButton } from '@/components/profile-share-button';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
-import type { Commit, CursorPaginated, Organization } from '@/types';
+import { organizationLaneColor } from '@/lib/utils';
+import type {
+    Commit,
+    CursorPaginated,
+    Lane,
+    Organization,
+    User,
+} from '@/types';
 
 export default function Show({
     organization,
+    lane,
     tab,
     commits,
+    claimUrl,
+    admins,
 }: {
     organization: Organization & { id: string };
+    lane: Lane | null;
     tab: 'mentions';
     commits: CursorPaginated<Commit>;
+    claimUrl: string;
+    admins: User[];
 }) {
+    const { props, flash } = usePage();
+    const { auth } = props;
+    // Kept until the user leaves the page, as the background reloads bring no flash and would hide it.
+    const [claimFailed] = useState(flash.claimFailed);
+    // Only the first claim makes an admin. While a claim failed, its alert offers to try again instead.
+    const claimable = auth.user !== null && admins.length === 0;
+    const canClaim = claimable && claimFailed === undefined;
+    const isAdmin = admins.some((admin) => admin.id === auth.user?.id);
+    const [isLaneDialogOpen, setIsLaneDialogOpen] = useState(false);
+
     return (
         <>
             <Head title={`${organization.name} (@${organization.handle})`} />
@@ -36,11 +65,42 @@ export default function Show({
                 <div className="flex items-start justify-between gap-4">
                     <OrganizationAvatar
                         organization={organization}
-                        className="size-20 rounded-lg text-2xl"
+                        className="size-20 rounded-lg text-2xl ring-2 ring-(--lane) ring-offset-4 ring-offset-card"
                         pixels={160}
+                        style={
+                            {
+                                '--lane': organizationLaneColor(lane),
+                            } as CSSProperties
+                        }
                     />
 
                     <div className="flex shrink-0 gap-1.5 sm:gap-2">
+                        {isAdmin && (
+                            <>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setIsLaneDialogOpen(true)}
+                                    data-test="organization-lane-button"
+                                >
+                                    <Palette />
+                                    Color
+                                </Button>
+                                <OrganizationLaneDialog
+                                    organization={organization}
+                                    lane={lane}
+                                    open={isLaneDialogOpen}
+                                    onOpenChange={setIsLaneDialogOpen}
+                                />
+                            </>
+                        )}
+                        {canClaim && (
+                            <Button variant="outline" asChild>
+                                {/* A form, so no other site can claim for the user. The server sends them on to GitHub. */}
+                                <Link href={claimUrl} method="post" as="button">
+                                    Claim
+                                </Link>
+                            </Button>
+                        )}
                         <ProfileShareButton
                             handle={organization.handle}
                             href={show(organization).url}
@@ -52,6 +112,11 @@ export default function Show({
                     {organization.name}
                 </h1>
                 <p className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
+                    <span
+                        aria-hidden
+                        className="size-2 rounded-full"
+                        style={{ background: organizationLaneColor(lane) }}
+                    />
                     @{organization.handle}
                     <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
                         Organization
@@ -99,6 +164,70 @@ export default function Show({
                         </a>
                     </li>
                 </ul>
+
+                {admins.length > 0 && (
+                    <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                        <span>Admins</span>
+                        {admins.map((admin) => (
+                            <Link
+                                key={admin.id}
+                                href={show(admin.handle)}
+                                className="flex items-center gap-1.5 text-foreground hover:underline"
+                            >
+                                <UserAvatar
+                                    user={admin}
+                                    className="size-5"
+                                    pixels={40}
+                                />
+                                @{admin.handle}
+                            </Link>
+                        ))}
+                    </div>
+                )}
+
+                {claimFailed && (
+                    <Alert className="mt-4 border-destructive-foreground/40 [&>svg]:text-destructive-foreground">
+                        <AlertCircleIcon />
+                        <AlertTitle className="text-destructive-foreground">
+                            Couldn't claim @{organization.handle}
+                        </AlertTitle>
+                        {/* The reason in the text color, as red at this size is hard to read. */}
+                        <AlertDescription className="text-foreground">
+                            <p>{claimFailed.message}</p>
+                            {(claimFailed.approvalUrl || claimable) && (
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                    {claimFailed.approvalUrl && (
+                                        <Button size="sm" asChild>
+                                            <a
+                                                href={claimFailed.approvalUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                            >
+                                                <GitHubIcon className="size-4" />
+                                                Open GitHub
+                                            </a>
+                                        </Button>
+                                    )}
+                                    {claimable && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            asChild
+                                        >
+                                            <Link
+                                                href={claimUrl}
+                                                method="post"
+                                                as="button"
+                                            >
+                                                Try again
+                                            </Link>
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
+                        </AlertDescription>
+                    </Alert>
+                )}
             </header>
 
             <div className="min-h-dvh">

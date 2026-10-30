@@ -129,7 +129,7 @@ function ConversationRow({
         lastMessage === null
             ? ''
             : lastMessage.event
-              ? eventText(lastMessage, user)
+              ? eventText(lastMessage, user, partner)
               : lastBody;
     const className = cn(
         'relative grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 text-left transition-colors hover:bg-accent focus-visible:-outline-offset-2',

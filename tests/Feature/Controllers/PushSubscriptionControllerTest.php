@@ -2,14 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\PushNotificationProvider;
 use App\Models\PushSubscription;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-
-beforeEach(function (): void {
-    config(['services.web_push.public_key' => 'public', 'services.web_push.private_key' => 'private']);
-});
 
 it('requires a signed-in account', function (): void {
     $this->getJson(route('push-subscription.index'))->assertUnauthorized();
@@ -17,12 +14,10 @@ it('requires a signed-in account', function (): void {
     $this->deleteJson(route('push-subscription.destroy'), ['endpoint' => 'https://fcm.googleapis.com/wp/example'])->assertUnauthorized();
 });
 
-it('exposes only the public key when delivery is configured', function (): void {
-    $user = User::factory()->create();
-    $this->actingAs($user)->getJson(route('push-subscription.index'))->assertExactJson(['public_key' => 'public']);
-    config(['services.web_push.private_key' => null]);
-    $this->getJson(route('push-subscription.index'))->assertExactJson(['public_key' => null]);
-    $this->postJson(route('push-subscription.store'), ['endpoint' => 'https://fcm.googleapis.com/wp/example', 'user_id' => $user->id])->assertForbidden();
+it('exposes only the public key browsers subscribe with', function (): void {
+    $this->mock(PushNotificationProvider::class)->shouldReceive('publicKey')->andReturn('public');
+
+    $this->actingAs(User::factory()->create())->getJson(route('push-subscription.index'))->assertExactJson(['public_key' => 'public']);
 });
 
 it('stores an encrypted endpoint and transfers the browser to the current account without duplicating it', function (): void {

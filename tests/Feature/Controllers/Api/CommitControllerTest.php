@@ -56,6 +56,7 @@ it('shows an approved commit to anyone', function (): void {
                 'html_url' => route('user.show', $user),
                 'feed_url' => route('user-feed.show', $user),
                 'created_at' => now()->toIso8601ZuluString(),
+                'live' => null,
             ],
         ]]);
 });
@@ -231,6 +232,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
         'html_url' => route('user.show', $author),
         'feed_url' => route('user-feed.show', $author),
         'created_at' => now()->toIso8601ZuluString(),
+        'live' => null,
         'lane' => $author->lane(),
     ];
 

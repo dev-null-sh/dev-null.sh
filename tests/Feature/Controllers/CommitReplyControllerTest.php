@@ -6,6 +6,7 @@ use App\Actions\CreateTomFriendship;
 use App\Actions\CreateTomReply;
 use App\Actions\DeleteUser;
 use App\Ai\Agents\Tom;
+use App\Contracts\Services\ToolDecisionProvider;
 use App\Enums\CommitStatus;
 use App\Jobs\DetectCommitLanguage;
 use App\Jobs\ReplyAsTom;
@@ -15,7 +16,6 @@ use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
@@ -23,7 +23,7 @@ it('answers a casual public Tom mention in the same thread', function (): void {
     config(['app.admins' => ['alice', 'tom'], 'ai.providers.opencode.key' => 'test', 'ai.providers.openai.key' => 'test']);
     Queue::fake([ReplyAsTom::class, DetectCommitLanguage::class]);
     Tom::fake(['A little rusty, but happy to see you. :-D'])->preventStrayPrompts();
-    Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
+    $this->mock(ToolDecisionProvider::class)->shouldReceive('tools')->once()->with('@tom how are your rusty joints?', Mockery::any())->andReturn(collect());
     $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $user = User::factory()->create(['handle' => 'alice']);
     $parent = Commit::factory()->create();
@@ -39,7 +39,6 @@ it('answers a casual public Tom mention in the same thread', function (): void {
         ->assertJsonPath('data.0.user.id', $tom->id)
         ->assertJsonPath('data.0.root_id', $parent->id);
     Tom::assertPrompted('@tom how are your rusty joints?');
-    Http::assertSentCount(1);
 });
 
 it('rejects non-text reply bodies with a validation error', function (mixed $body): void {

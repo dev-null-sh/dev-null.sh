@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\GitHubProvider;
 use App\Dto\SshPublicKey;
 use App\Models\SshKey;
 use App\Models\User;
-use App\Services\GitHub;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -19,7 +18,7 @@ final readonly class UpdateUserSshKeys
 {
     private const int FreshForMinutes = 5;
 
-    public function __construct(private GitHub $github)
+    public function __construct(private GitHubProvider $github)
     {
         //
     }
@@ -42,8 +41,9 @@ final readonly class UpdateUserSshKeys
             return;
         }
 
-        $fingerprints = $this->publicKeys("users/{$handle}/keys")
-            ->merge($this->publicKeys("users/{$handle}/ssh_signing_keys"))
+        $fingerprints = collect($this->github->sshKeys($handle))
+            ->map(fn (string $key): ?SshPublicKey => SshPublicKey::tryFromOpenSsh($key))
+            ->filter()
             ->map(fn (SshPublicKey $publicKey): string => $publicKey->fingerprint())
             ->unique()
             ->values();
@@ -63,19 +63,5 @@ final readonly class UpdateUserSshKeys
         });
 
         Cache::put($cacheKey, true, now()->addMinutes(self::FreshForMinutes));
-    }
-
-    /**
-     * @return Collection<int, SshPublicKey>
-     */
-    private function publicKeys(string $path): Collection
-    {
-        /** @var list<array{key: string}> $keys */
-        $keys = $this->github->request()->get($path, ['per_page' => 100])->throw()->json();
-
-        return collect($keys)
-            ->map(fn (array $key): ?SshPublicKey => SshPublicKey::tryFromOpenSsh($key['key']))
-            ->filter()
-            ->values();
     }
 }

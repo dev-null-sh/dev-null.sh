@@ -3,17 +3,18 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateCommitTopics;
+use App\Contracts\Services\GitHubProvider;
 use App\Jobs\LinkCommitTopics;
 use App\Models\Commit;
 use App\Models\Profile;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Exceptions;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
 it('links the organizations the commit mentions', function (): void {
-    Http::fake();
-
     $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
     $commit = Commit::factory()->create(['body' => 'Thanks @laravel', 'mentions' => []]);
 
@@ -23,7 +24,8 @@ it('links the organizations the commit mentions', function (): void {
 });
 
 it('runs again once the rate limit resets when it cut the lookups short', function (): void {
-    Http::fake();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldNotReceive('accountByLogin');
 
     $resetsAt = now()->addMinutes(30)->startOfSecond();
     Cache::put('github-organizations:paused', $resetsAt->getTimestamp(), $resetsAt);
@@ -32,13 +34,10 @@ it('runs again once the rate limit resets when it cut the lookups short', functi
 
     $job->handle(resolve(UpdateCommitTopics::class));
 
-    Http::assertNothingSent();
     $job->assertReleased($resetsAt);
 });
 
 it('is done once it looked every handle up', function (): void {
-    Http::fake(['api.github.com/users/*' => Http::response(status: 404)]);
-
     $commit = Commit::factory()->create(['body' => 'Thanks @laravel', 'mentions' => []]);
     $job = new LinkCommitTopics($commit)->withFakeQueueInteractions();
 
@@ -48,9 +47,9 @@ it('is done once it looked every handle up', function (): void {
 });
 
 it('waits for as many rate limit resets as it takes', function (): void {
-    Http::fake([
-        'api.github.com/users/laravel' => Http::response(['login' => 'laravel', 'id' => 958072, 'type' => 'Organization', 'name' => 'Laravel', 'avatar_url' => null, 'bio' => null, 'location' => null, 'blog' => '', 'company' => null]),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('rateLimit')->andReturnNull();
+    $github->shouldReceive('accountByLogin')->with('laravel')->andReturn(['login' => 'laravel', 'id' => 958072, 'type' => 'Organization', 'name' => 'Laravel', 'avatar_url' => null, 'bio' => null, 'location' => null, 'blog' => '', 'company' => null]);
 
     $commit = Commit::factory()->create(['body' => 'Thanks @laravel', 'mentions' => []]);
     Queue::connection('database')->push(new LinkCommitTopics($commit));
@@ -61,7 +60,7 @@ it('waits for as many rate limit resets as it takes', function (): void {
         $this->travel(1)->hour();
     }
 
-    Http::assertNothingSent();
+    $github->shouldNotHaveReceived('accountByLogin');
 
     $this->artisan('queue:work', ['connection' => 'database', '--once' => true])->assertSuccessful();
 
@@ -72,7 +71,9 @@ it('waits for as many rate limit resets as it takes', function (): void {
 
 it('gives up after three failures', function (): void {
     Exceptions::fake();
-    Http::fake(['api.github.com/users/*' => Http::response(status: 502)]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('rateLimit')->andReturnNull();
+    $github->shouldReceive('accountByLogin')->andThrow(new RequestException(new Response(new Psr7Response(502))));
 
     $commit = Commit::factory()->create(['body' => 'Thanks @laravel', 'mentions' => []]);
     Queue::connection('database')->push(new LinkCommitTopics($commit));
@@ -82,7 +83,7 @@ it('gives up after three failures', function (): void {
         $this->artisan('queue:work', ['connection' => 'database', '--once' => true])->assertSuccessful();
     }
 
-    Http::assertSentCount(3);
+    $github->shouldHaveReceived('accountByLogin')->times(3);
     $this->assertDatabaseCount('jobs', 0);
     $this->assertDatabaseCount('failed_jobs', 1);
 });

@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
-use App\Ai\Agents\CommitTranslator;
+use App\Contracts\Services\TranslationProvider;
 use App\Enums\CommitStatus;
 use App\Exceptions\CommitProcessingFailed;
+use App\Exceptions\InvalidTranslation;
 use App\Models\Commit;
 use App\Services\CommitTranslations;
 use Illuminate\Support\Facades\Cache;
@@ -16,7 +17,7 @@ use Throwable;
 
 final readonly class CreateCommitTranslation
 {
-    public function __construct(private CommitTranslations $translations)
+    public function __construct(private CommitTranslations $translations, private TranslationProvider $translator)
     {
         //
     }
@@ -35,14 +36,9 @@ final readonly class CreateCommitTranslation
             $reason = 'provider_request';
 
             try {
-                $response = new CommitTranslator($language)->prompt($commit->body);
-
-                $source = $response['source_language'] ?? null;
-                $body = $response['body'] ?? null;
+                ['source_language' => $source, 'body' => $body] = $this->translator->translate($commit->body, $language);
 
                 $reason = match (true) {
-                    $response->structured === [] => 'empty_or_malformed_response',
-                    ! is_string($source), ! is_string($body) => 'invalid_response_shape',
                     ! in_array($source, [...$this->translations->languages(), 'und'], true) => 'unsupported_source_language',
                     $language !== null && $source !== 'und' && blank($body) => 'empty_translation',
                     $language !== null && $source !== 'und' && mb_strlen($body) > 16000 => 'translation_too_long',
@@ -52,6 +48,8 @@ final readonly class CreateCommitTranslation
                 if ($reason !== null) {
                     throw new RuntimeException('Invalid translation response.');
                 }
+            } catch (InvalidTranslation $invalid) {
+                throw new CommitProcessingFailed('Translation', $commit->id, new RuntimeException($invalid->getMessage()), $invalid->reason);
             } catch (Throwable $throwable) {
                 throw new CommitProcessingFailed('Translation', $commit->id, $throwable, $reason);
             }

@@ -5,8 +5,14 @@ declare(strict_types=1);
 use App\Actions\CreateTomFriendship;
 use App\Actions\CreateTomReply;
 use App\Ai\Agents\Tom;
+use App\Ai\Tools\CommunityStats;
+use App\Ai\Tools\RepositoryInsights;
 use App\Ai\Tools\SearchCommits;
 use App\Ai\Tools\SearchKnowledgeBase;
+use App\Ai\Tools\SearchRepositoryHistory;
+use App\Contracts\Services\EmbeddingProvider;
+use App\Contracts\Services\GitHubProvider;
+use App\Contracts\Services\ToolDecisionProvider;
 use App\Enums\CommitStatus;
 use App\Enums\Feature;
 use App\Jobs\EmbedCommit;
@@ -16,11 +22,9 @@ use App\Models\Commit;
 use App\Models\KnowledgeBaseSection;
 use App\Models\User;
 use App\Services\Features;
-use App\Services\TomToolDecision;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
-use Laravel\Ai\Embeddings;
 use Laravel\Ai\Messages\Message;
 use Laravel\Ai\Tools\Request as ToolRequest;
 
@@ -38,7 +42,6 @@ it('forces the selected tools before Tom answers and supports a bounded follow-u
     config(['ai.providers.openai.key' => 'test-openai', 'ai.providers.opencode.key' => 'test-opencode']);
     Queue::fake([EmbedCommit::class, ModerateCommit::class, ReplyAsTom::class]);
     resolve(Features::class)->update(Feature::Translations, false);
-    Embeddings::fake([[embeddingVector(0)], [embeddingVector(0)]]);
     $public = Commit::factory()->for(User::factory()->state(['location' => 'Portugal']))->create(['body' => 'Public database topic', 'embedding' => embeddingVector(0)]);
     Commit::factory()->pending()->create(['body' => 'Pending secret', 'embedding' => embeddingVector(0)]);
     Commit::factory()->rejected()->create(['body' => 'Rejected secret', 'embedding' => embeddingVector(0)]);
@@ -67,23 +70,22 @@ it('forces the selected tools before Tom answers and supports a bounded follow-u
     $responses->push(['choices' => [['finish_reason' => 'stop', 'message' => [
         'role' => 'assistant', 'content' => 'PostgreSQL, with a side of rust. :-D',
     ]]]]);
-    Http::fake([
-        'api.openai.com/v1/decisions' => Http::sequence()->push(['answers' => collect($calls)->take(5)->map(fn (array $call): array => [
-            'name' => $call['name'], 'type' => 'predicate', 'probability' => 1,
-        ])->all()])->push(relevanceResponse([true])),
-        'api.github.com/repos/dev-null-sh/dev-null.sh/languages' => Http::response(['PHP' => 123]),
-        'api.github.com/search/issues*' => Http::response(['incomplete_results' => false, 'items' => []]),
-        'api.github.com/search/commits*' => Http::sequence()->push(['incomplete_results' => false, 'items' => [[
-            'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/abc',
-            'author' => ['login' => 'alice', 'id' => 123], 'committer' => ['login' => 'not-the-author'],
-            'commit' => ['message' => "feat: database search\n\nsecret trailer", 'author' => ['email' => 'secret@example.com', 'date' => '2025-01-01T00:00:00Z']],
-        ]]])->push(['incomplete_results' => false, 'items' => [[
-            'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/def',
-            'author' => ['login' => 'bob', 'id' => 456],
-            'commit' => ['message' => 'feat: semantic search', 'author' => ['date' => '2024-01-01T00:00:00Z']],
-        ]]]),
-        'opencode.ai/zen/v1/chat/completions' => $responses,
-    ]);
+    Http::fake(['opencode.ai/zen/v1/chat/completions' => $responses]);
+    $this->mock(ToolDecisionProvider::class)->shouldReceive('tools')->once()->with($question->body, Mockery::any())->andReturn(collect([
+        new SearchCommits, new SearchKnowledgeBase, new RepositoryInsights, new SearchRepositoryHistory, new CommunityStats,
+    ]));
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('languages')->andReturn(['PHP' => 123]);
+    $github->shouldReceive('searchIssues')->andReturn(['incomplete' => false, 'total' => 0, 'items' => []]);
+    $github->shouldReceive('searchCommits')->andReturn(['incomplete' => false, 'total' => 1, 'items' => [[
+        'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/abc',
+        'author' => ['login' => 'alice', 'id' => 123], 'committer' => ['login' => 'not-the-author'],
+        'commit' => ['message' => "feat: database search\n\nsecret trailer", 'author' => ['email' => 'secret@example.com', 'date' => '2025-01-01T00:00:00Z']],
+    ]]], ['incomplete' => false, 'total' => 1, 'items' => [[
+        'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/def',
+        'author' => ['login' => 'bob', 'id' => 456],
+        'commit' => ['message' => 'feat: semantic search', 'author' => ['date' => '2024-01-01T00:00:00Z']],
+    ]]]);
 
     resolve(CreateTomReply::class)->handle($question->id);
 
@@ -100,10 +102,6 @@ it('forces the selected tools before Tom answers and supports a bounded follow-u
         ['CommunityStats', ['CommunityStats']],
     ]);
     expect($requests->get(5)['tools'])->toHaveCount(5);
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/decisions'
-        && $request['model'] === 'gpt-6-luna'
-        && collect($request['questions'])->pluck('name')->all() === ['SearchCommits', 'SearchKnowledgeBase', 'RepositoryInsights', 'SearchRepositoryHistory', 'CommunityStats']
-        && collect($request['questions'])->every(fn (array $question): bool => $question['type'] === 'predicate'));
     Http::assertSent(function (Request $request) use ($public): bool {
         if ($request->url() !== 'https://opencode.ai/zen/v1/chat/completions') {
             return false;
@@ -136,7 +134,6 @@ it('retains all three search sources through retries and removes only spent tool
     config(['ai.providers.openai.key' => 'test-openai', 'ai.providers.opencode.key' => 'test-opencode']);
     Queue::fake([EmbedCommit::class, ModerateCommit::class, ReplyAsTom::class]);
     resolve(Features::class)->update(Feature::Translations, false);
-    Embeddings::fake([[embeddingVector(0)]]);
     Commit::factory()->create(['body' => 'I like the new badges.', 'embedding' => embeddingVector(0)]);
     KnowledgeBaseSection::factory()->create(['headings' => ['Badges'], 'content' => 'Badges reward milestones.', 'embedding' => embeddingVector(0)]);
     $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
@@ -157,22 +154,16 @@ it('retains all three search sources through retries and removes only spent tool
     $responses->push(['choices' => [['finish_reason' => 'stop', 'message' => [
         'role' => 'assistant', 'content' => 'Badges reward milestones. Members like them, and the repository records their introduction.',
     ]]]]);
-    $decisions = Http::sequence()->push(['answers' => collect(['SearchCommits', 'SearchKnowledgeBase', 'SearchRepositoryHistory'])
-        ->map(fn (string $name): array => ['name' => $name, 'type' => 'predicate', 'probability' => 1])->all()]);
-    foreach (range(1, 2) as $search) {
-        $decisions->push(relevanceResponse([true]));
-    }
-
-    Http::fake([
-        'api.openai.com/v1/decisions' => $decisions,
-        'api.github.com/search/issues*' => Http::response(['incomplete_results' => false, 'items' => []]),
-        'api.github.com/search/commits*' => Http::response(['incomplete_results' => false, 'items' => [[
-            'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/abc',
-            'author' => ['login' => 'alice', 'id' => 123],
-            'commit' => ['message' => 'feat: introduce badges', 'author' => ['date' => '2026-10-20T00:00:00Z']],
-        ]]]),
-        'opencode.ai/zen/v1/chat/completions' => $responses,
-    ]);
+    Http::fake(['opencode.ai/zen/v1/chat/completions' => $responses]);
+    $this->mock(ToolDecisionProvider::class)->shouldReceive('tools')->once()->with($question->body, Mockery::any())
+        ->andReturn(collect([new SearchCommits, new SearchKnowledgeBase, new SearchRepositoryHistory]));
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('searchIssues')->andReturn(['incomplete' => false, 'total' => 0, 'items' => []]);
+    $github->shouldReceive('searchCommits')->andReturn(['incomplete' => false, 'total' => 1, 'items' => [[
+        'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/abc',
+        'author' => ['login' => 'alice', 'id' => 123],
+        'commit' => ['message' => 'feat: introduce badges', 'author' => ['date' => '2026-10-20T00:00:00Z']],
+    ]]]);
 
     resolve(CreateTomReply::class)->handle($question->id);
 
@@ -193,16 +184,6 @@ it('retains all three search sources through retries and removes only spent tool
     $evidence = $results->pluck('content')->implode(' ');
     expect($evidence)->toContain('Badges reward milestones.', 'I like the new badges.', 'feat: introduce badges')
         ->not->toContain('budget exhausted');
-    Http::assertSent(function (Request $request): bool {
-        if ($request->url() !== 'https://api.openai.com/v1/decisions' || ! str_contains($request['input'], 'Tell me about badges')) {
-            return false;
-        }
-
-        $criteria = json_encode($request['questions']);
-        expect($criteria)->toContain('notable events', 'Sources are complementary, not mutually exclusive', 'how it evolved', 'community reactions');
-
-        return true;
-    });
 });
 
 it('routes a dated signup question to community statistics and supplies the calendar count as evidence', function (): void {
@@ -214,10 +195,9 @@ it('routes a dated signup question to community statistics and supplies the cale
     User::factory()->create(['created_at' => '2026-10-19 12:00:00']);
     $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $question = Commit::factory()->create(['body' => '@tom how many people joined on October 20, 2026?', 'mentions' => ['tom' => $tom->id]]);
+    $this->mock(ToolDecisionProvider::class)->shouldReceive('tools')->once()->with($question->body, Mockery::any())
+        ->andReturn(collect([new CommunityStats]));
     Http::fake([
-        'api.openai.com/v1/decisions' => Http::response(['answers' => [
-            ['name' => 'CommunityStats', 'type' => 'predicate', 'probability' => 1],
-        ]]),
         'opencode.ai/zen/v1/chat/completions' => Http::sequence()->push(['choices' => [['finish_reason' => 'tool_calls', 'message' => [
             'role' => 'assistant', 'content' => null, 'tool_calls' => [
                 ['id' => 'call-signups', 'type' => 'function', 'function' => [
@@ -232,9 +212,6 @@ it('routes a dated signup question to community statistics and supplies the cale
     resolve(CreateTomReply::class)->handle($question->id);
 
     expect($question->replies()->sole()->body)->toBe('Two current members joined on October 20, 2026 (UTC).');
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/decisions'
-        && str_contains($request['input'], $question->body)
-        && str_contains(json_encode($request['questions']), 'particular calendar date'));
     Http::assertSent(function (Request $request): bool {
         if ($request->url() !== 'https://opencode.ai/zen/v1/chat/completions') {
             return false;
@@ -256,37 +233,37 @@ it('uses public thread context for the decision and falls back to chat when no t
     Commit::factory()->for($root, 'parent')->create(['body' => 'Unrelated sibling']);
     $question = Commit::factory()->for($answer, 'parent')->create(['body' => 'Thanks, Tom!']);
     Http::fake([
-        'api.openai.com/v1/decisions' => Http::response(['answers' => []]),
         'opencode.ai/zen/v1/chat/completions' => Http::response([
             'choices' => [['finish_reason' => 'stop', 'message' => ['role' => 'assistant', 'content' => 'You are welcome. :-)']]],
         ]),
     ]);
+    $this->mock(ToolDecisionProvider::class)->shouldReceive('tools')->once()
+        ->withArgs(function (string $message, iterable $history) use ($question): bool {
+            $context = collect($history)->map(fn (Message $message): string => $message->content)->implode("\n");
+
+            return $message === $question->body
+                && str_contains($context, 'How do bookmarks work?')
+                && str_contains($context, 'They save posts for later.')
+                && ! str_contains($context, 'Unrelated sibling');
+        })
+        ->andReturn(collect());
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldNotReceive('contributors', 'repository', 'languages', 'searchIssues', 'searchCommits', 'closedPullRequests');
+
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldNotReceive('embed');
 
     resolve(CreateTomReply::class)->handle($question->id);
 
     expect($question->replies()->sole()->body)->toBe('You are welcome. :-)');
-    expect(Http::recorded(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/decisions'))->toHaveCount(1);
-    Http::assertSent(function (Request $request) use ($question): bool {
-        if ($request->url() !== 'https://api.openai.com/v1/decisions') {
-            return false;
-        }
-
-        $input = json_encode($request['input']);
-        expect($input)->toContain('How do bookmarks work?', 'They save posts for later.', $question->body)
-            ->not->toContain('Unrelated sibling');
-
-        return $request['model'] === 'gpt-6-luna';
-    });
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://opencode.ai/zen/v1/chat/completions'
         && empty($request['tools']));
-    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.github.com') || str_contains($request->url(), '/embeddings'));
 });
 
 it('retries skipped tools at most twice and never publishes an incomplete reply', function (int $skippedAttempts): void {
     config(['ai.providers.openai.key' => 'test-openai', 'ai.providers.opencode.key' => 'test-opencode']);
     Queue::fake([EmbedCommit::class, ModerateCommit::class, ReplyAsTom::class]);
     resolve(Features::class)->update(Feature::Translations, false);
-    Embeddings::fake([[embeddingVector(0)]]);
     KnowledgeBaseSection::factory()->create(['headings' => ['Pastéis'], 'content' => 'Pastéis are pastry awards.', 'embedding' => embeddingVector(0)]);
     $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $root = Commit::factory()->create(['body' => 'What are pastels here?']);
@@ -309,12 +286,11 @@ it('retries skipped tools at most twice and never publishes an incomplete reply'
         ]]]]);
     }
 
-    Http::fake([
-        'api.openai.com/v1/decisions' => Http::response(['answers' => [
-            ['name' => 'SearchKnowledgeBase', 'type' => 'predicate', 'probability' => 1],
-        ]]),
-        'opencode.ai/zen/v1/chat/completions' => $responses,
-    ]);
+    Http::fake(['opencode.ai/zen/v1/chat/completions' => $responses]);
+    $this->mock(ToolDecisionProvider::class)->shouldReceive('tools')->once()
+        ->withArgs(fn (string $message, iterable $history): bool => $message === $question->body
+            && collect($history)->contains(fn (Message $message): bool => str_contains($message->content, $root->body)))
+        ->andReturn(collect([new SearchKnowledgeBase]));
 
     if ($skippedAttempts === 3) {
         expect(fn () => resolve(CreateTomReply::class)->handle($question->id))
@@ -328,29 +304,9 @@ it('retries skipped tools at most twice and never publishes an incomplete reply'
 
     expect(Http::recorded(fn (Request $request): bool => $request->url() === 'https://opencode.ai/zen/v1/chat/completions'))
         ->toHaveCount($skippedAttempts === 3 ? 3 : $skippedAttempts + 2);
-    expect(Http::recorded(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/decisions'))->toHaveCount(1);
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.openai.com/v1/decisions'
-        && str_contains($request['input'], $root->body)
-        && str_contains($request['input'], $question->body));
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://opencode.ai/zen/v1/chat/completions'
         && ($request['tool_choice']['function']['name'] ?? null) === 'SearchKnowledgeBase');
 })->with([1, 2, 3]);
-
-it('selects only known affirmative predicates at or above the probability threshold', function (): void {
-    Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => [
-        ['name' => 'CommunityStats', 'type' => 'predicate', 'probability' => 0.5],
-        ['name' => 'SearchKnowledgeBase', 'type' => 'predicate', 'probability' => 0.49],
-        ['name' => 'RepositoryInsights', 'type' => 'refusal', 'probability' => 1],
-        ['name' => 'SearchCommits', 'type' => 'choice', 'choice' => 'yes'],
-        ['name' => 'SearchRepositoryHistory', 'type' => 'predicate', 'probability' => 1.1],
-        ['name' => 'UnknownTool', 'type' => 'predicate', 'probability' => 1],
-        'invalid answer',
-    ]])]);
-
-    $tools = resolve(TomToolDecision::class)->decide('How many members are here?', []);
-
-    expect($tools->map(class_basename(...))->all())->toBe(['CommunityStats']);
-});
 
 it('remembers only the public ancestor branch with the correct speakers', function (): void {
     $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
@@ -391,7 +347,6 @@ it('bounds history by both posts and characters and signals a nearly full window
 })->with(['message limit' => [10, 12], 'character limit' => [3500, 3]]);
 
 it('caps tool results and search calls for each reply', function (): void {
-    Embeddings::fake([[embeddingVector(0)]]);
     KnowledgeBaseSection::factory()->count(4)->create(['content' => str_repeat('k', 4000), 'embedding' => embeddingVector(0)]);
     $tool = new SearchKnowledgeBase;
     $request = new ToolRequest(['query' => 'origins']);

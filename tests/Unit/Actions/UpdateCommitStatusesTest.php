@@ -97,6 +97,17 @@ it('notifies the quoted authors of the approved quotes', function (): void {
         ->toEqualCanonicalizing($quotes->modelKeys());
 });
 
+it("tells the author's followers about their first commit once it is approved", function (): void {
+    $author = User::factory()->create();
+    $follower = User::factory()->create();
+    $author->followers()->attach($follower);
+    $commit = Commit::factory()->for($author)->pending()->create();
+
+    resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
+
+    expect($follower->notifications()->sole()->commit_id)->toBe($commit->id);
+});
+
 it('lifts the thread when a reply is approved', function (): void {
     $commit = Commit::factory()->create();
     $reply = Commit::factory()->pending()->for($commit, 'parent')->create();

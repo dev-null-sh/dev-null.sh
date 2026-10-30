@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 use App\Actions\CreateTomFriendship;
 use App\Actions\CreateWorldReply;
+use App\Contracts\Services\AnalyticsProvider;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\ProductFunnelQuery;
 use Carbon\CarbonImmutable;
-use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 19)->setTime(12, 0));
@@ -181,13 +180,12 @@ it('has no retention before tracking started, or before signups got through thei
 });
 
 it('counts visitors and conversion from Fathom events', function (): void {
-    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
-
-    Http::fake(fn (Request $request) => Http::response([match ($request->data()['entity_name'] ?? null) {
-        'guest-visit' => ['unique_conversions' => '400'],
-        'signin-click' => ['unique_conversions' => '20'],
-        'signup' => ['unique_conversions' => '3'],
-    }]));
+    $analytics = $this->mock(AnalyticsProvider::class);
+    $analytics->shouldReceive('eventVisitors')->andReturnUsing(fn (CarbonImmutable $from, CarbonImmutable $to, string $event): int => match ($event) {
+        'guest-visit' => 400,
+        'signup' => 3,
+    });
+    $analytics->shouldReceive('eventVisitorsByDay', 'eventVisitorsBy')->andReturnNull();
 
     User::factory()->count(4)->create(['created_at' => '2026-10-02 00:00:00']);
 
@@ -207,12 +205,12 @@ it('has no visitors or conversion without Fathom', function (): void {
 });
 
 it('tells acquisition for each day, signups from the database and conversion from Fathom, today as incomplete', function (): void {
-    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
-
-    Http::fake(fn (Request $request) => Http::response(isset($request->data()['date_grouping']) ? match ($request->data()['entity_name']) {
-        'guest-visit' => [['unique_conversions' => '400', 'date' => '2026-10-17'], ['unique_conversions' => '50', 'date' => '2026-10-19']],
-        'signup' => [['unique_conversions' => '3', 'date' => '2026-10-17']],
-    } : [['unique_conversions' => '0']]));
+    $analytics = $this->mock(AnalyticsProvider::class);
+    $analytics->shouldReceive('eventVisitorsByDay')->andReturnUsing(fn (CarbonImmutable $from, CarbonImmutable $to, string $event): array => match ($event) {
+        'guest-visit' => ['2026-10-17' => 400, '2026-10-19' => 50],
+        'signup' => ['2026-10-17' => 3],
+    });
+    $analytics->shouldReceive('eventVisitors', 'eventVisitorsBy')->andReturnNull();
 
     User::factory()->count(2)->create(['created_at' => '2026-10-17 08:00:00']);
     User::factory()->create(['created_at' => '2026-10-18 23:00:00']);
@@ -226,13 +224,13 @@ it('tells acquisition for each day, signups from the database and conversion fro
 });
 
 it('tells taps to sign in and conversion for each type of device, most visitors first', function (): void {
-    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
-
-    Http::fake(fn (Request $request) => Http::response(isset($request->data()['field_grouping']) ? match ($request->data()['entity_name']) {
-        'guest-visit' => [['unique_conversions' => '400', 'device_type' => 'Phone'], ['unique_conversions' => '100', 'device_type' => 'Desktop']],
-        'signin-click' => [['unique_conversions' => '40', 'device_type' => 'Phone'], ['unique_conversions' => '12', 'device_type' => 'Desktop']],
-        'signup' => [['unique_conversions' => '9', 'device_type' => 'Desktop'], ['unique_conversions' => '4', 'device_type' => 'Phone'], ['unique_conversions' => '1', 'device_type' => 'Tablet']],
-    } : [['unique_conversions' => '0']]));
+    $analytics = $this->mock(AnalyticsProvider::class);
+    $analytics->shouldReceive('eventVisitorsBy')->andReturnUsing(fn (CarbonImmutable $from, CarbonImmutable $to, string $event, string $field): array => match ($event) {
+        'guest-visit' => ['Phone' => 400, 'Desktop' => 100],
+        'signin-click' => ['Phone' => 40, 'Desktop' => 12],
+        'signup' => ['Desktop' => 9, 'Phone' => 4, 'Tablet' => 1],
+    });
+    $analytics->shouldReceive('eventVisitors', 'eventVisitorsByDay')->andReturnNull();
 
     expect(($this->funnel)()['conversion_by_device'])->toBe([
         ['device' => 'Phone', 'visitors' => 400, 'tapped' => 40, 'converted' => 4],
@@ -288,19 +286,4 @@ it('has no changes until the period before started after the launch', function (
 
     expect(($this->funnel)('2026-10-15', '2026-10-19', isAllTime: true)['changes'])
         ->toBe(['conversion' => null, 'activation' => null, 'retention' => null]);
-});
-
-it('stops asking Fathom once it has no answer', function (): void {
-    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
-    ($this->trackSince)('2026-09-01');
-
-    Http::fake(['api.usefathom.com/*' => Http::response(status: 500)]);
-
-    User::factory()->create(['created_at' => '2026-09-01 10:00:00']);
-
-    expect(($this->funnel)('2026-09-01', '2026-10-19', isAllTime: true))
-        ->visitors->toBeNull()
-        ->rates->conversion->toBeNull();
-
-    Http::assertSentCount(1);
 });

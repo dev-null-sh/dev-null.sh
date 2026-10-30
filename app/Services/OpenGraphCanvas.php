@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\Profile;
 use App\Models\User;
 use GdImage;
-use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 /**
@@ -24,6 +23,11 @@ final readonly class OpenGraphCanvas
     public const int INK = 0x121417;
 
     public const int INK_MUTED = 0x5B616B;
+
+    /**
+     * /dev/null's blue, the lane of organizations until their admins choose one.
+     */
+    public const int PRIMARY = 0x3B6FE0;
 
     public const int RAIL_X = 112;
 
@@ -49,15 +53,13 @@ final readonly class OpenGraphCanvas
 
     private GdImage $image;
 
-    public function __construct()
+    public function __construct(private GitHubProvider $github)
     {
         $this->image = $this->blank(self::WIDTH * self::SCALE, self::HEIGHT * self::SCALE);
     }
 
-    public function lane(User $user): int
+    public function lane(int|string $lane): int
     {
-        $lane = $user->lane();
-
         return is_string($lane) ? (int) hexdec(mb_substr($lane, 1)) : self::LANES[$lane];
     }
 
@@ -312,21 +314,13 @@ final readonly class OpenGraphCanvas
 
     private function download(?string $url): ?GdImage
     {
-        if ($url === null) {
+        $body = $url === null ? null : $this->github->avatar($url);
+
+        if ($body === null || @getimagesizefromstring($body) === false) {
             return null;
         }
 
-        try {
-            $response = Http::timeout(3)->connectTimeout(2)->get($url);
-        } catch (ConnectionException) {
-            return null;
-        }
-
-        if (! $response->successful() || @getimagesizefromstring($response->body()) === false) {
-            return null;
-        }
-
-        $avatar = @imagecreatefromstring($response->body());
+        $avatar = @imagecreatefromstring($body);
 
         return $avatar instanceof GdImage ? $avatar : null;
     }

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\User;
-use App\Services\GitHub;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Fluent;
@@ -29,7 +29,7 @@ final readonly class ContributorsQuery
      */
     private const array Agents = ['ampagent', 'claude'];
 
-    public function __construct(private GitHub $github)
+    public function __construct(private GitHubProvider $github)
     {
         //
     }
@@ -79,16 +79,7 @@ final readonly class ContributorsQuery
 
             try {
                 for ($page = 1; $page <= self::MaxPages; $page++) {
-                    $accounts = $this->github->request()->get("repos/{$repository}/contributors", [
-                        'per_page' => self::PerPage,
-                        'page' => $page,
-                    ])->throw()->collect();
-
-                    if ($accounts->isNotEmpty() && ! array_is_list($accounts->all())) {
-                        $contributors = false;
-
-                        break;
-                    }
+                    $accounts = collect($this->github->contributors($repository, $page, self::PerPage));
 
                     $contributors = [...$contributors, ...$accounts->where('type', 'User')
                         ->mapInto(Fluent::class)

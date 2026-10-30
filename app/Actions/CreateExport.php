@@ -46,6 +46,7 @@ use Traversable;
  *     muting: Generator<int, ExportUser>,
  *     blocking: Generator<int, ExportUser>,
  *     dismissed_suggestions: Generator<int, ExportUser>,
+ *     claimed_organizations: array<int, array{handle: string, claimed_at: string}>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
@@ -113,6 +114,7 @@ final readonly class CreateExport
             'muting' => $this->handles($user->muting()),
             'blocking' => $this->handles($user->blocking()),
             'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
+            'claimed_organizations' => $this->claimedOrganizations($user),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
                 'commit_id' => $report->commit_id,
@@ -298,6 +300,23 @@ final readonly class CreateExport
         foreach ($users as $user) {
             yield ['handle' => $user->handle];
         }
+    }
+
+    /**
+     * @return array<int, array{handle: string, claimed_at: string}>
+     */
+    private function claimedOrganizations(User $user): array
+    {
+        /** @var Collection<int, object{handle: string, created_at: string}> $claims */
+        $claims = $user->claimedOrganizations()->newPivotQuery()
+            ->join('profiles', 'profiles.id', '=', 'organization_admins.organization_id')
+            ->oldest('organization_admins.created_at')
+            ->get(['profiles.handle', 'organization_admins.created_at']);
+
+        return $claims->map(fn (object $claim): array => [
+            'handle' => $claim->handle,
+            'claimed_at' => CarbonImmutable::parse($claim->created_at)->toIso8601String(),
+        ])->all();
     }
 
     /**

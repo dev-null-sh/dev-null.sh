@@ -8,7 +8,6 @@ use App\Http\Requests\ShowProductMetricsRequest;
 use App\Queries\ActiveUserCountsQuery;
 use App\Queries\ActiveUsersQuery;
 use App\Queries\CommitResponsesQuery;
-use App\Queries\FathomTrafficQuery;
 use App\Queries\NewcomerFollowsQuery;
 use App\Queries\ProductFunnelQuery;
 use Inertia\Inertia;
@@ -26,7 +25,6 @@ final readonly class ProductMetricsController
         CommitResponsesQuery $responses,
         NewcomerFollowsQuery $newcomerFollows,
         ActiveUserCountsQuery $activeUserCounts,
-        FathomTrafficQuery $traffic,
     ): Response {
         $from = $request->from();
         $to = $request->to();
@@ -38,7 +36,6 @@ final readonly class ProductMetricsController
             'responses' => fn (): array => $responses->get($from, $to),
             'newcomerFollows' => fn (): array => $newcomerFollows->get($from, $to),
             'activeUserCounts' => fn (): array => $activeUserCounts->get($from, $to),
-            'hasTraffic' => $traffic->isConfigured(),
         ]);
     }
 }

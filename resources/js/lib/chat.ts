@@ -397,7 +397,7 @@ export class ChatRequestError extends Error {
 /**
  * Sends JSON, or a form when there are files in it, which gets longer to upload.
  */
-async function request<T>(
+export async function request<T>(
     url: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
     body?: object | FormData,

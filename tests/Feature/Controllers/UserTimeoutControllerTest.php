@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateScheduledCommitSubmittedAt;
+use App\Contracts\Services\GitHubProvider;
 use App\Enums\ModerationReason;
 use App\Models\Ban;
 use App\Models\Commit;
@@ -334,7 +335,8 @@ it('keeps the timeouts of a deleted account, so signing up again neither ends on
     expect(UserTimeout::query()->count())->toBe(2);
 
     Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => 'octocat']));
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $this->get(route('login.store'))->assertRedirect();
 

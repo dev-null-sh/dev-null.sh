@@ -3,19 +3,19 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateMentionedOrganizations;
+use App\Contracts\Services\GitHubProvider;
 use App\Enums\ProfileType;
 use App\Jobs\LookUpUserOrganizations;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 
 it('looks the organizations the bio and company mention up, but not the users', function (): void {
-    Http::fake([
-        'api.github.com/users/laravel' => Http::response(['login' => 'laravel', 'id' => 958072, 'type' => 'Organization', 'name' => 'Laravel', 'avatar_url' => null, 'bio' => null, 'location' => null, 'blog' => '', 'company' => null]),
-        'api.github.com/users/*' => Http::response(status: 404),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('rateLimit')->andReturnNull();
+    $github->shouldReceive('accountByLogin')->with('laravel')->once()->andReturn(['login' => 'laravel', 'id' => 958072, 'type' => 'Organization', 'name' => 'Laravel', 'avatar_url' => null, 'bio' => null, 'location' => null, 'blog' => '', 'company' => null]);
+    $github->shouldReceive('accountByLogin')->with('nobody')->once()->andReturnNull();
 
     User::factory()->create(['handle' => 'taylorotwell']);
     $user = User::factory()->create(['bio' => 'Thanks @TaylorOtwell and @nobody', 'company' => '@laravel']);
@@ -23,12 +23,11 @@ it('looks the organizations the bio and company mention up, but not the users', 
     dispatch_sync(new LookUpUserOrganizations($user));
 
     expect(Profile::query()->where('type', ProfileType::Organization)->pluck('handle')->all())->toBe(['laravel']);
-    Http::assertSentCount(2);
-    Http::assertNotSent(fn ($request): bool => str_contains((string) $request->url(), 'taylorotwell'));
 });
 
 it('runs again once the rate limit resets when it cut the lookups short', function (): void {
-    Http::fake();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldNotReceive('accountByLogin');
 
     $resetsAt = now()->addMinutes(30)->startOfSecond();
     Cache::put('github-organizations:paused', $resetsAt->getTimestamp(), $resetsAt);
@@ -36,13 +35,10 @@ it('runs again once the rate limit resets when it cut the lookups short', functi
 
     $job->handle(resolve(UpdateMentionedOrganizations::class));
 
-    Http::assertNothingSent();
     $job->assertReleased($resetsAt);
 });
 
 it('is done once it looked every handle up', function (): void {
-    Http::fake(['api.github.com/users/*' => Http::response(status: 404)]);
-
     $job = new LookUpUserOrganizations(User::factory()->create(['bio' => 'Building @laravel']))->withFakeQueueInteractions();
 
     $job->handle(resolve(UpdateMentionedOrganizations::class));

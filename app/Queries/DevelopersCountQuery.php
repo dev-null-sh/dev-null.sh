@@ -16,7 +16,7 @@ final readonly class DevelopersCountQuery
      */
     public function get(): int
     {
-        return Cache::remember('developers-count', 3600, function (): int {
+        return (int) Cache::remember('developers-count', 3600, function (): int {
             $count = User::query()->whereNull('banned_at')->whereNotIn('github_id', User::BOT_GITHUB_IDS)->count();
             $step = $count >= 1000 ? 1000 : 100;
 

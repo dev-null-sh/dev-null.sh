@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Contracts\Services\EmbeddingProvider;
+use App\Contracts\Services\RelevanceProvider;
 use App\Models\Commit;
 use App\Models\User;
-use App\Services\OpenAI;
 use Illuminate\Support\Collection;
-use Laravel\Ai\Embeddings;
-use Laravel\Ai\Enums\Lab;
+use Illuminate\Support\Facades\Cache;
 
 final readonly class CommitSearchQuery
 {
@@ -25,7 +25,7 @@ final readonly class CommitSearchQuery
      */
     private const int MINIMUM_TERM_LENGTH = 3;
 
-    public function __construct(private OpenAI $openAI)
+    public function __construct(private EmbeddingProvider $embeddings, private RelevanceProvider $relevance)
     {
         //
     }
@@ -45,13 +45,8 @@ final readonly class CommitSearchQuery
             return new Collection();
         }
 
-        $embedding = Embeddings::for([$term])
-            ->dimensions(OpenAI::EMBEDDING_DIMENSIONS)
-            ->cache(self::CACHE_SECONDS)
-            ->generate(provider: Lab::OpenAI, model: OpenAI::EMBEDDING_MODEL)
-            ->first();
-
-        $vector = array_values($embedding);
+        /** @var list<float> $vector */
+        $vector = Cache::remember('search-embedding:'.hash('sha256', $term), self::CACHE_SECONDS, fn (): array => $this->embeddings->embed($term));
 
         $candidates = Commit::query()
             ->whereIn('commits.id', $this->nearest($vector, $viewer, $limit * 2))
@@ -102,7 +97,7 @@ final readonly class CommitSearchQuery
             return $candidates;
         }
 
-        $relevant = $this->openAI->decideRelevance($term, array_values($candidates->map(fn (Commit $commit): string => $commit->body)->all()));
+        $relevant = $this->relevance->decideRelevance($term, array_values($candidates->map(fn (Commit $commit): string => $commit->body)->all()));
 
         return $candidates
             ->filter(fn (Commit $commit, int $index): bool => $relevant[$index] ?? true)

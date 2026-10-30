@@ -2,8 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\User;
-use Illuminate\Support\Facades\Http;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 
 it('renders profile settings page', function (): void {
     $user = User::factory()->create();
@@ -106,7 +109,10 @@ it('renders when the profile was last synced from github', function (?string $sy
 it('may sync the profile from github', function (): void {
     $user = User::factory()->create(['github_id' => '583231', 'handle' => 'old-handle', 'bio' => 'Old bio']);
 
-    fakeGitHubAccount($user, ['login' => 'octocat', 'bio' => 'New bio']);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with($user->github_id)->andReturn(['login' => 'octocat', 'bio' => 'New bio']);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('sshKeys')->with('octocat')->andReturn([]);
 
     $response = $this->actingAs($user)
         ->fromRoute('user-profile.edit')
@@ -127,9 +133,8 @@ it('may sync the profile from github', function (): void {
 it('tells the user when github could not be synced', function (): void {
     $user = User::factory()->create(['handle' => 'old-handle']);
 
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['message' => 'Server Error'], 500),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with($user->github_id)->andThrow(new RequestException(new Response(new Psr7Response(500))));
 
     $response = $this->actingAs($user)
         ->fromRoute('user-profile.edit')
@@ -148,7 +153,10 @@ it('allows one sync a minute', function (): void {
     $user = User::factory()->create();
     $other = User::factory()->create();
 
-    fakeGitHubAccount($user);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with($user->github_id)->andReturn(['login' => 'octocat']);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn('octocat');
+    $github->shouldReceive('sshKeys')->with('octocat')->andReturn([]);
 
     $this->actingAs($user)
         ->fromRoute('user-profile.edit')
@@ -164,7 +172,7 @@ it('allows one sync a minute', function (): void {
             'message' => 'You just synced. Try again in a minute.',
         ]);
 
-    Http::assertSentCount(4);
+    $github->shouldHaveReceived('account')->once();
 
     $this->travel(1)->minute();
 
@@ -173,7 +181,9 @@ it('allows one sync a minute', function (): void {
         ->put(route('user-profile.update'))
         ->assertInertiaFlash('toast.type', 'success');
 
-    fakeGitHubAccount($other, ['login' => 'hubot']);
+    $github->shouldReceive('account')->with($other->github_id)->andReturn(['login' => 'hubot']);
+    $github->shouldReceive('login')->with($other->github_id)->andReturn('hubot');
+    $github->shouldReceive('sshKeys')->with('hubot')->andReturn([]);
 
     $this->actingAs($other)
         ->fromRoute('user-profile.edit')
@@ -182,11 +192,13 @@ it('allows one sync a minute', function (): void {
 });
 
 it('requires authentication to sync', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+
     $response = $this->put(route('user-profile.update'));
 
     $response->assertRedirectToRoute('home');
 
-    Http::assertNothingSent();
+    $github->shouldNotHaveReceived('account');
 });
 
 it('shows the private translation preference and supported choices only in own settings', function (): void {

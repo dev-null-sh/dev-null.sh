@@ -2,16 +2,11 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\EmbeddingProvider;
+use App\Contracts\Services\RelevanceProvider;
 use App\Models\Commit;
-use Illuminate\Support\Facades\Http;
-
-beforeEach(function (): void {
-    config(['ai.providers.openai.key' => 'sk-test']);
-});
 
 it('returns the commits matching the query, to guests too, with what the card renders', function (): void {
-    fakeSearch();
-
     $commit = Commit::factory()->create(['body' => 'Shipped a new feature', 'embedding' => embeddingVector(0)]);
     Commit::factory()->create(['body' => 'Something else', 'embedding' => embeddingVector(1)]);
 
@@ -29,7 +24,8 @@ it('returns the commits matching the query, to guests too, with what the card re
 });
 
 it('drops the candidates the decision model calls irrelevant', function (): void {
-    fakeSearch([true, false]);
+    $relevance = $this->mock(RelevanceProvider::class);
+    $relevance->shouldReceive('decideRelevance')->with('indexing', ['About indexing', 'About something else'])->once()->andReturn([true, false]);
 
     $relevant = Commit::factory()->create(['body' => 'About indexing', 'embedding' => embeddingVector(0)]);
     Commit::factory()->create(['body' => 'About something else', 'embedding' => embeddingVector(1)]);
@@ -41,8 +37,6 @@ it('drops the candidates the decision model calls irrelevant', function (): void
 });
 
 it('returns no more than the requested limit', function (): void {
-    fakeSearch();
-
     Commit::factory()->count(3)->create(['embedding' => embeddingVector(0)]);
 
     $this->getJson('/search/commits?q=feature&limit=2')
@@ -50,15 +44,14 @@ it('returns no more than the requested limit', function (): void {
         ->assertJsonCount(2, 'commits');
 });
 
-it('returns nothing, and asks openai nothing, for a term shorter than three characters', function (): void {
-    Http::fake();
+it('returns nothing, and embeds nothing, for a term shorter than three characters', function (): void {
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldNotReceive('embed');
     Commit::factory()->create(['embedding' => embeddingVector(0)]);
 
     $this->getJson('/search/commits?q=ab')
         ->assertOk()
         ->assertJsonCount(0, 'commits');
-
-    Http::assertNothingSent();
 });
 
 it('rejects overly long queries and out-of-range limits', function (string $query): void {
@@ -70,8 +63,6 @@ it('rejects overly long queries and out-of-range limits', function (string $quer
 ]);
 
 it('asks guests to slow down after 15 searches a minute', function (): void {
-    Http::fake();
-
     for ($attempt = 0; $attempt < 15; $attempt++) {
         $this->getJson('/search/commits?q=ab')->assertOk();
     }

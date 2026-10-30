@@ -29,6 +29,15 @@ it('rounds down to the thousand from a thousand', function (): void {
     expect(resolve(DevelopersCountQuery::class)->get())->toBe(1000);
 });
 
+it('returns an integer when the cached count is a numeric string', function (string $cachedCount, int $expected): void {
+    Cache::put('developers-count', $cachedCount, 3600);
+
+    expect(resolve(DevelopersCountQuery::class)->get())->toBe($expected);
+})->with([
+    ['0', 0],
+    ['12000', 12000],
+]);
+
 it('counts once an hour', function (): void {
     User::factory()->count(100)->create();
 

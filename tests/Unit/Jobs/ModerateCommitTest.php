@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\ModerationProvider;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Exceptions\CommitProcessingFailed;
@@ -10,74 +11,20 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Notification;
+use App\Models\Poll;
 use App\Models\User;
-use GuzzleHttp\Promise\PromiseInterface;
-use Illuminate\Http\Client\Request;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
-beforeEach(function (): void {
-    config(['ai.providers.openai.key' => 'sk-test']);
-});
-
-/**
- * @param  list<string>  $flagged
- * @param  array<string, float>  $scores
- * @return array{results: list<array{flagged: bool, categories: array<string, bool>, category_scores: array<string, float>}>}
- */
-function moderationResponse(array $flagged = [], array $scores = []): array
-{
-    $categories = ['harassment', 'violence', 'sexual', 'sexual/minors'];
-
-    return ['results' => [[
-        'flagged' => $flagged !== [],
-        'categories' => array_combine($categories, array_map(fn (string $category): bool => in_array($category, $flagged, true), $categories)),
-        'category_scores' => array_combine($categories, array_map(fn (string $category): float => $scores[$category] ?? (in_array($category, $flagged, true) ? 0.9 : 0.0), $categories)),
-    ]]];
-}
-
-/**
- * @return array{status: string, output: list<array{type: string, role: string, content: list<array<string, string>>}>}
- */
-function reviewResponse(string $question, bool|string $answer): array
-{
-    $content = is_bool($answer)
-        ? ['type' => 'output_text', 'text' => json_encode([$question => $answer])]
-        : ['type' => 'refusal', 'refusal' => $answer];
-
-    return ['status' => 'completed', 'output' => [['type' => 'message', 'role' => 'assistant', 'content' => [$content]]]];
-}
-
-/**
- * Answers each question the reasoning model is asked with the given response, and a clear no otherwise.
- *
- * @param  array<string, array<string, mixed>>  $responses
- * @return Closure(Request): PromiseInterface
- */
-function reviewResponses(array $responses = []): Closure
-{
-    return function (Request $request) use ($responses): PromiseInterface {
-        $question = array_key_first($request['text']['format']['schema']['properties']);
-
-        return Http::response($responses[$question] ?? reviewResponse($question, false));
-    };
-}
-
-dataset('unclear answers', [
-    'a refusal' => [reviewResponse('any', "I'm sorry, I cannot assist with that request.")],
-    'unreadable text' => [['status' => 'incomplete', 'output' => [['type' => 'message', 'role' => 'assistant', 'content' => [['type' => 'output_text', 'text' => '{"min']]]]]],
-    'no output' => [['status' => 'completed', 'output' => []]],
-]);
-
 it('stores that the ai would approve a commit it does not flag', function (): void {
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
-        'api.openai.com/v1/responses' => reviewResponses(),
-    ]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->once()->with('Shipped a new feature', [])->andReturn([]);
+    $moderation->shouldReceive('isHarmful')->once()->with('Shipped a new feature')->andReturnFalse();
 
     $commit = Commit::factory()->pending()->create(['body' => 'Shipped a new feature']);
 
@@ -87,24 +34,12 @@ it('stores that the ai would approve a commit it does not flag', function (): vo
         ->ai_decision->toBe(CommitStatus::Approved)
         ->ai_categories->toBe([])
         ->status->toBe(CommitStatus::Approved);
-
-    Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer sk-test')
-        && $request['model'] === 'omni-moderation-latest'
-        && $request['input'] === [['type' => 'text', 'text' => 'Shipped a new feature']]);
-
-    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/responses')
-        && $request['model'] === 'gpt-6.1-sol'
-        && $request['text']['format']['schema']['required'] === ['harmful']
-        && $request['input'][1]['content'] === [['type' => 'input_text', 'text' => 'Shipped a new feature']]);
-
-    Http::assertSentCount(2);
 });
 
 it('auto-approves clean commits without requiring approved history', function (CommitStatus $previousStatus, bool $sameAuthor, bool $deleted, bool $anonymous, CommitStatus $expected): void {
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
-        'api.openai.com/v1/responses' => reviewResponses(),
-    ]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturn([]);
+    $moderation->shouldReceive('isHarmful')->andReturnFalse();
 
     $previous = Commit::factory()->create(['status' => $previousStatus]);
 
@@ -137,10 +72,9 @@ it('auto-approves clean commits without requiring approved history', function (C
 ]);
 
 it('keeps flagged commits pending even when the author has an approved commit', function (bool $harmful): void {
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::response($harmful ? moderationResponse() : moderationResponse(['harassment'])),
-        'api.openai.com/v1/responses' => reviewResponses(['harmful' => reviewResponse('harmful', $harmful)]),
-    ]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturn($harmful ? [] : ['harassment' => 0.9]);
+    $moderation->shouldReceive('isHarmful')->andReturn($harmful);
 
     $previous = Commit::factory()->create();
     $commit = Commit::factory()->pending()->create(['user_id' => $previous->user_id]);
@@ -153,10 +87,9 @@ it('keeps flagged commits pending even when the author has an approved commit', 
 })->with([true, false]);
 
 it('stores that the ai would reject a commit it flags, and why', function (): void {
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::response(moderationResponse(['harassment', 'violence'])),
-        'api.openai.com/v1/responses' => reviewResponses(),
-    ]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturn(['harassment' => 0.9, 'violence' => 0.9]);
+    $moderation->shouldReceive('isHarmful')->andReturnFalse();
 
     $commit = Commit::factory()->pending()->create();
 
@@ -169,10 +102,9 @@ it('stores that the ai would reject a commit it flags, and why', function (): vo
 });
 
 it('rejects a commit the ai is all but certain about, without a reason', function (): void {
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::response(moderationResponse(['harassment'], ['harassment' => 0.95])),
-        'api.openai.com/v1/responses' => reviewResponses(),
-    ]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturn(['harassment' => 0.95]);
+    $moderation->shouldReceive('isHarmful')->andReturnFalse();
 
     $commit = Commit::factory()->pending()->create();
 
@@ -191,10 +123,9 @@ it('rejects a commit the ai is all but certain about, without a reason', functio
 });
 
 it('leaves a commit the ai is not all but certain about to moderators', function (): void {
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::response(moderationResponse(['harassment'], ['harassment' => 0.94])),
-        'api.openai.com/v1/responses' => reviewResponses(),
-    ]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturn(['harassment' => 0.94]);
+    $moderation->shouldReceive('isHarmful')->andReturnFalse();
 
     $commit = Commit::factory()->pending()->create();
 
@@ -205,15 +136,17 @@ it('leaves a commit the ai is not all but certain about to moderators', function
         ->status->toBe(CommitStatus::Pending);
 });
 
-it('checks the images of a commit too, one per request', function (string $category): void {
+it('checks the images of a commit too', function (string $category): void {
     Storage::fake();
     Storage::put('commit-images/first.webp', 'first');
     Storage::put('commit-images/second.webp', 'second');
 
-    Http::fakeSequence('api.openai.com/v1/moderations')
-        ->push(moderationResponse())
-        ->push(moderationResponse([$category]));
-    Http::fake(['api.openai.com/v1/responses' => reviewResponses()]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->once()->with('Look at this', [
+        'data:image/webp;base64,'.base64_encode('first'),
+        'data:image/webp;base64,'.base64_encode('second'),
+    ])->andReturn([$category => 0.9]);
+    $moderation->shouldReceive('isHarmful')->once()->with('Look at this')->andReturnFalse();
 
     $commit = Commit::factory()->pending()->create(['body' => 'Look at this']);
     CommitImage::factory()->for($commit)->create(['path' => 'commit-images/first.webp', 'position' => 0]);
@@ -225,30 +158,68 @@ it('checks the images of a commit too, one per request', function (string $categ
         ->ai_decision->toBe(CommitStatus::Rejected)
         ->ai_categories->toBe([$category])
         ->status->toBe(CommitStatus::Pending);
-
-    $inputs = Http::recorded(fn (Request $request): bool => str_ends_with($request->url(), '/moderations'))
-        ->map(fn (array $pair): mixed => $pair[0]['input'])
-        ->all();
-
-    expect($inputs)->toBe([
-        [
-            ['type' => 'text', 'text' => 'Look at this'],
-            ['type' => 'image_url', 'image_url' => ['url' => 'data:image/webp;base64,'.base64_encode('first')]],
-        ],
-        [
-            ['type' => 'image_url', 'image_url' => ['url' => 'data:image/webp;base64,'.base64_encode('second')]],
-        ],
-    ]);
 })->with(['sexual', 'sexual/minors']);
+
+it('checks the image descriptions and poll options along with the body', function (): void {
+    Storage::fake();
+    Storage::put('commit-images/first.webp', 'first');
+
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->once()->with("Which editor?\n\nA screenshot\n\nVim\n\nEmacs", ['data:image/webp;base64,'.base64_encode('first')])->andReturn([]);
+    $moderation->shouldReceive('isHarmful')->once()->with("Which editor?\n\nA screenshot\n\nVim\n\nEmacs")->andReturnFalse();
+
+    $commit = Commit::factory()->pending()->create(['body' => 'Which editor?']);
+    CommitImage::factory()->for($commit)->create(['path' => 'commit-images/first.webp', 'position' => 0, 'description' => 'A screenshot']);
+    Poll::factory()->for($commit)->unopened()->withOptions('Vim', 'Emacs')->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+});
+
+it('keeps a commit pending when only its image descriptions or poll options are flagged', function (string $where): void {
+    Storage::fake();
+    Storage::put('commit-images/first.webp', 'first');
+
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturnUsing(fn (string $text): array => str_contains($text, 'buy my course') ? ['harassment' => 0.9] : []);
+    $moderation->shouldReceive('isHarmful')->andReturnFalse();
+
+    $commit = Commit::factory()->pending()->create(['body' => 'Which editor?']);
+    CommitImage::factory()->for($commit)->create([
+        'path' => 'commit-images/first.webp',
+        'position' => 0,
+        'description' => $where === 'image description' ? 'buy my course' : null,
+    ]);
+    Poll::factory()->for($commit)->unopened()->withOptions(...$where === 'poll option' ? ['buy my course', 'Emacs'] : ['Vim', 'Emacs'])->create();
+
+    dispatch_sync(new ModerateCommit($commit));
+
+    expect($commit->refresh())
+        ->ai_decision->toBe(CommitStatus::Rejected)
+        ->ai_categories->toBe(['harassment'])
+        ->status->toBe(CommitStatus::Pending);
+})->with(['image description', 'poll option']);
+
+it('checks the image description of a commit without a body as its text', function (): void {
+    Storage::fake();
+    Storage::put('commit-images/first.webp', 'first');
+
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->once()->with('A screenshot', ['data:image/webp;base64,'.base64_encode('first')])->andReturn([]);
+    $moderation->shouldReceive('isHarmful')->once()->with('A screenshot')->andReturnFalse();
+
+    $commit = Commit::factory()->pending()->create(['body' => '']);
+    CommitImage::factory()->for($commit)->create(['path' => 'commit-images/first.webp', 'position' => 0, 'description' => 'A screenshot']);
+
+    dispatch_sync(new ModerateCommit($commit));
+});
 
 it('checks only the images of a commit without a body', function (): void {
     Storage::fake();
     Storage::put('commit-images/first.webp', 'first');
 
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
-        'api.openai.com/v1/responses' => reviewResponses(),
-    ]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->once()->with('', ['data:image/webp;base64,'.base64_encode('first')])->andReturn([]);
+    $moderation->shouldNotReceive('isHarmful');
 
     $commit = Commit::factory()->pending()->create(['body' => '']);
     CommitImage::factory()->for($commit)->create(['path' => 'commit-images/first.webp', 'position' => 0]);
@@ -258,83 +229,12 @@ it('checks only the images of a commit without a body', function (): void {
     expect($commit->refresh())
         ->ai_decision->toBe(CommitStatus::Approved)
         ->ai_categories->toBe([]);
-
-    Http::assertSent(fn (Request $request): bool => str_ends_with($request->url(), '/moderations')
-        && $request['input'] === [['type' => 'image_url', 'image_url' => ['url' => 'data:image/webp;base64,'.base64_encode('first')]]]);
-
-    Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/responses')
-        && $request['text']['format']['schema']['required'] === ['harmful']);
 });
-
-it('flags categories scoring above the strict thresholds, even when openai does not flag them', function (): void {
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::response(moderationResponse(scores: [
-            'harassment' => 0.2,
-            'violence' => 0.19,
-            'sexual/minors' => 0.01,
-        ])),
-        'api.openai.com/v1/responses' => reviewResponses(),
-    ]);
-
-    $commit = Commit::factory()->pending()->create();
-
-    dispatch_sync(new ModerateCommit($commit));
-
-    expect($commit->refresh())
-        ->ai_decision->toBe(CommitStatus::Rejected)
-        ->ai_categories->toBe(['harassment', 'sexual/minors']);
-});
-
-it('approves otherwise safe images without guessing ages', function (string $body): void {
-    Storage::fake();
-    Storage::put('commit-images/first.webp', 'first');
-    Storage::put('commit-images/second.webp', 'second');
-
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
-        'api.openai.com/v1/responses' => reviewResponses(['minors' => reviewResponse('minors', true)]),
-    ]);
-
-    $commit = Commit::factory()->pending()->create(['body' => $body]);
-    CommitImage::factory()->for($commit)->create(['path' => 'commit-images/first.webp', 'position' => 0]);
-    CommitImage::factory()->for($commit)->create(['path' => 'commit-images/second.webp', 'position' => 1]);
-
-    dispatch_sync(new ModerateCommit($commit));
-
-    expect($commit->refresh())
-        ->ai_decision->toBe(CommitStatus::Approved)
-        ->ai_categories->toBe([])
-        ->status->toBe(CommitStatus::Approved);
-
-    Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/responses')
-        && $request['text']['format']['schema']['required'] === ['minors']);
-})->with(['with text' => 'A family day out', 'images only' => '']);
-
-it('does not hold safe images for an inconclusive age review', function (array $response): void {
-    Storage::fake();
-    Storage::put('commit-images/first.webp', 'first');
-
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
-        'api.openai.com/v1/responses' => reviewResponses(['minors' => $response]),
-    ]);
-
-    $commit = Commit::factory()->pending()->create();
-    CommitImage::factory()->for($commit)->create(['path' => 'commit-images/first.webp']);
-
-    dispatch_sync(new ModerateCommit($commit));
-
-    expect($commit->refresh())
-        ->ai_decision->toBe(CommitStatus::Approved)
-        ->ai_categories->toBe([])
-        ->status->toBe(CommitStatus::Approved);
-})->with('unclear answers');
 
 it('flags text the moderation model misses, such as an implied threat, without rejecting it', function (): void {
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
-        'api.openai.com/v1/responses' => reviewResponses(['harmful' => reviewResponse('harmful', true)]),
-    ]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturn([]);
+    $moderation->shouldReceive('isHarmful')->once()->with('I hate joomla and i have a bomb')->andReturnTrue();
 
     $commit = Commit::factory()->pending()->create(['body' => 'I hate joomla and i have a bomb']);
 
@@ -346,35 +246,22 @@ it('flags text the moderation model misses, such as an implied threat, without r
         ->status->toBe(CommitStatus::Pending);
 });
 
-it('flags text when the reasoning model gives no clear answer', function (array $response): void {
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
-        'api.openai.com/v1/responses' => reviewResponses(['harmful' => $response]),
-    ]);
-
-    $commit = Commit::factory()->pending()->create();
-
-    dispatch_sync(new ModerateCommit($commit));
-
-    expect($commit->refresh())
-        ->ai_decision->toBe(CommitStatus::Rejected)
-        ->ai_categories->toBe(['harmful-text']);
-})->with('unclear answers');
-
 it('skips commits that were moderated in the meantime', function (): void {
-    Http::fake();
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldNotReceive('moderate');
+    $moderation->shouldNotReceive('isHarmful');
 
     $commit = Commit::factory()->create();
 
     dispatch_sync(new ModerateCommit($commit));
 
-    Http::assertNothingSent();
-
     expect($commit->refresh()->ai_decision)->toBeNull();
 });
 
 it('approves queued commits without calling the ai when the author has good reputation', function (): void {
-    Http::fake();
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldNotReceive('moderate');
+    $moderation->shouldNotReceive('isHarmful');
 
     $user = User::factory()->create(['created_at' => now()->subHour()->subSecond()]);
     Commit::factory()->for($user)->create();
@@ -386,23 +273,22 @@ it('approves queued commits without calling the ai when the author has good repu
     expect($commit->refresh())
         ->status->toBe(CommitStatus::Approved)
         ->ai_decision->toBeNull();
-
-    Http::assertNothingSent();
 });
 
 it('skips commits that were deleted in the meantime', function (): void {
-    Http::fake();
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldNotReceive('moderate');
+    $moderation->shouldNotReceive('isHarmful');
 
     $commit = Commit::factory()->pending()->create();
     $commit->delete();
 
     dispatch_sync(new ModerateCommit($commit));
-
-    Http::assertNothingSent();
 });
 
 it('throws when the ai is unavailable, so the job is retried', function (): void {
-    Http::fake(['api.openai.com/v1/moderations' => Http::response(['error' => 'Sensitive provider response'], 503)]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andThrow(new RequestException(new Response(new Psr7Response(503, [], '{"error":"Sensitive provider response"}'))));
 
     $commit = Commit::factory()->pending()->create();
 
@@ -416,13 +302,10 @@ it('throws when the ai is unavailable, so the job is retried', function (): void
 it('keeps unavailable moderation pending and recovers on a later queued attempt', function (bool $recovers): void {
     config(['queue.default' => 'sync']);
     Exceptions::fake();
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::sequence()
-            ->push(['error' => 'Sensitive provider response'], 503)
-            ->push(['error' => 'Sensitive provider response'], 503)
-            ->push($recovers ? moderationResponse() : ['error' => 'Sensitive provider response'], $recovers ? 200 : 503),
-        'api.openai.com/v1/responses' => reviewResponses(),
-    ]);
+    $unavailable = fn (): never => throw new RequestException(new Response(new Psr7Response(503, [], '{"error":"Sensitive provider response"}')));
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->times(3)->andReturnUsing($unavailable, $unavailable, $recovers ? fn (): array => [] : $unavailable);
+    $moderation->shouldReceive('isHarmful')->andReturnFalse();
     $commit = Commit::factory()->pending()->create();
     Queue::connection('database')->push(new ModerateCommit($commit));
 
@@ -449,10 +332,9 @@ it('keeps unavailable moderation pending and recovers on a later queued attempt'
 })->with([true, false]);
 
 it('approves clean commits even when their author has been reported', function (): void {
-    Http::fake([
-        'api.openai.com/v1/moderations' => Http::response(moderationResponse()),
-        'api.openai.com/v1/responses' => reviewResponses(),
-    ]);
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->andReturn([]);
+    $moderation->shouldReceive('isHarmful')->andReturnFalse();
     $reported = Commit::factory()->create();
     CommitReport::factory()->for($reported)->create();
     $commit = Commit::factory()->pending()->create(['user_id' => $reported->user_id]);
@@ -465,7 +347,10 @@ it('approves clean commits even when their author has been reported', function (
 });
 
 it('approves reputable authors without calling the ai even when they have been reported', function (): void {
-    Http::fake();
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldNotReceive('moderate');
+    $moderation->shouldNotReceive('isHarmful');
+
     $user = User::factory()->create(['created_at' => now()->subHours(2)]);
     $reported = Commit::factory()->for($user)->create();
     followersOf($user, 10);
@@ -477,5 +362,4 @@ it('approves reputable authors without calling the ai even when they have been r
     expect($commit->refresh())
         ->status->toBe(CommitStatus::Approved)
         ->ai_decision->toBeNull();
-    Http::assertNothingSent();
 });

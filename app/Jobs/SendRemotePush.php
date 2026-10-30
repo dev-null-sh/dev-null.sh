@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Contracts\Services\PushNotificationProvider;
 use App\Enums\OrgEvent;
 use App\Enums\RemoteStatus;
 use App\Models\ConversationParticipant;
 use App\Models\Message;
 use App\Models\PushSubscription;
-use App\Services\RemotePush;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
@@ -33,12 +33,11 @@ final class SendRemotePush implements ShouldQueue
         //
     }
 
-    public function handle(RemotePush $push): void
+    public function handle(PushNotificationProvider $push): void
     {
         $message = Message::query()->find($this->messageId);
 
-        if (! $message instanceof Message || ! in_array($message->event, [null, OrgEvent::Ping], true) || $message->created_at->lt(Date::now()->subMinutes(5))
-            || ! config('services.web_push.public_key') || ! config('services.web_push.private_key')) {
+        if (! $message instanceof Message || ! in_array($message->event, [null, OrgEvent::Ping], true) || $message->created_at->lt(Date::now()->subMinutes(5))) {
             return;
         }
 

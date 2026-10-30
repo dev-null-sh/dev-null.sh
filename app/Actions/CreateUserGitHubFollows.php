@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\User;
-use App\Services\GitHub;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -21,7 +21,7 @@ final readonly class CreateUserGitHubFollows
     private const int MaxPages = 10;
 
     public function __construct(
-        private GitHub $github,
+        private GitHubProvider $github,
         private CreateFollowNotification $createFollowNotification,
     ) {
         //
@@ -41,8 +41,8 @@ final readonly class CreateUserGitHubFollows
             return;
         }
 
-        $following = $this->users($user, "users/{$login}/following");
-        $followers = $this->users($user, "users/{$login}/followers");
+        $following = $this->users($user, $this->github->followingIds($login, self::MaxPages));
+        $followers = $this->users($user, $this->github->followerIds($login, self::MaxPages));
 
         DB::transaction(function () use ($user, $following, $followers, $notify): void {
             $followedIds = $user->following()->syncWithoutDetaching($following->modelKeys())['attached'];
@@ -63,12 +63,13 @@ final readonly class CreateUserGitHubFollows
     }
 
     /**
+     * @param  list<string>  $githubIds
      * @return Collection<int, User>
      */
-    private function users(User $user, string $path): Collection
+    private function users(User $user, array $githubIds): Collection
     {
         return User::query()
-            ->whereIn('github_id', $this->github->accountIds($path, self::MaxPages))
+            ->whereIn('github_id', $githubIds)
             ->whereKeyNot($user->id)
             ->whereNotIn('id', $user->idsAcrossBlocks())
             ->get();

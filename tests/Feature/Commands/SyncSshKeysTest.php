@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\SshKey;
 use App\Models\User;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Exceptions;
-use Illuminate\Support\Facades\Http;
 use Tests\Support\SshKeyPair;
 
 it('syncs the ssh keys of all users', function (): void {
@@ -16,8 +18,11 @@ it('syncs the ssh keys of all users', function (): void {
     $aliceKey = SshKeyPair::generate()->publicKey;
     $bobKey = SshKeyPair::generate()->publicKey;
 
-    fakeGitHubSshKeys($alice, [$aliceKey]);
-    fakeGitHubSshKeys($bob, signingKeys: [$bobKey]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($alice->github_id)->andReturn($alice->handle);
+    $github->shouldReceive('sshKeys')->with($alice->handle)->andReturn([$aliceKey->toOpenSsh()]);
+    $github->shouldReceive('login')->with($bob->github_id)->andReturn($bob->handle);
+    $github->shouldReceive('sshKeys')->with($bob->handle)->andReturn([$bobKey->toOpenSsh()]);
 
     $this->artisan('ssh-keys:sync')
         ->expectsOutputToContain('Synced the SSH keys of 2 users from GitHub.')
@@ -27,7 +32,7 @@ it('syncs the ssh keys of all users', function (): void {
         ->and($bob->sshKeys()->sole()->fingerprint)->toBe($bobKey->fingerprint());
 });
 
-it('keeps going when the keys of a user cannot be synced', function (string $exception, Closure $response): void {
+it('keeps going when the keys of a user cannot be synced', function (string $exception, Closure $throwable): void {
     Exceptions::fake();
 
     $failing = User::factory()->create(['handle' => 'failing']);
@@ -35,8 +40,10 @@ it('keeps going when the keys of a user cannot be synced', function (string $exc
     $publicKey = SshKeyPair::generate()->publicKey;
     $existingKey = SshKey::factory()->for($failing)->create();
 
-    Http::fake(["api.github.com/user/{$failing->github_id}" => $response]);
-    fakeGitHubSshKeys($user, [$publicKey]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($failing->github_id)->andThrow($throwable());
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->andReturn([$publicKey->toOpenSsh()]);
 
     $this->artisan('ssh-keys:sync')
         ->expectsOutputToContain('Could not sync the SSH keys of @failing.')
@@ -48,24 +55,22 @@ it('keeps going when the keys of a user cannot be synced', function (string $exc
 
     Exceptions::assertReported($exception);
 })->with([
-    'server error' => [RequestException::class, fn (): Closure => fn () => Http::response(['message' => 'Server Error'], 500)],
-    'connection error' => [ConnectionException::class, fn (): Closure => fn () => Http::failedConnection()],
+    'server error' => [RequestException::class, fn (): RequestException => new RequestException(new Response(new Psr7Response(500)))],
+    'connection error' => [ConnectionException::class, fn (): ConnectionException => new ConnectionException()],
 ]);
 
 it('stops when github rate limits the requests', function (int $status): void {
     $user = User::factory()->create();
     $other = User::factory()->create();
 
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['message' => 'API rate limit exceeded'], $status),
-        '*' => Http::response(['message' => 'Unexpected request'], 500),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andThrow(new RequestException(new Response(new Psr7Response($status))));
 
     $this->artisan('ssh-keys:sync')
         ->expectsOutputToContain('GitHub rate limit reached after 0 users. Run the command again later.')
         ->assertFailed();
 
-    Http::assertSentCount(1);
+    $github->shouldHaveReceived('login')->once();
 
     expect($other->sshKeys()->count())->toBe(0);
 })->with([403, 429]);

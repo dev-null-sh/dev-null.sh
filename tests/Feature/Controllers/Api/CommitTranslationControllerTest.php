@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Ai\Agents\CommitTranslator;
+use App\Contracts\Services\TranslationProvider;
 use App\Enums\CommitStatus;
 use App\Enums\Feature;
 use App\Exceptions\CommitProcessingFailed;
@@ -13,16 +13,13 @@ use App\Services\Features;
 use Illuminate\Support\Facades\Exceptions;
 
 beforeEach(function (): void {
-    config(['ai.providers.opencode.key' => 'test-key']);
-
     $this->user = User::factory()->create();
     $this->keyPair = apiKeyPairFor($this->user);
 });
 
 it('translates a commit into the language asked for', function (): void {
-    CommitTranslator::fake([
-        ['source_language' => 'de', 'body' => 'Good morning'],
-    ])->preventStrayPrompts();
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with('Guten morgen', 'en')
+        ->andReturn(['source_language' => 'de', 'body' => 'Good morning']);
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
 
     signedApiRequest($this->keyPair, 'POST', route('api-commit-translation.store', $commit), ['language' => 'en'])
@@ -33,13 +30,11 @@ it('translates a commit into the language asked for', function (): void {
         ->assertJsonPath('translation.translated.body_segments.0.text', 'Good morning');
 
     expect($commit->refresh()->body)->toBe('Guten morgen');
-    CommitTranslator::assertPromptedTimes(1);
 });
 
 it('translates a pending commit for an admin', function (): void {
-    CommitTranslator::fake([
-        ['source_language' => 'de', 'body' => 'Good morning'],
-    ]);
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()
+        ->andReturn(['source_language' => 'de', 'body' => 'Good morning']);
     config(['app.admins' => ['admin']]);
     $keyPair = apiKeyPairFor(User::factory()->create(['handle' => 'admin']));
     $commit = Commit::factory()->pending()->create(['body' => 'Guten morgen']);
@@ -50,7 +45,7 @@ it('translates a pending commit for an admin', function (): void {
 });
 
 it('hides the commits the web does not translate for the user', function (string $state): void {
-    CommitTranslator::fake()->preventStrayPrompts();
+    $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
 
     match ($state) {
@@ -63,25 +58,21 @@ it('hides the commits the web does not translate for the user', function (string
 
     signedApiRequest($this->keyPair, 'POST', route('api-commit-translation.store', $commit), ['language' => 'en'])
         ->assertNotFound();
-
-    CommitTranslator::assertNeverPrompted();
 })->with(['pending', 'rejected', 'blocked', 'empty', 'switched off']);
 
 it('rejects unsupported target languages before calling the provider', function (mixed $language): void {
-    CommitTranslator::fake()->preventStrayPrompts();
+    $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
     $commit = Commit::factory()->create();
 
     signedApiRequest($this->keyPair, 'POST', route('api-commit-translation.store', $commit), ['language' => $language])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('language');
-
-    CommitTranslator::assertNeverPrompted();
 })->with([null, 'invented', 'de-DE', [['en']]]);
 
 it('answers a failed translation with a 503 the app can retry', function (): void {
     Exceptions::fake();
     $attempts = 0;
-    CommitTranslator::fake(function () use (&$attempts): array {
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->twice()->andReturnUsing(function () use (&$attempts): array {
         throw_if($attempts++ === 0, RuntimeException::class, 'Sensitive provider response', 503);
 
         return ['source_language' => 'de', 'body' => 'Good morning'];
@@ -103,9 +94,8 @@ it('answers a failed translation with a 503 the app can retry', function (): voi
 
 it('says when the provider answers in an unsupported source language', function (): void {
     Exceptions::fake();
-    CommitTranslator::fake([
-        ['source_language' => 'invented', 'body' => 'Sensitive translation'],
-    ]);
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()
+        ->andReturn(['source_language' => 'invented', 'body' => 'Sensitive translation']);
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
 
     signedApiRequest($this->keyPair, 'POST', route('api-commit-translation.store', $commit), ['language' => 'en'])
@@ -116,10 +106,8 @@ it('says when the provider answers in an unsupported source language', function 
 });
 
 it('requires a signed request', function (): void {
-    CommitTranslator::fake()->preventStrayPrompts();
+    $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
 
     $this->postJson(route('api-commit-translation.store', Commit::factory()->create()), ['language' => 'en'])
         ->assertUnauthorized();
-
-    CommitTranslator::assertNeverPrompted();
 });

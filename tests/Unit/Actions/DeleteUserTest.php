@@ -7,7 +7,7 @@ use App\Actions\CreateCommitTopics;
 use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
-use App\Ai\Agents\CommitTranslator;
+use App\Contracts\Services\TranslationProvider;
 use App\Dto\ThreadEngagement;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -192,6 +192,17 @@ it('erases authored polls and the users votes while keeping other polls and vote
         ->and(PollVote::query()->sole()->is($keptVote))->toBeTrue();
 });
 
+it('erases the organizations a deleted user claimed, keeping their other admins', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $organization = Profile::factory()->organization()->create();
+    $organization->admins()->attach([$user->id => ['created_at' => now()], $other->id => ['created_at' => now()]]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($organization->admins()->pluck('users.id')->all())->toBe([$other->id]);
+});
+
 it('erases the devices of a deleted user', function (): void {
     $user = User::factory()->create();
     Device::factory()->for($user)->create();
@@ -287,10 +298,10 @@ it('erases however many commits a user has without listing them in its queries',
 });
 
 it('erases cached translations of the user and replies in their deleted threads', function (): void {
-    CommitTranslator::fake([
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->twice()->andReturn(
         ['source_language' => 'de', 'body' => 'Good morning'],
         ['source_language' => 'nl', 'body' => 'Good evening'],
-    ]);
+    );
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create(['body' => 'Guten morgen']);
     Commit::factory()->for($user)->count(500)->create(['body' => 'Other posts']);

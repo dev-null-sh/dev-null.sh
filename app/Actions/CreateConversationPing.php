@@ -37,11 +37,9 @@ final readonly class CreateConversationPing
                 ->where('user_id', $sender->id)
                 ->update(['read_through_id' => $message->id, 'read_at' => now()]);
 
-            if (config('services.web_push.public_key') && config('services.web_push.private_key')) {
-                foreach (ConversationParticipant::query()->where('conversation_id', $conversation->id)
-                    ->where('user_id', '!=', $sender->id)->whereHas('user.pushSubscriptions')->get(['user_id']) as $participant) {
-                    dispatch(new SendRemotePush($message->id, $participant->user_id))->delay(now()->addSeconds(10))->afterCommit();
-                }
+            foreach (ConversationParticipant::query()->where('conversation_id', $conversation->id)
+                ->where('user_id', '!=', $sender->id)->whereHas('user.pushSubscriptions')->get(['user_id']) as $participant) {
+                dispatch(new SendRemotePush($message->id, $participant->user_id))->delay(now()->addSeconds(10))->afterCommit();
             }
 
             return $message;

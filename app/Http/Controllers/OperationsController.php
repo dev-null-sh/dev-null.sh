@@ -6,7 +6,6 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ShowOperationsRequest;
 use App\Queries\DailySeriesQuery;
-use App\Queries\FathomTrafficQuery;
 use App\Queries\ForecastsQuery;
 use App\Queries\OperationsEventsQuery;
 use App\Queries\OperationsSignalsQuery;
@@ -22,14 +21,12 @@ final readonly class OperationsController
         DailySeriesQuery $daily,
         ForecastsQuery $forecasts,
         OperationsEventsQuery $events,
-        FathomTrafficQuery $traffic,
     ): Response {
         return Inertia::render('operations/show', [
             'signals' => $signals->get(...),
             'daily' => fn (): array => $daily->get(CarbonImmutable::today()->subDays(27), CarbonImmutable::today()),
             'forecasts' => $forecasts->get(...),
             'recentEvents' => fn (): array => $events->get(CarbonImmutable::now()->subDay(), limit: 10),
-            'hasTraffic' => $traffic->isConfigured(),
         ]);
     }
 }

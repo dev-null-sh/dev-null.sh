@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Dto\AuthorizationCode;
 use App\Models\User;
 use Illuminate\Cache\Events\KeyWritten;
@@ -59,7 +60,7 @@ it('reads a fingerprint whose "+" the app left unencoded', function (): void {
 
 it('sends a guest through the github sign-in, then back to approve the app', function (): void {
     Queue::fake();
-    fakeGitHubSponsorsListing();
+    $this->mock(GitHubProvider::class)->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $this->get(route('mobile-authorization.show', $this->parameters))->assertRedirectToRoute('login');
 

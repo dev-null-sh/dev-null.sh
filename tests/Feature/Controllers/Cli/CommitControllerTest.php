@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Enums\CommitStatus;
 use App\Enums\ModerationReason;
 use App\Http\Middleware\AuthenticateSshSignature;
@@ -10,6 +11,9 @@ use App\Models\Commit;
 use App\Models\SshKey;
 use App\Models\User;
 use App\Models\UserTimeout;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response as ClientResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Exceptions;
@@ -61,11 +65,13 @@ beforeEach(function (): void {
     $this->user = User::factory()->create();
 
     SshKey::factory()->for($this->user)->withPublicKey($this->keyPair->publicKey)->create();
-
-    fakeGitHubSshKeys($this->user, [$this->keyPair->publicKey]);
 });
 
 it('creates a commit signed with an ssh key', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $response = postSignedCommit(signedCommit($this->keyPair, 'It was DNS.'));
 
     $commit = $this->user->commits()->sole();
@@ -80,18 +86,30 @@ it('creates a commit signed with an ssh key', function (): void {
 });
 
 it('collapses runs of blank lines in a signed commit', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     postSignedCommit(signedCommit($this->keyPair, "It was DNS.\n\n\n\nIt is always DNS."))->assertCreated();
 
     expect($this->user->commits()->sole()->body)->toBe("It was DNS.\n\nIt is always DNS.");
 });
 
 it('keeps the text after a NUL byte in a signed commit', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     postSignedCommit(signedCommit($this->keyPair, 'It was'.chr(0).' DNS.'))->assertCreated();
 
     expect($this->user->commits()->sole()->body)->toBe('It was DNS.');
 });
 
 it('links to the commit when it is published right away', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     config(['app.admins' => [$this->user->handle]]);
 
     $response = postSignedCommit(signedCommit($this->keyPair, 'It was DNS.'));
@@ -105,6 +123,10 @@ it('links to the commit when it is published right away', function (): void {
 });
 
 it('replies to a commit', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $parent = Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
 
     $response = postSignedCommit(signedCommit($this->keyPair, 'Agreed!', replyTo: '0be0130'));
@@ -118,6 +140,10 @@ it('replies to a commit', function (): void {
 });
 
 it('attaches a link preview for the first link', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     Http::fake(['example.com/first' => Http::response(status: 404)]);
     Queue::fake([UnfurlLink::class]);
 
@@ -131,6 +157,10 @@ it('attaches a link preview for the first link', function (): void {
 });
 
 it('creates a commit with images', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     Storage::fake();
 
     $images = [
@@ -151,6 +181,10 @@ it('creates a commit with images', function (): void {
 });
 
 it('authenticates images as php hands them over', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $image = UploadedFile::fake()->image('first.jpg', 10, 10);
     $commit = signedCommit($this->keyPair, 'Shipped!', imageHashes: imageHashes([$image]));
 
@@ -167,6 +201,10 @@ it('authenticates images as php hands them over', function (): void {
 });
 
 it('creates a commit with images whose body ends with whitespace', function (string $body): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     Storage::fake();
 
     $images = [UploadedFile::fake()->image('first.jpg', 10, 10)];
@@ -180,6 +218,10 @@ it('creates a commit with images whose body ends with whitespace', function (str
 ]);
 
 it('replies to a commit with images', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     Storage::fake();
 
     $parent = Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
@@ -194,6 +236,10 @@ it('replies to a commit with images', function (): void {
 });
 
 it('reads a commit without images from the raw body, even when it looks like a form', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $commit = signedCommit($this->keyPair, 'Shipped & payload=nothing');
 
     $response = $this->call('POST', route('cli-commit.store'), parameters: ['payload' => 'nothing'], server: [
@@ -232,6 +278,10 @@ it('rejects images sent without their payload', function (): void {
 });
 
 it('keeps the images in the order they were signed', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     Storage::fake();
 
     $images = [
@@ -263,6 +313,10 @@ it('rejects a payload sent as a text field next to the images', function (): voi
 });
 
 it('rejects images that do not match the signed payload', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $images = [UploadedFile::fake()->image('first.jpg', 10, 10)];
 
     $response = postSignedCommitWithImages(signedCommit($this->keyPair, 'Shipped!', imageHashes: [hash('sha256', 'another image')]), $images);
@@ -285,6 +339,10 @@ it('rejects images attached to a commit signed without them', function (): void 
 });
 
 it('rejects a nested images field', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $commit = signedCommit($this->keyPair, 'Shipped!', imageHashes: [hash('sha256', 'an image')]);
 
     $response = $this->call('POST', route('cli-commit.store'), files: [
@@ -317,6 +375,10 @@ it('rejects a commit signed with more than 3 images', function (): void {
 });
 
 it('rejects more than 3 images before looking at any of them', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $images = [
         UploadedFile::fake()->image('first.jpg', 10, 10),
         UploadedFile::fake()->image('second.jpg', 10, 10),
@@ -333,6 +395,10 @@ it('rejects more than 3 images before looking at any of them', function (): void
 });
 
 it('rejects an image that failed to upload', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $image = UploadedFile::fake()->image('first.jpg', 10, 10);
     $failed = new UploadedFile($image->getRealPath(), 'first.jpg', 'image/jpeg', UPLOAD_ERR_INI_SIZE, test: true);
 
@@ -345,6 +411,10 @@ it('rejects an image that failed to upload', function (): void {
 });
 
 it('rejects a file that is not an image', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $images = [UploadedFile::fake()->create('notes.pdf', 10, 'application/pdf')];
 
     $response = postSignedCommitWithImages(signedCommit($this->keyPair, 'Shipped!', imageHashes: imageHashes($images)), $images);
@@ -356,6 +426,10 @@ it('rejects a file that is not an image', function (): void {
 });
 
 it('fails to reply to an unknown commit', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $response = postSignedCommit(signedCommit($this->keyPair, 'Agreed!', replyTo: '0be0130'));
 
     $response->assertUnprocessable()
@@ -365,6 +439,10 @@ it('fails to reply to an unknown commit', function (): void {
 });
 
 it('fails to reply across a block', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $parent = Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
     $parent->user->blocking()->attach($this->user);
 
@@ -377,6 +455,10 @@ it('fails to reply across a block', function (): void {
 });
 
 it('fails to reply to an ambiguous or malformed commit reference', function (string $replyTo, string $message): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52b0be0130']);
     Commit::factory()->create(['id' => '01a14036-b0fc-7085-95c9-6e52c0be0130']);
 
@@ -420,6 +502,10 @@ it('rejects keys that are no longer on github', function (): void {
 });
 
 it('validates the commit', function (string $body, string $message): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $response = postSignedCommit(signedCommit($this->keyPair, $body));
 
     $response->assertUnprocessable()
@@ -433,6 +519,10 @@ it('validates the commit', function (string $body, string $message): void {
 ]);
 
 it('rate limits commits', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     for ($i = 0; $i < 10; $i++) {
         postSignedCommit(signedCommit($this->keyPair, "Commit {$i}"))->assertCreated();
     }
@@ -447,14 +537,16 @@ it('rate limits commits', function (): void {
 });
 
 it('fails when github cannot be reached', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $keyPair = SshKeyPair::generate();
     $user = User::factory()->create();
 
     SshKey::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
 
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['message' => 'Server Error'], 500),
-    ]);
+    $github->shouldReceive('login')->with($user->github_id)->andThrow(new RequestException(new ClientResponse(new Psr7Response(500))));
 
     $response = postSignedCommit(signedCommit($keyPair, 'It was DNS.'));
 
@@ -495,6 +587,10 @@ it('answers unexpected errors in plain text', function (): void {
 });
 
 it('refuses a signed commit while its author is in timeout, as plain text', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     UserTimeout::factory()->for($this->user)->create(['reason' => ModerationReason::LowEffort, 'ends_at' => now()->addHour()]);
 
     postSignedCommit(signedCommit($this->keyPair, 'It was DNS.'))
@@ -506,6 +602,10 @@ it('refuses a signed commit while its author is in timeout, as plain text', func
 });
 
 it('refuses a signed commit from a banned author', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $this->user->update(['banned_at' => now()]);
 
     postSignedCommit(signedCommit($this->keyPair, 'It was DNS.'))
@@ -516,6 +616,10 @@ it('refuses a signed commit from a banned author', function (): void {
 });
 
 it('refuses the first commit of a first-time poster, which has to come from the web', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $this->user->update(['commit_rules_accepted_at' => null]);
 
     postSignedCommit(signedCommit($this->keyPair, 'It was DNS.'))

@@ -9,6 +9,7 @@ use App\Http\Controllers\BanController;
 use App\Http\Controllers\BannedController;
 use App\Http\Controllers\BrandController;
 use App\Http\Controllers\BulkActivityController;
+use App\Http\Controllers\CallController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
@@ -34,6 +35,8 @@ use App\Http\Controllers\CommitStarCountController;
 use App\Http\Controllers\CommitStatusController;
 use App\Http\Controllers\CommitTranslationController;
 use App\Http\Controllers\ConversationArchiveController;
+use App\Http\Controllers\ConversationCallController;
+use App\Http\Controllers\ConversationCallIceServerController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\ConversationDropController;
 use App\Http\Controllers\ConversationMergeController;
@@ -56,6 +59,7 @@ use App\Http\Controllers\ForecastController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
+use App\Http\Controllers\JoinLinkController;
 use App\Http\Controllers\LinkController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
@@ -74,9 +78,14 @@ use App\Http\Controllers\NotificationGroupController;
 use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\OperationsEventController;
+use App\Http\Controllers\OrganizationAdminController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\OrganizationLaneController;
 use App\Http\Controllers\OrganizationMentionController;
+use App\Http\Controllers\OrganizationSitemapController;
 use App\Http\Controllers\OrgArchiveController;
+use App\Http\Controllers\OrgCallController;
+use App\Http\Controllers\OrgCallIceServerController;
 use App\Http\Controllers\OrgController;
 use App\Http\Controllers\OrgMemberController;
 use App\Http\Controllers\OrgMessageController;
@@ -131,6 +140,7 @@ use App\Http\Controllers\UserTimeoutController;
 use App\Http\Controllers\UserTimezoneController;
 use App\Http\Controllers\UserTranslationLanguageController;
 use App\Http\Middleware\PreventPostingInTimeout;
+use App\Http\Middleware\RedirectToHandleCase;
 use App\Http\Middleware\RememberIntendedUrl;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\SerializePushSessions;
@@ -167,6 +177,11 @@ Route::middleware('guest')->group(function (): void {
     Route::get('auth/github/callback', [SessionController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('login.store');
+
+    // A link by email, for a guest on a phone who'd rather join from their computer...
+    Route::post('join-links', [JoinLinkController::class, 'store'])
+        ->middleware('throttle:join-links')
+        ->name('join-link.store');
 });
 
 // Log, where guests read Trending and Latest...
@@ -198,7 +213,7 @@ Route::get('mac', fn () => to_route('app.index', status: 301));
 Route::get('changelog', [ChangelogController::class, 'index'])->name('changelog.index');
 
 // Public pages, readable by guests and crawlers...
-Route::middleware(RememberIntendedUrl::class)->group(function (): void {
+Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->group(function (): void {
     // A handle no user has may be an organization's. Bindings run before the rest of the route's middleware, like
     // the one sharing the page's props, so the organization's page goes through that rest first, like any page.
     Route::get('@{user:handle}', [UserController::class, 'show'])
@@ -226,14 +241,17 @@ Route::middleware(RememberIntendedUrl::class)->group(function (): void {
         ->name('commit-photo.show');
 });
 
-// Sitemaps...
-Route::middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
+// Sitemaps, the same for everyone, so they skip the web group's session and cookies, which would keep a cache from sharing them...
+Route::withoutMiddleware('web')->middleware('cache.headers:public;max_age=3600;etag')->group(function (): void {
     Route::get('sitemap.xml', [SitemapController::class, 'index'])->name('sitemap.index');
-    Route::get('sitemaps/users-{page}.xml', [UserSitemapController::class, 'show'])
-        ->where('page', '[1-9][0-9]*')
+    Route::get('sitemaps/users-{month}.xml', [UserSitemapController::class, 'show'])
+        ->where('month', '[0-9]{4}-[0-9]{2}')
         ->name('user-sitemap.show');
-    Route::get('sitemaps/commits-{page}.xml', [CommitSitemapController::class, 'show'])
-        ->where('page', '[1-9][0-9]*')
+    Route::get('sitemaps/organizations-{month}.xml', [OrganizationSitemapController::class, 'show'])
+        ->where('month', '[0-9]{4}-[0-9]{2}')
+        ->name('organization-sitemap.show');
+    Route::get('sitemaps/commits-{day}.xml', [CommitSitemapController::class, 'show'])
+        ->where('day', '[0-9]{4}-[0-9]{2}-[0-9]{2}')
         ->name('commit-sitemap.show');
 });
 
@@ -312,6 +330,20 @@ Route::middleware('auth')->group(function (): void {
 
     // Banned, where a banned user is sent from everywhere else...
     Route::get('banned', [BannedController::class, 'show'])->name('banned.show');
+
+    // Claiming an organization's page, which GitHub confirms the user belongs to...
+    Route::post('organizations/{organization}/claim', [OrganizationAdminController::class, 'create'])
+        ->whereUuid('organization')
+        ->middleware('throttle:10,1')
+        ->name('organization-admin.create');
+    Route::get('auth/github/callback/organizations', [OrganizationAdminController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('organization-admin.store');
+
+    // An organization's color, which its admins choose...
+    Route::put('organizations/{organization}/lane', [OrganizationLaneController::class, 'update'])
+        ->whereUuid('organization')
+        ->name('organization-lane.update');
 
     // Followers the viewer knows...
     Route::get('@{user:handle}/followers-you-know', [UserFollowersYouKnowController::class, 'index'])
@@ -397,6 +429,13 @@ Route::middleware('auth')->group(function (): void {
             ->name('conversation-read.update');
         Route::put('remotes/@{partner:handle}/typing', [ConversationTypingController::class, 'update'])
             ->name('conversation-typing.update');
+        Route::get('remotes/call', [CallController::class, 'show'])->name('call.show');
+        Route::get('remotes/@{partner:handle}/call', [ConversationCallController::class, 'show'])
+            ->name('conversation-call.show');
+        Route::put('remotes/@{partner:handle}/call', [ConversationCallController::class, 'update'])
+            ->name('conversation-call.update');
+        Route::delete('remotes/@{partner:handle}/call', [ConversationCallController::class, 'destroy'])
+            ->name('conversation-call.destroy');
         Route::post('remotes/@{partner:handle}/merge', [ConversationMergeController::class, 'store'])
             ->name('conversation-merge.store');
         Route::post('remotes/@{partner:handle}/drop', [ConversationDropController::class, 'store'])
@@ -406,6 +445,8 @@ Route::middleware('auth')->group(function (): void {
         Route::get('remotes/candidates', [RemoteCandidateController::class, 'index'])->name('remote-candidate.index');
         Route::post('remotes/orgs', [OrgController::class, 'store'])->middleware([PreventPostingInTimeout::class, 'throttle:messages'])->name('org.store');
         Route::put('remotes/orgs/{org}', [OrgController::class, 'update'])->whereUuid('org')->middleware(PreventPostingInTimeout::class)->name('org.update');
+        Route::put('remotes/orgs/{org}/call', [OrgCallController::class, 'update'])->whereUuid('org')->name('org-call.update');
+        Route::delete('remotes/orgs/{org}/call', [OrgCallController::class, 'destroy'])->whereUuid('org')->name('org-call.destroy');
         Route::get('remotes/orgs/{org}/messages', [OrgMessageController::class, 'index'])->whereUuid('org')->name('org-message.index');
         Route::put('remotes/orgs/{org}/read', [OrgReadController::class, 'update'])->whereUuid('org')->name('org-read.update');
         Route::put('remotes/orgs/{org}/typing', [OrgTypingController::class, 'update'])->whereUuid('org')->name('org-typing.update');
@@ -448,9 +489,23 @@ Route::middleware('auth')->group(function (): void {
     Route::post('remotes/@{partner:handle}/messages', [ConversationMessageController::class, 'store'])
         ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
         ->name('conversation-message.store');
+    Route::get('remotes/@{partner:handle}/call/ice-servers', [ConversationCallIceServerController::class, 'index'])
+        ->middleware('throttle:messages')
+        ->name('conversation-call-ice-server.index');
+    Route::post('remotes/@{partner:handle}/call', [ConversationCallController::class, 'store'])
+        ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
+        ->name('conversation-call.store');
     Route::post('remotes/@{partner:handle}/ping', [ConversationPingController::class, 'store'])
         ->middleware([PreventPostingInTimeout::class, 'throttle:pings'])
         ->name('conversation-ping.store');
+    Route::get('remotes/orgs/{org}/call/ice-servers', [OrgCallIceServerController::class, 'index'])
+        ->whereUuid('org')
+        ->middleware('throttle:messages')
+        ->name('org-call-ice-server.index');
+    Route::post('remotes/orgs/{org}/call', [OrgCallController::class, 'store'])
+        ->whereUuid('org')
+        ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
+        ->name('org-call.store');
     Route::post('remotes/orgs/{org}/ping', [OrgPingController::class, 'store'])
         ->whereUuid('org')
         ->middleware([PreventPostingInTimeout::class, 'throttle:pings'])

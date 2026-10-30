@@ -24,7 +24,6 @@ export default function Show({
     daily: DailyPoint[];
     forecasts: ForecastSeries[];
     recentEvents: OperationsEvent[];
-    hasTraffic: boolean;
 }) {
     return (
         <>
