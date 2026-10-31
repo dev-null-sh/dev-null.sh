@@ -275,6 +275,7 @@ export function AppNav({
     const { isNavOpen: sidebarOpen, isLayoutOpen, setNavOpen } = useNavOpen();
     const items = useNavItems();
     const keys = useKeyLabels();
+    const collapseShortcut = keys.combo(keys.mod, 'B');
 
     const iconsOnly = !(useMediaQuery('(min-width: 64rem)') && isLayoutOpen);
 
@@ -377,7 +378,11 @@ export function AppNav({
                 </NavTooltip>
                 <NavTooltip
                     label={
-                        iconsOnly ? (sidebarOpen ? 'Collapse' : 'Expand') : null
+                        iconsOnly
+                            ? sidebarOpen
+                                ? `Collapse (${collapseShortcut})`
+                                : `Expand (${collapseShortcut})`
+                            : null
                     }
                 >
                     <button
@@ -389,12 +394,13 @@ export function AppNav({
                                 : 'Expand navigation'
                         }
                         aria-expanded={sidebarOpen}
+                        aria-keyshortcuts="Control+B Meta+B"
                         title={
                             iconsOnly
                                 ? undefined
                                 : sidebarOpen
-                                  ? 'Collapse navigation'
-                                  : 'Expand navigation'
+                                  ? `Collapse navigation (${collapseShortcut})`
+                                  : `Expand navigation (${collapseShortcut})`
                         }
                         className="hidden h-11 items-center gap-3 rounded-lg py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:flex"
                         data-test="nav-collapse-button"
