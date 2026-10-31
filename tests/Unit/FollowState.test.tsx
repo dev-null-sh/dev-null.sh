@@ -353,6 +353,31 @@ for (const type of [
     }
 }
 
+for (const isFollowing of [true, false]) {
+    test(`your own Followers list hides the redundant follows-you badge (following=${isFollowing})`, () => {
+        const page = Connections({
+            user: suggestion('viewer'),
+            type: 'followers',
+            users: {
+                data: [
+                    {
+                        ...suggestion(`own-follower-${isFollowing}`),
+                        is_followed: isFollowing,
+                        follows_you: true,
+                    },
+                ],
+                next_cursor: null,
+                prev_cursor: null,
+            },
+        });
+
+        assert.equal(
+            find(page, (props) => props.children === 'Follows you'),
+            null,
+        );
+    });
+}
+
 test('a preview offers to follow someone who does not follow you', () => {
     const button = previewFollowButton(suggestion('preview-stranger'));
 

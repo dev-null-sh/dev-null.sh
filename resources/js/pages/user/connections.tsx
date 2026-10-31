@@ -269,6 +269,7 @@ export default function Connections({
                                                 @{person.handle}
                                             </p>
                                             {type === 'followers' &&
+                                                knowsFollowers &&
                                                 person.follows_you && (
                                                     <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
                                                         Follows you
