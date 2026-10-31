@@ -149,8 +149,16 @@ export default function Show({
         <>
             <Head title={`${user.name} (@${user.handle})`} />
 
-            {/* Laid out like the feed's commits below, so the avatar lands where theirs pass under the bar. */}
-            <div className="sticky top-0 z-10 grid h-16 grid-cols-[4rem_minmax(0,1fr)] items-center overflow-hidden border-b bg-card pr-4 [view-transition-class:tab-header] [view-transition-name:profile-header] sm:grid-cols-[4.5rem_minmax(0,1fr)]">
+            {/* Laid out like the feed's commits below, so the avatar lands where theirs pass under the bar. It takes no
+                room until then, and stays see-through over the header. */}
+            <div
+                className={cn(
+                    'sticky top-0 z-10 -mb-16 grid h-16 grid-cols-[4rem_minmax(0,1fr)] items-center overflow-hidden border-b pr-4 transition-[background-color,border-color] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] [view-transition-class:tab-header] [view-transition-name:profile-header] motion-reduce:transition-none sm:grid-cols-[4.5rem_minmax(0,1fr)]',
+                    isAvatarHidden
+                        ? 'bg-card'
+                        : 'pointer-events-none border-transparent bg-transparent',
+                )}
+            >
                 <div
                     aria-hidden={!isAvatarHidden}
                     className={cn(
