@@ -191,6 +191,7 @@ let state: ChatState = {
 };
 const listeners = new Set<() => void>();
 const threadWatchers = new Map<string, number>();
+const threadPollVersions = new Map<string, number>();
 const lastActivity = new Map<string, number>();
 const lastTypingPing = new Map<string, number>();
 const reactionsInFlight = new Map<number, number>();
@@ -1225,6 +1226,8 @@ export function watchInbox(): () => void {
 
 async function pollThread(target: ChatTarget): Promise<void> {
     const key = targetKey(target);
+    const pollVersion = (threadPollVersions.get(key) ?? 0) + 1;
+    threadPollVersions.set(key, pollVersion);
     const thread = state.threads[key];
     const after = thread?.isLoaded ? (thread.messages.at(-1)?.id ?? 0) : null;
     const reactionsAfter =
@@ -1254,6 +1257,10 @@ async function pollThread(target: ChatTarget): Promise<void> {
                   },
         ),
     );
+
+    if (threadPollVersions.get(key) !== pollVersion) {
+        return;
+    }
 
     const current = state.threads[key] ?? emptyThread(target);
     const isTyping =

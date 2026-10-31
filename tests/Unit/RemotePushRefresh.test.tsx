@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
-import { chatSnapshot, setReplyingTo, targetKey, watchRemoteAlerts, watchThread } from '../../resources/js/lib/chat';
+import { chatSnapshot, seedThread, setReplyingTo, targetKey, watchRemoteAlerts, watchThread } from '../../resources/js/lib/chat';
 import type { ChatTarget } from '../../resources/js/lib/chat';
-import type { ConversationSummary, User } from '../../resources/js/types';
+import type { ConversationSummary, MessageReaction, User } from '../../resources/js/types';
 
 const push = vi.hoisted(() => ({ optedIn: true }));
 vi.mock('../../resources/js/lib/remote-push', () => ({
@@ -166,4 +166,42 @@ test.each([false, true])('pushes during an inbox request coalesce into a fresh r
     assert.equal(fetch.mock.calls.length, stopped ? 1 : 2);
     assert.equal(play.mock.calls.length, stopped ? 0 : 1);
     if (!stopped) assert.equal(chatSnapshot().conversations?.find((item) => item.id === 'in-flight')?.last_incoming_message_id, 11);
+});
+
+test.each(['direct', 'org'] as const)('a push response keeps newer %s reactions when an older visible poll finishes last', async (kind) => {
+    vi.advanceTimersByTime(1);
+    const partner = { id: 'alice', handle: 'reaction-race', name: 'Alice' } as User;
+    const target: ChatTarget = kind === 'org'
+        ? { kind, org: { id: 'reaction-race', name: 'Team' } }
+        : { kind, partner };
+    const message = { id: 501, user_id: 'alice', client_id: '', body: 'React to this', created_at: new Date().toISOString(), reactions: [] as MessageReaction[] };
+    const payload = (version: number, reactions: MessageReaction[]) => ({
+        messages: [], has_older: false, reactions_version: version,
+        reaction_changes: [{ id: message.id, reactions }], read_through_id: 0,
+        is_archived: false, pinned_at: null, muted_until_at: null, access: 'open' as const,
+        ...(kind === 'org'
+            ? { org: { id: 'reaction-race', name: 'Team' }, members: [], typing: [], role: 'contributor' as const, pinned: [{ ...message, reactions }] }
+            : { partner, partner_read_through_id: 0, partner_read_at: null, partner_typing: false }),
+    });
+    seedThread(target, { ...payload(0, []), messages: [message] });
+    const replies: ((response: Response) => void)[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+        if (url.includes('/messages')) return new Promise<Response>((resolve) => replies.push(resolve));
+        if (url.includes('/inbox')) return Response.json({ conversations: [], has_more: false, unread: 0, requests: 0, notification_baseline: {} });
+        return Response.json({ usage: [] });
+    });
+    stops.push(watchRemoteAlerts('me'), watchThread(target));
+    assert.equal(replies.length, 1);
+    serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'remote-push' } }));
+    assert.equal(replies.length, 2);
+    const newest = [{ user_id: 'bob', emoji: '🚀' }];
+    replies[1](Response.json(payload(2, newest)));
+    await vi.advanceTimersByTimeAsync(0);
+    assert.deepEqual(chatSnapshot().threads[targetKey(target)].messages[0].reactions, newest);
+    replies[0](Response.json(payload(1, [])));
+    await vi.advanceTimersByTimeAsync(0);
+    const thread = chatSnapshot().threads[targetKey(target)];
+    assert.deepEqual(thread.messages[0].reactions, newest);
+    assert.equal(thread.reactions_version, 2);
+    if (kind === 'org') assert.deepEqual(thread.pinned[0].reactions, newest);
 });
