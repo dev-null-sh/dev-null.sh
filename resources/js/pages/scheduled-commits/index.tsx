@@ -219,6 +219,7 @@ export default function Index({
                                                 size="sm"
                                                 disabled={busy !== null}
                                                 aria-label={`Commit now instead of at ${when}`}
+                                                className="min-w-28"
                                                 data-commit-now
                                                 onClick={() =>
                                                     commitNow(scheduled)

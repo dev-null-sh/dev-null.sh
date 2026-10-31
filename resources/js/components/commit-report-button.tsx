@@ -300,6 +300,7 @@ function ReportForm({
                         </Button>
                     </DialogClose>
                     <Button
+                        className="min-w-28"
                         type="submit"
                         disabled={
                             form.processing ||
