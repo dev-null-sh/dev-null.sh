@@ -126,6 +126,7 @@ export default function ActivityGraphEmbed({
                         variant="ghost"
                         size="sm"
                         onClick={copySnippet}
+                        className="min-w-38 justify-end"
                         data-test="copy-embed-button"
                     >
                         <CopyIcon />
