@@ -6,8 +6,8 @@ namespace App\Dto;
 
 /**
  * The one-time code the web hands the devnull app once the user approves it, for the app to redeem for a device. It is
- * bound to the user, the key, the device and app names and the app's PKCE challenge, and only lives in the cache for a
- * few minutes, under the hash of the code rather than the code itself.
+ * bound to the user, the key, the device, the app and its PKCE challenge, and only lives in the cache for a few
+ * minutes, under the hash of the code rather than the code itself.
  */
 final readonly class AuthorizationCode
 {
@@ -20,6 +20,7 @@ final readonly class AuthorizationCode
         public string $deviceName,
         public string $codeChallenge,
         public ?string $appName = null,
+        public ?string $appId = null,
     ) {
         //
     }
@@ -46,6 +47,7 @@ final readonly class AuthorizationCode
             $attributes->string('device_name')->value(),
             $attributes->string('code_challenge')->value(),
             $attributes->filled('app_name') ? $attributes->string('app_name')->value() : null,
+            $attributes->filled('app_id') ? $attributes->string('app_id')->value() : null,
         );
     }
 
@@ -58,7 +60,7 @@ final readonly class AuthorizationCode
     }
 
     /**
-     * @return array{user_id: string, fingerprint: string, device_name: string, code_challenge: string, app_name?: string}
+     * @return array{user_id: string, fingerprint: string, device_name: string, code_challenge: string, app_name?: string, app_id?: string}
      */
     public function toArray(): array
     {
@@ -68,6 +70,7 @@ final readonly class AuthorizationCode
             'device_name' => $this->deviceName,
             'code_challenge' => $this->codeChallenge,
             ...($this->appName === null ? [] : ['app_name' => $this->appName]),
+            ...($this->appId === null ? [] : ['app_id' => $this->appId]),
         ];
     }
 }

@@ -9,13 +9,13 @@ it('keys a code by its hash, never by the code itself', function (): void {
         ->not->toContain('the-code');
 });
 
-it('reads back the code it stored', function (?string $appName): void {
-    $code = new AuthorizationCode('authorization-code:key', 'user-id', 'SHA256:key', 'devnull on iPhone', 'challenge', $appName);
+it('reads back the code it stored', function (?string $appName, ?string $appId): void {
+    $code = new AuthorizationCode('authorization-code:key', 'user-id', 'SHA256:key', 'iPhone', 'challenge', $appName, $appId);
 
     expect(AuthorizationCode::fromArray($code->key, $code->toArray()))->toEqual($code);
 })->with([
-    'from an app that says its name' => ['/dev/null for iOS'],
-    'from an app that does not' => [null],
+    'from an app that says its name and id' => ['/dev/null for iOS', 'ios:com.nativephp.devnull'],
+    'from an app that does not' => [null, null],
 ]);
 
 it('makes the pkce s256 challenge of a verifier', function (): void {

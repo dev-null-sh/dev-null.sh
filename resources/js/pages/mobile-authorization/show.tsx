@@ -13,6 +13,7 @@ type Authorization = {
     fingerprint: string;
     device_name: string;
     app_name?: string;
+    app_id?: string;
     code_challenge: string;
     code_challenge_method: string;
     state: string;

@@ -512,15 +512,15 @@ it('exports the organizations the user follows, first follow first', function ()
 it('exports the devices approved for the app, oldest first', function (): void {
     $user = User::factory()->create();
     $older = Device::factory()->for($user)->create(['name' => 'devnull on iPad', 'approved_at' => now()->subWeek(), 'last_used_at' => now()->subDay()]);
-    $newer = Device::factory()->for($user)->create(['name' => 'iPhone', 'app_name' => '/dev/null for iOS', 'approved_at' => now()->subDay()]);
+    $newer = Device::factory()->for($user)->create(['name' => 'iPhone', 'app_id' => 'ios:com.nativephp.devnull', 'app_name' => '/dev/null for iOS', 'approved_at' => now()->subDay()]);
     $other = Device::factory()->create();
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['devices'])->toBe([
-        ['name' => 'devnull on iPad', 'app_name' => null, 'fingerprint' => $older->fingerprint, 'approved_at' => now()->subWeek()->toIso8601String(), 'last_used_at' => now()->subDay()->toIso8601String()],
-        ['name' => 'iPhone', 'app_name' => '/dev/null for iOS', 'fingerprint' => $newer->fingerprint, 'approved_at' => now()->subDay()->toIso8601String(), 'last_used_at' => null],
+        ['name' => 'devnull on iPad', 'app_id' => null, 'app_name' => null, 'fingerprint' => $older->fingerprint, 'approved_at' => now()->subWeek()->toIso8601String(), 'last_used_at' => now()->subDay()->toIso8601String()],
+        ['name' => 'iPhone', 'app_id' => 'ios:com.nativephp.devnull', 'app_name' => '/dev/null for iOS', 'fingerprint' => $newer->fingerprint, 'approved_at' => now()->subDay()->toIso8601String(), 'last_used_at' => null],
     ])
         ->and($response->streamedContent())->not->toContain($other->fingerprint);
 });

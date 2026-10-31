@@ -56,7 +56,7 @@ use Traversable;
  *     notifications: Generator<int, array<string, int|string|null>>,
  *     ssh_keys: array<mixed>,
  *     push_subscriptions: array<int, array{id: string}>,
- *     devices: array<int, array{name: string, app_name: string|null, fingerprint: string, approved_at: string, last_used_at: string|null}>,
+ *     devices: array<int, array{name: string, app_id: string|null, app_name: string|null, fingerprint: string, approved_at: string, last_used_at: string|null}>,
  *     timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>,
  *     sessions: Collection<int, stdClass>
  * }
@@ -162,6 +162,7 @@ final readonly class CreateExport
             ])->all(),
             'devices' => $user->devices()->oldest('approved_at')->get()->map(fn (Device $device): array => [
                 'name' => $device->name,
+                'app_id' => $device->app_id,
                 'app_name' => $device->app_name,
                 'fingerprint' => $device->fingerprint,
                 'approved_at' => $device->approved_at->toIso8601String(),
