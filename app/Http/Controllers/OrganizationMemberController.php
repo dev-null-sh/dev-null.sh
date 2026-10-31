@@ -31,7 +31,7 @@ final readonly class OrganizationMemberController
     public function index(ListOrganizationMembersRequest $request, #[CurrentUser] User $user, Organization $organization): Response
     {
         return Inertia::render('organization-member/index', [
-            'organization' => $organization->makeVisible('id'),
+            'organization' => $organization,
             'role' => $organization->roleOf($user),
             'members' => $organization->members()
                 ->oldest('organization_members.created_at')

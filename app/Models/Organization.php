@@ -82,19 +82,6 @@ final class Organization extends Model
         return $this->belongsTo(Profile::class, 'id');
     }
 
-    public function mention(): string
-    {
-        return '@'.$this->handle;
-    }
-
-    /**
-     * How link previews title the organization, without repeating a name that is just the handle.
-     */
-    public function nameWithHandle(): string
-    {
-        return $this->name === $this->handle ? $this->mention() : $this->name.' ('.$this->mention().')';
-    }
-
     /**
      * Changes whenever anything drawn on the organization's link preview image may have changed.
      */
@@ -172,6 +159,7 @@ final class Organization extends Model
     public function toArray(): array
     {
         return [
+            'id' => $this->id,
             'handle' => $this->handle,
             'name' => $this->name,
             'avatar_url' => $this->avatar_url,
@@ -179,6 +167,7 @@ final class Organization extends Model
             'location' => $this->location,
             'website' => $this->website,
             ...parent::toArray(),
+            'lane' => $this->lane(),
         ];
     }
 

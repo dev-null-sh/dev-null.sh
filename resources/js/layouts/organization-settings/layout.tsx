@@ -15,7 +15,7 @@ export default function OrganizationSettingsLayout({
     children,
 }: PropsWithChildren) {
     const { organization, role } = usePage<{
-        organization: Organization & { id: string };
+        organization: Organization;
         role: 'admin' | 'member';
     }>().props;
     const { isCurrentUrl } = useCurrentUrl();

@@ -82,21 +82,26 @@ final class Profile extends Model
     }
 
     /**
-     * Shown, a profile is its user's or its organization's, with what is its type's alone, like a user's live stream,
-     * and its ID and lane either way.
+     * Shown, a profile is its user's or its organization's, with what is its type's alone, like a user's live stream.
      *
      * @return array<mixed>
      */
     public function toArray(): array
     {
-        $owner = $this->owner();
+        return ['type' => $this->type, ...$this->owner()?->toArray() ?? []];
+    }
 
-        return [
-            'type' => $this->type,
-            'id' => $this->id,
-            ...$owner?->toArray() ?? [],
-            ...$owner instanceof Organization ? ['lane' => $owner->lane()] : [],
-        ];
+    public function mention(): string
+    {
+        return '@'.$this->handle;
+    }
+
+    /**
+     * How link previews title the profile, without repeating a name that is just the handle.
+     */
+    public function nameWithHandle(): string
+    {
+        return $this->name === $this->handle ? $this->mention() : $this->name.' ('.$this->mention().')';
     }
 
     /**

@@ -6,8 +6,6 @@ namespace App\Actions;
 
 use App\Contracts\Services\GitHubProvider;
 use App\Models\Commit;
-use App\Models\Organization;
-use App\Models\User;
 use App\Services\OpenGraphCanvas;
 use App\Services\Urls;
 use Illuminate\Support\Facades\Cache;
@@ -39,19 +37,22 @@ final readonly class CreateCommitOpenGraphImage
         //
     }
 
-    public function handle(User|Organization $author, Commit $commit): string
+    public function handle(Commit $commit): string
     {
         $commit->loadPublicPreview();
 
         return Cache::remember(
             "open-graph-image:commit:{$commit->id}:{$commit->openGraphImageVersion()}",
             now()->addHour(),
-            fn (): string => $this->render($author, $commit),
+            fn (): string => $this->render($commit),
         );
     }
 
-    private function render(User|Organization $author, Commit $commit): string
+    private function render(Commit $commit): string
     {
+        $author = $commit->author?->owner();
+        assert($author !== null);
+
         $canvas = new OpenGraphCanvas($this->github);
         $lane = $author->lane() === null ? OpenGraphCanvas::PRIMARY : $canvas->lane($author->lane());
         $replyingTo = $commit->parent?->author?->handle;

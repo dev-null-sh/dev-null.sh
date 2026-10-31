@@ -125,6 +125,5 @@ it('finds organizations that have a page by handle or name, after the people', f
         ->assertJsonPath('users.0.handle', 'laraveldev')
         ->assertJsonCount(2, 'organizations')
         ->assertJsonPath('organizations.0.handle', 'laravel')
-        ->assertJsonPath('organizations.1.handle', 'laravel-shift')
-        ->assertJsonMissingPath('organizations.0.id');
+        ->assertJsonPath('organizations.1.handle', 'laravel-shift');
 });

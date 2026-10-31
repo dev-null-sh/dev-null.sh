@@ -26,14 +26,12 @@ type Role = 'admin' | 'member';
 
 type Member = User & { role: Role; joined_at: string };
 
-type OrganizationWithId = Organization & { id: string };
-
 export default function Index({
     organization,
     role,
     members,
 }: {
-    organization: OrganizationWithId;
+    organization: Organization;
     role: Role;
     members: Member[];
 }) {
@@ -120,7 +118,7 @@ function AddMemberForm({
     organization,
     members,
 }: {
-    organization: OrganizationWithId;
+    organization: Organization;
     members: Member[];
 }) {
     const id = useId();
@@ -338,7 +336,7 @@ function MemberRow({
     isLastAdmin,
     onRemoved,
 }: {
-    organization: OrganizationWithId;
+    organization: Organization;
     member: Member;
     isAdmin: boolean;
     isLastAdmin: boolean;

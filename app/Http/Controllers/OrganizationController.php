@@ -37,9 +37,7 @@ final readonly class OrganizationController
         }
 
         return Inertia::render('organization/show', [
-            // The Mentions tab tells a restored commit belongs to it by the ID, whatever handle the commit mentions.
-            'organization' => $organization->makeVisible('id'),
-            'lane' => $organization->lane(),
+            'organization' => $organization,
             'tab' => $request->tab(...),
             'commits' => Inertia::scroll(fn () => $mentions->builder($organization, $currentUser)
                 ->cursorPaginate(20)

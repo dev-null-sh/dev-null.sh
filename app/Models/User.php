@@ -502,15 +502,12 @@ final class User extends Authenticatable
 
     public function mention(): string
     {
-        return '@'.$this->handle;
+        return $this->profile->mention();
     }
 
-    /**
-     * How link previews title the user, without repeating a name that is just the handle.
-     */
     public function nameWithHandle(): string
     {
-        return $this->name === $this->handle ? $this->mention() : $this->name.' ('.$this->mention().')';
+        return $this->profile->nameWithHandle();
     }
 
     public function isFollowing(self $user): bool

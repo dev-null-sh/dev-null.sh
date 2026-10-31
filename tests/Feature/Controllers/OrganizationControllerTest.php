@@ -28,7 +28,7 @@ it('shows an organization at the handle no user has, to guests too', function ()
             ->where('organization.website', 'https://laravel.com')
             ->missing('organization.github_id')
             ->missing('organization.github_synced_at')
-            ->where('lane', null));
+            ->where('organization.lane', null));
 });
 
 it('shows the organization in the lane its admins chose', function (array $attributes, int|string $lane): void {
@@ -37,7 +37,7 @@ it('shows the organization in the lane its admins chose', function (array $attri
     $this->get('/@laravel')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->where('lane', $lane)
+            ->where('organization.lane', $lane)
             ->missing('organization.preferred_lane')
             ->missing('organization.lane_color'));
 })->with([

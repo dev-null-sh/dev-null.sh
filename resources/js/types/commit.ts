@@ -1,4 +1,4 @@
-import type { Lane, User } from '@/types/auth';
+import type { User } from '@/types/auth';
 import type { Organization } from '@/types/organization';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
@@ -77,7 +77,7 @@ export type CommitTranslation = {
  */
 export type CommitAuthor =
     | (User & { type: 'user' })
-    | (Organization & { type: 'organization'; id: string; lane: Lane | null });
+    | (Organization & { type: 'organization' });
 
 export type Commit = {
     id: string;

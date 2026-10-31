@@ -18,9 +18,8 @@ final readonly class OrganizationProfileController
     public function edit(ShowOrganizationProfileRequest $request, Organization $organization): Response
     {
         return Inertia::render('organization-profile/edit', [
-            'organization' => $organization->makeVisible('id'),
+            'organization' => $organization,
             'role' => OrganizationRole::Admin,
-            'lane' => $organization->lane(),
         ]);
     }
 }
