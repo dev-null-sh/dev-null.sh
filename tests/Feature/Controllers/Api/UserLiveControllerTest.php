@@ -9,16 +9,8 @@ use App\Models\UserTimeout;
 beforeEach(function (): void {
     $this->user = User::factory()->create();
     $this->keyPair = apiKeyPairFor($this->user);
+    $this->live = ['live_platform' => LivePlatform::YouTube, 'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'live_ends_at' => now()->addHour()];
 });
-
-function goLive(User $user): void
-{
-    $user->update([
-        'live_platform' => LivePlatform::YouTube,
-        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-        'live_ends_at' => now()->addHour(),
-    ]);
-}
 
 it('goes live for a few hours, and answers as the current user endpoint does', function (string $url, LivePlatform $platform, string $stream): void {
     $response = signedApiRequest($this->keyPair, 'PUT', route('api-user-live.update'), ['url' => " {$url} ", 'hours' => 3]);
@@ -38,7 +30,7 @@ it('goes live for a few hours, and answers as the current user endpoint does', f
 ]);
 
 it('moves to another stream and restarts the hours while live', function (): void {
-    goLive($this->user);
+    $this->user->update($this->live);
 
     signedApiRequest($this->keyPair, 'PUT', route('api-user-live.update'), ['url' => 'https://www.twitch.tv/octocat', 'hours' => 2])
         ->assertOk()
@@ -73,7 +65,7 @@ it('takes between one and twelve hours', function (mixed $hours): void {
 ]);
 
 it('ends the stream, and answers as the current user endpoint does', function (): void {
-    goLive($this->user);
+    $this->user->update($this->live);
 
     signedApiRequest($this->keyPair, 'DELETE', route('api-user-live.destroy'))
         ->assertOk()
@@ -87,7 +79,7 @@ it('ends the stream, and answers as the current user endpoint does', function ()
 });
 
 it('stops a user in timeout from going live, but lets them end their stream', function (): void {
-    goLive($this->user);
+    $this->user->update($this->live);
     UserTimeout::factory()->for($this->user)->create();
 
     signedApiRequest($this->keyPair, 'PUT', route('api-user-live.update'), ['url' => 'https://www.twitch.tv/buymycourse', 'hours' => 12])
