@@ -31,7 +31,7 @@ it('shows a public profile with public counts', function (): void {
     $response = $this->getJson(route('api-user.show', $user));
 
     $response->assertOk()
-        ->assertExactJson(['data' => [
+        ->assertExactJson(['bio_profiles' => [], 'data' => [
             'id' => $user->id,
             'handle' => 'octocat',
             'name' => 'The Octocat',
@@ -165,6 +165,7 @@ it('shows a signed request the profile as the web shows it to its user', functio
             'streaks' => ['longest' => 1, 'current' => 1],
             'achievements' => resolve(UserAchievementsQuery::class)->get($user, $viewer),
             'pinned_commit' => null,
+            'bio_profiles' => [],
         ])
         ->assertJsonPath('achievements.rank', 'daemon')
         ->assertJsonPath('achievements.level', 2)
