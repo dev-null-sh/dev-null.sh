@@ -56,8 +56,10 @@ final readonly class OnboardingController
         $imported = fn (BelongsToMany $follows): BelongsToMany => $follows
             ->wherePivotBetween('created_at', [$importedAt->copy()->subSeconds(10), $importedAt])
             ->whereNotIn('users.github_id', User::BOT_GITHUB_IDS);
+        // Organizations are imported on their own for the users who signed up before they could be followed...
+        $organizationsImportedAt = $user->github_organization_follows_imported_at ?? $importedAt;
         $organizations = fn (): BelongsToMany => $user->followedOrganizations()
-            ->wherePivotBetween('created_at', [$importedAt->copy()->subSeconds(10), $importedAt]);
+            ->wherePivotBetween('created_at', [$organizationsImportedAt->copy()->subSeconds(10), $organizationsImportedAt]);
 
         return [
             'following' => $imported($user->following())->oldest('users.id')->limit(5)->get(),

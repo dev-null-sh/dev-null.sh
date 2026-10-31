@@ -118,6 +118,22 @@ it('shows the follows the GitHub import brought over', function (): void {
             ->where('githubImport.pendingCount', 0));
 });
 
+it('shows the organizations imported after the people, for users who signed up before organizations could be followed', function (): void {
+    $this->travelTo(now()->startOfSecond());
+
+    $user = User::factory()->notOnboarded()->create(['github_follows_imported_at' => now()->subDay(), 'github_organization_follows_imported_at' => now()]);
+    $organization = Organization::factory()->create();
+    $user->followedOrganizations()->attach($organization, ['created_at' => now()->subSeconds(3)]);
+
+    $response = $this->actingAs($user)
+        ->get(route('onboarding.show'));
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('githubImport.organizations.0.handle', $organization->handle)
+            ->where('githubImport.organizationsCount', 1));
+});
+
 it('is not found once the user has onboarded', function (): void {
     $user = User::factory()->create();
 
