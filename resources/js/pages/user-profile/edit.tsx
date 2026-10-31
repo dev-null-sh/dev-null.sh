@@ -71,7 +71,13 @@ export default function Edit({
                             except: ['suggestedUsers'],
                             preserveScroll: true,
                         }}
-                        onSuccess={() => router.flushAll()}
+                        onSuccess={(page) => {
+                            router.flushAll();
+
+                            if (page.props.suggestedUsers === undefined) {
+                                router.reload({ only: ['suggestedUsers'] });
+                            }
+                        }}
                     >
                         {({ processing }) => (
                             <Button
