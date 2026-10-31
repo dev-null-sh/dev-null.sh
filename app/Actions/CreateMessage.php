@@ -65,6 +65,10 @@ final readonly class CreateMessage
         };
 
         $message = DB::transaction(function () use ($sender, $conversation, $body, $clientId, $replyTo, $images, $imageDescriptions, $url, $voice, $voiceWaveform): Message {
+            // PostgreSQL IDs follow INSERT order, not commit order. Serialize writers before
+            // INSERT so cursor polling cannot miss a lower ID committed after a higher one.
+            Conversation::query()->whereKey($conversation->id)->lockForUpdate()->firstOrFail();
+
             $linkPreview = $url === null ? null : LinkPreview::query()->firstOrCreate(['url_hash' => hash('sha256', $url)], ['url' => $url]);
 
             $message = Message::query()->createOrFirst(
