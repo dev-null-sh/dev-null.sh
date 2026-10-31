@@ -11,6 +11,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Models\UserList;
 use App\Services\Features;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
@@ -836,3 +837,23 @@ it('rejects malformed pending commit identifiers', function (array $pending, str
     [['pending' => 'bad'], 'pending'],
     [['pending' => ['bad']], 'pending.0'],
 ]);
+
+it('renders the pinned lists of the user next to the logs', function (): void {
+    $user = User::factory()->create();
+    $pinned = UserList::factory()->for($user)->pinned()->create(['name' => 'Laravel']);
+    UserList::factory()->for($user)->create();
+
+    $response = $this->actingAs($user)->get('/log/latest');
+
+    $response->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('pinnedLists', 1)
+            ->where('pinnedLists.0.id', $pinned->id)
+            ->where('pinnedLists.0.name', 'Laravel'));
+});
+
+it('renders no pinned lists for guests', function (): void {
+    $this->get('/log/latest')
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->has('pinnedLists', 0));
+});

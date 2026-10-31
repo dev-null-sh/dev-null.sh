@@ -26,6 +26,7 @@ use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\PushSubscription;
 use App\Models\User;
+use App\Models\UserList;
 use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
 use Illuminate\Http\UploadedFile;
@@ -414,4 +415,19 @@ it('erases browser push subscriptions with the account', function (): void {
     PushSubscription::factory()->create(['user_id' => $user->id]);
     resolve(DeleteUser::class)->handle($user);
     expect(PushSubscription::query()->count())->toBe(0);
+});
+
+it('deletes the lists of a deleted user and takes them off the lists of others', function (): void {
+    $user = User::factory()->create();
+    $kept = User::factory()->create();
+    $own = UserList::factory()->for($user)->create();
+    $own->members()->attach($kept);
+    $others = UserList::factory()->create();
+    $others->members()->attach([$user->id, $kept->id]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(UserList::query()->pluck('id')->all())->toBe([$others->id])
+        ->and($others->members()->pluck('users.id')->all())->toBe([$kept->id])
+        ->and(DB::table('user_list_members')->where('user_list_id', $own->id)->exists())->toBeFalse();
 });

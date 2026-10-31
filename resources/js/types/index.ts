@@ -11,3 +11,4 @@ export type * from './operations';
 export type * from './organization';
 export type * from './streak';
 export type * from './ui';
+export type * from './user-list';

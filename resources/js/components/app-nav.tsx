@@ -5,6 +5,7 @@ import {
     Star,
     GitCommitVertical,
     History,
+    ListChecks,
     MessagesSquare,
     PanelLeftClose,
     PanelLeftOpen,
@@ -22,6 +23,7 @@ import ModerationController from '@/actions/App/Http/Controllers/ModerationContr
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
 import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
+import UserListController from '@/actions/App/Http/Controllers/UserListController';
 import AppLogo from '@/components/app-logo';
 import AppLogoIcon from '@/components/app-logo-icon';
 import { ChangelogDialog } from '@/components/changelog-dialog';
@@ -108,6 +110,12 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             icon: Star,
             prefetch: false,
         },
+        {
+            title: 'Lists',
+            href: hrefFor(() => UserListController.index()),
+            icon: ListChecks,
+            prefetch: false,
+        },
         ...(auth.isAdmin
             ? [
                   {
@@ -143,7 +151,9 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                     ? isCurrentOrParentUrl('/remotes')
                     : item.title === 'Operations'
                       ? isCurrentOrParentUrl('/operations')
-                      : isCurrentUrl(item.href)),
+                      : item.title === 'Lists'
+                        ? isCurrentOrParentUrl('/lists')
+                        : isCurrentUrl(item.href)),
     }));
 }
 
@@ -543,7 +553,7 @@ export function MobileNav({ children }: { children?: ReactNode }) {
     );
     const items = allItems.filter(
         (item) =>
-            item.title !== 'Starred' &&
+            !['Starred', 'Lists'].includes(item.title) &&
             !menuItems.some((menuItem) => menuItem.title === item.title),
     );
     const nav = useRef<HTMLElement>(null);

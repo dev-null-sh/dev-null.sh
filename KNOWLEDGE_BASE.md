@@ -16,6 +16,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Achievement badges and XP](#achievement-badges-and-xp)
   - [Following developers and suggestions](#following-developers-and-suggestions)
   - [Following, Latest, and Trending logs](#following-latest-and-trending-logs)
+  - [Lists](#lists)
   - [Searching developers and commits](#searching-developers-and-commits)
   - [Writing commits](#writing-commits)
   - [Translating commits](#translating-commits)
@@ -181,6 +182,14 @@ Browser Back and Forward restore expanded replies and loaded thread continuation
 If a background check hits a temporary connection or gateway failure, the page keeps its last received content and tries again on the normal polling schedule.
 
 Sources: [log types](app/Enums/Log.php), [log queries](app/Queries/LogQueries), [log page](resources/js/pages/log/show.tsx), [background polling](resources/js/lib/background-poll.ts).
+
+### Lists
+
+A **list** groups developers so you can read only their commits. Open **Lists** from the side navigation or the account menu, name a list (up to 40 characters), then add or remove developers with the list button on their profiles. A list's log shows its members' top-level commits newest first, with the same visibility, mute, and block filtering as Following. Members can also be removed from the list's own page.
+
+Lists are private: only their owner sees them, and nobody is told when they are added. Pin up to **two** lists to show them as tabs next to Following, Latest, and Trending. Each account can have up to **10** lists of up to **250** developers each. You cannot add yourself or someone across a block. Deleting a list only removes the grouping; follows are unaffected.
+
+Sources: [list controller](app/Http/Controllers/UserListController.php), [list model](app/Models/UserList.php), [list log query](app/Queries/UserListCommitsQuery.php), [lists page](resources/js/pages/user-list/index.tsx), [list page](resources/js/pages/user-list/show.tsx), [profile list menu](resources/js/components/user-list-menu.tsx).
 
 ### Searching developers and commits
 

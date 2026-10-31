@@ -9,6 +9,7 @@ use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\User;
+use App\Models\UserList;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -836,3 +837,29 @@ it('moves the people lists of a profile for good to the handle in its own case',
         ->assertMovedPermanently()
         ->assertRedirect("/@OctoCat/{$list}");
 })->with(['following', 'followers', 'mutuals']);
+
+it('loads the lists of the viewer on request, marking the ones holding the user', function (): void {
+    $viewer = User::factory()->create();
+    $user = User::factory()->create();
+    $holding = UserList::factory()->for($viewer)->create(['name' => 'Bun']);
+    $other = UserList::factory()->for($viewer)->create(['name' => 'Laravel']);
+    UserList::factory()->create();
+
+    $holding->members()->attach($user);
+
+    $this->actingAs($viewer)
+        ->get(route('user.show', $user))
+        ->assertInertia(fn ($page) => $page
+            ->missing('lists')
+            ->reloadOnly('lists', fn ($reload) => $reload
+                ->where('lists', [
+                    ['id' => $holding->id, 'name' => 'Bun', 'has_member' => true],
+                    ['id' => $other->id, 'name' => 'Laravel', 'has_member' => false],
+                ])));
+});
+
+it('loads no lists for guests', function (): void {
+    $this->get(route('user.show', User::factory()->create()))
+        ->assertInertia(fn ($page) => $page
+            ->reloadOnly('lists', fn ($reload) => $reload->where('lists', [])));
+});

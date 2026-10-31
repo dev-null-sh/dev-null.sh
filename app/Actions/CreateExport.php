@@ -15,6 +15,7 @@ use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PushSubscription;
 use App\Models\User;
+use App\Models\UserList;
 use App\Models\UserTimeout;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
@@ -49,6 +50,7 @@ use Traversable;
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     organizations: array<int, array{handle: string, role: string, joined_at: string}>,
  *     followed_organizations: array<int, array{handle: string, followed_at: string}>,
+ *     lists: array<int, array{name: string, pinned_at: string|null, created_at: string, members: array<int, string>}>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
@@ -119,6 +121,12 @@ final readonly class CreateExport
             'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
             'organizations' => $this->organizations($user),
             'followed_organizations' => $this->followedOrganizations($user),
+            'lists' => $user->lists()->oldest()->get()->map(fn (UserList $list): array => [
+                'name' => $list->name,
+                'pinned_at' => $list->pinned_at?->toIso8601String(),
+                'created_at' => $list->created_at->toIso8601String(),
+                'members' => $list->members()->join('profiles', 'profiles.github_id', '=', 'users.github_id')->orderBy('profiles.handle')->get(['users.*'])->map(fn (User $member): string => $member->handle)->values()->all(),
+            ])->all(),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
                 'commit_id' => $report->commit_id,
