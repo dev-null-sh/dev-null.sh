@@ -26,6 +26,7 @@ import type { FollowersYouKnowPreview } from '@/components/followers-you-know';
 import { GitHubIcon } from '@/components/github-icon';
 import {
     LiveAvatarMarker,
+    LiveStreamEmbed,
     LiveStreamTrigger,
 } from '@/components/live-stream-card';
 import { LocalTime } from '@/components/local-time';
@@ -70,6 +71,7 @@ export default function Show({
     isMuting,
     followersYouKnow,
     canPush,
+    canStreamHere,
     moderation,
     activity,
     streaks,
@@ -87,6 +89,7 @@ export default function Show({
     isMuting: boolean;
     followersYouKnow: FollowersYouKnowPreview | null;
     canPush: boolean;
+    canStreamHere: boolean;
     moderation: UserModeration | null;
     activity: Activity;
     streaks: Streaks;
@@ -145,10 +148,18 @@ export default function Show({
                             className="flex"
                         >
                             <a
-                                href={user.live.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                aria-label={`Watch ${user.name} live on ${user.live.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`}
+                                {...(user.live.embed_url
+                                    ? { href: '#live' }
+                                    : {
+                                          href: user.live.url,
+                                          target: '_blank',
+                                          rel: 'noopener noreferrer',
+                                      })}
+                                aria-label={
+                                    user.live.embed_url
+                                        ? `Watch ${user.name} live`
+                                        : `Watch ${user.name} live on ${user.live.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`
+                                }
                                 className="relative flex rounded-full"
                                 data-test="profile-live-avatar"
                             >
@@ -176,7 +187,10 @@ export default function Show({
                         />
                         {isCurrentUser ? (
                             <>
-                                <ProfileLiveButton user={user} />
+                                <ProfileLiveButton
+                                    user={user}
+                                    canStreamHere={canStreamHere}
+                                />
                                 <EditProfileMenu />
                             </>
                         ) : (
@@ -419,6 +433,20 @@ export default function Show({
                     </p>
                 )}
             </header>
+
+            {user.live?.embed_url && (
+                <section
+                    id="live"
+                    className="scroll-mt-14 border-b px-4 py-4 sm:px-6"
+                    data-test="profile-live-player"
+                >
+                    <LiveStreamEmbed
+                        user={user}
+                        src={user.live.embed_url}
+                        className="rounded-lg border"
+                    />
+                </section>
+            )}
 
             <ActivityGraph
                 activity={activity}

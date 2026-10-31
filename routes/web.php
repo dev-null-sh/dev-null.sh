@@ -130,6 +130,7 @@ use App\Http\Controllers\UserFollowersYouKnowController;
 use App\Http\Controllers\UserFollowingController;
 use App\Http\Controllers\UserLaneController;
 use App\Http\Controllers\UserLiveController;
+use App\Http\Controllers\UserLiveInputController;
 use App\Http\Controllers\UserMuteController;
 use App\Http\Controllers\UserMutualsController;
 use App\Http\Controllers\UserPasteisModeController;
@@ -615,6 +616,12 @@ Route::middleware('auth')->group(function (): void {
         ->middleware(PreventPostingInTimeout::class)
         ->name('user-live.update');
     Route::delete('settings/live', [UserLiveController::class, 'destroy'])->name('user-live.destroy');
+    Route::post('settings/live/input', [UserLiveInputController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('user-live-input.store');
+    Route::put('settings/live/input', [UserLiveInputController::class, 'update'])
+        ->middleware(PreventPostingInTimeout::class)
+        ->name('user-live-input.update');
 
     // Appearance...
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');
