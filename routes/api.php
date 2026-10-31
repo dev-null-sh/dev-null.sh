@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Exceptions\ApiException;
+use App\Http\Controllers\Api\CallController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
 use App\Http\Controllers\Api\CommitPinController;
@@ -15,6 +16,8 @@ use App\Http\Controllers\Api\CommitSearchController;
 use App\Http\Controllers\Api\CommitStarController;
 use App\Http\Controllers\Api\CommitTranslationController;
 use App\Http\Controllers\Api\ConversationArchiveController;
+use App\Http\Controllers\Api\ConversationCallController;
+use App\Http\Controllers\Api\ConversationCallIceServerController;
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\ConversationDropController;
 use App\Http\Controllers\Api\ConversationMergeController;
@@ -368,6 +371,24 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->whereUuid('org')
             ->middleware([PreventPostingInTimeout::class, 'throttle:pings'])
             ->name('api-org-ping.store');
+
+        // Remote Calls: the app swaps WebRTC offers and answers through these as the web's calls do, so either side may
+        // be the web or the app...
+        Route::middleware('throttle:conversations')->group(function (): void {
+            Route::get('remotes/call', [CallController::class, 'show'])->name('api-call.show');
+            Route::get('remotes/@{partner:handle}/call', [ConversationCallController::class, 'show'])
+                ->name('api-conversation-call.show');
+            Route::put('remotes/@{partner:handle}/call', [ConversationCallController::class, 'update'])
+                ->name('api-conversation-call.update');
+            Route::delete('remotes/@{partner:handle}/call', [ConversationCallController::class, 'destroy'])
+                ->name('api-conversation-call.destroy');
+        });
+        Route::get('remotes/@{partner:handle}/call/ice-servers', [ConversationCallIceServerController::class, 'index'])
+            ->middleware('throttle:messages')
+            ->name('api-conversation-call-ice-server.index');
+        Route::post('remotes/@{partner:handle}/call', [ConversationCallController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, 'throttle:messages'])
+            ->name('api-conversation-call.store');
 
         // Remote Reactions...
         Route::middleware('throttle:conversations')->group(function (): void {
