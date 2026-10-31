@@ -134,7 +134,7 @@ Sources: [go-live button](resources/js/components/profile-live-button.tsx), [liv
 
 ### Achievement badges and XP
 
-Profiles have **15 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
+Profiles have **16 achievement badges**. Earned badges appear in a single row, with **+N more** when more have been earned than fit. Hover over the row on desktop or tap it on mobile to toggle a popover with every badge, including locked badges and their progress. Profiles with no earned badges show **View achievements** instead. Select a badge in the popover, or the profile's rank or unlocked count, to open the detailed achievements dialog.
 
 | Badge | When it unlocks |
 | --- | --- |
@@ -150,6 +150,7 @@ Profiles have **15 achievement badges**. Earned badges appear in a single row, w
 | **pipe** | Write **5 replies to other developers' commits**, excluding self-replies. Replies still count when their parent commit is soft-deleted. |
 | **authorized_keys** | Have at least one public SSH key linked from GitHub. |
 | **sweet tooth** | Receive **100 pastéis across your account**, not on a single commit. Pastéis mode does not need to be enabled, and the total survives deletion of the awarded commits. |
+| **upstream** | Have a commit on /dev/null's own production branch, which is where every merged pull request lands. GitHub's contributor list is checked by account ID, so a renamed username keeps it, and refreshed at most once an hour. |
 | **luddite** | Stop following Tom while he still follows you. This deducts **100 XP**; following him again removes the badge and penalty. Accounts Tom has never befriended do not qualify. |
 | **shell shocked** | “Survived the php2shell downtime of Oct '26. Earns 100 XP.” — accounts created before **October 21, 2026 at 14:00 UTC** receive this badge and **100 bonus XP**. Accounts created at or after that moment do not qualify. |
 | **super-saiyan** | Have **9,000 followers or more** on /dev/null. “Y—your follower count. It... it’s over 9000!!!1!” |
@@ -160,7 +161,7 @@ Badges are calculated from current account data, not permanently recorded awards
 
 XP also determines your Unix rank: **user** at 0 XP, **daemon** at 50, **operator** at 150, **maintainer** at 400, **wheel** at 1,000, and **root** at 2,500. The achievements dialog's **Ranks** tab shows the levels and progress. Level-up notifications use your public progress, so pending or rejected commits do not trigger them. Each level above the starting rank can notify you only once, even if you lose and regain the XP; jumping ahead does not send a notification for every skipped level.
 
-Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and XP calculation](app/Queries/UserAchievementsQuery.php), [streak calculation](app/Queries/UserStreakQuery.php), [Unix ranks](app/Enums/UnixRank.php), [level-up notifications](app/Actions/CreateLevelNotification.php), [achievements dialog](resources/js/components/achievements-dialog.tsx).
+Sources: [badge definitions](app/Enums/Achievement.php), [unlock conditions and XP calculation](app/Queries/UserAchievementsQuery.php), [streak calculation](app/Queries/UserStreakQuery.php), [Unix ranks](app/Enums/UnixRank.php), [level-up notifications](app/Actions/CreateLevelNotification.php), [upstream contributors](app/Queries/UpstreamContributorsQuery.php), [achievements dialog](resources/js/components/achievements-dialog.tsx).
 
 ### Following developers and suggestions
 
