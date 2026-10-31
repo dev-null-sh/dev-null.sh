@@ -46,6 +46,24 @@ it('is not closed before it is opened', function (): void {
         ->and($poll->isClosed())->toBeFalse();
 });
 
+it('reveals counts to a viewer who asks, without a vote or a chosen option', function (): void {
+    $viewer = User::factory()->create();
+    $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create();
+    PollVote::factory()->for($poll->options[0], 'option')->create();
+
+    $loaded = pollFor($viewer, $poll);
+
+    expect($loaded->toArray()['total_votes'])->toBeNull();
+
+    $revealed = $loaded->revealingResults()->toArray();
+
+    expect($revealed['has_voted'])->toBeFalse()
+        ->and($revealed['total_votes'])->toBe(1)
+        ->and(array_column($revealed['options'], 'votes_count'))->toBe([1, 0])
+        ->and(array_column($revealed['options'], 'voted'))->toBe([false, false])
+        ->and(PollVote::query()->count())->toBe(1);
+});
+
 it('hides the results from viewers who have not voted', function (): void {
     $viewer = User::factory()->create();
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->create(['opened_at' => now()]);

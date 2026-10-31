@@ -431,6 +431,9 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('commits/{commit}/replies/{reply}', [CommitReplyController::class, 'destroy'])
         ->withTrashed()
         ->name('commit-reply.destroy');
+    Route::get('commits/{commit}/poll', [CommitPollVoteController::class, 'show'])
+        ->middleware('throttle:60,1,poll-results')
+        ->name('commit-poll.show');
     Route::post('commits/{commit}/poll/votes', [CommitPollVoteController::class, 'store'])
         ->name('commit-poll-vote.store');
 
