@@ -21,6 +21,7 @@ import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLi
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { AuthorAvatar } from '@/components/author-avatar';
+import { AuthorSwitcher } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import { FoldedCommitBody } from '@/components/commit-body';
 import {
@@ -56,6 +57,7 @@ import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
+import { OrganizationAvatar } from '@/components/organization-avatar';
 import { ReplyRecipientPicker } from '@/components/reply-recipient-picker';
 import { StashLabel } from '@/components/stash-label';
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
@@ -66,6 +68,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import {
     useCommitNotFound,
@@ -76,6 +79,7 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -104,6 +108,7 @@ import type {
     CursorPaginated,
     DeletedFlash,
     FlashToast,
+    OrganizationAuthor,
     ThreadCommit,
 } from '@/types';
 
@@ -1105,7 +1110,7 @@ function CommitReply({
         [nodeRef],
     );
 
-    const isOwn = reply.author.id === auth.user?.id;
+    const isOwn = useOwnsCommit()(reply);
     const isFlattened = depth > maxIndentDepth;
     const isQuote = reply.quoted_commit_id === parent.id;
     const permalink = CommitController.show({
@@ -1352,6 +1357,7 @@ function ReplyComposer({
     onReplied: (parent: RepliedParent) => void;
 }) {
     const { user } = useUser();
+    const [author, setAuthor] = useState<OrganizationAuthor | null>(null);
     const commitNotFound = useCommitNotFound();
     const participants = Array.from(
         new Map(
@@ -1482,6 +1488,7 @@ function ReplyComposer({
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
                 : {}),
+            ...(author !== null && { author: author.handle }),
         }));
 
         request
@@ -1489,6 +1496,7 @@ function ReplyComposer({
                 onSuccess: (reply) => {
                     attachments.clear();
                     drop();
+                    setAuthor(null);
                     linkCard.reset();
                     returnFocusToCommit();
                     router.flash(() => reply);
@@ -1604,6 +1612,21 @@ function ReplyComposer({
             />
             <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                 <div className="mr-auto flex min-w-0 items-center gap-2">
+                    <AuthorSwitcher
+                        user={user}
+                        author={author}
+                        onChange={setAuthor}
+                        fallback={null}
+                    >
+                        {author === null ? (
+                            <UserAvatar user={user} className="size-6" />
+                        ) : (
+                            <OrganizationAvatar
+                                organization={author}
+                                className="size-6"
+                            />
+                        )}
+                    </AuthorSwitcher>
                     <ImagePickerButton
                         count={images.length}
                         disabled={processing}

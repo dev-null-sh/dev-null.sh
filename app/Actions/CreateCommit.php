@@ -15,6 +15,7 @@ use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\MentionedOrganizationsQuery;
 use App\Queries\MentionedUsersQuery;
@@ -53,7 +54,7 @@ final readonly class CreateCommit
      * @param  array<int, string|null>  $imageDescriptions
      * @param  array<string, string>  $replyRecipients
      */
-    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, array $replyRecipients = []): Commit
+    public function handle(User $user, string $body, ?Commit $parent = null, ?Commit $quotedCommit = null, array $images = [], array $imageDescriptions = [], bool|string $linkPreview = true, ?NewPoll $poll = null, array $replyRecipients = [], ?Organization $organization = null): Commit
     {
         $url = match ($linkPreview) {
             true => $this->urls->first($body),
@@ -61,14 +62,15 @@ final readonly class CreateCommit
             default => $linkPreview,
         };
 
-        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $replyRecipients): Commit {
+        return DB::transaction(function () use ($user, $body, $parent, $quotedCommit, $images, $imageDescriptions, $url, $poll, $replyRecipients, $organization): Commit {
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
             $mentions = $this->mentionedUsers->get($body);
 
-            $commit = $user->commits()->create([
+            $commit = Commit::query()->create([
                 'user_id' => $user->id,
+                'author_id' => $organization->id ?? $user->id,
                 'body' => $this->emojiShortcodes->replace($body),
                 'mentions' => [...$replyRecipients, ...$mentions],
                 'parent_id' => $parent?->id,
@@ -91,18 +93,24 @@ final readonly class CreateCommit
                 $this->updateCommitHotScores->handle([$commit->id]);
             }
 
-            $this->createReplyNotifications->handle($commit);
-            $this->createQuoteNotifications->handle($commit);
-            $this->createMentionNotifications->handle($commit);
-            $this->createFirstCommitNotifications->handle($commit);
+            // An organization's commits notify no one yet, and get no welcome or answer: each would show who posted it.
+            if (! $organization instanceof Organization) {
+                $this->createReplyNotifications->handle($commit);
+                $this->createQuoteNotifications->handle($commit);
+                $this->createMentionNotifications->handle($commit);
+                $this->createFirstCommitNotifications->handle($commit);
+            }
 
             if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
                 dispatch(new UnfurlLink($linkPreview));
             }
 
-            $this->createWorldReply->handle($commit);
+            if (! $organization instanceof Organization) {
+                $this->createWorldReply->handle($commit);
+            }
 
             if ($commit->status === CommitStatus::Approved
+                && ! $organization instanceof Organization
                 && $user->github_id !== CreateTomFriendship::GITHUB_ID
             ) {
                 $tom = $this->tomQuery->get();
@@ -112,7 +120,7 @@ final readonly class CreateCommit
                 }
             }
 
-            if ($commit->status === CommitStatus::Approved) {
+            if ($commit->status === CommitStatus::Approved && ! $organization instanceof Organization) {
                 dispatch(new CheckUserLevel($user))->afterCommit();
             }
 

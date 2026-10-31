@@ -60,7 +60,8 @@ final readonly class UpdateCommitStatuses
                 ->delete();
 
             if ($status === CommitStatus::Rejected) {
-                Notification::query()->insert($commits->map(fn (Commit $commit): array => [
+                // An organization's commit whose poster has since deleted their account has no one to tell.
+                Notification::query()->insert($commits->whereNotNull('user_id')->map(fn (Commit $commit): array => [
                     'id' => Str::uuid7()->toString(),
                     'recipient_id' => $commit->user_id,
                     'actor_id' => $commit->user_id,
@@ -81,16 +82,19 @@ final readonly class UpdateCommitStatuses
                     ->whereNull('opened_at')
                     ->update(['opened_at' => now()]);
 
-                $this->createReplyNotifications->handle(...$commits);
-                $this->createQuoteNotifications->handle(...$commits);
-                $this->createMentionNotifications->handle(...$commits);
-                $this->createFirstCommitNotifications->handle(...$commits);
+                // As when they are posted, an organization's commits notify no one yet, and get no welcome or answer.
+                $personal = $commits->filter(fn (Commit $commit): bool => $commit->author_id === $commit->user_id);
 
-                $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
+                $this->createReplyNotifications->handle(...$personal);
+                $this->createQuoteNotifications->handle(...$personal);
+                $this->createMentionNotifications->handle(...$personal);
+                $this->createFirstCommitNotifications->handle(...$personal);
+
+                $personal->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
                 LinkCommitTopics::dispatchFor(...$commits->all());
 
                 if (($tom = $this->tomQuery->get()) instanceof User) {
-                    foreach ($commits as $commit) {
+                    foreach ($personal as $commit) {
                         if ($commit->user?->github_id !== CreateTomFriendship::GITHUB_ID
                             && $commit->isAddressedTo($tom)) {
                             dispatch(new ReplyAsTom($commit->id));
@@ -98,7 +102,7 @@ final readonly class UpdateCommitStatuses
                     }
                 }
 
-                User::query()->whereKey($commits->pluck('user_id')->filter()->unique()->values()->all())->get()
+                User::query()->whereKey($personal->pluck('user_id')->filter()->unique()->values()->all())->get()
                     ->each(fn (User $author) => dispatch(new CheckUserLevel($author))->afterCommit());
             }
         });

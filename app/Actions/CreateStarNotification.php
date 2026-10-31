@@ -17,7 +17,8 @@ final readonly class CreateStarNotification
      */
     public function handle(User $stargazer, Commit $commit): void
     {
-        if ($commit->user_id === $stargazer->id) {
+        // Nobody is told about stars on an organization's commit whose poster has since deleted their account.
+        if ($commit->user_id === null || $commit->user_id === $stargazer->id) {
             return;
         }
 

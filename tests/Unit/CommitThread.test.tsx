@@ -67,7 +67,7 @@ async function renderThread(
     const result = await createInertiaApp({
         page: {
             component: 'test',
-            props: { auth: { user: null }, errors: {}, repliesPerPage },
+            props: { auth: { organizations: [], user: null }, errors: {}, repliesPerPage },
             url: '/',
             version: null,
             clearHistory: false,
@@ -107,7 +107,7 @@ async function renderReplyComposer(mentions: Record<string, string> | null) {
         page: {
             component: 'test',
             props: {
-                auth: { user: commit.author, log: {} },
+                auth: { organizations: [], user: commit.author, log: {} },
                 errors: {},
                 repliesPerPage: 3,
             },
