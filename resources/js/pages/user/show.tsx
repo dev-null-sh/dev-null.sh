@@ -258,18 +258,9 @@ export default function Show({
                             '0 calc(8px * (1 - var(--profile-header-progress, 0)))',
                     }}
                 >
-                    <div className="flex items-baseline gap-3">
-                        <p className="min-w-0 truncate leading-snug font-semibold">
-                            {user.name}
-                        </p>
-                        <p
-                            className="shrink-0 font-mono text-[13px] text-muted-foreground"
-                            title={exactCountTitle(user.commits_count)}
-                        >
-                            {formatCount(user.commits_count)}{' '}
-                            {pluralize(user.commits_count, 'commit', 'commits')}
-                        </p>
-                    </div>
+                    <p className="truncate leading-snug font-semibold">
+                        {user.name}
+                    </p>
                     <p className="truncate font-mono text-xs text-muted-foreground">
                         @{user.handle}
                     </p>
