@@ -33,6 +33,8 @@ final class CommitHeadlineWriter implements Agent, HasProviderOptions, HasStruct
     public function instructions(): string
     {
         return 'For each entry in posts, write a brief, reusable headline describing its main subject on /dev/null about technology, current affairs or a concrete event. '
+            .'Include /dev/null community activity such as livestreams, Tom (the platform assistant), app betas and feature updates. '
+            .'An entry may contain post and quoted_post: read them together, using the directly quoted text to identify the subject of brief commentary or reactions. '
             .'Use a neutral English phrase of 2–8 words, at most 80 characters, in sentence case. '
             .'Preserve specific product names and the concrete subject so other posts about the same subject can share it. '
             .'Do not add facts, answer questions, include URLs or @handles, or describe the author. Avoid generic labels like "Software development". '

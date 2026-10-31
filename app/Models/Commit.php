@@ -307,6 +307,17 @@ final class Commit extends Model
         return $this->belongsTo(self::class, 'quoted_commit_id');
     }
 
+    public function headlineBody(): string
+    {
+        $quoted = $this->quotedCommit;
+
+        if ($quoted === null || $quoted->trashed() || $quoted->status !== CommitStatus::Approved || $quoted->body === '') {
+            return $this->body;
+        }
+
+        return json_encode(['post' => $this->body, 'quoted_post' => $quoted->body], JSON_THROW_ON_ERROR);
+    }
+
     /**
      * @return HasMany<Commit, $this>
      */

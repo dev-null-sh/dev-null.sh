@@ -42,6 +42,73 @@ it('filters a batch, links matches and shares the first of similar generated hea
     CommitHeadlineWriter::assertPromptedTimes(1);
 });
 
+it('uses the directly quoted public body to assess and assign a headline', function (bool $existing): void {
+    $older = Commit::factory()->create(['body' => 'An unrelated earlier quote']);
+    $original = Commit::factory()->create(['body' => 'The /dev/null iOS app beta is open.', 'quoted_commit_id' => $older->id]);
+    $quote = Commit::factory()->create(['body' => "Go test this app, it's awesome 🔥", 'quoted_commit_id' => $original->id]);
+    if ($existing) {
+        Headline::factory()->create(['name' => '/dev/null iOS app beta']);
+    }
+
+    $input = [0 => json_encode(['post' => $quote->body, 'quoted_post' => $original->body], JSON_THROW_ON_ERROR)];
+    $provider = $this->mock(HeadlineProvider::class);
+    $provider->shouldReceive('candidates')->once()->with($input)->andReturn([0]);
+    $provider->shouldReceive('matches')->once()->with($input, $existing ? ['/dev/null iOS app beta'] : [])->andReturn($existing ? [0 => ['/dev/null iOS app beta']] : []);
+    $provider->shouldReceive('generate')->once()->with($existing ? [] : $input)->andReturn($existing ? [] : [0 => '/dev/null iOS app beta']);
+    $provider->shouldReceive('deduplicate')->andReturn($existing ? [] : [0 => '/dev/null iOS app beta']);
+
+    new ProcessCommitHeadlines([$quote->id])->handle($provider);
+
+    expect($quote->headlines()->sole()->name)->toBe('/dev/null iOS app beta')
+        ->and($quote->refresh()->headlines_classified_at)->not->toBeNull()
+        ->and($original->headlines()->count())->toBe(0);
+})->with([true, false]);
+
+it('does not send unavailable quoted content to headline providers', function (string $state): void {
+    $original = Commit::factory()->create(['body' => 'Unavailable quoted content']);
+    match ($state) {
+        'pending' => $original->update(['status' => CommitStatus::Pending]),
+        'rejected' => $original->update(['status' => CommitStatus::Rejected]),
+        'deleted' => $original->delete(),
+        'erased' => $original->update(['body' => '']),
+    };
+    $quote = Commit::factory()->create(['body' => 'New Laravel features', 'quoted_commit_id' => $original->id]);
+    $provider = $this->mock(HeadlineProvider::class);
+    $provider->shouldReceive('candidates')->with([0 => 'New Laravel features'])->andReturn([0]);
+    $provider->shouldReceive('matches')->with([0 => 'New Laravel features'], [])->andReturn([]);
+    $provider->shouldReceive('generate')->with([0 => 'New Laravel features'])->andReturn([0 => 'Laravel features']);
+    $provider->shouldReceive('deduplicate')->andReturn([0 => 'Laravel features']);
+
+    new ProcessCommitHeadlines([$quote->id])->handle($provider);
+
+    expect($quote->headlines()->sole()->name)->toBe('Laravel features');
+})->with(['pending', 'rejected', 'deleted', 'erased']);
+
+it('does not apply results when quoted context changes during classification', function (string $change): void {
+    $original = Commit::factory()->create(['body' => 'The /dev/null iOS app beta is open.']);
+    $quote = Commit::factory()->create(['body' => 'Go test this app!', 'quoted_commit_id' => $original->id]);
+    Headline::factory()->create(['name' => '/dev/null iOS app beta']);
+    $provider = $this->mock(HeadlineProvider::class);
+    $provider->shouldReceive('candidates')->andReturnUsing(function () use ($original, $quote, $change): array {
+        match ($change) {
+            'edited' => $original->update(['body' => 'A different subject']),
+            'pending' => $original->update(['status' => CommitStatus::Pending]),
+            'deleted' => $original->delete(),
+            'removed' => $quote->update(['quoted_commit_id' => null]),
+        };
+
+        return [0];
+    });
+    $provider->shouldReceive('matches')->andReturn([0 => ['/dev/null iOS app beta']]);
+    $provider->shouldReceive('generate')->with([])->andReturn([]);
+    $provider->shouldReceive('deduplicate')->with([])->andReturn([]);
+
+    new ProcessCommitHeadlines([$quote->id])->handle($provider);
+
+    expect($quote->headlines()->count())->toBe(0)
+        ->and($quote->refresh()->headlines_classified_at)->toBeNull();
+})->with(['edited', 'pending', 'deleted', 'removed']);
+
 it('rechecks eligibility when a queued batch runs', function (): void {
     $root = Commit::factory()->create();
     $pending = Commit::factory()->pending()->create();
