@@ -192,7 +192,7 @@ final readonly class OperationsEventsQuery
         return DB::table('notifications')
             ->join('profiles as actor_profiles', 'actor_profiles.id', '=', 'notifications.actor_id')
             ->leftJoin('commits', 'commits.id', '=', 'notifications.commit_id')
-            ->leftJoin('profiles as author_profiles', 'author_profiles.id', '=', 'commits.user_id')
+            ->leftJoin('profiles as author_profiles', 'author_profiles.id', '=', 'commits.author_id')
             ->selectRaw(<<<'SQL'
                 'moderation' as source, notifications.type as kind, notifications.id::text as row_id,
                 notifications.created_at as at, 'notice' as level,

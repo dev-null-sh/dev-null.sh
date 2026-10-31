@@ -68,7 +68,7 @@ final readonly class CreateCommit
             $mentions = $this->mentionedUsers->get($body);
 
             $commit = $user->commits()->create([
-                'author_id' => $user->id,
+                'user_id' => $user->id,
                 'body' => $this->emojiShortcodes->replace($body),
                 'mentions' => [...$replyRecipients, ...$mentions],
                 'parent_id' => $parent?->id,

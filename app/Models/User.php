@@ -244,11 +244,13 @@ final class User extends Authenticatable
     }
 
     /**
+     * The commits from the user's own profile.
+     *
      * @return HasMany<Commit, $this>
      */
     public function commits(): HasMany
     {
-        return $this->hasMany(Commit::class);
+        return $this->hasMany(Commit::class, 'author_id');
     }
 
     /**

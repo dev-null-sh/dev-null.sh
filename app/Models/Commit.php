@@ -155,6 +155,8 @@ final class Commit extends Model
     }
 
     /**
+     * The user who posted the commit, whom moderation holds to account.
+     *
      * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
@@ -184,7 +186,7 @@ final class Commit extends Model
     {
         $explicitMentions = array_intersect_key($this->mentions ?? [], array_flip(resolve(Mentions::class)->handles($this->body)));
 
-        return in_array($user->id, $explicitMentions, true) || $this->parent?->user_id === $user->id;
+        return in_array($user->id, $explicitMentions, true) || $this->parent?->author_id === $user->id;
     }
 
     /**

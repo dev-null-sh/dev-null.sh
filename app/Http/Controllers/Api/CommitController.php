@@ -33,7 +33,7 @@ final readonly class CommitController
             return CommitResource::make($commit)->additional([
                 'ancestors' => CommitResource::collection($ancestors->get($commit, $currentUser)),
                 'reply_participants' => collect($commit->mentions ?? [])
-                    ->reject(fn (string $id): bool => in_array($id, [$currentUser->id, $commit->user_id], true))
+                    ->reject(fn (string $id): bool => in_array($id, [$currentUser->id, $commit->author_id], true))
                     ->map(fn (string $id, int|string $handle): array => ['id' => $id, 'handle' => (string) $handle])
                     ->values(),
             ]);

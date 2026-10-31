@@ -66,7 +66,7 @@ final class CommitBuilder extends Builder
 
     /**
      * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits.
-     * A block hides each one's commits from the other.
+     * A block hides the commits from each one's profile from the other.
      */
     public function visibleTo(?User $user): self
     {
@@ -78,8 +78,8 @@ final class CommitBuilder extends Builder
             ->where($this->qualifyColumn('status'), CommitStatus::Approved)
             ->orWhere($this->qualifyColumn('user_id'), $user->id))
             ->where(fn (Builder $query): Builder => $query
-                ->whereNull($this->qualifyColumn('user_id'))
-                ->orWhereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks()));
+                ->whereNull($this->qualifyColumn('author_id'))
+                ->orWhereNotIn($this->qualifyColumn('author_id'), $user->idsAcrossBlocks()));
     }
 
     /**
@@ -88,8 +88,8 @@ final class CommitBuilder extends Builder
     public function withoutMutedAuthorsFor(?User $user): self
     {
         return $user instanceof User ? $this->where(fn (Builder $query): Builder => $query
-            ->whereNull($this->qualifyColumn('user_id'))
-            ->orWhereNotIn($this->qualifyColumn('user_id'), $user->mutedIds())) : $this;
+            ->whereNull($this->qualifyColumn('author_id'))
+            ->orWhereNotIn($this->qualifyColumn('author_id'), $user->mutedIds())) : $this;
     }
 
     /**
@@ -179,7 +179,7 @@ final class CommitBuilder extends Builder
             ->from((new Commit)->getTable().' as earliest_reply')
             ->select('earliest_reply.id')
             ->whereColumn('earliest_reply.parent_id', $this->qualifyColumn('id'))
-            ->whereColumn('earliest_reply.user_id', $this->qualifyColumn('user_id'))
+            ->whereColumn('earliest_reply.author_id', $this->qualifyColumn('author_id'))
             ->oldest('earliest_reply.created_at')
             ->oldest('earliest_reply.id')
             ->limit(1);

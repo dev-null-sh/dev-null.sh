@@ -151,12 +151,12 @@ final readonly class SitemapQuery
      */
     public function commitsOn(CarbonImmutable $day): array
     {
-        $onDay = $this->commitsWrittenOn($day)->select(['id', 'user_id', 'updated_at']);
+        $onDay = $this->commitsWrittenOn($day)->select(['id', 'author_id', 'updated_at']);
 
         /** @var list<object{id: string, handle: string, updated_at: string, image_id: string|null}> $rows */
         $rows = DB::query()
             ->fromSub($onDay, 'commits')
-            ->join('profiles', 'profiles.id', '=', 'commits.user_id')
+            ->join('profiles', 'profiles.id', '=', 'commits.author_id')
             ->leftJoin('commit_images', 'commit_images.commit_id', '=', 'commits.id')
             ->orderBy('commits.id')
             ->orderBy('commit_images.position')
@@ -191,13 +191,13 @@ final readonly class SitemapQuery
     {
         $lastCommits = $this->commits()
             ->toBase()
-            ->select('user_id')
+            ->select('author_id')
             ->selectRaw('max(updated_at) as updated_at')
-            ->groupBy('user_id');
+            ->groupBy('author_id');
 
         return User::query()
             ->join('profiles', 'profiles.id', '=', 'users.id')
-            ->joinSub($lastCommits, 'last_commits', 'last_commits.user_id', '=', 'users.id')
+            ->joinSub($lastCommits, 'last_commits', 'last_commits.author_id', '=', 'users.id')
             ->select(['profiles.handle', 'users.created_at'])
             ->selectRaw('greatest(users.updated_at, profiles.updated_at, last_commits.updated_at) as updated_at');
     }

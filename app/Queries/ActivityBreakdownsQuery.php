@@ -33,7 +33,7 @@ final readonly class ActivityBreakdownsQuery
 
         /** @var list<object{name: string, aggregate: int}> $authors */
         $authors = (clone $commits)
-            ->join('profiles', 'profiles.id', '=', 'commits.user_id')
+            ->join('profiles', 'profiles.id', '=', 'commits.author_id')
             ->selectRaw('profiles.handle as name, count(*) as aggregate')
             ->groupBy('profiles.handle')
             ->orderByDesc('aggregate')

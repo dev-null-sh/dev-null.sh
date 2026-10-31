@@ -217,7 +217,7 @@ final readonly class CreateExport
     private function polls(User $user): Generator
     {
         $polls = Poll::query()
-            ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id))
+            ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->where('author_id', $user->id))
             ->with('options')
             ->lazyById(500);
 

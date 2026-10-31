@@ -60,16 +60,16 @@ final readonly class MentionSuggestionsQuery
             ->when($org, fn (Builder $query, Conversation $org): Builder => $query->whereIn('users.id', $org->participants()->select('user_id')))
             ->when($term === '' && $target instanceof Commit, fn (Builder $query): Builder => $query
                 ->where(fn (Builder $query): Builder => $query
-                    ->whereIn('users.id', [$target?->user_id, $root?->user_id])
-                    ->when($contributors, fn (Builder $query, QueryBuilder $contributors): Builder => $query->orWhereIn('users.id', (clone $contributors)->select('user_id')))
+                    ->whereIn('users.id', [$target?->author_id, $root?->author_id])
+                    ->when($contributors, fn (Builder $query, QueryBuilder $contributors): Builder => $query->orWhereIn('users.id', (clone $contributors)->select('author_id')))
                     ->orWhereIn('users.id', $user->following()->select('users.id'))))
             ->where(fn (Builder $query): Builder => $query
                 ->whereRaw("LOWER(profiles.handle) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
                 ->orWhereRaw("LOWER(profiles.name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
             ->when($target, fn (Builder $query): Builder => $query
-                ->orderByRaw('CASE WHEN users.id = ? THEN 0 WHEN users.id = ? THEN 1 ELSE 2 END', [$target?->user_id, $root?->user_id]))
+                ->orderByRaw('CASE WHEN users.id = ? THEN 0 WHEN users.id = ? THEN 1 ELSE 2 END', [$target?->author_id, $root?->author_id]))
             ->when($contributors, fn (Builder $query, QueryBuilder $contributors): Builder => $query
-                ->orderByDesc((clone $contributors)->selectRaw('COUNT(*) > 0')->whereColumn('commits.user_id', 'users.id')))
+                ->orderByDesc((clone $contributors)->selectRaw('COUNT(*) > 0')->whereColumn('commits.author_id', 'users.id')))
             ->orderByRaw(
                 "CASE WHEN profiles.handle = ? THEN 0 WHEN profiles.handle LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(profiles.name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
                 [$term, "{$escaped}%", "{$escaped}%"],

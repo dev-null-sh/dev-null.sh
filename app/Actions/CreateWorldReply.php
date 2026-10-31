@@ -60,7 +60,7 @@ final readonly class CreateWorldReply
             }
 
             $reply = $world->commits()->create([
-                'author_id' => $world->id,
+                'user_id' => $world->id,
                 'body' => "Hello, {$author->name}.",
                 'parent_id' => $commit->id,
                 'root_id' => $commit->threadRootId(),

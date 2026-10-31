@@ -241,7 +241,7 @@ it('moves an existing bot to its reserved handle when the github owner signs in'
     $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
     $bot = User::factory()->create(['github_id' => $githubId, 'handle' => mb_strtolower($handle)]);
     $profile = $bot->only(['id', 'name', 'avatar_url', 'bio', 'onboarded_at', 'remotes_enabled']);
-    $post = $bot->commits()->create(['body' => 'An existing bot post.']);
+    $post = $bot->commits()->create(['user_id' => $bot->id, 'body' => 'An existing bot post.']);
     $friend = User::factory()->create();
     $bot->following()->attach($friend);
     $friend->following()->attach($bot);

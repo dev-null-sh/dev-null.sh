@@ -108,7 +108,7 @@ final readonly class DeleteUser
     private function touchedCommits(User $user): CommitBuilder
     {
         return Commit::query()->withTrashed()
-            ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id)
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query->where('author_id', $user->id)
                 ->orWhereIn('root_id', $user->commits()->withTrashed()->topLevel()->select('id')));
     }
 
