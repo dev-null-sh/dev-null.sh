@@ -22,7 +22,9 @@ final readonly class UserLiveController
     {
         $action->handle($user, $request->platform(), $request->url(), $request->integer('hours'));
 
-        return $this->currentUser($user, $notifications);
+        return CurrentUserResource::make($user->loadCounts())->additional([
+            'unread_notifications_count' => $notifications->unreadCount($user),
+        ]);
     }
 
     /**
@@ -32,11 +34,6 @@ final readonly class UserLiveController
     {
         $action->handle($user);
 
-        return $this->currentUser($user, $notifications);
-    }
-
-    private function currentUser(User $user, NotificationGroupsQuery $notifications): CurrentUserResource
-    {
         return CurrentUserResource::make($user->loadCounts())->additional([
             'unread_notifications_count' => $notifications->unreadCount($user),
         ]);
