@@ -19,6 +19,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * login, which can be renamed, so the account is matched by its GitHub ID. Organizations are profiles too, and what
  * only they have lives on `Organization`.
  *
+ * Like on GitHub, a handle is one whatever its case: the column is `citext`, so a plain `where('handle', ...)` matches
+ * any case and its unique index refuses the same handle in another case. Never lowercase it in a query to compare
+ * it. Only searches lowercase it, as `LOWER(handle) LIKE ...`, which the trigram index serves.
+ *
  * @property-read string $id
  * @property-read ProfileType $type
  * @property-read string $github_id
