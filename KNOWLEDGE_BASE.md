@@ -19,6 +19,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Searching developers and commits](#searching-developers-and-commits)
   - [Writing commits](#writing-commits)
   - [Translating commits](#translating-commits)
+  - [Converting times in commits](#converting-times-in-commits)
   - [Code, emoji, and mentions](#code-emoji-and-mentions)
   - [Draft previews](#draft-previews)
   - [Stashed drafts](#stashed-drafts)
@@ -217,6 +218,14 @@ If language detection fails, the original post can still be read. A failed trans
 Translations can be switched off site-wide. While off, Translate and cached translations are hidden and no new languages are detected. Cached translations are kept and reappear when translations are switched back on.
 
 Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController.php), [agent](app/Ai/Agents/CommitTranslator.php), [cache](app/Services/CommitTranslations.php), [controls](resources/js/components/commit-translation.tsx).
+
+### Converting times in commits
+
+Commits and replies show a small **Local times** clock icon alongside their existing actions when their prose includes a clock time with a supported timezone, such as `15:00 British Summer Time`, `3pm UTC`, `15:00 UTC+05:30`, or `15:00 Europe/London`. Tap or click the icon to open a compact conversion popover; press Escape, tap outside, or click the icon again to close it. The control and popover do not add height to the commit. Times without an explicit timezone use the author's shared timezone when one is set; otherwise they are left alone. Code, URLs, and ambiguous abbreviations such as CST and IST are excluded. The original text stays visible. Guests can use this too.
+
+Conversions use the reader's saved timezone, falling back to the browser's timezone. The popover shows the converted time and full date, including when conversion crosses midnight. An ISO date written before a time is honored; otherwise the date is the commit's posting date in the source timezone. Today, tomorrow, and yesterday are relative to that posting date. IANA zones follow daylight-saving rules for the date, while abbreviations such as BST and EST retain their stated fixed offsets. Invalid dates and skipped or repeated daylight-saving hours are marked as ambiguous or invalid rather than silently shifted. Conversion runs locally in the browser, with timezone support loaded when the popover is first opened.
+
+Sources: [time detection and conversion](resources/js/lib/commit-times.ts), [local-time panel](resources/js/components/commit-times.tsx).
 
 ### Code, emoji, and mentions
 
