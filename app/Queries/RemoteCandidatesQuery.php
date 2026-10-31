@@ -47,7 +47,9 @@ final readonly class RemoteCandidatesQuery
     public function reasons(User $user, Collection $candidates, ?Conversation $org = null, ?Collection $joining = null, bool $forSharing = false): array
     {
         if (! $org instanceof Conversation) {
-            return $candidates->mapWithKeys(fn (User $candidate): array => [$candidate->id => match ($this->pushAccess->get($user, $candidate)) {
+            $access = $this->pushAccess->forMany($user, $candidates);
+
+            return $candidates->mapWithKeys(fn (User $candidate): array => [$candidate->id => match ($access->get($candidate->id)) {
                 PushAccess::Closed => 'has remotes off',
                 PushAccess::Restricted => "doesn't follow you",
                 PushAccess::Request => $forSharing ? 'merge their request first' : null,
