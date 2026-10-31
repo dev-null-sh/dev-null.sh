@@ -63,14 +63,18 @@ function focusedCommitAction(key: string): HTMLButtonElement | null {
 /**
  * The collapse button only shows where the nav can widen, so the shortcut does nothing where it is hidden.
  */
-function toggleNav(): void {
+function toggleNav(): boolean {
     const toggle = document.querySelector<HTMLButtonElement>(
         'button[aria-keyshortcuts~="Meta+B"]',
     );
 
-    if (toggle?.checkVisibility()) {
-        toggle.click();
+    if (!toggle?.checkVisibility()) {
+        return false;
     }
+
+    toggle.click();
+
+    return true;
 }
 
 function openFocusedCommit(): boolean {
@@ -135,26 +139,30 @@ export function useKeyboardShortcuts(
             }
 
             if (
-                hasModKey(event) &&
-                event.key.toLowerCase() === 'b' &&
-                !isTyping(event.target)
-            ) {
-                event.preventDefault();
-                toggleNav();
-
-                return;
-            }
-
-            if (
                 event.defaultPrevented ||
-                event.metaKey ||
-                event.ctrlKey ||
-                event.altKey ||
                 isTyping(event.target) ||
                 document.querySelector(
                     '[role="dialog"][data-state="open"], [role="dialog"][aria-modal="true"]',
                 )
             ) {
+                return;
+            }
+
+            if (
+                hasModKey(event) &&
+                event.key.toLowerCase() === 'b' &&
+                !event.shiftKey &&
+                !event.altKey &&
+                !event.repeat
+            ) {
+                if (toggleNav()) {
+                    event.preventDefault();
+                }
+
+                return;
+            }
+
+            if (event.metaKey || event.ctrlKey || event.altKey) {
                 return;
             }
 

@@ -275,6 +275,7 @@ export function AppNav({
     const { isNavOpen: sidebarOpen, isLayoutOpen, setNavOpen } = useNavOpen();
     const items = useNavItems();
     const keys = useKeyLabels();
+    const collapseShortcut = keys.combo(keys.mod, 'B');
 
     const iconsOnly = !(useMediaQuery('(min-width: 64rem)') && isLayoutOpen);
 
@@ -379,8 +380,8 @@ export function AppNav({
                     label={
                         iconsOnly
                             ? sidebarOpen
-                                ? `Collapse (${keys.combo(keys.mod, 'B')})`
-                                : `Expand (${keys.combo(keys.mod, 'B')})`
+                                ? `Collapse (${collapseShortcut})`
+                                : `Expand (${collapseShortcut})`
                             : null
                     }
                 >
@@ -398,8 +399,8 @@ export function AppNav({
                             iconsOnly
                                 ? undefined
                                 : sidebarOpen
-                                  ? `Collapse navigation (${keys.combo(keys.mod, 'B')})`
-                                  : `Expand navigation (${keys.combo(keys.mod, 'B')})`
+                                  ? `Collapse navigation (${collapseShortcut})`
+                                  : `Expand navigation (${collapseShortcut})`
                         }
                         className="hidden h-11 items-center gap-3 rounded-lg py-3 pr-3 pl-4 text-[15px] leading-5 font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground lg:flex"
                         data-test="nav-collapse-button"
