@@ -81,14 +81,18 @@ final class Notification extends Model
 
     /**
      * A level-up also names the rank it reached, so the inbox can say it the way the profile does.
-     *
+     */
+    public function rank(): ?UnixRank
+    {
+        return $this->type === NotificationType::LeveledUp && $this->level !== null ? UnixRank::forLevel($this->level) : null;
+    }
+
+    /**
      * @return array<mixed>
      */
     public function toArray(): array
     {
-        $rank = $this->type === NotificationType::LeveledUp && $this->level !== null ? UnixRank::forLevel($this->level) : null;
-
-        return [...parent::toArray(), 'rank' => $rank?->value, 'rank_description' => $rank?->description()];
+        return [...parent::toArray(), 'rank' => $this->rank()?->value, 'rank_description' => $this->rank()?->description()];
     }
 
     /**
