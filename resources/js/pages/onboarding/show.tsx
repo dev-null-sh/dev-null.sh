@@ -791,7 +791,7 @@ export default function Show({
                             : 'Follow a few developers.'
                     }
                     description={
-                        imported.length > 0
+                        importedFollowingCount > 0
                             ? "We brought your GitHub network over, so your log doesn't start empty. Follow a few more to fill it up; unfollowing is one click."
                             : 'Your log is your commits plus the commits of everyone you follow. Here are a few to start with; unfollowing is one click.'
                     }

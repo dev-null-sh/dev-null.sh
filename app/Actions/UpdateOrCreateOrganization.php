@@ -13,6 +13,12 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class UpdateOrCreateOrganization
 {
+    /**
+     * Held while an organization is created and while a GitHub import keeps the organizations it doesn't find pending,
+     * so neither misses the other's rows. Both are short and rare, so one lock for every organization is enough.
+     */
+    public const string FollowsLock = 'github-organization-follows';
+
     public function __construct(private UpdateStaleHandles $updateStaleHandles)
     {
         //
@@ -32,8 +38,7 @@ final readonly class UpdateOrCreateOrganization
         assert(is_int($githubId));
 
         return DB::transaction(function () use ($profile, $githubId): Organization {
-            // Waits for the GitHub follow imports keeping this organization pending right now (CreateUserGitHubFollows).
-            DB::select('select pg_advisory_xact_lock(hashtextextended(?, 0))', ["github-organization:{$githubId}"]);
+            DB::select('select pg_advisory_xact_lock(hashtextextended(?, 0))', [self::FollowsLock]);
 
             $this->updateStaleHandles->handle($profile->handle, (string) $githubId);
 
@@ -49,7 +54,10 @@ final readonly class UpdateOrCreateOrganization
             if ($organization->wasRecentlyCreated) {
                 $pending = DB::table('pending_organization_follows')->where('github_id', (string) $githubId);
 
-                $organization->followers()->attach($pending->pluck('user_id')->all());
+                DB::table('organization_follows')->insertUsing(
+                    ['user_id', 'organization_id', 'created_at'],
+                    $pending->clone()->select('user_id')->selectRaw('?, ?', [$organization->id, now()]),
+                );
                 $pending->delete();
             }
 

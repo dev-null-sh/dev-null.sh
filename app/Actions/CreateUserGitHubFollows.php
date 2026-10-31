@@ -44,7 +44,7 @@ final readonly class CreateUserGitHubFollows
         $followingIds = $login === null ? ['users' => [], 'organizations' => []] : $this->github->followingIds($login, self::MaxPages);
         $following = $importsPeople ? $this->users($user, $followingIds['users']) : new Collection();
         $followers = $importsPeople && $login !== null ? $this->users($user, $this->github->followerIds($login, self::MaxPages)) : new Collection();
-        $organizationIds = collect($followingIds['organizations'])->unique()->sort()->values();
+        $organizationIds = collect($followingIds['organizations'])->unique()->values();
 
         DB::transaction(function () use ($user, $notify, $following, $followers, $organizationIds, $importsPeople, $importsOrganizations): void {
             $followedIds = $user->following()->syncWithoutDetaching($following->modelKeys())['attached'];
@@ -62,9 +62,8 @@ final readonly class CreateUserGitHubFollows
 
             if ($importsOrganizations) {
                 // Waits for an organization being created from GitHub right now, which follows the pending rows it finds
-                // (UpdateOrCreateOrganization), so the follow is made on one side or the other. Locked in order, so two
-                // imports never wait on each other.
-                DB::select('select pg_advisory_xact_lock(hashtextextended(id, 0)) from unnest(?::text[]) as id', ['{'.$organizationIds->map(fn (string $id): string => "github-organization:{$id}")->implode(',').'}']);
+                // (UpdateOrCreateOrganization), so the follow is made on one side or the other.
+                DB::select('select pg_advisory_xact_lock(hashtextextended(?, 0))', [UpdateOrCreateOrganization::FollowsLock]);
 
                 $organizations = Profile::query()->where('type', ProfileType::Organization)->whereIn('github_id', $organizationIds)->get();
 

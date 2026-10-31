@@ -19,9 +19,10 @@ use Illuminate\Http\Client\RequestException;
 final class ImportGitHubFollowsCommand extends Command
 {
     /**
-     * Below this many requests left, the command stops, leaving the rest to the app until the rate limit resets.
+     * Below this many requests left, the command stops, leaving the rest to the app until the rate limit resets: above
+     * the floor where looking up mentioned organizations pauses, so they carry on meanwhile.
      */
-    private const int RateLimitFloor = 1000;
+    private const int RateLimitFloor = 1500;
 
     public function handle(CreateUserGitHubFollows $createUserGitHubFollows, GitHubProvider $github): int
     {

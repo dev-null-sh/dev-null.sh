@@ -105,15 +105,15 @@ it('stops before using up the github requests the rest of the app needs, and say
 
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('rateLimit')->andReturn(
-        ['remaining' => 1021, 'limit' => 5000, 'resets_at' => CarbonImmutable::parse('2026-11-01 10:42:00', 'UTC')],
-        ['remaining' => 1020, 'limit' => 5000, 'resets_at' => CarbonImmutable::parse('2026-11-01 10:42:00', 'UTC')],
+        ['remaining' => 1521, 'limit' => 5000, 'resets_at' => CarbonImmutable::parse('2026-11-01 10:42:00', 'UTC')],
+        ['remaining' => 1520, 'limit' => 5000, 'resets_at' => CarbonImmutable::parse('2026-11-01 10:42:00', 'UTC')],
     );
     $github->shouldReceive('login')->with($imported->github_id)->once()->andReturn($imported->handle);
     $github->shouldReceive('followingIds')->with($imported->handle, 10)->andReturn(['users' => [], 'organizations' => []]);
     $github->shouldReceive('followerIds')->with($imported->handle, 10)->andReturn([]);
 
     $this->artisan('follows:import')
-        ->expectsOutputToContain('Stopped after 1 users, to keep 1000 GitHub requests for the rest of the app: 1020 left.')
+        ->expectsOutputToContain('Stopped after 1 users, to keep 1500 GitHub requests for the rest of the app: 1520 left.')
         ->expectsOutputToContain('2 users left. Run the command again after 2026-11-01 10:42:00 UTC (42 minutes from now), when the GitHub rate limit resets.')
         ->assertFailed();
 
