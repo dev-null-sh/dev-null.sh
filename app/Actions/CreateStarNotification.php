@@ -13,11 +13,11 @@ use Illuminate\Support\Str;
 final readonly class CreateStarNotification
 {
     /**
-     * A star notifies the commit's author once while it holds: unstarring removes the notification.
+     * A star notifies the commit's author once while it holds: unstarring removes the notification. Nobody hears from people they mute.
      */
     public function handle(User $stargazer, Commit $commit): void
     {
-        if ($commit->user_id === $stargazer->id) {
+        if ($commit->user_id === $stargazer->id || $commit->user?->isMuting($stargazer)) {
             return;
         }
 
