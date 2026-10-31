@@ -18,6 +18,11 @@ const FEATURES: Record<
         description:
             'The Translate control, cached translations, and background language detection. Off stops new detection jobs from being queued and skips any already waiting.',
     },
+    merge_conflicts: {
+        label: 'merge conflicts',
+        description:
+            'Tom spotting two replies that disagree and readers picking a side. Off stops new threads from being read and hides the conflicts already opened.',
+    },
 };
 
 /**

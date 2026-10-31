@@ -39,6 +39,23 @@ export type Poll = {
     options: PollOption[];
 };
 
+export type MergeConflictSide = {
+    id: string;
+    body: string;
+    user: User | null;
+    votes: number | null;
+};
+
+export type MergeConflict = {
+    id: string;
+    closes_at: string;
+    is_closed: boolean;
+    side: 'ours' | 'theirs' | null;
+    can_vote: boolean;
+    ours: MergeConflictSide;
+    theirs: MergeConflictSide;
+};
+
 export type CommitImage = {
     id: string;
     url: string;

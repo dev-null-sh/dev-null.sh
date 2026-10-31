@@ -12,7 +12,7 @@ import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 import type { Commit, Poll } from '@/types';
 
-function timeLeft(closesAt: string, now: Date): string {
+export function timeLeft(closesAt: string, now: Date): string {
     const minutes = Math.ceil(
         (new Date(closesAt).getTime() - now.getTime()) / 60_000,
     );

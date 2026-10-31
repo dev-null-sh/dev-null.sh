@@ -17,6 +17,7 @@ use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitContinuationQuery;
 use App\Queries\CommitPageQuery;
 use App\Queries\CommitRepliesQuery;
+use App\Queries\MergeConflictQuery;
 use App\Queries\UserAchievementsQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -32,7 +33,7 @@ final readonly class CommitController
     /**
      * Commits are public, so guests and crawlers read the same page, with the commit's link preview and the replies shown under it as structured data.
      */
-    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitPageQuery $page, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies, PageMetadata $metadata): Response
+    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitPageQuery $page, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies, MergeConflictQuery $mergeConflicts, PageMetadata $metadata): Response
     {
         $focusedCommit = null;
         $getCommit = function () use (&$focusedCommit, $page, $commit, $currentUser): Commit {
@@ -59,6 +60,7 @@ final readonly class CommitController
             'ancestors' => fn (): Collection => $ancestors->get($commit, $currentUser),
             'continuation' => $getContinuation,
             'replies' => fn (): ?CursorPaginator => $getContinuation()->commits->isEmpty() ? $getReplies() : null,
+            'mergeConflict' => fn (): ?array => $mergeConflicts->get($commit, $currentUser),
         ])->withViewData(['preview' => $preview]);
     }
 

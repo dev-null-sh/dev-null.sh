@@ -36,6 +36,7 @@ import {
 import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import { LinkPreview } from '@/components/link-preview';
 import { LiveStreamTrigger } from '@/components/live-stream-card';
+import { MergeConflict } from '@/components/merge-conflict';
 import { QuotedCommit } from '@/components/quoted-commit';
 import {
     ThreadPositionBadge,
@@ -67,7 +68,12 @@ import {
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
+import type {
+    Commit,
+    CursorPaginated,
+    MergeConflict as MergeConflictData,
+    ThreadCommit,
+} from '@/types';
 
 export function CommitCard({
     commit,
@@ -92,6 +98,7 @@ export function CommitCard({
     exceptReplyId,
     threadPosition,
     graphAfter,
+    mergeConflict,
 }: {
     commit: Commit;
     previousLane?: string;
@@ -116,6 +123,8 @@ export function CommitCard({
     hasRailTail?: boolean;
     exceptReplyId?: string;
     threadPosition?: ThreadPosition;
+    /** Two of the commit's replies that disagree, shown under it on its page. */
+    mergeConflict?: MergeConflictData | null;
 }) {
     const {
         props: { auth },
@@ -478,6 +487,13 @@ export function CommitCard({
                                     key={`${commit.poll.id}-${commit.poll.has_voted}-${commit.poll.total_votes}`}
                                     commit={commit}
                                     poll={commit.poll}
+                                />
+                            )}
+                            {mergeConflict && (
+                                <MergeConflict
+                                    key={`${mergeConflict.id}-${mergeConflict.side}`}
+                                    commit={commit}
+                                    mergeConflict={mergeConflict}
                                 />
                             )}
                             {commit.quoted_commit_id !== null && (
