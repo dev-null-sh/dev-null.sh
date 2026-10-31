@@ -255,12 +255,26 @@ export default function Connections({
                                         }
                                     />
                                     <div className="min-w-0">
-                                        <p className="truncate font-medium">
+                                        <p
+                                            className="truncate font-medium"
+                                            title={person.name}
+                                        >
                                             {person.name}
                                         </p>
-                                        <p className="truncate font-mono text-sm text-muted-foreground">
-                                            @{person.handle}
-                                        </p>
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <p
+                                                className="truncate font-mono text-sm text-muted-foreground"
+                                                title={`@${person.handle}`}
+                                            >
+                                                @{person.handle}
+                                            </p>
+                                            {type === 'followers' &&
+                                                person.follows_you && (
+                                                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                                                        Follows you
+                                                    </span>
+                                                )}
+                                        </div>
                                         {person.bio && (
                                             <p className="mt-1 line-clamp-2 text-sm">
                                                 {person.bio}

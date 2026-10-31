@@ -302,6 +302,57 @@ for (const followsYou of [true, false]) {
     }
 }
 
+for (const type of [
+    'followers',
+    'followers_you_know',
+    'following',
+    'mutuals',
+] as const) {
+    for (const followsYou of [true, false]) {
+        test(`${type} shows the follows-you badge only for a viewer's follower on the Followers tab (${followsYou})`, () => {
+            const page = Connections({
+                user: suggestion('someone-else'),
+                type,
+                users: {
+                    data: [
+                        {
+                            ...suggestion('connection-badge'),
+                            is_followed: true,
+                            follows_you: followsYou,
+                        },
+                    ],
+                    next_cursor: null,
+                    prev_cursor: null,
+                },
+            });
+
+            assert.equal(
+                find(page, (props) => props.children === 'Follows you') !== null,
+                type === 'followers' && followsYou,
+            );
+            if (type === 'followers' && followsYou) {
+                const handleRow = find(
+                    page,
+                    (props) =>
+                        Array.isArray(props.children) &&
+                        props.children.some(
+                            (child: ReactNode) =>
+                                React.isValidElement<Props>(child) &&
+                                child.props.children === 'Follows you',
+                        ),
+                );
+                assert.ok(handleRow);
+                assert.ok(
+                    find(
+                        handleRow,
+                        (props) => props.title === '@connection-badge',
+                    ),
+                );
+            }
+        });
+    }
+}
+
 test('a preview offers to follow someone who does not follow you', () => {
     const button = previewFollowButton(suggestion('preview-stranger'));
 
