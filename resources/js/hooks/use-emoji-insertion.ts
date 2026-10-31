@@ -48,6 +48,18 @@ export function useEmojiInsertion({
             return;
         }
 
+        // An emoji picked over the same emoji leaves the body as it was, so React skips the effect: return here.
+        if (inserted.value === body) {
+            caret.current = null;
+
+            if (element !== null) {
+                element.focus();
+                element.setSelectionRange(inserted.caret, inserted.caret);
+            }
+
+            return;
+        }
+
         caret.current = inserted.caret;
         updateBody(inserted.value);
     };
