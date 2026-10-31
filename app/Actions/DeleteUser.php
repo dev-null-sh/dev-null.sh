@@ -31,6 +31,7 @@ final readonly class DeleteUser
     /**
      * The user's top-level commits are erased with every reply under them, and so are their replies, except the ones
      * other people replied to: those stay behind as tombstones with no author or body, so the replies under them keep their thread.
+     * What they posted for organizations stays, and only forgets who posted it.
      * The database cascades the image rows of erased commits and the user's scheduled commits, and the voice notes of their
      * messages, but the files are erased here. Orgs the user was the last one in go too, with everything sent in them,
      * as they do when the last member leaves.
@@ -66,7 +67,10 @@ final readonly class DeleteUser
             }
 
             $user->commits()->delete();
-            $user->commits()->withTrashed()->update(['user_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
+            $user->commits()->withTrashed()->update(['user_id' => null, 'author_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
+
+            // What they posted for organizations is the organizations' own, so it stays, without who posted it.
+            Commit::query()->withTrashed()->where('user_id', $user->id)->update(['user_id' => null]);
 
             $this->deleteOrgs->handle($this->emptyOrgs($user));
 

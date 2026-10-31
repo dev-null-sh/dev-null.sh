@@ -36,7 +36,7 @@ async function render(Page: ComponentType): Promise<string> {
     const result = await createInertiaApp({
         page: {
             component: 'test',
-            props: { auth: { user: null }, errors: {} },
+            props: { auth: { organizations: [], user: null }, errors: {} },
             url: '/',
             version: null,
             clearHistory: false,

@@ -29,7 +29,7 @@ export default function Show({
     isFollowing,
 }: {
     organization: Organization;
-    tab: 'mentions';
+    tab: 'commits' | 'mentions';
     commits: CursorPaginated<Commit>;
     claimUrl: string;
     settingsUrl: string | null;
@@ -257,8 +257,15 @@ export default function Show({
                     reset={['commits']}
                     tabs={[
                         {
-                            title: 'Mentions',
+                            title: 'Commits',
                             href: show(organization),
+                            isActive: tab === 'commits',
+                        },
+                        {
+                            title: 'Mentions',
+                            href: show(organization, {
+                                query: { tab: 'mentions' },
+                            }),
                             isActive: tab === 'mentions',
                         },
                     ]}
@@ -267,14 +274,25 @@ export default function Show({
                 <CommitFeed
                     key={`${organization.handle}:${tab}`}
                     commits={commits}
-                    end={`That's the first commit mentioning @${organization.handle}.`}
+                    end={
+                        tab === 'mentions'
+                            ? `That's the first commit mentioning @${organization.handle}.`
+                            : `That's @${organization.handle}'s first commit.`
+                    }
                     empty={
-                        <EmptyFeed
-                            command={`$ git log --grep=@${organization.handle}`}
-                        >
-                            Nobody has mentioned @{organization.handle} yet.
-                            Mention it in a commit and it shows up here.
-                        </EmptyFeed>
+                        tab === 'mentions' ? (
+                            <EmptyFeed
+                                command={`$ git log --grep=@${organization.handle}`}
+                            >
+                                Nobody has mentioned @{organization.handle} yet.
+                                Mention it in a commit and it shows up here.
+                            </EmptyFeed>
+                        ) : (
+                            <EmptyFeed command="fatal: no commits yet">
+                                @{organization.handle} hasn't committed anything
+                                yet.
+                            </EmptyFeed>
+                        )
                     }
                 />
             </div>

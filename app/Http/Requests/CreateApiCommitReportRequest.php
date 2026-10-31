@@ -37,7 +37,7 @@ final class CreateApiCommitReportRequest extends FormRequest
         assert($commit instanceof Commit);
 
         throw_if($commit->trashed() || $commit->status !== CommitStatus::Approved || ! $commit->isVisibleTo($user), fn (): ApiException => ApiException::commitUnavailable());
-        throw_if($commit->user_id === $user->id, fn (): ApiException => new ApiException(ApiErrorCode::OwnCommit, __('You cannot report your own commit.')));
+        throw_if($commit->isOwnedBy($user), fn (): ApiException => new ApiException(ApiErrorCode::OwnCommit, __('You cannot report your own commit.')));
 
         return true;
     }

@@ -8,6 +8,7 @@ import { CommitStarPollingContext } from '@/components/commit-star-polling';
 import { CommitStargazersDialog } from '@/components/commit-stargazers-dialog';
 import { StarredRemovalContext } from '@/components/starred-removal-context';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
@@ -40,7 +41,7 @@ export function CommitStarButton({
 }) {
     const { auth } = usePage().props;
     const commitNotFound = useCommitNotFound();
-    const isOwn = commit.author.id === auth.user?.id;
+    const isOwn = useOwnsCommit()(commit);
     const [starred, setStarred] = useSharedState(
         commitStateKey('starred', commit.id),
         commit.starred,

@@ -159,7 +159,7 @@ it('lists the commits and replies that mention the organization, newest first, t
     $mention(Commit::factory()->create(['body' => 'Deleted @laravel']))->delete();
     $mention(Commit::factory()->create(['body' => 'Thanks @symfony']), $symfony);
 
-    $this->get('/@laravel')
+    $this->get('/@laravel?tab=mentions')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('organization/show')
@@ -186,7 +186,7 @@ it('lists the mentions as the viewer may see them, without their muted authors',
     $mention(Commit::factory()->for($muted)->create(['body' => 'Muted @laravel']));
     $mention(Commit::factory()->for($blocked)->create(['body' => 'Blocked @laravel']));
 
-    $this->actingAs($viewer)->get('/@laravel')
+    $this->actingAs($viewer)->get('/@laravel?tab=mentions')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('organization/show')
@@ -217,7 +217,7 @@ it('keeps listing the commits that mentioned the organization before it was rena
 
     $organization->profile->forceFill(['handle' => 'laravel-php'])->save();
 
-    $this->get('/@laravel-php')
+    $this->get('/@laravel-php?tab=mentions')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('organization/show')

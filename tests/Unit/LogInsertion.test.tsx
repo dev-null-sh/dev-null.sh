@@ -77,7 +77,7 @@ function scheduleEffect(
 vi.doMock('@inertiajs/react', () => ({
     Head: () => null,
     Link: () => null,
-    usePage: () => ({ props: { auth: { user: viewer } } }),
+    usePage: () => ({ props: { auth: { organizations: [], user: viewer } } }),
     usePoll: (_interval: number, options: () => ReloadOptions) => {
         pollOptions = options;
         return { stop: vi.fn() };

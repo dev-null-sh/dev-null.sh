@@ -22,7 +22,7 @@ final class ListCommitStarsRequest extends FormRequest
         $commit = $this->route('commit');
         assert($commit instanceof Commit);
 
-        return $commit->user_id === $user->id ? Response::allow() : Response::denyAsNotFound();
+        return $commit->isOwnedBy($user) ? Response::allow() : Response::denyAsNotFound();
     }
 
     /**

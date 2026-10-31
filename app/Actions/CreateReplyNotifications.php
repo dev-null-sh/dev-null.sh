@@ -35,6 +35,7 @@ final readonly class CreateReplyNotifications
             ->select('commits.*')
             ->join('commits as parents', 'parents.id', '=', 'commits.parent_id')
             ->whereKey($replyIds)
+            ->whereNotNull('parents.user_id')
             ->where('commits.status', CommitStatus::Approved)
             ->whereNotExists($silenced->mutes(...))
             ->whereNotExists($silenced->blocking(...))

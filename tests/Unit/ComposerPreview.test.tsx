@@ -36,7 +36,7 @@ function renderPage(
                     version: null,
                     props: {
                         errors: {},
-                        auth: {
+                        auth: { organizations: [],
                             user: null,
                             pasteis: pasteisMode
                                 ? { remaining: 0, day: '2026-10-16' }
@@ -145,7 +145,7 @@ function renderComposer(body: string, isInDialog = false): string {
                         version: null,
                         props: {
                             errors: {},
-                            auth: {
+                            auth: { organizations: [],
                                 user: {
                                     id: 'preview-user',
                                     name: 'Preview User',
