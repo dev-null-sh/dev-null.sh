@@ -17,7 +17,7 @@ final class ListApiCommitContinuationRequest extends FormRequest
 
     /**
      * The cursor of a page after the first continues the thread from the last commit of the page before, so the user
-     * must still see that commit too.
+     * must still see that commit too, and it only continues the thread of the commit it was given for.
      */
     public function authorize(): Response
     {
@@ -45,13 +45,16 @@ final class ListApiCommitContinuationRequest extends FormRequest
         assert($commit instanceof Commit);
 
         $cursor = $this->query('cursor');
-        $id = is_string($cursor) ? Cursor::fromEncoded($cursor)?->toArray()['id'] ?? null : null;
+        $parameters = is_string($cursor) ? Cursor::fromEncoded($cursor)?->toArray() ?? [] : [];
+        $id = $parameters['id'] ?? null;
 
         if ($id === null) {
             return $this->continued = $commit;
         }
 
-        return $this->continued = is_string($id) && Str::isUuid($id) ? Commit::query()->find($id) : null;
+        return $this->continued = ($parameters['thread_id'] ?? null) === $commit->id && is_string($id) && Str::isUuid($id)
+            ? Commit::query()->find($id)
+            : null;
     }
 
     /**

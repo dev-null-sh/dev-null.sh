@@ -114,8 +114,23 @@ it('lists the first page for a cursor that is not one', function (mixed $cursor)
 it('returns not found for a cursor on something that is not a commit', function (): void {
     $commit = Commit::factory()->create();
 
-    signedApiRequest($this->keyPair, 'GET', route('api-commit-continuation.index', [$commit, 'cursor' => new Cursor(['id' => 'not-a-uuid'])->encode()]))
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-continuation.index', [$commit, 'cursor' => new Cursor(['thread_id' => $commit->id, 'id' => 'not-a-uuid'])->encode()]))
         ->assertNotFound();
+});
+
+it('returns not found for a cursor from the thread of another commit', function (): void {
+    $commit = Commit::factory()->create();
+    Commit::factory()->for($commit->user)->for($commit, 'parent')->create();
+    $other = [Commit::factory()->create()];
+
+    foreach (range(1, CommitContinuationQuery::PER_PAGE + 1) as $ignored) {
+        $other[] = Commit::factory()->for($other[0]->user)->for(end($other), 'parent')->create();
+    }
+
+    $cursor = signedApiRequest($this->keyPair, 'GET', route('api-commit-continuation.index', $other[0]))->json('meta.next_cursor');
+
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-continuation.index', [$other[0], 'cursor' => $cursor]))->assertOk();
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-continuation.index', [$commit, 'cursor' => $cursor]))->assertNotFound();
 });
 
 it('stops the thread at the first commit the user may not see', function (): void {
@@ -150,7 +165,7 @@ it('returns not found for a cursor on a commit the user may not see', function (
     $commit = Commit::factory()->create();
     $hidden = Commit::factory()->pending()->create();
 
-    signedApiRequest($this->keyPair, 'GET', route('api-commit-continuation.index', [$commit, 'cursor' => new Cursor(['id' => $hidden->id])->encode()]))
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-continuation.index', [$commit, 'cursor' => new Cursor(['thread_id' => $commit->id, 'id' => $hidden->id])->encode()]))
         ->assertNotFound();
 });
 
