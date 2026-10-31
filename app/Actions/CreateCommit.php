@@ -11,6 +11,7 @@ use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
 use App\Jobs\LinkCommitTopics;
 use App\Jobs\ModerateCommit;
+use App\Jobs\ProcessCommitHeadlines;
 use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
@@ -125,6 +126,7 @@ final readonly class CreateCommit
             }
 
             LinkCommitTopics::dispatchFor($commit);
+            ProcessCommitHeadlines::dispatchFor($commit);
 
             if ($commit->status === CommitStatus::Pending && ! $hasGoodReputation) {
                 dispatch(new ModerateCommit($commit))->afterCommit();

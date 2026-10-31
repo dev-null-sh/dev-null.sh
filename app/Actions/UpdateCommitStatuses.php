@@ -8,6 +8,7 @@ use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\LinkCommitTopics;
+use App\Jobs\ProcessCommitHeadlines;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\Notification;
@@ -92,6 +93,7 @@ final readonly class UpdateCommitStatuses
 
                 $personal->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
                 LinkCommitTopics::dispatchFor(...$commits->all());
+                ProcessCommitHeadlines::dispatchFor(...$commits->all());
 
                 if (($tom = $this->tomQuery->get()) instanceof User) {
                     foreach ($personal as $commit) {

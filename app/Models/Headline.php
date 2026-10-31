@@ -6,6 +6,7 @@ namespace App\Models;
 
 use Carbon\CarbonInterface;
 use Database\Factories\HeadlineFactory;
+use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Database\Eloquent\Attributes\Visible;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\MassPrunable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * @property-read string $id
@@ -30,7 +32,13 @@ final class Headline extends Model
     use HasFactory;
 
     use HasUuids;
-    use MassPrunable;
+    use MassPrunable {
+        pruneAll as private pruneUnlocked;
+    }
+
+    public const string PROCESSING_LOCK = 'headlines:processing';
+
+    public const int PROCESSING_LOCK_SECONDS = 960;
 
     /**
      * @return array<string, string>
@@ -51,6 +59,23 @@ final class Headline extends Model
     public function commits(): BelongsToMany
     {
         return $this->belongsToMany(Commit::class)->withTimestamps(updatedAt: false);
+    }
+
+    public function pruneAll(int $chunkSize = 1000): int
+    {
+        $lock = Cache::lock(self::PROCESSING_LOCK, self::PROCESSING_LOCK_SECONDS);
+
+        try {
+            $lock->block(30);
+        } catch (LockTimeoutException) {
+            return 0;
+        }
+
+        try {
+            return $this->pruneUnlocked($chunkSize);
+        } finally {
+            $lock->release();
+        }
     }
 
     /**

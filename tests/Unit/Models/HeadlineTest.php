@@ -5,6 +5,8 @@ declare(strict_types=1);
 use App\Models\Commit;
 use App\Models\Headline;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Sleep;
 
 it('shares headlines across commits and exposes only their names', function (): void {
     $first = Commit::factory()->create();
@@ -69,6 +71,22 @@ it('keeps headlines recently linked to a soft deleted commit', function (): void
     $this->artisan('model:prune', ['--model' => [Headline::class]])->assertSuccessful();
 
     $this->assertModelExists($headline);
+});
+
+it('skips pruning while processing owns the headline lock', function (): void {
+    $this->freezeTime();
+    Sleep::fake(syncWithCarbon: true);
+    $headline = Headline::factory()->create(['created_at' => now()->subDays(15)]);
+    $lock = Cache::lock(Headline::PROCESSING_LOCK, Headline::PROCESSING_LOCK_SECONDS);
+    $lock->get();
+
+    expect(new Headline()->pruneAll())->toBe(0);
+    $this->assertModelExists($headline);
+    expect($lock->isOwnedByCurrentProcess())->toBeTrue();
+
+    $lock->release();
+    expect(new Headline()->pruneAll())->toBe(1);
+    $this->assertModelMissing($headline);
 });
 
 it('does not renew a headline when syncing an existing link', function (): void {

@@ -104,6 +104,7 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
         'body' => "@{$mentioned->handle} and @laravel have a look at https://example.com",
         'mentions' => [$mentioned->handle => $mentioned->id],
         'embedding' => embeddingVector(0),
+        'headlines_classified_at' => now(),
     ]);
     resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => Organization::factory()->create()->id]);
     $reply->headlines()->create(['name' => 'Laravel adds a new feature']);
@@ -122,6 +123,7 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
         ->and(DB::table('commit_topics')->where('commit_id', $reply->id)->exists())->toBeFalse()
         ->and($reply->headlines()->exists())->toBeFalse()
         ->and($tombstones->pluck('embedding')->all())->toBe([null, null])
+        ->and($tombstones->pluck('headlines_classified_at')->all())->toBe([null, null])
         ->and($tombstones->pluck('link_preview_id')->all())->toBe([null, null]);
 });
 

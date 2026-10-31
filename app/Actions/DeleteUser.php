@@ -68,7 +68,7 @@ final readonly class DeleteUser
             }
 
             $user->commits()->delete();
-            $user->commits()->withTrashed()->update(['user_id' => null, 'author_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
+            $user->commits()->withTrashed()->update(['user_id' => null, 'author_id' => null, 'body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null, 'headlines_classified_at' => null]);
 
             // What they posted for organizations is the organizations' own, so it stays, without who posted it.
             Commit::query()->withTrashed()->where('user_id', $user->id)->update(['user_id' => null]);
