@@ -9,7 +9,7 @@ import { GraphCanvas } from '@/components/graph-canvas';
 import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
 import { searchCommits, suggestedQueries } from '@/lib/commit-search';
-import { laneColor } from '@/lib/utils';
+import { authorLaneColor, laneColor } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 const skeletonDelay = 300;
@@ -182,7 +182,7 @@ export function SearchResults({
                                 key={commit.id}
                                 commit={commit}
                                 previousLane={
-                                    previous && laneColor(previous.author.lane)
+                                    previous && authorLaneColor(previous.author)
                                 }
                                 graphAfter={previous?.id}
                                 endsWithDot={

@@ -7,6 +7,7 @@ namespace App\Http\Controllers;
 use App\Dto\ThreadContinuation;
 use App\Http\Requests\ShowCommitPhotoRequest;
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitContinuationQuery;
@@ -20,10 +21,10 @@ use Inertia\Response;
 
 final readonly class CommitPhotoController
 {
-    public function show(ShowCommitPhotoRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, int $photo, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies): RedirectResponse|Response
+    public function show(ShowCommitPhotoRequest $request, #[CurrentUser] ?User $currentUser, Profile $profile, Commit $commit, int $photo, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies): RedirectResponse|Response
     {
         if (! $currentUser instanceof User) {
-            return to_route('commit.show', [$user, $commit]);
+            return to_route('commit.show', [$profile, $commit]);
         }
 
         $focusedCommit = null;

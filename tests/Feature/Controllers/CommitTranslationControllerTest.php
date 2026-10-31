@@ -33,7 +33,7 @@ it('shares translations between readers and identical posts without changing the
 
     $this->actingAs(User::factory()->create())
         ->withHeader('Accept-Language', 'en-GB,en;q=0.9')
-        ->get(route('commit.show', ['user' => $duplicate->user, 'commit' => $duplicate]))
+        ->get(route('commit.show', ['profile' => $duplicate->user, 'commit' => $duplicate]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.body', 'Guten morgen')
         ->where('commit.translation.language', 'en')
@@ -98,7 +98,7 @@ it('does not offer translation for the readers language or indeterminate text', 
     new DetectCommitLanguage($commit->id)->handle(resolve(CreateCommitTranslation::class));
 
     $this->withHeader('Accept-Language', 'en-US,en;q=0.9')
-        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.translation.available', false)
         ->where('commit.translation.translated', null));
@@ -109,7 +109,7 @@ it('detects unfamiliar posts in the background without translating on a page rea
     $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
 
-    $this->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+    $this->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.translation.source_language', null)
         ->where('commit.translation.translated', null));
@@ -123,7 +123,7 @@ it('shows translations of a post to its readers but never to its author', functi
         ->andReturn(['source_language' => 'de', 'body' => 'Good morning']);
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
     $reader = User::factory()->create();
-    $url = route('commit.show', ['user' => $commit->user, 'commit' => $commit]);
+    $url = route('commit.show', ['profile' => $commit->user, 'commit' => $commit]);
 
     if ($detected) {
         $this->actingAs($reader)->postJson(route('commit-translation.store', $commit), ['language' => 'en'])->assertOk();
@@ -147,7 +147,7 @@ it('hides translations everywhere and stops queueing detection once an admin swi
     $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()
         ->andReturn(['source_language' => 'de', 'body' => 'Good morning']);
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
-    $url = route('commit.show', ['user' => $commit->user, 'commit' => $commit]);
+    $url = route('commit.show', ['profile' => $commit->user, 'commit' => $commit]);
 
     $this->actingAs(User::factory()->create())
         ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
@@ -175,7 +175,7 @@ it('skips language detection jobs that were already queued when the feature is s
     config(['queue.default' => 'database']);
     $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
-    $this->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))->assertOk();
+    $this->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))->assertOk();
     $this->assertDatabaseHas('jobs', ['queue' => 'translations']);
 
     resolve(Features::class)->update(Feature::Translations, false);
@@ -199,7 +199,7 @@ it('keeps posts readable when detection cannot be queued and dispatches again af
     Exceptions::fake();
     config(['queue.default' => 'unavailable']);
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
-    $url = route('commit.show', ['user' => $commit->user, 'commit' => $commit]);
+    $url = route('commit.show', ['profile' => $commit->user, 'commit' => $commit]);
 
     $this->get($url)->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.body', 'Guten morgen')
@@ -225,7 +225,7 @@ it('isolates language detection from default workers and retries transient failu
         return ['source_language' => 'de', 'body' => ''];
     });
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
-    $url = route('commit.show', ['user' => $commit->user, 'commit' => $commit]);
+    $url = route('commit.show', ['profile' => $commit->user, 'commit' => $commit]);
     $this->get($url)->assertOk();
 
     $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'default', '--once' => true])->assertSuccessful();
@@ -281,7 +281,7 @@ it('hides cached translations when an author views their post after it returns t
         ->postJson(route('commit-translation.store', $commit), ['language' => 'en'])->assertOk();
     $commit->update(['status' => CommitStatus::Pending]);
 
-    $this->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+    $this->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.body', 'Guten morgen')
         ->where('commit.translation', null));
@@ -460,7 +460,7 @@ it('uses the saved target language instead of the browser language', function ()
     ], 604800);
 
     $this->actingAs($reader)->withHeader('Accept-Language', 'en-US,en;q=0.9')
-        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.translation.language', 'ja')
         ->where('commit.translation.available', true)
@@ -477,7 +477,7 @@ it('follows the browser language when the preference is unset', function (): voi
     ], 604800);
 
     $this->actingAs($reader)->withHeader('Accept-Language', 'ja-JP,ja;q=0.9')
-        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.translation.language', 'ja')
         ->where('commit.translation.available', true));
@@ -493,7 +493,7 @@ it('uses the saved preference to hide translation for matching source languages'
     ], 604800);
 
     $this->actingAs($reader)->withHeader('Accept-Language', 'en-US')
-        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('commit.translation.language', 'ja')
         ->where('commit.translation.available', false));
@@ -509,7 +509,7 @@ it('lets readers translate on demand after disabling automatic translations with
     $this->actingAs($other)->postJson(route('commit-translation.store', $commit), ['language' => 'en'])->assertOk();
 
     $this->actingAs($reader)->withHeader('Accept-Language', 'en')
-        ->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+        ->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertInertia(fn ($page) => $page
             ->where('auth.automaticTranslation', false)
             ->where('commit.body', '今天发布了新版本。')
@@ -518,6 +518,6 @@ it('lets readers translate on demand after disabling automatic translations with
     $this->postJson(route('commit-translation.store', $commit), ['language' => 'en'])
         ->assertOk()->assertJsonPath('translation.translated.body_segments.0.text', 'Released a new version today.');
 
-    $this->actingAs($other)->get(route('commit.show', ['user' => $commit->user, 'commit' => $commit]))
+    $this->actingAs($other)->get(route('commit.show', ['profile' => $commit->user, 'commit' => $commit]))
         ->assertInertia(fn ($page) => $page->where('auth.automaticTranslation', true));
 });

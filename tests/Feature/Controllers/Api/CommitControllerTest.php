@@ -97,7 +97,7 @@ it('shows the organization a commit is from as its author', function (): void {
 
     $this->getJson(route('api-commit.show', $commit))
         ->assertOk()
-        ->assertJsonPath('data.html_url', route('commit.show', ['user' => 'laravel', 'commit' => $commit]))
+        ->assertJsonPath('data.html_url', route('commit.show', ['profile' => 'laravel', 'commit' => $commit]))
         ->assertJsonPath('data.author', [
             'type' => 'organization',
             'id' => $organization->id,

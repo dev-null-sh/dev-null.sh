@@ -82,6 +82,19 @@ final class Organization extends Model
         return $this->belongsTo(Profile::class, 'id');
     }
 
+    public function mention(): string
+    {
+        return '@'.$this->handle;
+    }
+
+    /**
+     * How link previews title the organization, without repeating a name that is just the handle.
+     */
+    public function nameWithHandle(): string
+    {
+        return $this->name === $this->handle ? $this->mention() : $this->name.' ('.$this->mention().')';
+    }
+
     /**
      * Changes whenever anything drawn on the organization's link preview image may have changed.
      */

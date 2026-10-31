@@ -7,6 +7,7 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
@@ -16,7 +17,6 @@ test('to array', function (): void {
     expect(array_keys($commit->toArray()))
         ->toBe([
             'id',
-            'user_id',
             'body',
             'created_at',
             'updated_at',
@@ -34,6 +34,10 @@ test('to array', function (): void {
             'preview_segments',
             'is_checking',
         ]);
+});
+
+it('never shows who posted it, even loaded', function (): void {
+    expect(Commit::factory()->create()->load('user')->toArray())->not->toHaveKeys(['user', 'user_id']);
 });
 
 it('splits its body into segments', function (): void {
@@ -97,6 +101,15 @@ it('is visible when approved or owned', function (): void {
         ->and($pending->isVisibleTo($viewer))->toBeFalse()
         ->and($rejected->isVisibleTo($author))->toBeTrue()
         ->and($rejected->isVisibleTo($viewer))->toBeFalse();
+});
+
+it('is hidden across a block with its author, never with who posted it for an organization', function (): void {
+    $viewer = User::factory()->create();
+    $poster = User::factory()->create();
+    $viewer->blocking()->attach($poster);
+
+    expect(Commit::factory()->for($poster)->create(['author_id' => Organization::factory()->create()->id])->isVisibleTo($viewer))->toBeTrue()
+        ->and(Commit::factory()->for($poster)->create()->isVisibleTo($viewer))->toBeFalse();
 });
 
 it('deletes stars with the commit', function (): void {

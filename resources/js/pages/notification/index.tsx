@@ -790,7 +790,7 @@ export function NotificationContent({
         (!summary && notification.type === 'starred')
             ? show(actor)
             : CommitController.show({
-                  user: isOwnCommit ? user : actor,
+                  profile: isOwnCommit ? user : actor,
                   commit: notification.commit,
               });
     const time = (
