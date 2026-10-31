@@ -29,11 +29,15 @@ it('picks the key that is on the github account of a user', function (): void {
 });
 
 it('fails when none of the keys are on the github account of a user', function (): void {
+    Http::fake();
+
     $response = $this->call('POST', route('cli-key-lookup.store'), content: SshKeyPair::generate()->publicKey->toOpenSsh());
 
     $response->assertNotFound()
         ->assertHeader('Content-Type', 'text/plain; charset=utf-8')
-        ->assertSee('None of your SSH keys are on the GitHub account of a /dev/null user.');
+        ->assertContent('None of your SSH keys are on the GitHub account of a /dev/null user. Add your key on GitHub (Settings → SSH and GPG keys), open '.url('/')." while you are signed in so the key can sync, then run this again.\n");
+
+    Http::assertNothingSent();
 });
 
 it('only considers the first 20 keys', function (): void {
