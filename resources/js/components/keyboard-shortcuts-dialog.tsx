@@ -137,7 +137,7 @@ export function KeyboardShortcutsDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-sm md:max-w-3xl">
+            <DialogContent className="overflow-y-auto sm:max-w-sm md:max-w-3xl">
                 <DialogTitle>Keyboard shortcuts</DialogTitle>
                 <DialogDescription>
                     They work anywhere except while you're typing. Commit and
