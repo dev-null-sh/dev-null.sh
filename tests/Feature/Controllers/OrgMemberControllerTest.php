@@ -73,6 +73,20 @@ it('hands the org to the longest-standing member when the last maintainer leaves
     expect(Conversation::query()->find($org))->toBeNull();
 });
 
+it('keeps the unread messages of the member who takes the org over', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno, $taylor]);
+    pushToOrg($taylor, $org);
+    pushToOrg($taylor, $org);
+
+    $this->actingAs($mark)->deleteJson(route('org-member.destroy', [$org, $mark]))->assertNoContent();
+
+    $this->actingAs($nuno)->getJson(route('inbox.index'))
+        ->assertJsonPath('unread', 1)
+        ->assertJsonPath('conversations.0.ahead', 2);
+});
+
 it('promotes and demotes, keeping at least one maintainer', function (): void {
     $mark = User::factory()->create();
     [$nuno] = followersOf($mark, 1);
