@@ -21,7 +21,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  *
  * Like on GitHub, a handle is one whatever its case: the column is `citext`, so a plain `where('handle', ...)` matches
  * any case and its unique index refuses the same handle in another case. Never lowercase it in a query to compare
- * it. Only searches lowercase it, as `LOWER(handle) LIKE ...`, which the trigram index serves.
+ * it. Only search filters lowercase it, as `LOWER(handle) LIKE ...`, which the trigram index serves.
  *
  * @property-read string $id
  * @property-read ProfileType $type
