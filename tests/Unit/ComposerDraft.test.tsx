@@ -8,11 +8,11 @@ const image = new File(['restored'], 'draft.png', { type: 'image/png' });
 let state: unknown[] = [];
 let cursor = 0;
 const draft = {
-    key: 'stash:viewer:commit',
     body: 'A restored draft https://example.com',
     images: [] as File[],
     descriptions: [] as string[],
     isRestored: true,
+    key: 'stash:viewer:commit',
     updateBody: vi.fn(),
     updateImages: vi.fn((images: File[], descriptions: string[]) => {
         draft.images = images;
@@ -76,7 +76,7 @@ vi.doMock('../../resources/js/hooks/use-stash', () => ({
 
 const { CommitComposer } =
     await import('../../resources/js/components/commit-composer');
-const { IssueCommandBadge, IssueCommandHint, IssueCommandSuggestions } =
+const { IssueCommandBadge, IssueCommandHint } =
     await import('../../resources/js/components/issue-command');
 const { ImageDropOverlay, ImagePickerButton, ImagePickerPreviews } =
     await import('../../resources/js/components/commit-image-picker');
@@ -471,49 +471,14 @@ function keyDown(
     return event;
 }
 
-function focus(view: ReturnType<typeof render>, handler = 'onFocus') {
-    const textarea = view.fields.find(
-        (element) => element.type === MentionTextarea,
-    )!;
-    (textarea.props[handler] as (event: unknown) => void)({
-        currentTarget: { selectionStart: 0, selectionEnd: 0 },
-    });
-}
-
-function hasSuggestions(): boolean {
-    return render().fields.some(
-        (element) => element.type === IssueCommandSuggestions,
-    );
-}
-
-test('a restored slash only opens the command menu while the composer is focused', () => {
-    draft.body = '/';
-    assert.equal(hasSuggestions(), false);
-
-    focus(render());
-    assert.equal(hasSuggestions(), true);
-
-    focus(render(), 'onBlur');
-    assert.equal(hasSuggestions(), false);
-});
-
 test('typing a command and a space turns the draft into an issue, and backspace turns it back into a commit', () => {
     draft.body = '/bu';
-    focus(render());
     let view = render();
-    const suggestions = view.fields.find(
-        (element) => element.type === IssueCommandSuggestions,
-    )!;
-    assert.deepEqual(
-        (suggestions.props.suggestions as { name: string }[]).map(
-            (command) => command.name,
-        ),
-        ['/bug'],
-    );
-
     const textarea = view.fields.find(
         (element) => element.type === MentionTextarea,
     )!;
+    assert.equal(typeof textarea.props.onIssue, 'function');
+
     (textarea.props.onValueChange as (value: string) => void)(
         '/bug The timeline jumps',
     );
@@ -535,6 +500,11 @@ test('typing a command and a space turns the draft into an issue, and backspace 
         false,
     );
     assert.equal(find('data-test', 'add-poll-button'), undefined);
+    const issueTextarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    assert.equal(issueTextarea.props.onImage, undefined);
+    assert.equal(issueTextarea.props.onPoll, undefined);
     assert.equal(view.form.props.onBefore(), false);
 
     keyDown(view, 'Backspace');
@@ -551,7 +521,7 @@ test('typing a command and a space turns the draft into an issue, and backspace 
     assert.equal(view.form.props.onBefore(), true);
 });
 
-test('picking a suggestion with Enter starts an empty issue, and the shortcut opens it instead of committing', () => {
+test('picking the issue command starts an empty issue, and the shortcut opens it instead of committing', () => {
     vi.stubGlobal('navigator', {
         userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/140.0.0.0',
         language: 'en-US',
@@ -565,11 +535,15 @@ test('picking a suggestion with Enter starts an empty issue, and the shortcut op
     });
 
     try {
-        draft.body = '/';
-        focus(render());
-        keyDown(render(), 'ArrowDown');
-        const enter = keyDown(render(), 'Enter');
-        assert.equal(enter.preventDefault.mock.calls.length, 1);
+        const view = render();
+        const textarea = view.fields.find(
+            (element) => element.type === MentionTextarea,
+        )!;
+
+        (textarea.props.onIssue as (kind: string, rest: string) => void)(
+            'bug',
+            '',
+        );
         assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['']);
 
         draft.body =
@@ -673,12 +647,17 @@ test('switching a discounted commit to an issue enforces the literal limit for t
 test('commands are not offered while the draft has images, a poll or a schedule', () => {
     draft.images = [image];
     draft.body = '/';
-    focus(render());
     const view = render();
-    assert.equal(
-        view.fields.some((element) => element.type === IssueCommandSuggestions),
-        false,
-    );
+    const textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    assert.deepEqual(textarea.props.commandContext, {
+        surface: 'commit',
+        hasPoll: false,
+        imageCount: 1,
+        isScheduling: false,
+        processing: false,
+    });
     draft.body = 'Found a bug';
     assert.equal(
         render().fields.some((element) => element.type === IssueCommandHint),
@@ -686,9 +665,6 @@ test('commands are not offered while the draft has images, a poll or a schedule'
     );
     draft.body = '/';
 
-    const textarea = view.fields.find(
-        (element) => element.type === MentionTextarea,
-    )!;
     (textarea.props.onValueChange as (value: string) => void)('/bug ');
     assert.deepEqual(draft.updateBody.mock.calls.at(-1), ['/bug ']);
     assert.equal(
@@ -726,6 +702,52 @@ test('turning scheduling off clears the chosen time and commits now', () => {
 
     (find('aria-controls', 'body-schedule')!.props.onClick as () => void)();
     assert.equal(find('id', 'body-scheduled-at')!.props.value, '');
+});
+
+test('passes slash command context and callbacks to the composer textarea', () => {
+    let view = render();
+    let textarea = view.fields.find(
+        (element) => element.type === MentionTextarea,
+    )!;
+    assert.deepEqual(textarea.props.commandContext, {
+        surface: 'commit',
+        hasPoll: false,
+        imageCount: 0,
+        isScheduling: false,
+        processing: false,
+    });
+    assert.equal(typeof textarea.props.onImage, 'function');
+    assert.equal(typeof textarea.props.onPoll, 'function');
+    assert.equal(typeof textarea.props.onIssue, 'function');
+    assert.equal(
+        (
+            view.fields.find((element) => element.type === ImagePickerButton)!
+                .props.inputRef as { current: unknown }
+        ).current,
+        null,
+    );
+
+    vi.stubGlobal('requestAnimationFrame', vi.fn());
+    try {
+        const pollButton = view.fields.find(
+            (element) => element.props['data-test'] === 'add-poll-button',
+        )!;
+        (pollButton.props.onClick as () => void)();
+        view = render();
+        textarea = view.fields.find(
+            (element) => element.type === MentionTextarea,
+        )!;
+        assert.equal(
+            (textarea.props.commandContext as { hasPoll: boolean }).hasPoll,
+            true,
+        );
+
+        (textarea.props.onPoll as () => void)();
+        view = render();
+        assert.ok(view.fields.some((element) => element.type === PollEditor));
+    } finally {
+        vi.unstubAllGlobals();
+    }
 });
 
 test('picker clears its selection before a pending read finishes so the same file can be retried', async () => {

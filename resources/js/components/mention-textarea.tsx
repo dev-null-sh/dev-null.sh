@@ -11,13 +11,22 @@ import { typedProse } from '@/lib/code';
 import type { EmojiSuggestion } from '@/lib/emoji';
 import { emojifyInput, searchEmoji } from '@/lib/emoji';
 import { issueReferenceBeforeCaret } from '@/lib/issue-reference';
+import {
+    availableCommands,
+    codeFenceInsertion,
+    consumeSlashToken,
+    filterCommands,
+    matchCommand,
+    slashCommandInProse,
+} from '@/lib/slash-commands';
+import type { ComposerSurface, SlashOption } from '@/lib/slash-commands';
 import { suggestionPosition } from '@/lib/suggestion-position';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { characterCount, cn, laneColor, limitCharacters } from '@/lib/utils';
 import type { Organization, OrgMember, User } from '@/types';
 
 type Trigger = {
-    kind: 'mention' | 'emoji' | 'issue';
+    kind: 'mention' | 'emoji' | 'issue' | 'slash';
     start: number;
     query: string;
 };
@@ -118,7 +127,15 @@ function triggerAt(
         ? issueReferenceBeforeCaret(textarea.value, caret)
         : null;
 
-    return issue ? { kind: 'issue', ...issue } : null;
+    if (issue) {
+        return { kind: 'issue', ...issue };
+    }
+
+    const slash = slashCommandInProse(typedProse(before).at(-1) ?? '');
+
+    return slash === null
+        ? null
+        : { kind: 'slash', start: caret - slash.length - 1, query: slash };
 }
 
 /**
@@ -263,6 +280,10 @@ export function MentionTextarea({
     members,
     reply,
     quote,
+    commandContext,
+    onImage,
+    onPoll,
+    onIssue,
     ...props
 }: Omit<ComponentProps<'textarea'>, 'value' | 'onChange'> & {
     ref?: Ref<HTMLTextAreaElement>;
@@ -274,12 +295,17 @@ export function MentionTextarea({
     members?: OrgMember[];
     reply?: string;
     quote?: string;
+    commandContext?: ComposerSurface;
+    onImage?: () => void;
+    onPoll?: () => void;
+    onIssue?: (kind: 'bug' | 'feature', rest: string) => void;
 }) {
     const { repository } = usePage().props;
     const id = useId();
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const listRef = useRef<HTMLUListElement>(null);
     const dismissedIssue = useRef<string | null>(null);
+    const dismissedSlash = useRef<number | null>(null);
     const [trigger, setTrigger] = useState<Trigger | null>(null);
     const [position, setPosition] = useState<Position | null>(null);
     const [results, setResults] = useState<Suggestions | null>(null);
@@ -315,6 +341,10 @@ export function MentionTextarea({
 
     const track = (textarea: HTMLTextAreaElement) => {
         const next = triggerAt(textarea, suggestsMentions, suggestsIssues);
+
+        if (next?.kind !== 'slash' || next.start !== dismissedSlash.current) {
+            dismissedSlash.current = null;
+        }
 
         if (
             next?.kind === 'issue' &&
@@ -502,7 +532,43 @@ export function MentionTextarea({
             ? issue !== null
             : trigger.kind === 'emoji'
               ? emojis.length > 0
-              : suggestions.length + organizations.length > 0 || query !== '');
+              : trigger.kind === 'slash'
+                ? false
+                : suggestions.length + organizations.length > 0 ||
+                  query !== '');
+    const slash = trigger?.kind === 'slash' ? trigger : null;
+    const slashOptions =
+        slash !== null && commandContext !== undefined
+            ? filterCommands(
+                  availableCommands(commandContext),
+                  slash.query,
+              ).filter((option) => {
+                  const id = option.command.id;
+
+                  if (id === 'image') {
+                      return onImage !== undefined;
+                  }
+
+                  if (id === 'poll') {
+                      return onPoll !== undefined;
+                  }
+
+                  if (id === 'bug' || id === 'feature') {
+                      return onIssue !== undefined;
+                  }
+
+                  return true;
+              })
+            : [];
+    const isSlashOpen =
+        slash !== null &&
+        position !== null &&
+        slashOptions.length > 0 &&
+        dismissedSlash.current !== slash.start;
+    const slashIndex =
+        slashOptions.length > 0
+            ? Math.min(activeIndex, slashOptions.length - 1)
+            : 0;
 
     const insert = (text: string, separator: string) => {
         const textarea = textareaRef.current;
@@ -558,7 +624,160 @@ export function MentionTextarea({
 
     const selectEmoji = (emoji: EmojiSuggestion) => insert(emoji.emoji, '');
 
+    const runSlash = (option: SlashOption): boolean => {
+        if (slash === null || !option.enabled) {
+            return false;
+        }
+
+        const textarea = textareaRef.current;
+        const focus = (caret?: number) =>
+            requestAnimationFrame(() => {
+                textarea?.focus();
+
+                if (caret !== undefined) {
+                    textarea?.setSelectionRange(caret, caret);
+                }
+            });
+
+        if (option.command.id === 'code') {
+            const insertion = codeFenceInsertion(
+                value,
+                slash.start,
+                slash.start + slash.query.length + 1,
+            );
+
+            if (
+                maxLength !== undefined &&
+                characterCount(insertion.value) > maxLength
+            ) {
+                return false;
+            }
+
+            onValueChange(insertion.value);
+            close();
+            focus(insertion.caret);
+
+            return true;
+        }
+
+        if (option.command.id === 'bug' || option.command.id === 'feature') {
+            const rest = consumeSlashToken(value, slash.start, slash.query);
+
+            close();
+            focus();
+            onIssue?.(option.command.id, rest);
+
+            return true;
+        }
+
+        onValueChange(consumeSlashToken(value, slash.start, slash.query));
+        close();
+        focus();
+
+        if (option.command.id === 'image') {
+            onImage?.();
+        }
+
+        if (option.command.id === 'poll') {
+            onPoll?.();
+        }
+
+        return true;
+    };
+
+    const slashOptionFits = (index: number): boolean => {
+        const option = slashOptions[index];
+
+        if (option === undefined || !option.enabled) {
+            return false;
+        }
+
+        if (
+            option.command.id !== 'code' ||
+            maxLength === undefined ||
+            slash === null
+        ) {
+            return true;
+        }
+
+        const insertion = codeFenceInsertion(
+            value,
+            slash.start,
+            slash.start + slash.query.length + 1,
+        );
+
+        return characterCount(insertion.value) <= maxLength;
+    };
+
+    const handleSlashKeyDown = (
+        event: KeyboardEvent<HTMLTextAreaElement>,
+    ): boolean => {
+        if (!isSlashOpen || event.nativeEvent.isComposing || slash === null) {
+            return false;
+        }
+
+        const hasModifier = event.metaKey || event.ctrlKey || event.altKey;
+
+        if (
+            (event.key === 'ArrowDown' || event.key === 'ArrowUp') &&
+            slashOptions.length > 0
+        ) {
+            event.preventDefault();
+            const step = event.key === 'ArrowDown' ? 1 : -1;
+            setActiveIndex(
+                (slashIndex + step + slashOptions.length) % slashOptions.length,
+            );
+
+            return true;
+        }
+
+        if (
+            (event.key === 'Enter' || event.key === 'Tab') &&
+            !hasModifier &&
+            !event.shiftKey
+        ) {
+            if (!slashOptionFits(slashIndex)) {
+                return false;
+            }
+
+            event.preventDefault();
+            runSlash(slashOptions[slashIndex]);
+
+            return true;
+        }
+
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            dismissedSlash.current = slash.start;
+            close();
+
+            return true;
+        }
+
+        if (event.key === ' ') {
+            const exact = matchCommand(slash.query);
+            const index = slashOptions.findIndex(
+                (option) => option.command.id === exact?.id,
+            );
+            const option = slashOptions[index];
+
+            if (option !== undefined && slashOptionFits(index)) {
+                event.preventDefault();
+                runSlash(option);
+
+                return true;
+            }
+        }
+
+        return false;
+    };
+
     const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+        if (handleSlashKeyDown(event)) {
+            return;
+        }
+
         if (isOpen && !event.nativeEvent.isComposing) {
             const hasModifier = event.metaKey || event.ctrlKey || event.altKey;
 
@@ -615,25 +834,30 @@ export function MentionTextarea({
         onKeyDown?.(event);
     };
 
-    const activeId = !isOpen
-        ? undefined
-        : trigger?.kind === 'issue'
-          ? `${id}-issue-${issue?.number}`
-          : trigger?.kind === 'emoji'
-            ? emojis[selectedIndex] &&
-              `${id}-emoji-${emojis[selectedIndex].name}`
-            : selectedIndex < suggestions.length
-              ? `${id}-mention-${suggestions[selectedIndex].id}`
-              : organizations[selectedIndex - suggestions.length] &&
-                `${id}-mention-${organizations[selectedIndex - suggestions.length].handle}`;
+    const activeId = isSlashOpen
+        ? slashOptions[slashIndex] &&
+          `${id}-slash-${slashOptions[slashIndex].command.id}`
+        : !isOpen
+          ? undefined
+          : trigger?.kind === 'issue'
+            ? `${id}-issue-${issue?.number}`
+            : trigger?.kind === 'emoji'
+              ? emojis[selectedIndex] &&
+                `${id}-emoji-${emojis[selectedIndex].name}`
+              : selectedIndex < suggestions.length
+                ? `${id}-mention-${suggestions[selectedIndex].id}`
+                : organizations[selectedIndex - suggestions.length] &&
+                  `${id}-mention-${organizations[selectedIndex - suggestions.length].handle}`;
 
     const isSearching = current?.key !== key;
     const listId =
-        trigger?.kind === 'issue'
-            ? `${id}-issues`
-            : trigger?.kind === 'emoji'
-              ? `${id}-emojis`
-              : `${id}-mentions`;
+        trigger?.kind === 'slash'
+            ? `${id}-slash`
+            : trigger?.kind === 'issue'
+              ? `${id}-issues`
+              : trigger?.kind === 'emoji'
+                ? `${id}-emojis`
+                : `${id}-mentions`;
 
     return (
         <>
@@ -683,7 +907,7 @@ export function MentionTextarea({
                 }}
                 onKeyDown={handleKeyDown}
                 aria-autocomplete="list"
-                aria-controls={isOpen ? listId : undefined}
+                aria-controls={isOpen || isSlashOpen ? listId : undefined}
                 aria-activedescendant={activeId}
             />
 
@@ -694,7 +918,13 @@ export function MentionTextarea({
                         style={position}
                         onMouseDown={(event) => event.preventDefault()}
                         data-mention-suggestions
-                        data-test="mention-suggestions"
+                        data-test={
+                            trigger?.kind === 'issue'
+                                ? 'issue-suggestions'
+                                : trigger?.kind === 'emoji'
+                                  ? 'emoji-suggestions'
+                                  : 'mention-suggestions'
+                        }
                     >
                         {trigger?.kind === 'issue' && issue ? (
                             <ul
@@ -945,6 +1175,88 @@ export function MentionTextarea({
                                 )}
                             </div>
                         )}
+                    </div>,
+                    document.body,
+                )}
+
+            {isSlashOpen &&
+                position &&
+                createPortal(
+                    <div
+                        className="pointer-events-auto fixed z-50 flex max-w-[calc(100vw-1rem)] flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:zoom-in-95"
+                        style={{
+                            ...position,
+                            width: Math.max(position.width ?? 0, 384),
+                        }}
+                        onMouseDown={(event) => event.preventDefault()}
+                        data-slash-suggestions
+                        data-test="slash-suggestions"
+                    >
+                        <ul
+                            id={`${id}-slash`}
+                            role="listbox"
+                            aria-label="Slash commands"
+                            className="min-h-0 overflow-y-auto overscroll-contain p-1.5"
+                        >
+                            {slashOptions.map((option, index) => {
+                                const Icon = option.command.icon;
+
+                                return (
+                                    <li
+                                        key={option.command.id}
+                                        id={`${id}-slash-${option.command.id}`}
+                                        role="option"
+                                        aria-selected={index === slashIndex}
+                                        aria-disabled={
+                                            option.enabled ? undefined : true
+                                        }
+                                        onMouseMove={() =>
+                                            setActiveIndex(index)
+                                        }
+                                        onClick={() => runSlash(option)}
+                                        className={cn(
+                                            'flex cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-1.5',
+                                            {
+                                                'bg-accent':
+                                                    index === slashIndex,
+                                                'cursor-not-allowed opacity-60':
+                                                    !option.enabled,
+                                            },
+                                        )}
+                                        data-test="slash-command"
+                                    >
+                                        <Icon
+                                            aria-hidden
+                                            className="size-4 shrink-0 text-muted-foreground"
+                                        />
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-sm font-semibold">
+                                                {`/${option.command.id}`}
+                                            </span>
+                                            <span className="block truncate text-xs text-muted-foreground">
+                                                {option.reason ??
+                                                    option.command.description}
+                                            </span>
+                                        </span>
+                                        <kbd
+                                            aria-hidden
+                                            className={cn(
+                                                'hidden shrink-0 font-mono text-xs text-muted-foreground opacity-0 sm:block',
+                                                {
+                                                    'opacity-100':
+                                                        index === slashIndex,
+                                                },
+                                            )}
+                                        >
+                                            ↵
+                                        </kbd>
+                                    </li>
+                                );
+                            })}
+                        </ul>
+                        <p className="shrink-0 border-t px-2.5 py-1.5 font-mono text-xs whitespace-nowrap text-muted-foreground">
+                            ↑↓ select · Tab or Enter pick · Esc dismiss
+                        </p>
                     </div>,
                     document.body,
                 )}
