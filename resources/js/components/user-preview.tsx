@@ -54,8 +54,10 @@ const viewportMargin = 8;
 // Where the centre of the preview's avatar sits: border, padding and half of the size-14 avatar.
 const avatarCentre = 45;
 const cache = new Map<string, PreviewData>();
+let cacheGeneration = 0;
 
 async function fetchPreview(url: string): Promise<PreviewData> {
+    const generation = cacheGeneration;
     const response = await fetch(url, {
         headers: {
             Accept: 'application/json',
@@ -70,9 +72,34 @@ async function fetchPreview(url: string): Promise<PreviewData> {
     }
 
     const data = (await response.json()) as PreviewData;
+
+    if (generation !== cacheGeneration) {
+        throw new Error(`Dropped ${url} from before the previews were cleared`);
+    }
+
     cache.set(url, data);
 
     return data;
+}
+
+export function clearUserPreviews(): void {
+    cacheGeneration++;
+    cache.clear();
+}
+
+/**
+ * Drops a change that lands after the previews were cleared. It reads the generation outside the component because the React Compiler would read it again at the comparison.
+ */
+function unlessCleared(
+    onChange: (data: PreviewData) => void,
+): (data: PreviewData) => void {
+    const generation = cacheGeneration;
+
+    return (data) => {
+        if (generation === cacheGeneration) {
+            onChange(data);
+        }
+    };
 }
 
 function positionFor(trigger: HTMLElement): Position {
@@ -346,7 +373,8 @@ function UserPreviewContent({
     );
 
     const [pendingFollows, setPendingFollows] = useState<boolean | null>(null);
-    const shownIsFollowing = pendingFollows ?? isFollowing;
+    const shownIsFollowing =
+        auth.user !== null && (pendingFollows ?? isFollowing);
 
     /**
      * The button flips right away, but like every other follow control the shared state only changes once the server confirms, so there is nothing to roll back.
@@ -363,6 +391,7 @@ function UserPreviewContent({
         }
 
         const follows = !isFollowing;
+        const change = unlessCleared(onChange);
         setPendingFollows(follows);
 
         router.visit(
@@ -377,7 +406,7 @@ function UserPreviewContent({
                 onSuccess: () => {
                     setIsFollowing(follows);
                     router.flushAll();
-                    onChange({
+                    change({
                         ...data,
                         isFollowing: follows,
                         user: {

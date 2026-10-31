@@ -38,7 +38,7 @@ const { UserAvatar } =
     await import('../../resources/js/components/user-avatar');
 const { ActorAvatar } =
     await import('../../resources/js/pages/notification/index');
-const { UserPreview } =
+const { UserPreview, clearUserPreviews } =
     await import('../../resources/js/components/user-preview');
 const { SuggestedUserRow } =
     await import('../../resources/js/components/who-to-follow');
@@ -175,6 +175,81 @@ test('profile preview stays open when its menu is dismissed under the mouse', ()
     vi.runAllTimers();
 
     assert.ok(!stateChanges.includes(false));
+});
+
+function previewContent(user: User) {
+    showPreview = true;
+    const preview = UserPreview({ user, children: user.handle });
+    showPreview = false;
+
+    return (
+        React.Children.toArray(preview.props.children)[1] as ReactElement<{
+            children: ReactElement<{
+                data: { followsYou: boolean; isMuting: boolean } | null;
+                onChange: (data: object) => void;
+            }>;
+        }>
+    ).props.children.props;
+}
+
+const mutedPreview = (user: User) => ({
+    isFollowing: false,
+    followsYou: true,
+    isMuting: true,
+    isBlocking: false,
+    isUnavailable: false,
+    user,
+});
+
+test('profile preview opens without the cached relationship once previews are cleared', () => {
+    const user = { id: 'muted', handle: 'muted' } as User;
+
+    previewContent(user).onChange(mutedPreview(user));
+    assert.equal(previewContent(user).data?.isMuting, true);
+
+    clearUserPreviews();
+
+    assert.equal(previewContent(user).data, null);
+});
+
+test('profile preview drops a response that arrives after previews are cleared', async () => {
+    const user = { id: 'raced', handle: 'raced' } as User;
+    let respond = (_response: Response) => {};
+    vi.useFakeTimers();
+    vi.stubGlobal('window', {
+        matchMedia: () => ({ matches: true }),
+        innerWidth: 1440,
+        innerHeight: 900,
+    });
+    vi.stubGlobal(
+        'fetch',
+        () => new Promise<Response>((resolve) => (respond = resolve)),
+    );
+    const trigger = React.Children.toArray(
+        UserPreview({ user, children: 'Raced' }).props.children,
+    )[0] as ReactElement<
+        HTMLAttributes<HTMLElement> & { ref: { current: unknown } }
+    >;
+    trigger.props.ref.current = {
+        getBoundingClientRect: () => ({ left: 0, top: 0, bottom: 20 }),
+    };
+
+    trigger.props.onPointerEnter?.({
+        pointerType: 'mouse',
+    } as PointerEvent<HTMLElement>);
+    vi.runAllTimers();
+    clearUserPreviews();
+    respond(Response.json(mutedPreview(user)));
+    vi.useRealTimers();
+    await new Promise((resolve) => setTimeout(resolve));
+    vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
+
+    assert.equal(previewContent(user).data, null);
+    assert.ok(
+        !stateChanges.some(
+            (change) => (change as { isMuting?: boolean } | null)?.isMuting,
+        ),
+    );
 });
 
 test('suggested user row wraps the author in a user preview anchored to their avatar', () => {
