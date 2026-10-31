@@ -29,15 +29,17 @@ import { useClipboard } from '@/hooks/use-clipboard';
 import { useUser } from '@/hooks/use-user';
 import { useKeyLabels } from '@/lib/keyboard';
 import { formatCount } from '@/lib/numbers';
-import { cn, laneColor } from '@/lib/utils';
+import { cn, laneColor, organizationLaneColor } from '@/lib/utils';
 import type { Lane, Organization, SuggestedUser, User } from '@/types';
 
 const laneNames = ['orange', 'green', 'violet', 'teal', 'rose', 'ochre'];
 
+type OrganizationWithLane = Organization & { lane: Lane | null };
+
 type GitHubImport = {
     following: User[];
     followingCount: number;
-    organizations: Organization[];
+    organizations: OrganizationWithLane[];
     organizationsCount: number;
     followers: User[];
     followersCount: number;
@@ -109,7 +111,7 @@ function ImportStat({
     children,
 }: {
     users: User[];
-    organizations?: Organization[];
+    organizations?: OrganizationWithLane[];
     count: number;
     label: string;
     delay: number;
@@ -159,13 +161,18 @@ function ImportStat({
                     <span
                         key={organization.handle}
                         className="rounded-md motion-safe:animate-node-in"
-                        style={{
-                            animationDelay: `${delay + (shownUsers.length + index) * stagger}ms`,
-                        }}
+                        style={
+                            {
+                                '--lane': organizationLaneColor(
+                                    organization.lane,
+                                ),
+                                animationDelay: `${delay + (shownUsers.length + index) * stagger}ms`,
+                            } as CSSProperties
+                        }
                     >
                         <OrganizationAvatar
                             organization={organization}
-                            className="size-8"
+                            className="size-8 ring-2 ring-(--lane) ring-offset-2 ring-offset-card"
                             pixels={64}
                         />
                     </span>

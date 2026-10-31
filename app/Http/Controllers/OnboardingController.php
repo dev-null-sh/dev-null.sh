@@ -43,7 +43,7 @@ final readonly class OnboardingController
      * What the GitHub import brought over: null until the job has run. The follows it made share its timestamp, give
      * or take the time the job took. Tom's friendship is made at sign-up too, right before, so bots are left out.
      *
-     * @return array{following: Collection<int, User>, followingCount: int, organizations: Collection<int, Organization>, organizationsCount: int, followers: Collection<int, User>, followersCount: int, pendingCount: int}|null
+     * @return array{following: Collection<int, User>, followingCount: int, organizations: Collection<int, array<mixed>>, organizationsCount: int, followers: Collection<int, User>, followersCount: int, pendingCount: int}|null
      */
     private function githubImport(ShowOnboardingRequest $request, User $user): ?array
     {
@@ -62,7 +62,9 @@ final readonly class OnboardingController
         return [
             'following' => $imported($user->following())->oldest('users.id')->limit(5)->get(),
             'followingCount' => $imported($user->following())->count(),
-            'organizations' => $organizations()->oldest('organizations.id')->limit(5)->get(),
+            // With their lane, drawn around their avatar like people's.
+            'organizations' => $organizations()->oldest('organizations.id')->limit(5)->get()
+                ->map(fn (Organization $organization): array => [...$organization->toArray(), 'lane' => $organization->lane()]),
             'organizationsCount' => $organizations()->count(),
             'followers' => $imported($user->followers())->oldest('users.id')->limit(5)->get(),
             'followersCount' => $imported($user->followers())->count(),

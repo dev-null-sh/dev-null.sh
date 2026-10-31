@@ -111,6 +111,7 @@ it('shows the follows the GitHub import brought over', function (): void {
             ->where('githubImport.following', fn ($users): bool => collect($users)->pluck('id')->diff($followed->modelKeys())->isEmpty())
             ->where('githubImport.followingCount', 9)
             ->where('githubImport.organizations', fn ($imported): bool => collect($imported)->pluck('handle')->sort()->values()->all() === $organizations->pluck('handle')->sort()->values()->all())
+            ->where('githubImport.organizations.0.lane', null)
             ->where('githubImport.organizationsCount', 2)
             ->where('githubImport.followers', fn ($users): bool => collect($users)->pluck('id')->sort()->values()->all() === collect($followers->modelKeys())->sort()->values()->all())
             ->where('githubImport.followersCount', 2)
