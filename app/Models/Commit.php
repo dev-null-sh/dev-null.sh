@@ -57,6 +57,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Commit|null $quotedCommit
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
+ * @property-read Collection<int, Headline> $headlines
  */
 #[Hidden([
     'author_id',
@@ -170,6 +171,14 @@ final class Commit extends Model
     public function stars(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'stars')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<Headline, $this>
+     */
+    public function headlines(): BelongsToMany
+    {
+        return $this->belongsToMany(Headline::class)->withTimestamps(updatedAt: false);
     }
 
     /**
