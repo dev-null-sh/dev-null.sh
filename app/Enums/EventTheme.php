@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Enums;
 
+use App\Dto\ReaderClock;
 use Carbon\CarbonInterface;
+use Illuminate\Http\Request;
 
 enum EventTheme: string
 {
@@ -15,6 +17,34 @@ enum EventTheme: string
     private const string DEFAULT = 'none';
 
     private const string AUTO = 'auto';
+
+    /**
+     * The theme to show a reader: what they picked in their settings, on the day it is where they are.
+     */
+    public static function forRequest(Request $request): ?self
+    {
+        $choice = $request->cookie('event_theme');
+
+        return self::current(is_string($choice) ? $choice : null, self::readerNow($request));
+    }
+
+    /**
+     * What auto means for a reader today, whatever they picked.
+     */
+    public static function autoForRequest(Request $request): ?self
+    {
+        return self::on(self::readerNow($request));
+    }
+
+    /**
+     * The year a New Year greeting wishes: the coming one until the stroke of midnight, then the current one.
+     */
+    public static function greetedYear(Request $request): int
+    {
+        $now = self::readerNow($request);
+
+        return $now->month === 12 ? $now->year + 1 : $now->year;
+    }
 
     /**
      * The theme to show: the one the reader picked ("none" picks no theme), or the one the calendar calls for on that
@@ -54,5 +84,10 @@ enum EventTheme: string
             $monthDay >= 1230 || $monthDay <= 102 => self::NewYear,
             default => null,
         };
+    }
+
+    private static function readerNow(Request $request): CarbonInterface
+    {
+        return now(ReaderClock::of($request)->timeZone);
     }
 }
