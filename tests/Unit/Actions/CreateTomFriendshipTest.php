@@ -16,6 +16,7 @@ it('makes tom and the user follow each other', function (): void {
 
     expect($user->isFollowing($tom))->toBeTrue()
         ->and($tom->isFollowing($user))->toBeTrue()
+        ->and($user->refresh()->befriended_by_tom_at)->not->toBeNull()
         ->and($user->notifications()->count())->toBe(0)
         ->and($tom->notifications()->count())->toBe(0);
 });
@@ -63,6 +64,18 @@ it('does not make tom follow himself or change his existing friendships', functi
         ->and($tom->followers()->sole()->is($user))->toBeTrue()
         ->and($tom->commits()->count())->toBe(1)
         ->and($tom->notifications()->count())->toBe(0);
+});
+
+it('keeps the day tom first befriended the user', function (): void {
+    $user = User::factory()->create();
+
+    resolve(CreateTomFriendship::class)->handle($user);
+    $befriendedAt = $user->refresh()->befriended_by_tom_at;
+
+    $this->travel(1)->days();
+    $this->artisan('tom:befriend')->assertSuccessful();
+
+    expect($user->refresh()->befriended_by_tom_at)->toEqual($befriendedAt);
 });
 
 it('befriends every existing user', function (): void {
@@ -121,6 +134,23 @@ it('turns off the remotes of the tom who already exists', function (): void {
     expect($tom->refresh()->remotes_enabled)->toBeFalse()
         ->and($tom->updated_at->equalTo($updatedAt))->toBeTrue()
         ->and($user->refresh()->remotes_enabled)->toBeTrue();
+});
+
+it('remembers who tom already befriended, including those who blocked him', function (): void {
+    $tom = User::factory()->create(['github_id' => CreateTomFriendship::GITHUB_ID]);
+    [$friend, $blocker, $stranger] = User::factory()->count(3)->create();
+    $tom->following()->attach($friend);
+    $blocker->blocking()->attach($tom);
+    $friend->following()->attach($stranger);
+    $stranger->blocking()->attach($blocker);
+
+    $migration = require database_path('migrations/2026_10_22_120001_fill_befriended_by_tom_at_of_users.php');
+    $migration->up();
+
+    expect($friend->refresh()->befriended_by_tom_at)->not->toBeNull()
+        ->and($blocker->refresh()->befriended_by_tom_at)->not->toBeNull()
+        ->and($stranger->refresh()->befriended_by_tom_at)->toBeNull()
+        ->and($tom->refresh()->befriended_by_tom_at)->toBeNull();
 });
 
 it('renders tom on his profile without a github link', function (): void {

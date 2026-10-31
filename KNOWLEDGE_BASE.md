@@ -150,7 +150,7 @@ Profiles have **15 achievement badges**. Earned badges appear in a single row, w
 | **pipe** | Write **5 replies to other developers' commits**, excluding self-replies. Replies still count when their parent commit is soft-deleted. |
 | **authorized_keys** | Have at least one public SSH key linked from GitHub. |
 | **sweet tooth** | Receive **100 pastéis across your account**, not on a single commit. Pastéis mode does not need to be enabled, and the total survives deletion of the awarded commits. |
-| **luddite** | Stop following Tom while he still follows you. This deducts **100 XP**; following him again removes the badge and penalty. Accounts Tom has never befriended do not qualify. |
+| **luddite** | Stop following Tom after he befriended you, including by blocking him. This deducts **100 XP**; following him again removes the badge and penalty. Accounts Tom has never befriended do not qualify. |
 | **shell shocked** | “Survived the php2shell downtime of Oct '26. Earns 100 XP.” — accounts created before **October 21, 2026 at 14:00 UTC** receive this badge and **100 bonus XP**. Accounts created at or after that moment do not qualify. |
 | **super-saiyan** | Have **9,000 followers or more** on /dev/null. “Y—your follower count. It... it’s over 9000!!!1!” |
 
