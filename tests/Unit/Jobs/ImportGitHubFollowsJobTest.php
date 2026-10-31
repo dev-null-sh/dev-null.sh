@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Jobs\ImportGitHubFollowsJob;
 use App\Models\Notification;
 use App\Models\User;
@@ -10,7 +11,10 @@ it('imports the github follows of the user', function (bool $notify, int $notifi
     $user = User::factory()->create();
     $followed = User::factory()->create();
 
-    fakeGitHubFollows($user, following: [$followed]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn([$followed->github_id]);
+    $github->shouldReceive('followerIds')->with($user->handle, 10)->andReturn([]);
 
     dispatch_sync(new ImportGitHubFollowsJob($user, $notify));
 

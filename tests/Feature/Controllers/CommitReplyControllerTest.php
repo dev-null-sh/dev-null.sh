@@ -6,7 +6,9 @@ use App\Actions\CreateTomFriendship;
 use App\Actions\CreateTomReply;
 use App\Actions\DeleteUser;
 use App\Ai\Agents\Tom;
+use App\Contracts\Services\ToolDecisionProvider;
 use App\Enums\CommitStatus;
+use App\Http\Requests\CreateCommitReplyRequest;
 use App\Jobs\DetectCommitLanguage;
 use App\Jobs\ReplyAsTom;
 use App\Jobs\UnfurlLink;
@@ -15,15 +17,78 @@ use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+
+it('bounds the combined inherited and explicit reply recipients', function (int $inheritedCount, bool $accepted): void {
+    Queue::fake();
+    config(['app.admins' => ['alice']]);
+    $author = User::factory()->create(['handle' => 'alice']);
+    $users = User::factory()->count($inheritedCount)->create();
+    $mentions = $users->mapWithKeys(fn (User $user): array => [$user->handle => $user->id])->all();
+    $participant = User::factory()->create(['handle' => 'new-participant']);
+    $parent = Commit::factory()->create(['mentions' => $mentions]);
+
+    $response = $this->actingAs($author)->postJson(route('commit-reply.store', $parent), [
+        'body' => 'Hello @new-participant @'.$users->firstOrFail()->handle,
+        'reply_recipients' => array_values($mentions),
+    ]);
+
+    if ($accepted) {
+        $response->assertCreated();
+        $reply = Commit::query()->findOrFail($response->json('committed.id'));
+        expect($reply->mentions)->toHaveCount(CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS);
+    } else {
+        $response->assertUnprocessable()->assertJsonValidationErrors('reply_recipients');
+        expect($parent->replies()->count())->toBe(0);
+        expect($participant->notifications()->count())->toBe(0);
+    }
+})->with([
+    'at limit with overlapping explicit mention' => [CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS - 1, true],
+    'combined recipients over limit' => [CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS, false],
+    'inherited recipients over limit' => [CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS + 1, false],
+]);
+
+it('only notifies selected conversation recipients and keeps explicit mentions', function (bool $selected, bool $explicit): void {
+    Queue::fake();
+    config(['app.admins' => ['alice']]);
+    $author = User::factory()->create(['handle' => 'alice']);
+    $participant = User::factory()->create(['handle' => 'participant']);
+    $parent = Commit::factory()->create(['mentions' => ['participant' => $participant->id]]);
+
+    $response = $this->actingAs($author)->postJson(route('commit-reply.store', $parent), [
+        'body' => $explicit ? 'Hello @participant' : 'Hello everyone',
+        'reply_recipients' => $selected ? [$participant->id] : [],
+    ])->assertCreated();
+
+    $reply = Commit::query()->findOrFail($response->json('committed.id'));
+    expect($reply->mentions ?? [])->toBe($selected || $explicit ? ['participant' => $participant->id] : []);
+    expect($participant->notifications()->where('commit_id', $reply->id)->count())->toBe($selected || $explicit ? 1 : 0);
+    expect($parent->user->notifications()->where('commit_id', $reply->id)->count())->toBe(1);
+})->with([
+    'selected' => [true, false],
+    'unchecked' => [false, false],
+    'explicit mention overrides unchecked' => [false, true],
+]);
+
+it('rejects reply recipients outside the conversation', function (): void {
+    $parent = Commit::factory()->create();
+    $stranger = User::factory()->create();
+
+    $this->actingAs(User::factory()->create())
+        ->postJson(route('commit-reply.store', $parent), [
+            'body' => 'Hello everyone',
+            'reply_recipients' => [$stranger->id],
+        ])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('reply_recipients.0');
+});
 
 it('answers a casual public Tom mention in the same thread', function (): void {
     config(['app.admins' => ['alice', 'tom'], 'ai.providers.opencode.key' => 'test', 'ai.providers.openai.key' => 'test']);
     Queue::fake([ReplyAsTom::class, DetectCommitLanguage::class]);
     Tom::fake(['A little rusty, but happy to see you. :-D'])->preventStrayPrompts();
-    Http::fake(['api.openai.com/v1/decisions' => Http::response(['answers' => []])]);
+    $this->mock(ToolDecisionProvider::class)->shouldReceive('tools')->once()->with('@tom how are your rusty joints?', Mockery::any())->andReturn(collect());
     $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
     $user = User::factory()->create(['handle' => 'alice']);
     $parent = Commit::factory()->create();
@@ -39,7 +104,6 @@ it('answers a casual public Tom mention in the same thread', function (): void {
         ->assertJsonPath('data.0.user.id', $tom->id)
         ->assertJsonPath('data.0.root_id', $parent->id);
     Tom::assertPrompted('@tom how are your rusty joints?');
-    Http::assertSentCount(1);
 });
 
 it('rejects non-text reply bodies with a validation error', function (mixed $body): void {

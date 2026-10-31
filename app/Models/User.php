@@ -230,7 +230,7 @@ final class User extends Authenticatable
     }
 
     /**
-     * Resolves "@handle" URLs through the profile, which holds the handle.
+     * Resolves "@handle" URLs through the profile, which holds the handle, whatever its case, like GitHub.
      *
      * @param  Model|BuilderContract|Relation<Model, Model, mixed>  $query
      * @param  mixed  $value
@@ -328,6 +328,26 @@ final class User extends Authenticatable
     public function isBanned(): bool
     {
         return $this->banned_at !== null;
+    }
+
+    /**
+     * The organizations the user is a member of, see `Organization::members()`.
+     *
+     * @return BelongsToMany<Organization, $this>
+     */
+    public function organizations(): BelongsToMany
+    {
+        return $this->belongsToMany(Organization::class, 'organization_members', 'user_id', 'organization_id')->withPivot('role')->withTimestamps(updatedAt: false);
+    }
+
+    /**
+     * The organizations the user follows, see `Organization::followers()`.
+     *
+     * @return BelongsToMany<Organization, $this>
+     */
+    public function followedOrganizations(): BelongsToMany
+    {
+        return $this->belongsToMany(Organization::class, 'organization_follows', 'user_id', 'organization_id')->withTimestamps(updatedAt: false);
     }
 
     /**
@@ -437,7 +457,7 @@ final class User extends Authenticatable
     }
 
     /**
-     * Unlike loadCount(), counts follows on the pivot table alone: the self-referencing
+     * Unlike loadCount(), counts follows on the pivot tables alone: the self-referencing
      * relations would otherwise join the users table for every follow. Commits are
      * counted as the viewer sees them, which is all of them for the user themselves.
      */
@@ -655,7 +675,7 @@ final class User extends Authenticatable
         $counts = [
             'commits_count' => $commits,
             'followers_count' => $this->followers()->newPivotQuery()->count(),
-            'following_count' => $this->following()->newPivotQuery()->count(),
+            'following_count' => $this->following()->newPivotQuery()->count() + $this->followedOrganizations()->newPivotQuery()->count(),
         ];
 
         $this->forceFill($counts)->syncOriginalAttributes(array_keys($counts));

@@ -87,6 +87,19 @@ it('defers loading the authenticated user until the prop is resolved', function 
     expect(DB::getQueryLog())->toBeEmpty();
 });
 
+it('shares how many developers are here with guests only', function (): void {
+    $user = User::factory()->create();
+    User::factory()->count(149)->create();
+
+    $request = Request::create('/', 'GET');
+
+    expect(new HandleInertiaRequests()->share($request)['developersCount']())->toBe(100);
+
+    $request->setUserResolver(fn (): User => $user);
+
+    expect(new HandleInertiaRequests()->share($request)['developersCount']())->toBeNull();
+});
+
 it('defaults sidebarOpen to true when no cookie', function (): void {
     $middleware = new HandleInertiaRequests();
 

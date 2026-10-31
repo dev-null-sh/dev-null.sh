@@ -16,17 +16,7 @@ it('lists the features to admins', function (): void {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('operations/features')
-            ->where('features', [['name' => 'translations', 'enabled' => true]])
-            ->where('hasTraffic', false));
-});
-
-it('offers the traffic tab when a Fathom token is configured', function (): void {
-    config(['services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
-
-    $this->actingAs(User::factory()->create(['handle' => 'admin']))
-        ->get(route('feature.index'))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page->where('hasTraffic', true));
+            ->where('features', [['name' => 'translations', 'enabled' => true]]));
 });
 
 it('hides the features from non admins', function (): void {

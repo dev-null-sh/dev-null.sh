@@ -112,8 +112,15 @@ function handleOf(person: User | null | undefined, user: User): string {
 /**
  * What a logged org change or ping says, from the reader's point of view.
  */
-export function eventText(message: Message, user: User): string {
-    const actor = handleOf(message.user, user);
+export function eventText(
+    message: Message,
+    user: User,
+    partner?: User | null,
+): string {
+    const actor =
+        message.user_id === user.id
+            ? 'you'
+            : handleOf(message.user ?? partner, user);
     const subject = handleOf(message.subject, user);
 
     switch (message.event) {
@@ -137,6 +144,20 @@ export function eventText(message: Message, user: User): string {
             return `${actor} made ${subject} a contributor`;
         case 'inherited':
             return `${actor} inherited maintainer`;
+        case 'call_started':
+            return `${actor} started a call`;
+        case 'call_answered':
+            return `${actor} answered the call`;
+        case 'call_cancelled':
+            return `${actor} cancelled the call`;
+        case 'call_declined':
+            return `${actor} declined the call`;
+        case 'call_failed':
+            return `${actor} couldn't answer the call`;
+        case 'call_missed':
+            return message.user_id === user.id
+                ? "your call wasn't answered"
+                : `missed call from ${actor}`;
         case 'ping':
             if (message.user_id === user.id) {
                 return 'you sent a ping';
@@ -149,8 +170,16 @@ export function eventText(message: Message, user: User): string {
     }
 }
 
-export function EventLine({ message, user }: { message: Message; user: User }) {
-    const text = eventText(message, user);
+export function EventLine({
+    message,
+    user,
+    partner,
+}: {
+    message: Message;
+    user: User;
+    partner?: User | null;
+}) {
+    const text = eventText(message, user, partner);
 
     return (
         <li className="my-2 flex justify-center">

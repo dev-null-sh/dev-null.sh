@@ -7,15 +7,23 @@ import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowin
 import UserMutualsController from '@/actions/App/Http/Controllers/UserMutualsController';
 import { EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
+import { OrganizationAvatar } from '@/components/organization-avatar';
+import { OrganizationFollowButton } from '@/components/organization-follow-button';
 import { PageTabs } from '@/components/page-tabs';
+import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
 import { laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { CursorPaginated, User } from '@/types';
+import type { CursorPaginated, Organization, User } from '@/types';
 
 type Connection = User & { is_followed: boolean };
+
+type FollowedOrganization = Organization & {
+    id: string;
+    is_followed: boolean;
+};
 
 type ConnectionType =
     | 'followers'
@@ -48,10 +56,15 @@ export default function Connections({
     user,
     type,
     users,
+    organizations,
 }: {
     user: User;
     type: ConnectionType;
     users: CursorPaginated<Connection>;
+    /**
+     * Only on the Following list, above the people.
+     */
+    organizations?: CursorPaginated<FollowedOrganization>;
 }) {
     const { auth } = usePage().props;
     const title = titles[type];
@@ -117,7 +130,81 @@ export default function Connections({
                 />
             </div>
 
-            {users.data.length === 0 ? (
+            {organizations !== undefined && organizations.data.length > 0 && (
+                <section
+                    aria-labelledby="followed-organizations"
+                    className="border-b"
+                >
+                    <h2
+                        id="followed-organizations"
+                        className="px-4 pt-4 pb-1 text-sm font-medium text-muted-foreground sm:px-6"
+                    >
+                        Organizations
+                    </h2>
+                    <InfiniteScroll
+                        data="organizations"
+                        manual
+                        onlyNext
+                        preserveUrl
+                        next={({ hasMore, loading, fetch }) =>
+                            hasMore && (
+                                <div className="px-4 pb-3 sm:px-6">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="-ml-3"
+                                        onClick={fetch}
+                                        disabled={loading}
+                                    >
+                                        {loading && <Spinner />}
+                                        Show more organizations
+                                    </Button>
+                                </div>
+                            )
+                        }
+                    >
+                        <ul className="divide-y">
+                            {organizations.data.map((organization) => (
+                                <li
+                                    key={organization.id}
+                                    className="flex items-start gap-3 pr-4 hover:bg-muted/50 sm:pr-6"
+                                >
+                                    <Link
+                                        href={show(organization.handle)}
+                                        className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-4 sm:pl-6"
+                                    >
+                                        <OrganizationAvatar
+                                            organization={organization}
+                                            className="size-10"
+                                        />
+                                        <div className="min-w-0">
+                                            <p className="truncate font-medium">
+                                                {organization.name}
+                                            </p>
+                                            <p className="truncate font-mono text-sm text-muted-foreground">
+                                                @{organization.handle}
+                                            </p>
+                                            {organization.bio && (
+                                                <p className="mt-1 line-clamp-2 text-sm">
+                                                    {organization.bio}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </Link>
+                                    <OrganizationFollowButton
+                                        organization={organization}
+                                        isFollowing={organization.is_followed}
+                                        size="sm"
+                                        className="mt-4 min-w-24 shrink-0"
+                                    />
+                                </li>
+                            ))}
+                        </ul>
+                    </InfiniteScroll>
+                </section>
+            )}
+
+            {users.data.length === 0 && !organizations?.data.length ? (
                 <div className="px-6 py-16 text-center sm:px-12">
                     <EmptyFeed
                         command={
@@ -129,7 +216,7 @@ export default function Connections({
                         {emptyMessages[type]}
                     </EmptyFeed>
                 </div>
-            ) : (
+            ) : users.data.length === 0 ? null : (
                 <InfiniteScroll
                     data="users"
                     onlyNext
@@ -140,6 +227,11 @@ export default function Connections({
                         </div>
                     }
                 >
+                    {Boolean(organizations?.data.length) && (
+                        <h2 className="px-4 pt-4 pb-1 text-sm font-medium text-muted-foreground sm:px-6">
+                            People
+                        </h2>
+                    )}
                     <ul className="divide-y">
                         {users.data.map((person) => (
                             <li

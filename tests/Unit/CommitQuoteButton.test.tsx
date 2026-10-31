@@ -15,7 +15,7 @@ const commit = {
 } as Commit;
 
 for (const user of [null, { id: 'viewer' }]) {
-    void test(`renders the quote control for ${user === null ? 'guests' : 'signed-in readers'}`, async () => {
+     test(`renders the quote control for ${user === null ? 'guests' : 'signed-in readers'}`, async () => {
         const result = await createInertiaApp<{
             auth: { user: { id: string } | null };
         }>({

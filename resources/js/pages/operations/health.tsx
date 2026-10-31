@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import { FailedJobsPanel } from '@/components/operations/health-failed-jobs';
 import { FailuresPanel } from '@/components/operations/health-failures';
@@ -206,18 +206,7 @@ export default function Health({
     moderation: ModerationBacklog;
     runtime: Runtime;
     githubRateLimit?: GitHubRateLimit | null;
-    hasTraffic: boolean;
 }) {
-    const { deferredProps } = usePage();
-
-    const isDeferred = (prop: string) =>
-        Object.values(deferredProps ?? {})
-            .flat()
-            .includes(prop);
-
-    const tracksGitHub =
-        githubRateLimit !== undefined || isDeferred('githubRateLimit');
-
     return (
         <>
             <Head title="Health" />
@@ -226,7 +215,6 @@ export default function Health({
                 <ServicesPanel
                     connectivity={connectivity}
                     githubRateLimit={githubRateLimit}
-                    tracksGitHub={tracksGitHub}
                 />
                 <QueuesPanel queues={queues} driver={runtime.queue} />
                 <BacklogsPanel

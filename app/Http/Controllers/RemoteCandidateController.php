@@ -15,7 +15,7 @@ final readonly class RemoteCandidateController
     public function index(ListRemoteCandidatesRequest $request, #[CurrentUser] User $user, RemoteCandidatesQuery $candidates): JsonResponse
     {
         return response()->json([
-            'candidates' => $candidates->get($user, $request->string('q')->value(), $request->org()),
+            'candidates' => $candidates->get($user, $request->string('q')->value(), $request->org(), forSharing: $request->isSharing()),
         ])->header('Cache-Control', 'private, no-store');
     }
 }

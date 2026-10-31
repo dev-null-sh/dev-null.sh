@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\User;
-use Illuminate\Http\Client\Request;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Client\ConnectionException;
 use Inertia\Testing\AssertableInertia;
 
 /**
@@ -23,18 +23,22 @@ function changelogPullRequest(int $number, string $mergedAt): array
     ];
 }
 
-function fakeChangelog(): void
+/**
+ * @return list<array<string, mixed>>
+ */
+function changelogPage(int $page): array
 {
-    Http::fake(['api.github.com/*' => fn (Request $request) => Http::response($request['page'] === 1 ? [
+    return $page === 1 ? [
         changelogPullRequest(377, '2026-10-17T23:30:00Z'),
         changelogPullRequest(376, '2026-10-16T12:00:00Z'),
         changelogPullRequest(375, '2026-10-15T12:00:00Z'),
         changelogPullRequest(374, '2026-10-14T12:00:00Z'),
-    ] : [])]);
+    ] : [];
 }
 
 it('lists the latest days of merged pull requests for anyone, with a link to every commit on production', function (bool $isSignedIn): void {
-    fakeChangelog();
+    $this->mock(GitHubProvider::class)->shouldReceive('closedPullRequests')
+        ->andReturnUsing(fn (string $repository, string $branch, int $page): array => changelogPage($page));
 
     $request = $isSignedIn ? $this->actingAs(User::factory()->create()) : $this;
 
@@ -50,7 +54,8 @@ it('lists the latest days of merged pull requests for anyone, with a link to eve
 })->with(['guest' => false, 'signed in' => true]);
 
 it('groups days in the reader’s time zone, and carries on from where the reader is', function (): void {
-    fakeChangelog();
+    $this->mock(GitHubProvider::class)->shouldReceive('closedPullRequests')
+        ->andReturnUsing(fn (string $repository, string $branch, int $page): array => changelogPage($page));
 
     $this->getJson('/changelog?timezone=Europe/Budapest')
         ->assertJsonCount(3, 'pullRequests')
@@ -72,7 +77,7 @@ it('rejects a time zone or a starting point it cannot read', function (array $qu
 ]);
 
 it('says the changelog is unavailable when GitHub cannot be reached', function (): void {
-    Http::fake(['api.github.com/*' => Http::failedConnection()]);
+    $this->mock(GitHubProvider::class)->shouldReceive('closedPullRequests')->andThrow(new ConnectionException('timed out'));
 
     $this->getJson('/changelog?timezone=UTC')
         ->assertOk()
@@ -90,11 +95,20 @@ it('opens the changelog as a page', function (): void {
             ->component('changelog/show'));
 });
 
+it('describes the changelog to search engines and link previews', function (): void {
+    $this->get(route('changelog.index'))
+        ->assertOk()
+        ->assertSee('<title>Changelog - /dev/null</title>', false)
+        ->assertSee('<meta name="robots" content="index, follow', false)
+        ->assertSee('<link rel="canonical" href="'.route('changelog.index').'">', false)
+        ->assertSee('"@type":"WebPage"', false);
+});
+
 it('uses the configured upstream for the changelog and commit links', function (): void {
     config(['services.github.repository' => 'example/upstream']);
-    Http::fake(['api.github.com/repos/example/upstream/pulls*' => Http::response([
+    $this->mock(GitHubProvider::class)->shouldReceive('closedPullRequests')->with('example/upstream', 'production', Mockery::any(), Mockery::any())->andReturn([
         [...changelogPullRequest(377, '2026-10-17T23:30:00Z'), 'html_url' => 'https://github.com/example/upstream/pull/377'],
-    ])]);
+    ]);
 
     $this->getJson('/changelog?timezone=UTC')
         ->assertOk()

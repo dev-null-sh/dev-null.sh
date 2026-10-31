@@ -42,14 +42,18 @@ async function desktopActionsClasses(isReply: boolean): Promise<string[]> {
 
     assert.ok(result);
 
-    const classes = /<div class="([^"]*md:flex[^"]*)"/.exec(result.body)?.[1];
+    const classes = /<div class="([^"]*transition-opacity md:opacity-0[^"]*)"/.exec(result.body)?.[1];
 
     assert.ok(classes);
 
-    return classes.split(' ');
+    const tokens = classes.split(' ');
+    assert.ok(tokens.includes('flex'));
+    assert.ok(!tokens.includes('hidden'));
+
+    return tokens;
 }
 
-void test('reveals a commit’s actions while the commit is hovered or focused', async () => {
+ test('reveals a commit’s actions while the commit is hovered or focused', async () => {
     const classes = await desktopActionsClasses(false);
 
     assert.ok(classes.includes('md:opacity-0'));
@@ -58,7 +62,7 @@ void test('reveals a commit’s actions while the commit is hovered or focused',
     assert.ok(!classes.includes('md:reply-hover:opacity-100'));
 });
 
-void test('reveals a reply’s actions only while that reply is hovered', async () => {
+ test('reveals a reply’s actions only while that reply is hovered', async () => {
     const classes = await desktopActionsClasses(true);
 
     assert.ok(classes.includes('md:opacity-0'));
@@ -66,7 +70,7 @@ void test('reveals a reply’s actions only while that reply is hovered', async 
     assert.ok(!classes.includes('md:commit-hover:opacity-100'));
 });
 
-void test('keeps the actions visible on screens without hover and while they have focus', async () => {
+ test('keeps the actions visible on screens without hover and while they have focus', async () => {
     for (const isReply of [false, true]) {
         const classes = await desktopActionsClasses(isReply);
 

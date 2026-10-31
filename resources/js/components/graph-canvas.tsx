@@ -29,6 +29,7 @@ import type {
     GraphNode,
     LeavingRow,
     NodeAnimation,
+    Overhang,
     Point,
 } from '@/lib/graph';
 import { cn } from '@/lib/utils';
@@ -338,6 +339,38 @@ function snap(value: number): number {
 }
 
 /**
+ * What a node marks `data-graph-overhang` as hanging off it, like a LIVE badge over the bottom of an avatar's ring, grown
+ * by the ring the attribute gives, in px.
+ */
+function overhangsOf(element: HTMLElement, box: DOMRect): Overhang[] {
+    return [
+        ...element.querySelectorAll<HTMLElement>('[data-graph-overhang]'),
+    ].map((overhang) => {
+        const rect = overhang.getBoundingClientRect();
+        const ring = Number(overhang.dataset.graphOverhang) || 0;
+
+        return {
+            x: snap(rect.left - box.left - ring),
+            y: snap(rect.top - box.top - ring),
+            width: snap(rect.width + 2 * ring),
+            height: snap(rect.height + 2 * ring),
+            radius:
+                (Number.parseFloat(
+                    getComputedStyle(overhang).borderTopLeftRadius,
+                ) || 0) + ring,
+        };
+    });
+}
+
+function isOverhang(node: Node): boolean {
+    return (
+        node instanceof HTMLElement &&
+        (node.dataset.graphOverhang !== undefined ||
+            node.querySelector('[data-graph-overhang]') !== null)
+    );
+}
+
+/**
  * The CSS animations running on a node and on the elements around it, up to the canvas, with the time they have left.
  */
 function runningAnimations(
@@ -420,11 +453,13 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             .filter(({ element }) => element.isConnected)
             .map(({ element, spec }) => {
                 const centre = layoutCentre(element, container);
+                const overhangs = overhangsOf(element, box);
                 rows.find((row) => row.element.contains(element))?.row.ids.add(
                     spec.id,
                 );
 
                 return {
+                    ...(overhangs.length > 0 && { overhangs }),
                     id: spec.id,
                     lane: spec.lane,
                     after: spec.after,
@@ -545,7 +580,8 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
 
         // Nodes also move without anything resizing, like cards trading places when the feed reorders. Other changes
         // inside a card, like an image done loading, move no node unless they resize the container, which the resize
-        // observer reports.
+        // observer reports. An overhang, like the LIVE badge as its user goes live, comes and goes out of the layout,
+        // so nothing resizes either.
         const mutations = new MutationObserver((records) => {
             const elements = [
                 ...[...entries.current.values()].map(({ element }) => element),
@@ -554,11 +590,15 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             departed.current.clear();
 
             if (
-                records.some((record) =>
-                    [...record.addedNodes, ...record.removedNodes].some(
-                        (node) =>
+                records.some(
+                    ({ target, addedNodes, removedNodes }) =>
+                        [...addedNodes, ...removedNodes].some((node) =>
                             elements.some((element) => node.contains(element)),
-                    ),
+                        ) ||
+                        ([...addedNodes, ...removedNodes].some(isOverhang) &&
+                            elements.some((element) =>
+                                element.contains(target),
+                            )),
                 )
             ) {
                 measureNow();
@@ -696,6 +736,26 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                                     )}
                                 />
                             ))}
+                            {nodes.flatMap((node) =>
+                                (node.overhangs ?? []).map(
+                                    (overhang, index) => (
+                                        <rect
+                                            key={`${node.id}-${index}`}
+                                            x={overhang.x}
+                                            y={overhang.y}
+                                            width={overhang.width}
+                                            height={overhang.height}
+                                            rx={overhang.radius}
+                                            fill="black"
+                                            clipPath={clipOf(
+                                                leaving.findIndex((row) =>
+                                                    row.ids.has(node.id),
+                                                ),
+                                            )}
+                                        />
+                                    ),
+                                ),
+                            )}
                         </mask>
                         {leaving.map((row, index) => (
                             <clipPath key={index} id={`${id}-leaving-${index}`}>

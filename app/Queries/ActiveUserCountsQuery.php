@@ -23,8 +23,8 @@ final readonly class ActiveUserCountsQuery
      * The people seen each day of the range, oldest first, counted as each was first seen that day since tracking
      * started. Today's count is still growing. Each count is split into the people who came back, returning, and the
      * people who signed up that day, as every signup is seen on the page it lands on: activated, not activated, or
-     * younger than 12 hours, too young to tell. Returning is what's left once the signups are taken out, so it can't
-     * be split further: only the last day each person was seen is kept.
+     * younger than 12 hours, too young to tell. Returning is what's left once the signups are taken out, and isn't
+     * split further.
      *
      * @return array<int, ActiveUserCount>
      */

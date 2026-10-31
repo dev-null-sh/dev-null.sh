@@ -397,7 +397,7 @@ export class ChatRequestError extends Error {
 /**
  * Sends JSON, or a form when there are files in it, which gets longer to upload.
  */
-async function request<T>(
+export async function request<T>(
     url: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
     body?: object | FormData,
@@ -1938,7 +1938,7 @@ export async function searchConversations(
  */
 export async function searchCandidates(
     term: string,
-    scope: { for: 'remote' | 'org' } | { org: string },
+    scope: { for: 'remote' | 'org' | 'share' } | { org: string },
     signal: AbortSignal,
 ): Promise<Candidate[]> {
     const response = await fetch(

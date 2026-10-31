@@ -698,6 +698,9 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                                 <LinkifiedText
                                     text={emojify(commit.body)}
                                     mentions={commit.mentions}
+                                    organizationMentions={
+                                        commit.organization_mentions
+                                    }
                                     startsText
                                 />
                             </p>

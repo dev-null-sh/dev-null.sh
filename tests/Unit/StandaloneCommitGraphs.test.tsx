@@ -5,6 +5,7 @@ import { createInertiaApp } from '@inertiajs/react';
 import type { ComponentType } from 'react';
 import { renderToString } from 'react-dom/server';
 import { test } from 'vite-plus/test';
+import { RelatedCommitList } from '../../resources/js/components/related-commits';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import Reports from '../../resources/js/pages/moderation/reports';
 import { SearchResults } from '../../resources/js/pages/search/index';
@@ -93,6 +94,7 @@ test('draws the graph of reported commits in a canvas, its rail standing in unti
                         id: 'report-1',
                         reason: 'spam',
                         details: null,
+                        attachments: [],
                         created_at: new Date().toISOString(),
                         commit: commit('one', 1),
                     },
@@ -100,6 +102,7 @@ test('draws the graph of reported commits in a canvas, its rail standing in unti
                         id: 'report-2',
                         reason: 'spam',
                         details: null,
+                        attachments: [],
                         created_at: new Date().toISOString(),
                         commit: commit('two', 2),
                     },
@@ -138,6 +141,7 @@ test('keeps the graph of each report apart, even when two people report the same
         id,
         reason: 'spam',
         details: null,
+        attachments: [],
         created_at: new Date().toISOString(),
         commit: commit('one', 1),
     });
@@ -170,6 +174,23 @@ test('ends the chain of search results on a dot below the last one', async () =>
         />
     ));
 
+    assert.equal(html.match(/data-test="rail-end-dot"/g)?.length, 1);
+    // In the last card: past everything the second one shows.
+    assert.ok(
+        html.indexOf('data-test="rail-end-dot"') >
+            html.lastIndexOf('Commit two'),
+    );
+});
+
+test('draws related commits in a canvas of their own, chained one after the other and ending on a dot below the last one', async () => {
+    const html = await render(() => (
+        <RelatedCommitList
+            commits={[commit('one', 1), commit('two', 2), commit('three', 3)]}
+        />
+    ));
+
+    assert.equal(html.match(/data-test="graph-canvas"/g)?.length, 1);
+    assert.equal(railPiecesLeftShowing(html), 0);
     assert.equal(html.match(/data-test="rail-end-dot"/g)?.length, 1);
     // In the last card: past everything the second one shows.
     assert.ok(

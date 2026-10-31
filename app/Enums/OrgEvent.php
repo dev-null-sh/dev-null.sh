@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Enums;
 
 /**
- * What a remote records in its history, shown as log lines between messages: an org's membership changes, and pings.
+ * What a remote records in its history, shown as log lines between messages: membership changes, pings and calls.
  */
 enum OrgEvent: string
 {
@@ -18,4 +18,10 @@ enum OrgEvent: string
     case Demoted = 'demoted';
     case Inherited = 'inherited';
     case Ping = 'ping';
+    case CallStarted = 'call_started';
+    case CallAnswered = 'call_answered';
+    case CallCancelled = 'call_cancelled';
+    case CallDeclined = 'call_declined';
+    case CallMissed = 'call_missed';
+    case CallFailed = 'call_failed';
 }

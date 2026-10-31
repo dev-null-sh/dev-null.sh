@@ -2,16 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\EmbeddingProvider;
 use App\Models\Commit;
-use Illuminate\Http\Client\Request;
-use Illuminate\Support\Facades\Http;
-
-beforeEach(function (): void {
-    config(['ai.providers.openai.key' => 'sk-test']);
-});
 
 it('embeds every commit missing an embedding, in one request', function (): void {
-    Http::fake(['api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(1), embeddingVector(2)]))]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embedMany')->once()->with(['First commit', 'Second commit'])->andReturn([embeddingVector(1), embeddingVector(2)]);
 
     $first = Commit::factory()->create(['body' => 'First commit']);
     $second = Commit::factory()->create(['body' => 'Second commit']);
@@ -22,13 +18,11 @@ it('embeds every commit missing an embedding, in one request', function (): void
 
     expect(Commit::query()->whereKey($first->id)->value('embedding'))->toBe(embeddingVector(1))
         ->and(Commit::query()->whereKey($second->id)->value('embedding'))->toBe(embeddingVector(2));
-
-    Http::assertSent(fn (Request $request): bool => $request['input'] === ['First commit', 'Second commit']);
-    Http::assertSentCount(1);
 });
 
 it('leaves commits that already have an embedding alone', function (): void {
-    Http::fake(['api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(4)]))]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embedMany')->once()->with(['Needs one'])->andReturn([embeddingVector(4)]);
 
     Commit::factory()->create(['embedding' => embeddingVector(9)]);
     $missing = Commit::factory()->create(['body' => 'Needs one']);
@@ -38,13 +32,11 @@ it('leaves commits that already have an embedding alone', function (): void {
         ->assertSuccessful();
 
     expect(Commit::query()->whereKey($missing->id)->value('embedding'))->toBe(embeddingVector(4));
-
-    Http::assertSent(fn (Request $request): bool => $request['input'] === ['Needs one']);
-    Http::assertSentCount(1);
 });
 
 it('leaves commits without a body alone', function (): void {
-    Http::fake(['api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(4)]))]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embedMany')->once()->with(['Needs one'])->andReturn([embeddingVector(4)]);
 
     $imageOnly = Commit::factory()->create(['body' => '']);
     Commit::factory()->create(['body' => 'Needs one']);
@@ -54,12 +46,11 @@ it('leaves commits without a body alone', function (): void {
         ->assertSuccessful();
 
     expect($imageOnly->refresh()->embedding)->toBeNull();
-
-    Http::assertSent(fn (Request $request): bool => $request['input'] === ['Needs one']);
 });
 
 it('embeds every commit again with --all', function (): void {
-    Http::fake(['api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(4)]))]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embedMany')->once()->andReturn([embeddingVector(4)]);
 
     $commit = Commit::factory()->create(['embedding' => embeddingVector(9)]);
 
@@ -71,13 +62,12 @@ it('embeds every commit again with --all', function (): void {
 });
 
 it('leaves deleted commits alone', function (): void {
-    Http::fake();
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldNotReceive('embedMany');
 
     Commit::factory()->create()->delete();
 
     $this->artisan('commits:embed')
         ->expectsOutputToContain('Embedded 0 commits.')
         ->assertSuccessful();
-
-    Http::assertNothingSent();
 });

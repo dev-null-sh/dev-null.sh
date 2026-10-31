@@ -16,7 +16,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * A GitHub account at its "@handle", mirrored from GitHub: what GitHub calls a profile owner. The handle is GitHub's
- * login, which can be renamed, so the account is matched by its GitHub ID.
+ * login, which can be renamed, so the account is matched by its GitHub ID. Organizations are profiles too, and what
+ * only they have lives on `Organization`.
+ *
+ * Like on GitHub, a handle is one whatever its case: the column is `citext`, so a plain `where('handle', ...)` matches
+ * any case and its unique index refuses the same handle in another case. Never lowercase it in a query to compare
+ * it. Only search filters lowercase it, as `LOWER(handle) LIKE ...`, which the trigram index serves.
  *
  * @property-read string $id
  * @property-read ProfileType $type
@@ -31,6 +36,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read User|null $user
+ * @property-read Organization|null $organization
  */
 #[Visible([
     'handle',
@@ -40,7 +46,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'location',
     'website',
 ])]
-#[Touches(['user'])]
+#[Touches(['user', 'organization'])]
 final class Profile extends Model
 {
     /** @use HasFactory<ProfileFactory> */
@@ -80,5 +86,13 @@ final class Profile extends Model
     public function user(): HasOne
     {
         return $this->hasOne(User::class, 'github_id', 'github_id');
+    }
+
+    /**
+     * @return HasOne<Organization, $this>
+     */
+    public function organization(): HasOne
+    {
+        return $this->hasOne(Organization::class, 'id');
     }
 }
