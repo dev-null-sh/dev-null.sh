@@ -146,7 +146,7 @@ function useCommitsCountUpdate(): (change: number) => void {
 }
 const threadLayouts = {
     // Root replies line up with the commit text, and their elbow branches off the rail.
-    root: '[--indent:0px] [--spine:-32px] sm:[--spine:-36px]',
+    root: '[--indent:0px] [--spine:-2rem] sm:[--spine:-2.25rem]',
     nested: '[--indent:32px] [--spine:12px] sm:[--indent:38px] sm:[--spine:14px]',
     flattened: '[--indent:0px]',
 };
