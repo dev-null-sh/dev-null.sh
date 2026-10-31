@@ -36,6 +36,19 @@ it('lists visible replies oldest first with their own reply counts', function ()
         ->assertJsonPath('meta.next_cursor', null);
 });
 
+it('tells which reply continues the thread of each reply', function (): void {
+    $parent = Commit::factory()->create();
+    $author = User::factory()->create();
+    $threaded = Commit::factory()->for($author)->for($parent, 'parent')->create(['created_at' => now()->subMinutes(3)]);
+    $continuation = Commit::factory()->for($author)->for($threaded, 'parent')->create(['created_at' => now()->subMinutes(2)]);
+    Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinute()]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-reply.index', $parent))
+        ->assertOk()
+        ->assertJsonPath('data.0.continuation_id', $continuation->id)
+        ->assertJsonPath('data.1.continuation_id', null);
+});
+
 it('shows the stars and saves of each reply as the user sees them', function (): void {
     $parent = Commit::factory()->create();
     $starred = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(2)]);
