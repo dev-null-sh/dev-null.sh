@@ -274,7 +274,7 @@ it('filters notifications by type like the web, and echoes the filter', function
     'moderation' => ['moderation', ['rejected', 'approved']],
 ]);
 
-it('marks every notification as read whatever the filter, as the web does', function (): void {
+it('marks only what the filter shows as read, as the web does', function (): void {
     $followed = Notification::factory()->for($this->user, 'recipient')->create();
     $replied = Notification::factory()->for($this->user, 'recipient')->replied()->create();
 
@@ -282,7 +282,8 @@ it('marks every notification as read whatever the filter, as the web does', func
         ->assertOk()
         ->assertJsonPath('data.*.id', [$followed->id]);
 
-    expect($replied->refresh()->read_at)->not->toBeNull();
+    expect($followed->refresh()->read_at)->not->toBeNull()
+        ->and($replied->refresh()->read_at)->toBeNull();
 });
 
 it('validates the filter before marking anything as read', function (array $query, string $field): void {
