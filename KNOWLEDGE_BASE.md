@@ -539,7 +539,7 @@ An app can use the same `/api/v1` for you with signed requests. It keeps an SSH 
 
 A signed request sees what the web shows you, such as your own pending commits. It can also, with the web's validation, moderation, and rate limits:
 
-- read your account, logs, replies, notifications (including grouped activity), and starred commits;
+- read your account, logs, replies, threads authors write as replies to themselves, notifications (including grouped activity), and starred commits;
 - commit, reply, and quote, with images, and delete your commits, with the same undo window as the web;
 - preview commit drafts without publishing them;
 - follow or unfollow people and organizations, mute or unmute, and block or unblock, and list who you muted and blocked;
