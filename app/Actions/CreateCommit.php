@@ -12,6 +12,7 @@ use App\Jobs\EmbedCommit;
 use App\Jobs\LinkCommitTopics;
 use App\Jobs\ModerateCommit;
 use App\Jobs\ReplyAsTom;
+use App\Jobs\SpotMergeConflict;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\LinkPreview;
@@ -114,6 +115,7 @@ final readonly class CreateCommit
 
             if ($commit->status === CommitStatus::Approved) {
                 dispatch(new CheckUserLevel($user))->afterCommit();
+                SpotMergeConflict::dispatchFor($commit);
             }
 
             LinkCommitTopics::dispatchFor($commit);

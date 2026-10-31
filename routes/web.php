@@ -65,6 +65,7 @@ use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
 use App\Http\Controllers\MentionSuggestionController;
+use App\Http\Controllers\MergeConflictVoteController;
 use App\Http\Controllers\MessageImageController;
 use App\Http\Controllers\MessageLinkPreviewController;
 use App\Http\Controllers\MessagePinController;
@@ -433,6 +434,8 @@ Route::middleware('auth')->group(function (): void {
         ->name('commit-reply.destroy');
     Route::post('commits/{commit}/poll/votes', [CommitPollVoteController::class, 'store'])
         ->name('commit-poll-vote.store');
+    Route::post('commits/{commit}/merge-conflict/votes', [MergeConflictVoteController::class, 'store'])
+        ->name('merge-conflict-vote.store');
 
     // Notifications...
     Route::get('notifications', [NotificationController::class, 'index'])->name('notification.index');

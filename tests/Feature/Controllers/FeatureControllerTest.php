@@ -16,7 +16,7 @@ it('lists the features to admins', function (): void {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('operations/features')
-            ->where('features', [['name' => 'translations', 'enabled' => true]]));
+            ->where('features', [['name' => 'translations', 'enabled' => true], ['name' => 'merge_conflicts', 'enabled' => true]]));
 });
 
 it('hides the features from non admins', function (): void {
@@ -33,7 +33,7 @@ it('lets admins switch a feature off and back on for everyone', function (): voi
     $admin = User::factory()->create(['handle' => 'admin']);
 
     $this->actingAs($admin)->get(route('feature.index'))
-        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => true]]));
+        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => true], ['name' => 'merge_conflicts', 'enabled' => true]]));
 
     $this->fromRoute('feature.index')
         ->put(route('feature.update', 'translations'), ['enabled' => false])
@@ -42,7 +42,7 @@ it('lets admins switch a feature off and back on for everyone', function (): voi
     expect(resolve(Features::class)->enabled(Feature::Translations))->toBeFalse();
     $this->assertDatabaseHas('features', ['name' => 'translations', 'enabled' => false]);
     $this->get(route('feature.index'))
-        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => false]]));
+        ->assertInertia(fn ($page) => $page->where('features', [['name' => 'translations', 'enabled' => false], ['name' => 'merge_conflicts', 'enabled' => true]]));
 
     $this->put(route('feature.update', 'translations'), ['enabled' => true])->assertRedirect();
 
