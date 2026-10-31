@@ -4,7 +4,14 @@ export function isBehindLatest(
     scroller: HTMLElement,
     messages: Message[],
 ): boolean {
-    const boundary = messages.filter((message) => !message.event).at(-25);
+    let remaining = 25;
+    let boundary: Message | undefined;
+    for (let index = messages.length - 1; index >= 0; index--) {
+        if (!messages[index].event && --remaining === 0) {
+            boundary = messages[index];
+            break;
+        }
+    }
     const bubble = boundary
         ? scroller.querySelector<HTMLElement>(
               `[data-scroll-anchor="${CSS.escape(boundary.client_id)}"]`,

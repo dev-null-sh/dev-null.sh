@@ -85,6 +85,7 @@ export function CommitCard({
     initialReplies,
     threadActions,
     showImages = true,
+    prioritizeImage = false,
     loadsReplies = false,
     endsWithDot = false,
     railNodePosition = 'top',
@@ -110,6 +111,7 @@ export function CommitCard({
     initialReplies?: CursorPaginated<ThreadCommit>;
     threadActions?: ReactNode;
     showImages?: boolean;
+    prioritizeImage?: boolean;
     loadsReplies?: boolean;
     endsWithDot?: boolean;
     railNodePosition?: 'top' | 'center' | 'bottom' | 'author';
@@ -472,7 +474,12 @@ export function CommitCard({
                                 />
                             </div>
                             {translation.notice}
-                            {showImages && <CommitImages commit={commit} />}
+                            {showImages && (
+                                <CommitImages
+                                    commit={commit}
+                                    priority={prioritizeImage}
+                                />
+                            )}
                             {commit.poll && (
                                 <CommitPoll
                                     key={`${commit.poll.id}-${commit.poll.has_voted}-${commit.poll.total_votes}`}
