@@ -156,8 +156,7 @@ final readonly class SitemapQuery
         /** @var list<object{id: string, handle: string, updated_at: string, image_id: string|null}> $rows */
         $rows = DB::query()
             ->fromSub($onDay, 'commits')
-            ->join('users', 'users.id', '=', 'commits.user_id')
-            ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
+            ->join('profiles', 'profiles.id', '=', 'commits.user_id')
             ->leftJoin('commit_images', 'commit_images.commit_id', '=', 'commits.id')
             ->orderBy('commits.id')
             ->orderBy('commit_images.position')
@@ -197,7 +196,7 @@ final readonly class SitemapQuery
             ->groupBy('user_id');
 
         return User::query()
-            ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
+            ->join('profiles', 'profiles.id', '=', 'users.id')
             ->joinSub($lastCommits, 'last_commits', 'last_commits.user_id', '=', 'users.id')
             ->select(['profiles.handle', 'users.created_at'])
             ->selectRaw('greatest(users.updated_at, profiles.updated_at, last_commits.updated_at) as updated_at');

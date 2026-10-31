@@ -317,7 +317,7 @@ final readonly class CreateExport
     private function handles(BelongsToMany $users): Generator
     {
         /** @var LazyCollection<int, object{handle: string}> $users */
-        $users = $users->join('profiles', 'profiles.github_id', '=', 'users.github_id')->toBase()->select(['users.id', 'profiles.handle'])->lazyById(500, 'users.id', 'id');
+        $users = $users->join('profiles', 'profiles.id', '=', 'users.id')->toBase()->select(['users.id', 'profiles.handle'])->lazyById(500, 'users.id', 'id');
 
         foreach ($users as $user) {
             yield ['handle' => $user->handle];
@@ -368,8 +368,7 @@ final readonly class CreateExport
     {
         /** @var LazyCollection<int, object{type: string, actor: string, commit_id: string|null, reason: string|null, level: int|string|null, read_at: string|null, created_at: string}> $notifications */
         $notifications = $user->notifications()
-            ->join('users as actors', 'actors.id', '=', 'notifications.actor_id')
-            ->join('profiles as actor_profiles', 'actor_profiles.github_id', '=', 'actors.github_id')
+            ->join('profiles as actor_profiles', 'actor_profiles.id', '=', 'notifications.actor_id')
             ->toBase()
             ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actor_profiles.handle as actor'])
             ->lazyById(500, 'notifications.id', 'id');

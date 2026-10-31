@@ -105,8 +105,7 @@ final class OperationsSeeder extends Seeder
 
             return [
                 // Making the row makes the user's profile already, which the row itself doesn't hold...
-                ...Arr::except(User::factory()->raw(['onboarded_at' => $user['created_at'], 'commit_rules_accepted_at' => $user['created_at']]), 'profile'),
-                'id' => $user['id'],
+                ...Arr::except(User::factory()->raw(['id' => $user['id'], 'onboarded_at' => $user['created_at'], 'commit_rules_accepted_at' => $user['created_at']]), 'profile'),
                 'created_at' => $user['created_at'],
                 'updated_at' => $user['created_at'],
                 'last_seen_at' => $this->now->subDays($seenDaysAgo)->toDateString(),

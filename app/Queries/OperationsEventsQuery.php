@@ -137,7 +137,7 @@ final readonly class OperationsEventsQuery
     private function signups(CarbonImmutable $since): Builder
     {
         return DB::table('users')
-            ->leftJoin('profiles', 'profiles.github_id', '=', 'users.github_id')
+            ->leftJoin('profiles', 'profiles.id', '=', 'users.id')
             ->selectRaw(<<<'SQL'
                 'signups' as source, 'signup' as kind, users.id::text as row_id, users.created_at as at, 'info' as level,
                 'Signed up' as message, null::text as detail, profiles.handle as actor, null::text as author, null::text as commit_id
@@ -163,8 +163,7 @@ final readonly class OperationsEventsQuery
     private function reports(CarbonImmutable $since): Builder
     {
         return DB::table('commit_reports')
-            ->join('users', 'users.id', '=', 'commit_reports.reporter_id')
-            ->leftJoin('profiles', 'profiles.github_id', '=', 'users.github_id')
+            ->join('profiles', 'profiles.id', '=', 'commit_reports.reporter_id')
             ->selectRaw(<<<'SQL'
                 'reports' as source, 'report' as kind, commit_reports.id::text as row_id, commit_reports.created_at as at,
                 'warning' as level, 'Commit reported: ' || coalesce(?::jsonb->>commit_reports.reason, commit_reports.reason) as message,
@@ -191,11 +190,9 @@ final readonly class OperationsEventsQuery
     private function verdicts(CarbonImmutable $since): Builder
     {
         return DB::table('notifications')
-            ->join('users as actors', 'actors.id', '=', 'notifications.actor_id')
-            ->leftJoin('profiles as actor_profiles', 'actor_profiles.github_id', '=', 'actors.github_id')
+            ->join('profiles as actor_profiles', 'actor_profiles.id', '=', 'notifications.actor_id')
             ->leftJoin('commits', 'commits.id', '=', 'notifications.commit_id')
-            ->leftJoin('users as authors', 'authors.id', '=', 'commits.user_id')
-            ->leftJoin('profiles as author_profiles', 'author_profiles.github_id', '=', 'authors.github_id')
+            ->leftJoin('profiles as author_profiles', 'author_profiles.id', '=', 'commits.user_id')
             ->selectRaw(<<<'SQL'
                 'moderation' as source, notifications.type as kind, notifications.id::text as row_id,
                 notifications.created_at as at, 'notice' as level,
@@ -210,8 +207,7 @@ final readonly class OperationsEventsQuery
     private function heldCommits(CarbonImmutable $since): Builder
     {
         return DB::table('commits')
-            ->join('users', 'users.id', '=', 'commits.user_id')
-            ->leftJoin('profiles', 'profiles.github_id', '=', 'users.github_id')
+            ->join('profiles', 'profiles.id', '=', 'commits.user_id')
             ->selectRaw(<<<'SQL'
                 'moderation' as source, 'held' as kind, commits.id::text as row_id, commits.created_at as at, 'notice' as level,
                 'Commit held for review' as message, null::text as detail, profiles.handle as actor, null::text as author,

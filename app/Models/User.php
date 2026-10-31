@@ -220,13 +220,13 @@ final class User extends Authenticatable
     }
 
     /**
-     * The GitHub account the user signed in with never changes, so it links the user to their profile.
+     * A user shares their profile's ID, as an organization does.
      *
      * @return BelongsTo<Profile, $this>
      */
     public function profile(): BelongsTo
     {
-        return $this->belongsTo(Profile::class, 'github_id', 'github_id');
+        return $this->belongsTo(Profile::class, 'id');
     }
 
     /**
@@ -239,7 +239,7 @@ final class User extends Authenticatable
     public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
     {
         return $field === 'handle'
-            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('github_id')->where('handle', $value), 'github_id')
+            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('id')->where('handle', $value), 'id')
             : parent::resolveRouteBindingQuery($query, $value, $field);
     }
 

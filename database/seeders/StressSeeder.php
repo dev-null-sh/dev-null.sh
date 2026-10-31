@@ -221,10 +221,10 @@ final class StressSeeder extends Seeder
                     case when random() < 0.6 then 'Building things, mostly in production.' end,
                     joined, joined
                 from developers
-                returning github_id, created_at
+                returning id, github_id, created_at
             )
             insert into users (id, github_id, created_at, updated_at, preferred_lane, onboarded_at, log)
-            select pg_temp.uuid7(created_at), github_id, created_at, created_at, substring(github_id from 8)::int % 6, created_at, 'following'
+            select id, github_id, created_at, created_at, substring(github_id from 8)::int % 6, created_at, 'following'
             from profiles
             SQL);
 
@@ -237,7 +237,7 @@ final class StressSeeder extends Seeder
 
         DB::statement(<<<'SQL'
             insert into users (id, github_id, created_at, updated_at, onboarded_at, log)
-            select pg_temp.uuid7(created_at), github_id, created_at, updated_at, created_at, 'following'
+            select id, github_id, created_at, updated_at, created_at, 'following'
             from profiles
             where github_id = 'local'
             on conflict (github_id) do nothing

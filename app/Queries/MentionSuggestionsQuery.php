@@ -35,7 +35,7 @@ final readonly class MentionSuggestionsQuery
 
         if ($term === '' && ! $org instanceof Conversation && ! $reply instanceof Commit && ! $quote instanceof Commit) {
             return $user->following()
-                ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
+                ->join('profiles', 'profiles.id', '=', 'users.id')
                 ->whereNotIn('users.id', $user->mutedIds())
                 ->orderByPivot('created_at', 'desc')
                 ->orderBy('profiles.handle')
@@ -53,7 +53,7 @@ final readonly class MentionSuggestionsQuery
 
         return User::query()
             ->select('users.*')
-            ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
+            ->join('profiles', 'profiles.id', '=', 'users.id')
             ->whereKeyNot($user->id)
             ->whereNotIn('users.id', $user->mutedIds())
             ->whereNotIn('users.id', $user->idsAcrossBlocks())

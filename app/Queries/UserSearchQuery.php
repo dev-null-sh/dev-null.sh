@@ -30,7 +30,7 @@ final readonly class UserSearchQuery
 
         return User::query()
             ->select('users.*')
-            ->join('profiles', 'profiles.github_id', '=', 'users.github_id')
+            ->join('profiles', 'profiles.id', '=', 'users.id')
             ->where(fn (Builder $query): Builder => $query
                 ->whereRaw("LOWER(profiles.handle) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
                 ->orWhereRaw("LOWER(profiles.name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))

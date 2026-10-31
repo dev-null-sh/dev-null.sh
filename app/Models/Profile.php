@@ -16,8 +16,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * A GitHub account at its "@handle", mirrored from GitHub: what GitHub calls a profile owner. The handle is GitHub's
- * login, which can be renamed, so the account is matched by its GitHub ID. Organizations are profiles too, and what
- * only they have lives on `Organization`.
+ * login, which can be renamed, so the account is matched by its GitHub ID. Users and organizations share the ID of
+ * their profile, so it names either, and what only they have lives on `User` or `Organization`.
  *
  * Like on GitHub, a handle is one whatever its case: the column is `citext`, so a plain `where('handle', ...)` matches
  * any case and its unique index refuses the same handle in another case. Never lowercase it in a query to compare
@@ -85,7 +85,7 @@ final class Profile extends Model
      */
     public function user(): HasOne
     {
-        return $this->hasOne(User::class, 'github_id', 'github_id');
+        return $this->hasOne(User::class, 'id');
     }
 
     /**
