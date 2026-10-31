@@ -5,6 +5,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import NotificationController from '@/actions/App/Http/Controllers/NotificationController';
 import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
 import { signIn } from '@/lib/auth';
+import { commitActionForShortcut } from '@/lib/commit-shortcuts';
 import { hasModKey } from '@/lib/keyboard';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
@@ -51,13 +52,11 @@ export function focusCommit(commit: HTMLElement): void {
  * A deleted commit's actions are inert, which stops pointers and focus but not a scripted click.
  */
 function focusedCommitAction(key: string): HTMLButtonElement | null {
-    const action = document.activeElement
-        ?.closest('[data-reply], [data-commit]')
-        ?.querySelector<HTMLButtonElement>(
-            `button[aria-keyshortcuts="${CSS.escape(key)}"]`,
-        );
-
-    return action && !action.closest('[inert]') ? action : null;
+    return commitActionForShortcut(
+        key,
+        document.activeElement?.closest('[data-reply], [data-commit]') ?? null,
+        key === 'r' ? document.querySelector('[data-focused-commit]') : null,
+    );
 }
 
 function openFocusedCommit(): boolean {
@@ -158,7 +157,12 @@ export function useKeyboardShortcuts(
 
             if (commitAction) {
                 event.preventDefault();
-                commitAction.click();
+
+                if (commitAction.tagName === 'TEXTAREA') {
+                    commitAction.focus();
+                } else {
+                    commitAction.click();
+                }
 
                 return;
             }
