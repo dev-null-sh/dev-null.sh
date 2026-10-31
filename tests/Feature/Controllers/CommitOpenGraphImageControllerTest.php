@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 
 it('renders a link preview image of a commit for guests', function (): void {
@@ -19,6 +20,17 @@ it('renders a link preview image of a commit for guests', function (): void {
 
     expect($response->headers->get('Cache-Control'))->toContain('public')->toContain('max-age=3600')
         ->and(array_slice((array) getimagesizefromstring((string) $response->getContent()), 0, 2))->toBe([1200, 630]);
+});
+
+it('renders a link preview image of a commit from an organization', function (): void {
+    $this->mock(GitHubProvider::class)->shouldReceive('avatar')->once()->with('https://avatars.githubusercontent.com/u/958072')->andReturn(fakeAvatar());
+
+    $organization = Organization::factory()->create(['handle' => 'laravel', 'avatar_url' => 'https://avatars.githubusercontent.com/u/958072']);
+    $commit = Commit::factory()->create(['author_id' => $organization->id]);
+
+    $response = $this->get(route('commit-open-graph-image.show', ['profile' => 'laravel', 'commit' => $commit]));
+
+    $response->assertOk()->assertHeader('Content-Type', 'image/png');
 });
 
 it('renders a commit whose author avatar cannot be downloaded', function (): void {

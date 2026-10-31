@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\LogQueries\FollowingLogQuery;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +33,17 @@ it('includes own commits and commits of followed users newest first', function (
     expect($commits->modelKeys())->toBe([$followedCommit->id, $own->id])
         ->and($commits->first()->relationLoaded('author'))->toBeTrue()
         ->and($commits->first()->relationLoaded('linkPreview'))->toBeTrue();
+});
+
+it('includes the commits of followed organizations', function (): void {
+    $user = User::factory()->create();
+    $followed = Organization::factory()->create();
+    $user->followedOrganizations()->attach($followed);
+
+    $fromFollowed = Commit::factory()->create(['author_id' => $followed->id]);
+    Commit::factory()->create(['author_id' => Organization::factory()->create()->id]);
+
+    expect(resolve(FollowingLogQuery::class)->builder($user)->get()->modelKeys())->toBe([$fromFollowed->id]);
 });
 
 it('orders commits by creation date rather than insertion order', function (): void {

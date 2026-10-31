@@ -60,6 +60,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, CommitImage> $images
  */
 #[Hidden([
+    'user',
+    'user_id',
     'author_id',
     'ai_decision',
     'ai_categories',
@@ -201,7 +203,8 @@ final class Commit extends Model
     }
 
     /**
-     * Approved commits are visible to everyone but people across a block. Authors can also see their own.
+     * Approved commits are visible to everyone but people across a block with their author, which an organization never
+     * is. Whoever posted a commit can also see it.
      */
     public function isVisibleTo(?User $user): bool
     {
@@ -209,8 +212,10 @@ final class Commit extends Model
             return true;
         }
 
+        $author = $this->author?->user;
+
         return $this->status === CommitStatus::Approved
-            && (! $user instanceof User || ! $this->user instanceof User || ! $user->hasBlockWith($this->user));
+            && (! $user instanceof User || ! $author instanceof User || ! $user->hasBlockWith($author));
     }
 
     /**
@@ -330,7 +335,7 @@ final class Commit extends Model
         return hash('xxh3', (string) json_encode([
             $this->body,
             $this->replies_count,
-            $this->author?->user?->openGraphIdentity(),
+            [$this->author?->name, $this->author?->handle, $this->author?->avatar_url, $this->author?->owner()?->lane()],
             $this->parent?->author?->handle,
         ]));
     }

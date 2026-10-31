@@ -9,13 +9,13 @@ import {
     useState,
 } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
+import { AuthorAvatar } from '@/components/author-avatar';
 import { CommitComposer } from '@/components/commit-composer';
 import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
-import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
 import { useComposerVisibility } from '@/hooks/use-composer-visibility';
@@ -596,8 +596,8 @@ export default function Show({
                                     key={author.id}
                                     className="shrink-0 motion-safe:animate-in motion-safe:duration-250 motion-safe:fade-in"
                                 >
-                                    <UserAvatar
-                                        user={author}
+                                    <AuthorAvatar
+                                        author={author}
                                         pixels={48}
                                         className="size-6 ring-2 ring-primary"
                                     />
@@ -681,8 +681,8 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                 {suggestions.map((commit) => (
                     <li key={commit.id} className="flex items-center gap-3 p-3">
                         <UserPreview user={commit.author} className="shrink-0">
-                            <UserAvatar
-                                user={commit.author}
+                            <AuthorAvatar
+                                author={commit.author}
                                 className="size-9"
                             />
                         </UserPreview>

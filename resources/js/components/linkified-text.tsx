@@ -225,7 +225,7 @@ function CommitLink({
 
     return (
         <Link
-            href={CommitController.show({ user: handle, commit })}
+            href={CommitController.show({ profile: handle, commit })}
             title={url}
             aria-label={`@${handle}’s commit ${hash}`}
             className="text-primary hover:underline"

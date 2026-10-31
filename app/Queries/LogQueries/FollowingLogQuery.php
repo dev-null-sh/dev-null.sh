@@ -19,10 +19,12 @@ final readonly class FollowingLogQuery implements LogQuery
         }
 
         $following = $user->following();
+        $organizations = $user->followedOrganizations();
 
         return Commit::query()
             ->where(fn (Builder $query): Builder => $query
                 ->whereIn('author_id', $following->newPivotQuery()->select($following->getRelatedPivotKeyName()))
+                ->orWhereIn('author_id', $organizations->newPivotQuery()->select($organizations->getRelatedPivotKeyName()))
                 ->orWhere('author_id', $user->id))
             ->visibleTo($user)
             ->withoutMutedAuthorsFor($user)

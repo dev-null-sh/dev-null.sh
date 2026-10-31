@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Attributes\Visible;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
@@ -81,13 +82,21 @@ final class Profile extends Model
     }
 
     /**
-     * Shown, a profile is its user's or its organization's, with what is its type's alone, like a lane.
+     * Shown, a profile is its user's or its organization's, with what is its type's alone, like a user's live stream,
+     * and its ID and lane either way.
      *
      * @return array<mixed>
      */
     public function toArray(): array
     {
-        return ['type' => $this->type, ...$this->owner()?->toArray() ?? []];
+        $owner = $this->owner();
+
+        return [
+            'type' => $this->type,
+            'id' => $this->id,
+            ...$owner?->toArray() ?? [],
+            ...$owner instanceof Organization ? ['lane' => $owner->lane()] : [],
+        ];
     }
 
     /**
@@ -108,6 +117,16 @@ final class Profile extends Model
     public function organization(): HasOne
     {
         return $this->hasOne(Organization::class, 'id')->without('profile')->chaperone('profile');
+    }
+
+    /**
+     * The commits from the profile, a user's or an organization's.
+     *
+     * @return HasMany<Commit, $this>
+     */
+    public function commits(): HasMany
+    {
+        return $this->hasMany(Commit::class, 'author_id');
     }
 
     /**
