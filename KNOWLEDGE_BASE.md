@@ -498,6 +498,7 @@ Press **?** to open the shortcut reference. Navigation shortcuts work outside te
 | `r` / `q` / `o` | Reply, quote, or show/hide replies. |
 | `s` | Star or unstar the focused commit. |
 | `c` | Write a commit. |
+| `.` | Scroll up to the new commits a log is announcing. |
 | `⌘/Ctrl+K` or `/` | Search developers and commits. |
 | `⌘/Ctrl+Enter` | Submit from the composer. |
 | `⌘/Ctrl+Shift+P` | Toggle composer preview. |

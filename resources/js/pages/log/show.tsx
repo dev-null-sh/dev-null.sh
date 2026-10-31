@@ -577,6 +577,7 @@ export default function Show({
                         }}
                         aria-label={announcementLabel}
                         title={announcementLabel}
+                        aria-keyshortcuts="."
                         className={cn(
                             notice.leaving && '-translate-y-2 opacity-0',
                             'pointer-events-auto mt-3 flex min-h-11 max-w-[calc(100vw-2rem)] items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:transition-[opacity,translate,background-color] motion-safe:duration-450 motion-safe:fade-in motion-safe:slide-in-from-top-2',
