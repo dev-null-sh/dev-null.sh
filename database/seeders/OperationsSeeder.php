@@ -194,6 +194,7 @@ final class OperationsSeeder extends Seeder
         return [
             'id' => $id,
             'user_id' => $userId,
+            'author_id' => $userId,
             'parent_id' => $parentId,
             'root_id' => $parentId,
             'body' => fake()->sentence(fake()->numberBetween(4, 18)),

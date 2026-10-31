@@ -312,8 +312,8 @@ final class StressSeeder extends Seeder
         $bodies = self::BODIES;
 
         $this->inBatches($this->count(self::COMMITS), fn (int $rows): string => <<<SQL
-            insert into commits (id, user_id, body, status, created_at, updated_at, deleted_at)
-            select pg_temp.uuid7(committed_at), author.id, bodies.body,
+            insert into commits (id, user_id, author_id, body, status, created_at, updated_at, deleted_at)
+            select pg_temp.uuid7(committed_at), author.id, author.id, bodies.body,
                 case when roll < 0.95 then 'approved' when roll < 0.98 then 'pending' else 'rejected' end,
                 committed_at, committed_at,
                 case when random() < 0.01 then least(localtimestamp, committed_at + interval '1 hour') end
@@ -347,8 +347,8 @@ final class StressSeeder extends Seeder
         $bodies = self::BODIES;
 
         DB::statement(<<<SQL
-            insert into commits (id, user_id, body, status, created_at, updated_at)
-            select pg_temp.uuid7(committed_at), (select id from stress_users where n = 0), bodies.body, 'approved', committed_at, committed_at
+            insert into commits (id, user_id, author_id, body, status, created_at, updated_at)
+            select pg_temp.uuid7(committed_at), (select id from stress_users where n = 0), (select id from stress_users where n = 0), bodies.body, 'approved', committed_at, committed_at
             from (
                 select 1 + floor(random() * {$bodies})::int as body_n, localtimestamp - random() * interval '365 days' as committed_at
                 from generate_series(1, {$commits})
@@ -399,8 +399,8 @@ final class StressSeeder extends Seeder
         }
 
         $this->inBatches($rows, fn (int $batch): string => <<<SQL
-            insert into commits (id, user_id, body, status, parent_id, root_id, created_at, updated_at)
-            select pg_temp.uuid7(replied_at), author.id, bodies.body,
+            insert into commits (id, user_id, author_id, body, status, parent_id, root_id, created_at, updated_at)
+            select pg_temp.uuid7(replied_at), author.id, author.id, bodies.body,
                 case when roll < 0.97 then 'approved' else 'pending' end,
                 parent.id, {$rootColumn}, replied_at, replied_at
             from (
@@ -428,8 +428,8 @@ final class StressSeeder extends Seeder
         $bodies = self::BODIES;
 
         DB::statement(<<<SQL
-            insert into commits (id, user_id, body, status, quoted_commit_id, created_at, updated_at)
-            select pg_temp.uuid7(quoted_at), author.id, bodies.body, 'approved', quoted.id, quoted_at, quoted_at
+            insert into commits (id, user_id, author_id, body, status, quoted_commit_id, created_at, updated_at)
+            select pg_temp.uuid7(quoted_at), author.id, author.id, bodies.body, 'approved', quoted.id, quoted_at, quoted_at
             from (
                 select 1 + floor({$threads} * power(random(), 3))::int as quoted_n,
                     1 + floor({$developers} * power(random(), 1.5))::int as author_n,

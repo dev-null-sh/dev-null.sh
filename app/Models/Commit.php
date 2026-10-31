@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 /**
  * @property-read string $id
  * @property-read string|null $user_id
+ * @property-read string|null $author_id
  * @property-read string|null $parent_id
  * @property-read string|null $root_id
  * @property-read float $hot_score
@@ -58,6 +59,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Collection<int, CommitImage> $images
  */
 #[Hidden([
+    'author_id',
     'ai_decision',
     'ai_categories',
     'embedding',
@@ -110,6 +112,7 @@ final class Commit extends Model
         return [
             'id' => 'string',
             'user_id' => 'string',
+            'author_id' => 'string',
             'parent_id' => 'string',
             'root_id' => 'string',
             'hot_score' => 'float',
