@@ -39,7 +39,8 @@ it('creates commits pending review', function (): void {
 
     $commit = $action->handle(User::factory()->create(), 'Initial commit');
 
-    expect($commit->status)->toBe(CommitStatus::Pending);
+    expect($commit->status)->toBe(CommitStatus::Pending)
+        ->and($commit->approved_at)->toBeNull();
 });
 
 it('stores emoji shortcodes as their emoji', function (): void {
@@ -57,7 +58,8 @@ it('approves commits of admins right away', function (): void {
 
     $commit = $action->handle(User::factory()->create(['handle' => 'nunomaduro']), 'Initial commit');
 
-    expect($commit->status)->toBe(CommitStatus::Approved);
+    expect($commit->status)->toBe(CommitStatus::Approved)
+        ->and($commit->approved_at?->toIso8601String())->toBe(now()->toIso8601String());
 });
 
 it('skips ai review only when all reputation requirements are met', function (int $ageInSeconds, int $followers, ?CommitStatus $previousStatus, bool $deleted, bool $approved): void {

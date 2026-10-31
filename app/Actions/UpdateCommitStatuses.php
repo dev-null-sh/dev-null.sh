@@ -52,6 +52,13 @@ final readonly class UpdateCommitStatuses
                 return;
             }
 
+            if ($status === CommitStatus::Approved) {
+                DB::table('commits')
+                    ->whereIn('id', $commits->modelKeys())
+                    ->whereNull('approved_at')
+                    ->update(['approved_at' => now()]);
+            }
+
             Commit::query()->whereKey($commits->modelKeys())->update(['status' => $status]);
 
             Notification::query()

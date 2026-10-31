@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateCommitHotScores;
+use App\Actions\UpdateCommitStatus;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -13,6 +14,7 @@ use App\Models\LinkPreview;
 use App\Models\User;
 use App\Services\Features;
 use Illuminate\Database\Eloquent\Factories\Sequence;
+use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
@@ -110,6 +112,65 @@ it('redirects the former everyone log to the trending log', function (): void {
 
     $response->assertRedirect('/log/trending')
         ->assertStatus(301);
+});
+
+it('orders a late approval ahead of newer submissions', function (): void {
+    $user = User::factory()->create();
+    $delayed = Commit::factory()->pending()->create(['body' => 'Delayed', 'created_at' => now()->subHour()]);
+    Commit::factory()->create(['body' => 'Already public', 'created_at' => now()->subMinute()]);
+
+    $this->travel(1)->minute();
+    resolve(UpdateCommitStatus::class)->handle($delayed, CommitStatus::Approved);
+
+    $this->actingAs($user)->get('/log/latest')->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.body', 'Delayed')
+            ->where('commits.data.1.body', 'Already public')
+            ->missing('commits.data.0.feed_at'));
+});
+
+it('starts a chronological log at the first page for a cursor from before approval ordering', function (Log $log): void {
+    $user = User::factory()->create();
+    $commits = Commit::factory()->for($user)->count(25)->sequence(
+        fn ($sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+
+    $legacyCursor = (new Cursor([
+        'created_at' => $commits[19]->created_at->toDateTimeString(),
+        'id' => $commits[19]->id,
+    ], true))->encode();
+
+    $response = $this->actingAs($user)->get(route('log.show', [
+        $log,
+        'cursor' => $legacyCursor,
+    ]));
+
+    $response->assertOk();
+
+    expect(array_column($response->inertiaProps('commits.data'), 'id'))
+        ->toEqual($commits->take(20)->modelKeys());
+})->with([Log::Latest, Log::Following]);
+
+it('paginates the approval-ordered log without repeating commits', function (): void {
+    $user = User::factory()->create();
+    $delayed = Commit::factory()->pending()->create(['created_at' => now()->subDay()]);
+    Commit::factory()->count(22)->sequence(
+        fn ($sequence): array => ['created_at' => now()->subMinutes($sequence->index + 1)],
+    )->create();
+
+    $this->travel(1)->minute();
+    resolve(UpdateCommitStatus::class)->handle($delayed, CommitStatus::Approved);
+
+    $response = $this->actingAs($user)->get('/log/latest');
+    $first = collect($response->inertiaProps('commits.data'))->pluck('id')->all();
+    $cursor = $response->inertiaProps('commits.next_cursor');
+    $second = $this->get('/log/latest?cursor='.urlencode((string) $cursor));
+    $remaining = collect($second->inertiaProps('commits.data'))->pluck('id')->all();
+
+    expect($first)->toHaveCount(20)
+        ->toContain($delayed->id)
+        ->and($remaining)->toHaveCount(3)
+        ->and(array_unique([...$first, ...$remaining]))->toHaveCount(23);
 });
 
 it('paginates the log', function (Log $log): void {
@@ -254,6 +315,44 @@ it('counts newer commits on the latest log', function (): void {
     Commit::factory()->create();
 
     $this->actingAs($user)->get(route('log.show', [Log::Latest, 'since' => $older->id]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount',
+    ])->assertOk()->assertJsonPath('props.newCommitsCount', 1);
+});
+
+it('counts older submissions after they become publicly approved', function (): void {
+    $user = User::factory()->create();
+    $seen = Commit::factory()->create(['created_at' => now()->subMinutes(3)]);
+    $delayed = Commit::factory()->pending()->create(['created_at' => now()->subHour()]);
+
+    $this->travel(1)->minute();
+    resolve(UpdateCommitStatus::class)->handle($delayed, CommitStatus::Approved);
+
+    $this->actingAs($user)->get(route('log.show', [Log::Latest, 'since' => $seen->id]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'log/show',
+        'X-Inertia-Partial-Data' => 'newCommitsCount',
+    ])->assertOk()->assertJsonPath('props.newCommitsCount', 1);
+});
+
+it('uses the originally seen timestamp when a pending commit is later approved', function (): void {
+    $user = User::factory()->create();
+    $seen = Commit::factory()->for($user)->pending()->create(['created_at' => now()->subMinutes(5)]);
+    $sinceAt = $seen->created_at->toIso8601String();
+
+    Commit::factory()->create(['created_at' => now()->subMinute()]);
+
+    $this->travel(1)->minute();
+    resolve(UpdateCommitStatus::class)->handle($seen, CommitStatus::Approved);
+
+    $this->actingAs($user)->get(route('log.show', [
+        Log::Latest,
+        'since' => $seen->id,
+        'since_at' => $sinceAt,
+    ]), [
         'X-Inertia' => 'true',
         'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
         'X-Inertia-Partial-Component' => 'log/show',

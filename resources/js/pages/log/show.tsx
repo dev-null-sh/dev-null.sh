@@ -60,6 +60,7 @@ export default function Show({
     const commitDialogClosedCount = useCommitDialogClosedCount();
     const viewerId = user?.id ?? 'guest';
     const newestId = isRanked ? undefined : commits.data[0]?.id;
+    const newestAt = commits.data[0]?.approved_at ?? commits.data[0]?.created_at;
     const oldestLoadedId = commits.data.at(-1)?.id;
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
@@ -396,6 +397,7 @@ export default function Show({
             only: ['newCommitsCount', 'removedCommitIds'],
             data: {
                 since: newestId,
+                since_at: newestAt,
                 pending: notice?.leaving
                     ? []
                     : (notice?.commits.map((commit) => commit.id) ?? []),

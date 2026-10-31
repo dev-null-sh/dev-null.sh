@@ -65,6 +65,7 @@ final readonly class CreateCommit
             $linkPreview = $this->linkPreviewFor($url);
             $createdAt = now();
             $hasGoodReputation = $user->hasGoodReputation();
+            $approved = $user->isAdmin() || $hasGoodReputation;
             $mentions = $this->mentionedUsers->get($body);
 
             $commit = $user->commits()->create([
@@ -72,7 +73,8 @@ final readonly class CreateCommit
                 'mentions' => [...$replyRecipients, ...$mentions],
                 'parent_id' => $parent?->id,
                 'root_id' => $parent?->threadRootId(),
-                'status' => $user->isAdmin() || $hasGoodReputation ? CommitStatus::Approved : CommitStatus::Pending,
+                'status' => $approved ? CommitStatus::Approved : CommitStatus::Pending,
+                'approved_at' => $approved ? $createdAt : null,
                 'link_preview_id' => $linkPreview?->id,
                 'quoted_commit_id' => $quotedCommit?->id,
                 'hot_score' => $this->theAlgorithm->score($createdAt, ThreadEngagement::none()),

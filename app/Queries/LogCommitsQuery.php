@@ -7,6 +7,7 @@ namespace App\Queries;
 use App\Enums\Log;
 use App\Models\Commit;
 use App\Models\User;
+use Illuminate\Pagination\Cursor;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Pagination\Paginator;
 
@@ -17,6 +18,16 @@ final readonly class LogCommitsQuery
      */
     public function paginate(Log $log, ?User $user, ?Commit $through = null, string $cursor = ''): CursorPaginator
     {
+        // The old feed cursor lacks feed_at and cannot paginate the approval-ordered feed.
+        // Start from page one instead of letting Laravel throw for the missing parameter.
+        if (! $log->isRanked()) {
+            $cursor = Cursor::fromEncoded(request()->query('cursor'));
+
+            if ($cursor instanceof Cursor && ! array_key_exists('feed_at', $cursor->toArray())) {
+                request()->query->remove('cursor');
+            }
+        }
+
         $query = $log->query()->builder($user);
         if ($log->isRanked() || ! $through instanceof Commit) {
             return $query->cursorPaginate(20, cursor: $cursor);
@@ -29,13 +40,16 @@ final readonly class LogCommitsQuery
             ->get();
         $perPage = max(20, $retained->count());
         $older = $query
-            ->whereRowValues(['commits.created_at', 'commits.id'], '<', [$through->created_at, $through->id])
+            ->whereRaw(
+                '(coalesce(commits.approved_at, commits.created_at), commits.id) < (?, ?)',
+                [$through->approved_at ?? $through->created_at, $through->id],
+            )
             ->limit($perPage - $retained->count() + 1)
             ->get();
 
         return new CursorPaginator($retained->concat($older), $perPage, options: [
             'path' => Paginator::resolveCurrentPath(),
-            'parameters' => ['created_at', 'id'],
+            'parameters' => ['feed_at', 'id'],
         ]);
     }
 }

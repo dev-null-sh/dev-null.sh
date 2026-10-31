@@ -24,6 +24,7 @@ final class ShowLogRequest extends FormRequest
     {
         return [
             'since' => ['nullable', 'uuid'],
+            'since_at' => ['nullable', 'date'],
             'through' => ['nullable', 'uuid'],
             'pending' => ['sometimes', 'array', 'list'],
             'pending.*' => ['required', 'uuid', 'distinct'],

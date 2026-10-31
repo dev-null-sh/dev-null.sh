@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateCommitHotScores;
+use App\Actions\UpdateCommitStatus;
+use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\LogQueries\LatestLogQuery;
@@ -18,6 +20,18 @@ it('includes commits of everyone newest first, however popular they are', functi
     expect($commits->modelKeys())->toBe([$newer->id, $starred->id])
         ->and($commits->first()->relationLoaded('user'))->toBeTrue()
         ->and($commits->first()->relationLoaded('linkPreview'))->toBeTrue();
+});
+
+it('shows older submissions first when they are approved later', function (): void {
+    $delayed = Commit::factory()->pending()->create(['created_at' => now()->subHours(2)]);
+    $recent = Commit::factory()->create(['created_at' => now()->subMinute()]);
+
+    $this->travel(1)->minute();
+    resolve(UpdateCommitStatus::class)->handle($delayed, CommitStatus::Approved);
+
+    $commits = resolve(LatestLogQuery::class)->builder(null)->get();
+
+    expect($commits->modelKeys())->toBe([$delayed->id, $recent->id]);
 });
 
 it('only includes approved top-level commits of others', function (): void {

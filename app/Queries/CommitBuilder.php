@@ -11,6 +11,7 @@ use App\Models\Commit;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\CommitTranslations;
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\Database\Query\Expression;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -19,18 +20,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Database\Query\Expression as QueryExpression;
 use Illuminate\Pagination\Cursor;
+use Illuminate\Support\Facades\DB;
 
 /**
  * @extends Builder<Commit>
  */
 final class CommitBuilder extends Builder
 {
+    private const string FEED_AT_SQL = 'coalesce(commits.approved_at, commits.created_at)';
+
     /**
      * Every column but the embedding, in the table's order.
      */
     private const array COLUMNS_BUT_EMBEDDING = [
         'id', 'user_id', 'body', 'created_at', 'updated_at', 'status', 'parent_id', 'deleted_at', 'link_preview_id',
-        'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count',
+        'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count', 'approved_at',
     ];
 
     /**
@@ -123,15 +127,31 @@ final class CommitBuilder extends Builder
     }
 
     /**
-     * Commits created after the given one, including those created in the same second with a later, time-ordered id.
+     * Count commits newly placed ahead of the viewer's last seen position.
+     * Use the timestamp the browser saw because moderation may have moved that commit.
      */
-    public function newerThan(Commit $commit): self
+    public function newerThan(Commit $commit, ?CarbonInterface $sinceAt = null): self
     {
-        return $this->where(fn (self $query): self => $query
-            ->where($this->qualifyColumn('created_at'), '>', $commit->created_at)
-            ->orWhere(fn (self $query): self => $query
-                ->where($this->qualifyColumn('created_at'), $commit->created_at)
-                ->where($this->qualifyColumn('id'), '>', $commit->id)));
+        $feedAt = DB::raw(self::FEED_AT_SQL);
+        $since = $sinceAt ?? $commit->approved_at ?? $commit->created_at;
+
+        return $this->where($this->qualifyColumn('id'), '!=', $commit->id)
+            ->where(fn (self $query): self => $query
+                ->where($feedAt, '>', $since)
+                ->orWhere(fn (self $query): self => $query
+                    ->where($feedAt, $since)
+                    ->where($this->qualifyColumn('id'), '>', $commit->id)));
+    }
+
+    /**
+     * First public approval determines chronological feed order; private commits
+     * visible to their authors use their creation time instead.
+     */
+    public function newestInFeed(): self
+    {
+        return $this->selectRaw(self::FEED_AT_SQL.' as feed_at')
+            ->latest('feed_at')
+            ->orderByDesc($this->qualifyColumn('id'));
     }
 
     public function newestFirst(): self

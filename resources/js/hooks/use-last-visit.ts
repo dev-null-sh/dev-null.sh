@@ -12,7 +12,14 @@ export function useLastVisit(
 ): string | null {
     const key = keyFor(userId, log);
     const [lastVisitAt] = useState(() => readStorage(key));
-    const newestAt = commits[0]?.created_at;
+    const timestamp = (commit: Commit): string => {
+        if (log === 'trending') {
+            return commit.created_at;
+        }
+
+        return commit.approved_at ?? commit.created_at;
+    };
+    const newestAt = commits[0] ? timestamp(commits[0]) : undefined;
 
     useEffect(() => {
         if (newestAt !== undefined) {
@@ -25,7 +32,7 @@ export function useLastVisit(
     }
 
     const firstSeen = commits.findIndex(
-        (commit) => Date.parse(commit.created_at) <= Date.parse(lastVisitAt),
+        (commit) => Date.parse(timestamp(commit)) <= Date.parse(lastVisitAt),
     );
     const isNewFromOthers = commits
         .slice(0, Math.max(firstSeen, 0))
