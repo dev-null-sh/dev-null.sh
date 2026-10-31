@@ -49,6 +49,8 @@ it('shows a public profile with public counts', function (): void {
             'followers_count' => 3,
             'following_count' => 1,
         ]]);
+
+    expect(json_decode($response->getContent(), flags: JSON_THROW_ON_ERROR)->bio_profiles)->toBeInstanceOf(stdClass::class);
 });
 
 it('never exposes hidden fields', function (): void {
@@ -174,6 +176,8 @@ it('shows a signed request the profile as the web shows it to its user', functio
         ->assertJsonCount(7, 'activity.buckets')
         ->assertJsonPath('activity.buckets.3', ['date' => '2026-10-12', 'count' => 1])
         ->assertJsonPath('activity.buckets.6', ['date' => '2026-10-15', 'count' => 2]);
+
+    expect(json_decode($response->getContent(), flags: JSON_THROW_ON_ERROR)->bio_profiles)->toBeInstanceOf(stdClass::class);
 });
 
 it('counts the pending commits of a signed-in user on their own profile', function (): void {

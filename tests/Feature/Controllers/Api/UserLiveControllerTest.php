@@ -13,7 +13,8 @@ it('starts and ends a stream for the signed user', function (): void {
         ->assertOk()->assertJsonPath('data.live.url', 'https://www.twitch.tv/octocat')->assertJsonPath('unread_notifications_count', 0);
     expect($user->refresh()->live_platform)->toBe(LivePlatform::Twitch)
         ->and($user->live_ends_at?->toIso8601String())->toBe(now()->addHours(3)->toIso8601String());
-    signedApiRequest($key, 'DELETE', route('api-user-live.destroy'))->assertOk()->assertJsonPath('data.live', null);
+    signedApiRequest($key, 'DELETE', route('api-user-live.destroy'))->assertOk()
+        ->assertJsonStructure(['data' => ['live']])->assertJsonPath('data.live', null);
     expect($user->refresh()->live_url)->toBeNull()->and($user->live_ends_at)->toBeNull();
 });
 

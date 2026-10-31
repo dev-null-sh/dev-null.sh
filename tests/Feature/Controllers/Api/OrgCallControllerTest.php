@@ -18,8 +18,11 @@ it('starts, joins, exchanges signals and leaves an org call through signed reque
     signedApiRequest($key, 'POST', route('api-org-call.store', $org))->assertCreated()
         ->assertHeader('Cache-Control', 'no-store, private')->assertJsonPath('call.members.0.user.id', $user->id);
     signedApiRequest($memberKey, 'POST', route('api-org-call.store', $org))->assertCreated()->assertJsonCount(2, 'call.members');
-    signedApiRequest($key, 'PUT', route('api-org-call.update', $org), ['signals' => [$member->id => $signal]])
-        ->assertOk()->assertJsonPath('call.signals', []);
+
+    $response = signedApiRequest($key, 'PUT', route('api-org-call.update', $org), ['signals' => [$member->id => $signal]]);
+
+    $response->assertOk()->assertJsonPath('call.signals', []);
+    expect(json_decode($response->getContent(), flags: JSON_THROW_ON_ERROR)->call->signals)->toBeInstanceOf(stdClass::class);
     signedApiRequest($memberKey, 'PUT', route('api-org-call.update', $org), ['signals' => []])
         ->assertOk()->assertHeader('Cache-Control', 'no-store, private')->assertJsonPath('call.signals', [$user->id => $signal]);
     signedApiRequest($key, 'DELETE', route('api-org-call.destroy', $org))->assertNoContent();

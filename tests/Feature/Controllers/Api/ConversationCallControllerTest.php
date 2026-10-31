@@ -43,7 +43,7 @@ it('records a declined or failed incoming call', function (bool $failed, OrgEven
 
     signedApiRequest(apiKeyPairFor($partner), 'DELETE', route('api-conversation-call.destroy', $caller), ['failed' => $failed])->assertNoContent();
 
-    expect(resolve(CallQuery::class)->get($caller))->toBeNull();
+    expect(resolve(CallQuery::class)->get($partner))->toBeNull();
     $this->assertDatabaseHas('messages', ['event' => $event->value, 'user_id' => $partner->id]);
 })->with([[false, OrgEvent::CallDeclined], [true, OrgEvent::CallFailed]]);
 
