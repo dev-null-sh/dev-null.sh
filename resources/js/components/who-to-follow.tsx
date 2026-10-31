@@ -117,12 +117,14 @@ export function SuggestedUserRow({
     className,
     buttonClassName,
     onDismiss,
+    onFollowed,
 }: {
     user: SuggestedUser;
     isStacked?: boolean;
     className?: string;
     buttonClassName?: string;
     onDismiss?: (onFailed: () => void) => boolean;
+    onFollowed?: () => boolean;
 }) {
     const reason = reasonFor(user);
     const exactReason = reasonFor(user, formatExactCount);
@@ -136,8 +138,21 @@ export function SuggestedUserRow({
     const avatarRef = useRef<HTMLSpanElement>(null);
     const hasBlock = useHasBlockWith(user);
     const [isDismissed, setIsDismissed] = useState(false);
+    const [isFollowed, setIsFollowed] = useState(false);
     const [isGone, setIsGone] = useState(false);
-    const isLeaving = hasBlock || isDismissed;
+    const isLeaving = hasBlock || isDismissed || isFollowed;
+
+    const leaveAfterFollow = (): void => {
+        if (onFollowed === undefined) {
+            return;
+        }
+
+        window.setTimeout(() => {
+            if (!onFollowed()) {
+                setIsFollowed(true);
+            }
+        }, 600);
+    };
 
     if (isGone) {
         return null;
@@ -214,6 +229,7 @@ export function SuggestedUserRow({
                                 isFollowing={false}
                                 followsYou={user.follows_you}
                                 marksFollowsYou
+                                onFollowed={leaveAfterFollow}
                                 data-test="suggested-follow-button"
                             />
                             <DismissButton
@@ -361,7 +377,8 @@ function useHideWhoToFollow() {
     const { showsWhoToFollow, suggestedUsers } = usePage().props;
     const { rememberShowsWhoToFollow } = useWhoToFollow();
     const [isHidden, setIsHidden] = useState(false);
-    const { hasDismissed, isEmptied, dismiss } = useDismissSuggestion();
+    const { hasDismissed, isEmptied, dismiss, removeSuggestion } =
+        useDismissSuggestion();
 
     const toggle = (hides: boolean) => {
         rememberShowsWhoToFollow(!hides);
@@ -377,6 +394,7 @@ function useHideWhoToFollow() {
         undo: () => toggle(false),
         suggestedUsers: suggestedUsers?.slice(0, shownSuggestionsCount),
         dismiss,
+        removeSuggestion,
     };
 }
 
@@ -516,6 +534,27 @@ function useDismissSuggestion() {
         }
     };
 
+    const removeSuggestion = (user: SuggestedUser): boolean => {
+        const hasSpare = suggestedUsers.length > shownSuggestionsCount;
+
+        dismissedIds.add(user.id);
+        setHasDismissed(true);
+        setDismissingCount((count) => count + 1);
+        settle();
+
+        if (hasSpare) {
+            remove(user);
+        } else {
+            window.setTimeout(() => {
+                if (dismissedIds.has(user.id)) {
+                    remove(user);
+                }
+            }, 300);
+        }
+
+        return hasSpare;
+    };
+
     const dismiss = (user: SuggestedUser, onFailed: () => void): boolean => {
         const shownIds = suggestedUsers
             .slice(0, shownSuggestionsCount)
@@ -574,6 +613,7 @@ function useDismissSuggestion() {
             topUp === 'idle' &&
             suggestedUsers.length === 0,
         dismiss,
+        removeSuggestion,
     };
 }
 
@@ -631,6 +671,7 @@ export function WhoToFollow() {
         undo,
         suggestedUsers,
         dismiss,
+        removeSuggestion,
     } = useHideWhoToFollow();
 
     if (!isVisible) {
@@ -671,6 +712,7 @@ export function WhoToFollow() {
                                 onDismiss={(onFailed) =>
                                     dismiss(user, onFailed)
                                 }
+                                onFollowed={() => removeSuggestion(user)}
                             />
                         ))}
                     </Deferred>
@@ -692,6 +734,7 @@ export function WhoToFollowInLog() {
         undo,
         suggestedUsers,
         dismiss,
+        removeSuggestion,
     } = useHideWhoToFollow();
 
     if (!isVisible) {
@@ -741,6 +784,7 @@ export function WhoToFollowInLog() {
                                     onDismiss={(onFailed) =>
                                         dismiss(user, onFailed)
                                     }
+                                    onFollowed={() => removeSuggestion(user)}
                                 />
                             ))}
                         </Deferred>
