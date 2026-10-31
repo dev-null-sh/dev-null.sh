@@ -79,6 +79,11 @@ export type CommitAuthor =
     | (User & { type: 'user' })
     | (Organization & { type: 'organization'; id: string; lane: Lane | null });
 
+export type OrganizationAuthor = Extract<
+    CommitAuthor,
+    { type: 'organization' }
+>;
+
 export type Commit = {
     id: string;
     parent_id: string | null;

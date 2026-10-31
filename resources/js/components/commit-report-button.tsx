@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import type { Commit } from '@/types';
 
 const reasons = [
@@ -40,11 +41,12 @@ const reasons = [
 
 export function useCanReport(commit: Commit): boolean {
     const { auth } = usePage().props;
+    const ownsCommit = useOwnsCommit();
 
     return (
         auth.user !== null &&
         commit.status === 'approved' &&
-        commit.author.id !== auth.user.id
+        !ownsCommit(commit)
     );
 }
 

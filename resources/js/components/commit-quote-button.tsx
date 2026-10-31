@@ -33,6 +33,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
@@ -56,10 +57,11 @@ export function CommitQuoteButton({
     className?: string;
 }) {
     const { auth } = usePage().props;
+    const ownsCommit = useOwnsCommit();
     const [isOpen, setIsOpen] = useState(false);
     const hasStash = useHasStash(auth.user?.id ?? null, `quote-${commit.id}`);
 
-    if (commit.status !== 'approved' && commit.author.id !== auth.user?.id) {
+    if (commit.status !== 'approved' && !ownsCommit(commit)) {
         return null;
     }
 

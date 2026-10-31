@@ -35,6 +35,7 @@ final readonly class CreateQuoteNotifications
             ->select('commits.*')
             ->join('commits as quoted', 'quoted.id', '=', 'commits.quoted_commit_id')
             ->whereKey($quoteIds)
+            ->whereNotNull('quoted.user_id')
             ->where('commits.status', CommitStatus::Approved)
             ->whereNotExists($silenced->mutes(...))
             ->whereNotExists($silenced->blocking(...))

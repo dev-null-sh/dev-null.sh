@@ -23,16 +23,16 @@ final class ShowOrganizationRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'tab' => ['nullable', 'string', 'in:mentions'],
+            'tab' => ['nullable', 'string', 'in:commits,mentions'],
         ];
     }
 
     /**
-     * Mentions is the only tab so far, so it's the default.
+     * The organization's own commits first, then the commits that mention it.
      */
     public function tab(): string
     {
-        return 'mentions';
+        return $this->string('tab')->value() === 'mentions' ? 'mentions' : 'commits';
     }
 
     /**

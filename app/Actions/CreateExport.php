@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\NotificationType;
+use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Conversation;
@@ -39,6 +40,7 @@ use Traversable;
  *     profile: array<string, bool|int|string|null>,
  *     active_days: Generator<int, string>,
  *     commits: Generator<int, array<string, mixed>>,
+ *     organization_commits: Generator<int, array<string, mixed>>,
  *     polls: Generator<int, ExportPoll>,
  *     poll_votes: Generator<int, ExportPollVote>,
  *     stars: Generator<int, string>,
@@ -71,7 +73,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 4,
+            'schema_version' => 5,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -109,6 +111,7 @@ final readonly class CreateExport
             ],
             'active_days' => $this->activeDays($user),
             'commits' => $this->commits($user),
+            'organization_commits' => $this->organizationCommits($user),
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
             'stars' => $this->stars($user),
@@ -208,6 +211,34 @@ final readonly class CreateExport
                     'deleted_at' => $commit->deleted_at?->toIso8601String(),
                 ];
             }
+        }
+    }
+
+    /**
+     * What the user posted for organizations, which is theirs to read back, though the organizations' own.
+     *
+     * @return Generator<int, array<string, mixed>>
+     */
+    private function organizationCommits(User $user): Generator
+    {
+        $commits = Commit::query()
+            ->withTrashed()
+            ->where('user_id', $user->id)
+            ->whereColumn('author_id', '!=', 'user_id')
+            ->with('author')
+            ->lazyById(500);
+
+        foreach ($commits as $commit) {
+            yield [
+                'id' => $commit->id,
+                'organization' => $commit->author?->handle,
+                'parent_id' => $commit->parent_id,
+                'quoted_commit_id' => $commit->quoted_commit_id,
+                'body' => $commit->body,
+                'status' => $commit->status->value,
+                'created_at' => $commit->created_at->toIso8601String(),
+                'deleted_at' => $commit->deleted_at?->toIso8601String(),
+            ];
         }
     }
 

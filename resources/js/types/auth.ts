@@ -1,3 +1,4 @@
+import type { OrganizationAuthor } from '@/types/commit';
 import type { RemotesFrom } from '@/types/conversation';
 import type { Log } from '@/types/log';
 
@@ -45,6 +46,10 @@ export type Profile = User & {
 export type Auth = {
     user: Profile | null;
     bioProfiles: Record<string, string>;
+    /**
+     * The organizations the user can post as.
+     */
+    organizations: OrganizationAuthor[];
     isAdmin: boolean;
     automaticTranslation: boolean;
     mustReadCommitRules: boolean;

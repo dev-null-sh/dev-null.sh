@@ -21,7 +21,7 @@ final class CreateApiCommitRestorationRequest extends FormRequest
         $user = $this->user();
         assert($user instanceof User);
 
-        return $this->commit()->user_id === $user->id ? Response::allow() : Response::denyAsNotFound();
+        return $this->commit()->isOwnedBy($user) ? Response::allow() : Response::denyAsNotFound();
     }
 
     /**

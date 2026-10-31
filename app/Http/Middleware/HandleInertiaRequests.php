@@ -9,6 +9,7 @@ use App\Enums\Log;
 use App\Enums\RepliesPerPage;
 use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
@@ -93,6 +94,10 @@ final class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'bioProfiles' => fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [],
+                // The organizations the user can post as, shown like the commits they author.
+                'organizations' => fn (): array => $user instanceof User ? $user->organizations()->get()
+                    ->map(fn (Organization $organization): array => [...$organization->toArray(), 'type' => 'organization', 'id' => $organization->id, 'lane' => $organization->lane()])
+                    ->all() : [],
                 'isAdmin' => $isAdmin,
                 'automaticTranslation' => $user->automatic_translation ?? true,
                 'mustReadCommitRules' => $user instanceof User && $user->commit_rules_accepted_at === null,
