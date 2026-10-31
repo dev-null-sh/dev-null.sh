@@ -12,6 +12,7 @@ use App\Http\Resources\ScheduledCommitResource;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\ScheduledCommitsQuery;
+use App\Services\CommitSourceResolver;
 use Carbon\CarbonImmutable;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\JsonResponse;
@@ -31,9 +32,9 @@ final readonly class ScheduledCommitController
     /**
      * Only the user sees a scheduled commit until it is submitted.
      */
-    public function store(CreateApiScheduledCommitRequest $request, #[CurrentUser] User $user, CreateScheduledCommit $action): JsonResponse
+    public function store(CreateApiScheduledCommitRequest $request, #[CurrentUser] User $user, CreateScheduledCommit $action, CommitSourceResolver $sources): JsonResponse
     {
-        $scheduled = $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images(), $request->imageDescriptions(), $request->poll(), $request->linkPreview());
+        $scheduled = $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images(), $request->imageDescriptions(), $request->poll(), $request->linkPreview(), $sources->from($request));
 
         return ScheduledCommitResource::make($scheduled)
             ->response()

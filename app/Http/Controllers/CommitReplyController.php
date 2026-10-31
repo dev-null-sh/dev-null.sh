@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCommitReplyRequest;
 use App\Http\Requests\DeleteCommitReplyRequest;
@@ -27,7 +28,7 @@ final readonly class CommitReplyController
     /** Creates a reply addressed to the parent author and the validated selection of conversation participants. */
     public function store(CreateCommitReplyRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommit $action, CommitThreadQuery $thread): JsonResponse
     {
-        $reply = $action->handle($user, $request->string('body')->value(), $commit, images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), replyRecipients: $request->replyRecipients());
+        $reply = $action->handle($user, $request->string('body')->value(), $commit, images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), replyRecipients: $request->replyRecipients(), source: CommitSource::Web);
         $parent = $thread->get($commit, $user);
 
         return response()->json([
