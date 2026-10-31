@@ -40,6 +40,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { EmojiPickerButton } from '@/components/emoji-picker';
 import {
     graphDash,
     graphStrokeWidth,
@@ -71,6 +72,7 @@ import {
     useCommitNotFound,
     useIsCommitDeleted,
 } from '@/hooks/use-deleted-resources';
+import { useEmojiInsertion } from '@/hooks/use-emoji-insertion';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
@@ -1411,6 +1413,13 @@ function ReplyComposer({
         isSubmittable: isReplyable,
     });
 
+    const insertEmoji = useEmojiInsertion({
+        body,
+        updateBody,
+        textareaRef,
+        maxLength: maxRawBodyLength,
+    });
+
     const returnFocusToCommit = () => {
         const commit =
             textareaRef.current?.closest<HTMLElement>('[data-commit]');
@@ -1543,10 +1552,19 @@ function ReplyComposer({
                             : `Reply to @${parent.user.handle}`
                     }
                     className={cn(
-                        'col-start-1 row-start-1 block field-sizing-content max-h-[50dvh] min-h-9 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
+                        'col-start-1 row-start-1 block field-sizing-content max-h-[50dvh] min-h-9 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent pr-9 pl-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
                         { invisible: preview.isPreviewing },
                     )}
                 />
+                {!preview.isPreviewing && (
+                    <div className="col-start-1 row-start-1 self-end justify-self-end">
+                        <EmojiPickerButton
+                            disabled={processing}
+                            onPick={insertEmoji}
+                            className="size-8"
+                        />
+                    </div>
+                )}
                 {preview.isPreviewing && (
                     <ComposerPreviewBody
                         preview={preview}

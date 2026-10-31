@@ -8,7 +8,7 @@ import {
     MessagesSquare,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
@@ -48,6 +48,7 @@ import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
+import { profileAvatarPosition } from '@/lib/profile-avatar';
 import { laneColor, laneTint } from '@/lib/utils';
 import type {
     Achievements,
@@ -105,6 +106,10 @@ export default function Show({
         null,
     );
     const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+    const avatarRef = useRef<HTMLDivElement>(null);
+    const headerRef = useRef<HTMLDivElement>(null);
+    const avatarTargetRef = useRef<HTMLDivElement>(null);
+    const [isHeaderVisible, setIsHeaderVisible] = useState(false);
     const [pasteisCount] = useSharedState(
         commitStateKey('pasteis_received', user.id),
         pasteisReceived ?? 0,
@@ -123,23 +128,99 @@ export default function Show({
         }
     }, [user.id, pasteisReceived]);
 
+    useLayoutEffect(() => {
+        const avatar = avatarRef.current;
+        const header = headerRef.current;
+        const target = avatarTargetRef.current;
+
+        if (!avatar || !header || !target) {
+            return;
+        }
+
+        const reducedMotion = window.matchMedia(
+            '(prefers-reduced-motion: reduce)',
+        );
+        const update = () => {
+            const bounds = header.getBoundingClientRect();
+            const source = avatar.getBoundingClientRect();
+            const position = profileAvatarPosition(
+                source,
+                target.getBoundingClientRect(),
+                bounds.bottom,
+                reducedMotion.matches,
+            );
+
+            header.style.setProperty(
+                '--profile-progress',
+                String(position.progress),
+            );
+            header.style.setProperty(
+                '--profile-header-progress',
+                String(Math.max(0, (position.progress - 0.75) * 4)),
+            );
+            header.style.setProperty(
+                '--profile-avatar-left',
+                `${position.left - bounds.left}px`,
+            );
+            header.style.setProperty(
+                '--profile-avatar-top',
+                `${position.top - bounds.top}px`,
+            );
+            header.style.setProperty(
+                '--profile-avatar-scale',
+                String(position.size / source.width),
+            );
+            setIsHeaderVisible(position.progress > 0.75);
+        };
+        const observer = new ResizeObserver(update);
+
+        observer.observe(header);
+        observer.observe(avatar);
+        window.addEventListener('scroll', update, { passive: true });
+        reducedMotion.addEventListener('change', update);
+        update();
+
+        return () => {
+            observer.disconnect();
+            window.removeEventListener('scroll', update);
+            reducedMotion.removeEventListener('change', update);
+        };
+    }, []);
+
     return (
         <>
             <Head title={`${user.name} (@${user.handle})`} />
 
-            <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4 sm:px-6">
-                <p className="min-w-0 truncate font-semibold">{user.name}</p>
-                <p
-                    className="shrink-0 font-mono text-[13px] text-muted-foreground"
-                    title={exactCountTitle(user.commits_count)}
+            <div
+                ref={headerRef}
+                className="pointer-events-none sticky top-0 z-10 -mb-16 grid h-16 grid-cols-[4rem_minmax(0,1fr)] items-center border-b border-transparent pr-4 [view-transition-class:tab-header] [view-transition-name:profile-header] sm:grid-cols-[4.5rem_minmax(0,1fr)]"
+                data-test="profile-sticky-header"
+            >
+                <div
+                    aria-hidden
+                    className="absolute inset-0 border-b bg-card"
+                    style={{
+                        opacity: 'var(--profile-header-progress, 0)',
+                        pointerEvents: isHeaderVisible ? 'auto' : 'none',
+                    }}
+                />
+                <div
+                    ref={avatarTargetRef}
+                    aria-hidden
+                    className="size-10 justify-self-center"
+                />
+                <div
+                    className="pointer-events-auto absolute top-0 left-0 flex origin-top-left [--profile-avatar-gutter:1rem] sm:[--profile-avatar-gutter:1.5rem]"
+                    style={
+                        {
+                            translate:
+                                'var(--profile-avatar-left, var(--profile-avatar-gutter)) var(--profile-avatar-top, 1.5rem)',
+                            scale: 'var(--profile-avatar-scale, 1)',
+                            '--lane': lane,
+                        } as CSSProperties
+                    }
+                    data-test="profile-avatar"
                 >
-                    {formatCount(user.commits_count)}{' '}
-                    {pluralize(user.commits_count, 'commit', 'commits')}
-                </p>
-            </div>
-
-            <header className="border-b px-4 pt-6 pb-5 sm:px-6">
-                <div className="flex items-start justify-between gap-4">
                     {user.live ? (
                         <LiveStreamTrigger
                             user={user}
@@ -156,20 +237,45 @@ export default function Show({
                             >
                                 <UserAvatar
                                     user={user}
-                                    className="size-20 text-2xl ring-2 ring-red-600 ring-offset-4 ring-offset-card"
+                                    className="size-20 text-2xl ring-[calc(2px/var(--profile-avatar-scale,1))] ring-red-600 ring-offset-4 ring-offset-card"
                                     pixels={160}
                                 />
-                                <LiveAvatarMarker className="-bottom-2.5" />
+                                <LiveAvatarMarker className="bottom-[calc(-10px/var(--profile-avatar-scale,1))] origin-bottom [scale:calc(1/var(--profile-avatar-scale,1))] px-1 text-[9px] leading-3.5" />
                             </a>
                         </LiveStreamTrigger>
                     ) : (
                         <UserAvatar
                             user={user}
-                            className="size-20 text-2xl ring-2 ring-(--lane) ring-offset-4 ring-offset-card"
+                            className="size-20 text-2xl ring-[calc(2px/var(--profile-avatar-scale,1))] ring-(--lane) ring-offset-4 ring-offset-card"
                             pixels={160}
-                            style={{ '--lane': lane } as CSSProperties}
                         />
                     )}
+                </div>
+                <div
+                    aria-hidden={!isHeaderVisible}
+                    className="relative min-w-0"
+                    style={{
+                        opacity: 'var(--profile-header-progress, 0)',
+                        translate:
+                            '0 calc(8px * (1 - var(--profile-header-progress, 0)))',
+                    }}
+                >
+                    <p className="truncate leading-snug font-semibold">
+                        {user.name}
+                    </p>
+                    <p className="truncate font-mono text-xs text-muted-foreground">
+                        @{user.handle}
+                    </p>
+                </div>
+            </div>
+
+            <header className="border-b px-4 pt-6 pb-5 sm:px-6">
+                <div className="flex items-start justify-between gap-4">
+                    <div
+                        ref={avatarRef}
+                        aria-hidden
+                        className="size-20 shrink-0"
+                    />
 
                     <div className="flex shrink-0 gap-1.5 sm:gap-2">
                         <ProfileShareButton
@@ -219,6 +325,7 @@ export default function Show({
                                 <FollowButton
                                     user={user}
                                     isFollowing={isFollowing}
+                                    followsYou={followsYou}
                                     className="min-w-28"
                                     onSuccess={() => router.flushAll()}
                                 />
@@ -449,6 +556,8 @@ export default function Show({
                 <PageTabs
                     label="Profile feed"
                     preserveScroll
+                    // So the sticky bar keeps its scrolled state instead of animating in again.
+                    preserveState
                     only={['tab', 'commits', 'pinnedCommit', 'readme']}
                     reset={['commits']}
                     tabs={[

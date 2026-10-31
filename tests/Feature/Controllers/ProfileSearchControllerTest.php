@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Organization;
 use App\Models\User;
 
 it('finds users by handle or name, best matches first', function (): void {
@@ -11,7 +12,7 @@ it('finds users by handle or name, best matches first', function (): void {
     User::factory()->create(['handle' => 'nuno', 'name' => 'Nuno Maduro']);
 
     $response = $this->actingAs(User::factory()->create(['handle' => 'viewer', 'name' => 'Viewer']))
-        ->getJson('/search/users?q=Taylor');
+        ->getJson('/search/profiles?q=Taylor');
 
     $response->assertOk()
         ->assertJsonCount(3, 'users')
@@ -26,7 +27,7 @@ it('ignores a leading @ in the query', function (): void {
     User::factory()->create(['handle' => 'nuno', 'name' => 'Nuno Maduro']);
 
     $response = $this->actingAs(User::factory()->create())
-        ->getJson('/search/users?q=@nun');
+        ->getJson('/search/profiles?q=@nun');
 
     $response->assertOk()
         ->assertJsonPath('users.0.handle', 'nuno');
@@ -36,7 +37,7 @@ it('treats like wildcards literally', function (): void {
     User::factory()->create(['handle' => 'nuno', 'name' => 'Nuno Maduro']);
 
     $response = $this->actingAs(User::factory()->create(['handle' => 'viewer', 'name' => 'Viewer']))
-        ->getJson('/search/users?q=%25');
+        ->getJson('/search/profiles?q=%25');
 
     $response->assertOk()
         ->assertJsonCount(0, 'users');
@@ -47,7 +48,7 @@ it('matches literal wildcard characters in display names', function (string $nam
     User::factory()->create(['handle' => 'other', 'name' => 'JaneXDoe']);
 
     $this->actingAs(User::factory()->create(['handle' => 'viewer']))
-        ->getJson('/search/users?q='.rawurlencode($query))
+        ->getJson('/search/profiles?q='.rawurlencode($query))
         ->assertOk()
         ->assertJsonCount(1, 'users')
         ->assertJsonPath('users.0.id', $match->id);
@@ -61,7 +62,7 @@ it('returns nothing for an empty query', function (): void {
     User::factory()->create();
 
     $response = $this->actingAs(User::factory()->create())
-        ->getJson('/search/users?q=%20');
+        ->getJson('/search/profiles?q=%20');
 
     $response->assertOk()
         ->assertJsonCount(0, 'users');
@@ -71,7 +72,7 @@ it('limits the number of results', function (): void {
     User::factory()->count(12)->sequence(fn ($sequence): array => ['handle' => "dev{$sequence->index}"])->create();
 
     $response = $this->actingAs(User::factory()->create())
-        ->getJson('/search/users?q=dev');
+        ->getJson('/search/profiles?q=dev');
 
     $response->assertOk()
         ->assertJsonCount(8, 'users');
@@ -79,7 +80,7 @@ it('limits the number of results', function (): void {
 
 it('rejects overly long queries', function (): void {
     $response = $this->actingAs(User::factory()->create())
-        ->getJson('/search/users?q='.str_repeat('a', 101));
+        ->getJson('/search/profiles?q='.str_repeat('a', 101));
 
     $response->assertUnprocessable();
 });
@@ -87,7 +88,7 @@ it('rejects overly long queries', function (): void {
 it('lets guests search', function (): void {
     User::factory()->create(['handle' => 'nunomaduro']);
 
-    $response = $this->getJson('/search/users?q=nuno');
+    $response = $this->getJson('/search/profiles?q=nuno');
 
     $response->assertOk()
         ->assertJsonPath('users.0.handle', 'nunomaduro');
@@ -105,9 +106,25 @@ it('leaves out muted people and people across a block', function (): void {
     $blocker->blocking()->attach($viewer);
 
     $response = $this->actingAs($viewer)
-        ->getJson('/search/users?q=taylor');
+        ->getJson('/search/profiles?q=taylor');
 
     $response->assertOk()
         ->assertJsonCount(1, 'users')
         ->assertJsonPath('users.0.handle', 'taylor');
+});
+
+it('finds organizations that have a page by handle or name, after the people', function (): void {
+    User::factory()->create(['handle' => 'laraveldev', 'name' => 'Laravel Dev']);
+    Organization::factory()->create(['handle' => 'laravel-shift', 'name' => 'Shift']);
+    Organization::factory()->create(['handle' => 'laravel', 'name' => 'Laravel']);
+    Organization::factory()->create(['handle' => 'spatie', 'name' => 'Spatie']);
+
+    $this->getJson('/search/profiles?q=laravel')
+        ->assertOk()
+        ->assertJsonCount(1, 'users')
+        ->assertJsonPath('users.0.handle', 'laraveldev')
+        ->assertJsonCount(2, 'organizations')
+        ->assertJsonPath('organizations.0.handle', 'laravel')
+        ->assertJsonPath('organizations.1.handle', 'laravel-shift')
+        ->assertJsonMissingPath('organizations.0.id');
 });

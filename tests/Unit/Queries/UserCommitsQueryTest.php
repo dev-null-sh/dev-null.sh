@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\UserCommitsQuery;
 
@@ -20,6 +21,14 @@ it('includes the top-level commits of the user newest first', function (): void 
     expect($commits->modelKeys())->toBe([$newer->id, $older->id])
         ->and($commits->first()->relationLoaded('user'))->toBeTrue()
         ->and($commits->last()->replies_count)->toBe(1);
+});
+
+it('includes the commits from the user, not the ones they post for another profile', function (): void {
+    $user = User::factory()->create();
+    $own = Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->create(['author_id' => Organization::factory()->create()->id]);
+
+    expect(resolve(UserCommitsQuery::class)->builder($user, null)->get()->modelKeys())->toBe([$own->id]);
 });
 
 it('only includes the commits the viewer may see', function (): void {

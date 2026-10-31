@@ -8,7 +8,6 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Organization;
-use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
@@ -837,30 +836,3 @@ it('moves the people lists of a profile for good to the handle in its own case',
         ->assertMovedPermanently()
         ->assertRedirect("/@OctoCat/{$list}");
 })->with(['following', 'followers', 'mutuals']);
-
-it('opens each profile at its own case when a stale profile holds the handle in another case', function (): void {
-    $lower = User::factory()->create(['handle' => 'octocat']);
-    $mixed = User::factory()->create(['handle' => 'OctoCat']);
-
-    $this->get('/@octocat')->assertOk()->assertInertia(fn ($page) => $page->where('user.id', $lower->id));
-    $this->get('/@OctoCat')->assertOk()->assertInertia(fn ($page) => $page->where('user.id', $mixed->id));
-
-    $redirect = $this->get('/@OCTOCAT')->assertMovedPermanently();
-
-    expect($redirect->headers->get('Location'))->toBeIn([url('/@octocat'), url('/@OctoCat')])
-        ->and($this->get('/@OCTOCAT')->headers->get('Location'))->toBe($redirect->headers->get('Location'));
-
-    $this->get((string) $redirect->headers->get('Location'))->assertOk();
-});
-
-it('opens the user rather than an organization holding the handle in another case, unless the case is exact', function (): void {
-    $user = User::factory()->create(['handle' => 'Laravel']);
-    $organization = Organization::factory()->create(['handle' => 'laravel']);
-
-    $this->get('/@LARAVEL')->assertRedirect('/@Laravel')->assertMovedPermanently();
-    $this->get('/@Laravel')->assertOk()->assertInertia(fn ($page) => $page->component('user/show')->where('user.id', $user->id));
-    $this->get('/@laravel')->assertOk()->assertInertia(fn ($page) => $page->component('organization/show')->where('organization.id', $organization->id));
-
-    expect(new Profile()->resolveRouteBinding('LARAVEL', 'handle')?->getKey())->toBe($user->profile->getKey())
-        ->and(new Profile()->resolveRouteBinding('laravel', 'handle')?->getKey())->toBe($organization->getKey());
-});

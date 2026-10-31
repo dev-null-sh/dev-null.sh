@@ -18,7 +18,7 @@ import { laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { CursorPaginated, Organization, User } from '@/types';
 
-type Connection = User & { is_followed: boolean };
+type Connection = User & { is_followed: boolean; follows_you: boolean };
 
 type FollowedOrganization = Organization & {
     id: string;
@@ -43,8 +43,9 @@ function ConnectionFollowButton({ person }: { person: Connection }) {
         <FollowButton
             user={person}
             isFollowing={person.is_followed}
+            followsYou={person.follows_you}
             size="sm"
-            className="mt-4 min-w-24 shrink-0"
+            className="mt-4 min-w-26 shrink-0"
             only={['auth']}
             preserveState
             onSuccess={() => router.flushAll()}
@@ -254,12 +255,27 @@ export default function Connections({
                                         }
                                     />
                                     <div className="min-w-0">
-                                        <p className="truncate font-medium">
+                                        <p
+                                            className="truncate font-medium"
+                                            title={person.name}
+                                        >
                                             {person.name}
                                         </p>
-                                        <p className="truncate font-mono text-sm text-muted-foreground">
-                                            @{person.handle}
-                                        </p>
+                                        <div className="flex min-w-0 items-center gap-2">
+                                            <p
+                                                className="truncate font-mono text-sm text-muted-foreground"
+                                                title={`@${person.handle}`}
+                                            >
+                                                @{person.handle}
+                                            </p>
+                                            {type === 'followers' &&
+                                                knowsFollowers &&
+                                                person.follows_you && (
+                                                    <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+                                                        Follows you
+                                                    </span>
+                                                )}
+                                        </div>
                                         {person.bio && (
                                             <p className="mt-1 line-clamp-2 text-sm">
                                                 {person.bio}

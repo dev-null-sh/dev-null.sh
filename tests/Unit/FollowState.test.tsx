@@ -108,6 +108,8 @@ const { UserSafetyMenu } =
     await import('../../resources/js/components/user-safety-menu');
 const { ConversationActions } =
     await import('../../resources/js/components/chat/conversation-actions');
+const { default: Connections } =
+    await import('../../resources/js/pages/user/connections');
 
 vi.stubGlobal('window', {
     matchMedia: () => ({ matches: false }),
@@ -167,6 +169,7 @@ function suggestion(handle: string): SuggestedUser {
         show_local_time: false,
         followed_by_following_count: 0,
         followers_count: 0,
+        follows_you: false,
     } as unknown as SuggestedUser;
 }
 
@@ -218,7 +221,7 @@ function previewFollowButton(
                 ...(onChange && { onChange }),
                 data: {
                     isFollowing,
-                    followsYou: false,
+                    followsYou: user.follows_you,
                     isMuting: false,
                     isBlocking: false,
                     isUnavailable: false,
@@ -253,6 +256,143 @@ test('a suggestion who follows you offers to follow back, at a width that fits i
     assert.equal(suggestionLabel(user), 'Follow back @freek');
     assert.match(String(button?.props.className), /\bmin-w-26\b/);
     assert.equal(suggestionLabel(suggestion('jess')), 'Follow @jess');
+});
+
+test('a preview offers to follow back when they already follow you', () => {
+    const user = { ...suggestion('preview-follower'), follows_you: true };
+    const button = previewFollowButton(user);
+
+    assert.equal(button.props['aria-label'], 'Follow back @preview-follower');
+    assert.equal(
+        render(button.props.children as ReactElement<Props>),
+        'Follow back',
+    );
+});
+
+for (const followsYou of [true, false]) {
+    for (const isFollowing of [true, false]) {
+        test(`a connection with follows_you=${followsYou} and is_followed=${isFollowing} has the right follow label`, () => {
+            const person = {
+                ...suggestion(`connection-${followsYou}-${isFollowing}`),
+                is_followed: isFollowing,
+                follows_you: followsYou,
+            };
+            const row = find(
+                Connections({
+                    user: suggestion('viewer'),
+                    type: 'followers',
+                    users: {
+                        data: [person],
+                        next_cursor: null,
+                        prev_cursor: null,
+                    },
+                }),
+                (props) => props.person === person,
+            );
+            assert.ok(row);
+            const control = render(row) as ReactElement<Props>;
+            const button = find(render(control), (props) => 'aria-label' in props);
+            assert.ok(button);
+            assert.equal(
+                button.props['aria-label'],
+                `${isFollowing ? 'Unfollow' : followsYou ? 'Follow back' : 'Follow'} @${person.handle}`,
+            );
+            assert.match(String(control.props.className), /\bmin-w-26\b/);
+        });
+    }
+}
+
+for (const type of [
+    'followers',
+    'followers_you_know',
+    'following',
+    'mutuals',
+] as const) {
+    for (const followsYou of [true, false]) {
+        test(`${type} shows the follows-you badge only for a viewer's follower on the Followers tab (${followsYou})`, () => {
+            const page = Connections({
+                user: suggestion('someone-else'),
+                type,
+                users: {
+                    data: [
+                        {
+                            ...suggestion('connection-badge'),
+                            is_followed: true,
+                            follows_you: followsYou,
+                        },
+                    ],
+                    next_cursor: null,
+                    prev_cursor: null,
+                },
+            });
+
+            assert.equal(
+                find(page, (props) => props.children === 'Follows you') !== null,
+                type === 'followers' && followsYou,
+            );
+            if (type === 'followers' && followsYou) {
+                const handleRow = find(
+                    page,
+                    (props) =>
+                        Array.isArray(props.children) &&
+                        props.children.some(
+                            (child: ReactNode) =>
+                                React.isValidElement<Props>(child) &&
+                                child.props.children === 'Follows you',
+                        ),
+                );
+                assert.ok(handleRow);
+                assert.ok(
+                    find(
+                        handleRow,
+                        (props) => props.title === '@connection-badge',
+                    ),
+                );
+            }
+        });
+    }
+}
+
+for (const isFollowing of [true, false]) {
+    test(`your own Followers list hides the redundant follows-you badge (following=${isFollowing})`, () => {
+        const page = Connections({
+            user: suggestion('viewer'),
+            type: 'followers',
+            users: {
+                data: [
+                    {
+                        ...suggestion(`own-follower-${isFollowing}`),
+                        is_followed: isFollowing,
+                        follows_you: true,
+                    },
+                ],
+                next_cursor: null,
+                prev_cursor: null,
+            },
+        });
+
+        assert.equal(
+            find(page, (props) => props.children === 'Follows you'),
+            null,
+        );
+    });
+}
+
+test('a preview offers to follow someone who does not follow you', () => {
+    const button = previewFollowButton(suggestion('preview-stranger'));
+
+    assert.equal(button.props['aria-label'], 'Follow @preview-stranger');
+    assert.equal(
+        render(button.props.children as ReactElement<Props>),
+        'Follow',
+    );
+});
+
+test('a preview still offers to unfollow someone you already follow back', () => {
+    const user = { ...suggestion('preview-mutual'), follows_you: true };
+    const button = previewFollowButton(user, true);
+
+    assert.equal(button.props['aria-label'], 'Unfollow @preview-mutual');
 });
 
 test('a follow from their profile shows in who to follow', () => {

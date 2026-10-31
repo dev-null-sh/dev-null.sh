@@ -86,6 +86,7 @@ it('leaves a tombstone for a reply of a deleted user that other people replied t
 
     expect($tombstone->trashed())->toBeTrue()
         ->and($tombstone->user_id)->toBeNull()
+        ->and($tombstone->author_id)->toBeNull()
         ->and($tombstone->parent_id)->toBe($commit->id)
         ->and(Commit::query()->pluck('id')->sort()->values()->all())->toBe(collect([$commit->id, $otherReply->id])->sort()->values()->all())
         ->and(Commit::withTrashed()->whereKey($nestedReply->id)->exists())->toBeFalse();

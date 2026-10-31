@@ -55,6 +55,26 @@ it('looks missing to people across a block', function (bool $viewerBlocks): void
     $response->assertNotFound();
 })->with([true, false]);
 
+it('marks who follows the viewer rather than the owner of the list', function (bool $ownList): void {
+    $viewer = User::factory()->create();
+    $user = $ownList ? $viewer : User::factory()->create();
+    $follower = User::factory()->create();
+    $user->followers()->attach($follower);
+    if (! $ownList) {
+        $viewer->followers()->attach($follower);
+        $user->followers()->attach(User::factory()->create(), ['created_at' => now()->subMinute()]);
+    }
+
+    $this->actingAs($viewer)
+        ->get(route('user-followers.index', $user))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('users.data.0.id', $follower->id)
+            ->where('users.data.0.follows_you', true)
+            ->where('users.data.0.is_followed', false)
+            ->when(! $ownList, fn ($page) => $page->where('users.data.1.follows_you', false)));
+})->with([true, false]);
+
 it('sends guests to the log, and back to the list once they sign in', function (): void {
     $user = User::factory()->create();
 

@@ -22,6 +22,18 @@ it('may follow and unfollow an organization by its handle', function (): void {
     expect($this->user->followedOrganizations()->count())->toBe(0);
 });
 
+it('may follow and unfollow an organization whatever the case of its handle', function (): void {
+    $organization = Organization::factory()->create(['handle' => 'Laravel']);
+
+    signedApiRequest($this->keyPair, 'POST', route('api-organization-follow.store', ['handle' => 'laravel']))->assertNoContent();
+
+    expect($this->user->followedOrganizations()->pluck('organizations.id')->all())->toBe([$organization->id]);
+
+    signedApiRequest($this->keyPair, 'DELETE', route('api-organization-follow.destroy', ['handle' => 'LARAVEL']))->assertNoContent();
+
+    expect($this->user->followedOrganizations()->count())->toBe(0);
+});
+
 it('returns not found for handles without an organization page', function (string $method, string $route): void {
     User::factory()->create(['handle' => 'octocat']);
 

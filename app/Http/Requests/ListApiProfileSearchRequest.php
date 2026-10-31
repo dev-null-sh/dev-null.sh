@@ -6,7 +6,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-final class ListUserSearchRequest extends FormRequest
+final class ListApiProfileSearchRequest extends FormRequest
 {
     public function authorize(): bool
     {

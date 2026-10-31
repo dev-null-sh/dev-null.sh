@@ -9,13 +9,12 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 
-it('links known organizations right away, a user of the same handle first', function (): void {
+it('links known organizations right away, apart from users, whatever the case they are written in', function (): void {
     Queue::fake();
 
     $author = User::factory()->create();
-    $tom = User::factory()->create(['handle' => 'tom']);
+    $tom = User::factory()->create(['handle' => 'Tom']);
     $laravel = Organization::factory()->create(['handle' => 'laravel']);
-    Organization::factory()->create(['handle' => 'Tom']);
 
     $this->actingAs($author)->post('/commits', ['body' => 'Thanks @Laravel and @tom'])->assertRedirect();
 

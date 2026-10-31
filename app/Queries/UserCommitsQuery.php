@@ -18,7 +18,7 @@ final readonly class UserCommitsQuery
     public function builder(User $user, ?User $viewer, bool $replies = false): CommitBuilder
     {
         return Commit::query()
-            ->whereBelongsTo($user)
+            ->where('author_id', $user->id)
             ->visibleTo($viewer)
             ->when(
                 $replies,

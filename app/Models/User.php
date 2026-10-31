@@ -10,7 +10,6 @@ use App\Dto\LiveStream;
 use App\Enums\DateFormat;
 use App\Enums\LivePlatform;
 use App\Enums\Log;
-use App\Enums\ProfileType;
 use App\Enums\RemotesFrom;
 use App\Enums\TimeFormat;
 use Carbon\CarbonInterface;
@@ -231,19 +230,17 @@ final class User extends Authenticatable
     }
 
     /**
-     * The GitHub account the user signed in with never changes, so it links the user to their profile.
+     * A user shares their profile's ID, as an organization does.
      *
      * @return BelongsTo<Profile, $this>
      */
     public function profile(): BelongsTo
     {
-        return $this->belongsTo(Profile::class, 'github_id', 'github_id');
+        return $this->belongsTo(Profile::class, 'id');
     }
 
     /**
-     * Resolves "@handle" URLs through the profile, which holds the handle, whatever its case, like GitHub. A stale
-     * profile may still hold the same handle in another case, so the exact case wins, then a user's, then always the
-     * same one, like Profile::resolveRouteBindingQuery() for the link preview images.
+     * Resolves "@handle" URLs through the profile, which holds the handle, whatever its case, like GitHub.
      *
      * @param  Model|BuilderContract|Relation<Model, Model, mixed>  $query
      * @param  mixed  $value
@@ -252,16 +249,18 @@ final class User extends Authenticatable
     public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
     {
         return $field === 'handle'
-            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('github_id')->whereRaw('LOWER(handle) = LOWER(?)', [$value])->orderByRaw('handle = ? desc', [$value])->orderByRaw('type = ? desc', [ProfileType::User])->orderBy('handle')->limit(1), 'github_id')
+            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('id')->where('handle', $value), 'id')
             : parent::resolveRouteBindingQuery($query, $value, $field);
     }
 
     /**
+     * The commits from the user's own profile.
+     *
      * @return HasMany<Commit, $this>
      */
     public function commits(): HasMany
     {
-        return $this->hasMany(Commit::class);
+        return $this->hasMany(Commit::class, 'author_id');
     }
 
     /**

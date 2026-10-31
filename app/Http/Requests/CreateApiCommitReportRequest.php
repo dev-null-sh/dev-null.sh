@@ -10,10 +10,18 @@ use App\Exceptions\ApiException;
 use App\Models\Commit;
 use App\Models\CommitReport;
 use App\Models\User;
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Dimensions;
+use Illuminate\Validation\Rules\Enum;
+use Illuminate\Validation\Rules\File;
 use Illuminate\Validation\Rules\In;
 
+/**
+ * A report sent as JSON, or with screenshots as multipart (see SignedRequests), checked as the web checks them.
+ */
 final class CreateApiCommitReportRequest extends FormRequest
 {
     /**
@@ -35,13 +43,31 @@ final class CreateApiCommitReportRequest extends FormRequest
     }
 
     /**
-     * @return array{reason: array<int, string|In>, details: array<int, string>}
+     * @return array<string, array<int, string|In|ValidationRule|Dimensions|Enum|File>>
      */
     public function rules(): array
     {
         return [
+            ...array_intersect_key(CreateCommitRequest::attachmentRules(), array_flip(['images', 'images.*', 'image_descriptions', 'image_descriptions.*'])),
             'reason' => ['required', 'string', Rule::in(array_keys(CommitReport::REASONS))],
             'details' => ['nullable', 'string', 'max:500'],
         ];
+    }
+
+    /** @return list<UploadedFile> */
+    public function images(): array
+    {
+        $images = $this->file('images');
+
+        return is_array($images) ? array_values($images) : [];
+    }
+
+    /** @return list<string|null> */
+    public function imageDescriptions(): array
+    {
+        /** @var list<string|null> $descriptions */
+        $descriptions = $this->array('image_descriptions');
+
+        return $descriptions;
     }
 }

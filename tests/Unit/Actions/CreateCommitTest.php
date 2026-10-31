@@ -31,7 +31,8 @@ it('may create a commit', function (): void {
 
     expect($commit->exists)->toBeTrue()
         ->and($commit->body)->toBe('Hello, devnull!')
-        ->and($commit->user->is($user))->toBeTrue();
+        ->and($commit->user->is($user))->toBeTrue()
+        ->and($commit->author_id)->toBe($user->id);
 });
 
 it('creates commits pending review', function (): void {

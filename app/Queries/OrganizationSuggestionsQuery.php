@@ -38,7 +38,7 @@ final readonly class OrganizationSuggestionsQuery
                 ->whereRaw("LOWER(profiles.handle) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
                 ->orWhereRaw("LOWER(profiles.name) LIKE ? ESCAPE '!'", ["%{$escaped}%"]))
             ->orderByRaw(
-                "CASE WHEN LOWER(profiles.handle) = ? THEN 0 WHEN LOWER(profiles.handle) LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(profiles.name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
+                "CASE WHEN profiles.handle = ? THEN 0 WHEN profiles.handle LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(profiles.name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
                 [$term, "{$escaped}%", "{$escaped}%"],
             )
             ->orderBy('profiles.handle')

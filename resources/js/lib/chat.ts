@@ -42,7 +42,7 @@ import {
     isRemoteMuted,
     remoteAlertsEnabled,
 } from '@/lib/remote-notifications';
-import { remotePushEnabled } from '@/lib/remote-push';
+import { remotePushEnabled, remotePushOptedIn } from '@/lib/remote-push';
 import type { VoiceDraft } from '@/lib/voice-notes';
 import type {
     ConversationSummary,
@@ -191,6 +191,7 @@ let state: ChatState = {
 };
 const listeners = new Set<() => void>();
 const threadWatchers = new Map<string, number>();
+const threadPollVersions = new Map<string, number>();
 const lastActivity = new Map<string, number>();
 const lastTypingPing = new Map<string, number>();
 const reactionsInFlight = new Map<number, number>();
@@ -212,6 +213,7 @@ let remoteAlerts: ReturnType<typeof createRemoteAlerts> | null = null;
  */
 let isAlertingTab = false;
 let isFetchingInbox = false;
+let pendingInboxPush: ReturnType<typeof createRemoteAlerts> | null = null;
 let muteVersion = 0;
 let pinVersion = 0;
 let inboxRevision = 0;
@@ -901,16 +903,26 @@ export function rememberTarget(target: ChatTarget): void {
     }
 }
 
-async function pollInbox(): Promise<void> {
+async function pollInbox(fromPush = false): Promise<void> {
     const isPaused =
         document.hidden &&
-        (remoteAlerts === null || !isAlertingTab || remotePushEnabled());
+        (remoteAlerts === null ||
+            (!fromPush && (!isAlertingTab || remotePushEnabled())));
 
-    if (isPaused && state.unread !== null) {
+    if (
+        isPaused &&
+        state.unread !== null &&
+        (remoteAlerts === null || !remotePushEnabled())
+    ) {
         update({ unread: null });
     }
 
-    if (isPaused || isFetchingInbox) {
+    if (isPaused) {
+        return;
+    }
+
+    if (isFetchingInbox) {
+        if (fromPush) pendingInboxPush = remoteAlerts;
         return;
     }
 
@@ -995,6 +1007,11 @@ async function pollInbox(): Promise<void> {
         // Keep the last known inbox until the next poll.
     } finally {
         isFetchingInbox = false;
+        const pending = pendingInboxPush;
+        pendingInboxPush = null;
+        if (pending !== null && pending === remoteAlerts) {
+            void pollInbox(true);
+        }
     }
 }
 
@@ -1118,6 +1135,24 @@ export function watchRemoteAlerts(userId: string): () => void {
         isAlertingTab = true;
     }
 
+    const onPush = (event: MessageEvent<unknown>) => {
+        const data = event.data;
+        if (
+            typeof data !== 'object' ||
+            data === null ||
+            !('type' in data) ||
+            data.type !== 'remote-push' ||
+            !remotePushOptedIn(userId)
+        )
+            return;
+
+        void pollInbox(true);
+        for (const key of threadWatchers.keys()) {
+            void pollThread(state.threads[key].target).catch(() => undefined);
+        }
+    };
+    navigator.serviceWorker?.addEventListener('message', onPush);
+
     return () => {
         lock.abort();
         releaseLock();
@@ -1126,6 +1161,7 @@ export function watchRemoteAlerts(userId: string): () => void {
         window.clearInterval(titleTimer);
         window.removeEventListener('focus', acknowledgeTitle);
         document.removeEventListener('visibilitychange', acknowledgeTitle);
+        navigator.serviceWorker?.removeEventListener('message', onPush);
         channel?.close();
         unsubscribe();
         if (remoteAlerts === alerts) {
@@ -1190,6 +1226,8 @@ export function watchInbox(): () => void {
 
 async function pollThread(target: ChatTarget): Promise<void> {
     const key = targetKey(target);
+    const pollVersion = (threadPollVersions.get(key) ?? 0) + 1;
+    threadPollVersions.set(key, pollVersion);
     const thread = state.threads[key];
     const after = thread?.isLoaded ? (thread.messages.at(-1)?.id ?? 0) : null;
     const reactionsAfter =
@@ -1219,6 +1257,10 @@ async function pollThread(target: ChatTarget): Promise<void> {
                   },
         ),
     );
+
+    if (threadPollVersions.get(key) !== pollVersion) {
+        return;
+    }
 
     const current = state.threads[key] ?? emptyThread(target);
     const isTyping =

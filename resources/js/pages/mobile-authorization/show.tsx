@@ -12,6 +12,8 @@ import { laneColor } from '@/lib/utils';
 type Authorization = {
     fingerprint: string;
     device_name: string;
+    app_name?: string;
+    app_id?: string;
     code_challenge: string;
     code_challenge_method: string;
     state: string;
@@ -41,15 +43,19 @@ function Approve({
 }) {
     const { user } = useUser();
     const [isApproving, setIsApproving] = useState(false);
+    const name =
+        authorization.app_name === undefined
+            ? authorization.device_name
+            : `${authorization.app_name} on ${authorization.device_name}`;
 
     return (
         <Page
-            title={`Approve ${authorization.device_name}`}
+            title={`Approve ${name}`}
             lane={laneColor(user.lane)}
             command="git credential approve"
         >
             <h1 className="mt-4 text-[clamp(1.75rem,4vw,2.5rem)] leading-tight font-semibold tracking-tight text-balance [overflow-wrap:anywhere]">
-                Approve {authorization.device_name}?
+                Approve {name}?
             </h1>
 
             <dl className="mt-6 grid max-w-md gap-4">

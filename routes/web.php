@@ -100,6 +100,7 @@ use App\Http\Controllers\OrgTypingController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\ProductMetricsController;
 use App\Http\Controllers\ProfileOpenGraphImageController;
+use App\Http\Controllers\ProfileSearchController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\RelatedCommitController;
 use App\Http\Controllers\RemoteCandidateController;
@@ -138,7 +139,6 @@ use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserRemotePreferencesController;
 use App\Http\Controllers\UserRemotesController;
-use App\Http\Controllers\UserSearchController;
 use App\Http\Controllers\UserSitemapController;
 use App\Http\Controllers\UserTimeoutController;
 use App\Http\Controllers\UserTimezoneController;
@@ -312,10 +312,10 @@ Route::get('search', [SearchController::class, 'index'])
     ->middleware('auth')
     ->name('search.index');
 
-// User Search...
-Route::get('search/users', [UserSearchController::class, 'index'])
+// Profile Search: developers and organizations by name or handle...
+Route::get('search/profiles', [ProfileSearchController::class, 'index'])
     ->middleware('throttle:people')
-    ->name('user-search.index');
+    ->name('profile-search.index');
 
 // Commit Search...
 Route::get('search/commits', [CommitSearchController::class, 'index'])
