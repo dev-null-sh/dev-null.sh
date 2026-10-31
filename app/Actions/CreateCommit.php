@@ -95,7 +95,7 @@ final readonly class CreateCommit
             $this->createMentionNotifications->handle($commit);
             $this->createFirstCommitNotifications->handle($commit);
 
-            if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
+            if ($linkPreview instanceof LinkPreview && $linkPreview->needsFetching()) {
                 dispatch(new UnfurlLink($linkPreview));
             }
 

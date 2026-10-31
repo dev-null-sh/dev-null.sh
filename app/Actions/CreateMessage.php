@@ -106,7 +106,7 @@ final readonly class CreateMessage
                 ->where('read_through_id', '<', $message->id)
                 ->update(['read_through_id' => $message->id, 'read_at' => now()]);
 
-            if ($linkPreview instanceof LinkPreview && $linkPreview->fetched_at === null) {
+            if ($linkPreview instanceof LinkPreview && $linkPreview->needsFetching()) {
                 dispatch(new UnfurlLink($linkPreview))->afterCommit();
             }
 
