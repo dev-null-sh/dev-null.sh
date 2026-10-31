@@ -101,12 +101,18 @@ final readonly class HttpGitHubProvider implements GitHubProvider
 
     public function followingIds(string $login, int $maxPages): array
     {
-        return $this->accountIds("users/{$login}/following", $maxPages);
+        $accounts = $this->accounts("users/{$login}/following", $maxPages);
+        $ids = fn (bool $organizations): array => array_values(array_map(
+            fn (array $account): string => (string) $account['id'],
+            array_filter($accounts, fn (array $account): bool => ($account['type'] === 'Organization') === $organizations),
+        ));
+
+        return ['users' => $ids(false), 'organizations' => $ids(true)];
     }
 
     public function followerIds(string $login, int $maxPages): array
     {
-        return $this->accountIds("users/{$login}/followers", $maxPages);
+        return array_map(fn (array $account): string => (string) $account['id'], $this->accounts("users/{$login}/followers", $maxPages));
     }
 
     public function sshKeys(string $login): array
@@ -274,28 +280,26 @@ final readonly class HttpGitHubProvider implements GitHubProvider
     }
 
     /**
-     * The IDs of the accounts in a paginated list, up to the given number of pages.
+     * The accounts in a paginated list, up to the given number of pages.
      *
-     * @return list<string>
+     * @return list<array{id: int, type: string}>
      */
-    private function accountIds(string $path, int $maxPages): array
+    private function accounts(string $path, int $maxPages): array
     {
-        $ids = [];
+        $accounts = [];
 
         for ($page = 1; $page <= $maxPages; $page++) {
-            /** @var list<array{id: int}> $accounts */
-            $accounts = $this->request()->get($path, ['per_page' => self::PerPage, 'page' => $page])->throw()->json();
+            /** @var list<array{id: int, type: string}> $pageAccounts */
+            $pageAccounts = $this->request()->get($path, ['per_page' => self::PerPage, 'page' => $page])->throw()->json();
 
-            foreach ($accounts as $account) {
-                $ids[] = (string) $account['id'];
-            }
+            array_push($accounts, ...$pageAccounts);
 
-            if (count($accounts) < self::PerPage) {
+            if (count($pageAccounts) < self::PerPage) {
                 break;
             }
         }
 
-        return $ids;
+        return $accounts;
     }
 
     /**

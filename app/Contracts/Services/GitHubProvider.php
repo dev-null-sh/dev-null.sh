@@ -56,9 +56,10 @@ interface GitHubProvider
     public function hasSponsorsListing(string $token): ?bool;
 
     /**
-     * The IDs of the accounts the user follows, up to the given number of pages.
+     * The IDs of the accounts the user follows, up to the given number of pages, the people apart from the
+     * organizations.
      *
-     * @return list<string>
+     * @return array{users: list<string>, organizations: list<string>}
      */
     public function followingIds(string $login, int $maxPages): array;
 

@@ -230,6 +230,19 @@ it('erases the organizations a deleted user followed, keeping their other follow
     expect($organization->followers()->pluck('users.id')->all())->toBe([$other->id]);
 });
 
+it('erases the github organizations a deleted user waited to follow', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    DB::table('pending_organization_follows')->insert([
+        ['user_id' => $user->id, 'github_id' => '958072', 'created_at' => now()],
+        ['user_id' => $other->id, 'github_id' => '958072', 'created_at' => now()],
+    ]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(DB::table('pending_organization_follows')->pluck('user_id')->all())->toBe([$other->id]);
+});
+
 it('erases the devices of a deleted user', function (): void {
     $user = User::factory()->create();
     Device::factory()->for($user)->create();

@@ -136,7 +136,7 @@ it('cannot say whether there is a sponsors listing when GitHub does not answer',
 ]);
 
 it('reads the ids of followed and following accounts a page at a time, up to the given number of pages', function (): void {
-    $page = fn (int $from, int $count): array => array_map(fn (int $id): array => ['id' => $id, 'login' => "user{$id}"], range($from, $from + $count - 1));
+    $page = fn (int $from, int $count): array => array_map(fn (int $id): array => ['id' => $id, 'login' => "user{$id}", 'type' => 'User'], range($from, $from + $count - 1));
 
     Http::fake([
         'api.github.com/users/octocat/following?per_page=100&page=1' => Http::response($page(1, 100)),
@@ -147,10 +147,22 @@ it('reads the ids of followed and following accounts a page at a time, up to the
 
     $provider = new HttpGitHubProvider();
 
-    expect($provider->followingIds('octocat', 1))->toBe(array_map(strval(...), range(1, 100)))
+    expect($provider->followingIds('octocat', 1))->toBe(['users' => array_map(strval(...), range(1, 100)), 'organizations' => []])
         ->and($provider->followerIds('octocat', 10))->toBe(array_map(strval(...), range(1, 103)));
 
     Http::assertSentCount(3);
+});
+
+it('tells the organizations the user follows apart from the people', function (): void {
+    Http::fake([
+        'api.github.com/users/octocat/following?per_page=100&page=1' => Http::response([
+            ['id' => 1, 'login' => 'mona', 'type' => 'User'],
+            ['id' => 958072, 'login' => 'laravel', 'type' => 'Organization'],
+            ['id' => 2, 'login' => 'hubot', 'type' => 'User'],
+        ]),
+    ]);
+
+    expect(new HttpGitHubProvider()->followingIds('octocat', 10))->toBe(['users' => ['1', '2'], 'organizations' => ['958072']]);
 });
 
 it('reads the authentication and signing keys of the account', function (): void {

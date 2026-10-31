@@ -19,7 +19,7 @@ it('knows nobody and holds nothing', function (): void {
         ->and($provider->login('583231'))->toBeNull()
         ->and($provider->isPublicMember('45861341', '720328'))->toBeFalse()
         ->and($provider->hasSponsorsListing('token'))->toBeNull()
-        ->and($provider->followingIds('octocat', 10))->toBe([])
+        ->and($provider->followingIds('octocat', 10))->toBe(['users' => [], 'organizations' => []])
         ->and($provider->followerIds('octocat', 10))->toBe([])
         ->and($provider->sshKeys('octocat'))->toBe([])
         ->and($provider->avatar('https://avatars.githubusercontent.com/u/583231'))->toBeNull()
