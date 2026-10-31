@@ -8,7 +8,7 @@ import {
     MessagesSquare,
 } from 'lucide-react';
 import type { CSSProperties } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
@@ -24,6 +24,7 @@ import { FollowButton } from '@/components/follow-button';
 import { FollowersYouKnow } from '@/components/followers-you-know';
 import type { FollowersYouKnowPreview } from '@/components/followers-you-know';
 import { GitHubIcon } from '@/components/github-icon';
+import { RailAvatar } from '@/components/graph-rail';
 import {
     LiveAvatarMarker,
     LiveStreamTrigger,
@@ -47,7 +48,7 @@ import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
-import { formatClockMonth, laneColor, laneTint } from '@/lib/utils';
+import { cn, formatClockMonth, laneColor, laneTint } from '@/lib/utils';
 import type {
     Achievements,
     Activity,
@@ -103,6 +104,8 @@ export default function Show({
         null,
     );
     const [isAchievementsOpen, setIsAchievementsOpen] = useState(false);
+    const avatarRef = useRef<HTMLDivElement>(null);
+    const [isAvatarHidden, setIsAvatarHidden] = useState(false);
     const [pasteisCount] = useSharedState(
         commitStateKey('pasteis_received', user.id),
         pasteisReceived ?? 0,
@@ -121,53 +124,118 @@ export default function Show({
         }
     }, [user.id, pasteisReceived]);
 
+    // The sticky bar takes the avatar, name and handle once the header's avatar scrolls under it.
+    useEffect(() => {
+        const avatar = avatarRef.current;
+
+        if (!avatar) {
+            return;
+        }
+
+        const observer = new IntersectionObserver(
+            ([entry]) =>
+                setIsAvatarHidden(
+                    !entry.isIntersecting && entry.boundingClientRect.top < 64,
+                ),
+            { rootMargin: '-64px 0px 0px 0px' },
+        );
+
+        observer.observe(avatar);
+
+        return () => observer.disconnect();
+    }, []);
+
     return (
         <>
             <Head title={`${user.name} (@${user.handle})`} />
 
-            <div className="sticky top-0 z-10 flex h-14 items-center gap-3 border-b bg-card px-4 sm:px-6">
-                <p className="min-w-0 truncate font-semibold">{user.name}</p>
-                <p
-                    className="shrink-0 font-mono text-[13px] text-muted-foreground"
-                    title={exactCountTitle(user.commits_count)}
+            {/* Laid out like the feed's commits below, so the avatar lands where theirs pass under the bar. */}
+            <div className="sticky top-0 z-10 grid h-16 grid-cols-[4rem_minmax(0,1fr)] items-center overflow-hidden border-b bg-card pr-4 [view-transition-class:tab-header] [view-transition-name:profile-header] sm:grid-cols-[4.5rem_minmax(0,1fr)]">
+                <div
+                    aria-hidden={!isAvatarHidden}
+                    className={cn(
+                        'flex justify-self-center transition-[opacity,scale,translate] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none',
+                        isAvatarHidden
+                            ? 'translate-y-0 scale-100 opacity-100'
+                            : 'translate-y-full scale-125 opacity-0',
+                    )}
+                    style={{ '--lane': lane } as CSSProperties}
+                    data-test="profile-sticky-avatar"
                 >
-                    {formatCount(user.commits_count)}{' '}
-                    {pluralize(user.commits_count, 'commit', 'commits')}
-                </p>
+                    <RailAvatar user={user} />
+                </div>
+
+                <div
+                    aria-hidden={!isAvatarHidden}
+                    className={cn(
+                        'min-w-0 transition-[opacity,translate] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none',
+                        isAvatarHidden
+                            ? 'translate-y-0 opacity-100'
+                            : 'pointer-events-none translate-y-2 opacity-0',
+                    )}
+                >
+                    <div className="flex items-baseline gap-3">
+                        <p className="min-w-0 truncate leading-snug font-semibold">
+                            {user.name}
+                        </p>
+                        <p
+                            className="shrink-0 font-mono text-[13px] text-muted-foreground"
+                            title={exactCountTitle(user.commits_count)}
+                        >
+                            {formatCount(user.commits_count)}{' '}
+                            {pluralize(user.commits_count, 'commit', 'commits')}
+                        </p>
+                    </div>
+                    <div
+                        aria-hidden={!isAvatarHidden}
+                        className={cn(
+                            'grid transition-[grid-template-rows,opacity,translate] duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] motion-reduce:transition-none',
+                            isAvatarHidden
+                                ? 'translate-y-0 grid-rows-[1fr] opacity-100'
+                                : 'translate-y-1 grid-rows-[0fr] opacity-0',
+                        )}
+                    >
+                        <p className="truncate overflow-hidden font-mono text-xs text-muted-foreground">
+                            @{user.handle}
+                        </p>
+                    </div>
+                </div>
             </div>
 
             <header className="border-b px-4 pt-6 pb-5 sm:px-6">
                 <div className="flex items-start justify-between gap-4">
-                    {user.live ? (
-                        <LiveStreamTrigger
-                            user={user}
-                            showProfile={false}
-                            className="flex"
-                        >
-                            <a
-                                href={user.live.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                aria-label={`Watch ${user.name} live on ${user.live.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`}
-                                className="relative flex rounded-full"
-                                data-test="profile-live-avatar"
+                    <div ref={avatarRef} className="flex">
+                        {user.live ? (
+                            <LiveStreamTrigger
+                                user={user}
+                                showProfile={false}
+                                className="flex"
                             >
-                                <UserAvatar
-                                    user={user}
-                                    className="size-20 text-2xl ring-2 ring-red-600 ring-offset-4 ring-offset-card"
-                                    pixels={160}
-                                />
-                                <LiveAvatarMarker className="-bottom-2.5" />
-                            </a>
-                        </LiveStreamTrigger>
-                    ) : (
-                        <UserAvatar
-                            user={user}
-                            className="size-20 text-2xl ring-2 ring-(--lane) ring-offset-4 ring-offset-card"
-                            pixels={160}
-                            style={{ '--lane': lane } as CSSProperties}
-                        />
-                    )}
+                                <a
+                                    href={user.live.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    aria-label={`Watch ${user.name} live on ${user.live.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`}
+                                    className="relative flex rounded-full"
+                                    data-test="profile-live-avatar"
+                                >
+                                    <UserAvatar
+                                        user={user}
+                                        className="size-20 text-2xl ring-2 ring-red-600 ring-offset-4 ring-offset-card"
+                                        pixels={160}
+                                    />
+                                    <LiveAvatarMarker className="-bottom-2.5" />
+                                </a>
+                            </LiveStreamTrigger>
+                        ) : (
+                            <UserAvatar
+                                user={user}
+                                className="size-20 text-2xl ring-2 ring-(--lane) ring-offset-4 ring-offset-card"
+                                pixels={160}
+                                style={{ '--lane': lane } as CSSProperties}
+                            />
+                        )}
+                    </div>
 
                     <div className="flex shrink-0 gap-1.5 sm:gap-2">
                         <ProfileShareButton
@@ -446,6 +514,8 @@ export default function Show({
                 <PageTabs
                     label="Profile feed"
                     preserveScroll
+                    // So the sticky bar keeps its scrolled state instead of animating in again.
+                    preserveState
                     only={['tab', 'commits', 'pinnedCommit', 'readme']}
                     reset={['commits']}
                     tabs={[
