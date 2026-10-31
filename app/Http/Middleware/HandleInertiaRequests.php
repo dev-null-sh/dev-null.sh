@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Dto\ReaderClock;
+use App\Enums\EventTheme;
 use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
@@ -140,6 +141,7 @@ final class HandleInertiaRequests extends Middleware
                     ], $topics);
                 })->until(60),
             ] : [],
+            'eventThemeChoice' => EventTheme::choiceFrom(is_string($request->cookie('event_theme')) ? $request->cookie('event_theme') : null),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
             'clock' => ReaderClock::of($request)->toArray(),
