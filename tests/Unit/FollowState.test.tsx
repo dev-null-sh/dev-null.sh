@@ -255,6 +255,18 @@ test('a suggestion who follows you offers to follow back, at a width that fits i
     assert.equal(suggestionLabel(suggestion('jess')), 'Follow @jess');
 });
 
+test('a pending follow keeps the pointer on it, so it says Following under it instead of Unfollow', () => {
+    const button = FollowButton({
+        user: suggestion('taylor'),
+        isFollowing: false,
+    }) as ReactElement<Props>;
+
+    assert.match(
+        String(button.props.className),
+        /\bdisabled:pointer-events-auto\b/,
+    );
+});
+
 test('a follow from their profile shows in who to follow', () => {
     const user = suggestion('taylor');
 
