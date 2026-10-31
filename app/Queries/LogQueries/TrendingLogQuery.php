@@ -9,6 +9,7 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitBuilder;
 use App\Services\TheAlgorithm;
+use Illuminate\Pagination\Cursor;
 use Illuminate\Pagination\CursorPaginator;
 use Illuminate\Support\Facades\Config;
 
@@ -26,34 +27,47 @@ final readonly class TrendingLogQuery implements LogQuery
      *
      * The seed of the draw is the first column the log is ordered by. Every commit of a draw shares it, so it does not
      * change the order, but it puts the seed in the cursor: the pages that follow, on the web and over the API, read it
-     * back and keep the same draw, so they do not overlap.
+     * back and keep the same draw, so they do not overlap. The time from which the viewer's own commits are pinned is
+     * kept the same way, so a commit that ages out of the pin while the log scrolls does not move back into a page. A
+     * cursor issued before that was kept has no such time, so it is followed without it rather than failing to page.
      */
     public function builder(?User $user): CommitBuilder
     {
-        $seed = $this->seed();
+        $seed = $this->cursorInteger('trending_seed') ?? random_int(0, PHP_INT_MAX);
+        $pinnedSince = $this->cursorInteger('trending_pinned_since') ?? $this->theAlgorithm->pinnedSince();
 
         $draw = $this->theAlgorithm
-            ->draw($user, $seed, Config::float('trending.temperature'))
-            ->selectRaw('?::bigint as trending_seed', [$seed]);
+            ->draw($user, $seed, Config::float('trending.temperature'), $pinnedSince)
+            ->selectRaw('?::bigint as trending_seed', [$seed])
+            ->selectRaw('?::bigint as trending_pinned_since', [$pinnedSince]);
 
         return Commit::query()
             ->joinSub($draw, 'draw', 'draw.drawn_id', '=', 'commits.id')
             ->withVisibleReplyCount($user)
             ->withReplyPreviews($user)
             ->withCardDataFor($user)
-            ->addSelect(['draw.trending_seed', 'draw.trending_score'])
+            ->addSelect(['draw.trending_seed', 'draw.trending_pinned_since', 'draw.trending_score'])
             ->orderByDesc('trending_seed')
+            ->unless($this->followsCursorWithoutPinnedSince(), fn (CommitBuilder $builder): CommitBuilder => $builder->orderByDesc('trending_pinned_since'))
             ->orderByDesc('trending_score')
             ->orderByDesc('id');
     }
 
     /**
-     * The seed of the cursor being followed, or a new one when the log is opened or refreshed.
+     * Whether the cursor being followed was issued before the log kept the time from which own commits are pinned.
      */
-    private function seed(): int
+    private function followsCursorWithoutPinnedSince(): bool
     {
-        $seed = CursorPaginator::resolveCurrentCursor()?->toArray()['trending_seed'] ?? null;
+        return CursorPaginator::resolveCurrentCursor() instanceof Cursor && $this->cursorInteger('trending_pinned_since') === null;
+    }
 
-        return is_int($seed) ? $seed : random_int(0, PHP_INT_MAX);
+    /**
+     * A value of the draw that the cursor being followed carries, or null when the log is opened or refreshed.
+     */
+    private function cursorInteger(string $column): ?int
+    {
+        $value = CursorPaginator::resolveCurrentCursor()?->toArray()[$column] ?? null;
+
+        return is_int($value) ? $value : null;
     }
 }

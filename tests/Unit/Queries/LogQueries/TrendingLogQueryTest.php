@@ -6,6 +6,8 @@ use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\LogQueries\TrendingLogQuery;
+use Illuminate\Pagination\Cursor;
+use Illuminate\Pagination\CursorPaginator;
 
 it('includes commits of everyone', function (): void {
     $older = Commit::factory()->create(['created_at' => now()->subMinute()]);
@@ -128,4 +130,62 @@ it('leaves out commits older than seven days', function (): void {
     $commits = resolve(TrendingLogQuery::class)->builder(User::factory()->create())->get();
 
     expect($commits->modelKeys())->toBe([$recent->id]);
+});
+
+it('puts the commit the viewer just made first, even without engagement', function (): void {
+    $viewer = User::factory()->create();
+
+    $other = Commit::factory()->create();
+    $own = Commit::factory()->for($viewer)->create(['created_at' => now()->subMinutes(5)]);
+    $ownOlder = Commit::factory()->for($viewer)->create(['created_at' => now()->subMinutes(30)]);
+
+    $commits = resolve(TrendingLogQuery::class)->builder($viewer)->get();
+
+    expect($commits->modelKeys())->toBe([$own->id, $other->id, $ownOlder->id]);
+});
+
+it('keeps the pin of the commit the viewer just made while the log scrolls', function (): void {
+    config(['trending.temperature' => 0.0]);
+    $viewer = User::factory()->create();
+    $own = Commit::factory()->for($viewer)->create(['created_at' => now()->subMinutes(9)]);
+    Commit::factory()->count(24)->sequence(
+        fn ($sequence): array => ['created_at' => now()->subSeconds($sequence->index)],
+    )->create();
+    Commit::query()->whereKeyNot($own->id)->increment('hot_score', 5);
+
+    $first = resolve(TrendingLogQuery::class)->builder($viewer)->cursorPaginate(20);
+
+    $this->travel(2)->minutes();
+    CursorPaginator::currentCursorResolver(fn () => $first->nextCursor());
+
+    $second = resolve(TrendingLogQuery::class)->builder($viewer)->cursorPaginate(20);
+
+    CursorPaginator::currentCursorResolver(fn () => null);
+
+    $ids = [...$first->getCollection()->modelKeys(), ...$second->getCollection()->modelKeys()];
+
+    expect($ids[0])->toBe($own->id)
+        ->and($ids)->toHaveCount(25)
+        ->and(array_unique($ids))->toHaveCount(25);
+});
+
+it('follows a cursor issued before the pin was kept in it', function (): void {
+    config(['trending.temperature' => 0.0]);
+    $viewer = User::factory()->create();
+    $commits = Commit::factory()->count(3)->sequence(
+        fn ($sequence): array => ['created_at' => now()->subSeconds($sequence->index)],
+    )->create();
+
+    $page = resolve(TrendingLogQuery::class)->builder($viewer)->cursorPaginate(1);
+    $parameters = $page->nextCursor()->toArray();
+    unset($parameters['trending_pinned_since'], $parameters['_pointsToNextItems']);
+
+    CursorPaginator::currentCursorResolver(fn () => new Cursor($parameters));
+
+    $next = resolve(TrendingLogQuery::class)->builder($viewer)->cursorPaginate(2);
+
+    CursorPaginator::currentCursorResolver(fn () => null);
+
+    expect($next->getCollection()->modelKeys())->toBe([$commits[1]->id, $commits[2]->id])
+        ->and($next->nextCursor()?->toArray())->not->toHaveKey('trending_pinned_since');
 });

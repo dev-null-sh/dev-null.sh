@@ -39,10 +39,29 @@ final readonly class TheAlgorithm
     private const float OUT_OF_NETWORK_SCALE = 0.75;
 
     /**
+     * A viewer's own commit this recent tops their log, so a commit just made is not lost in the draw.
+     */
+    private const int OWN_COMMIT_PINNED_MINUTES = 10;
+
+    /**
+     * Doublings added to the viewer's own recent commits: far more than the noise and the author diversity can take away.
+     */
+    private const float OWN_COMMIT_PINNED_BONUS = 100.0;
+
+    /**
      * Only commits this recent are drawn. A week-old commit is 28 doublings behind a new one, so it would not reach
      * the first pages anyway, and the draw reads one week of commits rather than every commit ever made.
      */
     private const int CANDIDATE_MAX_AGE_DAYS = 7;
+
+    /**
+     * The time, as a Unix timestamp, from which the viewer's own commits are pinned to the top. A draw keeps the one it
+     * started with, so a commit does not lose its pin between two pages of the same draw.
+     */
+    public function pinnedSince(): int
+    {
+        return now()->subMinutes(self::OWN_COMMIT_PINNED_MINUTES)->getTimestamp();
+    }
 
     /**
      * The score of a thread, stored on its top-level commit and recounted whenever its engagement changes.
@@ -103,7 +122,7 @@ final readonly class TheAlgorithm
      *
      * 4. The sum is rounded so that it reads back exactly, which the cursor relies on.
      */
-    public function draw(?User $viewer, int $seed, float $temperature): CommitBuilder
+    public function draw(?User $viewer, int $seed, float $temperature, int $pinnedSince): CommitBuilder
     {
         // log2((1 - floor) * decay^position + floor), where the position counts from 0 within the author's commits.
         $authorDiversity = 'case when commits.user_id is null then 0 else ln((1 - ?::float8) * power(?::float8, row_number() over (partition by commits.user_id order by commits.hot_score desc, commits.id desc) - 1) + ?::float8) / ln(2) end';
@@ -111,6 +130,11 @@ final readonly class TheAlgorithm
         // 0 for the viewer's own commits and the people they follow, log2(0.75) for everyone else.
         [$network, $networkBindings] = $viewer instanceof User
             ? ['case when commits.user_id = ? or exists (select 1 from follows where follows.follower_id = ? and follows.followed_id = commits.user_id) then 0 else ?::float8 end', [$viewer->id, $viewer->id, log(self::OUT_OF_NETWORK_SCALE, 2)]]
+            : ['0', []];
+
+        // The viewer's own commits of the last few minutes rank first, however the draw falls.
+        [$pinned, $pinnedBindings] = $viewer instanceof User
+            ? ['case when commits.user_id = ? and commits.created_at >= ? then ?::float8 else 0 end', [$viewer->id, now()->setTimestamp($pinnedSince), self::OWN_COMMIT_PINNED_BONUS]]
             : ['0', []];
 
         // temperature / ln(2) * ln(-ln(u)), subtracted below, adds the Gumbel noise on the scale of the doublings.
@@ -123,10 +147,11 @@ final readonly class TheAlgorithm
             ->withoutMutedAuthorsFor($viewer)
             ->select('commits.id as drawn_id')
             ->selectRaw(
-                "round((commits.hot_score + {$authorDiversity} + {$network} - {$gumbelNoise})::numeric, 6) as trending_score",
+                "round((commits.hot_score + {$authorDiversity} + {$network} + {$pinned} - {$gumbelNoise})::numeric, 6) as trending_score",
                 [
                     self::AUTHOR_DIVERSITY_FLOOR, self::AUTHOR_DIVERSITY_DECAY, self::AUTHOR_DIVERSITY_FLOOR,
                     ...$networkBindings,
+                    ...$pinnedBindings,
                     $temperature / M_LN2, $seed,
                 ],
             );
