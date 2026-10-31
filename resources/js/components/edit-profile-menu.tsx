@@ -17,6 +17,7 @@ export function EditProfileMenu() {
 
     const sync = () =>
         router.visit(UserProfileController.update(), {
+            except: ['suggestedUsers'],
             preserveScroll: true,
             onStart: () => setIsSyncing(true),
             onFinish: () => setIsSyncing(false),

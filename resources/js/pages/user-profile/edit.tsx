@@ -67,7 +67,10 @@ export default function Edit({
                     </Button>
                     <Form
                         {...UserProfileController.update.form()}
-                        options={{ preserveScroll: true }}
+                        options={{
+                            except: ['suggestedUsers'],
+                            preserveScroll: true,
+                        }}
                         onSuccess={() => router.flushAll()}
                     >
                         {({ processing }) => (
