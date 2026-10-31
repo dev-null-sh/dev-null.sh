@@ -6,6 +6,10 @@ use App\Actions\UpdateCommitHeadlines;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\Headline;
+use Illuminate\Database\QueryException;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Str;
 
 it('leaves unsuitable root commits without a headline', function (): void {
     $commit = Commit::factory()->create(['body' => 'What a sunny day.']);
@@ -75,3 +79,31 @@ it('does not attach stale provider results after deletion, rejection or another 
     expect(Headline::query()->where('name', 'Stale headline')->exists())->toBeFalse()
         ->and($commit->headlines()->pluck('name')->all())->toBe($change === 'assigned' ? ['Concurrent headline'] : []);
 })->with(['deleted', 'erased', 'edited', 'rejected', 'assigned']);
+
+it('keeps quoted context public until its headline link is written', function (): void {
+    $connection = DB::build([...DB::connection()->getConfig(), 'name' => 'headline-concurrency']);
+    $original = Commit::factory()->make(['id' => (string) Str::uuid7(), 'user_id' => null, 'body' => 'The /dev/null iOS beta is open.']);
+    $quote = Commit::factory()->make(['id' => (string) Str::uuid7(), 'user_id' => null, 'body' => 'Go test this app!', 'quoted_commit_id' => $original->id]);
+    $this->beforeApplicationDestroyed(function () use ($connection, $original, $quote): void {
+        $connection->table('commits')->whereIn('id', [$original->id, $quote->id])->delete();
+        $connection->disconnect();
+    });
+    $connection->table('commits')->insert($original->getAttributes());
+    $connection->table('commits')->insert($quote->getAttributes());
+    $connection->statement("set lock_timeout = '50ms'");
+    $blocked = false;
+    Event::listen('eloquent.creating: '.Headline::class, function () use ($connection, $original, &$blocked): void {
+        try {
+            $connection->table('commits')->where('id', $original->id)->update(['status' => CommitStatus::Rejected->value]);
+        } catch (QueryException $queryException) {
+            expect($queryException->getCode())->toBe('55P03');
+            $blocked = true;
+        }
+    });
+
+    resolve(UpdateCommitHeadlines::class)->handle($quote, ['/dev/null iOS app beta'], hash('sha256', $quote->headlineBody()));
+
+    expect($blocked)->toBeTrue()
+        ->and($original->refresh()->status)->toBe(CommitStatus::Approved)
+        ->and($quote->headlines()->sole()->name)->toBe('/dev/null iOS app beta');
+});

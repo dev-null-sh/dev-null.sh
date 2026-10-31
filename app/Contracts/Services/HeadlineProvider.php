@@ -7,7 +7,8 @@ namespace App\Contracts\Services;
 interface HeadlineProvider
 {
     /**
-     * Bodies and results share batch-local indexes, never account or commit identifiers.
+     * Bodies include directly quoted public text when available. Bodies and results share batch-local indexes,
+     * never account or commit identifiers.
      *
      * @param  array<int, string>  $bodies
      * @return list<int>

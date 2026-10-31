@@ -50,7 +50,7 @@ final class ProcessCommitHeadlines implements ShouldQueue
     {
         $commits = Commit::query()->whereKey($this->commitIds)->whereNull('parent_id')
             ->where('status', CommitStatus::Approved)->where('body', '!=', '')
-            ->whereNull('headlines_classified_at')->whereDoesntHave('headlines')->orderBy('id')->get()->toBase();
+            ->whereNull('headlines_classified_at')->whereDoesntHave('headlines')->with('quotedCommit')->orderBy('id')->get()->toBase();
 
         if ($commits->isEmpty()) {
             return;
@@ -90,7 +90,7 @@ final class ProcessCommitHeadlines implements ShouldQueue
      */
     private function filterCandidates(HeadlineProvider $provider, Collection $commits): Collection
     {
-        return $commits->only($provider->candidates($commits->map(fn (Commit $commit): string => $commit->body)->all()));
+        return $commits->only($provider->candidates($commits->map(fn (Commit $commit): string => $commit->headlineBody())->all()));
     }
 
     /**
@@ -99,7 +99,7 @@ final class ProcessCommitHeadlines implements ShouldQueue
      */
     private function matchExistingHeadlines(HeadlineProvider $provider, Collection $commits): array
     {
-        return $provider->matches($commits->map(fn (Commit $commit): string => $commit->body)->all(),
+        return $provider->matches($commits->map(fn (Commit $commit): string => $commit->headlineBody())->all(),
             array_values(Headline::query()->orderBy('id')->get()->map(fn (Headline $headline): string => $headline->name)->all()));
     }
 
@@ -109,7 +109,7 @@ final class ProcessCommitHeadlines implements ShouldQueue
      */
     private function generateHeadlines(HeadlineProvider $provider, Collection $commits): array
     {
-        $generated = $provider->generate($commits->map(fn (Commit $commit): string => $commit->body)->all());
+        $generated = $provider->generate($commits->map(fn (Commit $commit): string => $commit->headlineBody())->all());
         $deduplicated = $provider->deduplicate($generated);
 
         return collect($deduplicated)->map(fn (string $name): array => [$name])->all();
@@ -129,7 +129,7 @@ final class ProcessCommitHeadlines implements ShouldQueue
             throw_unless($lock->refresh(), LockTimeoutException::class);
 
             // Finish cheap link jobs before the next stage or backfill batch reads the headline pool.
-            $created = new LinkCommitHeadlines($commit, $headlines[$index], hash('sha256', $commit->body))
+            $created = new LinkCommitHeadlines($commit, $headlines[$index], hash('sha256', $commit->headlineBody()))
                 ->handle(resolve(UpdateCommitHeadlines::class));
 
             if ($created !== null) {
