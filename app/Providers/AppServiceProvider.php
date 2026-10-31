@@ -8,6 +8,7 @@ use App\Contracts\Services\AnalyticsProvider;
 use App\Contracts\Services\EmailDraftProvider;
 use App\Contracts\Services\EmbeddingProvider;
 use App\Contracts\Services\GitHubProvider;
+use App\Contracts\Services\HeadlineProvider;
 use App\Contracts\Services\LinkPreviewProvider;
 use App\Contracts\Services\ModerationProvider;
 use App\Contracts\Services\PushNotificationProvider;
@@ -27,6 +28,8 @@ use App\Services\EmbeddingProviders\NullEmbeddingProvider;
 use App\Services\EmbeddingProviders\OpenAIEmbeddingProvider;
 use App\Services\GitHubProviders\HttpGitHubProvider;
 use App\Services\GitHubProviders\NullGitHubProvider;
+use App\Services\HeadlineProviders\NullHeadlineProvider;
+use App\Services\HeadlineProviders\OpenAIHeadlineProvider;
 use App\Services\LinkPreviewProviders\HttpLinkPreviewProvider;
 use App\Services\LinkPreviewProviders\NullLinkPreviewProvider;
 use App\Services\ModerationProviders\NullModerationProvider;
@@ -63,6 +66,7 @@ final class AppServiceProvider extends ServiceProvider
         EmailDraftProvider::class => OpenCodeEmailDraftProvider::class,
         EmbeddingProvider::class => OpenAIEmbeddingProvider::class,
         GitHubProvider::class => HttpGitHubProvider::class,
+        HeadlineProvider::class => OpenAIHeadlineProvider::class,
         LinkPreviewProvider::class => HttpLinkPreviewProvider::class,
         ModerationProvider::class => OpenAIModerationProvider::class,
         PushNotificationProvider::class => WebPushNotificationProvider::class,
@@ -82,6 +86,7 @@ final class AppServiceProvider extends ServiceProvider
         EmailDraftProvider::class => NullEmailDraftProvider::class,
         EmbeddingProvider::class => NullEmbeddingProvider::class,
         GitHubProvider::class => NullGitHubProvider::class,
+        HeadlineProvider::class => NullHeadlineProvider::class,
         LinkPreviewProvider::class => NullLinkPreviewProvider::class,
         ModerationProvider::class => NullModerationProvider::class,
         PushNotificationProvider::class => NullPushNotificationProvider::class,

@@ -34,8 +34,9 @@ final readonly class DeleteCommitContent
             LinkPreview::query()->where('url', 'like', "%/commits/{$commit->id}%")->delete();
 
             DB::table('commit_topics')->where('commit_id', $commit->id)->delete();
+            $commit->headlines()->detach();
 
-            $commit->update(['body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null]);
+            $commit->update(['body' => '', 'mentions' => null, 'embedding' => null, 'link_preview_id' => null, 'headlines_classified_at' => null]);
 
             return $imagePaths;
         });

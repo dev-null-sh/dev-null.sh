@@ -56,9 +56,13 @@ it('erases the commits of a deleted user along with the replies under them', fun
     resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => $organization->id]);
     resolve(CreateCommitTopics::class)->handle($unrelated, ['laravel' => $organization->id]);
 
+    $headline = $commit->headlines()->create(['name' => 'Laravel adds a new feature']);
+    $headline->commits()->attach([$reply->id, $unrelated->id]);
+
     resolve(DeleteUser::class)->handle($user);
 
     expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id])
+        ->and($headline->commits->modelKeys())->toBe([$unrelated->id])
         ->and(DB::table('commit_topics')->pluck('commit_id')->all())->toBe([$unrelated->id]);
 });
 
@@ -100,8 +104,10 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
         'body' => "@{$mentioned->handle} and @laravel have a look at https://example.com",
         'mentions' => [$mentioned->handle => $mentioned->id],
         'embedding' => embeddingVector(0),
+        'headlines_classified_at' => now(),
     ]);
     resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => Organization::factory()->create()->id]);
+    $reply->headlines()->create(['name' => 'Laravel adds a new feature']);
     $deletedReply = Commit::factory()->for($user)->for($commit, 'parent')->create();
     Commit::factory()->for($reply, 'parent')->create();
     Commit::factory()->for($deletedReply, 'parent')->create();
@@ -115,7 +121,9 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
         ->and($tombstones->pluck('body')->all())->toBe(['', ''])
         ->and($tombstones->pluck('mentions')->all())->toBe([null, null])
         ->and(DB::table('commit_topics')->where('commit_id', $reply->id)->exists())->toBeFalse()
+        ->and($reply->headlines()->exists())->toBeFalse()
         ->and($tombstones->pluck('embedding')->all())->toBe([null, null])
+        ->and($tombstones->pluck('headlines_classified_at')->all())->toBe([null, null])
         ->and($tombstones->pluck('link_preview_id')->all())->toBe([null, null]);
 });
 
