@@ -334,6 +334,55 @@ function touchReactions() {
     return { handlers, pointer, viewer, onLongPress, onDoubleTap };
 }
 
+test('lines the tray and its picker up with the side the react button sits on', () => {
+    vi.stubGlobal('document', {
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+    });
+    const alignment = (
+        isMine: boolean,
+        placement: 'below' | 'beside' = 'below',
+    ) => {
+        state = [];
+        cursor = 0;
+        effects = [];
+        const tray = elements(
+            ReactionTray({
+                id: 'reactions',
+                isOpen: true,
+                onOpenChange: vi.fn(),
+                trigger: { current: null },
+                usage: [],
+                reacted: new Set(),
+                hasReactions: false,
+                isMine,
+                onReact: vi.fn(),
+                placement,
+            }),
+        );
+        const row = tray.find((e) =>
+            String(e.props.className).includes('overflow-hidden px-2'),
+        )!;
+        const picker = tray.find(
+            (e) => typeof e.props.onCloseAutoFocus === 'function',
+        )!;
+
+        return {
+            justifiesEnd: String(row.props.className).includes('justify-end'),
+            align: picker.props.align,
+        };
+    };
+
+    // Their messages keep the react button past the bubble's end, mine past its start.
+    assert.deepEqual(alignment(false), { justifiesEnd: true, align: 'end' });
+    assert.deepEqual(alignment(true), { justifiesEnd: false, align: 'start' });
+    // Floating beside its trigger, as pinned messages do, the tray keeps opening toward the end.
+    assert.deepEqual(alignment(true, 'beside'), {
+        justifiesEnd: true,
+        align: 'end',
+    });
+});
+
 test('opens reactions when a single finger holds the message', () => {
     const touch = touchReactions();
 
