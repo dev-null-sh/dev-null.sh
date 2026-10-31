@@ -217,7 +217,7 @@ it('lists the approved devices of the user, last approved first', function (): v
         'approved_at' => now()->subWeek(),
         'last_used_at' => now()->subDay(),
     ]);
-    $newer = Device::factory()->for($user)->create(['name' => 'devnull on Mac']);
+    $newer = Device::factory()->for($user)->create(['name' => 'MacBook Pro', 'app_name' => '/dev/null for Mac']);
 
     Device::factory()->create();
 
@@ -227,12 +227,14 @@ it('lists the approved devices of the user, last approved first', function (): v
         ->assertJsonCount(3, 'data')
         ->assertJsonPath('data.0', [
             'id' => $newer->id,
-            'name' => 'devnull on Mac',
+            'name' => 'MacBook Pro',
+            'app_name' => '/dev/null for Mac',
             'fingerprint' => $newer->fingerprint,
             'approved_at' => now()->toIso8601ZuluString(),
             'last_used_at' => null,
         ])
         ->assertJsonPath('data.1.id', $older->id)
+        ->assertJsonPath('data.1.app_name', null)
         ->assertJsonPath('data.1.last_used_at', now()->subDay()->toIso8601ZuluString())
         ->assertJsonPath('data.2.id', $signing->id);
 });

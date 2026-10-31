@@ -25,6 +25,7 @@ final readonly class CreateAuthorizationCode
             $authorization->fingerprint,
             $authorization->deviceName,
             $authorization->codeChallenge,
+            $authorization->appName,
         );
 
         Cache::put($authorizationCode->key, $authorizationCode->toArray(), now()->addMinutes(AuthorizationCode::EXPIRES_AFTER_MINUTES));

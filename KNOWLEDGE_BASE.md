@@ -533,7 +533,7 @@ Sources: [API routes](routes/api.php), [API controllers](app/Http/Controllers/Ap
 
 ### Signed API and devices
 
-An app can use the same `/api/v1` for you with signed requests. It keeps an SSH key on the device and signs every request with it; there are no passwords or API tokens. To sign in, the app opens `/mobile/authorize` on the web. A guest goes straight to GitHub and returns to that page; someone already signed in checks the key's fingerprint and approves it. The key then becomes one of your devices, and it does not need to be on your GitHub account. A key that is only on GitHub, such as a GitHub Actions key, cannot use the signed API.
+An app can use the same `/api/v1` for you with signed requests. It keeps an SSH key on the device and signs every request with it; there are no passwords or API tokens. To sign in, the app opens `/mobile/authorize` on the web. It sends the device's name with the key, and can also send its own name as `app_name`, like "/dev/null for Mac", so you can tell apps apart: the approval page and your devices show both. A guest goes straight to GitHub and returns to that page; someone already signed in checks the key's fingerprint and approves it. The key then becomes one of your devices, and it does not need to be on your GitHub account. A key that is only on GitHub, such as a GitHub Actions key, cannot use the signed API.
 
 A signed request sees what the web shows you, such as your own pending commits. It can also, with the web's validation, moderation, and rate limits:
 
@@ -558,7 +558,7 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - list your devices and revoke them;
 - delete your account.
 
-Signed request bodies are JSON, or multipart when they carry images or a voice note, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
+Signed request bodies are JSON, or multipart when they carry images or a voice note, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices, with the app's name when it gave one and when each was last used, and revokes them.
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
 

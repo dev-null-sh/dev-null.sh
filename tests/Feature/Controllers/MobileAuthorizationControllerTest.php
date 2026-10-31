@@ -48,6 +48,15 @@ it('asks the signed-in user to approve the app on the device', function (): void
             ->where('auth.user.id', $user->id));
 });
 
+it('shows the name the app gave itself, for apps that say it', function (): void {
+    $parameters = [...$this->parameters, 'app_name' => '/dev/null for Mac'];
+
+    $response = $this->actingAs(User::factory()->create())->get(route('mobile-authorization.show', $parameters));
+
+    $response->assertOk()
+        ->assertInertia(fn (Assert $page): Assert => $page->where('authorization', $parameters));
+});
+
 it('reads a fingerprint whose "+" the app left unencoded', function (): void {
     $fingerprint = 'SHA256:'.str_repeat('a+', 21).'b';
 
@@ -95,6 +104,7 @@ it('answers a request the app did not make right with a plain error page, and ne
     'a malformed fingerprint' => [['fingerprint' => 'MD5:aa:bb'], 'The fingerprint field format is invalid.'],
     'no device name' => [['device_name' => null], 'The device name field is required.'],
     'a long device name' => [['device_name' => str_repeat('a', 101)], 'The device name field must not be greater than 100 characters.'],
+    'a long app name' => [['app_name' => str_repeat('a', 101)], 'The app name field must not be greater than 100 characters.'],
     'no challenge' => [['code_challenge' => null], 'The code challenge field is required.'],
     'a malformed challenge' => [['code_challenge' => 'short'], 'The code challenge field format is invalid.'],
     'a plain challenge' => [['code_challenge_method' => 'plain'], 'The selected code challenge method is invalid.'],
@@ -125,6 +135,15 @@ it('sends the app back with a one-time code and its state once the user approves
         'device_name' => 'devnull on iPhone',
         'code_challenge' => $this->parameters['code_challenge'],
     ]);
+});
+
+it('binds the code to the name the app gave itself', function (): void {
+    $response = $this->actingAs(User::factory()->create())
+        ->post(route('mobile-authorization.store'), [...$this->parameters, 'app_name' => '/dev/null for Mac']);
+
+    parse_str((string) parse_url((string) $response->headers->get('Location'), PHP_URL_QUERY), $query);
+
+    expect(Cache::get(AuthorizationCode::keyFor($query['code'])))->toMatchArray(['app_name' => '/dev/null for Mac']);
 });
 
 it('keeps the query a redirect already has', function (): void {
