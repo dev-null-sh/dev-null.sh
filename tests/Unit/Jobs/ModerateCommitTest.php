@@ -10,6 +10,8 @@ use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
+use App\Models\Event;
+use App\Models\EventAgendaItem;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\User;
@@ -362,4 +364,17 @@ it('approves reputable authors without calling the ai even when they have been r
     expect($commit->refresh())
         ->status->toBe(CommitStatus::Approved)
         ->ai_decision->toBeNull();
+});
+
+it('moderates the event a commit announces along with its body', function (): void {
+    $text = "Come along\n\nPHP night\n\nLisbon\n\nhttps://example.com\n\nLightning talks";
+    $moderation = $this->mock(ModerationProvider::class);
+    $moderation->shouldReceive('moderate')->once()->with($text, [])->andReturn([]);
+    $moderation->shouldReceive('isHarmful')->once()->with($text)->andReturnFalse();
+
+    $commit = Commit::factory()->pending()->create(['body' => 'Come along']);
+    $event = Event::factory()->for($commit)->create(['title' => 'PHP night', 'location' => 'Lisbon', 'url' => 'https://example.com']);
+    EventAgendaItem::factory()->for($event)->create(['label' => 'Lightning talks', 'starts_at' => $event->starts_at]);
+
+    dispatch_sync(new ModerateCommit($commit));
 });

@@ -10,6 +10,8 @@ use App\Enums\NotificationType;
 use App\Jobs\DetectCommitLanguage;
 use App\Jobs\ModerateCommit;
 use App\Models\Commit;
+use App\Models\Event;
+use App\Models\EventAgendaItem;
 use App\Models\LinkPreview;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
@@ -38,6 +40,18 @@ it('renders pending commits oldest first', function (): void {
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Newer')
             ->has('commits.data.0.user'));
+});
+
+it('shows moderators the event a pending commit announces, with its link and agenda', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $commit = Commit::factory()->pending()->create();
+    $event = Event::factory()->for($commit)->create(['title' => 'Laravel night', 'url' => 'https://example.com/stream']);
+    EventAgendaItem::factory()->for($event)->create(['label' => 'Opening talk', 'starts_at' => $event->starts_at]);
+
+    $this->actingAs($admin)->get(route('moderation.show'))->assertOk()->assertInertia(fn ($page) => $page
+        ->where('commits.data.0.event.title', 'Laravel night')
+        ->where('commits.data.0.event.url', 'https://example.com/stream')
+        ->where('commits.data.0.event.agenda_items.0.label', 'Opening talk'));
 });
 
 it('shows the ai decision on commits', function (): void {

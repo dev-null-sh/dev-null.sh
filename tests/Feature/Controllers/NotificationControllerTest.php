@@ -3,9 +3,12 @@
 declare(strict_types=1);
 
 use App\Actions\CreateCommitStar;
+use App\Actions\CreateEventCancellation;
 use App\Actions\DeleteUserFollow;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\Event;
+use App\Models\EventAttendee;
 use App\Models\Notification;
 use App\Models\User;
 
@@ -215,4 +218,28 @@ it('requires authentication', function (): void {
     $response = $this->get(route('notification.index'));
 
     $response->assertRedirectToRoute('home');
+});
+
+it('names the cancelled event, until its announcement is deleted', function (): void {
+    $user = User::factory()->create();
+    $event = Event::factory()->create(['title' => 'PHP night']);
+    EventAttendee::factory()->for($event)->for($user)->create();
+    resolve(CreateEventCancellation::class)->handle($event);
+
+    $this->actingAs($user)->get(route('notification.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('notifications.data.0.type', 'event_cancelled')
+            ->where('notifications.data.0.actor.id', $event->commit->user_id)
+            ->where('notifications.data.0.commit.event.id', $event->id)
+            ->where('notifications.data.0.commit.event.title', 'PHP night')
+            ->where('notifications.data.0.commit.event.state', 'cancelled'));
+
+    $this->get(route('notification.index', ['type' => 'replies']))
+        ->assertInertia(fn ($page) => $page->where('notifications.data', []));
+
+    $event->commit->delete();
+
+    $this->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page->where('notifications.data', []));
 });
