@@ -685,7 +685,10 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                         </UserPreview>
                         <div className="min-w-0 flex-1">
                             <p className="truncate text-sm">
-                                <UserPreview user={commit.user}>
+                                <UserPreview
+                                    user={commit.user}
+                                    showLiveStream={false}
+                                >
                                     <span className="font-semibold">
                                         {commit.user.name}
                                     </span>
