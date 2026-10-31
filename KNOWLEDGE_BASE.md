@@ -128,6 +128,8 @@ Share a stream you are running from the **…** menu on your own profile: **Go l
 
 **End stream** in the same menu stops it at once; otherwise it stops showing when the chosen time runs out, and the scheduler clears it within five minutes. Only the platform, the link, and the end time are stored, and they are included in your export.
 
+Apps can go live and end the stream too, through the signed API.
+
 Sources: [go-live button](resources/js/components/profile-live-button.tsx), [live avatar and card](resources/js/components/live-stream-card.tsx), [validation](app/Http/Requests/UpdateUserLiveRequest.php), [YouTube links](app/Services/LivePlatforms/YouTube.php), [Twitch links](app/Services/LivePlatforms/Twitch.php), [ending streams](app/Jobs/EndLiveStreams.php).
 
 ### Achievement badges and XP
@@ -544,6 +546,7 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - rename orgs, add people to them, change their roles, remove them, and leave an org, with the same maintainer rules as the web;
 - stash or reopen conversations and orgs, pin and mute them, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
+- go live on a YouTube or Twitch stream for 1 to 12 hours, and end it;
 - report commits;
 - search people by name or handle, and commits by meaning, with the web's limit of 15 commit searches a minute;
 - schedule commits, list your queue, cancel a scheduled commit, or post it early;
@@ -625,7 +628,7 @@ Posts awaiting automated checks stay pending if those checks fail; a failed chec
 
 Before you first commit, reply, quote, or schedule a commit, the web composer shows the commit rules, and keeps showing them on every attempt until you send with "Got it, commit": no engagement bait, no low-effort posts, no AI-generated posts, no spam or self-promotion, and no harassment, hate, or private information, followed by a link to the terms. Your first submission must come from the web so you can accept these rules; terminal, GitHub Action, and app posting become available afterwards.
 
-During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, open issues, send remotes, or start, rename, add people to, or pin messages in orgs from any surface; each attempt says how long is left and why. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
+During a **timeout**, you can still read and react, but cannot commit, reply, quote, schedule, open issues, send remotes, go live (a stream you already started can still be ended), or start, rename, add people to, or pin messages in orgs from any surface; each attempt says how long is left and why. Scheduled commits wait until the timeout ends. Like bans, timeouts belong to the GitHub account: deleting the /dev/null account and signing in again does not end a timeout or erase its history.
 
 A **ban** sends you to a page explaining why, where you can only sign out or delete your account; the app refuses everything but deleting the account, and the terminal refuses posting. A ban belongs to the GitHub account, so deleting the /dev/null account and signing in again does not lift it. Banning someone cancels their scheduled commits, so lifting the ban later does not publish them all at once.
 
