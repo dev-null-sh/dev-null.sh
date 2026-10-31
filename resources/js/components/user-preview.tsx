@@ -428,7 +428,7 @@ function UserPreviewContent({
                                     variant={
                                         shownIsFollowing ? 'outline' : 'default'
                                     }
-                                    className="group/follow min-w-24"
+                                    className="group/follow min-w-26"
                                     onClick={() => {
                                         markToggled();
                                         toggleFollow();
@@ -437,7 +437,7 @@ function UserPreviewContent({
                                     aria-label={
                                         shownIsFollowing
                                             ? `Unfollow @${user.handle}`
-                                            : `Follow @${user.handle}`
+                                            : `${data.followsYou ? 'Follow back' : 'Follow'} @${user.handle}`
                                     }
                                     aria-busy={pendingFollows !== null}
                                     data-test="user-preview-follow-button"
@@ -445,12 +445,13 @@ function UserPreviewContent({
                                     <FollowLabel
                                         isFollowing={shownIsFollowing}
                                         isJustToggled={isJustToggled}
+                                        followsYou={data.followsYou}
                                     />
                                 </Button>
                             )}
                         </div>
                     ) : (
-                        <span className="h-8 w-24 rounded-md bg-muted-foreground/15 motion-safe:animate-pulse" />
+                        <span className="h-8 w-26 rounded-md bg-muted-foreground/15 motion-safe:animate-pulse" />
                     ))}
             </div>
 

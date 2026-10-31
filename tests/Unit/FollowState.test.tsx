@@ -167,6 +167,7 @@ function suggestion(handle: string): SuggestedUser {
         show_local_time: false,
         followed_by_following_count: 0,
         followers_count: 0,
+        follows_you: false,
     } as unknown as SuggestedUser;
 }
 
@@ -218,7 +219,7 @@ function previewFollowButton(
                 ...(onChange && { onChange }),
                 data: {
                     isFollowing,
-                    followsYou: false,
+                    followsYou: user.follows_you,
                     isMuting: false,
                     isBlocking: false,
                     isUnavailable: false,
@@ -253,6 +254,34 @@ test('a suggestion who follows you offers to follow back, at a width that fits i
     assert.equal(suggestionLabel(user), 'Follow back @freek');
     assert.match(String(button?.props.className), /\bmin-w-26\b/);
     assert.equal(suggestionLabel(suggestion('jess')), 'Follow @jess');
+});
+
+test('a preview offers to follow back when they already follow you', () => {
+    const user = { ...suggestion('preview-follower'), follows_you: true };
+    const button = previewFollowButton(user);
+
+    assert.equal(button.props['aria-label'], 'Follow back @preview-follower');
+    assert.equal(
+        render(button.props.children as ReactElement<Props>),
+        'Follow back',
+    );
+});
+
+test('a preview offers to follow someone who does not follow you', () => {
+    const button = previewFollowButton(suggestion('preview-stranger'));
+
+    assert.equal(button.props['aria-label'], 'Follow @preview-stranger');
+    assert.equal(
+        render(button.props.children as ReactElement<Props>),
+        'Follow',
+    );
+});
+
+test('a preview still offers to unfollow someone you already follow back', () => {
+    const user = { ...suggestion('preview-mutual'), follows_you: true };
+    const button = previewFollowButton(user, true);
+
+    assert.equal(button.props['aria-label'], 'Unfollow @preview-mutual');
 });
 
 test('a follow from their profile shows in who to follow', () => {
