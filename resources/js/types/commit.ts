@@ -1,4 +1,5 @@
-import type { User } from '@/types/auth';
+import type { Lane, User } from '@/types/auth';
+import type { Organization } from '@/types/organization';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
 
@@ -71,9 +72,12 @@ export type CommitTranslation = {
 };
 
 /**
- * The profile a commit is from, which so far is always a user's.
+ * The profile a commit is from: a user's, or an organization's, which has no hover card or local time, and is in
+ * /dev/null's blue until its admins choose a lane.
  */
-export type CommitAuthor = User & { type: 'user' };
+export type CommitAuthor =
+    | (User & { type: 'user' })
+    | (Organization & { type: 'organization'; id: string; lane: Lane | null });
 
 export type Commit = {
     id: string;

@@ -4,7 +4,7 @@ import { clsx } from 'clsx';
 import type { CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
-import type { DeletedCommit, Lane, ThreadCommit } from '@/types';
+import type { CommitAuthor, DeletedCommit, Lane, ThreadCommit } from '@/types';
 import type { FlashToast, TimeoutFlash } from '@/types/ui';
 
 /**
@@ -194,6 +194,15 @@ export function organizationLaneColor(lane: Lane | null): string {
 }
 
 /**
+ * The lane of a commit's author, a user's or an organization's.
+ */
+export function authorLaneColor(author: CommitAuthor): string {
+    return author.type === 'organization'
+        ? organizationLaneColor(author.lane)
+        : laneColor(author.lane);
+}
+
+/**
  * A palette lane is a CSS variable, so a hex alpha cannot be appended to it.
  */
 export function laneTint(color: string, percent: number): string {
@@ -250,7 +259,7 @@ export function isRejectedSubmission(flash: {
 }
 
 export function laneOf(commit: ThreadCommit): string {
-    return isDeleted(commit) ? 'var(--rail)' : laneColor(commit.author.lane);
+    return isDeleted(commit) ? 'var(--rail)' : authorLaneColor(commit.author);
 }
 
 export function shortHash(id: string): string {

@@ -198,7 +198,7 @@ export function trackCommitPhotoPage(): VoidFunction {
 
 export const commitPhotoUrl = (commit: Commit, index: number): string =>
     CommitPhotoController.show({
-        user: commit.author,
+        profile: commit.author,
         commit,
         photo: index + 1,
     }).url;
@@ -268,7 +268,7 @@ export function closeCommitPhoto(photo: CommitPhoto): void {
     }
     router.replace({
         url: CommitController.show({
-            user: photo.commit.author,
+            profile: photo.commit.author,
             commit: photo.commit,
         }).url,
         props: (props) => ({ ...props, photo: undefined }),

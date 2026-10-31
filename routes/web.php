@@ -238,10 +238,10 @@ Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->gr
         Route::get('@{user:handle}/mutuals', [UserMutualsController::class, 'index'])
             ->name('user-mutuals.index');
     });
-    Route::get('@{user:handle}/commits/{commit}', [CommitController::class, 'show'])
+    Route::get('@{profile:handle}/commits/{commit}', [CommitController::class, 'show'])
         ->scopeBindings()
         ->name('commit.show');
-    Route::get('@{user:handle}/commits/{commit}/photos/{photo}', [CommitPhotoController::class, 'show'])
+    Route::get('@{profile:handle}/commits/{commit}/photos/{photo}', [CommitPhotoController::class, 'show'])
         ->scopeBindings()
         ->whereNumber('photo')
         ->name('commit-photo.show');
@@ -287,7 +287,7 @@ Route::get('@{user:handle}/graph.svg', [UserActivityGraphController::class, 'sho
     ->name('user-activity-graph.show');
 
 // Commit...
-Route::get('@{user:handle}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
+Route::get('@{profile:handle}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
     ->scopeBindings()
     ->name('commit-open-graph-image.show');
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])

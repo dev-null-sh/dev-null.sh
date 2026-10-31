@@ -58,6 +58,7 @@ import { clickedCommit } from '@/lib/commit-click';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import { measureCommitSize } from '@/lib/commit-size';
 import {
+    authorLaneColor,
     cn,
     formatFullDateTime,
     formatRelativeTime,
@@ -127,7 +128,7 @@ export function CommitCard({
     const nodeRef = useRef<HTMLAnchorElement>(null);
     const graphNodeRef = useGraphNode({
         id: commit.id,
-        lane: laneColor(commit.author.lane),
+        lane: authorLaneColor(commit.author),
         after: graphAfter,
         dimmed: isDimmed,
         ring: isGroupedWithPrevious ? railDotRing : 0,
@@ -161,7 +162,7 @@ export function CommitCard({
     const isFresh = isOwn && isWithinSeconds(commit.created_at, 15);
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
-    const permalink = CommitController.show({ user: commit.author, commit });
+    const permalink = CommitController.show({ profile: commit.author, commit });
 
     const openClickedCommit = (event: MouseEvent<HTMLElement>) => {
         const click = clickedCommit(
@@ -270,7 +271,7 @@ export function CommitCard({
                 data-graph-leaving={deletion === 'deleting' || undefined}
             >
                 <GraphRail
-                    lane={laneColor(commit.author.lane)}
+                    lane={authorLaneColor(commit.author)}
                     previousLane={previousLane}
                     endsWithDot={endsWithDot}
                     endsOnActions
@@ -365,7 +366,11 @@ export function CommitCard({
                                 </span>
                                 <TimestampTooltip
                                     date={commit.created_at}
-                                    author={commit.author}
+                                    author={
+                                        commit.author.type === 'user'
+                                            ? commit.author
+                                            : undefined
+                                    }
                                 >
                                     <Link
                                         href={permalink}
@@ -442,7 +447,7 @@ export function CommitCard({
                             {commit.parent && !isDeleted(commit.parent) && (
                                 <Link
                                     href={CommitController.show({
-                                        user: commit.parent.author,
+                                        profile: commit.parent.author,
                                         commit: commit.parent,
                                     })}
                                     className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
@@ -499,7 +504,11 @@ export function CommitCard({
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
                                     <TimestampTooltip
                                         date={commit.created_at}
-                                        author={commit.author}
+                                        author={
+                                            commit.author.type === 'user'
+                                                ? commit.author
+                                                : undefined
+                                        }
                                     >
                                         <time dateTime={commit.created_at}>
                                             {formatFullDateTime(
@@ -574,7 +583,7 @@ export function CommitCard({
                 <RailSegment
                     lane={
                         hasRailTail && !endsWithDot
-                            ? laneColor(commit.author.lane)
+                            ? authorLaneColor(commit.author)
                             : undefined
                     }
                     isDimmed={isDimmed}
@@ -646,7 +655,7 @@ export function CommitCard({
                         <RailSegment
                             lane={
                                 hasRailTail && !endsWithDot
-                                    ? laneColor(commit.author.lane)
+                                    ? authorLaneColor(commit.author)
                                     : undefined
                             }
                             isDimmed={isDimmed}

@@ -11,7 +11,13 @@ import {
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
 import { isDeliberateHover } from '@/lib/feed-hover';
-import { cn, formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
+import {
+    authorLaneColor,
+    cn,
+    formatDayLabel,
+    laneColor,
+    localDayKey,
+} from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 const interludeAfter = 5;
@@ -301,7 +307,7 @@ export function CommitFeed({
                             {card(commit)}
                             {index === interludeIndex &&
                                 interlude?.(
-                                    laneColor(commit.author.lane),
+                                    authorLaneColor(commit.author),
                                     isDimmed(commit),
                                 )}
                         </Fragment>
@@ -312,7 +318,7 @@ export function CommitFeed({
             {commits.next_cursor === null && lastCommit && (
                 <div className="flex">
                     <GraphRail
-                        lane={laneColor(lastCommit.author.lane)}
+                        lane={authorLaneColor(lastCommit.author)}
                         variant="root"
                         hasTail={false}
                     />

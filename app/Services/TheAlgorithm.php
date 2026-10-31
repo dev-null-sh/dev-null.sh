@@ -108,9 +108,9 @@ final readonly class TheAlgorithm
         // log2((1 - floor) * decay^position + floor), where the position counts from 0 within the author's commits.
         $authorDiversity = 'case when commits.author_id is null then 0 else ln((1 - ?::float8) * power(?::float8, row_number() over (partition by commits.author_id order by commits.hot_score desc, commits.id desc) - 1) + ?::float8) / ln(2) end';
 
-        // 0 for the viewer's own commits and the people they follow, log2(0.75) for everyone else.
+        // 0 for the viewer's own commits and the people and organizations they follow, log2(0.75) for everyone else.
         [$network, $networkBindings] = $viewer instanceof User
-            ? ['case when commits.author_id = ? or exists (select 1 from follows where follows.follower_id = ? and follows.followed_id = commits.author_id) then 0 else ?::float8 end', [$viewer->id, $viewer->id, log(self::OUT_OF_NETWORK_SCALE, 2)]]
+            ? ['case when commits.author_id = ? or exists (select 1 from follows where follows.follower_id = ? and follows.followed_id = commits.author_id) or exists (select 1 from organization_follows where organization_follows.user_id = ? and organization_follows.organization_id = commits.author_id) then 0 else ?::float8 end', [$viewer->id, $viewer->id, $viewer->id, log(self::OUT_OF_NETWORK_SCALE, 2)]]
             : ['0', []];
 
         // temperature / ln(2) * ln(-ln(u)), subtracted below, adds the Gumbel noise on the scale of the doublings.

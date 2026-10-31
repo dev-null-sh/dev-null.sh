@@ -20,6 +20,7 @@ import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { ActionTooltip } from '@/components/action-tooltip';
+import { AuthorAvatar } from '@/components/author-avatar';
 import { BodyCounter } from '@/components/body-counter';
 import { FoldedCommitBody } from '@/components/commit-body';
 import {
@@ -65,7 +66,6 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import {
     useCommitNotFound,
@@ -551,7 +551,7 @@ export function ShowThreadLink({ thread }: { thread: Thread }) {
 
     return (
         <Link
-            href={CommitController.show({ user: commit.author, commit })}
+            href={CommitController.show({ profile: commit.author, commit })}
             className="mt-2 -ml-2 flex w-fit items-center gap-1 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             aria-label={`Show thread by @${commit.author.handle}`}
             data-test="show-thread-link"
@@ -1109,7 +1109,7 @@ function CommitReply({
     const isFlattened = depth > maxIndentDepth;
     const isQuote = reply.quoted_commit_id === parent.id;
     const permalink = CommitController.show({
-        user: reply.author,
+        profile: reply.author,
         commit: reply,
     });
 
@@ -1164,8 +1164,8 @@ function CommitReply({
                             href={show(reply.author)}
                             className="block rounded-full"
                         >
-                            <UserAvatar
-                                user={reply.author}
+                            <AuthorAvatar
+                                author={reply.author}
                                 className="size-6 ring-2 ring-(--lane) ring-offset-2 ring-offset-card sm:size-7"
                                 style={
                                     {
@@ -1223,7 +1223,11 @@ function CommitReply({
                         </span>
                         <TimestampTooltip
                             date={reply.created_at}
-                            author={reply.author}
+                            author={
+                                reply.author.type === 'user'
+                                    ? reply.author
+                                    : undefined
+                            }
                         >
                             <Link
                                 href={permalink}

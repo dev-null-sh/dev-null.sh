@@ -23,7 +23,7 @@ export function CommittedToast({
     return (
         <Link
             href={CommitController.show({
-                user: committed.user,
+                profile: committed.user,
                 commit: committed,
             })}
             title={committed.body}

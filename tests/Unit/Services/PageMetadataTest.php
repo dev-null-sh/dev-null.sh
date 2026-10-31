@@ -60,6 +60,23 @@ it('omits an authorless parent from the metadata of a surviving reply', function
     expect($metadata['structuredData'])->not->toHaveKey('isPartOf');
 });
 
+it('describes a commit from an organization, which has no feed', function (): void {
+    $organization = Organization::factory()->create(['handle' => 'laravel', 'name' => 'Laravel']);
+    $commit = Commit::factory()->create(['author_id' => $organization->id])->loadPublicPreview()->loadCount('stars');
+
+    $metadata = resolve(PageMetadata::class)->commit($commit);
+
+    expect($metadata['title'])->toStartWith('Laravel (@laravel) on /dev/null: “')
+        ->and($metadata['url'])->toBe(route('commit.show', ['profile' => 'laravel', 'commit' => $commit]))
+        ->and($metadata)->not->toHaveKey('feed')
+        ->and($metadata['structuredData']['author'])->toBe([
+            '@type' => 'Organization',
+            'name' => 'Laravel',
+            'alternateName' => '@laravel',
+            'url' => route('user.show', ['user' => 'laravel']),
+        ]);
+});
+
 it('omits public metadata for unsaved or partial commits', function (Closure $factory): void {
     $commit = $factory()->loadPublicPreview();
 

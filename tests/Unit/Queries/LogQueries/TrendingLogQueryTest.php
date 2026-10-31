@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\UpdateCommitHotScores;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\LogQueries\TrendingLogQuery;
 
@@ -110,6 +111,17 @@ it('ranks commits of the people the viewer follows above newer commits of others
     $commits = resolve(TrendingLogQuery::class)->builder($viewer)->get();
 
     expect($commits->modelKeys())->toBe([$own->id, $followedCommit->id, $other->id]);
+});
+
+it('ranks commits of the organizations the viewer follows above newer commits of others', function (): void {
+    $viewer = User::factory()->create();
+    $followed = Organization::factory()->create();
+    $viewer->followedOrganizations()->attach($followed);
+
+    $other = Commit::factory()->create();
+    $followedCommit = Commit::factory()->create(['author_id' => $followed->id, 'created_at' => now()->subMinutes(61)]);
+
+    expect(resolve(TrendingLogQuery::class)->builder($viewer)->get()->modelKeys())->toBe([$followedCommit->id, $other->id]);
 });
 
 it('ranks commits by their score alone for a guest', function (): void {

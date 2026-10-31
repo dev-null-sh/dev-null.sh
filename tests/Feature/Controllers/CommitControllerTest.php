@@ -13,6 +13,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
 use App\Models\Notification;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Http\UploadedFile;
@@ -1505,6 +1506,23 @@ it('moves a commit for good to the handle of its author in its own case', functi
     $this->get("/@octocat/commits/{$commit->id}")
         ->assertMovedPermanently()
         ->assertRedirect("/@OctoCat/commits/{$commit->id}");
+});
+
+it("shows a commit from an organization under its handle, in the handle's own case", function (): void {
+    $organization = Organization::factory()->create(['handle' => 'Laravel']);
+    $commit = Commit::factory()->create(['author_id' => $organization->id]);
+
+    $this->get("/@laravel/commits/{$commit->id}")->assertRedirect("/@Laravel/commits/{$commit->id}");
+    $this->get("/@Laravel/commits/{$commit->id}")
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commit.author.type', 'organization')
+            ->where('commit.author.id', $organization->id)
+            ->where('commit.author.handle', 'Laravel')
+            ->where('commit.author.lane', null)
+            ->missing('commit.user_id')
+            ->missing('commit.user'));
+    $this->get("/@{$commit->user->handle}/commits/{$commit->id}")->assertNotFound();
 });
 
 it('does not move a commit the visitor cannot see, so it answers like a missing one', function (): void {
