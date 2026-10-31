@@ -12,6 +12,7 @@ import { trackAnalyticsEvents } from '@/lib/analytics';
 import { trackCommitPhotoPage } from '@/lib/commit-photo';
 import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
+import { trackFocusedCommitScroll } from '@/lib/focused-commit-scroll';
 import { trackFollowRequests } from '@/lib/follow-requests';
 import { pageTitle } from '@/lib/page-title';
 import { registerServiceWorker } from '@/lib/service-worker';
@@ -21,6 +22,7 @@ import '../css/app.css';
 
 trackCurrentPage();
 trackCommitPhotoPage();
+trackFocusedCommitScroll();
 trackVisualViewport();
 trackAnalyticsEvents();
 
