@@ -156,10 +156,6 @@ export function AchievementsShelf({
                     <span className="font-medium text-foreground group-hover:underline">
                         Lv. {achievements.level} · {achievements.rank}
                     </span>
-                    <span aria-hidden>·</span>
-                    <span title={`${formatExactCount(achievements.xp)} XP`}>
-                        {formatCount(achievements.xp)} XP
-                    </span>
                 </button>
                 <button
                     type="button"
