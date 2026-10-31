@@ -497,6 +497,7 @@ Press **?** to open the shortcut reference. Navigation shortcuts work outside te
 | `y` | Copy the focused commit's link. |
 | `r` / `q` / `o` | Reply, quote, or show/hide replies. |
 | `s` | Star or unstar the focused commit. |
+| `f` | Follow or unfollow the focused commit's author. |
 | `c` | Write a commit. |
 | `⌘/Ctrl+K` or `/` | Search developers and commits. |
 | `⌘/Ctrl+Enter` | Submit from the composer. |

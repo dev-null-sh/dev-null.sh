@@ -168,8 +168,8 @@ export function CommitStarButton({
                 type="button"
                 onClick={toggle}
                 aria-pressed={starred}
-                aria-keyshortcuts={keyShortcut}
                 aria-label={starLabel(starred, count)}
+                aria-keyshortcuts={keyShortcut}
                 className={cn(
                     'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                     starred && 'text-primary hover:text-primary',

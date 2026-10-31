@@ -12,10 +12,15 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
+import {
+    peekSharedState,
+    refreshSharedState,
+    useSharedState,
+} from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
+import { show as userPreview } from '@/routes/user-preview';
 import type { Commit, CursorPaginated, User } from '@/types';
 
 /**
@@ -123,6 +128,109 @@ export function onFollowHttpException(
     toast.error(`You can't follow @${user.handle}.`);
 
     return false;
+}
+
+/**
+ * Uses a follow control that already ran in this tab when it can, otherwise asks the preview endpoint once.
+ */
+export async function resolveIsFollowing(
+    user: Pick<User, 'id' | 'handle'>,
+): Promise<boolean | null> {
+    const known = peekSharedState<boolean>(isFollowingKey(user));
+
+    if (known !== undefined) {
+        return known;
+    }
+
+    try {
+        const response = await fetch(userPreview(user).url, {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        // Another follow control may have confirmed state while this preview was in flight.
+        const writtenWhilePending = peekSharedState<boolean>(
+            isFollowingKey(user),
+        );
+
+        if (writtenWhilePending !== undefined) {
+            return writtenWhilePending;
+        }
+
+        if (!response.ok) {
+            toastWhenThrottled(response);
+
+            return null;
+        }
+
+        const data = (await response.json()) as {
+            isFollowing: boolean;
+            isUnavailable: boolean;
+        };
+
+        if (data.isUnavailable) {
+            rememberBlock(user);
+
+            return null;
+        }
+
+        refreshSharedState(new Map([[isFollowingKey(user), data.isFollowing]]));
+
+        return data.isFollowing;
+    } catch {
+        toast.error(`Could not check @${user.handle}. Try again.`);
+
+        return null;
+    }
+}
+
+/**
+ * Follows or unfollows after resolving the current state, keeping every follow control in sync.
+ */
+export function toggleFollow(
+    user: Pick<User, 'id' | 'handle'>,
+    isFollowing: boolean,
+    setIsFollowing: (isFollowing: boolean) => void,
+    onFinish?: () => void,
+): void {
+    const next = !isFollowing;
+
+    if (peekSharedState<boolean>(isPendingKey(user)) === true) {
+        onFinish?.();
+
+        return;
+    }
+
+    refreshSharedState(new Map([[isPendingKey(user), true]]));
+
+    router.visit(
+        next
+            ? UserFollowController.store(user)
+            : UserFollowController.destroy(user),
+        {
+            preserveScroll: true,
+            preserveState: true,
+            onSuccess: () => {
+                setIsFollowing(next);
+                router.flushAll();
+                toast(
+                    <span className="font-mono text-[13px]">
+                        {next
+                            ? `Following @${user.handle}`
+                            : `Unfollowed @${user.handle}`}
+                    </span>,
+                );
+            },
+            onHttpException: (response) =>
+                onFollowHttpException(user, response),
+            onFinish: () => {
+                refreshSharedState(new Map([[isPendingKey(user), false]]));
+                onFinish?.();
+            },
+        },
+    );
 }
 
 export function FollowLabel({

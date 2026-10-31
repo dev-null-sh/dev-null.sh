@@ -11,6 +11,7 @@ import type { Commit } from '../../resources/js/types';
 async function render(
     user: { id: string } | null,
     commit: Partial<Commit> = {},
+    keyShortcut?: string,
 ): Promise<string> {
     const result = await createInertiaApp<{
         auth: { user: { id: string } | null };
@@ -38,6 +39,7 @@ async function render(
                         ...commit,
                     } as Commit
                 }
+                keyShortcut={keyShortcut}
             />
         ),
         render: renderToString,
@@ -54,7 +56,7 @@ async function render(
 }
 
 for (const status of ['approved', 'pending', 'rejected'] as const) {
-     test(`authors see their ${status} commit's star count and may open who starred`, async () => {
+    void test(`authors see their ${status} commit's star count and may open who starred`, async () => {
         const body = await render({ id: 'author' }, { status });
 
         assert.match(body, /data-test="own-star-count"/);
@@ -65,7 +67,7 @@ for (const status of ['approved', 'pending', 'rejected'] as const) {
     });
 }
 
- test('authors see an accessible empty star count', async () => {
+void test('authors see an accessible empty star count', async () => {
     const body = await render({ id: 'author' }, { stars_count: 0 });
 
     assert.match(body, /aria-label="No stars yet"/);
@@ -77,7 +79,7 @@ for (const status of ['approved', 'pending', 'rejected'] as const) {
 });
 
 for (const user of [null, { id: 'viewer' }]) {
-     test(`approved commits keep the star control for ${user === null ? 'guests' : 'other readers'}`, async () => {
+    void test(`approved commits keep the star control for ${user === null ? 'guests' : 'other readers'}`, async () => {
         const body = await render(user);
 
         assert.match(body, /data-test="star-commit-button"/);
@@ -87,7 +89,14 @@ for (const user of [null, { id: 'viewer' }]) {
     });
 }
 
- test('unstarred commits show only the star in the star control', async () => {
+void test('star button exposes the keyboard shortcut used by j/k navigation', async () => {
+    const body = await render({ id: 'viewer' }, {}, 's');
+
+    assert.match(body, /data-test="star-commit-button"/);
+    assert.match(body, /aria-keyshortcuts="s"/);
+});
+
+void test('unstarred commits show only the star in the star control', async () => {
     const body = await render({ id: 'viewer' }, { stars_count: 0 });
 
     assert.match(
@@ -96,7 +105,7 @@ for (const user of [null, { id: 'viewer' }]) {
     );
 });
 
- test('starred commits keep the count slot inside the star control', async () => {
+void test('starred commits keep the count slot inside the star control', async () => {
     const body = await render({ id: 'viewer' }, { stars_count: 1 });
 
     assert.doesNotMatch(body, /mr-\[calc/);
@@ -104,7 +113,7 @@ for (const user of [null, { id: 'viewer' }]) {
 });
 
 for (const status of ['pending', 'rejected'] as const) {
-     test(`other readers cannot star a ${status} commit`, async () => {
+    void test(`other readers cannot star a ${status} commit`, async () => {
         const body = await render({ id: 'viewer' }, { status });
 
         assert.doesNotMatch(
@@ -115,7 +124,7 @@ for (const status of ['pending', 'rejected'] as const) {
 }
 
 for (const status of ['approved', 'pending', 'rejected'] as const) {
-     test(`authors see their ${status} reply's star count and may open who starred`, async () => {
+    void test(`authors see their ${status} reply's star count and may open who starred`, async () => {
         const body = await render(
             { id: 'author' },
             { status, parent_id: 'parent' },
