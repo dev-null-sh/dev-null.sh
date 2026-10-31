@@ -107,6 +107,7 @@ it('answers a request the app did not make right with a plain error page, and ne
     'a long app name' => [['app_name' => str_repeat('a', 101)], 'The app name field must not be greater than 100 characters.'],
     'a long app id' => [['app_id' => str_repeat('a', 101)], 'The app id field must not be greater than 100 characters.'],
     'an app id that is a name' => [['app_id' => '/dev/null for Mac'], 'The app id field format is invalid.'],
+    'an app id without its bundle id' => [['app_id' => 'ios:'], 'The app id field format is invalid.'],
     'no challenge' => [['code_challenge' => null], 'The code challenge field is required.'],
     'a malformed challenge' => [['code_challenge' => 'short'], 'The code challenge field format is invalid.'],
     'a plain challenge' => [['code_challenge_method' => 'plain'], 'The selected code challenge method is invalid.'],

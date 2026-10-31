@@ -28,7 +28,7 @@ final class ShowMobileAuthorizationRequest extends FormRequest
         return [
             'fingerprint' => ['required', 'string', 'regex:/^SHA256:[A-Za-z0-9+\/]{43}$/'],
             'device_name' => ['required', 'string', 'max:100'],
-            'app_id' => ['nullable', 'string', 'max:100', 'regex:/^[A-Za-z0-9._:-]+$/'],
+            'app_id' => ['nullable', 'string', 'max:100', 'regex:/^[a-z]+:[A-Za-z0-9._-]+$/'],
             'app_name' => ['nullable', 'string', 'max:100'],
             'code_challenge' => ['required', 'string', 'regex:/^[A-Za-z0-9_-]{43}$/'],
             'code_challenge_method' => ['required', 'string', 'in:S256'],
