@@ -68,7 +68,7 @@ it('rolls back failed links without exposing content in the job error', function
         throw new RuntimeException('Sensitive database response');
     });
 
-    expect(fn () => new LinkCommitHeadlines($commit, ['Vector databases'], hash('sha256', $commit->body))->handle(resolve(UpdateCommitHeadlines::class)))
+    expect(fn (): ?int => new LinkCommitHeadlines($commit, ['Vector databases'], hash('sha256', $commit->body))->handle(resolve(UpdateCommitHeadlines::class)))
         ->toThrow(fn (CommitProcessingFailed $error): Expectation => expect($error->getMessage())->toContain($commit->id)->not->toContain('Private test body', 'Sensitive database response')
             ->and($error->getPrevious())->toBeNull());
     expect($commit->headlines()->count())->toBe(0);
