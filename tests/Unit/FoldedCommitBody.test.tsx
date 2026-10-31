@@ -48,6 +48,7 @@ test('a shortened code preview uses its continuation cue without a loose ellipsi
         [block('echo before\necho after')],
         [block('echo before'), { type: 'text', text: '\n…' }],
     );
+    assert.ok(markup.includes('mask-b-from-'));
     assert.ok(markup.includes('echo before'));
     assert.ok(!markup.includes('echo after'));
     assert.ok(!markup.includes('…'));
@@ -60,6 +61,7 @@ test('a completed code block keeps the ellipsis when later prose is hidden', () 
         [block('echo ready'), { type: 'text', text: '\nMore explanation' }],
         [block('echo ready'), { type: 'text', text: '\n…' }],
     );
+    assert.ok(!markup.includes('mask-b-from-'));
     assert.ok(markup.includes('echo ready'));
     assert.ok(markup.includes('…'));
     assert.ok(markup.includes('Show more'));
@@ -67,6 +69,7 @@ test('a completed code block keeps the ellipsis when later prose is hidden', () 
 
 test('a complete body shows all its code without an expansion control', () => {
     const markup = renderBody([block('echo before\necho after')], null);
+    assert.ok(!markup.includes('mask-b-from-'));
     assert.ok(markup.includes('echo after'));
     assert.ok(!markup.includes('Show more'));
 });

@@ -64,10 +64,10 @@ export function CodeBlock({
     return (
         <div
             className={cn(
-                'my-2 rounded-md border bg-muted/60',
+                'relative isolate my-2 rounded-md border border-transparent before:pointer-events-none before:absolute before:-inset-px before:-z-10 before:rounded-md before:border before:border-border before:bg-muted/60',
                 fullHtml !== undefined &&
                     fullHtml !== html &&
-                    'mask-b-from-[calc(100%-3rem)] mask-b-to-100%',
+                    'before:mask-b-from-[calc(100%-3rem)] before:mask-b-to-100%',
             )}
         >
             {(language || isCopyable) && (
@@ -127,20 +127,27 @@ export function CodeBlock({
                     )}
                 </div>
             )}
-            {/* The server escapes the code while highlighting it. */}
-            <pre
-                ref={codeRef}
-                tabIndex={isCopyable ? undefined : -1}
-                className={cn(
-                    'px-3 py-2.5 font-mono text-[13px] leading-normal',
-                    isWrapped
-                        ? 'overflow-x-hidden wrap-anywhere whitespace-pre-wrap'
-                        : 'overflow-x-auto wrap-normal whitespace-pre',
-                )}
-                dangerouslySetInnerHTML={{
-                    __html: withCertificateHashes(html),
-                }}
-            />
+            <div
+                className={isWrapped ? 'overflow-x-hidden' : 'overflow-x-auto'}
+            >
+                {/* The server escapes the code while highlighting it. */}
+                <pre
+                    ref={codeRef}
+                    tabIndex={isCopyable ? undefined : -1}
+                    className={cn(
+                        'px-3 py-2.5 font-mono text-[13px] leading-normal',
+                        isWrapped
+                            ? 'wrap-anywhere whitespace-pre-wrap'
+                            : 'w-max min-w-full wrap-normal whitespace-pre',
+                        fullHtml !== undefined &&
+                            fullHtml !== html &&
+                            'mask-b-from-[calc(100%-3rem)] mask-b-to-100%',
+                    )}
+                    dangerouslySetInnerHTML={{
+                        __html: withCertificateHashes(html),
+                    }}
+                />
+            </div>
         </div>
     );
 }
