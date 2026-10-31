@@ -62,7 +62,14 @@ export function CodeBlock({
     };
 
     return (
-        <div className="my-2 rounded-md border bg-muted/60">
+        <div
+            className={cn(
+                'my-2 rounded-md border bg-muted/60',
+                fullHtml !== undefined &&
+                    fullHtml !== html &&
+                    'mask-b-from-[calc(100%-3rem)] mask-b-to-100%',
+            )}
+        >
             {(language || isCopyable) && (
                 <div className="flex h-8 items-center justify-between gap-2 border-b pr-1 pl-3">
                     <span
