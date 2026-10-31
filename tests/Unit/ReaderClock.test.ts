@@ -84,9 +84,10 @@ void test("tells the year apart on the reader's calendar", () => {
 });
 
 void test('reads a clock the server shared only once it knows both its time zone and its hour cycle', () => {
-    assert.deepEqual(clockOf({ timeZone: 'Europe/Paris', hourCycle: 'h23' }), {
+    assert.deepEqual(clockOf({ timeZone: 'Europe/Paris', hourCycle: 'h23', dateOrder: 'day_first' }), {
         timeZone: 'Europe/Paris',
         hourCycle: 'h23',
+        dateOrder: 'day_first',
     });
     assert.equal(clockOf({ timeZone: null, hourCycle: 'h23' }), null);
     assert.equal(clockOf({ timeZone: 'Europe/Paris', hourCycle: null }), null);
@@ -101,4 +102,5 @@ void test("tells this machine's clock", () => {
         Intl.DateTimeFormat().resolvedOptions().timeZone,
     );
     assert.match(clock.hourCycle, /^h(11|12|23|24)$/);
+    assert.match(clock.dateOrder, /^(month_first|day_first)$/);
 });

@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { PointerEvent, ReactNode } from 'react';
+import { useDateTime } from '@/hooks/use-date-time';
 import { formatCount } from '@/lib/numbers';
 import { cn } from '@/lib/utils';
 
@@ -64,16 +65,6 @@ export function compactNumber(value: number): string {
         notation: 'compact',
         maximumFractionDigits: 1,
     }).format(value);
-}
-
-export function shortDate(date: string): string {
-    return new Date(
-        date.length === 10 ? `${date}T00:00:00Z` : date,
-    ).toLocaleDateString('en', {
-        month: 'short',
-        day: 'numeric',
-        timeZone: 'UTC',
-    });
 }
 
 function Tooltip({
@@ -187,6 +178,7 @@ export function LineChart({
     label: string;
     unit: string;
 }) {
+    const { formatDate } = useDateTime();
     const [ref, width] = useWidth<HTMLDivElement>();
     const [hovered, setHovered] = useState<number | null>(null);
     const days: (LinePoint &
@@ -306,7 +298,10 @@ export function LineChart({
                                     }
                                     className="fill-muted-foreground font-mono text-[11px]"
                                 >
-                                    {shortDate(day.date)}
+                                    {formatDate(day.date, {
+                                        timeZone: 'UTC',
+                                        year: false,
+                                    })}
                                 </text>
                             ),
                     )}
@@ -381,7 +376,10 @@ export function LineChart({
             {active && hovered !== null && (
                 <Tooltip x={x(hovered)} width={width}>
                     <p className="font-medium">
-                        {shortDate(active.date)}
+                        {formatDate(active.date, {
+                            timeZone: 'UTC',
+                            year: false,
+                        })}
                         {active.isForecast && (
                             <span className="font-normal opacity-70">
                                 {' '}
@@ -415,7 +413,12 @@ export function LineChart({
                         {days.map((day) => (
                             <tr key={day.date}>
                                 <th scope="row">
-                                    {day.date}
+                                    <time dateTime={day.date}>
+                                        {formatDate(day.date, {
+                                            timeZone: 'UTC',
+                                            year: true,
+                                        })}
+                                    </time>
                                     {day.isForecast ? ' (expected)' : ''}
                                 </th>
                                 <td>{format(day.value)}</td>

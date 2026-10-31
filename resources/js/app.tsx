@@ -3,7 +3,6 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { ComponentType } from 'react';
 import { StrictMode } from 'react';
 import { createRoot, hydrateRoot } from 'react-dom/client';
-import { TimeoutDialog } from '@/components/timeout-dialog';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme, setCookie } from '@/hooks/use-appearance';
@@ -40,13 +39,13 @@ void createInertiaApp({
         // So the server renders the next pages with the reader's clock.
         setCookie('time_zone', clock.timeZone);
         setCookie('hour_cycle', clock.hourCycle);
+        setCookie('date_order', clock.dateOrder);
 
         const app = (
             <StrictMode>
                 <TooltipProvider delayDuration={150}>
                     <App {...props} />
                     <Toaster />
-                    <TimeoutDialog />
                 </TooltipProvider>
             </StrictMode>
         );
@@ -57,7 +56,8 @@ void createInertiaApp({
         if (
             el.hasAttribute('data-server-rendered') &&
             serverClock?.timeZone === clock.timeZone &&
-            serverClock.hourCycle === clock.hourCycle
+            serverClock.hourCycle === clock.hourCycle &&
+            serverClock.dateOrder === clock.dateOrder
         ) {
             setRenderedAt(props.initialPage.props.now);
             hydrateRoot(el, app);

@@ -61,6 +61,7 @@ import {
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useChat, useThread } from '@/hooks/use-chat';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { moveCaretToEnd, useStash } from '@/hooks/use-stash';
@@ -88,14 +89,7 @@ import type { ReactionUsage } from '@/lib/reactions';
 import { isRemoteMuted, playPing } from '@/lib/remote-notifications';
 import { restoreScrollAnchor, scrollAnchorOf } from '@/lib/scroll-anchor';
 import type { ScrollAnchor } from '@/lib/scroll-anchor';
-import {
-    characterCount,
-    cn,
-    formatClockTime,
-    formatDayLabel,
-    laneColor,
-    localDayKey,
-} from '@/lib/utils';
+import { characterCount, cn, laneColor, localDayKey } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type {
     Message,
@@ -169,6 +163,7 @@ export function ConversationThread({
     onDropped?: () => void;
 }) {
     const thread = useThread(target);
+    const dateTime = useDateTime();
     const chat = useChat();
     const usage = chat.reactionUsage ?? noUsage;
     const isOrg = target.kind === 'org';
@@ -199,8 +194,9 @@ export function ConversationThread({
     const head = thread?.head ?? 0;
     const headUntil = thread?.headUntil ?? 0;
     const items = useMemo(
-        () => itemsOf(messages, pending, head, headUntil, user, isOrg),
-        [messages, pending, head, headUntil, user, isOrg],
+        () =>
+            itemsOf(messages, pending, head, headUntil, user, isOrg, dateTime),
+        [messages, pending, head, headUntil, user, isOrg, dateTime],
     );
     const statusMessage = useMemo(
         () => statusMessageOf(messages, pending, user, isOrg),
@@ -892,7 +888,9 @@ function itemsOf(
     headUntil: number,
     user: User,
     isOrg: boolean,
+    dateTime: ReturnType<typeof useDateTime>,
 ): Item[] {
+    const { formatDayLabel } = dateTime;
     const bubbles: {
         bubble: Bubble;
         at: string;
@@ -1159,6 +1157,7 @@ function BubbleWithMeta({
     onPin: ((message: Message, isPinned: boolean) => void) | null;
 }) {
     const [isReacting, setIsReacting] = useState(false);
+    const { formatTime: timeOf } = useDateTime();
     const [isTrayOpen, setIsTrayOpen] = useState(false);
     const trayId = useId();
     const reactButton = useRef<HTMLButtonElement>(null);
@@ -1442,7 +1441,7 @@ function BubbleWithMeta({
                         {status === 'pulled' &&
                             target.kind === 'direct' &&
                             pulls.readAt &&
-                            ` ${formatClockTime(pulls.readAt)}`}
+                            ` ${timeOf(pulls.readAt)}`}
                         {pulledBy.length > 0 && ' by'}
                     </span>
                     {pulledBy.length > 0 && (
@@ -1454,7 +1453,7 @@ function BubbleWithMeta({
                 bubble.kind === 'message' && (
                     <MetaLine>
                         <time dateTime={bubble.message.created_at}>
-                            {formatClockTime(bubble.message.created_at)}
+                            {timeOf(bubble.message.created_at)}
                         </time>
                         {showsStatus && pulledBy.length > 0 && (
                             <>

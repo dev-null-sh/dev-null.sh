@@ -7,13 +7,9 @@ import { CommitPoll } from '@/components/commit-poll';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
 import { LinkPreview } from '@/components/link-preview';
 import { UserAvatar } from '@/components/user-avatar';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
-import {
-    cn,
-    formatFullDateTime,
-    formatRelativeTime,
-    isDeleted,
-} from '@/lib/utils';
+import { cn, isDeleted } from '@/lib/utils';
 import type { DeletedCommit, QuotedCommit as QuotedCommitData } from '@/types';
 
 export function QuotedCommit({
@@ -25,6 +21,7 @@ export function QuotedCommit({
     isPreview?: boolean;
     label?: string;
 }) {
+    const { formatFullDateTime, formatRelativeTime } = useDateTime();
     const now = useNow();
     if (commit === null || isDeleted(commit)) {
         return (

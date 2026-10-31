@@ -9,9 +9,9 @@ import { EmptyFeed } from '@/components/commit-feed';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
 import AppLayout from '@/layouts/app-layout';
-import { formatFullDateTime } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 type Report = {
@@ -35,6 +35,7 @@ export default function Reports({
     reports: CursorPaginated<Report>;
     reasons: Record<string, string>;
 }) {
+    const { formatFullDateTime } = useDateTime();
     const [busy, setBusy] = useState(false);
     const markCommitDeleted = useMarkCommitDeleted();
     const resolve = (

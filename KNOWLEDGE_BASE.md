@@ -472,7 +472,11 @@ Settings → Appearance offers:
 
 These appearance choices are saved in the browser, not on the account, so each browser keeps its own. Settings → Profile lets you choose one of six lane colors (Orange, Green, Violet, Teal, Rose, Ochre), a custom color, or the automatic color used around your identity and activity graph.
 
+Date and time formats are also under Settings → Appearance. Choose month-first (`Oct 19`) or day-first (`19 Oct`) dates and a 12- or 24-hour clock independently. “Browser default” uses the browser's date order and clock format. Month and weekday names remain in English. These format preferences are private and saved on the account. They change display only, not stored timestamps, scheduling, or day grouping.
+
 Profile settings also let you share a timezone. Timestamps can show the author's local time as well as the viewer's when a timezone is shared. Leaving it unset uses the browser's timezone for your display without publishing your timezone. A separate, off-by-default setting shows your current local time on your profile, next to your location and website; it only applies while a timezone is set, and clearing the timezone turns it off. These /dev/null preferences are separate from your GitHub-managed profile information.
+
+The profile clock uses the profile owner's timezone and the viewer's clock format. Date and time formats save separately from the profile timezone.
 
 Sources: [appearance settings](resources/js/pages/appearance/update.tsx), [lane picker](resources/js/components/lane-picker.tsx), [timezone picker](resources/js/components/timezone-picker.tsx), [local time](resources/js/components/local-time.tsx), [timestamp tooltip](resources/js/components/timestamp-tooltip.tsx).
 

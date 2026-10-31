@@ -11,7 +11,7 @@ import {
     DialogFooter,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { formatFullDateTime } from '@/lib/utils';
+import { useDateTime } from '@/hooks/use-date-time';
 import type { TimeoutFlash } from '@/types/ui';
 
 let current: TimeoutFlash | null = null;
@@ -65,9 +65,10 @@ export function timeoutFrom(
 }
 
 /**
- * Mounted once next to the toaster, so any composer can open it.
+ * Mounted once in the app layout, so any composer can open it.
  */
 export function TimeoutDialog() {
+    const { formatFullDateTime } = useDateTime();
     const shown = useSyncExternalStore(
         subscribe,
         () => current,

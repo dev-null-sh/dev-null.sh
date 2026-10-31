@@ -85,8 +85,8 @@ void test('gives an author who isn’t on /dev/null the same lane every time', (
 void test('names the day relative to today in the reader’s time zone', () => {
     const now = new Date('2026-10-17T23:30:00Z');
 
-    assert.deepEqual(changelogDayHeading('2026-10-18', 'Europe/Budapest', now), { title: 'Today', date: 'Oct 18' });
-    assert.deepEqual(changelogDayHeading('2026-10-17', 'Europe/Budapest', now), { title: 'Yesterday', date: 'Oct 17' });
-    assert.deepEqual(changelogDayHeading('2026-10-14', 'Europe/Budapest', now), { title: 'Wednesday', date: 'Oct 14' });
-    assert.deepEqual(changelogDayHeading('2025-12-31', 'Europe/Budapest', now), { title: 'Wednesday', date: 'Dec 31, 2025' });
+    assert.deepEqual(changelogDayHeading('2026-10-18', 'Europe/Budapest', now, { locale: 'en-US' }), { title: 'Today', date: 'Oct 18' });
+    assert.deepEqual(changelogDayHeading('2026-10-17', 'Europe/Budapest', now, { locale: 'en-US' }), { title: 'Yesterday', date: 'Oct 17' });
+    assert.deepEqual(changelogDayHeading('2026-10-14', 'Europe/Budapest', now, { locale: 'en-US' }), { title: 'Wednesday', date: 'Oct 14' });
+    assert.deepEqual(changelogDayHeading('2025-12-31', 'Europe/Budapest', now, { locale: 'en-US' }), { title: 'Wednesday', date: 'Dec 31, 2025' });
 });

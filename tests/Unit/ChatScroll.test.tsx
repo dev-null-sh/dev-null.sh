@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import type { ReactElement, ReactNode } from 'react';
 import { afterEach, test, vi } from 'vite-plus/test';
-import * as chatStore from '../../resources/js/lib/chat';
 import type { ChatTarget } from '../../resources/js/lib/chat';
 import type { Message, User } from '../../resources/js/types';
 
@@ -42,6 +41,10 @@ vi.doMock('react', () => ({
         slots[index] = dependencies;
     },
 }));
+vi.doMock('@inertiajs/react', async () => ({
+    ...(await vi.importActual('@inertiajs/react')),
+    usePage: () => ({ props: { auth: { dateTime: {} } } }),
+}));
 vi.doMock('../../resources/js/hooks/use-chat', () => ({
     useThread: () => thread,
     useChat: () => ({ mutePreferences: {} }),
@@ -56,6 +59,7 @@ vi.doMock('../../resources/js/hooks/use-image-attachments', () => ({
 vi.doMock('../../resources/js/hooks/use-link-card', () => ({
     useLinkCard: () => ({}),
 }));
+const chatStore = await import('../../resources/js/lib/chat');
 const { ConversationThread } =
     await import('../../resources/js/components/chat/conversation-thread');
 const { MessageImages, MessageText } =

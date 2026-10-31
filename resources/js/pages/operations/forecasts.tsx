@@ -6,6 +6,7 @@ import { LineChart } from '@/components/operations/charts';
 import { PresetButton } from '@/components/operations/preset-button';
 import { utcDate } from '@/components/operations/range-picker';
 import { Panel } from '@/components/operations/section';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
 import OperationsLayout from '@/layouts/operations/layout';
 import { formatCount, formatExactCount } from '@/lib/numbers';
@@ -52,20 +53,6 @@ function signed(value: number, digits = 0): string {
 
 function trendLabel(trend: number): string {
     return Math.abs(trend) < 0.05 ? 'flat' : `${signed(trend, 1)}/day`;
-}
-
-function formatDay(date: string): string {
-    const value = new Date(`${date.slice(0, 10)}T00:00:00Z`);
-
-    return value.toLocaleDateString(dateLocale, {
-        month: 'short',
-        day: 'numeric',
-        year:
-            value.getUTCFullYear() === new Date().getUTCFullYear()
-                ? undefined
-                : 'numeric',
-        timeZone: 'UTC',
-    });
 }
 
 function daysFromToday(date: string): string {
@@ -283,6 +270,7 @@ function ChartKey({
 }
 
 function Milestones({ milestones }: { milestones: Milestone[] }) {
+    const { formatDate } = useDateTime();
     return (
         <Panel title="Milestones" meta="on the current trend">
             {milestones.length === 0 ? (
@@ -307,7 +295,21 @@ function Milestones({ milestones }: { milestones: Milestone[] }) {
                                     </p>
                                 ) : (
                                     <p className="font-mono text-[13px] tabular-nums">
-                                        ≈ {formatDay(milestone.eta)}
+                                        ≈{' '}
+                                        {formatDate(
+                                            `${milestone.eta.slice(0, 10)}T00:00:00Z`,
+                                            {
+                                                timeZone: 'UTC',
+                                                year:
+                                                    Number(
+                                                        milestone.eta.slice(
+                                                            0,
+                                                            4,
+                                                        ),
+                                                    ) !==
+                                                    new Date().getUTCFullYear(),
+                                            },
+                                        )}
                                         <span className="text-muted-foreground">
                                             {' '}
                                             · {daysFromToday(milestone.eta)}

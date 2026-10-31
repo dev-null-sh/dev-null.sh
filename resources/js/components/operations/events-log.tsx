@@ -2,14 +2,9 @@ import { Link } from '@inertiajs/react';
 import { ChevronRight } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import UserController from '@/actions/App/Http/Controllers/UserController';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
-import {
-    cn,
-    dateLocale,
-    formatDayLabel,
-    localDayKey,
-    readerClock,
-} from '@/lib/utils';
+import { cn, localDayKey } from '@/lib/utils';
 import type { OperationsEvent, OperationsEventLevel } from '@/types';
 
 export const LEVEL_DOTS: Record<OperationsEventLevel, string> = {
@@ -20,29 +15,6 @@ export const LEVEL_DOTS: Record<OperationsEventLevel, string> = {
 };
 
 const FRESH_MILLISECONDS = 2500;
-
-/** An event's time on the reader's clock, which only shows once the page renders. */
-function formatEventTime(
-    at: string,
-    options: Intl.DateTimeFormatOptions,
-): string {
-    return new Date(at).toLocaleString(dateLocale, {
-        ...options,
-        timeZone: readerClock().timeZone,
-    });
-}
-
-const timeOptions: Intl.DateTimeFormatOptions = {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-};
-
-const fullOptions: Intl.DateTimeFormatOptions = {
-    dateStyle: 'full',
-    timeStyle: 'long',
-};
 
 type Anchor = { id: string; top: number };
 
@@ -97,6 +69,7 @@ function EventRow({
     isExpanded: boolean;
     onToggle: () => void;
 }) {
+    const { formatDate, formatTime } = useDateTime();
     const profile =
         event.actor === null ? null : UserController.show(event.actor).url;
     const isProfile =
@@ -107,16 +80,17 @@ function EventRow({
         <li
             data-event-id={event.id}
             className={cn(
-                'grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-0.5 px-4 py-2 font-mono text-[13px] leading-5 transition-colors duration-1000 motion-reduce:transition-none sm:grid-cols-[8ch_10ch_10ch_minmax(0,1fr)_auto]',
+                // Reserve 11ch for seconds and AM/PM so event columns stay aligned.
+                'grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-start gap-x-3 gap-y-0.5 px-4 py-2 font-mono text-[13px] leading-5 transition-colors duration-1000 motion-reduce:transition-none sm:grid-cols-[minmax(11ch,max-content)_10ch_10ch_minmax(0,1fr)_auto]',
                 isFresh && 'bg-accent duration-0',
             )}
         >
             <time
                 dateTime={event.at}
-                title={formatEventTime(event.at, fullOptions)}
-                className="text-muted-foreground tabular-nums"
+                title={`${formatTime(event.at, undefined, { second: '2-digit', timeZoneName: 'short' })} · ${formatDate(event.at, { weekday: true, year: true })}`}
+                className="whitespace-nowrap text-muted-foreground tabular-nums"
             >
-                {formatEventTime(event.at, timeOptions)}
+                {formatTime(event.at, undefined, { second: '2-digit' })}
             </time>
             <LevelBadge level={event.level} />
             <span
@@ -193,6 +167,7 @@ function EventRow({
  * filters, so other results replace the rows instead of moving them.
  */
 export function EventsLog({ events }: { events: OperationsEvent[] }) {
+    const { formatDayLabel } = useDateTime();
     const now = useNow();
     const listRef = useRef<HTMLDivElement>(null);
     const anchor = useRef<Anchor | null>(null);

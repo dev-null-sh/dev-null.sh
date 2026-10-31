@@ -1,52 +1,56 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+    browserClock,
     formatDayLabel,
     formatFullDateTime,
     formatRelativeTime,
     formatSyncedAgo,
     formatZonedDate,
+    setReaderClock,
 } from '../../resources/js/lib/utils.ts';
 
 void test('month and weekday names stay in English whatever the browser language', () => {
     const original = Object.getOwnPropertyDescriptor(
-        Date.prototype,
-        'toLocaleDateString',
+        Intl,
+        'DateTimeFormat',
     )!;
+    const DateTimeFormat = original.value as typeof Intl.DateTimeFormat;
 
     // A French browser: the default locale is what `undefined` resolves to.
-    Object.defineProperty(Date.prototype, 'toLocaleDateString', {
+    Object.defineProperty(Intl, 'DateTimeFormat', {
         ...original,
-        value(
-            this: Date,
-            locales?: Intl.LocalesArgument,
-            options?: Intl.DateTimeFormatOptions,
-        ) {
-            return new Intl.DateTimeFormat(locales ?? 'fr-FR', options).format(
-                this,
-            );
+        value: class extends DateTimeFormat {
+            constructor(
+                locales?: Intl.LocalesArgument,
+                options?: Intl.DateTimeFormatOptions,
+            ) {
+                super(locales ?? 'fr-FR', options);
+            }
         },
     });
 
     try {
+        setReaderClock(browserClock());
         // These helpers show the local calendar day, so the fixtures are local noons, not UTC ones.
         const noon = (year: number, month: number, day: number) =>
             new Date(year, month - 1, day, 12).toISOString();
         const now = new Date(noon(2026, 10, 18));
 
-        assert.equal(formatRelativeTime(noon(2026, 10, 5), now), 'Oct 5');
-        assert.equal(formatRelativeTime(noon(2025, 3, 5), now), 'Mar 5, 2025');
-        assert.equal(formatDayLabel(noon(2026, 10, 13), now), 'Tue, Oct 13');
+        assert.equal(formatRelativeTime(noon(2026, 10, 5), now), '5 Oct');
+        assert.equal(formatRelativeTime(noon(2025, 3, 5), now), '5 Mar 2025');
+        assert.equal(formatDayLabel(noon(2026, 10, 13), now), 'Tue, 13 Oct');
         assert.match(
             formatFullDateTime('2026-10-05T12:00:00Z', 'UTC'),
-            / · Oct 5, 2026$/,
+            / · 5 Oct 2026$/,
         );
         assert.equal(
             formatZonedDate('2025-10-05T12:00:00Z', 'UTC'),
-            'Oct 5, 2025',
+            '5 Oct 2025',
         );
     } finally {
-        Object.defineProperty(Date.prototype, 'toLocaleDateString', original);
+        setReaderClock(null);
+        Object.defineProperty(Intl, 'DateTimeFormat', original);
     }
 });
 

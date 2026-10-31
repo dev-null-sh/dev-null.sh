@@ -7,9 +7,9 @@ import LinkController from '@/actions/App/Http/Controllers/LinkController';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import { LinkPreview } from '@/components/link-preview';
+import { useDateTime } from '@/hooks/use-date-time';
 import AppLayout from '@/layouts/app-layout';
 import { hostname } from '@/lib/urls';
-import { formatRelativeTime } from '@/lib/utils';
 import type {
     Commit,
     CursorPaginated,
@@ -91,6 +91,7 @@ export default function Index(props: Props) {
 }
 
 function TopLinks({ links }: { links: TopLink[] }) {
+    const { formatRelativeTime } = useDateTime();
     return (
         <>
             <p className="border-b px-4 py-3 text-sm text-muted-foreground sm:px-6">
