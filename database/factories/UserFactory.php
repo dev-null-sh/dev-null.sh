@@ -42,6 +42,7 @@ final class UserFactory extends Factory
             'pinned_commit_id' => null,
             'onboarded_at' => now(),
             'github_follows_imported_at' => null,
+            'github_organization_follows_imported_at' => null,
             'commit_rules_accepted_at' => now(),
             'remember_token' => Str::random(10),
         ];

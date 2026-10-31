@@ -43,7 +43,7 @@ final readonly class NullGitHubProvider implements GitHubProvider
 
     public function followingIds(string $login, int $maxPages): array
     {
-        return [];
+        return ['users' => [], 'organizations' => []];
     }
 
     public function followerIds(string $login, int $maxPages): array
