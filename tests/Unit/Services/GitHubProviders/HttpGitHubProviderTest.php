@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Enums\GitHubOrganizationMembership;
 use App\Services\GitHubProviders\HttpGitHubProvider;
 use Firebase\JWT\JWT;
 use Firebase\JWT\Key;
@@ -82,27 +81,33 @@ it('fails when GitHub does', function (): void {
     new HttpGitHubProvider()->account('583231');
 })->throws(RequestException::class);
 
-it('says where the user stands in the organization, with their own token', function (int $status, array $membership, array $headers, GitHubOrganizationMembership $expected): void {
-    Http::fake(['api.github.com/user/memberships/orgs/brefphp' => Http::response($membership, $status, $headers)]);
+it('says whether the user shows their membership of the organization, by their current login', function (int $status, bool $expected): void {
+    Http::fake([
+        'api.github.com/user/720328' => Http::response(['id' => 720328, 'login' => 'mnapoli']),
+        'api.github.com/organizations/45861341/public_members/mnapoli' => Http::response(null, $status),
+    ]);
 
-    expect(new HttpGitHubProvider()->organizationMembership('claim-token', 'brefphp', '45861341'))->toBe($expected);
-
-    Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Bearer claim-token'));
+    expect(new HttpGitHubProvider()->isPublicMember('45861341', '720328'))->toBe($expected);
 })->with([
-    'an admin' => [200, ['state' => 'active', 'role' => 'admin', 'organization' => ['id' => 45861341]], [], GitHubOrganizationMembership::Member],
-    'a member' => [200, ['state' => 'active', 'role' => 'member', 'organization' => ['id' => 45861341]], [], GitHubOrganizationMembership::Member],
-    'not a member' => [404, ['message' => 'Not Found'], [], GitHubOrganizationMembership::NotMember],
-    'invited only' => [200, ['state' => 'pending', 'role' => 'member', 'organization' => ['id' => 45861341]], [], GitHubOrganizationMembership::NotMember],
-    'a billing manager' => [200, ['state' => 'active', 'role' => 'billing_manager', 'organization' => ['id' => 45861341]], [], GitHubOrganizationMembership::NotMember],
-    'of another organization since renamed' => [200, ['state' => 'active', 'role' => 'member', 'organization' => ['id' => 1]], [], GitHubOrganizationMembership::NotMember],
-    'restricted' => [403, ['message' => 'Although you appear to have the correct authorization credentials, the `brefphp` organization has enabled OAuth App access restrictions.'], [], GitHubOrganizationMembership::Restricted],
-    'single sign-on' => [403, ['message' => 'Resource protected by organization SAML enforcement.'], ['X-GitHub-SSO' => 'required; url=https://github.com/orgs/brefphp/sso?authorization_request=abc'], GitHubOrganizationMembership::SingleSignOn],
+    'a public member' => [204, true],
+    'not a public member' => [404, false],
 ]);
 
-it('fails when GitHub refuses the membership for another reason', function (): void {
-    Http::fake(['api.github.com/user/memberships/orgs/brefphp' => Http::response(['message' => 'API rate limit exceeded for user ID 720328.'], 403)]);
+it('does not list users GitHub no longer has as public members', function (): void {
+    Http::fake(['api.github.com/user/720328' => Http::response(['message' => 'Not Found'], 404)]);
 
-    new HttpGitHubProvider()->organizationMembership('claim-token', 'brefphp', '45861341');
+    expect(new HttpGitHubProvider()->isPublicMember('45861341', '720328'))->toBeFalse();
+
+    Http::assertSentCount(1);
+});
+
+it('fails when GitHub fails to say whether the user is a public member', function (): void {
+    Http::fake([
+        'api.github.com/user/720328' => Http::response(['id' => 720328, 'login' => 'mnapoli']),
+        'api.github.com/organizations/45861341/public_members/mnapoli' => Http::response([], 502),
+    ]);
+
+    new HttpGitHubProvider()->isPublicMember('45861341', '720328');
 })->throws(RequestException::class);
 
 it('asks GraphQL with the user token whether they have a sponsors listing', function (bool $hasSponsorsListing): void {

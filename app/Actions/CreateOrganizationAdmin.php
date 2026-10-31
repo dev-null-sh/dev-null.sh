@@ -13,8 +13,8 @@ final readonly class CreateOrganizationAdmin
 {
     /**
      * Makes the user the admin of the organization's page, once GitHub confirmed they belong to it, unless someone
-     * claimed it first. The organization is locked while it's checked, as two members coming back from GitHub at once
-     * can both pass the request's check: the second claim then just doesn't happen.
+     * claimed it first. The organization is locked while it's checked, as two members claiming at once can both pass
+     * the request's check: the second claim then just doesn't happen.
      */
     public function handle(Organization $organization, User $user): bool
     {

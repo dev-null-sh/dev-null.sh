@@ -832,7 +832,8 @@ it('keeps the query string out of the handle it moves a profile to', function ()
 it('moves the people lists of a profile for good to the handle in its own case', function (string $list): void {
     User::factory()->create(['handle' => 'OctoCat']);
 
-    $this->get("/@octocat/{$list}")
+    $this->actingAs(User::factory()->create())
+        ->get("/@octocat/{$list}")
         ->assertMovedPermanently()
         ->assertRedirect("/@OctoCat/{$list}");
 })->with(['following', 'followers', 'mutuals']);

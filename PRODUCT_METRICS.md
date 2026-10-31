@@ -20,7 +20,7 @@ Each answers the three questions of the [data guidelines](.ai/guidelines/data.bl
 | Data | Where | Why the feature needs it | Who sees it | When it is deleted |
 |---|---|---|---|---|
 | The last day a person was seen (a date, no time) | `users.last_seen_at`, hidden | Retention and active users can't be derived from anything else: reading alone leaves no trace. Written at most once a day, without touching `updated_at`. | Admins, only as aggregates on the Growth page; the person in their export | With the account |
-| Each day a person was seen (dates, no time) | `user_active_days` (`user_id`, `seen_at`) | Retention by signup cohort, day by day (active on day 1, 7, 14), comparable with public benchmarks: `last_seen_at` only keeps the latest day, and `active_user_counts` has no user ids. Written with `last_seen_at`, the first time each person is seen in a day. | Admins, only as aggregates. Not in the person's export, which has `last_seen_at` | With the account |
+| Each day a person was seen (dates, no time) | `user_active_days` (`user_id`, `seen_at`) | Retention by signup cohort, day by day (active on day 1, 7, 14), comparable with public benchmarks: `last_seen_at` only keeps the latest day, and `active_user_counts` has no user ids. Written with `last_seen_at`, the first time each person is seen in a day. | Admins, only as aggregates; the person in their export (`active_days`) | With the account |
 | The number of people seen each day | `active_user_counts` (`seen_at`, `count`), no user ids | The daily active users history: `last_seen_at` only keeps each person's latest day, so past days can't be recomputed. Incremented the first time each person is seen in a day, so the count is exact. | Admins, on the Growth page | Never: it is an anonymous count |
 | Three anonymous events, `guest-visit`, `signin-click` and `signup` | Fathom | The conversion rate, counted on both sides by the same tool, and where in between visitors give up. No user id is sent. | Admins, through Fathom | Per Fathom's retention |
 | Three anonymous events, `join-link-sent`, `join-link-visit` and `join-link-signup` | Fathom | Whether the link a guest on a phone can ask for by email brings people back: sent when the email is asked for, when the page opens from its link (`#join-link`, then removed from the address), and when that tab then signs up, next to `signup`. Signing up leaves for GitHub, so Fathom sees the signup as a new visit; the tab remembers the link in its session storage instead. Someone who opens the link in one browser and signs up in another counts as any other signup, so it's a floor. | Admins, through Fathom | Per Fathom's retention |
@@ -67,11 +67,20 @@ The funnel follows the people who **signed up in the selected range** (the last 
 
 - **Retained**: seen again **from day 1 after signing up, or later** ("unbounded" retention), as told by `last_seen_at`. Day 1 is temporary, while /dev/null is days old and changes day by day; the goal is day 14.
 - **Retention rate** = retained ÷ signups whose day 1 is over. A signup whose day 1 is today isn't counted yet: they may still come back today.
-- Why `last_seen_at` and not one row per person per day: it was one date per person, overwritten, with no history, the least data that answers "is this person still coming back after 14 days?". It can't tell someone active on day 7 from someone who came back once on day 60, so `user_active_days` was added on 2026-10-30 (see Decisions). This rate still reads `last_seen_at` until bounded retention is built on the new table.
+- Why `last_seen_at` and not one row per person per day: it was one date per person, overwritten, with no history, the least data that answers "is this person still coming back after 14 days?". It can't tell someone active on day 7 from someone who came back once on day 60, so `user_active_days` was added on 2026-10-30 (see Decisions). This rate still reads `last_seen_at`; day-N retention below reads the new table.
 - Caveats:
   - Unbounded retention is always higher than the bounded "active on day N" retention that public benchmarks use. Someone who comes back once on day 60 counts as retained at day 1. **Do not compare it with the a16z numbers below.**
   - A cohort's retention keeps rising a little as late visitors come back, so older cohorts look slightly better than recent ones.
   - Deleted accounts disappear from their cohort instead of counting as gone.
+
+### Day-N retention (implemented)
+
+The share of a cohort active **on** day N after signing up, from `user_active_days`: the "bounded" retention public benchmarks use, so it can be compared with the a16z numbers below.
+
+- **Retention by signup day**: a chart of the share of each day's signups active exactly 1 day later, or 7 with the switch, for each signup day whose day N is over, and a dashed line at the share of the whole range. Read it like activation by signup day: a trend over several days, not one bar.
+- **Retention by cohort**: a table of the signups of each week (from Monday), down, and days 1, 3, 7, 14 and 30 after signing up, across. Each cell is the share of the week's signups active on that exact day, among the ones who reached it, so a week still reaching it shows part of the week. Reading down a column tells whether newer cohorts stay better. Below it, a curve pools the cohorts for every day up to day 30, from everyone on day 0: a curve that flattens instead of falling to zero means a core of people stays.
+- **Approximate before 2026-10-30**: the days before were backfilled from what people did (posting, starring, following, reading notifications…), which misses the days someone only read. The backfill found 72–82% of each day's active people from 2026-10-21 to 2026-10-29 (against `active_user_counts`), so retention read from those days is a floor. Bars are striped, cells read "≥", and the curve's points are hollow where most of their days are backfilled.
+- Bots are left out; deleted accounts disappear from their cohort.
 
 ### Changes and the orange highlight
 
@@ -101,7 +110,7 @@ For reference, with how comparable each one is. None of them was validated for a
 |---|---|---|---|
 | DAU/MAU | OK 25%, good 40%, great 50%+ (seed-stage consumer social) | [a16z](https://a16z.com/do-you-have-lightning-in-a-bottle-how-to-benchmark-your-social-app/) | Yes, same definition |
 | Activation rate | Average 34%, median 25% (all products) | [Lenny's Newsletter](https://www.lennysnewsletter.com/p/what-is-a-good-activation-rate) | Partly: each product picks its own milestone, and 12 hours is strict |
-| Retention, d1 / d7 / d30 (bounded) | OK 50/35/20%, good 60/40/25%, great 70/50/30% | [a16z](https://a16z.com/do-you-have-lightning-in-a-bottle-how-to-benchmark-your-social-app/) | **No**: ours is unbounded, and always higher |
+| Retention, d1 / d7 / d30 (bounded) | OK 50/35/20%, good 60/40/25%, great 70/50/30% | [a16z](https://a16z.com/do-you-have-lightning-in-a-bottle-how-to-benchmark-your-social-app/) | Day-N retention, yes. The funnel's retention, **no**: it is unbounded, and always higher |
 | Retention at 6 months, consumer social | ~25% good, ~45% great | [Lenny's Newsletter](https://www.lennysnewsletter.com/p/what-is-good-retention-issue-29) | Later, and only bounded |
 | Monthly user growth | OK 20%, good 35%, great 50%, ideally almost all organic | [a16z](https://a16z.com/do-you-have-lightning-in-a-bottle-how-to-benchmark-your-social-app/) | Yes, not on the page yet |
 | L5+ (share of weekly actives present 5+ days) | OK 30%, good 40%, great 50%+ | [a16z](https://a16z.com/the-power-user-curve-the-best-way-to-understand-your-most-engaged-users/) | Not measurable (see below) |
@@ -151,7 +160,6 @@ A handful of accounts star or follow every newcomer. Leaving out the 5 that reac
 
 | Metric | What it would tell | What it needs |
 |---|---|---|
-| Bounded retention (active on day 1, 7, 30) | A number comparable with public benchmarks, for each signup cohort | `user_active_days`, recorded since 2026-10-30. Days before are only backfilled from what people wrote or did (see Decisions) |
 | Power user curve (L7, L5+) | Whether a daily core forms, cohort after cohort | `user_active_days`, a few weeks of it |
 | Quick ratio and growth accounting | (new + resurrected) ÷ churned: whether growth hides a leaking bucket ([Social Capital, via](https://davidjaxon.wordpress.com/2016/03/15/a-simple-metric-to-measure-the-quality-of-your-user-growth/)) | A few weeks of history; best with per-day activity |
 | Resurrection rate | Share of people away 14+ days who come back | A few weeks of history |

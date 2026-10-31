@@ -95,9 +95,8 @@ final readonly class UpdateMentionedOrganizations
             try {
                 $account = $lookUp();
             } catch (RequestException $exception) {
-                // The refusals an organization sets up, as in HttpGitHubProvider::organizationMembership(): an IP
-                // allow list, SAML single sign-on or OAuth App access restrictions. Any other one, a rate limit among
-                // them, is retried.
+                // The refusals an organization sets up: an IP allow list, SAML single sign-on or OAuth App access
+                // restrictions. Any other one, a rate limit among them, is retried.
                 $response = $exception->response;
 
                 if (! $response->forbidden() || (! $response->hasHeader('X-GitHub-SSO') && ! Str::contains($response->fluent()->string('message')->value(), ['IP allow list', 'OAuth App access restrictions']))) {

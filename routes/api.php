@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\MessageVoiceController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
 use App\Http\Controllers\Api\OrganizationController;
+use App\Http\Controllers\Api\OrganizationFollowController;
 use App\Http\Controllers\Api\OrganizationMentionController;
 use App\Http\Controllers\Api\OrgArchiveController;
 use App\Http\Controllers\Api\OrgController;
@@ -60,6 +61,7 @@ use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserFollowController;
+use App\Http\Controllers\Api\UserFollowedOrganizationController;
 use App\Http\Controllers\Api\UserFollowersController;
 use App\Http\Controllers\Api\UserFollowingController;
 use App\Http\Controllers\Api\UserLaneController;
@@ -99,10 +101,6 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-user.show');
         Route::get('users/{user:handle}/commits', [UserCommitController::class, 'index'])
             ->name('api-user-commit.index');
-        Route::get('users/{user:handle}/followers', [UserFollowersController::class, 'index'])
-            ->name('api-user-followers.index');
-        Route::get('users/{user:handle}/following', [UserFollowingController::class, 'index'])
-            ->name('api-user-following.index');
         Route::get('commits/{commit}', [ApiCommitController::class, 'show'])
             ->name('api-commit.show');
         Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index'])
@@ -164,6 +162,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('me/devices/{device}', [DeviceController::class, 'destroy'])
             ->whereUuid('device')
             ->name('api-device.destroy');
+
+        // Who follows whom, for members like on the web, so scrapers can't walk the graph...
+        Route::get('users/{user:handle}/followers', [UserFollowersController::class, 'index'])
+            ->name('api-user-followers.index');
+        Route::get('users/{user:handle}/following', [UserFollowingController::class, 'index'])
+            ->name('api-user-following.index');
+        Route::get('users/{user:handle}/following/organizations', [UserFollowedOrganizationController::class, 'index'])
+            ->name('api-user-followed-organization.index');
 
         // Search: people by name or handle, and commits by meaning, as the web's search finds them...
         Route::get('search/users', [UserSearchController::class, 'index'])
@@ -267,6 +273,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::delete('users/{user:handle}/follow', [UserFollowController::class, 'destroy'])
             ->middleware('throttle:follows')
             ->name('api-user-follow.destroy');
+
+        // Organization Follow...
+        Route::post('organizations/{handle}/follow', [OrganizationFollowController::class, 'store'])
+            ->middleware('throttle:follows')
+            ->name('api-organization-follow.store');
+        Route::delete('organizations/{handle}/follow', [OrganizationFollowController::class, 'destroy'])
+            ->middleware('throttle:follows')
+            ->name('api-organization-follow.destroy');
 
         // Who to Follow...
         Route::get('me/suggested-users', [SuggestedUserController::class, 'index'])->name('api-suggested-user.index');

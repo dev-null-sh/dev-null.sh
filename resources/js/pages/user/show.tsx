@@ -29,6 +29,7 @@ import {
     LiveStreamTrigger,
 } from '@/components/live-stream-card';
 import { LocalTime } from '@/components/local-time';
+import { MembersLink } from '@/components/members-link';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { ProfileLiveButton } from '@/components/profile-live-button';
@@ -352,6 +353,7 @@ export default function Show({
                             count: user.following_count,
                             label: 'following',
                             href: UserFollowingController.index(user),
+                            isForMembers: true,
                         },
                         {
                             count: user.followers_count,
@@ -361,31 +363,36 @@ export default function Show({
                                 'followers',
                             ),
                             href: UserFollowersController.index(user),
+                            isForMembers: true,
                         },
-                    ].map((stat) => (
-                        <div
-                            key={stat.label}
-                            className="group flex flex-row-reverse gap-1.5"
-                        >
-                            <dt className="text-muted-foreground">
-                                <Link
-                                    href={stat.href}
-                                    className="group-hover:underline"
-                                >
-                                    {stat.label}
-                                </Link>
-                            </dt>
-                            <dd className="font-mono font-medium">
-                                <Link
-                                    href={stat.href}
-                                    className="group-hover:underline"
-                                    title={exactCountTitle(stat.count)}
-                                >
-                                    {formatCount(stat.count)}
-                                </Link>
-                            </dd>
-                        </div>
-                    ))}
+                    ].map(({ isForMembers, ...stat }) => {
+                        const StatLink = isForMembers ? MembersLink : Link;
+
+                        return (
+                            <div
+                                key={stat.label}
+                                className="group flex flex-row-reverse gap-1.5"
+                            >
+                                <dt className="text-muted-foreground">
+                                    <StatLink
+                                        href={stat.href}
+                                        className="group-hover:underline"
+                                    >
+                                        {stat.label}
+                                    </StatLink>
+                                </dt>
+                                <dd className="font-mono font-medium">
+                                    <StatLink
+                                        href={stat.href}
+                                        className="group-hover:underline"
+                                        title={exactCountTitle(stat.count)}
+                                    >
+                                        {formatCount(stat.count)}
+                                    </StatLink>
+                                </dd>
+                            </div>
+                        );
+                    })}
                 </dl>
                 {followersYouKnow && (
                     <FollowersYouKnow user={user} preview={followersYouKnow} />

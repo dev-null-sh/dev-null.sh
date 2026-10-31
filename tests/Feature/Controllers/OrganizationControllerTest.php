@@ -55,7 +55,7 @@ it('shows the admins of the organization but not its other members, first admin 
     $this->get('/@laravel')
         ->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->where('claimUrl', route('organization-admin.create', $organization))
+            ->where('claimUrl', route('organization-admin.store', $organization))
             ->where('settingsUrl', null)
             ->where('admins.0.id', $first->id)
             ->where('admins.0.handle', $first->profile->handle)
@@ -79,6 +79,26 @@ it('links its members to the settings of the organization, admins to its profile
 
     $this->actingAs(User::factory()->create())->get('/@laravel')
         ->assertInertia(fn ($page) => $page->where('settingsUrl', null));
+});
+
+it('counts who follows the organization and says whether the viewer does', function (): void {
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
+    $viewer = User::factory()->create();
+    $organization->followers()->attach(User::factory()->count(2)->create());
+    $viewer->followedOrganizations()->attach(Organization::factory()->create());
+
+    $this->actingAs($viewer)->get('/@laravel')
+        ->assertInertia(fn ($page) => $page->where('followersCount', 2)->where('isFollowing', false));
+
+    $organization->followers()->attach($viewer);
+
+    $this->actingAs($viewer)->get('/@laravel')
+        ->assertInertia(fn ($page) => $page->where('followersCount', 3)->where('isFollowing', true));
+
+    auth()->logout();
+
+    $this->get('/@laravel')
+        ->assertInertia(fn ($page) => $page->where('followersCount', 3)->where('isFollowing', false));
 });
 
 it('shows guests the link preview of the organization', function (): void {

@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
-use App\Enums\GitHubOrganizationMembership;
 use App\Services\GitHubProviders\NullGitHubProvider;
 
 it('is the github provider in testing', function (): void {
@@ -18,7 +17,7 @@ it('knows nobody and holds nothing', function (): void {
         ->and($provider->account('583231'))->toBeNull()
         ->and($provider->accountByLogin('octocat'))->toBeNull()
         ->and($provider->login('583231'))->toBeNull()
-        ->and($provider->organizationMembership('token', 'brefphp', '45861341'))->toBe(GitHubOrganizationMembership::NotMember)
+        ->and($provider->isPublicMember('45861341', '720328'))->toBeFalse()
         ->and($provider->hasSponsorsListing('token'))->toBeNull()
         ->and($provider->followingIds('octocat', 10))->toBe([])
         ->and($provider->followerIds('octocat', 10))->toBe([])

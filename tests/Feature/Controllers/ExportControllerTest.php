@@ -126,6 +126,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
+        'active_days' => [],
         'commits' => [],
         'polls' => [],
         'poll_votes' => [],
@@ -136,6 +137,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'blocking' => [],
         'dismissed_suggestions' => [],
         'organizations' => [],
+        'followed_organizations' => [],
         'messages' => [],
         'reports' => [],
         'remote_mutes' => [],
@@ -461,6 +463,49 @@ it('exports the organizations the user is a member of with their role, first joi
     expect($data['organizations'])->toBe([
         ['handle' => 'brefphp', 'role' => 'admin', 'joined_at' => now()->subDay()->toIso8601String()],
         ['handle' => 'laravel', 'role' => 'member', 'joined_at' => now()->toIso8601String()],
+    ]);
+});
+
+it('exports the days the user was seen, oldest first, without the days of others', function (): void {
+    $user = User::factory()->create(['last_seen_at' => now()]);
+    DB::table('user_active_days')->insert([
+        ['user_id' => $user->id, 'seen_at' => '2026-10-21'],
+        ['user_id' => $user->id, 'seen_at' => '2026-10-19'],
+        ['user_id' => User::factory()->create()->id, 'seen_at' => '2026-10-20'],
+    ]);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['active_days'])->toBe(['2026-10-19', '2026-10-21']);
+});
+
+it('exports today when the export is the first visit of the day', function (): void {
+    $this->travelTo(now()->setDate(2026, 10, 30)->setTime(12, 0));
+    $user = User::factory()->create(['last_seen_at' => '2026-10-29']);
+    DB::table('user_active_days')->insert(['user_id' => $user->id, 'seen_at' => '2026-10-29']);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['active_days'])->toBe(['2026-10-29', '2026-10-30']);
+});
+
+it('exports the organizations the user follows, first follow first', function (): void {
+    $this->freezeSecond();
+    $user = User::factory()->create();
+    $laravel = Organization::factory()->create(['handle' => 'laravel']);
+    $bref = Organization::factory()->create(['handle' => 'brefphp']);
+    $user->followedOrganizations()->attach($laravel, ['created_at' => now()]);
+    $user->followedOrganizations()->attach($bref, ['created_at' => now()->subDay()]);
+    User::factory()->create()->followedOrganizations()->attach(Organization::factory()->create());
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['followed_organizations'])->toBe([
+        ['handle' => 'brefphp', 'followed_at' => now()->subDay()->toIso8601String()],
+        ['handle' => 'laravel', 'followed_at' => now()->toIso8601String()],
     ]);
 });
 

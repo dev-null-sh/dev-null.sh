@@ -122,6 +122,36 @@ export type Funnel = {
     changes: Record<FunnelRate, number | null>;
 };
 
+export type RetentionDay = {
+    date: string;
+    eligible: number;
+    retained: number;
+    backfilled: boolean;
+};
+
+export type RetentionByDay = {
+    day_1: RetentionDay[];
+    day_7: RetentionDay[];
+};
+
+export type RetentionCell = {
+    day: number;
+    eligible: number;
+    retained: number;
+    backfilled: number;
+};
+
+export type RetentionCohort = {
+    week: string;
+    signups: number;
+    days: RetentionCell[];
+};
+
+export type RetentionCohorts = {
+    cohorts: RetentionCohort[];
+    curve: RetentionCell[];
+};
+
 export type ActiveUserCount = {
     date: string;
     count: number;

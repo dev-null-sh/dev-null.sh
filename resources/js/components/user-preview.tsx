@@ -18,6 +18,7 @@ import {
     LiveStreamCard,
 } from '@/components/live-stream-card';
 import { LocalTime } from '@/components/local-time';
+import { MembersLink } from '@/components/members-link';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserSafetyMenu } from '@/components/user-safety-menu';
@@ -513,7 +514,7 @@ function UserPreviewContent({
                                     : 'commits'}
                             </span>
                         </span>
-                        <Link
+                        <MembersLink
                             href={UserFollowingController.index(user)}
                             className="hover:underline"
                         >
@@ -528,8 +529,8 @@ function UserPreviewContent({
                             <span className="text-muted-foreground">
                                 following
                             </span>
-                        </Link>
-                        <Link
+                        </MembersLink>
+                        <MembersLink
                             href={UserFollowersController.index(user)}
                             className="hover:underline"
                         >
@@ -546,7 +547,7 @@ function UserPreviewContent({
                                     ? 'follower'
                                     : 'followers'}
                             </span>
-                        </Link>
+                        </MembersLink>
                     </>
                 ) : (
                     <span className="my-0.5 h-4 w-48 rounded-sm bg-muted-foreground/15 motion-safe:animate-pulse" />

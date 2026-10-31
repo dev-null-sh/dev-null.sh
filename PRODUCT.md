@@ -23,7 +23,7 @@ Developers who left X or Bluesky, or are thinking about it, and want a feed with
 ## Operating Context
 
 - Surfaces: the web app (also installable as a PWA), the mobile app and the Mac app (the whole product as a native workspace, downloadable from /apps) through a signed JSON API, the terminal script and GitHub Action, a public read-only API, Atom feeds, and an activity graph SVG for GitHub READMEs.
-- Guests can read the Latest and Trending logs, profiles, approved commits and their threads, and search. Everything that writes or is personal (Following log, notifications, Saved, Remotes, Settings) needs sign-in.
+- Guests can read the Latest and Trending logs, profiles, approved commits and their threads, and search developers. Who follows whom and commit search (which pays for AI) need sign-in, so bots can't walk the graph or run up the bill, like everything that writes or is personal (Following log, notifications, Saved, Remotes, Settings).
 - Site admins (`ADMINS`) moderate (`/moderation`) and run the site (`/operations`).
 - Exact behavior, limits, and edge cases for every feature live in [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md) and in the code; this file only records what must stay true.
 

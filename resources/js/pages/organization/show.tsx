@@ -7,12 +7,14 @@ import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { GitHubIcon } from '@/components/github-icon';
 import { OrganizationAvatar } from '@/components/organization-avatar';
+import { OrganizationFollowButton } from '@/components/organization-follow-button';
 import { PageTabs } from '@/components/page-tabs';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { organizationLaneColor } from '@/lib/utils';
 import type {
     Commit,
@@ -30,6 +32,8 @@ export default function Show({
     claimUrl,
     settingsUrl,
     admins,
+    followersCount,
+    isFollowing,
 }: {
     organization: Organization & { id: string };
     lane: Lane | null;
@@ -38,10 +42,13 @@ export default function Show({
     claimUrl: string;
     settingsUrl: string | null;
     admins: User[];
+    followersCount: number;
+    isFollowing: boolean;
 }) {
     const { props, flash } = usePage();
     const { auth } = props;
-    // Kept until the user leaves the page, as the background reloads bring no flash and would hide it.
+    // Kept until the user leaves the page, as the background reloads bring no flash and would hide it. Claiming
+    // redirects back here, so its links don't preserve state, or this would keep the value from before the claim.
     const [claimFailed] = useState(flash.claimFailed);
     // Only the first claim makes an admin. While a claim failed, its alert offers to try again instead.
     const claimable = auth.user !== null && admins.length === 0;
@@ -73,11 +80,16 @@ export default function Show({
                         }
                     />
 
-                    <div className="flex shrink-0 gap-1.5 sm:gap-2">
+                    <div className="flex min-w-0 flex-wrap justify-end gap-1.5 sm:gap-2">
                         {canClaim && (
                             <Button variant="outline" asChild>
-                                {/* A form, so no other site can claim for the user. The server sends them on to GitHub. */}
-                                <Link href={claimUrl} method="post" as="button">
+                                {/* A form, so no other site can claim for the user. */}
+                                <Link
+                                    href={claimUrl}
+                                    method="post"
+                                    as="button"
+                                    preserveState={false}
+                                >
                                     Claim
                                 </Link>
                             </Button>
@@ -93,6 +105,13 @@ export default function Show({
                         <ProfileShareButton
                             handle={organization.handle}
                             href={show(organization).url}
+                        />
+                        <OrganizationFollowButton
+                            organization={organization}
+                            isFollowing={isFollowing}
+                            menu
+                            only={['auth', 'followersCount', 'isFollowing']}
+                            className="min-w-32"
                         />
                     </div>
                 </div>
@@ -154,6 +173,18 @@ export default function Show({
                     </li>
                 </ul>
 
+                <p className="mt-4 flex gap-1.5 text-sm">
+                    <span
+                        className="font-mono font-medium tabular-nums"
+                        title={exactCountTitle(followersCount)}
+                    >
+                        {formatCount(followersCount)}
+                    </span>
+                    <span className="text-muted-foreground">
+                        {followersCount === 1 ? 'follower' : 'followers'}
+                    </span>
+                </p>
+
                 {admins.length > 0 && (
                     <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                         <span>Admins</span>
@@ -183,12 +214,12 @@ export default function Show({
                         {/* The reason in the text color, as red at this size is hard to read. */}
                         <AlertDescription className="text-foreground">
                             <p>{claimFailed.message}</p>
-                            {(claimFailed.approvalUrl || claimable) && (
+                            {(claimFailed.githubUrl || claimable) && (
                                 <div className="mt-2 flex flex-wrap gap-2">
-                                    {claimFailed.approvalUrl && (
+                                    {claimFailed.githubUrl && (
                                         <Button size="sm" asChild>
                                             <a
-                                                href={claimFailed.approvalUrl}
+                                                href={claimFailed.githubUrl}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                             >
@@ -207,6 +238,7 @@ export default function Show({
                                                 href={claimUrl}
                                                 method="post"
                                                 as="button"
+                                                preserveState={false}
                                             >
                                                 Try again
                                             </Link>

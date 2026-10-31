@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\GitHubProviders;
 
 use App\Contracts\Services\GitHubProvider;
-use App\Enums\GitHubOrganizationMembership;
 
 /**
  * A GitHub that knows nobody and holds nothing, so developing and testing never reach GitHub or spend its rate limit.
@@ -32,9 +31,9 @@ final readonly class NullGitHubProvider implements GitHubProvider
         return null;
     }
 
-    public function organizationMembership(string $token, string $handle, string $githubId): GitHubOrganizationMembership
+    public function isPublicMember(string $organizationGithubId, string $githubId): bool
     {
-        return GitHubOrganizationMembership::NotMember;
+        return false;
     }
 
     public function hasSponsorsListing(string $token): ?bool

@@ -218,6 +218,17 @@ it('erases the days a deleted user was seen, keeping the days of others', functi
     expect(DB::table('user_active_days')->pluck('user_id')->all())->toBe([$other->id]);
 });
 
+it('erases the organizations a deleted user followed, keeping their other followers', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $organization = Organization::factory()->create();
+    $organization->followers()->attach([$user->id, $other->id]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($organization->followers()->pluck('users.id')->all())->toBe([$other->id]);
+});
+
 it('erases the devices of a deleted user', function (): void {
     $user = User::factory()->create();
     Device::factory()->for($user)->create();

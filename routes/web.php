@@ -80,6 +80,7 @@ use App\Http\Controllers\OperationsController;
 use App\Http\Controllers\OperationsEventController;
 use App\Http\Controllers\OrganizationAdminController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\OrganizationFollowController;
 use App\Http\Controllers\OrganizationLaneController;
 use App\Http\Controllers\OrganizationMemberController;
 use App\Http\Controllers\OrganizationMentionController;
@@ -228,12 +229,15 @@ Route::middleware([RememberIntendedUrl::class, RedirectToHandleCase::class])->gr
                 ->then(fn (Request $request): SymfonyResponse => $router->prepareResponse($request, app()->call(resolve(OrganizationController::class)->show(...))));
         })
         ->name('user.show');
-    Route::get('@{user:handle}/following', [UserFollowingController::class, 'index'])
-        ->name('user-following.index');
-    Route::get('@{user:handle}/followers', [UserFollowersController::class, 'index'])
-        ->name('user-followers.index');
-    Route::get('@{user:handle}/mutuals', [UserMutualsController::class, 'index'])
-        ->name('user-mutuals.index');
+    // Who follows whom is for members, so scrapers can't walk the graph page by page...
+    Route::middleware('auth')->group(function (): void {
+        Route::get('@{user:handle}/following', [UserFollowingController::class, 'index'])
+            ->name('user-following.index');
+        Route::get('@{user:handle}/followers', [UserFollowersController::class, 'index'])
+            ->name('user-followers.index');
+        Route::get('@{user:handle}/mutuals', [UserMutualsController::class, 'index'])
+            ->name('user-mutuals.index');
+    });
     Route::get('@{user:handle}/commits/{commit}', [CommitController::class, 'show'])
         ->scopeBindings()
         ->name('commit.show');
@@ -302,8 +306,9 @@ Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index']
     ->middleware('throttle:related-commits')
     ->name('related-commit.index');
 
-// Search...
+// Search: commits by meaning are for members, as each search pays for AI that bots could run up...
 Route::get('search', [SearchController::class, 'index'])
+    ->middleware('auth')
     ->name('search.index');
 
 // User Search...
@@ -313,7 +318,7 @@ Route::get('search/users', [UserSearchController::class, 'index'])
 
 // Commit Search...
 Route::get('search/commits', [CommitSearchController::class, 'index'])
-    ->middleware('throttle:search')
+    ->middleware(['auth', 'throttle:search'])
     ->name('commit-search.index');
 
 Route::middleware('auth')->group(function (): void {
@@ -334,11 +339,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('banned', [BannedController::class, 'show'])->name('banned.show');
 
     // Claiming an organization's page, which GitHub confirms the user belongs to...
-    Route::post('organizations/{organization}/claim', [OrganizationAdminController::class, 'create'])
+    Route::post('organizations/{organization}/claim', [OrganizationAdminController::class, 'store'])
         ->whereUuid('organization')
-        ->middleware('throttle:10,1')
-        ->name('organization-admin.create');
-    Route::get('auth/github/callback/organizations', [OrganizationAdminController::class, 'store'])
         ->middleware('throttle:10,1')
         ->name('organization-admin.store');
 
@@ -643,6 +645,16 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('@{user:handle}/follow', [UserFollowController::class, 'destroy'])
         ->middleware('throttle:follows')
         ->name('user-follow.destroy');
+
+    // Organization Follow...
+    Route::post('organizations/{organization}/follow', [OrganizationFollowController::class, 'store'])
+        ->whereUuid('organization')
+        ->middleware('throttle:follows')
+        ->name('organization-follow.store');
+    Route::delete('organizations/{organization}/follow', [OrganizationFollowController::class, 'destroy'])
+        ->whereUuid('organization')
+        ->middleware('throttle:follows')
+        ->name('organization-follow.destroy');
 
     // User Mute...
     Route::post('@{user:handle}/mute', [UserMuteController::class, 'store'])

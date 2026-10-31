@@ -37,6 +37,7 @@ use Traversable;
  *     schema_version: int,
  *     exported_at: string,
  *     profile: array<string, bool|int|string|null>,
+ *     active_days: Generator<int, string>,
  *     commits: Generator<int, array<string, mixed>>,
  *     polls: Generator<int, ExportPoll>,
  *     poll_votes: Generator<int, ExportPollVote>,
@@ -47,6 +48,7 @@ use Traversable;
  *     blocking: Generator<int, ExportUser>,
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     organizations: array<int, array{handle: string, role: string, joined_at: string}>,
+ *     followed_organizations: array<int, array{handle: string, followed_at: string}>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
@@ -105,6 +107,7 @@ final readonly class CreateExport
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
+            'active_days' => $this->activeDays($user),
             'commits' => $this->commits($user),
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
@@ -115,6 +118,7 @@ final readonly class CreateExport
             'blocking' => $this->handles($user->blocking()),
             'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
             'organizations' => $this->organizations($user),
+            'followed_organizations' => $this->followedOrganizations($user),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
                 'commit_id' => $report->commit_id,
@@ -243,6 +247,22 @@ final readonly class CreateExport
     }
 
     /**
+     * The days the user was seen, oldest first. They are read while the export streams, after the request asking for it
+     * was recorded, so an export that is the first visit of the day includes that day.
+     *
+     * @return Generator<int, string>
+     */
+    private function activeDays(User $user): Generator
+    {
+        /** @var LazyCollection<int, object{seen_at: string}> $days */
+        $days = DB::table('user_active_days')->where('user_id', $user->id)->oldest('seen_at')->cursor();
+
+        foreach ($days as $day) {
+            yield $day->seen_at;
+        }
+    }
+
+    /**
      * @return Generator<int, string>
      */
     private function stars(User $user): Generator
@@ -317,6 +337,23 @@ final readonly class CreateExport
             'handle' => $membership->handle,
             'role' => $membership->role,
             'joined_at' => CarbonImmutable::parse($membership->created_at)->toIso8601String(),
+        ])->all();
+    }
+
+    /**
+     * @return array<int, array{handle: string, followed_at: string}>
+     */
+    private function followedOrganizations(User $user): array
+    {
+        /** @var Collection<int, object{handle: string, created_at: string}> $follows */
+        $follows = $user->followedOrganizations()->newPivotQuery()
+            ->join('profiles', 'profiles.id', '=', 'organization_follows.organization_id')
+            ->oldest('organization_follows.created_at')
+            ->get(['profiles.handle', 'organization_follows.created_at']);
+
+        return $follows->map(fn (object $follow): array => [
+            'handle' => $follow->handle,
+            'followed_at' => CarbonImmutable::parse($follow->created_at)->toIso8601String(),
         ])->all();
     }
 

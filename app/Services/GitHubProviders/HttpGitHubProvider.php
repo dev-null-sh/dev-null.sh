@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\GitHubProviders;
 
 use App\Contracts\Services\GitHubProvider;
-use App\Enums\GitHubOrganizationMembership;
 use Carbon\CarbonImmutable;
 use Firebase\JWT\JWT;
 use Illuminate\Http\Client\ConnectionException;
@@ -59,29 +58,17 @@ final readonly class HttpGitHubProvider implements GitHubProvider
         return $account === null ? null : new Fluent($account)->string('login')->value();
     }
 
-    public function organizationMembership(string $token, string $handle, string $githubId): GitHubOrganizationMembership
+    public function isPublicMember(string $organizationGithubId, string $githubId): bool
     {
-        $response = $this->request($token)->get("user/memberships/orgs/{$handle}");
+        $login = $this->login($githubId);
 
-        if ($response->notFound()) {
-            return GitHubOrganizationMembership::NotMember;
+        if ($login === null) {
+            return false;
         }
 
-        if ($response->forbidden() && $response->hasHeader('X-GitHub-SSO')) {
-            return GitHubOrganizationMembership::SingleSignOn;
-        }
+        $response = $this->request()->get("organizations/{$organizationGithubId}/public_members/{$login}");
 
-        if ($response->forbidden() && str_contains($response->fluent()->string('message')->value(), 'OAuth App access restrictions')) {
-            return GitHubOrganizationMembership::Restricted;
-        }
-
-        $membership = $response->throw()->fluent();
-
-        return $membership->string('state')->value() === 'active'
-            && in_array($membership->string('role')->value(), ['admin', 'member'], true)
-            && (string) $membership->integer('organization.id') === $githubId
-            ? GitHubOrganizationMembership::Member
-            : GitHubOrganizationMembership::NotMember;
+        return ! $response->notFound() && $response->throw()->noContent();
     }
 
     /**

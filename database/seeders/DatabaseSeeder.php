@@ -17,6 +17,7 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final class DatabaseSeeder extends Seeder
@@ -33,37 +34,40 @@ final class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
-        $users = User::factory()->count(10)->create();
+        DB::transaction(function (): void {
+            $users = User::factory()->count(10)->create();
 
-        $users->each(function (User $user) use ($users): void {
-            Commit::factory()->for($user)->count(fake()->numberBetween(1, 10))->sequence(
-                fn (): array => ['created_at' => fake()->dateTimeBetween('-2 weeks')],
+            $users->each(function (User $user) use ($users): void {
+                Commit::factory()->for($user)->count(fake()->numberBetween(1, 10))->sequence(
+                    fn (): array => ['created_at' => fake()->dateTimeBetween('-2 weeks')],
+                )->create();
+
+                $user->following()->attach(
+                    $users->except([$user->id])->random(fake()->numberBetween(1, 5))->modelKeys(),
+                );
+            });
+
+            $localDeveloper = User::query()->whereRelation('profile', 'handle', 'local-dev')->first()
+                ?? User::query()->firstWhere('github_id', 'local')
+                ?? User::factory()->create(['github_id' => 'local', 'handle' => 'local-dev', 'name' => 'Local Developer']);
+
+            Commit::factory()->for($localDeveloper)->count(3)->sequence(
+                fn (): array => ['created_at' => fake()->dateTimeBetween('-3 days')],
             )->create();
 
-            $user->following()->attach(
-                $users->except([$user->id])->random(fake()->numberBetween(1, 5))->modelKeys(),
-            );
+            $commits = Commit::query()->topLevel()->get();
+
+            $commits->each(fn (Commit $commit) => $this->engage($commit, $users));
+
+            $this->updateCommitHotScores->handle($commits->map(fn (Commit $commit): string => $commit->id)->all());
+
+            $localDeveloper->following()->syncWithoutDetaching($users->random(3)->modelKeys());
+            $localDeveloper->followers()->syncWithoutDetaching($users->random(5)->modelKeys());
+
+            $this->seedNotifications($localDeveloper, $users);
+
+            $this->converse($localDeveloper, $users);
         });
-
-        $localDeveloper = User::query()->firstWhere('github_id', 'local')
-            ?? User::factory()->create(['github_id' => 'local', 'handle' => 'local-dev', 'name' => 'Local Developer']);
-
-        Commit::factory()->for($localDeveloper)->count(3)->sequence(
-            fn (): array => ['created_at' => fake()->dateTimeBetween('-3 days')],
-        )->create();
-
-        $commits = Commit::query()->topLevel()->get();
-
-        $commits->each(fn (Commit $commit) => $this->engage($commit, $users));
-
-        $this->updateCommitHotScores->handle($commits->map(fn (Commit $commit): string => $commit->id)->all());
-
-        $localDeveloper->following()->syncWithoutDetaching($users->random(3)->modelKeys());
-        $localDeveloper->followers()->syncWithoutDetaching($users->random(5)->modelKeys());
-
-        $this->seedNotifications($localDeveloper, $users);
-
-        $this->converse($localDeveloper, $users);
     }
 
     /**

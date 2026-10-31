@@ -16,11 +16,12 @@ final class ListUserFollowingRequest extends FormRequest
     public function authorize(): Response
     {
         $viewer = $this->user();
+        assert($viewer instanceof User);
 
         $user = $this->route('user');
         assert($user instanceof User);
 
-        return $viewer instanceof User && $viewer->hasBlockWith($user) ? Response::denyAsNotFound() : Response::allow();
+        return $viewer->hasBlockWith($user) ? Response::denyAsNotFound() : Response::allow();
     }
 
     /**

@@ -33,7 +33,7 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "laravel-vite-plugin": "^3.2.0",
-        "lucide-react": "^1.63.0",
+        "lucide-react": "^1.64.0",
         "react": "^19.3.1",
         "react-dom": "^19.3.1",
         "sonner": "^2.0.8",
@@ -44,7 +44,7 @@
     },
     "devDependencies": {
         "@laravel/vite-plugin-wayfinder": "^0.1.11",
-        "@rolldown/plugin-babel": "^0.2.4",
+        "@rolldown/plugin-babel": "^0.3.0",
         "@types/node": "^26.6.6",
         "fontaine": "^1.0.3",
         "npm-check-updates": "^23.1.1",
