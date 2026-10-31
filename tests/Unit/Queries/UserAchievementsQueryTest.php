@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Actions\CreateTomFriendship;
+use App\Contracts\Services\GitHubProvider;
 use App\Enums\Achievement;
 use App\Enums\CommitStatus;
 use App\Enums\UnixRank;
@@ -28,7 +29,8 @@ it('calculates initial rank and zero progress for a new user without activity', 
         ->and($result['ranks'])->toHaveCount(6)
         ->and($result['xp_breakdown']['commits']['xp'])->toBe(0)
         ->and($result['xp_breakdown']['shell_shocked']['xp'])->toBe(0)
-        ->and($result['badges'])->toHaveCount(15);
+        ->and($result['xp_breakdown']['contributor']['xp'])->toBe(0)
+        ->and($result['badges'])->toHaveCount(16);
 
     foreach ($result['badges'] as $badge) {
         expect($badge['unlocked'])->toBeFalse()
@@ -359,4 +361,26 @@ it('awards shell shocked and 100 xp only to accounts created before the UTC cuto
     'just before cutoff' => ['2026-10-21 13:59:59', true, 100, 2],
     'exactly at cutoff' => ['2026-10-21 14:00:00', false, 0, 1],
     'just after cutoff' => ['2026-10-21 14:00:01', false, 0, 1],
+]);
+
+it('awards contributor and 25 xp to repository contributors, found by their GitHub account', function (bool $contributes, bool $unlocked, int $xp): void {
+    $user = User::factory()->create(['handle' => 'renamed', 'github_id' => (string) crc32('xHeaven')]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn($contributes ? [gitHubContributor('xHeaven', 187)] : [gitHubContributor('jubianchi', 1)]);
+
+    $result = resolve(UserAchievementsQuery::class)->get($user, null);
+
+    expect(collect($result['badges'])->firstWhere('id', 'contributor'))->toBe([
+        'id' => 'contributor',
+        'name' => 'contributor',
+        'description' => 'Shipped code to the /dev/null repository itself. Earns 25 XP.',
+        'icon' => 'git-pull-request',
+        'unlocked' => $unlocked,
+        'progress' => $unlocked ? 1 : 0,
+        'target' => 1,
+    ])->and($result['xp_breakdown']['contributor'])->toBe(['count' => $unlocked ? 1 : 0, 'multiplier' => 25, 'xp' => $xp])
+        ->and($result['xp'])->toBe($xp);
+})->with([
+    'contributor' => [true, true, 25],
+    'not a contributor' => [false, false, 0],
 ]);

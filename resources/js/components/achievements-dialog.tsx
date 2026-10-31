@@ -6,6 +6,7 @@ import {
     FileCode,
     Flame,
     GitMerge,
+    GitPullRequest,
     Key,
     Server,
     Shield,
@@ -46,6 +47,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     'bot-off': BotOff,
     bomb: Bomb,
     'dragon-ball': DragonBallIcon,
+    'git-pull-request': GitPullRequest,
 };
 
 export function AchievementsDialog({
@@ -341,8 +343,8 @@ export function AchievementsDialog({
                 {/* Dry Unix XP Formula Footnote */}
                 <p className="border-t pt-2 text-center font-mono text-[11px] text-muted-foreground">
                     XP: 10/commit · 15/day streak · 5/star received · 5/reply ·
-                    2/star given · −100/luddite · +100/shell shocked (minimum 0
-                    XP)
+                    2/star given · −100/luddite · +100/shell shocked ·
+                    +25/contributor (minimum 0 XP)
                 </p>
             </DialogFloatingContent>
         </Dialog>

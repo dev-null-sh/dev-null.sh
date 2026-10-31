@@ -228,6 +228,7 @@ it('queues an import of the github follows of the user on login, notifying only 
 it('redirects to the intended url after login', function (): void {
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
+    $github->shouldReceive('contributors')->andReturn([]);
 
     $user = User::factory()->create();
     User::factory()->create(['github_id' => '583231']);
