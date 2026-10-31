@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CreateTomFriendship;
 use App\Actions\UpdateCommitStatuses;
+use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\ReplyAsTom;
@@ -29,8 +30,8 @@ it('may approve many commits', function (): void {
 });
 
 it('queues direct replies to Tom in bulk without per-reply queries', function (): void {
-    config(['ai.providers.opencode.key' => 'test']);
-    $tom = User::factory()->create(['username' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    config(['ai.providers.opencode.key' => 'test', 'ai.providers.openai.key' => 'test']);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
 
     $queryCounts = collect([2, 6])->map(function (int $count) use ($tom): int {
         $parents = Commit::factory()->for($tom)->count($count)->create(['body' => 'A developer community.']);
@@ -96,6 +97,17 @@ it('notifies the quoted authors of the approved quotes', function (): void {
         ->toEqualCanonicalizing($quotes->modelKeys());
 });
 
+it("tells the author's followers about their first commit once it is approved", function (): void {
+    $author = User::factory()->create();
+    $follower = User::factory()->create();
+    $author->followers()->attach($follower);
+    $commit = Commit::factory()->for($author)->pending()->create();
+
+    resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
+
+    expect($follower->notifications()->sole()->commit_id)->toBe($commit->id);
+});
+
 it('lifts the thread when a reply is approved', function (): void {
     $commit = Commit::factory()->create();
     $reply = Commit::factory()->pending()->for($commit, 'parent')->create();
@@ -103,7 +115,7 @@ it('lifts the thread when a reply is approved', function (): void {
     resolve(UpdateCommitStatuses::class)->handle([$reply->id], CommitStatus::Approved);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 0, repliers: 1, repliersAnsweredByAuthor: 0)), 1e-9);
 });
 
 it('lifts the quoted thread when a quote is approved', function (): void {
@@ -113,5 +125,5 @@ it('lifts the quoted thread when a quote is approved', function (): void {
     resolve(UpdateCommitStatuses::class)->handle([$quote->id], CommitStatus::Approved);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 1), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, new ThreadEngagement(stargazers: 0, quoters: 1, repliers: 0, repliersAnsweredByAuthor: 0)), 1e-9);
 });

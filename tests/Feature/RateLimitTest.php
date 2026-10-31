@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Message;
 use App\Models\User;
 
 dataset('rate limits', [
@@ -22,6 +23,14 @@ dataset('rate limits', [
         20,
         60,
     ],
+    'message pins' => [
+        fn (): array => [
+            ['PUT', route('message-pin.update', $message = Message::factory()->create())],
+            ['DELETE', route('message-pin.destroy', $message)],
+        ],
+        20,
+        60,
+    ],
     'follows' => [
         fn (): array => [
             ['POST', route('user-follow.store', $user = User::factory()->create())],
@@ -32,12 +41,19 @@ dataset('rate limits', [
     ],
     'people lookups' => [
         fn (): array => [
-            ['GET', route('user-search.index', ['q' => 'nuno'])],
+            ['GET', route('profile-search.index', ['q' => 'nuno'])],
             ['GET', route('mention-suggestion.index', ['q' => 'nuno'])],
             ['GET', route('user-preview.show', User::factory()->create())],
             ['GET', route('mention.preview', User::factory()->create())],
         ],
         120,
+        60,
+    ],
+    'issue suggestions' => [
+        fn (): array => [
+            ['GET', route('issue-suggestion.index', ['q' => '722'])],
+        ],
+        30,
         60,
     ],
     'exports' => [
@@ -93,8 +109,8 @@ it('renders the too many requests page when exporting too often', function (): v
 });
 
 it('shares a people lookup limit per guest IP without limiting other visitors', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
-    $search = route('user-search.index', ['q' => 'octo']);
+    $user = User::factory()->create(['handle' => 'octocat']);
+    $search = route('profile-search.index', ['q' => 'octo']);
     $preview = route('user-preview.show', $user);
     $mentionPreview = route('mention.preview', $user);
     $requests = [$search, $preview, $mentionPreview];
@@ -155,7 +171,7 @@ it('shares the JSON star budget across commits and replies without consuming oth
 
     $this->put(route('commit-pin.update', $ownCommit))->assertRedirect();
     $this->post(route('user-follow.store', $commit->user))->assertRedirect();
-    $this->getJson(route('user-search.index', ['q' => $commit->user->username]))->assertOk();
+    $this->getJson(route('profile-search.index', ['q' => $commit->user->handle]))->assertOk();
     $this->get(route('export'))->assertOk();
 
     $this->actingAs(User::factory()->create())

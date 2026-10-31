@@ -12,12 +12,14 @@ import {
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
+import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
 import {
     ComposerPollPreview,
     ComposerPreviewBody,
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { EmojiPickerButton } from '@/components/emoji-picker';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import type { UseIssueCommandReturn } from '@/components/issue-command';
@@ -35,13 +37,12 @@ import {
     isExistingLocalTime,
     SchedulePicker,
 } from '@/components/schedule-picker';
-import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
+import { useEmojiInsertion } from '@/hooks/use-emoji-insertion';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import type { UseLinkCardReturn } from '@/hooks/use-link-card';
-import { useSecretWarning } from '@/hooks/use-secret-warning';
 import type { UseStashReturn } from '@/hooks/use-stash';
 import {
     discardSeriesStash,
@@ -56,6 +57,7 @@ import {
     maxRawBodyLength,
     minBodyLength,
 } from '@/lib/commit';
+import type { IssueKind } from '@/lib/issue-commands';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import {
     characterCount,
@@ -100,7 +102,7 @@ function CommitComposerBody({
     schedule,
     poll,
     setPoll,
-    secrets,
+    commitRules,
     isSubmittable,
     processing,
     issue,
@@ -117,7 +119,7 @@ function CommitComposerBody({
     schedule: ReturnType<typeof useCommitSchedule>;
     poll: PollDraft | null;
     setPoll: (poll: PollDraft | null) => void;
-    secrets: ReturnType<typeof useSecretWarning>;
+    commitRules: ReturnType<typeof useCommitRules>;
     isSubmittable: boolean;
     processing: boolean;
     issue: UseIssueCommandReturn;
@@ -176,6 +178,13 @@ function CommitComposerBody({
 
         return () => observer.disconnect();
     }, [isInDialog]);
+
+    const insertEmoji = useEmojiInsertion({
+        body,
+        updateBody,
+        textareaRef,
+        maxLength: isIssue ? maxBodyLength : maxRawBodyLength,
+    });
 
     return (
         <div
@@ -276,13 +285,22 @@ function CommitComposerBody({
                             aria-invalid={error ? true : undefined}
                             aria-describedby={`${id}-count`}
                             className={cn(
-                                'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
+                                'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 pr-9 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
                                 {
                                     invisible: preview.isPreviewing,
                                     'max-h-none': isInDialog,
                                 },
                             )}
                         />
+                        {!preview.isPreviewing && (
+                            <div className="sticky bottom-0 col-start-1 row-start-1 self-end justify-self-end">
+                                <EmojiPickerButton
+                                    disabled={processing}
+                                    onPick={insertEmoji}
+                                    className="size-8"
+                                />
+                            </div>
+                        )}
                         {preview.isPreviewing && (
                             <ComposerPreviewBody
                                 preview={preview}
@@ -316,15 +334,9 @@ function CommitComposerBody({
                         />
                     )}
 
-                    <SecretWarning
-                        body={body}
-                        findings={secrets.findings}
+                    <CommitRulesDialog
+                        rules={commitRules}
                         textarea={textareaRef}
-                        onChange={updateBody}
-                        confirming={secrets.confirming}
-                        onConfirmingChange={secrets.setConfirming}
-                        onApprove={secrets.approve}
-                        onEdit={preview.close}
                     />
                     <InputError message={error} />
 
@@ -566,10 +578,12 @@ function CommitComposerBody({
 export function CommitComposer({
     id = 'body',
     isInDialog = false,
+    issue: initialIssue = null,
     onCommitted,
 }: {
     id?: string;
     isInDialog?: boolean;
+    issue?: IssueKind | null;
     onCommitted?: () => void;
 }) {
     const schedule = useCommitSchedule();
@@ -592,7 +606,7 @@ export function CommitComposer({
         stash.key,
     );
     const [poll, setPoll] = useState<PollDraft | null>(null);
-    const secrets = useSecretWarning(body);
+    const commitRules = useCommitRules();
     const isPosting = useRef(false);
 
     const hasImages = attachments.images.length > 0;
@@ -604,7 +618,7 @@ export function CommitComposer({
             !hasImages &&
             poll === null &&
             !isScheduling,
-        hasSecrets: secrets.findings.length > 0,
+        initialKind: initialIssue,
         onCreated: () => {
             drop();
             focusBody(id);
@@ -668,7 +682,7 @@ export function CommitComposer({
                 !isPosting.current &&
                 !attachments.isReading() &&
                 issue.command === null &&
-                secrets.beforeSubmit()
+                commitRules.beforeSubmit()
             }
             onStart={() => {
                 isPosting.current = true;
@@ -678,6 +692,7 @@ export function CommitComposer({
             }}
             transform={(data) => ({
                 ...data,
+                commit_rules_accepted: commitRules.hasAccepted(),
                 ...(hasImages && {
                     images: attachments.images,
                     image_descriptions: attachments.descriptions,
@@ -721,7 +736,7 @@ export function CommitComposer({
                         schedule={schedule}
                         poll={poll}
                         setPoll={setPoll}
-                        secrets={secrets}
+                        commitRules={commitRules}
                         isSubmittable={isSubmittable}
                         processing={processing}
                         issue={issue}

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\User;
 use Inertia\Testing\AssertableInertia;
 
@@ -11,7 +12,7 @@ beforeEach(function (): void {
 
 it('shows the inbox', function (): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
     sendChatMessage($nuno, $mark, 'ship it');
 
     $this->actingAs($mark)->get(route('conversation.index'))
@@ -20,13 +21,27 @@ it('shows the inbox', function (): void {
             ->component('conversation/index')
             ->where('partner', null)
             ->where('thread', null)
-            ->where('inbox.conversations.0.partner.username', 'nunomaduro')
+            ->where('inbox.conversations.0.partner.handle', 'nunomaduro')
             ->where('auth.unreadMessagesCount', 1));
+});
+
+it('counts conversations with unread messages in the nav, not the messages', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+    $taylor = User::factory()->withRemotes()->create();
+    sendChatMessage($nuno, $mark, 'did you see the PR?');
+    sendChatMessage($nuno, $mark, 'ship it');
+    sendChatMessage($nuno, $mark, 'what do the dots mean?');
+    sendChatMessage($taylor, $mark, 'thanks!');
+    sendChatMessage($taylor, $mark, 'see you at Laracon');
+
+    $this->actingAs($mark)->get(route('conversation.index'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('auth.unreadMessagesCount', 2));
 });
 
 it('opens a conversation, remembering where you were and marking it read', function (): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
     $read = sendChatMessage($nuno, $mark, 'did you see the PR?');
     $this->actingAs($mark)->putJson(route('conversation-read.update', $nuno), ['through' => $read->id]);
     sendChatMessage($nuno, $mark, 'ship it');
@@ -36,7 +51,7 @@ it('opens a conversation, remembering where you were and marking it read', funct
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
             ->component('conversation/index')
-            ->where('partner.username', 'nunomaduro')
+            ->where('partner.handle', 'nunomaduro')
             ->where('thread.read_through_id', $read->id)
             ->has('thread.messages', 3)
             ->where('inbox.conversations.0.ahead', 0));
@@ -50,12 +65,12 @@ it('opens a conversation, remembering where you were and marking it read', funct
 
 it('opens an empty conversation with someone new', function (): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
 
     $this->actingAs($mark)->get(route('conversation.show', $nuno))
         ->assertOk()
         ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page
-            ->where('partner.username', 'nunomaduro')
+            ->where('partner.handle', 'nunomaduro')
             ->where('thread.messages', []));
 });
 
@@ -70,4 +85,21 @@ it('hides conversations you cannot have', function (): void {
 
 it('requires authentication', function (): void {
     $this->get(route('conversation.index'))->assertRedirect();
+});
+
+it('polls the badge counts on an open conversation without marking it read', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
+    sendChatMessage($nuno, $mark, 'ship it');
+
+    $this->actingAs($mark)->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'conversation/index',
+        'X-Inertia-Partial-Data' => 'auth.unreadNotificationsCount,auth.unreadMessagesCount',
+    ])->get(route('conversation.show', $nuno))->assertOk()
+        ->assertJsonPath('props.auth.unreadMessagesCount', 1)
+        ->assertJsonMissingPath('props.thread');
+
+    $this->actingAs($nuno)->getJson(route('conversation-message.index', $mark))->assertJsonPath('partner_read_through_id', 0);
 });

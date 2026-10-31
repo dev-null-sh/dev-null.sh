@@ -27,17 +27,18 @@ it('lists the notifications of the user, newest first', function (): void {
 
     $user = fn (User $user): array => [
         'id' => $user->id,
-        'username' => $user->username,
+        'handle' => $user->handle,
         'name' => $user->name,
         'avatar_url' => $user->avatar_url,
         'bio' => $user->bio,
         'company' => $user->company,
         'location' => $user->location,
         'website' => $user->website,
-        'github_url' => "https://github.com/{$user->username}",
+        'github_url' => "https://github.com/{$user->handle}",
         'html_url' => route('user.show', $user),
         'feed_url' => route('user-feed.show', $user),
         'created_at' => now()->toIso8601ZuluString(),
+        'live' => null,
         'lane' => $user->lane(),
     ];
 
@@ -164,7 +165,7 @@ it('hides notifications about deleted commits', function (): void {
 it('leaves out the commit a mention replies to when the user may not see it', function (Closure $parent): void {
     $parent = $parent();
     $actor = User::factory()->create();
-    $mention = Commit::factory()->for($actor)->for($parent, 'parent')->create(['body' => "Ask @{$this->user->username}"]);
+    $mention = Commit::factory()->for($actor)->for($parent, 'parent')->create(['body' => "Ask @{$this->user->handle}"]);
     Notification::factory()->for($this->user, 'recipient')->for($actor, 'actor')->create([
         'type' => NotificationType::Mentioned,
         'commit_id' => $mention->id,
@@ -310,6 +311,7 @@ it('lists every group through a date when asked, like the web refreshing its inb
 });
 
 it('says which group a notification leads, how many events it has, and whether the user follows the actor', function (): void {
+    $this->travelTo(now()->setTime(12, 0));
     $first = Notification::factory()->for($this->user, 'recipient')->create(['created_at' => now()->subMinutes(2)]);
     $latest = Notification::factory()->for($this->user, 'recipient')->create();
     $this->user->following()->attach($latest->actor);

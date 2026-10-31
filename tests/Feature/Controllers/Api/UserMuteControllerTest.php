@@ -11,7 +11,7 @@ beforeEach(function (): void {
 });
 
 it('may mute a user, and answers with them and that they are muted', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $this->user->following()->attach($user);
     $user->following()->attach($this->user);
@@ -20,7 +20,7 @@ it('may mute a user, and answers with them and that they are muted', function ()
 
     $response->assertOk()
         ->assertJsonPath('data.id', $user->id)
-        ->assertJsonPath('data.username', 'octocat')
+        ->assertJsonPath('data.handle', 'octocat')
         ->assertJsonPath('data.lane', $user->lane())
         ->assertJsonPath('is_muting', true);
 
@@ -69,7 +69,7 @@ it('may unmute a user who was not muted', function (): void {
         ->assertJsonPath('is_muting', false);
 });
 
-it('returns not found for unknown usernames', function (string $method): void {
+it('returns not found for unknown handles', function (string $method): void {
     signedApiRequest($this->keyPair, $method, 'api/v1/users/missing/mute')->assertNotFound();
 })->with(['POST', 'DELETE']);
 
@@ -87,7 +87,7 @@ it('lists the people the user mutes, last muted first, as Settings → Safety do
     signedApiRequest($this->keyPair, 'GET', route('api-user-mute.index'))
         ->assertOk()
         ->assertJsonPath('data.*.id', [$second->id, $first->id])
-        ->assertJsonPath('data.0.username', $second->username)
+        ->assertJsonPath('data.0.handle', $second->handle)
         ->assertJsonPath('data.0.name', $second->name)
         ->assertJsonPath('data.0.avatar_url', $second->avatar_url)
         ->assertJsonPath('data.0.lane', $second->lane())

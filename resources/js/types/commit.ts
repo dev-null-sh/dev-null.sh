@@ -50,7 +50,14 @@ export type CommitImage = {
 export type BodySegment =
     | { type: 'text'; text: string }
     | { type: 'code'; code: string }
-    | { type: 'block'; language: string | null; html: string };
+    | {
+          type: 'block';
+          language: string | null;
+          filename: string | null;
+          html: string;
+          // The whole block, when a preview shows only its first lines, so copying it still copies all of it.
+          fullHtml?: string;
+      };
 
 export type CommitTranslation = {
     language: string;
@@ -70,6 +77,7 @@ export type Commit = {
     hot_score: number;
     body: string;
     mentions: Record<string, string> | null;
+    organization_mentions?: Record<string, string> | null;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
     translation?: CommitTranslation | null;
@@ -130,6 +138,10 @@ export type ThreadContinuation = {
     length: number;
     is_capped: boolean;
     next_id: string | null;
+};
+
+export type RelatedCommits = {
+    commits: Commit[];
 };
 
 export type CursorPaginated<T> = {

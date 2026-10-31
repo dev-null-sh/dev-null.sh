@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Models\User;
-use App\Queries\FathomTrafficQuery;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
@@ -13,15 +12,12 @@ use Illuminate\Validation\Rule;
 
 final class ShowTrafficRequest extends FormRequest
 {
-    /**
-     * There is no traffic tab without a Fathom token, so the page is a 404 like it is for non-admins.
-     */
-    public function authorize(FathomTrafficQuery $traffic): Response
+    public function authorize(): Response
     {
         $user = $this->user();
         assert($user instanceof User);
 
-        return $user->isAdmin() && $traffic->isConfigured() ? Response::allow() : Response::denyAsNotFound();
+        return $user->isAdmin() ? Response::allow() : Response::denyAsNotFound();
     }
 
     /**

@@ -5,22 +5,26 @@ declare(strict_types=1);
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
-it('lists the followers of a user to guests, newest follow first', function (): void {
-    $user = User::factory()->create(['username' => 'octocat']);
+it('lists the followers of a user only to signed requests, like the web to members', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
+    $user->followers()->attach(User::factory()->create());
+
+    $this->getJson('/api/v1/users/octocat/followers')->assertUnauthorized();
+});
+
+it('lists the followers of a user, newest follow first', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat']);
     $earlier = User::factory()->create(['bio' => 'Ships on Fridays.']);
     $later = User::factory()->create();
     $user->followers()->attach($earlier, ['created_at' => now()->subMinute()]);
     $user->followers()->attach($later);
     $user->following()->attach(User::factory()->create());
 
-    $this->getJson('/api/v1/users/octocat/followers')
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'GET', '/api/v1/users/octocat/followers')
         ->assertOk()
         ->assertJsonPath('data.*.id', [$later->id, $earlier->id])
-        ->assertJsonPath('data.1.username', $earlier->username)
+        ->assertJsonPath('data.1.handle', $earlier->handle)
         ->assertJsonPath('data.1.bio', 'Ships on Fridays.')
-        ->assertJsonMissingPath('data.0.lane')
-        ->assertJsonMissingPath('data.0.is_followed')
-        ->assertJsonMissingPath('data.0.follows_you')
         ->assertJsonMissingPath('data.0.email')
         ->assertJsonPath('meta.next_cursor', null);
 });
@@ -119,15 +123,11 @@ it('lists no followers of a profile across a block for a signed request', functi
         // Only the one who blocked is told who, for the blocked page.
         ->assertJsonPath('user.id', $showsUser ? $user->id : null)
         ->assertJsonMissingPath('data');
-
-    $this->getJson(route('api-user-followers.index', $user))
-        ->assertOk()
-        ->assertJsonCount(1, 'data');
 })->with([
     'blocking' => [fn (User $viewer, User $user) => $viewer->blocking()->attach($user), 'user_blocked', true],
     'blocked' => [fn (User $viewer, User $user) => $user->blocking()->attach($viewer), 'user_unavailable', false],
 ]);
 
-it('returns not found for unknown usernames', function (): void {
-    $this->getJson('/api/v1/users/missing/followers')->assertNotFound();
+it('returns not found for unknown handles', function (): void {
+    signedApiRequest(apiKeyPairFor(User::factory()->create()), 'GET', '/api/v1/users/missing/followers')->assertNotFound();
 });

@@ -1,7 +1,7 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import { CornerDownRight, Trash2 } from 'lucide-react';
 import type { MouseEvent, PointerEvent, ReactNode } from 'react';
-import { useRef, useState } from 'react';
+import { useCallback, useContext, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import { FoldedCommitBody } from '@/components/commit-body';
@@ -16,15 +16,24 @@ import {
     ShowThreadLink,
     ThreadActions,
     ThreadReplies,
+    ThreadReplyComposer,
     useThread,
 } from '@/components/commit-thread';
 import { useCommitTranslation } from '@/components/commit-translation';
 import {
+    GraphDimmed,
+    GraphScope,
+    useGraphNode,
+} from '@/components/graph-canvas';
+import {
+    ChainedEntrance,
     GraphRail,
     RailAvatar,
     RailDot,
     RailSegment,
+    railDotRing,
 } from '@/components/graph-rail';
+import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import { LinkPreview } from '@/components/link-preview';
 import { LiveStreamTrigger } from '@/components/live-stream-card';
 import { QuotedCommit } from '@/components/quoted-commit';
@@ -82,9 +91,12 @@ export function CommitCard({
     hasRailTail = true,
     exceptReplyId,
     threadPosition,
+    graphAfter,
 }: {
     commit: Commit;
     previousLane?: string;
+    /** In a graph canvas, the node the commit follows on the rail. */
+    graphAfter?: string;
     isDimmed?: boolean;
     isPreviousDimmed?: boolean;
     isHighlighted?: boolean;
@@ -110,8 +122,24 @@ export function CommitCard({
         component,
     } = usePage();
     const now = useNow();
+    const hiddenLinkPreviewUrl = useContext(HiddenLinkPreviewContext);
     const { bodyRef, ...translation } = useCommitTranslation(commit);
     const nodeRef = useRef<HTMLAnchorElement>(null);
+    const graphNodeRef = useGraphNode({
+        id: commit.id,
+        lane: laneColor(commit.user.lane),
+        after: graphAfter,
+        dimmed: isDimmed,
+        ring: isGroupedWithPrevious ? railDotRing : 0,
+    });
+    // A stable ref, so the node stays registered across renders, like hover dimming its lane.
+    const nodeLinkRef = useCallback(
+        (element: HTMLAnchorElement | null) => {
+            nodeRef.current = element;
+            graphNodeRef(element);
+        },
+        [graphNodeRef],
+    );
     const deleteButtonRef = useRef<HTMLButtonElement>(null);
     const thread = useThread(
         commit,
@@ -126,7 +154,11 @@ export function CommitCard({
     >('idle');
 
     const hasVisibleReplies = thread.isOpen && !!thread.replies?.length;
+    const endsOnDot =
+        hasRailTail && railNodePosition !== 'bottom' && endsWithDot;
+    const graphEndId = `${commit.id}:end`;
     const isOwn = commit.user_id === auth.user?.id;
+    const isFresh = isOwn && isWithinSeconds(commit.created_at, 15);
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
     const permalink = CommitController.show({ user: commit.user, commit });
@@ -233,20 +265,29 @@ export function CommitCard({
             }
             onPointerLeave={onHover && ((event) => onHover(false, event))}
         >
-            <div className="grid min-h-0 grid-cols-[4rem_minmax(0,1fr)] overflow-hidden sm:grid-cols-[4.5rem_minmax(0,1fr)]">
+            <div
+                className="grid min-h-0 grid-cols-[4rem_minmax(0,1fr)] overflow-hidden sm:grid-cols-[4.5rem_minmax(0,1fr)]"
+                data-graph-leaving={deletion === 'deleting' || undefined}
+            >
                 <GraphRail
                     lane={laneColor(commit.user.lane)}
                     previousLane={previousLane}
                     endsWithDot={endsWithDot}
+                    endsOnActions
                     nodePosition={railNodePosition}
                     hasTail={hasRailTail && railNodePosition !== 'bottom'}
                     hasReplyTail={
                         hasVisibleReplies && (!hasRailTail || endsWithDot)
                     }
-                    isFresh={isOwn && isWithinSeconds(commit.created_at, 15)}
+                    isFresh={isFresh}
                     isDimmed={isDimmed}
                     isPreviousDimmed={isPreviousDimmed}
                     onHoverChange={onAuthorHover}
+                    graph={{
+                        id: commit.id,
+                        endId: graphEndId,
+                        measuresNode: false,
+                    }}
                     node={
                         <UserPreview
                             user={commit.user}
@@ -259,7 +300,7 @@ export function CommitCard({
                                 className="flex"
                             >
                                 <Link
-                                    ref={nodeRef}
+                                    ref={nodeLinkRef}
                                     href={show(commit.user)}
                                     tabIndex={-1}
                                     className={cn(
@@ -282,11 +323,10 @@ export function CommitCard({
                     }
                 />
 
-                <div
-                    className={cn(
-                        'min-w-0 pr-4',
-                        hasVisibleReplies ? 'pt-3' : 'border-b py-3',
-                    )}
+                <ChainedEntrance
+                    isFresh={isFresh}
+                    previousLane={previousLane}
+                    className="min-w-0 pt-3 pr-4"
                 >
                     <div
                         inert={wasDeleted}
@@ -314,7 +354,7 @@ export function CommitCard({
                                         tabIndex={-1}
                                         className="shrink-4 truncate font-mono text-[13px] text-muted-foreground"
                                     >
-                                        @{commit.user.username}
+                                        @{commit.user.handle}
                                     </Link>
                                 </UserPreview>
                                 <span
@@ -408,13 +448,16 @@ export function CommitCard({
                                     className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
                                 >
                                     <CornerDownRight className="size-3" />
-                                    replying to @{commit.parent.user.username}
+                                    replying to @{commit.parent.user.handle}
                                 </Link>
                             )}
                             <div ref={bodyRef} style={translation.bodyStyle}>
                                 <FoldedCommitBody
                                     segments={translation.segments}
                                     mentions={commit.mentions}
+                                    organizationMentions={
+                                        commit.organization_mentions
+                                    }
                                     previewSegments={
                                         isFolded && !isFocused
                                             ? translation.previewSegments
@@ -442,14 +485,16 @@ export function CommitCard({
                                     commit={commit.quoted_commit ?? null}
                                 />
                             )}
-                            {commit.link_preview && (
-                                <LinkPreview
-                                    refreshUrl={CommitLinkPreviewController.show.url(
-                                        commit.id,
-                                    )}
-                                    preview={commit.link_preview}
-                                />
-                            )}
+                            {commit.link_preview &&
+                                commit.link_preview.url !==
+                                    hiddenLinkPreviewUrl && (
+                                    <LinkPreview
+                                        refreshUrl={CommitLinkPreviewController.show.url(
+                                            commit.id,
+                                        )}
+                                        preview={commit.link_preview}
+                                    />
+                                )}
                             {isFocused && (
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
                                     <TimestampTooltip
@@ -481,6 +526,7 @@ export function CommitCard({
                                     <div className="flex flex-wrap items-center gap-0.5">
                                         <CommitStarButton
                                             commit={commit}
+                                            keyShortcut="s"
                                             className="px-2 py-0.5"
                                         />
                                         <CommitPastelButton
@@ -499,10 +545,12 @@ export function CommitCard({
                                 <ThreadActions
                                     thread={thread}
                                     hasKeyboardShortcuts
+                                    hasComposer={false}
                                     actions={
                                         <>
                                             <CommitStarButton
                                                 commit={commit}
+                                                keyShortcut="s"
                                                 className="px-2 py-0.5"
                                             />
                                             <CommitPastelButton
@@ -519,54 +567,80 @@ export function CommitCard({
                                     }
                                 />
                             )}
-
-                            {actions}
-
-                            {deletion === 'deleting' && (
-                                <p
-                                    className="mt-3 flex min-h-12 items-center rounded-md bg-destructive/8 px-3 py-2 font-mono text-sm text-muted-foreground"
-                                    role="status"
-                                >
-                                    rm {hash} → /dev/null
-                                </p>
-                            )}
-
-                            {deletion === 'confirming' && (
-                                <div
-                                    role="group"
-                                    aria-label="Confirm delete"
-                                    onKeyDown={(event) => {
-                                        if (event.key === 'Escape') {
-                                            cancelDeletion();
-                                        }
-                                    }}
-                                    className="mt-3 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
-                                >
-                                    <span className="mr-auto">
-                                        Delete this commit? You can undo for 30
-                                        seconds.
-                                    </span>
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        autoFocus
-                                        onClick={cancelDeletion}
-                                    >
-                                        Cancel
-                                    </Button>
-                                    <Button
-                                        variant="destructive"
-                                        size="sm"
-                                        onClick={deleteCommit}
-                                        data-test="confirm-delete-commit-button"
-                                    >
-                                        Delete
-                                    </Button>
-                                </div>
-                            )}
                         </div>
                     </div>
-                </div>
+                </ChainedEntrance>
+                {/* What opens below the actions row gets a row of its own, so the rail's row, and its end dot, end on the actions. */}
+                <RailSegment
+                    lane={
+                        hasRailTail && !endsWithDot
+                            ? laneColor(commit.user.lane)
+                            : undefined
+                    }
+                    isDimmed={isDimmed}
+                />
+                <ChainedEntrance
+                    isFresh={isFresh}
+                    previousLane={previousLane}
+                    className={cn('min-w-0 pr-4', {
+                        'border-b pb-3': !hasVisibleReplies,
+                    })}
+                >
+                    <div
+                        inert={wasDeleted}
+                        className={cn('transition-opacity duration-200', {
+                            'opacity-70': isDimmed,
+                            'opacity-50': wasDeleted,
+                        })}
+                    >
+                        <ThreadReplyComposer thread={thread} />
+
+                        {actions}
+
+                        {deletion === 'deleting' && (
+                            <p
+                                className="mt-3 flex min-h-12 items-center rounded-md bg-destructive/8 px-3 py-2 font-mono text-sm text-muted-foreground"
+                                role="status"
+                            >
+                                rm {hash} → /dev/null
+                            </p>
+                        )}
+
+                        {deletion === 'confirming' && (
+                            <div
+                                role="group"
+                                aria-label="Confirm delete"
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Escape') {
+                                        cancelDeletion();
+                                    }
+                                }}
+                                className="mt-3 flex min-h-12 flex-wrap items-center gap-x-3 gap-y-2 rounded-md bg-destructive/8 px-3 py-2 text-sm"
+                            >
+                                <span className="mr-auto">
+                                    Delete this commit? You can undo for 30
+                                    seconds.
+                                </span>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    autoFocus
+                                    onClick={cancelDeletion}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={deleteCommit}
+                                    data-test="confirm-delete-commit-button"
+                                >
+                                    Delete
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </ChainedEntrance>
                 {commit.replies_count !== undefined && (
                     <>
                         <RailSegment
@@ -588,7 +662,22 @@ export function CommitCard({
                                     { 'opacity-70': isDimmed },
                                 )}
                             >
-                                <ThreadReplies thread={thread} depth={0} />
+                                <GraphDimmed isDimmed={isDimmed}>
+                                    <GraphScope scope={commit.id}>
+                                        <ThreadReplies
+                                            thread={thread}
+                                            depth={0}
+                                            graphParent={
+                                                endsOnDot
+                                                    ? graphEndId
+                                                    : commit.id
+                                            }
+                                            isOnTrunk={
+                                                hasRailTail && !endsWithDot
+                                            }
+                                        />
+                                    </GraphScope>
+                                </GraphDimmed>
                             </div>
                         </div>
                     </>
@@ -599,11 +688,15 @@ export function CommitCard({
 }
 
 export function CommitTombstone({
+    id,
     previousLane,
     endsWithDot = false,
+    graphAfter,
 }: {
+    id?: string;
     previousLane?: string;
     endsWithDot?: boolean;
+    graphAfter?: string;
 }) {
     return (
         <article className="flex" data-test="commit-tombstone">
@@ -611,6 +704,7 @@ export function CommitTombstone({
                 lane="var(--rail)"
                 previousLane={previousLane}
                 endsWithDot={endsWithDot}
+                graph={id ? { id, after: graphAfter } : undefined}
                 node={
                     <span className="size-12 rounded-full border-2 border-dashed border-rail bg-card" />
                 }

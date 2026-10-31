@@ -13,6 +13,7 @@ export type UseImageAttachmentsReturn = {
     readonly images: File[];
     readonly descriptions: string[];
     readonly error: string | null;
+    readonly clearError: () => void;
     readonly reading: boolean;
     readonly isReading: () => boolean;
     readonly pick: (files: File[]) => Promise<void>;
@@ -41,12 +42,13 @@ export function useImageAttachments(
     descriptions: string[],
     onChange: (images: File[], descriptions: string[]) => void,
     draftKey: string,
+    disabled = false,
 ): UseImageAttachmentsReturn {
     const [error, setError] = useState<string | null>(null);
     const [dragDepth, setDragDepth] = useState(0);
 
     const attach = (files: File[]) => {
-        if (files.length === 0) {
+        if (disabled || files.length === 0) {
             return;
         }
 
@@ -77,7 +79,7 @@ export function useImageAttachments(
 
     const pick = async (files: File[]) => {
         const available = Math.max(0, maxImages - images.length);
-        if (files.length === 0 || available === 0) return;
+        if (disabled || files.length === 0 || available === 0) return;
 
         setError(null);
         await readImagesForDraft(draftKey, files, {
@@ -100,11 +102,14 @@ export function useImageAttachments(
         images,
         descriptions,
         error,
+        clearError: () => setError(null),
         reading,
         isReading: () => isReadingImages(draftKey),
         pick,
         attach,
         describe: (index, description) => {
+            if (disabled) return;
+
             onChange(
                 images,
                 images.map((_, position) =>
@@ -115,6 +120,8 @@ export function useImageAttachments(
             );
         },
         remove: (index) => {
+            if (disabled) return;
+
             onChange(
                 images.filter((_, position) => position !== index),
                 descriptions.filter((_, position) => position !== index),
@@ -139,13 +146,15 @@ export function useImageAttachments(
             onDragEnter: (event) => {
                 if (hasFiles(event.dataTransfer)) {
                     event.preventDefault();
-                    setDragDepth((depth) => depth + 1);
+                    if (!disabled) {
+                        setDragDepth((depth) => depth + 1);
+                    }
                 }
             },
             onDragOver: (event) => {
                 if (hasFiles(event.dataTransfer)) {
                     event.preventDefault();
-                    event.dataTransfer.dropEffect = 'copy';
+                    event.dataTransfer.dropEffect = disabled ? 'none' : 'copy';
                 }
             },
             onDragLeave: (event) => {

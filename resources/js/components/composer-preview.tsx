@@ -19,7 +19,12 @@ import type { BodySegment } from '@/types';
 
 type Mentions = Record<string, string>;
 
-type Resolved = { body: string; segments: BodySegment[]; mentions: Mentions };
+type Resolved = {
+    body: string;
+    segments: BodySegment[];
+    mentions: Mentions;
+    organizationMentions: Mentions;
+};
 
 const isModifierEnter = (event: KeyboardEvent) =>
     event.key === 'Enter' && hasModKey(event);
@@ -32,7 +37,7 @@ export type ComposerPreview = ReturnType<typeof useComposerPreview>;
 /**
  * Switches a composer between writing and previewing its draft as the commit it becomes. The draft is rendered right
  * away, and its code blocks are highlighted and its mentions linked once the server, the only place code is
- * highlighted and usernames are looked up, sends them back.
+ * highlighted and handles are looked up, sends them back.
  */
 export function useComposerPreview({
     body,
@@ -48,7 +53,11 @@ export function useComposerPreview({
     const previewId = useId();
     const request = useHttp<
         { body: string },
-        { segments: BodySegment[]; mentions: Mentions | [] }
+        {
+            segments: BodySegment[];
+            mentions: Mentions | [];
+            organization_mentions: Mentions | [];
+        }
     >({
         body: '',
     });
@@ -75,6 +84,11 @@ export function useComposerPreview({
                 mentions: Array.isArray(response.mentions)
                     ? {}
                     : response.mentions,
+                organizationMentions: Array.isArray(
+                    response.organization_mentions,
+                )
+                    ? {}
+                    : response.organization_mentions,
             });
         } catch {
             // The preview keeps the code unhighlighted and the mentions as text.
@@ -103,6 +117,7 @@ export function useComposerPreview({
         draft,
         segments,
         mentions: isResolved ? resolved.mentions : null,
+        organizationMentions: isResolved ? resolved.organizationMentions : null,
         previewId,
         toggle: (moveFocus = false) => show(!isPreviewing, moveFocus),
         close: () => setIsPreviewing(false),
@@ -152,7 +167,7 @@ export function PreviewToggle({
                 type="button"
                 variant="ghost"
                 size="icon"
-                onClick={() => preview.toggle()}
+                onClick={() => preview.toggle(true)}
                 aria-pressed={preview.isPreviewing}
                 aria-label="Preview"
                 aria-keyshortcuts="Meta+Shift+P Control+Shift+P"
@@ -189,12 +204,14 @@ export function ComposerPreviewBody({
             aria-label="Preview"
             onKeyDown={preview.onPreviewKeyDown}
             className={cn('min-w-0 outline-none', className)}
+            data-composer-preview
             data-test="composer-preview"
         >
             {preview.segments.length > 0 ? (
                 <CommitBody
                     segments={preview.segments}
                     mentions={preview.mentions}
+                    organizationMentions={preview.organizationMentions}
                     className="text-[15px]"
                 />
             ) : (

@@ -6,13 +6,16 @@ namespace App\Actions;
 
 use App\Enums\NotificationType;
 use App\Models\CommitImage;
+use App\Models\CommitReport;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
 use App\Models\Message;
 use App\Models\Poll;
 use App\Models\PollOption;
+use App\Models\PushSubscription;
 use App\Models\User;
+use App\Models\UserTimeout;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
 use Carbon\CarbonImmutable;
@@ -23,22 +26,56 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\LazyCollection;
 use stdClass;
+use Traversable;
 
+/**
+ * @phpstan-type ExportPoll array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}
+ * @phpstan-type ExportPollVote array{commit_id: string, option: string, created_at: string}
+ * @phpstan-type ExportMessage array{to: string|null, body: string, voice: string|null, created_at: string}
+ * @phpstan-type ExportUser array{handle: string}
+ * @phpstan-type UserExport array{
+ *     schema_version: int,
+ *     exported_at: string,
+ *     profile: array<string, bool|int|string|null>,
+ *     active_days: Generator<int, string>,
+ *     commits: Generator<int, array<string, mixed>>,
+ *     polls: Generator<int, ExportPoll>,
+ *     poll_votes: Generator<int, ExportPollVote>,
+ *     stars: Generator<int, string>,
+ *     following: Generator<int, ExportUser>,
+ *     followers: Generator<int, ExportUser>,
+ *     muting: Generator<int, ExportUser>,
+ *     blocking: Generator<int, ExportUser>,
+ *     dismissed_suggestions: Generator<int, ExportUser>,
+ *     organizations: array<int, array{handle: string, role: string, joined_at: string}>,
+ *     followed_organizations: array<int, array{handle: string, followed_at: string}>,
+ *     messages: Generator<int, ExportMessage>,
+ *     reports: Traversable<int, array<string, mixed>>,
+ *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
+ *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
+ *     notifications: Generator<int, array<string, int|string|null>>,
+ *     ssh_keys: array<mixed>,
+ *     push_subscriptions: array<int, array{id: string}>,
+ *     devices: array<int, array{name: string, app_id: string|null, app_name: string|null, fingerprint: string, approved_at: string, last_used_at: string|null}>,
+ *     timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>,
+ *     sessions: Collection<int, stdClass>
+ * }
+ */
 final readonly class CreateExport
 {
     /**
      * Everything stored about the user, deleted commits included, but never secrets like the remember token or session ids.
      *
-     * @return array{schema_version: int, exported_at: string, profile: array<string, bool|int|string|null>, commits: Generator<int, array<string, mixed>>, polls: Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>, poll_votes: Generator<int, array{commit_id: string, option: string, created_at: string}>, stars: Generator<int, string>, following: Generator<int, array{username: string}>, followers: Generator<int, array{username: string}>, muting: Generator<int, array{username: string}>, blocking: Generator<int, array{username: string}>, messages: Generator<int, array{to: string|null, body: string, created_at: string}>, notifications: Generator<int, array<string, int|string|null>>, ssh_keys: array<mixed>, devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>, sessions: Collection<int, stdClass>}
+     * @return UserExport
      */
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 2,
+            'schema_version' => 4,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
-                'username' => $user->username,
+                'handle' => $user->handle,
                 'name' => $user->name,
                 'email' => $user->email,
                 'avatar_url' => $user->avatar_url,
@@ -49,7 +86,9 @@ final readonly class CreateExport
                 'has_sponsors_listing' => $user->has_sponsors_listing,
                 'preferred_lane' => $user->preferred_lane,
                 'timezone' => $user->timezone,
+                'show_local_time' => $user->show_local_time,
                 'translation_language' => $user->translation_language,
+                'automatic_translation' => $user->automatic_translation ?? true,
                 'lane_color' => $user->lane_color,
                 'pasteis_mode' => $user->pasteis_mode,
                 'pasteis_received' => $user->pasteis_received,
@@ -63,25 +102,76 @@ final readonly class CreateExport
                 'live_url' => $user->live_url,
                 'live_ends_at' => $user->live_ends_at?->toIso8601String(),
                 'last_seen_at' => $user->last_seen_at?->toDateString(),
+                'commit_rules_accepted_at' => $user->commit_rules_accepted_at?->toIso8601String(),
+                'emails_unsubscribed_at' => $user->emails_unsubscribed_at?->toIso8601String(),
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
+            'active_days' => $this->activeDays($user),
             'commits' => $this->commits($user),
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
             'stars' => $this->stars($user),
-            'following' => $this->usernames($user->following()),
-            'followers' => $this->usernames($user->followers()),
-            'muting' => $this->usernames($user->muting()),
-            'blocking' => $this->usernames($user->blocking()),
+            'following' => $this->handles($user->following()),
+            'followers' => $this->handles($user->followers()),
+            'muting' => $this->handles($user->muting()),
+            'blocking' => $this->handles($user->blocking()),
+            'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
+            'organizations' => $this->organizations($user),
+            'followed_organizations' => $this->followedOrganizations($user),
             'messages' => $this->messages($user),
+            'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
+                'commit_id' => $report->commit_id,
+                'reason' => $report->reason,
+                'details' => $report->details,
+                'attachments' => $report->toArray()['attachments'],
+                'created_at' => $report->created_at->toIso8601String(),
+            ])->getIterator(),
+            'remote_mutes' => Conversation::query()
+                ->join('conversation_participants as mine', 'mine.conversation_id', '=', 'conversations.id')
+                ->where('mine.user_id', $user->id)
+                ->whereNotNull('mine.muted_until_at')
+                ->select('conversations.*')
+                ->addSelect('mine.muted_until_at as muted_until_at')
+                ->with('participants.user')
+                ->oldest('mine.id')
+                ->get()
+                ->map(fn (Conversation $conversation): array => [
+                    'to' => $this->recipient($user, $conversation),
+                    'muted_until_at' => $conversation->muted_until_at?->toIso8601String(),
+                ])
+                ->all(),
+            'remote_pins' => Conversation::query()
+                ->join('conversation_participants as mine', 'mine.conversation_id', '=', 'conversations.id')
+                ->where('mine.user_id', $user->id)
+                ->whereNotNull('mine.pinned_at')
+                ->select('conversations.*')
+                ->addSelect('mine.pinned_at as pinned_at')
+                ->with('participants.user')
+                ->oldest('mine.id')
+                ->get()
+                ->map(fn (Conversation $conversation): array => [
+                    'to' => $this->recipient($user, $conversation),
+                    'pinned_at' => $conversation->pinned_at?->toIso8601String(),
+                ])
+                ->all(),
             'notifications' => $this->notifications($user),
             'ssh_keys' => $user->sshKeys()->pluck('fingerprint')->all(),
+            'push_subscriptions' => $user->pushSubscriptions()->get()->map(fn (PushSubscription $subscription): array => [
+                'id' => $subscription->id,
+            ])->all(),
             'devices' => $user->devices()->oldest('approved_at')->get()->map(fn (Device $device): array => [
                 'name' => $device->name,
+                'app_id' => $device->app_id,
+                'app_name' => $device->app_name,
                 'fingerprint' => $device->fingerprint,
                 'approved_at' => $device->approved_at->toIso8601String(),
                 'last_used_at' => $device->last_used_at?->toIso8601String(),
+            ])->all(),
+            'timeouts' => $user->timeouts()->oldest()->get()->map(fn (UserTimeout $timeout): array => [
+                'reason' => $timeout->reason->value,
+                'ends_at' => $timeout->ends_at->toIso8601String(),
+                'created_at' => $timeout->created_at->toIso8601String(),
             ])->all(),
             'sessions' => $this->sessions($user),
         ];
@@ -122,7 +212,7 @@ final readonly class CreateExport
     }
 
     /**
-     * @return Generator<int, array{commit_id: string, duration_minutes: int, opened_at: string|null, options: list<string>, created_at: string}>
+     * @return Generator<int, ExportPoll>
      */
     private function polls(User $user): Generator
     {
@@ -145,7 +235,7 @@ final readonly class CreateExport
     /**
      * Only the user's own choices: never who else voted.
      *
-     * @return Generator<int, array{commit_id: string, option: string, created_at: string}>
+     * @return Generator<int, ExportPollVote>
      */
     private function pollVotes(User $user): Generator
     {
@@ -155,6 +245,22 @@ final readonly class CreateExport
                 'option' => $vote->option->label,
                 'created_at' => $vote->created_at->toIso8601String(),
             ];
+        }
+    }
+
+    /**
+     * The days the user was seen, oldest first. They are read while the export streams, after the request asking for it
+     * was recorded, so an export that is the first visit of the day includes that day.
+     *
+     * @return Generator<int, string>
+     */
+    private function activeDays(User $user): Generator
+    {
+        /** @var LazyCollection<int, object{seen_at: string}> $days */
+        $days = DB::table('user_active_days')->where('user_id', $user->id)->oldest('seen_at')->cursor();
+
+        foreach ($days as $day) {
+            yield $day->seen_at;
         }
     }
 
@@ -174,7 +280,7 @@ final readonly class CreateExport
     /**
      * The messages the user sent. What others sent them is theirs to export.
      *
-     * @return Generator<int, array{to: string|null, body: string, created_at: string}>
+     * @return Generator<int, ExportMessage>
      */
     private function messages(User $user): Generator
     {
@@ -182,32 +288,75 @@ final readonly class CreateExport
             ->whereIn('id', ConversationParticipant::query()->select('conversation_id')->where('user_id', $user->id))
             ->with('participants.user')
             ->get()
-            ->mapWithKeys(fn (Conversation $conversation): array => [$conversation->id => $conversation->isOrg()
-                ? 'org: '.($conversation->name ?? $conversation->id)
-                : $conversation->participants->firstWhere('user_id', '!=', $user->id)?->user->username,
-            ]);
+            ->mapWithKeys(fn (Conversation $conversation): array => [$conversation->id => $this->recipient($user, $conversation)]);
 
-        foreach (Message::query()->where('user_id', $user->id)->whereNull('event')->lazyById(500) as $message) {
+        foreach (Message::query()->where('user_id', $user->id)->whereNull('event')->with('voice')->lazyById(500) as $message) {
             yield [
                 'to' => $recipients->get($message->conversation_id),
                 'body' => $message->body,
+                'voice' => $message->voice?->url(),
                 'created_at' => $message->created_at->toIso8601String(),
             ];
         }
     }
 
     /**
-     * @param  BelongsToMany<User, User>  $users
-     * @return Generator<int, array{username: string}>
+     * The other person in a conversation, or the org it is.
      */
-    private function usernames(BelongsToMany $users): Generator
+    private function recipient(User $user, Conversation $conversation): ?string
     {
-        /** @var LazyCollection<int, object{username: string}> $users */
-        $users = $users->toBase()->select(['users.id', 'users.username'])->lazyById(500, 'users.id', 'id');
+        return $conversation->isOrg()
+            ? 'org: '.($conversation->name ?? $conversation->id)
+            : $conversation->participants->firstWhere('user_id', '!=', $user->id)?->user->handle;
+    }
+
+    /**
+     * @param  BelongsToMany<User, User>  $users
+     * @return Generator<int, ExportUser>
+     */
+    private function handles(BelongsToMany $users): Generator
+    {
+        /** @var LazyCollection<int, object{handle: string}> $users */
+        $users = $users->join('profiles', 'profiles.id', '=', 'users.id')->toBase()->select(['users.id', 'profiles.handle'])->lazyById(500, 'users.id', 'id');
 
         foreach ($users as $user) {
-            yield ['username' => $user->username];
+            yield ['handle' => $user->handle];
         }
+    }
+
+    /**
+     * @return array<int, array{handle: string, role: string, joined_at: string}>
+     */
+    private function organizations(User $user): array
+    {
+        /** @var Collection<int, object{handle: string, role: string, created_at: string}> $memberships */
+        $memberships = $user->organizations()->newPivotQuery()
+            ->join('profiles', 'profiles.id', '=', 'organization_members.organization_id')
+            ->oldest('organization_members.created_at')
+            ->get(['profiles.handle', 'organization_members.role', 'organization_members.created_at']);
+
+        return $memberships->map(fn (object $membership): array => [
+            'handle' => $membership->handle,
+            'role' => $membership->role,
+            'joined_at' => CarbonImmutable::parse($membership->created_at)->toIso8601String(),
+        ])->all();
+    }
+
+    /**
+     * @return array<int, array{handle: string, followed_at: string}>
+     */
+    private function followedOrganizations(User $user): array
+    {
+        /** @var Collection<int, object{handle: string, created_at: string}> $follows */
+        $follows = $user->followedOrganizations()->newPivotQuery()
+            ->join('profiles', 'profiles.id', '=', 'organization_follows.organization_id')
+            ->oldest('organization_follows.created_at')
+            ->get(['profiles.handle', 'organization_follows.created_at']);
+
+        return $follows->map(fn (object $follow): array => [
+            'handle' => $follow->handle,
+            'followed_at' => CarbonImmutable::parse($follow->created_at)->toIso8601String(),
+        ])->all();
     }
 
     /**
@@ -219,9 +368,9 @@ final readonly class CreateExport
     {
         /** @var LazyCollection<int, object{type: string, actor: string, commit_id: string|null, reason: string|null, level: int|string|null, read_at: string|null, created_at: string}> $notifications */
         $notifications = $user->notifications()
-            ->join('users as actors', 'actors.id', '=', 'notifications.actor_id')
+            ->join('profiles as actor_profiles', 'actor_profiles.id', '=', 'notifications.actor_id')
             ->toBase()
-            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actors.username as actor'])
+            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actor_profiles.handle as actor'])
             ->lazyById(500, 'notifications.id', 'id');
 
         foreach ($notifications as $notification) {

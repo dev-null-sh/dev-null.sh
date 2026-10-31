@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\GitHubProvider;
 use App\Dto\GitHubProfile;
+use App\Enums\ProfileType;
+use App\Models\Profile;
 use App\Models\User;
-use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Two\User as GitHubUser;
 
 final readonly class UpdateOrCreateUser
 {
-    public function __construct(private UpdateStaleUsernames $updateStaleUsernames)
+    public function __construct(private GitHubProvider $github, private UpdateStaleHandles $updateStaleHandles)
     {
         //
     }
@@ -25,55 +25,29 @@ final readonly class UpdateOrCreateUser
         $profile = GitHubProfile::fromSocialite($githubUser);
         $email = mb_trim((string) $githubUser->getEmail());
 
-        $hasSponsorsListing = $this->hasSponsorsListing($githubUser->token, $profile->username);
+        // Null when GitHub can't answer, which keeps the last known value.
+        $hasSponsorsListing = $this->github->hasSponsorsListing($githubUser->token);
 
         return DB::transaction(function () use ($githubId, $profile, $email, $hasSponsorsListing): User {
-            $this->updateStaleUsernames->handle($profile->username, $githubId);
+            $this->updateStaleHandles->handle($profile->handle, $githubId);
 
-            return User::query()->updateOrCreate([
+            // A profile never changes type, so an organization's GitHub ID would fail here, but GitHub never signs one in...
+            $id = Profile::query()->updateOrCreate([
                 'github_id' => $githubId,
+                'type' => ProfileType::User,
             ], [
                 ...$profile->attributes(),
-                'email' => $email === '' ? null : $email,
                 'github_synced_at' => now(),
+            ])->id;
+
+            return User::query()->updateOrCreate([
+                'id' => $id,
+                'github_id' => $githubId,
+            ], [
+                'company' => $profile->company,
+                'email' => $email === '' ? null : $email,
                 ...($hasSponsorsListing === null ? [] : ['has_sponsors_listing' => $hasSponsorsListing]),
             ]);
         });
-    }
-
-    /**
-     * The REST API doesn't say, so this asks GraphQL with the user's own token. Everything inside the
-     * listing, even whether it's public, needs a read:user or read:org token, and sign-in only asks for
-     * user:email. Null when GitHub can't answer, which keeps the last known value.
-     */
-    private function hasSponsorsListing(string $token, string $username): ?bool
-    {
-        try {
-            $response = Http::withToken($token)
-                ->connectTimeout(2)
-                ->timeout(3)
-                ->post('https://api.github.com/graphql', [
-                    'query' => 'query { viewer { hasSponsorsListing } }',
-                ]);
-        } catch (ConnectionException $connectionException) {
-            Log::warning('Could not check the GitHub Sponsors listing.', [
-                'username' => $username,
-                'error' => $connectionException->getMessage(),
-            ]);
-
-            return null;
-        }
-
-        if ($response->failed() || $response->json('errors') !== null) {
-            Log::warning('Could not check the GitHub Sponsors listing.', [
-                'username' => $username,
-                'status' => $response->status(),
-                'errors' => $response->json('errors') ?? $response->json('message'),
-            ]);
-
-            return null;
-        }
-
-        return $response->json('data.viewer.hasSponsorsListing') === true;
     }
 }

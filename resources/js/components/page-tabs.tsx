@@ -6,17 +6,23 @@ export function PageTabs({
     label,
     tabs,
     preserveScroll = false,
+    preserveState = false,
     prefetch = true,
     only,
     reset,
 }: {
     label: string;
     preserveScroll?: boolean;
+    preserveState?: boolean;
     prefetch?: boolean;
     only?: InertiaLinkProps['only'];
     reset?: string[];
     tabs: {
         title: string;
+        /**
+         * Shown instead of the title on phones, where a long title would wrap.
+         */
+        shortTitle?: string;
         href: NonNullable<InertiaLinkProps['href']>;
         isActive: boolean;
     }[];
@@ -32,6 +38,7 @@ export function PageTabs({
                     prefetch={prefetch}
                     viewTransition
                     preserveScroll={preserveScroll}
+                    preserveState={preserveState}
                     only={only}
                     // Link exposes custom headers for both visits and prefetches, but no reset option.
                     headers={
@@ -45,7 +52,20 @@ export function PageTabs({
                         { 'text-foreground': tab.isActive },
                     )}
                 >
-                    <span className="py-3.5">{tab.title}</span>
+                    <span className="py-3.5">
+                        {tab.shortTitle ? (
+                            <>
+                                <span className="sm:hidden">
+                                    {tab.shortTitle}
+                                </span>
+                                <span className="hidden sm:inline">
+                                    {tab.title}
+                                </span>
+                            </>
+                        ) : (
+                            tab.title
+                        )}
+                    </span>
                     {tab.isActive && (
                         <span
                             aria-hidden

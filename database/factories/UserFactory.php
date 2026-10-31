@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\ModerationReason;
 use App\Enums\RemotesFrom;
+use App\Models\Ban;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -19,17 +22,18 @@ final class UserFactory extends Factory
      */
     public function definition(): array
     {
-        $username = fake()->unique()->userName();
-
         return [
             'github_id' => (string) fake()->unique()->numberBetween(1, 999_999_999),
-            'username' => $username,
-            'name' => fake()->name(),
+            // The ID of the user's profile, which the user shares, when the test made the profile first.
+            'id' => fn (array $attributes): string => Profile::query()->firstWhere('github_id', $attributes['github_id'])->id ?? (string) Str::uuid7(),
+            // Not a column: the user's profile, made from the GitHub identity given to the factory, like a handle...
+            'profile' => fn (array $attributes): Profile => Profile::query()->firstWhere('github_id', $attributes['github_id'])
+                ?? Profile::factory()->create([
+                    ...array_intersect_key($attributes, array_flip(Profile::USER_ATTRIBUTES)),
+                    'id' => $attributes['id'],
+                    'github_id' => $attributes['github_id'],
+                ]),
             'email' => fake()->unique()->safeEmail(),
-            'avatar_url' => 'https://avatars.githubusercontent.com/u/'.fake()->numberBetween(1, 999_999),
-            'bio' => fake()->sentence(),
-            'location' => fake()->city(),
-            'website' => fake()->url(),
             'company' => fake()->company(),
             'has_sponsors_listing' => false,
             'preferred_lane' => null,
@@ -37,9 +41,50 @@ final class UserFactory extends Factory
             'lane_color' => null,
             'pinned_commit_id' => null,
             'onboarded_at' => now(),
+            'github_follows_imported_at' => null,
+            'commit_rules_accepted_at' => now(),
             'remember_token' => Str::random(10),
-            'github_synced_at' => null,
         ];
+    }
+
+    /**
+     * The GitHub identity given to the factory, like a handle, goes to the profile it makes, not to the user.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function newModel(array $attributes = []): User
+    {
+        return parent::newModel(array_diff_key($attributes, array_flip([...Profile::USER_ATTRIBUTES, 'profile'])));
+    }
+
+    /**
+     * Like users loaded from the database, which come with their profile.
+     */
+    public function configure(): self
+    {
+        return $this->afterMaking(fn (User $user): User => $user->setRelation('profile', Profile::query()->findOrFail($user->id)));
+    }
+
+    /**
+     * Someone who never posted, and so hasn't read the commit rules yet.
+     */
+    public function firstTimePoster(): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'commit_rules_accepted_at' => null,
+        ]);
+    }
+
+    /**
+     * Banned the way moderators ban: by the GitHub account, and on the user.
+     */
+    public function banned(ModerationReason $reason = ModerationReason::Spam): self
+    {
+        return $this->state(fn (array $attributes): array => [
+            'banned_at' => now(),
+        ])->afterCreating(function (User $user) use ($reason): void {
+            Ban::factory()->create(['github_id' => $user->github_id, 'reason' => $reason]);
+        });
     }
 
     public function notOnboarded(): self
@@ -49,7 +94,7 @@ final class UserFactory extends Factory
         ]);
     }
 
-    public function withoutProfile(): self
+    public function withBlankProfile(): self
     {
         return $this->state(fn (array $attributes): array => [
             'email' => null,

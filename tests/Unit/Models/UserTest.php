@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\Device;
+use App\Models\Organization;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +15,7 @@ test('to array', function (): void {
     expect(array_keys($user->toArray()))
         ->toBe([
             'id',
-            'username',
+            'handle',
             'name',
             'avatar_url',
             'bio',
@@ -25,6 +26,7 @@ test('to array', function (): void {
             'updated_at',
             'has_sponsors_listing',
             'timezone',
+            'show_local_time',
             'lane',
             'has_github_account',
             'live',
@@ -109,12 +111,14 @@ it('loads public counts with approved commits only', function (): void {
     Commit::factory()->for($user)->pending()->create();
     Commit::factory()->for($user)->rejected()->create();
     $user->following()->attach(User::factory()->count(2)->create());
+    $user->followedOrganizations()->attach(Organization::factory()->create());
     User::factory()->create()->following()->attach($user);
+    User::factory()->create()->followedOrganizations()->attach(Organization::factory()->create());
 
     $user->loadPublicCounts();
 
     expect($user->commits_count)->toBe(1)
-        ->and($user->following_count)->toBe(2)
+        ->and($user->following_count)->toBe(3)
         ->and($user->followers_count)->toBe(1)
         ->and($user->isDirty())->toBeFalse();
 });
@@ -128,7 +132,7 @@ it('loads counts without joining users', function (): void {
 
     $queries = array_column(DB::getQueryLog(), 'query');
 
-    expect($queries)->toHaveCount(3)
+    expect($queries)->toHaveCount(4)
         ->each->not->toContain('join');
 });
 
@@ -169,8 +173,8 @@ it('has no password', function (): void {
 it('knows if it is an admin', function (): void {
     config(['app.admins' => ['NunoMaduro']]);
 
-    expect(User::factory()->create(['username' => 'nunomaduro'])->isAdmin())->toBeTrue()
-        ->and(User::factory()->create(['username' => 'octocat'])->isAdmin())->toBeFalse();
+    expect(User::factory()->create(['handle' => 'nunomaduro'])->isAdmin())->toBeTrue()
+        ->and(User::factory()->create(['handle' => 'octocat'])->isAdmin())->toBeFalse();
 });
 
 it('has the same lane as the frontend', function (string $id, int $lane): void {
@@ -241,4 +245,14 @@ it('knows who it blocks and who blocks it', function (): void {
         ->and($user->hasBlockWith($stranger))->toBeFalse()
         ->and($user->blocking->modelKeys())->toBe([$other->id])
         ->and($other->blockers->modelKeys())->toBe([$user->id]);
+});
+
+it('reads its github identity from its profile, which alone changes it', function (): void {
+    $user = User::factory()->create(['handle' => 'octocat', 'name' => 'The Octocat']);
+
+    $user->profile->update(['handle' => 'renamed']);
+
+    expect($user->handle)->toBe('renamed')
+        ->and($user->name)->toBe('The Octocat')
+        ->and(fn () => $user->update(['handle' => 'elsewhere']))->toThrow(LogicException::class, 'Update the handle of a user on their profile.');
 });

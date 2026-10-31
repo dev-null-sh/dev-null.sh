@@ -25,9 +25,9 @@ it('counts the commits and replies of the window by status, in a fixed order, de
 });
 
 it('ranks the authors of the window by their commits and replies, the busiest first and ties by name', function (): void {
-    $alice = User::factory()->create(['username' => 'alice']);
-    $bob = User::factory()->create(['username' => 'bob']);
-    $carol = User::factory()->create(['username' => 'carol']);
+    $alice = User::factory()->create(['handle' => 'alice']);
+    $bob = User::factory()->create(['handle' => 'bob']);
+    $carol = User::factory()->create(['handle' => 'carol']);
 
     $commit = Commit::factory()->for($bob)->create();
     Commit::factory()->for($bob)->for($commit, 'parent')->create();

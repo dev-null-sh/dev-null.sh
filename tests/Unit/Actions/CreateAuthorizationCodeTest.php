@@ -27,6 +27,15 @@ it('hands out a one-time code bound to what the user approved, and only keeps it
     expect(Cache::has(AuthorizationCode::keyFor($code)))->toBeFalse();
 });
 
+it('binds the code to the name and id the app gave itself', function (): void {
+    $user = User::factory()->create();
+    $authorization = new MobileAuthorization('SHA256:key', 'MacBook Pro', 'challenge', 'state', 'devnull://auth/callback', '/dev/null for Mac', 'macos:sh.dev-null.mac');
+
+    $code = resolve(CreateAuthorizationCode::class)->handle($user, $authorization);
+
+    expect(Cache::get(AuthorizationCode::keyFor($code)))->toMatchArray(['device_name' => 'MacBook Pro', 'app_name' => '/dev/null for Mac', 'app_id' => 'macos:sh.dev-null.mac']);
+});
+
 it('hands out a different code every time', function (): void {
     $user = User::factory()->create();
     $authorization = new MobileAuthorization('SHA256:key', 'devnull on iPhone', 'challenge', 'state', 'devnull://auth/callback');

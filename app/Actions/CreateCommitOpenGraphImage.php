@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\Commit;
 use App\Models\User;
 use App\Services\OpenGraphCanvas;
@@ -32,7 +33,7 @@ final readonly class CreateCommitOpenGraphImage
      */
     private const array BODY_SIZES = [[56, 72], [48, 64], [40, 56], [34, 48], [32, 44]];
 
-    public function __construct(private Urls $urls)
+    public function __construct(private Urls $urls, private GitHubProvider $github)
     {
         //
     }
@@ -50,9 +51,9 @@ final readonly class CreateCommitOpenGraphImage
 
     private function render(User $user, Commit $commit): string
     {
-        $canvas = new OpenGraphCanvas;
-        $lane = $canvas->lane($user);
-        $replyingTo = $commit->parent?->user?->username;
+        $canvas = new OpenGraphCanvas($this->github);
+        $lane = $canvas->lane($user->lane());
+        $replyingTo = $commit->parent?->user?->handle;
 
         $headerHeight = self::AVATAR_SIZE + ($replyingTo === null ? 0 : self::REPLYING_TO_HEIGHT) + self::BODY_GAP;
         [$size, $lineHeight, $body] = $this->fit($canvas, $this->urls->withShortenedUrls($commit->body), OpenGraphCanvas::FOOTER_RULE_Y - self::MIN_BOTTOM - self::MIN_TOP - $headerHeight);

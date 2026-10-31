@@ -1,12 +1,13 @@
 /// <reference types="node" />
 
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
 import { createInertiaApp } from '@inertiajs/react';
 import { renderToString } from 'react-dom/server';
+import { test } from 'vite-plus/test';
 import {
     ThreadActions,
     ThreadReplies,
+    ThreadReplyComposer,
     useThread,
 } from '../../resources/js/components/commit-thread';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
@@ -27,13 +28,18 @@ const reply = (id: string): Commit =>
         user: {
             id: 'author',
             name: 'Author',
-            username: 'author',
+            handle: 'author',
             lane: 1,
             timezone: null,
+            show_local_time: false,
         },
     }) as Commit;
 
-async function renderThread(count: number, repliesPerPage: number) {
+async function renderThread(
+    count: number,
+    repliesPerPage: number,
+    { isOnTrunk = false }: { isOnTrunk?: boolean } = {},
+) {
     const shown = Math.min(count, repliesPerPage);
     const commit = {
         ...reply('parent'),
@@ -50,7 +56,11 @@ async function renderThread(count: number, repliesPerPage: number) {
         return (
             <TooltipProvider>
                 <ThreadActions thread={thread} />
-                <ThreadReplies thread={thread} depth={0} />
+                <ThreadReplies
+                    thread={thread}
+                    depth={0}
+                    isOnTrunk={isOnTrunk}
+                />
             </TooltipProvider>
         );
     }
@@ -82,6 +92,58 @@ const text = (html: string) =>
         .replace(/<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ');
 
+async function renderReplyComposer(mentions: Record<string, string> | null) {
+    const commit = { ...reply('own-commit'), mentions };
+
+    function Preview() {
+        const thread = useThread(commit);
+        return (
+            <TooltipProvider>
+                <ThreadReplyComposer thread={{ ...thread, isReplying: true }} />
+            </TooltipProvider>
+        );
+    }
+
+    const result = await createInertiaApp({
+        page: {
+            component: 'test',
+            props: {
+                auth: { user: commit.user, log: {} },
+                errors: {},
+                repliesPerPage: 3,
+            },
+            url: '/',
+            version: null,
+            clearHistory: false,
+            encryptHistory: false,
+            rescuedProps: [],
+            rememberedState: {},
+            flash: {},
+        },
+        resolve: () => Preview,
+        render: renderToString,
+        setup: ({ App, props }) => <App {...props} />,
+    });
+
+    assert.ok(result);
+    return result.body;
+}
+
+test('keeps recipient choices available when replying to your own commit with one other participant', async () => {
+    const html = await renderReplyComposer({ participant: 'other-user' });
+
+    assert.match(text(html), /Replying to @participant/);
+    assert.match(html, /placeholder="Post your reply"/);
+    assert.doesNotMatch(text(html), /Replying to @author/);
+});
+
+test('keeps the normal placeholder when replying to your own commit without other participants', async () => {
+    const html = await renderReplyComposer(null);
+
+    assert.doesNotMatch(text(html), /Replying to/);
+    assert.match(html, /placeholder="Reply to @author"/);
+});
+
 for (const [count, repliesPerPage] of [
     [0, 3],
     [1, 3],
@@ -91,7 +153,7 @@ for (const [count, repliesPerPage] of [
 ]) {
     const shown = Math.min(count, repliesPerPage);
 
-    void test(`shows ${shown} replies immediately out of ${count} when showing ${repliesPerPage} at a time`, async () => {
+    test(`shows ${shown} replies immediately out of ${count} when showing ${repliesPerPage} at a time`, async () => {
         const html = await renderThread(count, repliesPerPage);
         assert.equal((html.match(/Visible reply /g) ?? []).length, shown);
         assert.doesNotMatch(html, /data-test="toggle-replies-button"/);
@@ -108,7 +170,7 @@ for (const [count, repliesPerPage, more, all] of [
     [6, 3, 'Show the last 3', null],
     [4, 3, 'Show the last reply', null],
 ] as const) {
-    void test(`offers "${more}"${all ? ` and "${all}"` : ''} with ${count - repliesPerPage} of ${count} replies left`, async () => {
+    test(`offers "${more}"${all ? ` and "${all}"` : ''} with ${count - repliesPerPage} of ${count} replies left`, async () => {
         const html = text(await renderThread(count, repliesPerPage));
         assert.match(html, new RegExp(more));
         assert.equal(
@@ -117,3 +179,34 @@ for (const [count, repliesPerPage, more, all] of [
         );
     });
 }
+
+const pieces = (html: string, name: string) =>
+    html.match(new RegExp(`<[^>]*data-test="${name}"[^>]*>`, 'g')) ?? [];
+
+test('hangs every reply off the parent with an elbow of its own, as the graph canvas does', async () => {
+    const html = await renderThread(3, 3);
+
+    assert.equal(pieces(html, 'thread-elbow').length, 3);
+    assert.equal(pieces(html, 'reply-link').length, 0);
+});
+
+test("runs the parent's column on from each elbow to the next one, down to the more replies dot", async () => {
+    assert.equal(pieces(await renderThread(3, 3), 'thread-column').length, 2);
+    assert.equal(pieces(await renderThread(5, 3), 'thread-column').length, 4);
+});
+
+test("puts the more replies dot on the parent's column", async () => {
+    const [row] = pieces(await renderThread(5, 3), 'more-replies');
+
+    assert.ok(row);
+    assert.match(row, /ml-\[calc\(var\(--spine\)-12px\)\]/);
+});
+
+test('branches the replies off a trunk that goes on below them, without a column of their own', async () => {
+    const html = await renderThread(5, 3, { isOnTrunk: true });
+
+    assert.equal(pieces(html, 'thread-column').length, 0);
+    assert.equal(pieces(html, 'thread-elbow').length, 4);
+    assert.doesNotMatch(pieces(html, 'more-replies')[0] ?? '', /--spine/);
+    assert.doesNotMatch(html, /d="M 0 0 /);
+});

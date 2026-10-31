@@ -8,9 +8,10 @@ use App\Http\Requests\ShowProductMetricsRequest;
 use App\Queries\ActiveUserCountsQuery;
 use App\Queries\ActiveUsersQuery;
 use App\Queries\CommitResponsesQuery;
-use App\Queries\FathomTrafficQuery;
 use App\Queries\NewcomerFollowsQuery;
 use App\Queries\ProductFunnelQuery;
+use App\Queries\RetentionByDayQuery;
+use App\Queries\RetentionCohortsQuery;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,7 +27,8 @@ final readonly class ProductMetricsController
         CommitResponsesQuery $responses,
         NewcomerFollowsQuery $newcomerFollows,
         ActiveUserCountsQuery $activeUserCounts,
-        FathomTrafficQuery $traffic,
+        RetentionByDayQuery $retentionByDay,
+        RetentionCohortsQuery $retentionCohorts,
     ): Response {
         $from = $request->from();
         $to = $request->to();
@@ -38,7 +40,12 @@ final readonly class ProductMetricsController
             'responses' => fn (): array => $responses->get($from, $to),
             'newcomerFollows' => fn (): array => $newcomerFollows->get($from, $to),
             'activeUserCounts' => fn (): array => $activeUserCounts->get($from, $to),
-            'hasTraffic' => $traffic->isConfigured(),
+            'retentionByDay' => fn (): array => [
+                'day_1' => $retentionByDay->get($from, $to, 1),
+                'day_7' => $retentionByDay->get($from, $to, 7),
+            ],
+            'retentionCohorts' => fn (): array => $retentionCohorts->get($from, $to),
+            'retentionRecordedSince' => RetentionByDayQuery::RECORDED_SINCE,
         ]);
     }
 }

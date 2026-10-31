@@ -23,9 +23,9 @@ it('keeps id projections lightweight when poll eager loading is disabled', funct
     DB::disableQueryLog();
 });
 
-it('loads commits with every column but the embedding, which stays stored', function (): void {
+it('loads commits with every column but the embedding, which stays stored, and the organizations they mention', function (): void {
     $commit = Commit::factory()->create(['embedding' => embeddingVector(0)]);
-    $columns = array_values(array_diff(Schema::getColumnListing('commits'), ['embedding']));
+    $columns = [...array_values(array_diff(Schema::getColumnListing('commits'), ['embedding'])), 'organization_mentions'];
 
     expect(array_keys(Commit::query()->findOrFail($commit->id)->getAttributes()))->toBe($columns)
         ->and(array_keys(Commit::query()->withStarsFor(null)->findOrFail($commit->id)->getAttributes()))->toBe([...$columns, 'stars_count', 'starred'])
@@ -66,7 +66,7 @@ it('loads the star count and whether the viewer starred', function (): void {
 
     $commits = Commit::query()->withStarsFor($viewer)->with('user')->get()->keyBy('id');
 
-    expect(DB::getQueryLog())->toHaveCount(2)
+    expect(DB::getQueryLog())->toHaveCount(3)
         ->and($commits[$starred->id]->stars_count)->toBe(2)
         ->and($commits[$starred->id]->starred)->toBeTrue()
         ->and($commits[$plain->id]->stars_count)->toBe(0)

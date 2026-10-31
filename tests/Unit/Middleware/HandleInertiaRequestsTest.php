@@ -3,12 +3,14 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Enums\LivePlatform;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 
 it('shares app name from config', function (): void {
@@ -37,7 +39,7 @@ it('shares null user when guest', function (): void {
 it('shares authenticated user data', function (): void {
     $user = User::factory()->create([
         'name' => 'Test User',
-        'username' => 'test-user',
+        'handle' => 'test-user',
     ]);
 
     $middleware = new HandleInertiaRequests();
@@ -50,7 +52,7 @@ it('shares authenticated user data', function (): void {
     expect($sharedUser)->not->toBeNull()
         ->and($sharedUser->id)->toBe($user->id)
         ->and($sharedUser->name)->toBe('Test User')
-        ->and($sharedUser->username)->toBe('test-user');
+        ->and($sharedUser->handle)->toBe('test-user');
 });
 
 it('shares the authenticated user commit and follow counts', function (): void {
@@ -83,6 +85,19 @@ it('defers loading the authenticated user until the prop is resolved', function 
     $middleware->share($request);
 
     expect(DB::getQueryLog())->toBeEmpty();
+});
+
+it('shares how many developers are here with guests only', function (): void {
+    $user = User::factory()->create();
+    User::factory()->count(149)->create();
+
+    $request = Request::create('/', 'GET');
+
+    expect(new HandleInertiaRequests()->share($request)['developersCount']())->toBe(100);
+
+    $request->setUserResolver(fn (): User => $user);
+
+    expect(new HandleInertiaRequests()->share($request)['developersCount']())->toBeNull();
 });
 
 it('defaults sidebarOpen to true when no cookie', function (): void {
@@ -132,7 +147,7 @@ it('includes parent shared data', function (): void {
 it('shares whether the authenticated user is an admin', function (bool $isAdmin): void {
     config(['app.admins' => $isAdmin ? ['octocat'] : []]);
 
-    $user = User::factory()->create(['username' => 'octocat']);
+    $user = User::factory()->create(['handle' => 'octocat']);
 
     $middleware = new HandleInertiaRequests();
 
@@ -155,7 +170,7 @@ it('shares guests as non admins', function (): void {
 it('shares whether there are unmoderated commits for admins', function (): void {
     config(['app.admins' => ['admin']]);
 
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
 
     $middleware = new HandleInertiaRequests();
 
@@ -174,7 +189,7 @@ it('shares whether there are unmoderated commits for admins', function (): void 
 it('does not count deleted pending commits as unmoderated', function (): void {
     config(['app.admins' => ['admin']]);
 
-    $admin = User::factory()->create(['username' => 'admin']);
+    $admin = User::factory()->create(['handle' => 'admin']);
     Commit::factory()->pending()->create()->delete();
 
     $request = Request::create('/', 'GET');
@@ -188,7 +203,7 @@ it('does not count deleted pending commits as unmoderated', function (): void {
 it('shares hasUnmoderatedCommits as false for non admins', function (): void {
     Commit::factory()->pending()->create();
 
-    $user = User::factory()->create(['username' => 'user']);
+    $user = User::factory()->create(['handle' => 'user']);
 
     $middleware = new HandleInertiaRequests();
 
@@ -261,6 +276,43 @@ it('does not dim lanes when disabled', function (): void {
     expect($shared['dimsLanes'])->toBeFalse();
 });
 
+it('shares the moment the page is rendered, which relative times count from on the server and while hydrating', function (): void {
+    $this->travelTo(Date::parse('2026-10-24T12:34:56.789Z'));
+
+    $shared = new HandleInertiaRequests()->share(Request::create('/', 'GET'));
+
+    expect($shared['now'])->toBe(1792845296789);
+});
+
+it("shares the reader's clock their browser left in cookies, so the server shows times as the browser will", function (?string $timeZone, ?string $hourCycle, array $clock): void {
+    $middleware = new HandleInertiaRequests();
+
+    $request = Request::create('/', 'GET');
+
+    if ($timeZone !== null) {
+        $request->cookies->set('time_zone', $timeZone);
+    }
+
+    if ($hourCycle !== null) {
+        $request->cookies->set('hour_cycle', $hourCycle);
+    }
+
+    $shared = $middleware->share($request);
+
+    expect($shared['clock'])->toBe($clock);
+})->with([
+    'unknown on a first visit' => [null, null, ['timeZone' => null, 'hourCycle' => null]],
+    'both' => ['Pacific/Auckland', 'h23', ['timeZone' => 'Pacific/Auckland', 'hourCycle' => 'h23']],
+    'a 12-hour clock' => ['America/New_York', 'h12', ['timeZone' => 'America/New_York', 'hourCycle' => 'h12']],
+    'a former name browsers still report' => ['Asia/Calcutta', 'h12', ['timeZone' => 'Asia/Calcutta', 'hourCycle' => 'h12']],
+    'the current name of a former name' => ['Asia/Kolkata', 'h12', ['timeZone' => 'Asia/Kolkata', 'hourCycle' => 'h12']],
+    'a legacy regional alias' => ['US/Eastern', 'h12', ['timeZone' => 'US/Eastern', 'hourCycle' => 'h12']],
+    'a custom offset rather than a system time zone' => ['GMT+05:00', 'h23', ['timeZone' => null, 'hourCycle' => 'h23']],
+    'UTC' => ['UTC', 'h23', ['timeZone' => 'UTC', 'hourCycle' => 'h23']],
+    'not a time zone' => ['Mars/Olympus', 'h23', ['timeZone' => null, 'hourCycle' => 'h23']],
+    'not an hour cycle' => ['Europe/Paris', 'h25', ['timeZone' => 'Europe/Paris', 'hourCycle' => null]],
+]);
+
 it('shows 3 replies at a time unless the user picked one of the other counts', function (string $cookie, int $count): void {
     $middleware = new HandleInertiaRequests();
 
@@ -315,6 +367,25 @@ it('shows who to follow by default', function (string $cookie): void {
         ->and($shared)->toHaveKey('suggestedUsers');
 })->with(['', 'true']);
 
+it('leaves who to follow and live following out of the operations console, which has no aside', function (string $path): void {
+    $middleware = new HandleInertiaRequests();
+    $user = User::factory()->create();
+    $live = User::factory()->create([
+        'live_platform' => LivePlatform::YouTube,
+        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'live_ends_at' => now()->addHour(),
+    ]);
+    $user->following()->attach($live);
+
+    $request = Request::create($path, 'GET');
+    $request->setUserResolver(fn () => $user);
+
+    $shared = $middleware->share($request);
+
+    expect($shared)->not->toHaveKey('suggestedUsers')
+        ->and($shared['liveFollowing']())->toBeEmpty();
+})->with(['/operations', '/operations/events']);
+
 it('suggests the round of people the user refreshed to', function (string $cookie, int $round): void {
     $middleware = new HandleInertiaRequests();
     $user = User::factory()->create();
@@ -327,7 +398,7 @@ it('suggests the round of people the user refreshed to', function (string $cooki
     $suggested = $middleware->share($request)['suggestedUsers']();
 
     expect($suggested->pluck('id')->all())
-        ->toBe(resolve(SuggestedUsersQuery::class)->get($user, round: $round)->pluck('id')->all());
+        ->toBe(resolve(SuggestedUsersQuery::class)->get($user, round: $round, spares: 3)->pluck('id')->all());
 })->with([
     'next round' => ['1', 1],
     'not a number' => ['abc', 0],

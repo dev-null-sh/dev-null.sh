@@ -3,7 +3,9 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateCommitHotScores;
+use App\Enums\LivePlatform;
 use App\Enums\Log;
+use App\Jobs\DetectCommitLanguage;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
@@ -11,6 +13,7 @@ use App\Models\User;
 use App\Services\CommitBodies;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function (): void {
     $this->user = User::factory()->create();
@@ -19,7 +22,7 @@ beforeEach(function (): void {
 
 it('lists the latest commits of everyone, newest first', function (): void {
     $author = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'name' => 'The Octocat',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
     ]);
@@ -57,7 +60,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
         'images' => [],
         'author' => [
             'id' => $author->id,
-            'username' => 'octocat',
+            'handle' => 'octocat',
             'name' => 'The Octocat',
             'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
             'bio' => $author->bio,
@@ -68,6 +71,7 @@ it('lists the latest commits of everyone, newest first', function (): void {
             'html_url' => route('user.show', $author),
             'feed_url' => route('user-feed.show', $author),
             'created_at' => now()->toIso8601ZuluString(),
+            'live' => null,
             'lane' => $author->lane(),
         ],
         'body_segments' => [['type' => 'text', 'text' => 'It was DNS.']],
@@ -103,7 +107,7 @@ it('sends the excerpt the web shows of a long commit in a list', function (): vo
 });
 
 it('shows what the web shows on a commit', function (): void {
-    $author = User::factory()->create(['username' => 'octocat', 'preferred_lane' => 4]);
+    $author = User::factory()->create(['handle' => 'octocat', 'preferred_lane' => 4]);
     $linkPreview = LinkPreview::factory()->fetched()->create(['url' => 'https://laravel.com']);
     $commit = Commit::factory()->for($author)->for($linkPreview)->create(['body' => 'Ask @NunoMaduro about https://laravel.com']);
     $image = CommitImage::factory()->for($commit)->create(['width' => 640, 'height' => 480]);
@@ -116,7 +120,7 @@ it('shows what the web shows on a commit', function (): void {
         ->assertJsonPath('data.0.stars_count', 2)
         ->assertJsonPath('data.0.starred', true)
         ->assertJsonPath('data.0.is_pinned', true)
-        ->assertJsonPath('data.0.mentions', [['username' => 'NunoMaduro', 'offset' => 4, 'length' => 11]])
+        ->assertJsonPath('data.0.mentions', [['handle' => 'NunoMaduro', 'offset' => 4, 'length' => 11, 'kind' => 'user']])
         ->assertJsonPath('data.0.link_preview', [
             'url' => 'https://laravel.com',
             'title' => $linkPreview->title,
@@ -134,6 +138,31 @@ it('shows what the web shows on a commit', function (): void {
             'url' => route('commit-image.show', $image),
         ]])
         ->assertJsonPath('data.0.author.lane', 4);
+});
+
+it('tells on each commit whether its author is live', function (): void {
+    $this->freezeSecond();
+
+    $streamer = User::factory()->create([
+        'live_platform' => LivePlatform::Twitch,
+        'live_url' => 'https://www.twitch.tv/octocat',
+        'live_ends_at' => now()->addHour(),
+    ]);
+    $live = Commit::factory()->for($streamer)->create(['created_at' => now()]);
+    $offline = Commit::factory()->create(['created_at' => now()->subMinute()]);
+
+    $response = signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'latest'));
+
+    $response->assertOk()
+        ->assertJsonPath('data.0.id', $live->id)
+        ->assertJsonPath('data.0.author.live', [
+            'platform' => 'twitch',
+            'url' => 'https://www.twitch.tv/octocat',
+            'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_octocat-1280x720.jpg',
+            'ends_at' => now()->addHour()->toIso8601ZuluString(),
+        ])
+        ->assertJsonPath('data.1.id', $offline->id)
+        ->assertJsonPath('data.1.author.live', null);
 });
 
 it('only shows the saves and stars of the user', function (): void {
@@ -204,6 +233,7 @@ it('lists commits 20 at a time with a cursor to the next page', function (): voi
 });
 
 it('does not query each commit or author', function (): void {
+    Queue::fake([DetectCommitLanguage::class]);
     signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'latest'))->assertOk();
 
     $queries = function (): int {
@@ -262,6 +292,28 @@ it('pages through the trending log in its ranking', function (): void {
         ->assertOk()
         ->assertJsonPath('data.*.id', $commits->slice(20)->pluck('id')->values()->all())
         ->assertJsonPath('meta.next_cursor', null);
+});
+
+it('draws the trending log anew on each request', function (): void {
+    config(['trending.temperature' => 0.5]);
+    Commit::factory()->count(10)->create(['created_at' => now()]);
+
+    $draw = fn (): array => signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'trending'))->json('data.*.id');
+
+    expect($draw())->not->toBe($draw());
+});
+
+it('keeps the draw of the trending log while it pages', function (): void {
+    config(['trending.temperature' => 0.5]);
+    $commits = Commit::factory()->count(25)->sequence(
+        fn (Sequence $sequence): array => ['created_at' => now()->subMinutes($sequence->index)],
+    )->create();
+
+    $first = signedApiRequest($this->keyPair, 'GET', route('api-log.show', 'trending'));
+    $second = signedApiRequest($this->keyPair, 'GET', route('api-log.show', ['trending', 'cursor' => $first->json('meta.next_cursor')]));
+
+    expect([...$first->json('data.*.id'), ...$second->json('data.*.id')])->toEqualCanonicalizing($commits->modelKeys())
+        ->and($second->json('meta.next_cursor'))->toBeNull();
 });
 
 it('counts no newer commits on the trending log, like the web', function (): void {

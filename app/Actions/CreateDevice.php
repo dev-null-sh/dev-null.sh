@@ -28,6 +28,8 @@ final readonly class CreateDevice
         return Device::query()->updateOrCreate(['fingerprint' => $authorizationCode->fingerprint], [
             'user_id' => $authorizationCode->userId,
             'name' => $authorizationCode->deviceName,
+            'app_id' => $authorizationCode->appId,
+            'app_name' => $authorizationCode->appName,
             'approved_at' => now(),
             'last_used_at' => null,
         ]);

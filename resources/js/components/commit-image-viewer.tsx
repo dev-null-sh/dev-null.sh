@@ -9,6 +9,7 @@ import { useCallback, useState } from 'react';
 import { show as showCommitImage } from '@/actions/App/Http/Controllers/CommitImageController';
 import { CommitCard } from '@/components/commit-card';
 import type { ShownImage } from '@/components/commit-images';
+import { GraphCanvas } from '@/components/graph-canvas';
 import { ImageViewer } from '@/components/image-viewer';
 import { isTyping } from '@/hooks/use-keyboard-shortcuts';
 import { closeCommitPhoto, showCommitPhoto } from '@/lib/commit-photo';
@@ -99,7 +100,7 @@ export function CommitImageViewer() {
                     <aside
                         ref={keepWheelInPanel}
                         aria-label="Commit"
-                        className="absolute inset-x-0 bottom-0 h-(--commit-panel-height) touch-auto overflow-y-auto overscroll-contain rounded-t-xl border-t bg-card text-card-foreground select-text lg:inset-x-auto lg:inset-y-0 lg:right-0 lg:h-auto lg:w-(--commit-panel-width) lg:rounded-none lg:border-t-0 lg:border-l"
+                        className="absolute inset-x-0 bottom-0 h-(--commit-panel-height) touch-auto overflow-y-auto overscroll-contain rounded-t-lg border-t bg-card text-card-foreground select-text lg:inset-x-auto lg:inset-y-0 lg:right-0 lg:h-auto lg:w-(--commit-panel-width) lg:rounded-none lg:border-t-0 lg:border-l"
                         onPointerDown={(event) => event.stopPropagation()}
                         onKeyDown={(event) => {
                             if (isTyping(event.target)) {
@@ -107,14 +108,15 @@ export function CommitImageViewer() {
                             }
                         }}
                     >
-                        <CommitCard
-                            key={photo.commit.id}
-                            commit={photo.commit}
-                            isFocused
-                            showImages={false}
-                            loadsReplies
-                            endsWithDot
-                        />
+                        <GraphCanvas key={photo.commit.id}>
+                            <CommitCard
+                                commit={photo.commit}
+                                isFocused
+                                showImages={false}
+                                loadsReplies
+                                endsWithDot
+                            />
+                        </GraphCanvas>
                     </aside>
                 )
             }

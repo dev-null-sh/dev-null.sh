@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\SshKey;
 use App\Models\User;
 use App\Services\SignedCommits;
-use Illuminate\Support\Facades\Http;
 use Tests\Support\SshKeyPair;
 
 beforeEach(function (): void {
@@ -13,11 +13,13 @@ beforeEach(function (): void {
     $this->user = User::factory()->create();
 
     SshKey::factory()->for($this->user)->withPublicKey($this->keyPair->publicKey)->create();
-
-    fakeGitHubSshKeys($this->user, [$this->keyPair->publicKey]);
 });
 
 it('verifies a signed commit', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, "  It was DNS.\n\nIt is always DNS.\n");
 
     $commit = resolve(SignedCommits::class)->verify($payload, $signature);
@@ -28,6 +30,10 @@ it('verifies a signed commit', function (): void {
 });
 
 it('verifies a signed reply', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'Agreed!', replyTo: '0be0130');
 
     $commit = resolve(SignedCommits::class)->verify($payload, $signature);
@@ -37,6 +43,10 @@ it('verifies a signed reply', function (): void {
 });
 
 it('verifies a signed commit with images', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $hashes = [hash('sha256', 'first image'), hash('sha256', 'second image')];
 
     ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, "Shipped!\n\nWith pictures.", imageHashes: $hashes);
@@ -49,6 +59,10 @@ it('verifies a signed commit with images', function (): void {
 });
 
 it('rejects images that do not match the signed payload', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'Shipped!', imageHashes: [hash('sha256', 'signed image')]);
 
     expect(fn (): array => resolve(SignedCommits::class)->verify($payload, $signature, fn (): array => [hash('sha256', 'tampered image')]))
@@ -80,6 +94,10 @@ it('does not hash the images of a key that is not on the github account of a use
 });
 
 it('does not hash the images of a replayed signature', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $hashes = [hash('sha256', 'image')];
 
     ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'Shipped!', imageHashes: $hashes);
@@ -137,6 +155,10 @@ it('rejects old or future timestamps', function (int $offset): void {
 })->with([-301, 301]);
 
 it('accepts small clock differences', function (int $offset): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'It was DNS.', timestamp: now()->getTimestamp() + $offset);
 
     $commit = resolve(SignedCommits::class)->verify($payload, $signature);
@@ -161,6 +183,10 @@ it('rejects keys that are not on the github account of a user', function (): voi
 });
 
 it('rejects a replayed signature', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'It was DNS.');
 
     $signedCommits = resolve(SignedCommits::class);
@@ -172,6 +198,10 @@ it('rejects a replayed signature', function (): void {
 });
 
 it('rejects a replayed signature until it expires', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     ['payload' => $payload, 'signature' => $signature] = signedCommit($this->keyPair, 'It was DNS.', timestamp: now()->getTimestamp() + 300);
 
     $signedCommits = resolve(SignedCommits::class);
@@ -190,12 +220,13 @@ it('rejects a replayed signature until it expires', function (): void {
 });
 
 it('rejects unknown keys without calling github', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldNotReceive('login');
+
     ['payload' => $payload, 'signature' => $signature] = signedCommit(SshKeyPair::generate(), 'It was DNS.');
 
     expect(fn (): array => resolve(SignedCommits::class)->verify($payload, $signature))
         ->toThrow(InvalidArgumentException::class);
-
-    Http::assertNothingSent();
 });
 
 it('rejects keys removed from github since the last sync', function (): void {
@@ -203,7 +234,9 @@ it('rejects keys removed from github since the last sync', function (): void {
     $user = User::factory()->create();
     $sshKey = SshKey::factory()->for($user)->withPublicKey($keyPair->publicKey)->create();
 
-    fakeGitHubSshKeys($user);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('sshKeys')->with($user->handle)->andReturn([]);
 
     ['payload' => $payload, 'signature' => $signature] = signedCommit($keyPair, 'It was DNS.');
 
@@ -213,10 +246,12 @@ it('rejects keys removed from github since the last sync', function (): void {
 });
 
 it('checks github at most every 5 minutes', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($this->user->github_id)->andReturn($this->user->handle);
+    $github->shouldReceive('sshKeys')->with($this->user->handle)->once()->andReturn([$this->keyPair->publicKey->toOpenSsh()]);
+
     $signedCommits = resolve(SignedCommits::class);
 
     $signedCommits->verify(...signedCommit($this->keyPair, 'First'));
     $signedCommits->verify(...signedCommit($this->keyPair, 'Second'));
-
-    Http::assertSentCount(3);
 });

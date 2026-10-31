@@ -37,8 +37,16 @@ _ide_helper.php
 /CLAUDE.md
 /GEMINI.md
 /opencode.json
-/.agents
+/.agents/*
+!/.agents/setup
 /.claude/skills
 /.codex
 /.cursor
 /.junie
+
+**/caddy
+frankenphp
+frankenphp-worker.php
+
+# Generated orb portal URLs are specific to each thread.
+/.amp/portals/
