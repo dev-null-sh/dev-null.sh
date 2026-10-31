@@ -18,7 +18,7 @@ import { laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { CursorPaginated, Organization, User } from '@/types';
 
-type Connection = User & { is_followed: boolean };
+type Connection = User & { is_followed: boolean; follows_you: boolean };
 
 type FollowedOrganization = Organization & {
     id: string;
@@ -43,8 +43,9 @@ function ConnectionFollowButton({ person }: { person: Connection }) {
         <FollowButton
             user={person}
             isFollowing={person.is_followed}
+            followsYou={person.follows_you}
             size="sm"
-            className="mt-4 min-w-24 shrink-0"
+            className="mt-4 min-w-26 shrink-0"
             only={['auth']}
             preserveState
             onSuccess={() => router.flushAll()}

@@ -108,6 +108,8 @@ const { UserSafetyMenu } =
     await import('../../resources/js/components/user-safety-menu');
 const { ConversationActions } =
     await import('../../resources/js/components/chat/conversation-actions');
+const { default: Connections } =
+    await import('../../resources/js/pages/user/connections');
 
 vi.stubGlobal('window', {
     matchMedia: () => ({ matches: false }),
@@ -266,6 +268,39 @@ test('a preview offers to follow back when they already follow you', () => {
         'Follow back',
     );
 });
+
+for (const followsYou of [true, false]) {
+    for (const isFollowing of [true, false]) {
+        test(`a connection with follows_you=${followsYou} and is_followed=${isFollowing} has the right follow label`, () => {
+            const person = {
+                ...suggestion(`connection-${followsYou}-${isFollowing}`),
+                is_followed: isFollowing,
+                follows_you: followsYou,
+            };
+            const row = find(
+                Connections({
+                    user: suggestion('viewer'),
+                    type: 'followers',
+                    users: {
+                        data: [person],
+                        next_cursor: null,
+                        prev_cursor: null,
+                    },
+                }),
+                (props) => props.person === person,
+            );
+            assert.ok(row);
+            const control = render(row) as ReactElement<Props>;
+            const button = find(render(control), (props) => 'aria-label' in props);
+            assert.ok(button);
+            assert.equal(
+                button.props['aria-label'],
+                `${isFollowing ? 'Unfollow' : followsYou ? 'Follow back' : 'Follow'} @${person.handle}`,
+            );
+            assert.match(String(control.props.className), /\bmin-w-26\b/);
+        });
+    }
+}
 
 test('a preview offers to follow someone who does not follow you', () => {
     const button = previewFollowButton(suggestion('preview-stranger'));
