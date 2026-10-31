@@ -53,6 +53,7 @@ export type BodySegment =
     | {
           type: 'block';
           language: string | null;
+          filename: string | null;
           html: string;
           // The whole block, when a preview shows only its first lines, so copying it still copies all of it.
           fullHtml?: string;
@@ -76,6 +77,7 @@ export type Commit = {
     hot_score: number;
     body: string;
     mentions: Record<string, string> | null;
+    organization_mentions?: Record<string, string> | null;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
     translation?: CommitTranslation | null;

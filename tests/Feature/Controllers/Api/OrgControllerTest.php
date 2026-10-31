@@ -35,6 +35,18 @@ it('starts an org with people who follow the user, who maintains it', function (
         ->and(Message::query()->sole()->event)->toBe(OrgEvent::Created);
 });
 
+it('refuses to start an org for a user in timeout, as the web does', function (): void {
+    [$nuno] = followersOf($this->user, 1);
+    UserTimeout::factory()->for($this->user)->create();
+
+    signedApiRequest($this->keyPair, 'POST', route('api-org.store'), ['name' => 'buy my course', 'members' => [$nuno->handle]])
+        ->assertForbidden()
+        ->assertJsonPath('code', 'timed_out');
+
+    expect(Conversation::query()->exists())->toBeFalse()
+        ->and(Message::query()->exists())->toBeFalse();
+});
+
 it('leaves an org without a name when none is given', function (?string $name): void {
     [$nuno] = followersOf($this->user, 1);
 

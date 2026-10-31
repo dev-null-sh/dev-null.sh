@@ -24,9 +24,10 @@ final readonly class CommitReplyController
         return response()->json($replies->paginate($commit, $user, $request->boolean('newest'), $request->integer('limit', CommitRepliesQuery::PER_PAGE), $request->exceptedReplyId()));
     }
 
+    /** Creates a reply addressed to the parent author and the validated selection of conversation participants. */
     public function store(CreateCommitReplyRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommit $action, CommitThreadQuery $thread): JsonResponse
     {
-        $reply = $action->handle($user, $request->string('body')->value(), $commit, images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview());
+        $reply = $action->handle($user, $request->string('body')->value(), $commit, images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), replyRecipients: $request->replyRecipients());
         $parent = $thread->get($commit, $user);
 
         return response()->json([

@@ -38,7 +38,7 @@ final readonly class UserSearchQuery
                 ->whereNotIn('users.id', $viewer->mutedIds())
                 ->whereNotIn('users.id', $viewer->idsAcrossBlocks()))
             ->orderByRaw(
-                "CASE WHEN LOWER(profiles.handle) = ? THEN 0 WHEN LOWER(profiles.handle) LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(profiles.name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
+                "CASE WHEN profiles.handle = ? THEN 0 WHEN profiles.handle LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(profiles.name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
                 [$term, "{$escaped}%", "{$escaped}%"],
             )
             ->orderBy('profiles.handle')

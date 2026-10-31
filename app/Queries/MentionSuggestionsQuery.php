@@ -71,7 +71,7 @@ final readonly class MentionSuggestionsQuery
             ->when($contributors, fn (Builder $query, QueryBuilder $contributors): Builder => $query
                 ->orderByDesc((clone $contributors)->selectRaw('COUNT(*) > 0')->whereColumn('commits.user_id', 'users.id')))
             ->orderByRaw(
-                "CASE WHEN LOWER(profiles.handle) = ? THEN 0 WHEN LOWER(profiles.handle) LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(profiles.name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
+                "CASE WHEN profiles.handle = ? THEN 0 WHEN profiles.handle LIKE ? ESCAPE '!' THEN 1 WHEN LOWER(profiles.name) LIKE ? ESCAPE '!' THEN 2 ELSE 3 END",
                 [$term, "{$escaped}%", "{$escaped}%"],
             )
             ->orderByDesc(fn (QueryBuilder $query): QueryBuilder => $query

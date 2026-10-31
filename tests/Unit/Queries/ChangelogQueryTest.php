@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\User;
 use App\Queries\ChangelogQuery;
 use Carbon\CarbonImmutable;
-use Illuminate\Http\Client\Request;
-use Illuminate\Support\Facades\Http;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 
 /**
  * @return array<string, mixed>
@@ -25,17 +28,16 @@ function pullRequest(int $number, ?string $mergedAt, ?string $updatedAt = null, 
 }
 
 /**
- * Serves the closed pull requests like GitHub does: most recently updated first, a hundred to a page.
+ * Serves the closed pull requests like GitHub does: most recently updated first, a page at a time.
  *
  * @param  list<array<string, mixed>>  $pullRequests
+ * @return Closure(string, string, int, int): list<array<string, mixed>>
  */
-function fakeGitHub(array $pullRequests): void
+function closedPullRequestPages(array $pullRequests): Closure
 {
     usort($pullRequests, fn (array $a, array $b): int => strcmp((string) $b['updated_at'], (string) $a['updated_at']));
 
-    Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/pulls*' => fn (Request $request) => Http::response(
-        array_slice($pullRequests, ((int) $request['page'] - 1) * 100, 100),
-    )]);
+    return fn (string $repository, string $branch, int $page, int $perPage): array => array_slice($pullRequests, ($page - 1) * $perPage, $perPage);
 }
 
 /**
@@ -48,14 +50,15 @@ function numbers(?array $changelog): array
 }
 
 it('lists the pull requests merged on the three latest days with merges, newest merge first, with their parsed titles', function (): void {
-    fakeGitHub([
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('closedPullRequests')->andReturnUsing(closedPullRequestPages([
         pullRequest(377, '2026-10-18T00:53:44Z', title: 'feat!: turn emoji shortcodes into emoji in remotes'),
         pullRequest(400, null, '2026-10-18T01:00:00Z', title: 'docs: closed without merging'),
         pullRequest(304, '2026-10-17T20:15:34Z', title: 'Fix GitHub website URLs with uppercase schemes', login: 'ahosker'),
         pullRequest(310, '2026-10-17T21:26:43Z', title: 'feat: dim other commits on mouse hover', login: 'simonhamp'),
         pullRequest(250, '2026-10-14T10:00:00Z'),
         pullRequest(240, '2026-10-12T10:00:00Z'),
-    ]);
+    ]));
 
     $changelog = resolve(ChangelogQuery::class)->get('UTC');
 
@@ -74,21 +77,17 @@ it('lists the pull requests merged on the three latest days with merges, newest 
         ])
         ->and($changelog['pullRequests'][2] ?? [])->toHaveKey('type', null);
 
-    Http::assertSent(fn (Request $request): bool => $request['state'] === 'closed'
-        && $request['base'] === 'production'
-        && $request['sort'] === 'updated'
-        && $request['direction'] === 'desc'
-        && $request['per_page'] === 100
-        && $request['page'] === 1);
+    $github->shouldHaveReceived('closedPullRequests')->with('dev-null-sh/dev-null.sh', 'production', 1, 100)->once();
 });
 
 it('counts days in the reader’s time zone', function (): void {
-    fakeGitHub([
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('closedPullRequests')->andReturnUsing(closedPullRequestPages([
         pullRequest(3, '2026-10-17T23:30:00Z'),
         pullRequest(2, '2026-10-17T12:00:00Z'),
         pullRequest(1, '2026-10-16T12:00:00Z'),
         pullRequest(0, '2026-10-15T12:00:00Z'),
-    ]);
+    ]));
 
     $query = resolve(ChangelogQuery::class);
 
@@ -100,25 +99,27 @@ it('counts days in the reader’s time zone', function (): void {
 it('reads as many pages as the three days take, and no more', function (): void {
     $busyDays = array_map(fn (int $number): array => pullRequest($number, CarbonImmutable::parse('2026-10-18T23:59:00Z')->subMinutes($number * 9)->toIso8601ZuluString()), range(1, 300));
 
-    fakeGitHub([...$busyDays, pullRequest(2000, '2026-10-12T10:00:00Z'), ...array_map(fn (int $number): array => pullRequest(1000 + $number, '2026-10-01T10:00:00Z'), range(1, 150))]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('closedPullRequests')->andReturnUsing(closedPullRequestPages([...$busyDays, pullRequest(2000, '2026-10-12T10:00:00Z'), ...array_map(fn (int $number): array => pullRequest(1000 + $number, '2026-10-01T10:00:00Z'), range(1, 150))]));
 
     $changelog = resolve(ChangelogQuery::class)->get('UTC');
 
     expect($changelog['pullRequests'] ?? [])->toHaveCount(301)
         ->and($changelog['olderBefore'] ?? null)->toBe('2026-10-12T00:00:00+00:00');
 
-    Http::assertSentCount(4);
+    $github->shouldHaveReceived('closedPullRequests')->times(4);
 });
 
 it('lists the next three days older than where the reader is, reusing the pages it already read', function (): void {
-    fakeGitHub([
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('closedPullRequests')->andReturnUsing(closedPullRequestPages([
         pullRequest(6, '2026-10-18T10:00:00Z'),
         pullRequest(5, '2026-10-17T10:00:00Z'),
         pullRequest(4, '2026-10-16T10:00:00Z'),
         pullRequest(3, '2026-10-15T10:00:00Z'),
         pullRequest(2, '2026-10-13T10:00:00Z'),
         pullRequest(1, '2026-10-13T09:00:00Z'),
-    ]);
+    ]));
 
     $query = resolve(ChangelogQuery::class);
     $latest = $query->get('UTC');
@@ -128,29 +129,31 @@ it('lists the next three days older than where the reader is, reusing the pages 
         ->and(numbers($older))->toBe([3, 2, 1])
         ->and($older)->toHaveKey('olderBefore', null);
 
-    Http::assertSentCount(1);
+    $github->shouldHaveReceived('closedPullRequests')->times(1);
 });
 
 it('stops reading after ten pages, carrying on from the oldest merge it got to next time', function (): void {
-    fakeGitHub(array_map(fn (int $number): array => pullRequest($number, CarbonImmutable::parse('2026-10-18T23:59:00Z')->subSeconds($number * 30)->toIso8601ZuluString()), range(1, 1100)));
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('closedPullRequests')->andReturnUsing(closedPullRequestPages(array_map(fn (int $number): array => pullRequest($number, CarbonImmutable::parse('2026-10-18T23:59:00Z')->subSeconds($number * 30)->toIso8601ZuluString()), range(1, 1100))));
 
     $changelog = resolve(ChangelogQuery::class)->get('UTC');
 
     expect($changelog['pullRequests'] ?? [])->toHaveCount(1000)
         ->and($changelog['olderBefore'] ?? null)->toBe(CarbonImmutable::parse('2026-10-18T23:59:00Z')->subSeconds(1000 * 30)->toIso8601String());
 
-    Http::assertSentCount(10);
+    $github->shouldHaveReceived('closedPullRequests')->times(10);
 });
 
 it('colors each author with the lane they chose on /dev/null, found by their GitHub account', function (): void {
     User::factory()->create(['github_id' => '1', 'preferred_lane' => 4]);
     User::factory()->create(['github_id' => '2', 'lane_color' => '#ff2d20']);
 
-    fakeGitHub([
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('closedPullRequests')->andReturnUsing(closedPullRequestPages([
         pullRequest(3, '2026-10-18T12:00:00Z', login: 'renamed-on-github', githubId: 1),
         pullRequest(2, '2026-10-18T11:00:00Z', login: 'custom', githubId: 2),
         pullRequest(1, '2026-10-18T10:00:00Z', login: 'not-on-devnull', githubId: 3),
-    ]);
+    ]));
 
     expect(array_column(array_column(resolve(ChangelogQuery::class)->get('UTC')['pullRequests'] ?? [], 'author'), 'lane'))
         ->toBe([4, '#ff2d20', null]);
@@ -159,10 +162,11 @@ it('colors each author with the lane they chose on /dev/null, found by their Git
 it('links each author who is on /dev/null to their profile, found by their GitHub account', function (): void {
     User::factory()->create(['github_id' => '1', 'handle' => 'renamed-on-devnull']);
 
-    fakeGitHub([
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('closedPullRequests')->andReturnUsing(closedPullRequestPages([
         pullRequest(2, '2026-10-18T12:00:00Z', login: 'renamed-on-github', githubId: 1),
         pullRequest(1, '2026-10-18T10:00:00Z', login: 'not-on-devnull', githubId: 3),
-    ]);
+    ]));
 
     $authors = array_column(resolve(ChangelogQuery::class)->get('UTC')['pullRequests'] ?? [], 'author');
 
@@ -171,34 +175,35 @@ it('links each author who is on /dev/null to their profile, found by their GitHu
 });
 
 it('asks GitHub for a page at most once every thirty minutes', function (): void {
-    fakeGitHub([pullRequest(377, '2026-10-18T00:53:44Z')]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('closedPullRequests')->andReturnUsing(closedPullRequestPages([pullRequest(377, '2026-10-18T00:53:44Z')]));
 
     $query = resolve(ChangelogQuery::class);
     $query->get('UTC');
     $query->get('Europe/Budapest');
 
-    Http::assertSentCount(1);
+    $github->shouldHaveReceived('closedPullRequests')->times(1);
 
     $this->travel(29)->minutes();
     $query->get('UTC');
 
-    Http::assertSentCount(1);
+    $github->shouldHaveReceived('closedPullRequests')->times(1);
 
     $this->travel(2)->minutes();
     $query->get('UTC');
 
-    Http::assertSentCount(2);
+    $github->shouldHaveReceived('closedPullRequests')->times(2);
 });
 
-it('is null when GitHub cannot be reached, and asks again next time', function (mixed $response): void {
-    Http::fake(['api.github.com/*' => Http::sequence()->pushResponse($response)->push([pullRequest(377, '2026-10-18T00:53:44Z')])]);
+it('is null when GitHub cannot be reached, and asks again next time', function (Closure $exception): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('closedPullRequests')->andReturnUsing($exception, fn (): array => [pullRequest(377, '2026-10-18T00:53:44Z')]);
 
     $query = resolve(ChangelogQuery::class);
 
     expect($query->get('UTC'))->toBeNull()
         ->and(numbers($query->get('UTC')))->toBe([377]);
 })->with([
-    'an error' => fn () => Http::response(['message' => 'API rate limit exceeded'], 403),
-    'a timeout' => fn () => Http::failedConnection(),
-    'something unexpected' => fn () => Http::response(['message' => 'Not Found']),
+    'an error' => fn () => throw new RequestException(new Response(new Psr7Response(403))),
+    'a timeout' => fn () => throw new ConnectionException('timed out'),
 ]);

@@ -313,6 +313,56 @@ for (const [body, expected] of [
     });
 }
 
+for (const fence of [
+    '``` php\ttitle="app/Models/User.php" \t',
+    '```php filename="app/Models/User.php"',
+]) {
+    test(`labels the code block of "${fence}" with its filename`, () => {
+        const markup = renderPage(
+            <CommitBody
+                segments={bodySegments(`${fence}\n$name;\n\`\`\``)}
+                mentions={null}
+            />,
+        );
+
+        assert.match(
+            markup,
+            /<span[^>]*title="app\/Models\/User\.php"[^>]*>app\/Models\/User\.php<\/span>/,
+        );
+        assert.ok(!markup.includes('>php<'));
+    });
+}
+
+for (const [fence, language, filename] of [
+    ['``` php\ttitle="app/Models/User.php" \t', 'php', 'app/Models/User.php'],
+    ['```php filename="app/Models/User.php"', 'php', 'app/Models/User.php'],
+    ['```php filename="a.php" title="b.php"', 'php', 'b.php'],
+    ['```php title="" filename="a.php"', 'php', 'a.php'],
+    ['```php title="a.php" title="b.php"', 'php', 'a.php'],
+    ['```php title="My Model.php"', 'php', 'My Model.php'],
+    [
+        '```php {1, 3} showLineNumbers title="app.php" tab="Pest 4"',
+        'php',
+        'app.php',
+    ],
+    ['```php app/Models/User.php', 'php', null],
+    ['```php {1,3}', 'php', null],
+    ['```php tab=Pest', 'php', null],
+    ['```php title=""', 'php', null],
+    ['```php title="app.php', 'php', null],
+    ['```php caption="see title="app.php"', 'php', null],
+    ['```php {1 title="app.php"}', 'php', null],
+    ['```php\u00a0title="app.php"', 'php\u00a0title="app.php"', null],
+    ['```php', 'php', null],
+    ['```', null, null],
+] as const) {
+    test(`reads the language and filename of "${fence}" like the server`, () => {
+        assert.deepEqual(bodySegments(`${fence}\n$name;\n\`\`\``), [
+            { type: 'block', language, filename, html: '$name;' },
+        ]);
+    });
+}
+
 test('links the mentions the server found in the preview', () => {
     const preview = previewFor({
         body: 'Pairing with @alice and @nobody-here',

@@ -54,7 +54,7 @@ export type Notification =
           };
       })
     | (BaseNotification & {
-          type: 'mentioned' | 'approved' | 'rejected';
+          type: 'mentioned' | 'first_commit' | 'approved' | 'rejected';
           commit_id: string;
           subject_id: null;
           commit: Omit<Commit, 'user'>;

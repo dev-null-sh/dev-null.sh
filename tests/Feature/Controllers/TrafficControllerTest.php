@@ -2,21 +2,24 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\AnalyticsProvider;
 use App\Models\User;
-use Illuminate\Http\Client\Request;
-use Illuminate\Support\Facades\Http;
+use Carbon\CarbonImmutable;
 
 beforeEach(function (): void {
-    config(['app.admins' => ['admin'], 'services.fathom.token' => 'token', 'services.fathom.site_id' => 'SITE']);
+    config(['app.admins' => ['admin']]);
 });
 
-it('shows Fathom traffic for the last seven days to admins', function (): void {
+it('shows the traffic for the last seven days to admins', function (): void {
     $this->travelTo(now()->setDate(2026, 10, 18));
 
-    Http::fake([
-        'api.usefathom.com/v1/current_visitors*' => Http::response(['total' => 3]),
-        'api.usefathom.com/v1/aggregations*' => Http::response([['uniques' => '120', 'pageviews' => '480']]),
-    ]);
+    $this->mock(AnalyticsProvider::class)->shouldReceive('traffic')
+        ->withArgs(fn (CarbonImmutable $from, CarbonImmutable $to): bool => $from->toDateString() === '2026-10-12' && $to->toDateString() === '2026-10-18')
+        ->andReturn([
+            'current' => 3,
+            'totals' => ['visitors' => 120, 'pageviews' => 480, 'avg_duration' => 0, 'bounce_rate' => 0.0],
+            'breakdowns' => ['pages' => [], 'referrers' => [], 'countries' => [], 'devices' => [], 'browsers' => []],
+        ]);
 
     $response = $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('traffic.show'));
@@ -25,7 +28,6 @@ it('shows Fathom traffic for the last seven days to admins', function (): void {
         ->assertInertia(fn ($page) => $page
             ->component('operations/traffic')
             ->where('trafficRange', ['from' => '2026-10-12', 'to' => '2026-10-18'])
-            ->where('hasTraffic', true)
             ->missing('traffic')
             ->loadDeferredProps(fn ($reload) => $reload
                 ->where('traffic.current', 3)
@@ -33,21 +35,17 @@ it('shows Fathom traffic for the last seven days to admins', function (): void {
                 ->where('traffic.totals.pageviews', 480)));
 });
 
-it('shows Fathom traffic for the chosen dates', function (): void {
-    Http::fake([
-        'api.usefathom.com/v1/current_visitors*' => Http::response(['total' => 3]),
-        'api.usefathom.com/v1/aggregations*' => Http::response([]),
-    ]);
+it('shows the traffic for the chosen dates', function (): void {
+    $this->mock(AnalyticsProvider::class)->shouldReceive('traffic')
+        ->withArgs(fn (CarbonImmutable $from, CarbonImmutable $to): bool => $from->toDateString() === '2026-01-01' && $to->toDateString() === '2026-01-31')
+        ->andReturnNull();
 
     $this->actingAs(User::factory()->create(['handle' => 'admin']))
         ->get(route('traffic.show', ['from' => '2026-01-01', 'to' => '2026-01-31']))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('trafficRange', ['from' => '2026-01-01', 'to' => '2026-01-31'])
-            ->loadDeferredProps(fn ($reload) => $reload->where('traffic.current', 3)));
-
-    Http::assertSent(fn (Request $request): bool => ($request->data()['date_from'] ?? null) === '2026-01-01 00:00:00'
-        && ($request->data()['date_to'] ?? null) === '2026-01-31 23:59:59');
+            ->loadDeferredProps(fn ($reload) => $reload->where('traffic', null)));
 });
 
 it('rejects dates that are malformed, in the future, or out of order', function (array $query): void {
@@ -59,14 +57,6 @@ it('rejects dates that are malformed, in the future, or out of order', function 
     'in the future' => [['to' => now()->addDay()->toDateString()]],
     'out of order' => [['from' => '2026-02-01', 'to' => '2026-01-01']],
 ]);
-
-it('is a 404 without a Fathom token', function (): void {
-    config(['services.fathom.token' => null]);
-
-    $this->actingAs(User::factory()->create(['handle' => 'admin']))
-        ->get(route('traffic.show'))
-        ->assertNotFound();
-});
 
 it('is a 404 for non admins', function (): void {
     $response = $this->actingAs(User::factory()->create())

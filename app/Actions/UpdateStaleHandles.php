@@ -16,7 +16,7 @@ final readonly class UpdateStaleHandles
     public function handle(string $handle, string $githubId): void
     {
         Profile::query()
-            ->whereRaw('LOWER(handle) = ?', [mb_strtolower($handle)])
+            ->where('handle', $handle)
             ->where('github_id', '!=', $githubId)
             ->each(function (Profile $profile): void {
                 $profile->update(['handle' => match ($profile->github_id) {

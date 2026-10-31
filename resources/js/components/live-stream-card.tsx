@@ -78,6 +78,8 @@ export function LiveAvatarMarker({ className }: { className?: string }) {
                 'absolute -bottom-1.5 left-1/2 -translate-x-1/2 ring-2 ring-card',
                 className,
             )}
+            // On a graph node, it hangs below the ring: the lines go round it and its 2px ring.
+            data-graph-overhang="2"
         />
     );
 }

@@ -10,7 +10,9 @@ use App\Enums\RepliesPerPage;
 use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
 use App\Models\User;
+use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
+use App\Queries\DevelopersCountQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
@@ -90,6 +92,7 @@ final class HandleInertiaRequests extends Middleware
             'repository' => config('services.github.repository'),
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
+                'bioProfiles' => fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [],
                 'isAdmin' => $isAdmin,
                 'automaticTranslation' => $user->automatic_translation ?? true,
                 'mustReadCommitRules' => $user instanceof User && $user->commit_rules_accepted_at === null,
@@ -107,6 +110,8 @@ final class HandleInertiaRequests extends Middleware
                     'day' => today()->toDateString(),
                 ] : null,
             ],
+            // Guests see how many developers are here, next to the sign-in button...
+            'developersCount' => fn (): ?int => $user instanceof User ? null : resolve(DevelopersCountQuery::class)->get(),
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,

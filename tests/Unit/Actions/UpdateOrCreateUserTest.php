@@ -3,14 +3,13 @@
 declare(strict_types=1);
 
 use App\Actions\UpdateOrCreateUser;
+use App\Contracts\Services\GitHubProvider;
 use App\Models\User;
-use Illuminate\Http\Client\Request;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
 use Laravel\Socialite\Two\User as GitHubUser;
 
 it('creates a user from github', function (): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $action = resolve(UpdateOrCreateUser::class);
 
@@ -39,7 +38,8 @@ it('creates a user from github', function (): void {
 });
 
 it('updates an existing user from github', function (): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $existing = User::factory()->create([
         'github_id' => '583231',
@@ -62,7 +62,8 @@ it('updates an existing user from github', function (): void {
 });
 
 it('falls back to the handle when the name is blank', function (): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $action = resolve(UpdateOrCreateUser::class);
 
@@ -75,7 +76,8 @@ it('falls back to the handle when the name is blank', function (): void {
 });
 
 it('stores blank profile fields as null', function (): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $action = resolve(UpdateOrCreateUser::class);
 
@@ -96,7 +98,8 @@ it('stores blank profile fields as null', function (): void {
 });
 
 it('adds a scheme to websites without one', function (): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $action = resolve(UpdateOrCreateUser::class);
 
@@ -108,7 +111,8 @@ it('adds a scheme to websites without one', function (): void {
 });
 
 it('keeps http and https websites as they are regardless of scheme case', function (string $website): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $action = resolve(UpdateOrCreateUser::class);
 
@@ -126,10 +130,9 @@ it('keeps http and https websites as they are regardless of scheme case', functi
     'mixed-case https' => 'HtTpS://example.com/Path?Key=Value#Section',
 ]);
 
-it('marks users with a sponsors listing', function (): void {
-    Log::spy();
-
-    fakeGitHubSponsorsListing(hasSponsorsListing: true);
+it('marks users with a sponsors listing, asking with their own token', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->once()->with('gho_octocat')->andReturnTrue();
 
     $action = resolve(UpdateOrCreateUser::class);
 
@@ -139,12 +142,6 @@ it('marks users with a sponsors listing', function (): void {
 
     expect($user->has_sponsors_listing)->toBeTrue()
         ->and($user->github_synced_at->toDateTimeString())->toBe(now()->toDateTimeString());
-
-    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://api.github.com/graphql'
-        && $request->hasHeader('Authorization', 'Bearer gho_octocat')
-        && $request['query'] === 'query { viewer { hasSponsorsListing } }');
-
-    Log::shouldNotHaveReceived('warning');
 });
 
 it('unmarks users without a sponsors listing', function (): void {
@@ -153,7 +150,8 @@ it('unmarks users without a sponsors listing', function (): void {
         'has_sponsors_listing' => true,
     ]);
 
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $action = resolve(UpdateOrCreateUser::class);
 
@@ -164,9 +162,7 @@ it('unmarks users without a sponsors listing', function (): void {
     expect($existing->refresh()->has_sponsors_listing)->toBeFalse();
 });
 
-it('keeps the last known sponsors listing when github cannot say', function (Closure $response): void {
-    Log::spy();
-
+it('keeps the last known sponsors listing when github cannot say', function (): void {
     $stale = User::factory()->create([
         'github_id' => '1',
         'handle' => 'octocat',
@@ -175,10 +171,6 @@ it('keeps the last known sponsors listing when github cannot say', function (Clo
     $existing = User::factory()->create([
         'github_id' => '583231',
         'has_sponsors_listing' => true,
-    ]);
-
-    Http::fake([
-        'api.github.com/graphql' => $response,
     ]);
 
     $action = resolve(UpdateOrCreateUser::class);
@@ -194,48 +186,9 @@ it('keeps the last known sponsors listing when github cannot say', function (Clo
         ->github_synced_at->toDateTimeString()->toBe(now()->toDateTimeString());
 
     expect($stale->refresh()->handle)->toBe('_renamed-1');
-
-    Log::shouldHaveReceived('warning')
-        ->once()
-        ->with('Could not check the GitHub Sponsors listing.', Mockery::on(fn (array $context): bool => $context['handle'] === 'octocat'));
-})->with([
-    'server error' => fn () => Http::response(status: 502),
-    'graphql error' => fn () => Http::response(['errors' => [['message' => 'API rate limit exceeded']]]),
-    'connection failure' => fn () => Http::failedConnection(),
-]);
-
-it('logs why github could not say', function (): void {
-    Log::spy();
-
-    $errors = [[
-        'type' => 'INSUFFICIENT_SCOPES',
-        'message' => "The 'isPublic' field requires one of the following scopes: ['read:user', 'read:org'].",
-    ]];
-
-    Http::fake([
-        'api.github.com/graphql' => Http::response(['errors' => $errors]),
-    ]);
-
-    $action = resolve(UpdateOrCreateUser::class);
-
-    $action->handle(GitHubUser::fake([
-        'nickname' => 'octocat',
-    ]));
-
-    Log::shouldHaveReceived('warning')
-        ->once()
-        ->with('Could not check the GitHub Sponsors listing.', [
-            'handle' => 'octocat',
-            'status' => 200,
-            'errors' => $errors,
-        ]);
 });
 
 it('creates users without a sponsors listing when github cannot say', function (): void {
-    Http::fake([
-        'api.github.com/graphql' => Http::response(status: 502),
-    ]);
-
     $action = resolve(UpdateOrCreateUser::class);
 
     $user = $action->handle(GitHubUser::fake());
@@ -244,7 +197,8 @@ it('creates users without a sponsors listing when github cannot say', function (
 });
 
 it('records when the profile was synced from github', function (): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $action = resolve(UpdateOrCreateUser::class);
 
@@ -254,7 +208,8 @@ it('records when the profile was synced from github', function (): void {
 });
 
 it('frees a handle still held by a stale user who renamed on github', function (string $staleUsername): void {
-    fakeGitHubSponsorsListing(hasSponsorsListing: true);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnTrue();
 
     $stale = User::factory()->create([
         'github_id' => '1',
@@ -280,7 +235,8 @@ it('frees a handle still held by a stale user who renamed on github', function (
 })->with(['octocat', 'OctoCat']);
 
 it('moves an existing bot to its reserved handle when the github owner signs in', function (string $githubId, string $handle, string $fallback): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
     $bot = User::factory()->create(['github_id' => $githubId, 'handle' => mb_strtolower($handle)]);
     $profile = $bot->only(['id', 'name', 'avatar_url', 'bio', 'onboarded_at', 'remotes_enabled']);
     $post = $bot->commits()->create(['body' => 'An existing bot post.']);

@@ -26,6 +26,7 @@ import {
     rememberSearch,
     useRecentSearches,
 } from '@/hooks/use-recent-searches';
+import { signIn } from '@/lib/auth';
 import { searchCandidates } from '@/lib/chat';
 import {
     searchCommits,
@@ -59,7 +60,7 @@ type Option =
     | { kind: 'action'; id: string; action: SearchAction }
     | { kind: 'developer'; id: string; user: User; reason?: string | null }
     | { kind: 'commit'; id: string; commit: Commit }
-    | { kind: 'all'; id: string }
+    | { kind: 'all'; id: string; needsSignIn: boolean }
     | { kind: 'suggestion'; id: string; term: string }
     | { kind: 'recent'; id: string; term: string };
 
@@ -70,7 +71,8 @@ const suggestionOptions: Option[] = suggestedQueries.map((term, index) => ({
 }));
 
 /**
- * Searches developers and commits. Picking a developer for a new conversation narrows it to developers, says why
+ * Searches developers and commits. Guests only search developers: each commit search pays for AI, so they're asked to
+ * sign in for those instead. Picking a developer for a new conversation narrows it to developers, says why
  * anyone can't be messaged, and hands the pick back instead of opening their profile. Given `onAction`, it also offers
  * to write a commit, open an issue or go live when the search names one, above what it found.
  */
@@ -81,6 +83,10 @@ export function SearchDialog({
     excludeId,
     onAction,
     isLive = false,
+    pickerTitle = 'New remote',
+    pickerPlaceholder = 'Message a developer',
+    pickerScope = 'remote',
+    onCloseAutoFocus,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -88,6 +94,10 @@ export function SearchDialog({
     excludeId?: string;
     onAction?: (action: SearchAction) => void;
     isLive?: boolean;
+    pickerTitle?: string;
+    pickerPlaceholder?: string;
+    pickerScope?: 'remote' | 'share';
+    onCloseAutoFocus?: (event: Event) => void;
 }) {
     const userId = usePage().props.auth.user?.id ?? null;
     const recentSearches = useRecentSearches(userId);
@@ -96,16 +106,21 @@ export function SearchDialog({
     const input = useRef<HTMLInputElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const isPicking = onPickDeveloper !== undefined;
+    const isMember = userId !== null;
 
     const term = query.trim();
     const developerTerm = term.replace(/^@/u, '');
     const intent = isPicking ? 'developer' : searchIntent(term);
-    const commitTerm = searchesCommits(intent) ? term : '';
+    const commitQuery = searchesCommits(intent) ? term : '';
+    const commitTerm = isMember ? commitQuery : '';
 
     const developers = useDebouncedSearch(
         developerTerm,
         developerDebounce,
-        isPicking ? searchRemoteCandidates : searchDevelopers,
+        isPicking
+            ? (value, signal) =>
+                  searchCandidates(value, { for: pickerScope }, signal)
+            : searchDevelopers,
     );
     const commits = useDebouncedSearch(
         commitTerm,
@@ -121,7 +136,8 @@ export function SearchDialog({
         intent,
         intent === 'topic' ? visibleDevelopers.slice(0, 2) : visibleDevelopers,
         visibleCommits,
-        commitTerm,
+        commitQuery,
+        !isMember,
         onAction && !isPicking ? searchActions(term, { isLive }) : [],
     );
     const isLoading = developers.isLoading || commits.isLoading;
@@ -175,6 +191,12 @@ export function SearchDialog({
         }
 
         close();
+
+        if (option.kind === 'all' && option.needsSignIn) {
+            signIn();
+
+            return;
+        }
 
         if (option.kind === 'action') {
             onAction?.(option.action);
@@ -239,11 +261,12 @@ export function SearchDialog({
             <DialogPortal>
                 <DialogOverlay />
                 <DialogPrimitive.Content
+                    onCloseAutoFocus={onCloseAutoFocus}
                     className="fixed top-[12vh] left-1/2 z-50 w-full max-w-[calc(100%-2rem)] -translate-x-1/2 overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-[0_24px_48px_-16px_rgb(0_0_0/0.4)] duration-200 motion-safe:data-[state=closed]:animate-out motion-safe:data-[state=closed]:fade-out-0 motion-safe:data-[state=closed]:zoom-out-95 motion-safe:data-[state=open]:animate-in motion-safe:data-[state=open]:fade-in-0 motion-safe:data-[state=open]:zoom-in-95 sm:max-w-xl"
                     data-test="search"
                 >
                     <DialogPrimitive.Title className="sr-only">
-                        {isPicking ? 'New remote' : 'Search'}
+                        {isPicking ? pickerTitle : 'Search'}
                     </DialogPrimitive.Title>
                     <DialogPrimitive.Description className="sr-only">
                         {isPicking
@@ -262,7 +285,7 @@ export function SearchDialog({
                             onKeyDown={onKeyDown}
                             placeholder={
                                 isPicking
-                                    ? 'Message a developer'
+                                    ? pickerPlaceholder
                                     : 'Search developers or commits'
                             }
                             role="combobox"
@@ -499,6 +522,7 @@ function optionsFor(
     developers: FoundDeveloper[],
     commits: Commit[],
     commitTerm: string,
+    needsSignIn: boolean,
     actions: SearchAction[],
 ): Option[] {
     const actionOptions: Option[] = actions.map((action) => ({
@@ -518,7 +542,7 @@ function optionsFor(
         commit,
     }));
     const seeAll: Option[] =
-        commitTerm === '' ? [] : [{ kind: 'all', id: 'all' }];
+        commitTerm === '' ? [] : [{ kind: 'all', id: 'all', needsSignIn }];
 
     if (intent === 'topic') {
         return [
@@ -635,6 +659,7 @@ function ResultOption({
                 {option.kind === 'action' ||
                 option.kind === 'suggestion' ||
                 option.kind === 'recent' ||
+                (option.kind === 'all' && option.needsSignIn) ||
                 (option.kind === 'developer' && onPickDeveloper) ? (
                     <button
                         type="button"
@@ -697,7 +722,9 @@ function OptionContent({ option }: { option: Option }): ReactNode {
 
     return (
         <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-primary">
-            See all matching commits
+            {option.needsSignIn
+                ? 'Sign in to search commits'
+                : 'See all matching commits'}
             <ArrowRight aria-hidden className="size-4" />
         </span>
     );

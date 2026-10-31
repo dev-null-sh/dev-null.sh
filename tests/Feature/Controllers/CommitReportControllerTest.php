@@ -10,8 +10,11 @@ use App\Models\LinkPreview;
 use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\User;
+use App\Services\EncryptedFiles;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 beforeEach(function (): void {
@@ -404,3 +407,54 @@ it('removes reports on account deletion tombstones while keeping reports on surv
             ->where('reports.data.0.commit.parent', null)
             ->missing('reports.data.0.reporter_id'));
 })->with([false, true]);
+
+it('stores report screenshots encrypted and only serves them to moderators', function (): void {
+    Storage::fake();
+    $reporter = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $this->actingAs($reporter)->post(route('commit-report.store', $commit), [
+        'reason' => 'other',
+        'images' => [UploadedFile::fake()->image('evidence.png', 200, 100)],
+        'image_descriptions' => ['Evidence screenshot'],
+    ])->assertRedirect();
+
+    $report = CommitReport::query()->sole();
+    expect($report->images)->toHaveCount(1);
+    $file = $report->images[0];
+    $bytes = Storage::disk()->get($file['path']);
+    expect(str_starts_with($bytes, 'RIFF'))->toBeFalse();
+    expect(str_starts_with(resolve(EncryptedFiles::class)->decrypt($bytes), 'RIFF'))->toBeTrue();
+
+    $url = route('commit-report-image.show', ['report' => $report, 'image' => 0]);
+    expect(DB::table('commit_reports')->where('id', $report->id)->value('images'))->not->toContain('Evidence screenshot', $file['path']);
+    $this->get($url)->assertOk();
+    $this->actingAs(User::factory()->create())->get($url)->assertNotFound();
+    $this->actingAs($commit->user)->get($url)->assertNotFound();
+    $this->actingAs(User::factory()->create(['handle' => 'moderator-demo']))->get($url)
+        ->assertOk()->assertHeader('Content-Type', 'image/webp')->assertHeader('Cache-Control', 'no-store, private');
+    $this->get(route('commit-report-image.show', ['report' => $report, 'image' => 1]))->assertNotFound();
+    $this->get(route('reported-commit.index'))->assertInertia(fn ($page) => $page
+        ->where('reports.data.0.attachments.0.url', $url)
+        ->where('reports.data.0.attachments.0.description', 'Evidence screenshot')
+        ->missing('reports.data.0.images'));
+
+    $this->actingAs($reporter)->post(route('commit-report.store', $commit), [
+        'reason' => 'spam', 'images' => [UploadedFile::fake()->image('duplicate.png')],
+    ])->assertRedirect();
+    expect(Storage::disk()->files('report-images'))->toHaveCount(1);
+    expect($report->refresh()->images)->toHaveCount(1);
+});
+
+it('rejects invalid report images without storing a report', function (string $invalid): void {
+    Storage::fake();
+    $images = match ($invalid) {
+        'type' => [UploadedFile::fake()->create('script.svg', 1, 'image/svg+xml')],
+        'size' => [UploadedFile::fake()->image('large.png')->size(10241)],
+        'count' => array_map(fn () => UploadedFile::fake()->image('image.png'), range(1, 4)),
+    };
+    $this->actingAs(User::factory()->create())->postJson(route('commit-report.store', Commit::factory()->create()), [
+        'reason' => 'other', 'images' => $images,
+    ])->assertUnprocessable();
+    expect(CommitReport::query()->count())->toBe(0);
+    expect(Storage::disk()->allFiles())->toBeEmpty();
+})->with(['type', 'size', 'count']);

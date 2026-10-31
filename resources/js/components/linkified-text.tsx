@@ -21,6 +21,7 @@ import {
 } from '@/lib/urls';
 import { cn, shortHash } from '@/lib/utils';
 import { show } from '@/routes/mention';
+import { show as showOrganizationMention } from '@/routes/organization-mention';
 import type { BodySegment, Commit } from '@/types';
 
 // A link to a commit on dev/null itself, nothing after its id, so it can show as the author and the commit's hash.
@@ -674,6 +675,7 @@ function withMentions(
     text: string,
     offset: number,
     mentions: Commit['mentions'],
+    organizationMentions: Commit['organization_mentions'],
     colors: Color[],
     pasteisMode: boolean,
     isStatic: boolean,
@@ -687,6 +689,10 @@ function withMentions(
             mentions && Object.hasOwn(mentions, handle)
                 ? mentions[handle]
                 : null;
+        const organizationId =
+            organizationMentions && Object.hasOwn(organizationMentions, handle)
+                ? organizationMentions[handle]
+                : null;
 
         parts.push(
             ...withColors(
@@ -695,9 +701,9 @@ function withMentions(
                 colors,
                 pasteisMode,
             ),
-            isStatic || !userId ? (
+            isStatic ? (
                 match[0]
-            ) : (
+            ) : userId ? (
                 <UserPreview
                     key={`mention-${offset + match.index}`}
                     user={{ handle: match[1] }}
@@ -711,6 +717,17 @@ function withMentions(
                         {match[0]}
                     </Link>
                 </UserPreview>
+            ) : organizationId ? (
+                <Link
+                    key={`mention-${offset + match.index}`}
+                    href={showOrganizationMention(organizationId)}
+                    className="font-medium text-primary hover:underline"
+                    data-test="organization-mention"
+                >
+                    {match[0]}
+                </Link>
+            ) : (
+                match[0]
             ),
         );
 
@@ -732,12 +749,14 @@ function withMentions(
 export function LinkifiedText({
     text,
     mentions,
+    organizationMentions = null,
     pasteisMode = false,
     isStatic = false,
     startsText = false,
 }: {
     text: string;
     mentions: Commit['mentions'];
+    organizationMentions?: Commit['organization_mentions'];
     pasteisMode?: boolean;
     isStatic?: boolean;
     // Whether the text is a whole body, so its start is the start of a line.
@@ -764,6 +783,7 @@ export function LinkifiedText({
                 text.slice(position, match.index),
                 position,
                 mentions,
+                organizationMentions,
                 colors,
                 pasteisMode,
                 isStatic,
@@ -808,6 +828,7 @@ export function LinkifiedText({
             text.slice(position),
             position,
             mentions,
+            organizationMentions,
             colors,
             pasteisMode,
             isStatic,

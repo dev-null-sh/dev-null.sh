@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Enums\Log;
 use App\Jobs\ImportGitHubFollowsJob;
+use App\Jobs\LookUpUserOrganizations;
 use App\Jobs\SyncGitHubSshKeysJob;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
@@ -24,7 +26,8 @@ it('redirects to github', function (): void {
 });
 
 it('creates a user and logs them in', function (): void {
-    fakeGitHubSponsorsListing(hasSponsorsListing: true);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnTrue();
 
     Socialite::fake('github', GitHubUser::fake([
         'id' => '583231',
@@ -85,7 +88,8 @@ it('refuses a new signup from an account that fails the screening', function ():
 });
 
 it('does not screen an account that has signed in before', function (): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     config([
         'signup.min_account_age_days' => 7,
@@ -107,7 +111,8 @@ it('does not screen an account that has signed in before', function (): void {
 });
 
 it('updates an existing user on login', function (): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $user = User::factory()->create([
         'github_id' => '583231',
@@ -131,7 +136,8 @@ it('updates an existing user on login', function (): void {
 });
 
 it('redirects to the log the user visited last on login', function (): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     User::factory()->create(['github_id' => '583231', 'log' => Log::Trending]);
 
@@ -146,7 +152,8 @@ it('redirects to the log the user visited last on login', function (): void {
 });
 
 it('sends a returning user who never finished the onboarding back to it', function (): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $user = User::factory()->notOnboarded()->create(['github_id' => '583231']);
 
@@ -163,7 +170,8 @@ it('sends a returning user who never finished the onboarding back to it', functi
 });
 
 it('queues a sync of the ssh keys of the user on login', function (): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     Socialite::fake('github', GitHubUser::fake([
         'id' => '583231',
@@ -177,8 +185,26 @@ it('queues a sync of the ssh keys of the user on login', function (): void {
     Queue::assertPushed(SyncGitHubSshKeysJob::class, fn (SyncGitHubSshKeysJob $job): bool => $job->user->is($user));
 });
 
+it('queues a lookup of the organizations the bio of the user mentions on login', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
+
+    Socialite::fake('github', GitHubUser::fake([
+        'id' => '583231',
+        'nickname' => 'octocat',
+        'company' => '@github',
+    ]));
+
+    $this->get(route('login.store'));
+
+    $user = User::query()->where('github_id', '583231')->sole();
+
+    Queue::assertPushed(LookUpUserOrganizations::class, fn (LookUpUserOrganizations $job): bool => $job->user->is($user));
+});
+
 it('queues an import of the github follows of the user on login, notifying only for new users', function (bool $exists, bool $notify): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     if ($exists) {
         User::factory()->create(['github_id' => '583231']);
@@ -200,7 +226,8 @@ it('queues an import of the github follows of the user on login, notifying only 
 ]);
 
 it('redirects to the intended url after login', function (): void {
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $user = User::factory()->create();
     User::factory()->create(['github_id' => '583231']);
@@ -229,9 +256,18 @@ it('fails when the user denies access', function (): void {
     $this->assertGuest();
 });
 
-it('fails when the state is invalid', function (): void {
+it('starts the sign-in over once when it started in another browser', function (): void {
     Socialite::shouldReceive('driver->user')->andThrow(new InvalidStateException);
 
+    $this->get(route('login.store'))->assertRedirectToRoute('login');
+
+    $this->assertGuest();
+});
+
+it('fails when the state is still invalid after starting over', function (): void {
+    Socialite::shouldReceive('driver->user')->andThrow(new InvalidStateException);
+
+    $this->get(route('login.store'))->assertRedirectToRoute('login');
     $response = $this->get(route('login.store'));
 
     $response->assertRedirectToRoute('home')
@@ -265,7 +301,8 @@ it('may destroy a session', function (): void {
 });
 
 it('makes tom the first friend of a new user, but not of a returning one', function (): void {
-    fakeGitHubSponsorsListing(hasSponsorsListing: false);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => 'octocat', 'name' => 'The Octocat']));
 

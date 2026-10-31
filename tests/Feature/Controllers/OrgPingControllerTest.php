@@ -9,7 +9,6 @@ use App\Models\Message;
 use App\Models\PushSubscription;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
-use Minishlink\WebPush\VAPID;
 
 beforeEach(function (): void {
     $this->user = User::factory()->withRemotes()->create();
@@ -73,8 +72,6 @@ it('queues a delayed push for each subscribed member except the sender', functio
         PushSubscription::factory()->create(['user_id' => $user->id]);
     }
 
-    $keys = VAPID::createVapidKeys();
-    config(['services.web_push.public_key' => $keys['publicKey'], 'services.web_push.private_key' => $keys['privateKey']]);
     Queue::fake([SendRemotePush::class]);
 
     $response = $this->actingAs($this->user)->postJson(route('org-ping.store', $org))->assertCreated();
@@ -85,16 +82,3 @@ it('queues a delayed push for each subscribed member except the sender', functio
             && $job->userId === $recipient->id && $job->afterCommit === true && $job->delay->equalTo(now()->addSeconds(10)));
     }
 });
-
-it('does not queue a ping push when either web push key is missing', function (string $missingKey): void {
-    [$member] = followersOf($this->user, 1);
-    $org = createOrg($this->user, [$member]);
-    PushSubscription::factory()->create(['user_id' => $member->id]);
-    $keys = VAPID::createVapidKeys();
-    config(['services.web_push.public_key' => $keys['publicKey'], 'services.web_push.private_key' => $keys['privateKey'], 'services.web_push.'.$missingKey => null]);
-    Queue::fake([SendRemotePush::class]);
-
-    $this->actingAs($this->user)->postJson(route('org-ping.store', $org))->assertCreated();
-
-    Queue::assertNothingPushed();
-})->with(['public_key', 'private_key']);

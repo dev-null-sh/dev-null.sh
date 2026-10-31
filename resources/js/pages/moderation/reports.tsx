@@ -18,6 +18,12 @@ type Report = {
     id: string;
     reason: string;
     details: string | null;
+    attachments: {
+        url: string;
+        description: string | null;
+        width: number;
+        height: number;
+    }[];
     created_at: string;
     commit: Commit;
 };
@@ -115,6 +121,27 @@ export default function Reports({
                                                 {report.details}
                                             </p>
                                         )}
+                                        {report.attachments?.map((image) => (
+                                            <a
+                                                key={image.url}
+                                                href={image.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="block"
+                                            >
+                                                <img
+                                                    src={image.url}
+                                                    alt={
+                                                        image.description ||
+                                                        'Report attachment'
+                                                    }
+                                                    width={image.width}
+                                                    height={image.height}
+                                                    loading="lazy"
+                                                    className="max-h-80 rounded-md object-contain"
+                                                />
+                                            </a>
+                                        ))}
                                         <p className="text-xs text-muted-foreground">
                                             Reported{' '}
                                             <time dateTime={report.created_at}>

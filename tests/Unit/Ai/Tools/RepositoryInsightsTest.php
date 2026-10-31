@@ -3,8 +3,11 @@
 declare(strict_types=1);
 
 use App\Ai\Tools\RepositoryInsights;
-use Illuminate\Http\Client\Request;
-use Illuminate\Support\Facades\Http;
+use App\Contracts\Services\GitHubProvider;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 use Laravel\Ai\Tools\Request as ToolRequest;
 
 it('returns a bounded commit ranking without bots or unnecessary contributor data', function (): void {
@@ -12,9 +15,10 @@ it('returns a bounded commit ranking without bots or unnecessary contributor dat
         'type' => 'User', 'login' => "dev{$number}", 'contributions' => 100 - $number,
         'html_url' => "https://github.com/dev{$number}", 'id' => $number, 'email' => 'not-for-the-model@example.com',
     ])->all();
-    Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/contributors*' => Http::response([
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->with('dev-null-sh/dev-null.sh', 1, 100)->once()->andReturn([
         ['type' => 'Bot', 'login' => 'robot', 'contributions' => 200], ...$contributors,
-    ])]);
+    ]);
 
     $result = json_decode(new RepositoryInsights()->handle(new ToolRequest(['metric' => 'contributors', 'repository' => 'other/private'])), true);
 
@@ -23,22 +27,14 @@ it('returns a bounded commit ranking without bots or unnecessary contributor dat
     expect($result['contributors'][9]['username'])->toBe('dev10');
     expect($result)->toMatchArray(['complete' => false, 'repository' => 'dev-null-sh/dev-null.sh']);
     expect($result['coverage'])->toContain('Not an exhaustive');
-    Http::assertSent(fn (Request $request): bool => $request['per_page'] === 100);
 });
 
 it('separates issues from pull requests and reads repository language bytes', function (): void {
-    config(['services.github.client_id' => 'test-client', 'services.github.client_secret' => 'test-secret']);
-    Http::fake([
-        'api.github.com/repos/dev-null-sh/dev-null.sh' => Http::response(['stargazers_count' => 42, 'forks_count' => 9, 'open_issues_count' => 999]),
-        'api.github.com/repos/dev-null-sh/dev-null.sh/languages' => Http::response(['PHP' => 300, 'TypeScript' => 100]),
-        'api.github.com/search/issues*' => fn (Request $request) => Http::response([
-            'total_count' => match ($request['q']) {
-                'repo:dev-null-sh/dev-null.sh is:issue is:open' => 13,
-                'repo:dev-null-sh/dev-null.sh is:pr is:open' => 4,
-            },
-            'incomplete_results' => false,
-        ]),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('repository')->with('dev-null-sh/dev-null.sh')->andReturn(['stars' => 42, 'forks' => 9]);
+    $github->shouldReceive('languages')->with('dev-null-sh/dev-null.sh')->andReturn(['PHP' => 300, 'TypeScript' => 100]);
+    $github->shouldReceive('searchIssues')->with('repo:dev-null-sh/dev-null.sh is:issue is:open', 1, null)->andReturn(['incomplete' => false, 'total' => 13, 'items' => []]);
+    $github->shouldReceive('searchIssues')->with('repo:dev-null-sh/dev-null.sh is:pr is:open', 1, null)->andReturn(['incomplete' => false, 'total' => 4, 'items' => []]);
 
     $tool = new RepositoryInsights;
     $overview = json_decode($tool->handle(new ToolRequest(['metric' => 'overview'])), true);
@@ -48,30 +44,31 @@ it('separates issues from pull requests and reads repository language bytes', fu
     expect($languages['languages'])->toBe(['PHP' => 300, 'TypeScript' => 100]);
     expect($languages['definition'])->toContain('bytes');
     expect($tool->handle(new ToolRequest(['metric' => 'overview'])))->toContain('budget exhausted');
-    Http::assertSent(fn (Request $request): bool => $request->hasHeader('Authorization', 'Basic '.base64_encode('test-client:test-secret')));
 });
 
 it('finds contribution opportunities using either helpful label and returns only titles and links', function (): void {
-    Http::fake(['api.github.com/search/issues*' => Http::response([
-        'incomplete_results' => false,
-        'items' => [['title' => str_repeat('x', 400), 'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/12', 'body' => 'Not sent to the model']],
-    ])]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('searchIssues')
+        ->with('repo:dev-null-sh/dev-null.sh is:issue is:open label:"good first issue","help wanted"', 10, 'updated')
+        ->once()
+        ->andReturn(['incomplete' => false, 'total' => 1, 'items' => [
+            ['title' => str_repeat('x', 400), 'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/12', 'body' => 'Not sent to the model'],
+        ]]);
 
     $result = json_decode(new RepositoryInsights()->handle(new ToolRequest(['metric' => 'opportunities'])), true);
 
     expect($result['issues'])->toBe([['title' => str_repeat('x', 300), 'url' => 'https://github.com/dev-null-sh/dev-null.sh/issues/12']]);
     expect($result['complete'])->toBeFalse();
-    Http::assertSent(fn (Request $request): bool => $request['q'] === 'repo:dev-null-sh/dev-null.sh is:issue is:open label:"good first issue","help wanted"'
-        && $request['per_page'] === 10 && $request['sort'] === 'updated' && $request['order'] === 'desc');
 });
 
 it('returns recent production merges from the changelog without internal author data', function (): void {
-    Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/pulls*' => Http::response(collect(range(12, 1))->map(fn (int $number): array => [
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('closedPullRequests')->with('dev-null-sh/dev-null.sh', 'production', 1, 100)->andReturn(collect(range(12, 1))->map(fn (int $number): array => [
         'number' => $number, 'title' => "feat: change {$number}",
         'html_url' => "https://github.com/dev-null-sh/dev-null.sh/pull/{$number}",
         'merged_at' => sprintf('2026-10-19T00:00:%02dZ', $number), 'updated_at' => sprintf('2026-10-19T00:00:%02dZ', $number),
         'merge_commit_sha' => 'abc', 'user' => ['id' => 1, 'login' => 'alice', 'avatar_url' => 'https://github.com/alice.png'],
-    ])->all())]);
+    ])->all());
 
     $result = json_decode(new RepositoryInsights()->handle(new ToolRequest(['metric' => 'recent_changes'])), true);
 
@@ -80,11 +77,11 @@ it('returns recent production merges from the changelog without internal author 
         'title' => 'Change 12', 'url' => 'https://github.com/dev-null-sh/dev-null.sh/pull/12', 'author' => 'alice', 'merged_at' => '2026-10-19T00:00:12Z',
     ]);
     expect($result['definition'])->toContain('not a verified deployment time');
-    Http::assertSent(fn (Request $request): bool => $request['base'] === 'production' && $request['state'] === 'closed');
 });
 
 it('keeps the original freshness timestamp until the repository cache expires', function (): void {
-    Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/languages' => Http::sequence()->push(['PHP' => 100])->push(['PHP' => 200])]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('languages')->andReturn(['PHP' => 100], ['PHP' => 200]);
     $request = new ToolRequest(['metric' => 'languages']);
     $first = new RepositoryInsights()->handle($request);
     $this->travel(14)->minutes();
@@ -95,33 +92,35 @@ it('keeps the original freshness timestamp until the repository cache expires', 
     $fresh = json_decode(new RepositoryInsights()->handle($request), true);
     expect($fresh['languages'])->toBe(['PHP' => 200]);
     expect($fresh['as_of'])->toBe(now()->toIso8601String());
-    Http::assertSentCount(2);
+    $github->shouldHaveReceived('languages')->twice();
 });
 
-it('does not turn GitHub failures into zero counts or cache the failure', function (mixed $failure): void {
-    Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/languages' => Http::sequence()->pushResponse($failure)->push(['PHP' => 123])]);
+it('does not turn GitHub failures into zero counts or cache the failure', function (Closure $failure): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('languages')->andReturnUsing($failure, fn (): array => ['PHP' => 123]);
     $request = new ToolRequest(['metric' => 'languages']);
     $tool = new RepositoryInsights;
 
     expect($tool->handle($request))->toContain('temporarily unavailable');
     expect(json_decode($tool->handle($request), true)['languages'])->toBe(['PHP' => 123]);
 })->with([
-    'rate limit' => fn () => Http::response(['message' => 'secret error detail'], 403),
-    'server error' => fn () => Http::response([], 503),
-    'timeout' => fn () => Http::failedConnection(),
+    'rate limit' => fn () => throw new RequestException(new Response(new Psr7Response(403, [], '{"message":"secret error detail"}'))),
+    'server error' => fn () => throw new RequestException(new Response(new Psr7Response(503))),
+    'timeout' => fn () => throw new ConnectionException('timed out'),
 ]);
 
 it('reports unavailable changelogs and incomplete searches instead of claiming complete evidence', function (string $metric): void {
-    Http::fake([
-        'api.github.com/repos/dev-null-sh/dev-null.sh' => Http::response(['stargazers_count' => 42, 'forks_count' => 9]),
-        'api.github.com/repos/dev-null-sh/dev-null.sh/pulls*' => Http::response([], 503),
-        'api.github.com/search/issues*' => Http::response(['total_count' => 0, 'incomplete_results' => true]),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('repository')->andReturn(['stars' => 42, 'forks' => 9]);
+    $github->shouldReceive('closedPullRequests')->andThrow(new RequestException(new Response(new Psr7Response(503))));
+    $github->shouldReceive('searchIssues')->andReturn(['incomplete' => true, 'total' => 0, 'items' => []]);
 
     expect(new RepositoryInsights()->handle(new ToolRequest(['metric' => $metric])))->toContain('temporarily unavailable');
 })->with(['overview', 'opportunities', 'recent_changes']);
 
 it('refuses arbitrary repository operations without a request', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldNotReceive('contributors', 'repository', 'languages', 'searchIssues', 'closedPullRequests');
+
     expect(new RepositoryInsights()->handle(new ToolRequest(['metric' => 'delete_repository'])))->toContain('Unsupported repository metric');
-    Http::assertNothingSent();
 });

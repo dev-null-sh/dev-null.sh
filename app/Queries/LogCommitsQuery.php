@@ -15,11 +15,11 @@ final readonly class LogCommitsQuery
     /**
      * @return CursorPaginator<int, Commit>
      */
-    public function paginate(Log $log, ?User $user, ?Commit $through = null): CursorPaginator
+    public function paginate(Log $log, ?User $user, ?Commit $through = null, string $cursor = ''): CursorPaginator
     {
         $query = $log->query()->builder($user);
         if ($log->isRanked() || ! $through instanceof Commit) {
-            return $query->cursorPaginate(20);
+            return $query->cursorPaginate(20, cursor: $cursor);
         }
 
         $retained = (clone $query)

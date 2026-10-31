@@ -9,13 +9,14 @@ import { useKeyLabels } from '@/lib/keyboard';
 
 type Shortcut = { keys: string[]; label: string };
 
-const shortcuts = (keys: KeyLabels): Shortcut[] => [
+const shortcuts = (keys: KeyLabels, hasRemotes: boolean): Shortcut[] => [
     { keys: ['j'], label: 'Next commit' },
     { keys: ['k'], label: 'Previous commit' },
     { keys: ['y'], label: 'Copy link to the focused commit' },
     { keys: ['↵'], label: 'Open the focused commit' },
     { keys: ['r'], label: 'Reply to commit' },
     { keys: ['q'], label: 'Quote commit' },
+    { keys: ['s'], label: 'Star or unstar commit' },
     { keys: ['o'], label: 'Show or hide replies' },
     { keys: ['c'], label: 'Write a commit' },
     { keys: [keys.mod, 'K'], label: 'Search developers and commits' },
@@ -26,6 +27,9 @@ const shortcuts = (keys: KeyLabels): Shortcut[] => [
     { keys: ['g', 'e'], label: 'Go to trending' },
     { keys: ['g', 'p'], label: 'Go to your profile' },
     { keys: ['g', 's'], label: 'Go to settings' },
+    { keys: ['g', 'n'], label: 'Go to notifications' },
+    ...(hasRemotes ? [{ keys: ['g', 'm'], label: 'Go to remotes' }] : []),
+    { keys: ['g', '*'], label: 'Go to starred' },
     { keys: ['?'], label: 'Show this list' },
 ];
 
@@ -63,10 +67,12 @@ export function KeyboardShortcutsDialog({
     open,
     onOpenChange,
     canModerate,
+    hasRemotes,
 }: {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     canModerate: boolean;
+    hasRemotes: boolean;
 }) {
     const keys = useKeyLabels();
 
@@ -78,7 +84,7 @@ export function KeyboardShortcutsDialog({
                     They work anywhere except while you're typing.
                 </DialogDescription>
 
-                <ShortcutList shortcuts={shortcuts(keys)} />
+                <ShortcutList shortcuts={shortcuts(keys, hasRemotes)} />
 
                 {canModerate && (
                     <section aria-labelledby="moderation-shortcuts">

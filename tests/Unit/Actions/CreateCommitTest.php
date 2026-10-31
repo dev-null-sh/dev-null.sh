@@ -111,6 +111,20 @@ it('notifies the parent author about replies of admins', function (): void {
     expect($parent->user->notifications()->sole()->commit_id)->toBe($reply->id);
 });
 
+it("tells the author's followers about their first commit", function (): void {
+    config(['app.admins' => ['nunomaduro']]);
+
+    $author = User::factory()->create(['handle' => 'nunomaduro']);
+    $follower = User::factory()->create();
+    $author->followers()->attach($follower);
+
+    $commit = resolve(CreateCommit::class)->handle($author, 'Hello world!');
+
+    expect($follower->notifications()->sole())
+        ->type->toBe(NotificationType::FirstCommit)
+        ->commit_id->toBe($commit->id);
+});
+
 it('does not notify about pending replies', function (): void {
     $parent = Commit::factory()->create();
 

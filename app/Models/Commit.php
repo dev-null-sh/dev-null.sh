@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\CommitStatus;
 use App\Queries\CommitBuilder;
 use App\Services\CommitBodies;
+use App\Services\Mentions;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -30,6 +31,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read float $hot_score
  * @property-read string $body
  * @property-read array<string, string>|null $mentions
+ * @property-read array<string, string>|null $organization_mentions
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
  * @property-read string|null $quoted_commit_id
@@ -114,6 +116,7 @@ final class Commit extends Model
             'pasteis_count' => 'integer',
             'body' => 'string',
             'mentions' => 'array',
+            'organization_mentions' => 'array',
             'status' => CommitStatus::class,
             'link_preview_id' => 'string',
             'quoted_commit_id' => 'string',
@@ -164,9 +167,21 @@ final class Commit extends Model
         return $this->belongsToMany(User::class, 'stars')->withTimestamps();
     }
 
+    /**
+     * The handles it mentions that aren't a user's, which may be GitHub organizations'.
+     *
+     * @return list<string>
+     */
+    public function mentionedNonUsers(): array
+    {
+        return array_values(array_diff(resolve(Mentions::class)->handles($this->body), array_keys($this->mentions ?? [])));
+    }
+
     public function isAddressedTo(User $user): bool
     {
-        return in_array($user->id, $this->mentions ?? [], true) || $this->parent?->user_id === $user->id;
+        $explicitMentions = array_intersect_key($this->mentions ?? [], array_flip(resolve(Mentions::class)->handles($this->body)));
+
+        return in_array($user->id, $explicitMentions, true) || $this->parent?->user_id === $user->id;
     }
 
     /**

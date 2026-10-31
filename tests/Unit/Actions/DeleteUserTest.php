@@ -2,13 +2,17 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitReport;
+use App\Actions\CreateCommitTopics;
 use App\Actions\CreateCommitTranslation;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
-use App\Ai\Agents\CommitTranslator;
+use App\Contracts\Services\TranslationProvider;
 use App\Dto\ThreadEngagement;
+use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\CommitImage;
+use App\Models\CommitReport;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\Device;
@@ -16,6 +20,7 @@ use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
+use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
@@ -23,6 +28,7 @@ use App\Models\PushSubscription;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -43,12 +49,17 @@ it('erases the commits of a deleted user along with the replies under them', fun
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create();
     Commit::factory()->for($user)->create()->delete();
-    Commit::factory()->for($commit, 'parent')->create();
+    $reply = Commit::factory()->for($commit, 'parent')->create();
     $unrelated = Commit::factory()->create();
+    $organization = Organization::factory()->create();
+    resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => $organization->id]);
+    resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => $organization->id]);
+    resolve(CreateCommitTopics::class)->handle($unrelated, ['laravel' => $organization->id]);
 
     resolve(DeleteUser::class)->handle($user);
 
-    expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id]);
+    expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id])
+        ->and(DB::table('commit_topics')->pluck('commit_id')->all())->toBe([$unrelated->id]);
 });
 
 it('keeps the quotes of others when erasing the quoted commits of a deleted user', function (): void {
@@ -85,10 +96,11 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
     $mentioned = User::factory()->create();
     $commit = Commit::factory()->create();
     $reply = Commit::factory()->for($user)->for($commit, 'parent')->for(LinkPreview::factory())->create([
-        'body' => "@{$mentioned->handle} have a look at https://example.com",
+        'body' => "@{$mentioned->handle} and @laravel have a look at https://example.com",
         'mentions' => [$mentioned->handle => $mentioned->id],
         'embedding' => embeddingVector(0),
     ]);
+    resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => Organization::factory()->create()->id]);
     $deletedReply = Commit::factory()->for($user)->for($commit, 'parent')->create();
     Commit::factory()->for($reply, 'parent')->create();
     Commit::factory()->for($deletedReply, 'parent')->create();
@@ -101,6 +113,7 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
     expect($tombstones->count())->toBe(2)
         ->and($tombstones->pluck('body')->all())->toBe(['', ''])
         ->and($tombstones->pluck('mentions')->all())->toBe([null, null])
+        ->and(DB::table('commit_topics')->where('commit_id', $reply->id)->exists())->toBeFalse()
         ->and($tombstones->pluck('embedding')->all())->toBe([null, null])
         ->and($tombstones->pluck('link_preview_id')->all())->toBe([null, null]);
 });
@@ -178,6 +191,42 @@ it('erases authored polls and the users votes while keeping other polls and vote
     expect(Poll::query()->sole()->is($other))->toBeTrue()
         ->and(PollOption::query()->pluck('id')->sort()->values()->all())->toBe($other->options->pluck('id')->sort()->values()->all())
         ->and(PollVote::query()->sole()->is($keptVote))->toBeTrue();
+});
+
+it('erases the organization memberships of a deleted user, keeping their other members', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $organization = Organization::factory()->create();
+    $organization->admins()->attach($user->id);
+    $organization->members()->attach($other->id, ['role' => OrganizationRole::Member]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($organization->members()->pluck('users.id')->all())->toBe([$other->id]);
+});
+
+it('erases the days a deleted user was seen, keeping the days of others', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    DB::table('user_active_days')->insert([
+        ['user_id' => $user->id, 'seen_at' => '2026-10-19'],
+        ['user_id' => $other->id, 'seen_at' => '2026-10-19'],
+    ]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect(DB::table('user_active_days')->pluck('user_id')->all())->toBe([$other->id]);
+});
+
+it('erases the organizations a deleted user followed, keeping their other followers', function (): void {
+    $user = User::factory()->create();
+    $other = User::factory()->create();
+    $organization = Organization::factory()->create();
+    $organization->followers()->attach([$user->id, $other->id]);
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($organization->followers()->pluck('users.id')->all())->toBe([$other->id]);
 });
 
 it('erases the devices of a deleted user', function (): void {
@@ -275,10 +324,10 @@ it('erases however many commits a user has without listing them in its queries',
 });
 
 it('erases cached translations of the user and replies in their deleted threads', function (): void {
-    CommitTranslator::fake([
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->twice()->andReturn(
         ['source_language' => 'de', 'body' => 'Good morning'],
         ['source_language' => 'nl', 'body' => 'Good evening'],
-    ]);
+    );
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create(['body' => 'Guten morgen']);
     Commit::factory()->for($user)->count(500)->create(['body' => 'Other posts']);
@@ -346,6 +395,19 @@ it('erases the orgs a deleted user was the last one in, with the images and voic
         ->and(Storage::disk()->allFiles())->toBe([$other->path])
         ->and(ConversationParticipant::query()->whereNotNull('muted_until_at')->pluck('user_id')->all())->toBe([$former->id]);
 });
+
+it('erases private report attachments when the reporter or reported author is deleted', function (bool $deleteReporter): void {
+    Storage::fake();
+    $reporter = User::factory()->create();
+    $commit = Commit::factory()->create();
+    resolve(CreateCommitReport::class)->handle($reporter, $commit, 'other', null, [UploadedFile::fake()->image('evidence.png')]);
+    $report = CommitReport::query()->sole();
+    $path = $report->images[0]['path'];
+    Storage::disk()->assertExists($path);
+    resolve(DeleteUser::class)->handle($deleteReporter ? $reporter : $commit->user);
+    Storage::disk()->assertMissing($path);
+    $this->assertModelMissing($report);
+})->with([true, false]);
 
 it('erases browser push subscriptions with the account', function (): void {
     $user = User::factory()->create();

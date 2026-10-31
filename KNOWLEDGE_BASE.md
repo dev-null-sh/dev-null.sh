@@ -11,6 +11,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Public browsing and GitHub sign-in](#public-browsing-and-github-sign-in)
   - [First-time setup](#first-time-setup)
   - [Profiles and GitHub sync](#profiles-and-github-sync)
+  - [Organization pages](#organization-pages)
   - [Going live](#going-live)
   - [Achievement badges and XP](#achievement-badges-and-xp)
   - [Following developers and suggestions](#following-developers-and-suggestions)
@@ -35,6 +36,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Notifications](#notifications)
   - [Emails from /dev/null](#emails-from-devnull)
   - [Remotes: direct messages](#remotes-direct-messages)
+  - [Remotes: calls](#remotes-calls)
   - [Orgs: group chats](#orgs-group-chats)
   - [Muting and blocking](#muting-and-blocking)
   - [Reporting commits](#reporting-commits)
@@ -82,7 +84,7 @@ These entries cover the app's public and signed-in features. Options that may no
 
 ### Public browsing and GitHub sign-in
 
-Guests land on the Trending log and can browse Latest and Trending, public profiles and their following/follower lists, approved commits and reply threads, photos, and search. Sign in with GitHub to write commits, follow, star, vote, report, give pastéis, translate, receive notifications, read the Following log or your Starred list, or use private messages and settings. Clicking one of those actions as a guest goes straight to GitHub sign-in and returns to the profile or commit being read. GitHub is the only sign-in provider; there is no separate /dev/null password.
+Guests land on the Trending log and can browse Latest and Trending, public profiles, approved commits and reply threads, photos, and developer search. Sign in with GitHub to see who follows whom (following, followers, and mutuals lists), search commits, write commits, follow, star, vote, report, give pastéis, translate, receive notifications, read the Following log or your Starred list, or use private messages and settings. Clicking one of those actions as a guest goes straight to GitHub sign-in and returns to the profile or commit being read. GitHub is the only sign-in provider; there is no separate /dev/null password. Next to the sign-in button, guests see how many developers are on /dev/null, rounded down to the thousand (or to the hundred below a thousand) and counted once an hour, banned accounts and bots left out. On a phone, guests can instead ask for a link by email, to join from their computer: one email with a link back to the page they were reading, at most once a month per address and a few times an hour per IP address. Only a keyed hash of the address is kept, for 30 days, to enforce that.
 
 New GitHub accounts are screened at signup; eligibility checks can require an established account and a verified email. Returning accounts are not screened again. Public profiles and approved commits are readable by other people and crawlers, and links have social previews. A public commit is not private just because its author signed in to write it.
 
@@ -98,7 +100,7 @@ Sources: [onboarding page](resources/js/pages/onboarding/show.tsx), [sign-in tes
 
 ### Profiles and GitHub sync
 
-Every developer has a profile at `/@{handle}`, with their GitHub identity, bio and other public profile information, commit/following/follower counts, a **Follows you** badge when they follow you, and an activity graph. Across a block in either direction, the profile is shown as unavailable. The Commits tab lists top-level commits; Replies lists that developer's replies with parent context; README shows the README of their GitHub profile repository (the one named after their username), as GitHub renders it, refreshed daily. It keeps only plain formatting, links, and images hosted by GitHub: no scripts, styles, or classes. When GitHub doesn't answer, the tab says so rather than showing no README. Follow and follower counts open the corresponding people lists. When you are signed in, someone else's profile also shows which of the people you follow follow them: **Followed by @a, @b and N others you follow**, naming the most followed first. It opens a **Followers you know** list, which also appears as a tab beside Followers and Following. A **Mutuals** tab lists the people they follow who follow them back. The profile links to GitHub and, when available, GitHub Sponsors. Share uses the device's share sheet when supported, or copies the profile link.
+Every developer has a profile at `/@{handle}`, with their GitHub identity, bio and other public profile information, commit/following/follower counts, a **Follows you** badge when they follow you, and an activity graph. Like on GitHub, the handle's case doesn't matter: `/@octocat` opens the profile of `@OctoCat`, and the address switches to the handle's own case. The same goes for organization pages and commit links. Across a block in either direction, the profile is shown as unavailable. The Commits tab lists top-level commits; Replies lists that developer's replies with parent context; README shows the README of their GitHub profile repository (the one named after their username), as GitHub renders it, refreshed daily. It keeps only plain formatting, links, and images hosted by GitHub: no scripts, styles, or classes. When GitHub doesn't answer, the tab says so rather than showing no README. Follow and follower counts open the corresponding people lists, for members only: a guest goes to GitHub sign-in instead, which keeps scrapers from walking the follow graph page by page. When you are signed in, someone else's profile also shows which of the people you follow follow them: **Followed by @a, @b and N others you follow**, naming the most followed first. It opens a **Followers you know** list, which also appears as a tab beside Followers and Following. A **Mutuals** tab lists the people they follow who follow them back. The profile links to GitHub and, when available, GitHub Sponsors. Share uses the device's share sheet when supported, or copies the profile link.
 
 Change your name, avatar, bio, company, location, or website on GitHub, not on /dev/null. Settings → Profile and the **Edit profile** menu on your own profile offer **Edit on GitHub** and **Sync from GitHub**. Profile details also refresh on sign-in. Manual sync is limited to once a minute. The GitHub Sponsors link is refreshed on sign-in only. A GitHub username rename is picked up on sign-in or sync; if a stale account still holds the new username because its owner also renamed, that account moves to a `_renamed-<github id>` placeholder until its owner signs in or syncs again. Accounts are matched by GitHub id and never merged.
 
@@ -106,13 +108,29 @@ Profiles also show [achievement badges and an XP-based Unix rank](#achievement-b
 
 Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](resources/js/pages/user-profile/edit.tsx), [profile sharing](resources/js/components/profile-share-button.tsx), [profile README](app/Queries/GitHubReadmeQuery.php), [identity sync](app/Actions/UpdateOrCreateUser.php).
 
+### Organization pages
+
+GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with their GitHub avatar (square, so they never pass for a person), name, description, location, website, and a link to GitHub. An organization gets its page once an approved commit mentions it, from its public GitHub profile, and the profile refreshes when commits keep mentioning it, at most once a day. Nobody signs in as an organization, and everything on its page comes from GitHub, except its color. Shared links to an organization's page preview as a card with its square avatar, name, handle, and description, like a developer's profile.
+
+The **Mentions** tab lists the commits and replies that mention the organization, newest first, a reply with the commit it answers. A commit stays listed after the organization is renamed, since it is linked to the organization rather than to the handle. It follows the usual visibility: guests see approved commits only, you also see your own pending ones, and commits across a block or by people you muted are left out.
+
+A member of an organization can **Claim** its page, which lists them as its admin. Only the first member to claim it becomes its admin: once a page has one, it can't be claimed again, and the Claim button is gone. Claiming asks for no extra GitHub permission: it checks that GitHub lists you among the organization's public members. GitHub keeps membership private by default, so if yours is, the page links to the organization's People page on GitHub, where you make your membership public, then claim again. You can make it private again once you're the admin. GitHub is only the way in: leaving the organization on GitHub doesn't remove you as an admin on /dev/null.
+
+After that, members are managed on /dev/null, not mirrored from GitHub. An organization's members open its **Settings** from its page, where the **Members** tab lists everyone, each an **admin** or a **member**. Admins add people by their /dev/null handle, searching by handle or name as they type, except people they blocked or who blocked them, make them admins or members, and remove them. Any member can leave. Its last admin can't leave or become a member. Only its members see who its members are; its page lists its admins to everyone. Your organizations and your role in each are in your data export and go when you delete your account.
+
+Every organization has a color, /dev/null's blue until an admin chooses another in the **Profile** tab of its **Settings**, where its admins land: one of the same six lane colors as developers, or a custom one. It rings the organization's avatar, leads its handle, and colors its link preview.
+
+Signed in, you can **Follow** an organization from its page, which shows how many people follow it. Once you follow it, the button opens a menu where you can unfollow. Following will put the organization's own commits in your Following log once organizations can commit, which isn't possible yet. **Watch**, which will also show the commits that mention the organization, is planned and shown as coming soon. The organizations you follow are listed on your Following list, above the people, a few at a time with **Show more organizations**, and count toward your following count. They are in your data export and go when you delete your account.
+
+Sources: [organization page](resources/js/pages/organization/show.tsx), [mentions](app/Queries/OrganizationMentionsQuery.php), [organization lookups](app/Actions/UpdateCommitTopics.php), [claims](app/Http/Controllers/OrganizationAdminController.php), [color](app/Http/Controllers/OrganizationLaneController.php), [members](app/Http/Controllers/OrganizationMemberController.php).
+
 ### Going live
 
 Share a stream you are running from the **…** menu on your own profile: **Go live** takes a link to a YouTube or Twitch stream (on YouTube: a `/live/` link, a watch link, an embed, or one with a start time all work; on Twitch: your channel link) and how long to show it, from **1 to 12 hours** (two by default). YouTube and Twitch are supported. While you are live, your avatar gets a red ring and a **Live** marker on your profile, in logs, and in hover cards. Hovering it (or tapping it on a touch screen) shows the stream's live thumbnail with a **Watch** button; the stream itself plays on the provider in a new tab, never embedded. On your profile, the avatar links straight to the stream.
 
 **End stream** in the same menu stops it at once; otherwise it stops showing when the chosen time runs out, and the scheduler clears it within five minutes. Only the platform, the link, and the end time are stored, and they are included in your export.
 
-Sources: [go-live menu](resources/js/components/profile-actions-menu.tsx), [live avatar and card](resources/js/components/live-stream-card.tsx), [validation](app/Http/Requests/UpdateUserLiveRequest.php), [YouTube links](app/Services/LivePlatforms/YouTube.php), [Twitch links](app/Services/LivePlatforms/Twitch.php), [ending streams](app/Jobs/EndLiveStreams.php).
+Sources: [go-live button](resources/js/components/profile-live-button.tsx), [live avatar and card](resources/js/components/live-stream-card.tsx), [validation](app/Http/Requests/UpdateUserLiveRequest.php), [YouTube links](app/Services/LivePlatforms/YouTube.php), [Twitch links](app/Services/LivePlatforms/Twitch.php), [ending streams](app/Jobs/EndLiveStreams.php).
 
 ### Achievement badges and XP
 
@@ -166,7 +184,7 @@ Sources: [log types](app/Enums/Log.php), [log queries](app/Queries/LogQueries), 
 
 ### Searching developers and commits
 
-Open search with **⌘/Ctrl+K** or **/**. Developer search finds people by name or GitHub username. Commit search, also available at `/search`, finds posts by meaning rather than requiring an exact phrase: describe the topic you want to read about. Commit queries must contain at least three characters and at most 100, and cover replies as well as top-level commits. An AI relevance check filters the nearest matches, so a search can return fewer results than asked. Results respect visibility, mutes, and blocks; semantic matching does not guarantee that every relevant commit will be returned. Guests can search too. Commit search is limited to 15 searches a minute per person (or per IP for guests).
+Open search with **⌘/Ctrl+K** or **/**. Developer search finds people by name or GitHub username. Commit search, also available at `/search`, finds posts by meaning rather than requiring an exact phrase: describe the topic you want to read about. Commit queries must contain at least three characters and at most 100, and cover replies as well as top-level commits. An AI relevance check filters the nearest matches, so a search can return fewer results than asked. Results respect visibility, mutes, and blocks; semantic matching does not guarantee that every relevant commit will be returned. Guests can search developers; searching commits, and `/search`, need sign-in, since each commit search pays for AI. Commit search is limited to 15 searches a minute per person.
 
 Signed-in users see their three most recent distinct searches above the suggested searches, newest first. Repeating a search moves it to the top; adding a fourth discards the oldest from storage, not just from the display. Recent searches stay in this browser, scoped to the signed-in account, and do not sync to other devices or create server-side history. They are cleared on sign-out or account deletion in that browser. Guests do not retain recent searches.
 
@@ -190,7 +208,7 @@ Livestream history: the team settled on calling posts **commits** and their list
 
 Public commits and replies offer **Translate** when their detected language differs from the reader's translation language. Choose a translation language in **Settings → Profile**, searching by its English or native name (for example, Hungarian or magyar), independently of the device language, or leave **Browser language (automatic)** selected to follow the browser. This private preference is saved to the account, included in the data export, and erased with the account. Regional variants share a language, such as English for `en-US` and `en-GB`. Language detection runs in the background for posts being read; undetermined posts initially offer Translate rather than guessing. Code-only or indeterminate text is not offered once detected. Generating translations requires sign-in and is limited to ten requests per minute.
 
-Pending commits are not offered for translation, even to their author.
+Your own commits and replies are never offered or shown translated.
 
 DeepSeek through OpenCode translates only the post text. The result replaces its displayed text, with **Translated from [language]** and **Show original** to switch back; the original post is never changed. Cached translations are shown automatically on subsequent page loads, including for guests. Signed-in readers can turn off **Automatically show translations** in **Settings → Profile** to read originals first, then choose **Translate** on demand. This private account preference applies across devices, is included in the data export, and is erased with the account. Exact duplicate text shares translations across authors, with separate text for each target language. Translations are cached for seven days, without extending that period on reads or additional target languages. Deleting a post or account clears its shared translations, which surviving duplicates can generate again. No private messages are translated.
 
@@ -202,17 +220,19 @@ Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController
 
 ### Code, emoji, and mentions
 
-Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. Text outside code supports emoji shortcodes, clickable URLs, and `@username` mentions. This is developer-oriented text formatting, not a full rich-text editor.
+Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. A title after the language, as in ```` ```php title="app/Models/User.php" ````, labels the block in place of the language. Text outside code supports emoji shortcodes, clickable URLs, and `@username` mentions. This is developer-oriented text formatting, not a full rich-text editor.
+
+The smiley button in the commit and reply composers opens the same searchable emoji picker as reactions in remotes. Picking an emoji inserts it where the caret was, or over the selected text, and puts the caret right after it.
 
 In commits, replies, and remotes, start a line with `>` to render a quote block. Consecutive quoted lines stay together; an unquoted line ends the block. Quotes keep inline code, links, mentions, and emoji formatting. A `>` inside code or in the middle of a line stays literal.
 
-Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions search the loaded member list instantly and update as membership refreshes. Suggestions are limited to the org's members, but you can still type anyone's handle yourself. Mentions link to profiles and can notify the mentioned developer after approval. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
+Typing **@** in a composer opens developer suggestions. Use ↑/↓ to move, Enter or Tab to select, and Esc to dismiss. A bare @ suggests people you follow; typing more searches names and usernames. In replies, matching suggestions put the direct recipient first, then the root commit author, then other visible participants in that thread, followed by ordinary suggestions. Quotes prioritize only the quoted commit author. These priorities also apply to a bare @; typing a term still filters everyone, and yourself, muted developers, and blocked developers are excluded. In an org's messages, suggestions search the loaded member list instantly and update as membership refreshes. Suggestions are limited to the org's members, but you can still type anyone's handle yourself. Mentions link to profiles and can notify the mentioned developer after approval. Mentioning a GitHub organization, like `@laravel`, links to its [organization page](#organization-pages) and notifies nobody: a known organization links right away, one mentioned for the first time once the commit is approved and GitHub confirms it is an organization. Typing @ followed by a few letters also suggests organizations that already have a page, after developers. Organization mentions only link in commits and replies, not in remotes. Email addresses and scoped packages such as `@inertiajs/react` are not treated as mentions.
 
 Typing **#123** in a composer looks up that exact issue or pull request in the /dev/null repository, `dev-null-sh/dev-null.sh`. The matching title appears beneath the number; click it or use Enter or Tab to insert its GitHub URL, just like choosing an emoji suggestion. A space or punctuation leaves the number as typed and dismisses the suggestion. Missing numbers and failed lookups leave the text unchanged. Code, URL fragments, and references qualified with another repository are not expanded.
 
 A hex color such as `#ff8a4c` or `#fff` shows with a small swatch of the color, outside code. A color written only with digits counts when it has 6 or 8 digits or starts with a zero, which issue numbers here don't: `#000`, `#000000` and `#333333` are colors, while `#123` and `#333` stay plain text.
 
-Sources: [body renderer](resources/js/components/commit-body.tsx), [colors](resources/js/lib/colors.ts), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
+Sources: [body renderer](resources/js/components/commit-body.tsx), [emoji picker button](resources/js/components/emoji-picker.tsx), [colors](resources/js/lib/colors.ts), [code blocks](resources/js/components/code-block.tsx), [mention suggestions](app/Http/Controllers/MentionSuggestionController.php), [mention parsing](app/Services/Mentions.php).
 
 ### Draft previews
 
@@ -224,7 +244,7 @@ Sources: [composer](resources/js/components/commit-composer.tsx), [issue command
 
 ### Stashed drafts
 
-The app stashes unfinished commit and reply text, attached images, and image descriptions locally in your browser so you can return to them. Drafts belong to the signed-in user on that browser; they are not cloud drafts and do not synchronize between devices. Publishing or dropping a draft clears that stash. Browser storage restrictions or clearing site data can remove it; do not use the stash as your only copy of important writing.
+The app stashes unfinished commit and reply text, attached images, image descriptions, and reply recipient exclusions locally in your browser so you can return to them. Drafts belong to the signed-in user on that browser; they are not cloud drafts and do not synchronize between devices. Publishing or dropping a draft clears that stash. Browser storage restrictions or clearing site data can remove it; do not use the stash as your only copy of important writing.
 
 Sources: [stash hook](resources/js/hooks/use-stash.ts), [image storage](resources/js/lib/image-storage.ts).
 
@@ -258,7 +278,9 @@ Sources: [reply validation](app/Http/Requests/CreateCommitReplyRequest.php), [co
 
 ### Related commits
 
-Under a commit, /dev/null shows up to three commits from other threads that say something close to it. It only suggests commits you could find through search: nothing from people you block, who block you or whom you mute, and nothing still pending. When nothing is close, nothing shows.
+Under a commit, /dev/null shows up to three top-level commits from other threads using the same semantic search and AI relevance check as commit search. Semantic similarity finds candidates; the relevance check looks for a concrete connection between their subjects. Similar reactions or sentiment alone do not make commits related, while different approaches and opposing opinions about connected subjects can qualify. Generic reactions without an identifiable subject are not evidence of relatedness. Suggestions respect visibility, blocks, and mutes; authors can see their own pending commits. When no candidates pass the relevance check, nothing shows.
+
+For both commit search and related commits, the AI relevance check is best-effort. If it is unavailable or takes too long, semantic matches are returned without that extra filtering; visibility, blocks, and mutes still apply.
 
 Sources: [related commits query](app/Queries/RelatedCommitsQuery.php), [related commits rail](resources/js/components/related-commits.tsx).
 
@@ -326,7 +348,9 @@ Sources: [Pastéis setting](resources/js/components/pasteis-mode-setting.tsx), [
 
 ### Notifications
 
-Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, and moderation messages about rejected commits (approvals do not notify). The navigation shows unread activity and checks for more every 30 seconds. While you have unread notifications or messages, the browser tab's icon shows an orange dot; a tab in the background checks about every five minutes. Related activity is grouped, with expandable details: stars per commit, follows per day, and replies and mentions per thread. Filters (Replies, Quotes, Stars, Mentions, Follows, Moderation) are remembered, and the unread count follows them. Opening the inbox marks all notifications read. You can follow back or unfollow from follower notifications.
+Open **Notifications** to read in-app activity: follows, replies, quotes, mentions, stars, first commits of people you follow, and moderation messages about rejected commits (approvals do not notify). The navigation shows unread activity and checks for more every 30 seconds. While you have unread notifications or messages, the browser tab's icon shows an orange dot; a tab in the background checks about every five minutes. Related activity is grouped, with expandable details: stars per commit, follows per day, and replies and mentions per thread. Filters (Replies, Quotes, Stars, Mentions, Follows, Moderation) are remembered, and the unread count follows them. Opening the inbox marks all notifications read. You can follow back or unfollow from follower notifications.
+
+When someone you follow makes their first commit, you get a notification for it under **All**, so a newcomer's first post gets seen and answered. It comes once per person, after approval, and never for replies.
 
 Level-up notifications announce your new Unix rank under **All**, rather than one of the activity filters. Each level can notify you only once, even if you later lose and regain enough XP to reach it.
 
@@ -334,7 +358,7 @@ On phones, **Replies**, **Quotes**, and **Stars** share one row with a **More no
 
 Pending replies, quotes, and mentions wait for approval before notifying others. Self-actions do not notify you; mentioning the parent or quoted author does not duplicate their reply or quote notification. A new follower notifies only once even if they unfollow and follow again. Deleted or unavailable sources, mutes, and blocks affect which notifications remain visible. Rejected commits can produce a moderation message with a reason, without revealing a moderator's identity.
 
-Sources: [notifications page](resources/js/pages/notification/index.tsx), [notification filtering](app/Queries/NotificationBuilder.php), [grouping](app/Queries/NotificationGroupsQuery.php), [moderation notifications](app/Actions/UpdateCommitStatuses.php).
+Sources: [notifications page](resources/js/pages/notification/index.tsx), [notification filtering](app/Queries/NotificationBuilder.php), [grouping](app/Queries/NotificationGroupsQuery.php), [moderation notifications](app/Actions/UpdateCommitStatuses.php), [first commit notifications](app/Actions/CreateFirstCommitNotifications.php).
 
 Remotes alerts are controlled under **Settings → Profile → Remotes**. **On-site notifications** and **Notification sound** are on by default. On-site alerts stay inside /dev/null and never ask for browser permission. Sound does not require notification permission and plays only while the site is running; the browser may require interaction before it can play.
 
@@ -360,9 +384,13 @@ Every email has an **Unsubscribe** link at the bottom, and mail apps such as Gma
 
 ### Remotes: direct messages
 
+Open a commit's **Share** menu to copy its link or choose **Send in Remotes** on an approved commit. Pick a developer and confirm sending its link. The confirmation shows the commit before sending; cancelling sends nothing. Sharing follows the usual Remotes contact and request rules and opens the recipient's conversation, where delivery failures can be retried.
+
 **Remotes** is /dev/null's private messaging inbox at `/remotes`. Open it from navigation or use a developer's **Remote** control. Remotes can be disabled in Settings → Profile; disabling keeps existing conversations but stops new messaging. By default, you can contact someone who follows you, provided both accounts have Remotes enabled and neither has blocked the other. The follow is only needed for the first message: once a conversation exists, both people can keep writing. Administrators have a contact-policy exception. Tom has Remotes turned off, so he cannot be messaged.
 
 Messages support up to **2,000 characters**, replies to messages, link cards, and up to three images with the same file limits and descriptions as commit attachments. An image makes message text optional. **Voice notes** of up to a minute can be recorded from the microphone button in the composer; a voice note is sent on its own (it can still reply to a message), and you can listen to it before pushing it or discard it. Voice notes are compressed with Opus in your browser, about 180 KB a minute (browsers that can't record Opus send plain 16 kHz mono audio instead). The server rebuilds each recording from its audio alone, so no metadata or tags are kept, and stores it encrypted with the app key like message bodies, only ever served to the people in the conversation, and erased with your account. On a computer, hovering the speaker next to a voice note turns its waveform into a volume ramp to drag; the volume you set applies to every voice note, from anyone, on that device, and is saved in your browser, never on the server. Phones and tablets use their volume buttons instead. The speed button after it plays a voice note at 1×, 1.5× or 2×, with the clock showing how long it takes at that speed; the speed applies only to that voice note and resets when the page reloads. Messages cannot be edited or deleted, and mentions in them do not notify anyone. React to a message with any emoji, up to 12 different ones per person per message: three quick reactions sit next to each message, a picker searches the rest, and a double-tap or double-click toggles ❤️. On touch screens, press and hold a reaction beneath a message to see who left it; a short tap still adds or removes your own reaction. Typing indicators show recent activity. **Ping** with the button next to the microphone, a tribute to MSN Messenger: the remote shakes and plays MSN's sound for you and everyone in it (unless their sound is off or the remote is muted), the history logs it, and it alerts like a message, browser and app notifications included. Ping one person in a direct remote that has already started, or everyone in an org at once, up to three pings a minute. Read receipts, called **pull receipts**, are on by default and shared only when both relevant people enable them. Stashing a conversation archives it for you without deleting it; it pops back when anyone writes in it. On desktop, **Dock** keeps the inbox at the bottom of every page. **Back to present** returns to the newest message after following an old reply or scrolling until at least 25 newer messages are below the conversation viewport. This works in direct remotes, orgs, and the dock. Select a person’s name in the chat header or above a group message to open their profile. New messages arrive by polling, not push: every few seconds while a conversation is open. Message bodies, images, and voice notes are encrypted at rest with keys derived from the app key, not end to end. Block someone from inside a conversation with its menu.
+
+The message composer keeps its attachment, microphone, ping, and call icons inside the input box. **Push** appears when you enter text, attach an image, or record a voice note; an empty or whitespace-only draft keeps it hidden.
 
 When you are at the bottom of a chat, opening a reply moves the messages up to keep the latest one visible above the composer. Canceling restores that space, and sending keeps your new message at the bottom without scrolling the thread. Scrolling through older messages keeps your reading position when opening or canceling a reply; sending from there smoothly brings your new message into view. Reduced-motion preferences are respected.
 
@@ -377,6 +405,34 @@ Message requests and an **Everyone** contact option may not be available. Where 
 Sources: [Remotes setting](resources/js/components/remotes-setting.tsx), [contact policy](app/Models/User.php), [push access](app/Queries/PushAccessQuery.php), [reactions](app/Http/Controllers/MessageReactionController.php), [message validation](app/Http/Requests/CreateConversationMessageRequest.php), [message creation](app/Actions/CreateMessage.php), [link-preview storage](app/Models/LinkPreview.php), [voice notes](app/Services/VoiceNotes.php), [remote preferences](resources/js/components/chat/remote-settings-menu.tsx).
 
 Direct remotes disappear from the inbox when the other person deletes their account. An unnamed org can still show **Just you** when you are its only remaining member.
+
+### Remotes: calls
+
+In the web app, a direct remote that has already started can make a one-on-one **call** from the phone button next to Ping in its composer, on the Remotes page or in the dock. Calls work wherever a ping would: both people need Remotes on, no block, and a conversation someone has already said something in. Orgs have calls too (see below). The Mac and mobile apps can't make or answer calls yet.
+
+The call lives on top of that remote's composer: confirming, ringing, and then the call itself with its timer, mute, camera, and **Hang up**. Messages you send during a call are ordinary messages in the same remote. A call is between two people, so it ends for both as soon as either hangs up. Screen sharing is shown as coming soon.
+
+Calls are **relayed and encrypted**. The audio and video go through Cloudflare's relay (TURN), encrypted by the browsers (WebRTC) from one end to the other, so neither the relay nor /dev/null can hear or see a call. Because everything goes through the relay, **neither person ever sees the other's IP address**, only the relay's. Cloudflare's relay does see both people's IP addresses, that a call is happening, and for how long, but not what is said or shown. /dev/null only passes on the two short messages the browsers need to set up the call, held encrypted in a short-lived cache for as long as the call rings and then forgotten, and fetches short-lived relay credentials from Cloudflare for each call without storing them. The call itself is never saved: no recordings, and nothing of what is said or shown.
+
+Before calling, the composer asks you to confirm. An incoming call shows **Accept** and **Decline**: in that remote's composer when you have it open, and otherwise in a bar at the top of whatever page you're on, so you can answer from anywhere while /dev/null is open in a visible tab. From any page, the same bar lets you mute, turn the camera on or off, hang up, or jump back to the remote. A call only lasts as long as the page: closing or reloading the tab, or opening a page that can't keep it going, such as Operations, asks you first and then ends the call.
+
+Calls leave short log lines in the remote's history, like pings do: who **started a call**, and whether it was **answered**, **cancelled**, **declined**, or **missed** when it rang out. They are ordinary entries in that remote, so they go with your export and your account like your messages do. They record that a call happened, never its contents or how long it lasted.
+
+Once connected, the call shows a short code such as `fp 3f9a c217`, made from both browsers' encryption keys. If you both read out the same code, nobody is listening in between, /dev/null included.
+
+The camera starts off; turning it on asks the browser for camera access and shows both of you side by side above the composer. A call rings for 45 seconds with Windows Live Messenger's own ring, unless that remote is muted or your sound is off; the caller hears Messenger's outgoing ring while waiting, and its hang-up tone plays when a call ends. If the relay can't be reached, the call says **Couldn't connect the call**.
+
+Sources: [call flow](resources/js/lib/call.ts), [call console and bar](resources/js/components/chat/call.tsx), [who can call](app/Http/Requests/CreateConversationCallRequest.php), [call storage](app/Actions/CreateConversationCall.php), [relay](app/Services/TurnProviders/CloudflareTurnProvider.php).
+
+### Remotes: org calls
+
+Anyone in an org can start a **call** from the phone button next to Ping in the org's composer. Starting one rings everyone else in the org for 45 seconds, with the same Messenger ring, unless they muted that org or turned their sound off. They can **Join** or **Decline** from the org's composer or from the bar at the top of any page. A call doesn't end when people don't pick up: while anyone is still in it, the org's composer shows **Call going on** with who is in it, and anyone in the org can join at any time. Leaving takes only you out, and the call ends when the last person leaves. While you're alone in it, you hear the outgoing ring as long as it rings the org.
+
+An org call holds up to 8 people. Each person's browser connects to every other's through the same relay, encrypted from one browser to the other like a one-on-one call. Nobody sees anyone else's IP address, and /dev/null only passes on the short setup messages between each two browsers. The call itself, who is in it and those messages live in a short-lived cache, forgotten seconds after the last person leaves. The org's history logs who **started a call**, like it logs pings; nothing else about the call is saved, and there are no recordings. Hovering over someone in the call shows the `fp` code you share with them.
+
+Mute, camera and screen sharing work like a one-on-one call: once someone turns their camera on, everyone's cameras show above the composer. You can be on one call at a time, so while you're in an org call nobody can call you one-on-one.
+
+Sources: [org call flow](resources/js/lib/org-call.ts), [who can join](app/Http/Requests/CreateOrgCallRequest.php), [org call storage](app/Actions/CreateOrgCall.php).
 
 ### Orgs: group chats
 
@@ -398,7 +454,7 @@ Sources: [safety settings](resources/js/pages/safety/edit.tsx), [mute action](ap
 
 ### Reporting commits
 
-Report another person's visible, approved commit or reply privately from its controls. Choose a reason (spam or misleading links, harassment or hate, harmful or private information, or something else) and optionally add up to **500 characters** of detail. You can report a particular commit once, and file up to five reports a minute. Reporting does not immediately hide or reject the content. Moderators review reports without the reporter's identity and can dismiss the report or reject the commit, with an optional reason sent to its author. Deleting a reported commit keeps its reports. This is a content-safety report, not a software bug report; use `/bug` for app defects.
+Report another person's visible, approved commit or reply privately from its controls. Choose a reason (spam or misleading links, harassment or hate, harmful or private information, or something else) and optionally add up to **500 characters** of detail. Attach up to **three JPEG, PNG, or WebP images**, each up to **10 MB**, using the image picker, paste, or drag and drop. Attachments can include descriptions and are visible only to you and moderators. You can report a particular commit once, and file up to five reports a minute. Reporting does not immediately hide or reject the content. Moderators review reports without the reporter's identity and can dismiss the report or reject the commit, with an optional reason sent to its author. Deleting a reported commit keeps its reports. This is a content-safety report, not a software bug report; use `/bug` for app defects.
 
 Sources: [report control](resources/js/components/commit-report-button.tsx), [report validation](app/Http/Requests/CreateCommitReportRequest.php), [reported-commit controller](app/Http/Controllers/ReportedCommitController.php).
 
@@ -442,11 +498,12 @@ Press **?** to open the shortcut reference. Navigation shortcuts work outside te
 | `Enter` | Open the focused commit. |
 | `y` | Copy the focused commit's link. |
 | `r` / `q` / `o` | Reply, quote, or show/hide replies. |
+| `s` | Star or unstar the focused commit. |
 | `c` | Write a commit. |
 | `⌘/Ctrl+K` or `/` | Search developers and commits. |
 | `⌘/Ctrl+Enter` | Submit from the composer. |
 | `⌘/Ctrl+Shift+P` | Toggle composer preview. |
-| `g` then `l` / `e` / `p` / `s` | Go to your log / Trending / profile / settings. |
+| `g` then `l` / `e` / `p` / `s` / `n` / `m` / `*` | Go to your log / Trending / profile / settings / Notifications / Remotes / Starred. `g m` works only while Remotes is on. |
 
 Source: [shortcut reference](resources/js/components/keyboard-shortcuts-dialog.tsx).
 
@@ -462,15 +519,15 @@ Livestream history: terminal posting was reported working on [day one at 6:32:47
 
 ### GitHub Actions integration
 
-Use `dev-null-sh/dev-null.sh/.github/actions/commit@production` to publish updates from a GitHub workflow, for example when a release is published. Settings → Terminal includes a workflow example. The action accepts a commit body, an SSH private key supplied through a GitHub Actions secret, an optional `reply-to` reference, optional image paths (up to three), and an optional `url` for another /dev/null instance.
+Use `dev-null-sh/dev-null.sh/.github/actions/commit@production` to publish updates from a GitHub workflow, for example when a release is published. The action accepts a commit body, an SSH private key supplied through a GitHub Actions secret, an optional `reply-to` reference, optional image paths (up to three), and an optional `url` for another /dev/null instance.
 
 Generate a dedicated CI key, add its public half to GitHub as a signing or authentication key, and store the private half only in the repository's encrypted secrets. The action supports Ed25519 or RSA keys without a passphrase. It reports the created commit's link and whether it is pending review as a workflow annotation; it has no step outputs, and a refused submission fails the job. The usual moderation and submission limits still apply.
 
-Sources: [workflow instructions](resources/js/pages/terminal/show.tsx), [GitHub action](.github/actions/commit/action.yml).
+Sources: [GitHub action](.github/actions/commit/action.yml).
 
 ### Public read API and Atom feeds
 
-The read-only JSON API at `/api/v1` requires no authentication or token. Read a public profile at `/api/v1/users/{handle}`, that user's commits at `/api/v1/users/{handle}/commits`, or one commit at `/api/v1/commits/{commit}`. `/api/v1/users/{handle}/followers` and `/following` list people the way the profile's people lists do, newest follow first; a signed request also gets each person's lane and whether you follow each other. Add `?replies=1` to the user-commits endpoint to read their replies instead of top-level commits. Lists use cursor pagination: 20 commits or 30 people per page. Only public approved, non-deleted content is returned, not private profile data such as email. Unsigned requests are limited to **60 requests per minute per IP** and cannot create posts, follow, or star; terminal posting and the [signed API](#signed-api-and-devices) are separate signed interfaces.
+The read-only JSON API at `/api/v1` requires no authentication or token, except for who follows whom. Read a public profile at `/api/v1/users/{handle}`, that user's commits at `/api/v1/users/{handle}/commits`, or one commit at `/api/v1/commits/{commit}`. `/api/v1/users/{handle}/followers` and `/following` list people the way the profile's people lists do, newest follow first, with each person's lane and whether you follow each other, and `/api/v1/users/{handle}/following/organizations` lists the organizations they follow the same way, with whether you follow each one; like on the web, they are for members only and need a [signed request](#signed-api-and-devices). Add `?replies=1` to the user-commits endpoint to read their replies instead of top-level commits. Lists use cursor pagination: 20 commits, or 30 people or organizations, per page. Only public approved, non-deleted content is returned, not private profile data such as email. Unsigned requests are limited to **60 requests per minute per IP** and cannot create posts, follow, or star; terminal posting and the [signed API](#signed-api-and-devices) are separate signed interfaces.
 
 Subscribe in a feed reader to `/@{handle}/feed.atom` for a profile's latest **50 approved top-level commits**, including image enclosures. Feeds are public and can be cached for five minutes.
 
@@ -478,14 +535,14 @@ Sources: [API routes](routes/api.php), [API controllers](app/Http/Controllers/Ap
 
 ### Signed API and devices
 
-An app can use the same `/api/v1` for you with signed requests. It keeps an SSH key on the device and signs every request with it; there are no passwords or API tokens. To sign in, the app opens `/mobile/authorize` on the web: sign in with GitHub if needed, check the key's fingerprint, and approve it. The key then becomes one of your devices, and it does not need to be on your GitHub account. A key that is only on GitHub, such as a GitHub Actions key, cannot use the signed API.
+An app can use the same `/api/v1` for you with signed requests. It keeps an SSH key on the device and signs every request with it; there are no passwords or API tokens. To sign in, the app opens `/mobile/authorize` on the web. A guest goes straight to GitHub and returns to that page; someone already signed in checks the key's fingerprint and approves it. The key then becomes one of your devices, and it does not need to be on your GitHub account. A key that is only on GitHub, such as a GitHub Actions key, cannot use the signed API.
 
 A signed request sees what the web shows you, such as your own pending commits. It can also, with the web's validation, moderation, and rate limits:
 
 - read your account, logs, replies, notifications (including grouped activity), and starred commits;
-- commit, reply, and quote, with images, and delete your commits;
+- commit, reply, and quote, with images, and delete your commits, with the same undo window as the web;
 - preview commit drafts without publishing them;
-- follow or unfollow, mute or unmute, and block or unblock, and list who you muted and blocked;
+- follow or unfollow people and organizations, mute or unmute, and block or unblock, and list who you muted and blocked;
 - read who to follow, also as it is suggested beside a profile or a commit, and mark a suggestion not interested;
 - star or unstar;
 - create polls on commits that are neither replies nor quotes, and vote on polls;
@@ -494,26 +551,36 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - stash or reopen conversations and orgs, pin and mute them, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
 - report commits;
-- sync from GitHub and save your lane color;
+- search people by name or handle, and commits by meaning, with the web's limit of 15 commit searches a minute;
+- schedule commits, list your queue, cancel a scheduled commit, or post it early;
+- pin a commit to your profile, or unpin it;
+- translate commits;
+- suggest people to mention and /dev/null issues to reference while writing;
+- sync from GitHub, save your lane color, timezone, and translation language, and turn automatic translation on or off;
+- list your devices and revoke them;
 - delete your account.
 
-Signed request bodies are JSON, or multipart when they carry images or a voice note, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Scheduling, search, and translations remain web-only. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
+Signed request bodies are JSON, or multipart when they carry images or a voice note, so app commits can have images with descriptions or a poll but no link-card choice. Before your first app submission, accept the [commit rules](#moderation) through the web composer. Signed requests are limited to **120 requests per minute per user**. Settings → Devices lists your approved devices with when each was last used, and revokes them.
 
 Sources: [signed requests](app/Services/SignedRequests.php), [sign-in page](app/Http/Controllers/MobileAuthorizationController.php), [devices settings](resources/js/pages/device/index.tsx), [API routes](routes/api.php).
 
 ### Mac app
 
-**/dev/null for Mac** is a native Mac app for Remotes: direct remotes and orgs with replies, reactions, images, link cards, voice notes, pull receipts, and notifications. It is free, universal (Apple silicon and Intel), and requires macOS 14 or later. Download it from **/apps**, the home for /dev/null's apps, which shows the version, size, release date, and SHA-256 checksum of the current download (`/mac` redirects there, and **Settings → Devices** links to it).
+**/dev/null for Mac** is a native Mac app for all of /dev/null: the Following, Latest, and Trending logs, writing and scheduling commits, replies, quotes, polls, stars, Starred, notifications, profiles, search, and Remotes. It is free, universal (Apple silicon and Intel), and requires macOS 14 or later. Download it from **/apps**, the home for /dev/null's apps, which shows the version, size, release date, and SHA-256 checksum of the current download (`/mac` redirects there, and **Settings → Devices** links to it).
 
 To install it, open `DevNull.dmg`, drag /dev/null onto Applications, and open it. The file is named `DevNull.app`, because a slash can't go in a file name; everywhere else, the app is called /dev/null. The app is signed and notarized by Apple, so macOS opens it without a warning.
 
-On first launch, choose **Sign in with GitHub**: the app opens `/mobile/authorize` in your browser, you approve its key, and the Mac shows up under **Settings → Devices** like any other device, where you can revoke it. It uses the same signed API as the phone app, with the same limits, and gets new messages by polling while it runs; there are no push notifications after you quit it.
+On first launch, choose **Sign in with GitHub**: the app opens `/mobile/authorize` in your browser, you approve its key, and the Mac shows up under **Settings → Devices** like any other device, where you can revoke it. It uses the same signed API as the phone app, with the same limits, moderation, and rules as the web.
 
-Privacy on the Mac: the device key stays in the Keychain, notification banners never show what a message says, and messages and images are kept in memory only, so besides a few preferences nothing is saved on the Mac. **Sign Out** deletes the key.
+The window is a workspace. The sidebar lists everything you can read in three sections: **Logs** (Following, Latest, Trending), **Remotes** (your pinned and recent remotes and orgs, All Remotes, and Stashed), and **You** (Notifications, Starred, Scheduled, and your profile). The middle shows what you picked, and every log is drawn on the same `git log --graph` rail as the web. Replies open in a pane on the right, so the log never moves; profiles, commit pages, and search results open in the middle with Back and Forward. **⌘K** searches people, remotes, and commits by meaning. Every action is in the menu bar, most with a **⌘** shortcut; the web's single-key shortcuts are not in the Mac app, so typing in the composer is never intercepted. **⌘N** writes a new commit; **⇧⌘N** starts a new remote and **⌥⇧⌘N** a new org.
+
+Logs and notifications are checked about every 30 seconds while the app is in front and every few minutes in the background, and new commits wait behind a button instead of moving what you are reading. A log's new-commit count is a quiet number, never a badge; the Dock badge counts unread remotes and notifications only. Activity never shows a banner, and remote banners never show what a message says. There are no push notifications after you quit the app.
+
+Privacy on the Mac: the device key stays in the Keychain, and commits, messages, notifications, profiles, and images are kept in memory only, so besides a few preferences nothing is saved on the Mac. Drafts last until you quit /dev/null. Your profile is mirrored from GitHub and edited there, never in the app; data export and account settings that live on the web open in your browser. **Sign Out** deletes the key.
 
 Updates: **Check for Updates…** in the app menu compares the installed build with the one /apps offers and opens /apps when there is a newer one; the app also checks quietly once a day while it runs. The check is an unsigned request that sends nothing about you or your account. To update, download the new DMG and replace the app in Applications; you stay signed in. The **About /dev/null** window shows the version and build, links to the site, /apps, the privacy policy and Manage Devices, and credits.
 
-Sources: [apps page](resources/js/pages/app/index.tsx), [release endpoint](app/Http/Controllers/Api/MacAppController.php), [About window](https://github.com/dev-null-sh/mac-os-app/blob/main/Sources/DevNull/Views/AboutView.swift), [update check](https://github.com/dev-null-sh/mac-os-app/blob/main/Sources/DevNull/App/Updates.swift), [API routes](routes/api.php).
+Sources: [apps page](resources/js/pages/app/index.tsx), [release endpoint](app/Http/Controllers/Api/MacAppController.php), [design](https://github.com/dev-null-sh/mac-os-app/blob/main/DESIGN.md), [About window](https://github.com/dev-null-sh/mac-os-app/blob/main/Sources/DevNull/Views/AboutView.swift), [update check](https://github.com/dev-null-sh/mac-os-app/blob/main/Sources/DevNull/App/Updates.swift), [API routes](routes/api.php).
 
 ### Bug reports and feature requests
 
@@ -529,14 +596,15 @@ Sources: [issue command UI](resources/js/components/issue-command.tsx), [issue v
 
 Choose **Download JSON** in Settings → Profile to export your account data. The export includes:
 
-- profile details and preferences, including live-stream details, translation language, the last day you used /dev/null, and when you accepted the commit rules;
+- profile details and preferences, including live-stream details, translation language, and when you accepted the commit rules;
+- the days you used /dev/null (dates, not times), oldest first, and the last of them;
 - your commits and replies (including pending, rejected, and deleted entries still stored), their cached translations, polls, and your votes;
 - stars, followers and people you follow, mutes, blocks, and dismissed **Not interested** suggestions;
 - messages you sent, including links to your voice notes, and notifications;
 - SSH key fingerprints, approved devices, and your timeout history;
 - active-session metadata: IP address, browser information, and last activity.
 
-Other people's replies and received messages are not included as your authored data. Message images, message reactions, reports you filed, scheduled commits, and ban records are not included either. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
+Other people's replies and received messages are not included as your authored data. Message images, message reactions, scheduled commits, and ban records are not included either. Reports you filed include their reason, details, and attachment references; reports filed by other people are excluded. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
 
 The export does not expose session IDs, authentication tokens, private SSH keys, or other people's poll choices. Keep the downloaded JSON private because it includes personal account information. Exports are limited to **three per hour**.
 
@@ -574,9 +642,9 @@ Sources: [status transitions](app/Actions/UpdateCommitStatuses.php), [timeouts](
 
 The public **About** page describes the livestream project and lists up to 1,000 GitHub contributor accounts, excluding bots and known agents, most commits first; the list is cached for an hour and GitHub may take several hours to update its counts; when GitHub cannot be reached the page says so instead of showing the list. The **Changelog**, opened from the navigation or the side column, lists the pull requests merged into `production` on GitHub, a few days at a time. The **Brand** page at `/brand` offers the logo, wordmark, colors, typography, and wallpapers; right-clicking the logo in the navigation also copies it or links there. **Terms** and **Privacy** explain acceptable use and data handling. Public posts may be indexed or copied outside /dev/null; content and search queries can be processed by automated or AI services. Read those policies before posting sensitive information or relying on deletion to remove every external copy.
 
-To count active people, /dev/null remembers only the **last day** (not the time) you were signed in and used the site or the API; background refreshes do not count. That day is never shown to other people, is included in your export, and is deleted with your account. Daily active-people numbers are kept as anonymous counts. Visitor analytics come from **Fathom**, which counts anonymously: the browser sends a `guest-visit` event once per session when you are not signed in, a `signin-click` event when you tap to sign in, and a `signup` event right after an account is created, with nothing that identifies you.
+To count active people and how many come back, /dev/null remembers the **days** (not the times) you were signed in and used the site or the API, and the last of them; background refreshes do not count. These days are never shown to other people, are included in your export, and are deleted with your account. Daily active-people numbers are kept as anonymous counts. Visitor analytics come from **Fathom**, which counts anonymously: the browser sends a `guest-visit` event once per session when you are not signed in (unless the browser is driven by a program, like a scraper's), a `signin-click` event when you tap to sign in, a `signup` event right after an account is created, and `join-link-sent`, `join-link-visit` and `join-link-signup` when a guest asks for a link by email, opens it, and signs up from it, with nothing that identifies you.
 
-Sources: [last seen tracking](app/Http/Middleware/UpdateLastSeenAt.php), [Fathom events](resources/js/lib/analytics.ts), [public page routes](routes/web.php), [About](resources/js/pages/about/show.tsx), [contributors](app/Queries/ContributorsQuery.php), [privacy policy](resources/js/pages/privacy/show.tsx), [terms](resources/js/pages/terms/show.tsx).
+Sources: [last seen tracking](app/Http/Middleware/UpdateLastSeenAt.php), [active days](app/Actions/UpdateUserLastSeenAt.php), [Fathom events](resources/js/lib/analytics.ts), [public page routes](routes/web.php), [About](resources/js/pages/about/show.tsx), [contributors](app/Queries/ContributorsQuery.php), [privacy policy](resources/js/pages/privacy/show.tsx), [terms](resources/js/pages/terms/show.tsx).
 
 ### Tom's repository insights and community statistics
 
@@ -690,7 +758,7 @@ Originally, Tom had no particular purpose beyond that nod to MySpace. He now has
 
 Tom's lookups start with **OpenAI's Decisions API**, which evaluates simple criteria for each read-only tool using the latest message and the same bounded public thread context. Finding social posts and community reactions uses post search; factual platform questions and notable events, including milestones, downtime and security patches, use the knowledge base; current repository numbers and contribution opportunities use repository insights; feature development and attribution questions use repository history; and supported member counts use community statistics. Sources are complementary: a question about a feature's behavior, evolution and community reception can use the knowledge base, posts and repository history together, without needing to request each search explicitly. Tom compiles the relevant evidence into one answer, distinguishing documented facts, community opinions and development history. An inconclusive search can lead to a follow-up with different keywords, and each new reply has a fresh search allowance. When no tool is needed, such as small talk, ambiguous requests or anything outside his role, Tom simply replies as regular chat.
 
-Tag **@tom** in a public commit or reply, or reply directly to one of his posts without tagging him. Once it is approved, Tom can reply under that commit, at most once, addressing its author rather than the thread's root poster. Replies further down the thread still need to tag him unless their direct parent is a Tom post. Mentions in code do not summon him. His replies use the normal commit moderation and notification pipeline. He does not reply to himself, across a block, in private messages, or to deleted or unapproved commits.
+Tag **@tom** in a public commit or reply, or reply directly to one of his posts without tagging him. Once it is approved, Tom can reply under that commit, at most once, addressing its author rather than the thread's root poster. Replies further down the thread still need to tag him unless their direct parent is a Tom post. Mentions in code do not summon him. Selecting him as a reply notification recipient does not summon him either. His replies use the normal commit moderation and notification pipeline. He does not reply to himself, across a block, in private messages, or to deleted or unapproved commits.
 
 If the real GitHub owner of `tom` signs in, the bot moves to **@devnull-tom** with the same profile, posts and friendships. Mention **@devnull-tom** to summon him after that; direct replies and mentions captured before the rename still reach the bot. New mentions of the human **@tom** do not summon him. He remains every newcomer's first friend.
 

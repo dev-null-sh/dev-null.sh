@@ -44,6 +44,7 @@ export type Profile = User & {
  */
 export type Auth = {
     user: Profile | null;
+    bioProfiles: Record<string, string>;
     isAdmin: boolean;
     automaticTranslation: boolean;
     mustReadCommitRules: boolean;

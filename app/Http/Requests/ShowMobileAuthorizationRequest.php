@@ -18,20 +18,20 @@ final class ShowMobileAuthorizationRequest extends FormRequest
     /**
      * The rules for what the app sends, on the page and again when the user approves it.
      *
+     * The code only ever goes back to the app: its own devnull:// scheme, or a port on the loopback address for the
+     * command line, which can't rely on macOS sending the scheme to it instead of the Mac app (RFC 8252, section 7.3).
+     *
      * @return array<string, list<string>>
      */
     public static function parameterRules(): array
     {
-        /** @var list<string> $prefixes */
-        $prefixes = config('mobile.redirect_uri_prefixes');
-
         return [
             'fingerprint' => ['required', 'string', 'regex:/^SHA256:[A-Za-z0-9+\/]{43}$/'],
             'device_name' => ['required', 'string', 'max:100'],
             'code_challenge' => ['required', 'string', 'regex:/^[A-Za-z0-9_-]{43}$/'],
             'code_challenge_method' => ['required', 'string', 'in:S256'],
             'state' => ['required', 'string', 'max:255'],
-            'redirect_uri' => ['required', 'string', 'max:255', 'starts_with:'.implode(',', $prefixes), 'not_regex:/#/'],
+            'redirect_uri' => ['required', 'string', 'max:255', 'regex:/^(devnull:\/\/|http:\/\/127\.0\.0\.1:[0-9]{1,5}([\/?]|$))/', 'not_regex:/#/'],
         ];
     }
 

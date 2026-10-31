@@ -4,8 +4,8 @@
 - Every time you create a new file, stage it immediately with `git add <path>`. Never commit; leave committing to the user.
 - Do not write browser tests (`tests/Browser`, Pest browser plugin, Playwright). Cover behavior with Feature and Unit tests only.
 - Migrations only go up: never write a `down` method. To undo a migration, write a new one.
-- Use the Laravel AI SDK for new AI features and semantic search query embeddings. Load the `ai-sdk-development` skill and keep the embedding provider, model, and dimensions compatible with the stored vectors.
-- Whenever one of Tom's tools is added, removed, or changed, update `App\Services\TomToolDecision`'s decision policy and criteria, Tom's execution guidance (arguments and follow-up limits), and the routing tests in the same change.
+- Use the Laravel AI SDK for new AI features. Every agent is a class in `app/Ai/Agents` (`HarmReviewer`, `CommitTranslator`), with its provider, model and timeout as attributes, never an anonymous `agent()`. Embeddings, stored or for search queries, all go through `EmbeddingProvider`, so they share one model and `EmbeddingProvider::DIMENSIONS`: changing either means embedding everything again. Load the `ai-sdk-development` skill when working with the SDK.
+- Whenever one of Tom's tools is added, removed, or changed, update `App\Services\ToolDecisionProviders\OpenAIToolDecisionProvider`'s decision policy and criteria, Tom's execution guidance (arguments and follow-up limits), and the routing tests in the same change.
 
 ## Commit attribution
 
@@ -20,13 +20,18 @@
 
 ## Required verification
 
-- After changes, before reporting completion or pushing, run `composer test:lint`, `composer test:type-coverage`, and `bun run test:unit`.
+- After changes, before reporting completion or pushing, run `composer test:lint`, `composer test:types`, `composer test:type-coverage`, and `bun run test:unit`.
 - Run the full PHP suite with code coverage using the CI command: `php -d memory_limit=-1 vendor/bin/pest --parallel --ci --coverage --exactly=100.0 --passthru-php="'-d' 'memory_limit=-1'"`. The `--ci` flag prevents local test-impact analysis from skipping tests. Targeted tests alone are not a substitute for the coverage check.
 - Fix failures introduced by the changes. Never lower coverage thresholds or exclude code just to pass. Report pre-existing failures or environment blockers explicitly; do not claim a check passed when it failed or could not run.
 
 ## Mac app
 
 - Whenever a change touches the Mac app (`../mac-os-app`), rebuild it with its `scripts/build.sh` before finishing, signed and notarized like the published build: `DEVELOPER_ID=89A1DD63507AAD8592A9E56668F15A22AB42A939 NOTARY_PROFILE=devnull scripts/build.sh`. Check that `DevNull.json` says `"notarized": true` before finishing. The build writes `public/downloads/DevNull.dmg` and `public/downloads/DevNull.json` here: leave both in the working tree to ship with the change, never restore or discard them.
+- Every build that replaces the published one ships under a new version: bump `CFBundleShortVersionString` in the Mac app's `Info.plist` before building, minor for new features and patch for fixes. Never publish a different build under a version that already shipped. The apps page and the app's update check read the version from `DevNull.json`, so check it there.
+
+## Open source
+
+- This repository and the Mac app's are public. Never write anything private into code, comments, rules, tests, commit messages, or pull requests: secrets, credentials, personal data, private user content, or internal details of the production setup.
 
 ## Product guide maintenance
 

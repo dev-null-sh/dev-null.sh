@@ -54,6 +54,11 @@ export function CommitFeed({
             : null;
     const isProfileReplies =
         profileUserId !== null && page.props.tab === 'replies';
+    // The organization's Mentions tab lists replies too, whatever handle they mention it with.
+    const mentionedOrganizationId =
+        page.component === 'organization/show'
+            ? (page.props.organization as { id: string }).id
+            : null;
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
     );
@@ -144,9 +149,13 @@ export function CommitFeed({
                     const belongsInFeed =
                         (isStarred
                             ? restored.starred === true
-                            : isProfileReplies
-                              ? restored.parent_id !== null
-                              : restored.parent_id === null) &&
+                            : mentionedOrganizationId !== null
+                              ? Object.values(
+                                    restored.organization_mentions ?? {},
+                                ).includes(mentionedOrganizationId)
+                              : isProfileReplies
+                                ? restored.parent_id !== null
+                                : restored.parent_id === null) &&
                         (profileUserId === null ||
                             (restored.user_id === profileUserId &&
                                 !restored.is_pinned));
@@ -166,7 +175,14 @@ export function CommitFeed({
                     );
                 }
             }),
-        [profileUserId, isModeration, isProfileReplies, isStarred, isRanked],
+        [
+            profileUserId,
+            isModeration,
+            isProfileReplies,
+            mentionedOrganizationId,
+            isStarred,
+            isRanked,
+        ],
     );
 
     // A ranked commit can move to a later page while the feed scrolls, so each one is only listed once.
