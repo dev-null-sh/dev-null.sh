@@ -249,14 +249,14 @@ it('loads a public preview for an unsaved commit without making it persistent', 
         ->and($preview->exists)->toBeFalse()
         ->and($preview->replies_count)->toBe(0)
         ->and($preview->isDirty('replies_count'))->toBeFalse()
-        ->and($preview->user->is($user))->toBeTrue();
+        ->and($preview->author->is($user->profile))->toBeTrue();
 });
 
 it('loads public preview counts onto a partially selected commit with its id', function (): void {
     $commit = Commit::factory()->create();
     Commit::factory()->for($commit, 'parent')->create();
     Commit::factory()->for($commit, 'quotedCommit')->create();
-    $partial = Commit::query()->select(['id', 'user_id', 'parent_id'])->findOrFail($commit->id);
+    $partial = Commit::query()->select(['id', 'author_id', 'parent_id'])->findOrFail($commit->id);
 
     $partial->loadPublicPreview();
 
@@ -292,7 +292,7 @@ it('counts public replies and quotes in a deleted commit preview without dirtyin
 it('loads a public preview without a persisted primary key', function (bool $partial): void {
     $author = User::factory()->create();
     $commit = $partial
-        ? Commit::query()->select(['user_id', 'parent_id'])->findOrFail(Commit::factory()->for($author)->create()->id)
+        ? Commit::query()->select(['author_id', 'parent_id'])->findOrFail(Commit::factory()->for($author)->create()->id)
         : Commit::factory()->for($author)->make(['id' => fake()->uuid()]);
 
     $preview = $commit->loadPublicPreview();
@@ -300,7 +300,7 @@ it('loads a public preview without a persisted primary key', function (bool $par
     expect($preview)->toBe($commit)
         ->and($preview->replies_count)->toBe(0)
         ->and($preview->isDirty('replies_count'))->toBeFalse()
-        ->and($preview->user?->is($author))->toBeTrue();
+        ->and($preview->author?->is($author->profile))->toBeTrue();
 })->with([
     'unsaved commit' => false,
     'partial commit without its primary key' => true,
@@ -333,7 +333,7 @@ it('hydrates public preview counts without persisting them or clearing body edit
         ->and($preview->isDirty('replies_count'))->toBeFalse()
         ->and($preview->getDirty())->toBe(['body' => 'Edited after loading'])
         ->and($preview->images)->toBe($images)
-        ->and($preview->user->is($author))->toBeTrue()
+        ->and($preview->author->is($author->profile))->toBeTrue()
         ->and($preview->parent->is($parent))->toBeTrue();
 
     if ($deleted) {
@@ -362,7 +362,7 @@ it('hydrates a zero public preview count when no persisted primary key is availa
         expect($preview)->toBe($commit)
             ->and($preview->replies_count)->toBe(0)
             ->and($preview->isDirty('replies_count'))->toBeFalse()
-            ->and($preview->relationLoaded('user'))->toBeTrue()
+            ->and($preview->relationLoaded('author'))->toBeTrue()
             ->and($preview->relationLoaded('parent'))->toBeTrue();
     } finally {
         Model::preventAccessingMissingAttributes($strict);
@@ -373,7 +373,7 @@ it('hydrates a zero public preview count when no persisted primary key is availa
     'partial without id' => [function (): Commit {
         Commit::factory()->create();
 
-        return Commit::query()->firstOrFail(['body', 'user_id', 'parent_id']);
+        return Commit::query()->firstOrFail(['body', 'author_id', 'parent_id']);
     }],
     'removed row' => [function (): Commit {
         $commit = Commit::factory()->create();

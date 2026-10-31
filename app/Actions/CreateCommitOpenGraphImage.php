@@ -53,7 +53,7 @@ final readonly class CreateCommitOpenGraphImage
     {
         $canvas = new OpenGraphCanvas($this->github);
         $lane = $canvas->lane($user->lane());
-        $replyingTo = $commit->parent?->user?->handle;
+        $replyingTo = $commit->parent?->author?->handle;
 
         $headerHeight = self::AVATAR_SIZE + ($replyingTo === null ? 0 : self::REPLYING_TO_HEIGHT) + self::BODY_GAP;
         [$size, $lineHeight, $body] = $this->fit($canvas, $this->urls->withShortenedUrls($commit->body), OpenGraphCanvas::FOOTER_RULE_Y - self::MIN_BOTTOM - self::MIN_TOP - $headerHeight);

@@ -551,9 +551,9 @@ export function ShowThreadLink({ thread }: { thread: Thread }) {
 
     return (
         <Link
-            href={CommitController.show({ user: commit.user, commit })}
+            href={CommitController.show({ user: commit.author, commit })}
             className="mt-2 -ml-2 flex w-fit items-center gap-1 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            aria-label={`Show thread by @${commit.user.handle}`}
+            aria-label={`Show thread by @${commit.author.handle}`}
             data-test="show-thread-link"
         >
             <ListTree className="size-4" aria-hidden />
@@ -959,7 +959,7 @@ function MoreRepliesButton({
                             <>
                                 {' to '}
                                 <span className="font-mono text-xs">
-                                    @{thread.commit.user.handle}
+                                    @{thread.commit.author.handle}
                                 </span>
                             </>
                         )}
@@ -1105,11 +1105,11 @@ function CommitReply({
         [nodeRef],
     );
 
-    const isOwn = reply.user_id === auth.user?.id;
+    const isOwn = reply.author.id === auth.user?.id;
     const isFlattened = depth > maxIndentDepth;
     const isQuote = reply.quoted_commit_id === parent.id;
     const permalink = CommitController.show({
-        user: reply.user,
+        user: reply.author,
         commit: reply,
     });
 
@@ -1158,14 +1158,14 @@ function CommitReply({
                 )}
             >
                 <div className="relative shrink-0">
-                    <UserPreview user={reply.user} anchor={avatarRef}>
+                    <UserPreview user={reply.author} anchor={avatarRef}>
                         <Link
                             ref={avatarNodeRef}
-                            href={show(reply.user)}
+                            href={show(reply.author)}
                             className="block rounded-full"
                         >
                             <UserAvatar
-                                user={reply.user}
+                                user={reply.author}
                                 className="size-6 ring-2 ring-(--lane) ring-offset-2 ring-offset-card sm:size-7"
                                 style={
                                     {
@@ -1191,22 +1191,22 @@ function CommitReply({
                 >
                     <div className="flex items-baseline gap-1.5 text-sm">
                         <UserPreview
-                            user={reply.user}
+                            user={reply.author}
                             anchor={avatarRef}
                             className="flex min-w-0 items-baseline gap-1.5"
                         >
                             <Link
-                                href={show(reply.user)}
+                                href={show(reply.author)}
                                 className="truncate font-semibold hover:underline"
                             >
-                                {reply.user.name}
+                                {reply.author.name}
                             </Link>
                             <Link
-                                href={show(reply.user)}
+                                href={show(reply.author)}
                                 tabIndex={-1}
                                 className="hidden truncate font-mono text-xs text-muted-foreground sm:inline"
                             >
-                                @{reply.user.handle}
+                                @{reply.author.handle}
                             </Link>
                         </UserPreview>
                         {isQuote && (
@@ -1223,7 +1223,7 @@ function CommitReply({
                         </span>
                         <TimestampTooltip
                             date={reply.created_at}
-                            author={reply.user}
+                            author={reply.author}
                         >
                             <Link
                                 href={permalink}
@@ -1259,7 +1259,7 @@ function CommitReply({
                                 {isQuote ? 'quoting' : 'replying to'}{' '}
                                 {isDeleted(parent)
                                     ? '[deleted]'
-                                    : `@${parent.user.handle}`}
+                                    : `@${parent.author.handle}`}
                             </span>
                         </p>
                     )}
@@ -1352,7 +1352,7 @@ function ReplyComposer({
     const participants = Array.from(
         new Map(
             [
-                [parent.user.id, parent.user.handle],
+                [parent.author.id, parent.author.handle],
                 ...Object.entries(parent.mentions ?? {}).map(([handle, id]) => [
                     id,
                     handle,
@@ -1363,7 +1363,7 @@ function ReplyComposer({
         ).values(),
     );
     const hasRecipientChoice = participants.some(
-        ({ id }) => id !== parent.user.id,
+        ({ id }) => id !== parent.author.id,
     );
     const {
         body,
@@ -1470,7 +1470,7 @@ function ReplyComposer({
             reply_recipients: participants
                 .filter(
                     ({ id }) =>
-                        id !== parent.user.id &&
+                        id !== parent.author.id &&
                         !excludedRecipientIds.includes(id),
                 )
                 .map(({ id }) => id),
@@ -1521,12 +1521,12 @@ function ReplyComposer({
                 <ImageDropOverlay className="-inset-px" />
             )}
             <label htmlFor={`reply-${parent.id}`} className="sr-only">
-                Reply to @{parent.user.handle}
+                Reply to @{parent.author.handle}
             </label>
             {hasRecipientChoice && (
                 <ReplyRecipientPicker
                     participants={participants}
-                    authorId={parent.user.id}
+                    authorId={parent.author.id}
                     excludedIds={excludedRecipientIds}
                     onExcludedIdsChange={updateExcludedRecipientIds}
                 />
@@ -1548,7 +1548,7 @@ function ReplyComposer({
                     placeholder={
                         hasRecipientChoice
                             ? 'Post your reply'
-                            : `Reply to @${parent.user.handle}`
+                            : `Reply to @${parent.author.handle}`
                     }
                     className={cn(
                         'col-start-1 row-start-1 block field-sizing-content max-h-[50dvh] min-h-9 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent pr-9 pl-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',

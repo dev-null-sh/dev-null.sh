@@ -26,9 +26,8 @@ const actor: User = {
     created_at: timestamp,
     updated_at: timestamp,
 };
-const quoteCommit: Omit<Commit, 'user'> = {
+const quoteCommit: Omit<Commit, 'author'> = {
     id: 'quote-commit',
-    user_id: actor.id,
     parent_id: null,
     hot_score: 0,
     body: 'My quote commentary',

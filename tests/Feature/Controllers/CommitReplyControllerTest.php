@@ -101,7 +101,7 @@ it('answers a casual public Tom mention in the same thread', function (): void {
     $this->getJson(route('commit-reply.index', $mention))->assertOk()
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.body', 'A little rusty, but happy to see you. :-D')
-        ->assertJsonPath('data.0.user.id', $tom->id)
+        ->assertJsonPath('data.0.author.id', $tom->id)
         ->assertJsonPath('data.0.root_id', $parent->id);
     Tom::assertPrompted('@tom how are your rusty joints?');
 });
@@ -145,8 +145,8 @@ it('lists visible replies oldest first with their own reply counts', function ()
         ->assertJsonPath('data.1.body', 'Second')
         ->assertJsonPath('data.1.replies_count', 2)
         ->assertJsonPath('data.2.body', 'Mine, pending')
-        ->assertJsonPath('data.0.user.id', fn (string $id): bool => $id !== '')
-        ->assertJsonMissingPath('data.0.user.email')
+        ->assertJsonPath('data.0.author.id', fn (string $id): bool => $id !== '')
+        ->assertJsonMissingPath('data.0.author.email')
         ->assertJsonPath('next_cursor', null);
 });
 
@@ -268,7 +268,7 @@ it('lists deleted replies that still have replies as tombstones', function (): v
         ->assertJsonPath('data.0.deleted_at', fn (string $deletedAt): bool => $deletedAt !== '')
         ->assertJsonPath('data.0.replies_count', 1)
         ->assertJsonMissingPath('data.0.body')
-        ->assertJsonMissingPath('data.0.user')
+        ->assertJsonMissingPath('data.0.author')
         ->assertJsonMissingPath('data.0.user_id')
         ->assertJsonPath('data.1.body', 'Kept');
 });
@@ -807,7 +807,7 @@ it('keeps account deletion tombstones in threads while filtering silenced author
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.id', $parent->id)
         ->assertJsonPath('data.0.replies_count', 1)
-        ->assertJsonMissingPath('data.0.user')
+        ->assertJsonMissingPath('data.0.author')
         ->assertJsonMissingPath('data.0.body');
 
     $this->getJson(route('commit-reply.index', $parent))
@@ -842,7 +842,7 @@ it('keeps approved account deletion tombstones readable to guests without exposi
             ->where('ancestors.1.id', $parent->id)
             ->missing('ancestors.1.body')
             ->missing('ancestors.1.mentions')
-            ->missing('ancestors.1.user'));
+            ->missing('ancestors.1.author'));
 
     $this->getJson(route('commit-reply.index', $parent))
         ->assertOk()

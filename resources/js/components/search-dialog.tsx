@@ -632,7 +632,7 @@ function hrefFor(
 
     if (option.kind === 'commit') {
         return CommitController.show({
-            user: option.commit.user,
+            user: option.commit.author,
             commit: option.commit,
         });
     }
@@ -884,12 +884,12 @@ function CommitResult({ commit }: { commit: Commit }) {
     return (
         <>
             <UserAvatar
-                user={commit.user}
+                user={commit.author}
                 className="size-9 shrink-0 self-start"
             />
             <span className="min-w-0 flex-1">
                 <span className="flex items-baseline gap-1.5 text-sm">
-                    <Handle user={commit.user} />
+                    <Handle user={commit.author} />
                     <span aria-hidden className="text-muted-foreground">
                         ·
                     </span>

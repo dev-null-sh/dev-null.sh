@@ -37,10 +37,10 @@ it('renders own commits and commits of followed users newest first', function ()
             ->where('log', 'following')
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Followed')
-            ->where('commits.data.0.user.id', $followed->id)
+            ->where('commits.data.0.author.id', $followed->id)
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
-            ->missing('commits.data.0.user.email')
+            ->missing('commits.data.0.author.email')
             ->where('commits.data.1.body', 'Mine'));
 });
 
@@ -57,9 +57,9 @@ it('renders each author with their effective lane', function (): void {
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->where('commits.data.0.user.lane', 2)
-            ->where('commits.data.1.user.lane', 5)
-            ->missing('commits.data.1.user.preferred_lane'));
+            ->where('commits.data.0.author.lane', 2)
+            ->where('commits.data.1.author.lane', 5)
+            ->missing('commits.data.1.author.preferred_lane'));
 });
 
 it('renders commits of everyone newest first', function (): void {
@@ -371,8 +371,8 @@ it('suggests recent commits from other developers when following nobody', functi
         ->assertInertia(fn ($page) => $page
             ->has('suggestions', 2)
             ->where('suggestions.0.body', 'Newer')
-            ->where('suggestions.0.user.id', $author->id)
-            ->where('suggestions.1.user.id', fn (string $id): bool => $id !== $author->id && $id !== $user->id));
+            ->where('suggestions.0.author.id', $author->id)
+            ->where('suggestions.1.author.id', fn (string $id): bool => $id !== $author->id && $id !== $user->id));
 });
 
 it('does not suggest commits when following someone', function (): void {
@@ -504,7 +504,7 @@ it('includes the quoted commits with their authors', function (Log $log): void {
             ->where('commits.data.1.quoted_commit_id', $hidden->id)
             ->where('commits.data.1.quoted_commit', null)
             ->where('commits.data.2.quoted_commit.body', 'The quoted commit')
-            ->where('commits.data.2.quoted_commit.user.handle', 'octocat'))
+            ->where('commits.data.2.quoted_commit.author.handle', 'octocat'))
         ->assertDontSee('A rejected quoted commit')
         ->assertDontSee('A deleted quoted commit');
 })->with(Log::cases());

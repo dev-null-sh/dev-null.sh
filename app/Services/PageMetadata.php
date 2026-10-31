@@ -180,7 +180,7 @@ final readonly class PageMetadata
      */
     public function commit(Commit $commit, array $replies = []): ?array
     {
-        $user = $commit->user;
+        $user = $commit->author?->user;
 
         if ($commit->trashed() || $commit->status !== CommitStatus::Approved || ! $user instanceof User) {
             return null;
@@ -188,7 +188,7 @@ final readonly class PageMetadata
 
         $parent = $commit->parent;
         $parentUser = $parent instanceof Commit && ! $parent->trashed() && $parent->status === CommitStatus::Approved
-            ? $parent->user
+            ? $parent->author?->user
             : null;
         $url = route('commit.show', [$user, $commit]);
 
@@ -212,7 +212,7 @@ final readonly class PageMetadata
         ];
 
         $comments = collect($replies)
-            ->filter(fn (Commit $reply): bool => ! $reply->trashed() && $reply->status === CommitStatus::Approved && $reply->user instanceof User)
+            ->filter(fn (Commit $reply): bool => ! $reply->trashed() && $reply->status === CommitStatus::Approved && $reply->author?->user instanceof User)
             ->take(self::MAX_COMMENTS)
             ->map(fn (Commit $reply): array => $this->comment($reply))
             ->values()
@@ -404,11 +404,11 @@ final readonly class PageMetadata
     {
         $quoted = $commit->relationLoaded('quotedCommit') ? $commit->quotedCommit : null;
 
-        if ($quoted instanceof Commit && ! $quoted->trashed() && $quoted->status === CommitStatus::Approved && $quoted->user instanceof User) {
+        if ($quoted instanceof Commit && ! $quoted->trashed() && $quoted->status === CommitStatus::Approved && $quoted->author?->user instanceof User) {
             return [
                 '@type' => 'SocialMediaPosting',
-                'url' => route('commit.show', [$quoted->user, $quoted]),
-                'author' => $this->person($quoted->user),
+                'url' => route('commit.show', [$quoted->author, $quoted]),
+                'author' => $this->person($quoted->author->user),
             ];
         }
 
@@ -432,14 +432,15 @@ final readonly class PageMetadata
      */
     private function comment(Commit $reply): array
     {
-        assert($reply->user instanceof User);
+        $author = $reply->author?->user;
+        assert($author instanceof User);
 
         return [
             '@type' => 'Comment',
-            'url' => route('commit.show', [$reply->user, $reply]),
+            'url' => route('commit.show', [$author, $reply]),
             'text' => $reply->body,
             'datePublished' => $reply->created_at->toIso8601String(),
-            'author' => $this->person($reply->user),
+            'author' => $this->person($author),
         ];
     }
 

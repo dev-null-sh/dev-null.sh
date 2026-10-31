@@ -31,7 +31,7 @@ export type Notification =
           type: 'replied' | 'starred';
           commit_id: string;
           subject_id: string;
-          commit: Omit<Commit, 'user'>;
+          commit: Omit<Commit, 'author'>;
       })
     | (BaseNotification & {
           type: 'leveled_up';
@@ -46,7 +46,7 @@ export type Notification =
           type: 'quoted';
           commit_id: string;
           subject_id: null;
-          commit: Omit<Commit, 'user' | 'quoted_commit'> & {
+          commit: Omit<Commit, 'author' | 'quoted_commit'> & {
               quoted_commit?:
                   | Pick<Commit, 'id' | 'body_segments' | 'deleted_at'>
                   | DeletedCommit
@@ -57,5 +57,5 @@ export type Notification =
           type: 'mentioned' | 'first_commit' | 'approved' | 'rejected';
           commit_id: string;
           subject_id: null;
-          commit: Omit<Commit, 'user'>;
+          commit: Omit<Commit, 'author'>;
       });

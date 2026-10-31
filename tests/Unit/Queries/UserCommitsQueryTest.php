@@ -19,7 +19,7 @@ it('includes the top-level commits of the user newest first', function (): void 
     $commits = resolve(UserCommitsQuery::class)->builder($user, User::factory()->create())->get();
 
     expect($commits->modelKeys())->toBe([$newer->id, $older->id])
-        ->and($commits->first()->relationLoaded('user'))->toBeTrue()
+        ->and($commits->first()->relationLoaded('author'))->toBeTrue()
         ->and($commits->last()->replies_count)->toBe(1);
 });
 
@@ -66,5 +66,5 @@ it('includes the replies of the user with the parents the viewer may see', funct
     expect($replies->modelKeys())->toBe([$replyToHidden->id, $reply->id])
         ->and($replies->first()->parent)->toBeNull()
         ->and($replies->last()->parent?->id)->toBe($parent->id)
-        ->and($replies->last()->parent?->relationLoaded('user'))->toBeTrue();
+        ->and($replies->last()->parent?->relationLoaded('author'))->toBeTrue();
 });

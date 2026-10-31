@@ -60,8 +60,7 @@ const { default: CommitController } =
     await import('../../resources/js/actions/App/Http/Controllers/CommitController');
 const commit = {
     id: '123e4567-e89b-12d3-a456-426614174000',
-    user_id: 'author',
-    user: { handle: 'author' },
+    author: { id: 'author', handle: 'author' },
     status: 'approved',
     body: 'Shipped it.',
 } as Commit;

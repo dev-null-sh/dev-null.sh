@@ -157,7 +157,7 @@ export function CommitFeed({
                                 ? restored.parent_id !== null
                                 : restored.parent_id === null) &&
                         (profileUserId === null ||
-                            (restored.user_id === profileUserId &&
+                            (restored.author.id === profileUserId &&
                                 !restored.is_pinned));
 
                     router.replaceProp('commits.data', (rows: Commit[]) =>
@@ -204,7 +204,7 @@ export function CommitFeed({
     const isDimmed = (commit: Commit) =>
         dimsLanes &&
         (highlightedAuthor !== null
-            ? commit.user_id !== highlightedAuthor
+            ? commit.author.id !== highlightedAuthor
             : highlightedCommit !== null && commit.id !== highlightedCommit);
 
     const lastCommit = listed.at(-1) ?? pinnedCommit;
@@ -225,7 +225,7 @@ export function CommitFeed({
             threadActions={threadActions?.(commit)}
             isFolded={isFolded}
             onAuthorHover={(isHovering) =>
-                highlightAuthor(commit.user_id, isHovering)
+                highlightAuthor(commit.author.id, isHovering)
             }
             onHover={(isHovering, event) =>
                 highlightCommit(commit.id, isHovering, event)
@@ -301,7 +301,7 @@ export function CommitFeed({
                             {card(commit)}
                             {index === interludeIndex &&
                                 interlude?.(
-                                    laneColor(commit.user.lane),
+                                    laneColor(commit.author.lane),
                                     isDimmed(commit),
                                 )}
                         </Fragment>
@@ -312,7 +312,7 @@ export function CommitFeed({
             {commits.next_cursor === null && lastCommit && (
                 <div className="flex">
                     <GraphRail
-                        lane={laneColor(lastCommit.user.lane)}
+                        lane={laneColor(lastCommit.author.lane)}
                         variant="root"
                         hasTail={false}
                     />

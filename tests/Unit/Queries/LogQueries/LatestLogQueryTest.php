@@ -16,7 +16,7 @@ it('includes commits of everyone newest first, however popular they are', functi
     $commits = resolve(LatestLogQuery::class)->builder(User::factory()->create())->get();
 
     expect($commits->modelKeys())->toBe([$newer->id, $starred->id])
-        ->and($commits->first()->relationLoaded('user'))->toBeTrue()
+        ->and($commits->first()->relationLoaded('author'))->toBeTrue()
         ->and($commits->first()->relationLoaded('linkPreview'))->toBeTrue();
 });
 

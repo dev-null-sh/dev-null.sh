@@ -10,6 +10,7 @@ use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
@@ -72,6 +73,7 @@ it('shows an approved commit to anyone', function (): void {
             'link_preview' => null,
             'images' => [],
             'author' => [
+                'type' => 'user',
                 'id' => $user->id,
                 'handle' => 'octocat',
                 'name' => 'The Octocat',
@@ -87,6 +89,28 @@ it('shows an approved commit to anyone', function (): void {
                 'live' => null,
             ],
         ]]);
+});
+
+it('shows the organization a commit is from as its author', function (): void {
+    $organization = Organization::factory()->create(['handle' => 'laravel', 'name' => 'Laravel']);
+    $commit = Commit::factory()->create(['author_id' => $organization->id]);
+
+    $this->getJson(route('api-commit.show', $commit))
+        ->assertOk()
+        ->assertJsonPath('data.html_url', route('commit.show', ['user' => 'laravel', 'commit' => $commit]))
+        ->assertJsonPath('data.author', [
+            'type' => 'organization',
+            'id' => $organization->id,
+            'handle' => 'laravel',
+            'name' => 'Laravel',
+            'avatar_url' => $organization->avatar_url,
+            'bio' => $organization->bio,
+            'location' => $organization->location,
+            'website' => $organization->website,
+            'github_url' => 'https://github.com/laravel',
+            'html_url' => route('user.show', ['user' => 'laravel']),
+            'lane' => null,
+        ]);
 });
 
 it('counts only approved replies and every star', function (): void {
@@ -248,6 +272,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
     $response = signedApiRequest($keyPair, 'GET', route('api-commit.show', $commit));
 
     $author = fn (User $author): array => [
+        'type' => 'user',
         'id' => $author->id,
         'handle' => $author->handle,
         'name' => $author->name,

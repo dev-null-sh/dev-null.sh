@@ -81,18 +81,40 @@ final class Profile extends Model
     }
 
     /**
+     * Shown, a profile is its user's or its organization's, with what is its type's alone, like a lane.
+     *
+     * @return array<mixed>
+     */
+    public function toArray(): array
+    {
+        return ['type' => $this->type, ...$this->owner()?->toArray() ?? []];
+    }
+
+    /**
+     * Loaded from its profile, the user reads their GitHub identity from it.
+     *
      * @return HasOne<User, $this>
      */
     public function user(): HasOne
     {
-        return $this->hasOne(User::class, 'id');
+        return $this->hasOne(User::class, 'id')->without('profile')->chaperone('profile');
     }
 
     /**
+     * Loaded from its profile, the organization reads its GitHub identity from it.
+     *
      * @return HasOne<Organization, $this>
      */
     public function organization(): HasOne
     {
-        return $this->hasOne(Organization::class, 'id');
+        return $this->hasOne(Organization::class, 'id')->without('profile')->chaperone('profile');
+    }
+
+    /**
+     * The user or the organization whose profile it is.
+     */
+    public function owner(): User|Organization|null
+    {
+        return $this->user ?? $this->organization;
     }
 }

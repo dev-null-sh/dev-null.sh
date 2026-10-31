@@ -9,8 +9,7 @@ import type { Commit } from '../../../resources/js/types';
 
 const commit = {
     id: 'own-commit',
-    user_id: 'author',
-    user: { id: 'author', handle: 'author', name: 'Author' },
+    author: { id: 'author', handle: 'author', name: 'Author' },
     mentions: {
         author: 'author',
         excluded: 'excluded-user',
@@ -33,7 +32,7 @@ await createInertiaApp({
     page: {
         component: 'test',
         props: {
-            auth: { user: commit.user, log: {} },
+            auth: { user: commit.author, log: {} },
             errors: {},
             repliesPerPage: 3,
         },

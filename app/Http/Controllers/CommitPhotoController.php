@@ -31,7 +31,7 @@ final readonly class CommitPhotoController
             return $focusedCommit ??= Commit::query()
                 ->withVisibleReplyCount($currentUser)
                 ->withContinuationId($currentUser)
-                ->with(['user', 'linkPreview', 'images'])
+                ->with(['author', 'linkPreview', 'images'])
                 ->withQuotedCommitFor($currentUser)
                 ->withStarsFor($currentUser)
                 ->findOrFail($commit->id);

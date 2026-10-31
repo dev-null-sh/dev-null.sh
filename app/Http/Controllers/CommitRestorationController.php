@@ -20,14 +20,14 @@ final readonly class CommitRestorationController
         $commit = $action->handle($commit);
 
         $restored = Commit::query()->withVisibleReplyCount($user)->withReplyPreviews($user)->withStarsFor($user)->addSelect(['starred_order' => $user->starredCommits()->newPivotStatement()->select('created_at')->whereColumn('commit_id', 'commits.id')->where('user_id', $user->id)->limit(1)])->with([
-            'user',
+            'author',
             'linkPreview',
             'images',
-            'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibleReplyCount($user)->withContinuationId($user)->with(['user', 'linkPreview', 'images'])->withPollFor($user),
-            'parent' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibleReplyCount($user)->withContinuationId($user)->with('user'),
+            'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibleReplyCount($user)->withContinuationId($user)->with(['author', 'linkPreview', 'images'])->withPollFor($user),
+            'parent' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->visibleTo($user)->withVisibleReplyCount($user)->withContinuationId($user)->with('author'),
         ])->findOrFail($commit->id);
 
-        Inertia::flash('restored', $restored->setAttribute('is_pinned', $restored->user?->pinned_commit_id === $restored->id));
+        Inertia::flash('restored', $restored->setAttribute('is_pinned', $restored->author?->user?->pinned_commit_id === $restored->id));
 
         return back();
     }

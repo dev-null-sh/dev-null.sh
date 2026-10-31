@@ -66,7 +66,7 @@ export function CommitSecondaryActions({
 
         const target = { kind: 'direct' as const, partner: recipient };
         const permalink = CommitController.show({
-            user: commit.user,
+            user: commit.author,
             commit,
         }).url;
 

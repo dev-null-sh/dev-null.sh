@@ -137,11 +137,11 @@ it('includes visible quoted context in reports without exposing ai advice or del
 
             if ($deleted) {
                 $page->missing('reports.data.0.commit.quoted_commit.body')
-                    ->missing('reports.data.0.commit.quoted_commit.user')
+                    ->missing('reports.data.0.commit.quoted_commit.author')
                     ->missing('reports.data.0.commit.quoted_commit.user_id');
             } else {
                 $page->where('reports.data.0.commit.quoted_commit.body', $quoted->body)
-                    ->where('reports.data.0.commit.quoted_commit.user.id', $quoted->user_id);
+                    ->where('reports.data.0.commit.quoted_commit.author.id', $quoted->user_id);
             }
         });
 })->with([false, true]);

@@ -493,15 +493,15 @@ it('shows the quoted commits of a commit and its ancestors with their authors', 
         ->assertInertia(fn ($page) => $page
             ->where('commit.quoted_commit', null)
             ->where('ancestors.0.quoted_commit.body', 'Quoted by the root')
-            ->where('ancestors.0.quoted_commit.user.handle', $root->quotedCommit->user->handle));
+            ->where('ancestors.0.quoted_commit.author.handle', $root->quotedCommit->user->handle));
 
     $this->get(route('commit.show', [$focused->user, $focused]))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('commit.quoted_commit_id', $focused->quoted_commit_id)
             ->where('commit.quoted_commit.body', 'Quoted by the focused commit')
-            ->where('commit.quoted_commit.user.handle', 'octocat')
-            ->missing('commit.quoted_commit.user.email'));
+            ->where('commit.quoted_commit.author.handle', 'octocat')
+            ->missing('commit.quoted_commit.author.email'));
 })->with(['guest' => false, 'signed in' => true]);
 
 it('shows a deleted quoted commit as a tombstone', function (bool $signedIn): void {
@@ -519,7 +519,7 @@ it('shows a deleted quoted commit as a tombstone', function (bool $signedIn): vo
             ->where('commit.quoted_commit.id', $quoted->id)
             ->where('commit.quoted_commit.deleted_at', fn (string $deletedAt): bool => $deletedAt !== '')
             ->missing('commit.quoted_commit.body')
-            ->missing('commit.quoted_commit.user'))
+            ->missing('commit.quoted_commit.author'))
         ->assertDontSee('Deleted words');
 })->with(['guest' => false, 'signed in' => true]);
 
@@ -554,7 +554,7 @@ it('keeps account deletion quote tombstones private and removes their notificati
         ->assertInertia(fn ($page) => $page
             ->where('commit.quoted_commit_id', $quoted->id)
             ->missing('commit.quoted_commit.body')
-            ->missing('commit.quoted_commit.user'));
+            ->missing('commit.quoted_commit.author'));
 
     if ($status === CommitStatus::Approved) {
         $response->assertInertia(fn ($page) => $page
@@ -665,15 +665,15 @@ it('shows a commit with its ancestors and reply count', function (): void {
             ->component('commit/show')
             ->where('commit.id', $commit->id)
             ->where('commit.body', 'Focused')
-            ->where('commit.user.handle', $commit->user->handle)
+            ->where('commit.author.handle', $commit->user->handle)
             ->where('commit.replies_count', 2)
             ->has('replies.data', 2)
-            ->where('replies.data.0.user.handle', fn (string $handle): bool => $handle !== '')
+            ->where('replies.data.0.author.handle', fn (string $handle): bool => $handle !== '')
             ->where('replies.next_cursor', null)
             ->has('ancestors', 1)
             ->where('ancestors.0.id', $root->id)
-            ->where('ancestors.0.user.handle', $root->user->handle)
-            ->missing('commit.user.email'));
+            ->where('ancestors.0.author.handle', $root->user->handle)
+            ->missing('commit.author.email'));
 });
 
 it('shows as many replies at a time as the viewer picked', function (): void {
@@ -708,7 +708,7 @@ it('shows the thread the author wrote after the commit and leaves it out of its 
             ->where('continuation.data.0.id', $second->id)
             ->where('continuation.data.0.replies_count', 0)
             ->where('continuation.data.1.id', $third->id)
-            ->where('continuation.data.1.user.handle', $author->handle)
+            ->where('continuation.data.1.author.handle', $author->handle)
             ->where('continuation.position', 1)
             ->where('continuation.length', 2)
             ->where('continuation.is_capped', false)
@@ -895,7 +895,7 @@ it('shows deleted ancestors and replies as tombstones', function (): void {
             ->where('ancestors.1.id', $deletedAncestor->id)
             ->missing('ancestors.1.body')
             ->missing('ancestors.1.body_segments')
-            ->missing('ancestors.1.user')
+            ->missing('ancestors.1.author')
             ->has('replies.data', 1)
             ->where('replies.data.0.id', $deletedReply->id)
             ->where('replies.data.0.replies_count', 1)

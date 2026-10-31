@@ -310,7 +310,7 @@ function insertAt(
                       const user = authors.length
                           ? authors[index % authors.length]
                           : { id: 'author', name: 'Author', avatar_url: null };
-                      return { id: row.dataset.commit, user_id: user.id, user };
+                      return { id: row.dataset.commit, author: user };
                   }),
                   ...previous.data,
               ],
@@ -783,13 +783,11 @@ test('reconciles removals and new arrivals in the same polling cycle', () => {
         data: [
             {
                 id: 'next-0',
-                user_id: 'next-author',
-                user: { id: 'next-author' },
+                author: { id: 'next-author' },
             },
             {
                 id: 'next-1',
-                user_id: 'next-author',
-                user: { id: 'next-author' },
+                author: { id: 'next-author' },
             },
             ...result.data(),
         ],
