@@ -78,3 +78,38 @@ it('shares what the reader picked', function (?string $cookie, string $choice): 
     'Christmas' => ['christmas', 'christmas'],
     'an unknown value' => ['bogus', 'auto'],
 ]);
+
+it('shares the theme on the page for the front end', function (string $date, ?string $theme): void {
+    Date::setTestNow($date);
+
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('eventTheme', $theme));
+})->with([
+    'Halloween' => ['2026-10-31 12:00:00', 'halloween'],
+    'Christmas' => ['2026-12-25 12:00:00', 'christmas'],
+    'an ordinary day' => ['2026-06-15 12:00:00', null],
+]);
+
+it('shares the year a New Year greeting wishes', function (string $date, int $year): void {
+    Date::setTestNow($date);
+
+    $this->get(route('home'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->where('eventYear', $year));
+})->with([
+    'New Year\'s Eve' => ['2026-12-31 23:59:59', 2027],
+    'New Year\'s Day' => ['2027-01-01 00:00:00', 2027],
+    'the day after' => ['2027-01-02 12:00:00', 2027],
+]);
+
+it('tells the not found page about the theme', function (): void {
+    config(['app.debug' => false]);
+    Date::setTestNow('2026-10-31 12:00:00');
+
+    $this->get('/does-not-exist')
+        ->assertNotFound()
+        ->assertInertia(fn ($page) => $page
+            ->component('error')
+            ->where('eventTheme', 'halloween'));
+});

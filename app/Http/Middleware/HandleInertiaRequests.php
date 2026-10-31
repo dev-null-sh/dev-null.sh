@@ -137,6 +137,8 @@ final class HandleInertiaRequests extends Middleware
                     resolve(HotHeadlinesQuery::class)->get($user),
                 ))->until(60),
             ] : [],
+            'eventTheme' => EventTheme::forRequest($request)?->value,
+            'eventYear' => EventTheme::greetedYear($request),
             'eventThemeChoice' => EventTheme::choiceFrom(is_string($request->cookie('event_theme')) ? $request->cookie('event_theme') : null),
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,

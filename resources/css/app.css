@@ -560,6 +560,18 @@
     --rail: #31365a;
 }
 
+/* At Christmas the contribution graph turns green, with red for the busiest days. The author's lane color is set inline
+   on the graph, so the theme has to override it. */
+:root[data-event-theme='christmas'] [data-activity-cells] {
+    --lane: #2f9e44 !important;
+    --graph-peak: #c92a2a;
+}
+
+:root[data-event-theme='christmas'].dark [data-activity-cells] {
+    --lane: #51cf66 !important;
+    --graph-peak: #ff6b6b;
+}
+
 /* Halloween adds a glow behind the page, then on wide screens a cobweb in the top corner, a pumpkin and a skeleton at
    the bottom, and a bat that crosses the page now and then. They are decoration only: they ignore the pointer, and
    their empty alternative text keeps them out of screen readers. */
