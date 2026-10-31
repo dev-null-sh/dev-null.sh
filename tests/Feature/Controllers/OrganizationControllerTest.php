@@ -167,7 +167,7 @@ it('lists the commits and replies that mention the organization, newest first, t
             ->has('commits.data', 2)
             ->where('commits.data.0.id', $reply->id)
             ->where('commits.data.0.parent.id', $parent->id)
-            ->where('commits.data.0.parent.user.id', $parent->user_id)
+            ->where('commits.data.0.parent.author.id', $parent->user_id)
             ->where('commits.data.0.organization_mentions.laravel', $laravel->id)
             ->where('commits.data.1.id', $older->id));
 });

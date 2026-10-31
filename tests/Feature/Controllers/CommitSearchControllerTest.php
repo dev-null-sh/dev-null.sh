@@ -29,7 +29,7 @@ it('returns the commits matching the query, with what the card renders', functio
         ->assertJsonPath('commits.0.stars_count', 0)
         ->assertJsonPath('commits.0.starred', false)
         ->assertJsonPath('commits.0.replies_count', 0)
-        ->assertJsonPath('commits.0.user.id', $commit->user->id)
+        ->assertJsonPath('commits.0.author.id', $commit->user->id)
         ->assertJsonStructure(['commits' => [['body_segments', 'created_at']]])
         ->assertJsonMissingPath('commits.0.embedding');
 });

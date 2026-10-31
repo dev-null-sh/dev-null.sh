@@ -48,12 +48,12 @@ export function QuotedCommit({
         <>
             <span className="flex min-w-0 items-center gap-1.5 text-sm">
                 <span className="sr-only">{label}</span>
-                <UserAvatar user={commit.user} className="size-5" />
+                <UserAvatar user={commit.author} className="size-5" />
                 <span className="truncate font-semibold">
-                    {commit.user.name}
+                    {commit.author.name}
                 </span>
                 <span className="truncate font-mono text-xs text-muted-foreground">
-                    @{commit.user.handle}
+                    @{commit.author.handle}
                 </span>
                 <span aria-hidden className="text-muted-foreground">
                     ·
@@ -96,7 +96,7 @@ export function QuotedCommit({
 
     return (
         <Link
-            href={CommitController.show({ user: commit.user, commit })}
+            href={CommitController.show({ user: commit.author, commit })}
             className={cn(
                 className,
                 'transition-colors hover:bg-accent focus-visible:bg-accent',

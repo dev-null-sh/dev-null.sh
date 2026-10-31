@@ -204,7 +204,7 @@ final class CommitBuilder extends Builder
             'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withTrashed()
                 ->where(fn (self $query): self => $query->visibleTo($viewer))
-                ->with(['user', 'linkPreview', 'images'])
+                ->with(['author', 'linkPreview', 'images'])
                 ->withPollFor($viewer),
         ]);
     }
@@ -234,7 +234,7 @@ final class CommitBuilder extends Builder
         return $this
             ->withVisibleReplyCount(null)
             ->withCount('stars')
-            ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
+            ->with(['author', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 
     public function pending(): self
@@ -292,7 +292,7 @@ final class CommitBuilder extends Builder
     public function withCardDataFor(?User $viewer): self
     {
         return $this
-            ->with(['user', 'linkPreview', 'images'])
+            ->with(['author', 'linkPreview', 'images'])
             ->withQuotedCommitFor($viewer)
             ->withStarsFor($viewer)
             ->withPollFor($viewer)

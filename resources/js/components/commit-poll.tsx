@@ -62,8 +62,9 @@ export function CommitPoll({
     poll: initialPoll,
     isStatic = false,
 }: {
-    commit: Pick<Commit, 'id' | 'user_id' | 'status'> &
-        Partial<Pick<Commit, 'mentions'>>;
+    commit: Pick<Commit, 'id' | 'status'> & {
+        author: Pick<Commit['author'], 'id'>;
+    } & Partial<Pick<Commit, 'mentions'>>;
     poll: Poll;
     isStatic?: boolean;
 }) {
@@ -83,7 +84,7 @@ export function CommitPoll({
     const canVote =
         auth.user !== null &&
         commit.status === 'approved' &&
-        commit.user_id !== auth.user.id &&
+        commit.author.id !== auth.user.id &&
         poll.closes_at !== null &&
         !poll.has_voted &&
         !hasExpired;

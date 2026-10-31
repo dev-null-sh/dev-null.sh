@@ -24,7 +24,7 @@ final readonly class ReportedCommitsQuery
                 ->with(['parent' => fn (BelongsTo $parent): BelongsTo => $parent
                     ->where('status', CommitStatus::Approved)
                     ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
-                    ->with('user')])])
+                    ->with('author')])])
             ->oldest()->oldest('id')
             ->cursorPaginate(20);
     }

@@ -40,7 +40,7 @@ export function CommitStarButton({
 }) {
     const { auth } = usePage().props;
     const commitNotFound = useCommitNotFound();
-    const isOwn = commit.user_id === auth.user?.id;
+    const isOwn = commit.author.id === auth.user?.id;
     const [starred, setStarred] = useSharedState(
         commitStateKey('starred', commit.id),
         commit.starred,

@@ -182,7 +182,7 @@ export function SearchResults({
                                 key={commit.id}
                                 commit={commit}
                                 previousLane={
-                                    previous && laneColor(previous.user.lane)
+                                    previous && laneColor(previous.author.lane)
                                 }
                                 graphAfter={previous?.id}
                                 endsWithDot={

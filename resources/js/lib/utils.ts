@@ -250,7 +250,7 @@ export function isRejectedSubmission(flash: {
 }
 
 export function laneOf(commit: ThreadCommit): string {
-    return isDeleted(commit) ? 'var(--rail)' : laneColor(commit.user.lane);
+    return isDeleted(commit) ? 'var(--rail)' : laneColor(commit.author.lane);
 }
 
 export function shortHash(id: string): string {

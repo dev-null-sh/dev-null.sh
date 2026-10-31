@@ -46,6 +46,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read int $pasteis_count
  * @property-read bool $starred
  * @property-read User|null $user
+ * @property-read Profile|null $author
  * @property-read Collection<int, User> $stars
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
@@ -162,6 +163,16 @@ final class Commit extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The profile the commit is from, which everyone sees, with the user or the organization it is.
+     *
+     * @return BelongsTo<Profile, $this>
+     */
+    public function author(): BelongsTo
+    {
+        return $this->belongsTo(Profile::class)->with(['user', 'organization']);
     }
 
     /**
@@ -308,7 +319,7 @@ final class Commit extends Model
                 ->whereKey($this->getAttributeFromArray($this->getKeyName()))->first()->replies_count ?? 0,
         ])->syncOriginalAttribute('replies_count');
 
-        return $this->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
+        return $this->load(['author', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('author')]);
     }
 
     /**
@@ -319,8 +330,8 @@ final class Commit extends Model
         return hash('xxh3', (string) json_encode([
             $this->body,
             $this->replies_count,
-            $this->user?->openGraphIdentity(),
-            $this->parent?->user?->handle,
+            $this->author?->user?->openGraphIdentity(),
+            $this->parent?->author?->handle,
         ]));
     }
 }

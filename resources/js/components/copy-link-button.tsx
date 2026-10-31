@@ -27,7 +27,7 @@ export function useCopyLink(commit: Commit) {
     }, [isCopied]);
 
     const copyLink = async () => {
-        const { url } = CommitController.show({ user: commit.user, commit });
+        const { url } = CommitController.show({ user: commit.author, commit });
 
         if (await copy(window.location.origin + url)) {
             setIsCopied(true);

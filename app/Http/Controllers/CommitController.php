@@ -50,7 +50,7 @@ final readonly class CommitController
         };
 
         $preview = $currentUser instanceof User || $request->inertia() ? null : $metadata->commit(
-            $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.user']),
+            $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.author']),
             $getReplies()->items(),
         );
 
@@ -102,10 +102,10 @@ final readonly class CommitController
             'server_time' => now()->toJSON(),
         ]);
 
-        $commitUrl = route('commit.show', [$commit->user, $commit]);
+        $commitUrl = route('commit.show', [$commit->author, $commit]);
 
         if (Str::is([$commitUrl, "{$commitUrl}/photos/*"], url()->previous())) {
-            return to_route('user.show', $commit->user);
+            return to_route('user.show', $commit->author);
         }
 
         return back();

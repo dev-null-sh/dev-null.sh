@@ -26,11 +26,11 @@ final readonly class ModerationController
             'commits' => Inertia::scroll(fn () => Commit::query()
                 ->pending()
                 ->with([
-                    'user',
-                    'parent.user',
+                    'author',
+                    'parent.author',
                     'linkPreview',
                     'images',
-                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with(['user', 'linkPreview', 'images'])->withPollFor($user),
+                    'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->with(['author', 'linkPreview', 'images'])->withPollFor($user),
                 ])
                 ->withStarsFor($user)
                 ->withPollFor($user)
