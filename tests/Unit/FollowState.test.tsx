@@ -12,6 +12,8 @@ let component = 'user/show';
 let log: string | undefined;
 let loadedCommits: { data: { id: string }[] } | undefined;
 let suggestedUsers: SuggestedUser[] | undefined;
+let whoToFollowCount = 3;
+let refreshesWhoToFollow = true;
 type VisitOptions = {
     only?: string[];
     headers?: Record<string, string>;
@@ -25,17 +27,22 @@ type VisitOptions = {
     onCancel?: () => void;
     onFinish?: () => void;
     onBeforeUpdate?: () => void;
+    onCancelToken?: (token: { cancel: () => void }) => void;
+    isCancelled?: boolean;
 };
 
 const visits: (VisitOptions & { method?: string })[] = [];
 const reloads: VisitOptions[] = [];
 const navigateListeners: (() => void)[] = [];
 const timers: (() => void)[] = [];
+const intervals: { callback: () => void; delay: number }[] = [];
+const effects: (() => void)[] = [];
 const toasts: string[] = [];
 
 vi.doMock('react', () => ({
     ...React,
-    useEffect: () => {},
+    useEffect: (effect: () => void) => effects.push(effect),
+    useEffectEvent: (callback: unknown) => callback,
     useLayoutEffect: () => {},
     useRef: (initial: unknown) => ({ current: initial }),
     useState: (initial: unknown) => [
@@ -61,6 +68,8 @@ vi.doMock('@inertiajs/react', async () => ({
             log,
             commits: loadedCommits,
             showsWhoToFollow: true,
+            whoToFollowCount,
+            refreshesWhoToFollow,
             suggestedUsers,
         },
     }),
@@ -68,14 +77,26 @@ vi.doMock('@inertiajs/react', async () => ({
         flushAll: () => {},
         visit: (url: { method: string }, options: VisitOptions) =>
             visits.push({ ...options, method: url.method }),
-        reload: (options: VisitOptions) => reloads.push(options),
+        // Cancelling fires the visit's finish, as Inertia does.
+        reload: (options: VisitOptions) => {
+            reloads.push(options);
+            options.onCancelToken?.({
+                cancel: () => {
+                    options.isCancelled = true;
+                    options.onFinish?.();
+                },
+            });
+        },
         on: (event: string, listener: () => void) => {
             if (event === 'navigate') {
                 navigateListeners.push(listener);
             }
 
             return () =>
-                navigateListeners.splice(navigateListeners.indexOf(listener), 1);
+                navigateListeners.splice(
+                    navigateListeners.indexOf(listener),
+                    1,
+                );
         },
         replaceProp: (
             _key: string,
@@ -102,6 +123,8 @@ const { UserPreview } =
     await import('../../resources/js/components/user-preview');
 const { SuggestedUserRow, WhoToFollow, WhoToFollowInLog } =
     await import('../../resources/js/components/who-to-follow');
+const { default: WhoToFollowTabs } =
+    await import('../../resources/js/components/who-to-follow-tabs');
 const { refreshSharedState } =
     await import('../../resources/js/hooks/use-shared-state');
 const { UserSafetyMenu } =
@@ -112,19 +135,34 @@ const { ConversationActions } =
 vi.stubGlobal('window', {
     matchMedia: () => ({ matches: false }),
     setTimeout: (callback: () => void) => timers.push(callback),
+    setInterval: (callback: () => void, delay: number) =>
+        intervals.push({ callback, delay }),
+    clearInterval: () => {},
+    innerHeight: 800,
 });
-vi.stubGlobal('document', { body: {}, cookie: '' });
+vi.stubGlobal('document', {
+    body: {},
+    cookie: '',
+    visibilityState: 'visible',
+    querySelector: () => null,
+});
 afterAll(() => vi.unstubAllGlobals());
 afterEach(() => {
     component = 'user/show';
     log = undefined;
     loadedCommits = undefined;
     suggestedUsers = undefined;
+    whoToFollowCount = 3;
+    refreshesWhoToFollow = true;
+    intervals.length = 0;
+    effects.length = 0;
     refreshSharedState(
         new Map<string, boolean | number | string>([
             ['who-to-follow-dismissing', 0],
             ['who-to-follow-top-up', 'idle'],
             ['who-to-follow-dismissed', false],
+            ['who-to-follow-hidden', false],
+            ['who-to-follow-refreshing', false],
         ]),
     );
 });
@@ -528,7 +566,9 @@ test('both Following controls carry the oldest loaded row through the follow red
 });
 
 function shownSuggestions(): (string | number)[] {
-    return (suggestedUsers ?? []).slice(0, 3).map((user) => user.id);
+    return (suggestedUsers ?? [])
+        .slice(0, whoToFollowCount)
+        .map((user) => user.id);
 }
 
 function suggestionRow(user: SuggestedUser): Props {
@@ -542,9 +582,9 @@ function suggestionRow(user: SuggestedUser): Props {
 }
 
 function dismissSuggestion(user: SuggestedUser): boolean {
-    return (
-        suggestionRow(user).onDismiss as (onFailed: () => void) => boolean
-    )(() => {});
+    return (suggestionRow(user).onDismiss as (onFailed: () => void) => boolean)(
+        () => {},
+    );
 }
 
 function hasElementNamed(node: ReactNode, name: string): boolean {
@@ -597,6 +637,42 @@ test('a failed dismissal takes its slot back from whoever holds it, without brin
         suggestedUsers.map((user) => user.id),
         ['ada', 'bob', 'cleo', 'eve', 'finn'],
     );
+});
+
+test('shows as many suggestions as chosen, and a dismissed one hands its slot to the next spare', () => {
+    const [ada, bob, cleo, dina, eve, finn] = suggestions(
+        'ada',
+        'bob',
+        'cleo',
+        'dina',
+        'eve',
+        'finn',
+    );
+
+    for (const count of [1, 5]) {
+        whoToFollowCount = count;
+        suggestedUsers = [ada, bob, cleo, dina, eve, finn];
+
+        const block = WhoToFollow();
+        const rows = suggestedUsers
+            .filter((user) =>
+                find(
+                    block,
+                    (props) =>
+                        (props.user as SuggestedUser | undefined)?.id ===
+                        user.id,
+                ),
+            )
+            .map((user) => user.id);
+        assert.equal(rows.length, count);
+        assert.deepEqual(rows, shownSuggestions());
+
+        assert.equal(dismissSuggestion(ada), true);
+        assert.deepEqual(
+            shownSuggestions(),
+            count === 1 ? ['bob'] : ['finn', 'bob', 'cleo', 'dina', 'eve'],
+        );
+    }
 });
 
 test('a dismissal that fails after a refresh leaves the new suggestions alone', () => {
@@ -686,4 +762,173 @@ test('a top-up that lands after someone else was dismissed takes them back out a
         ['sam', 'tom', 'rae', 'uma'],
     );
     assert.notEqual(reloads.at(-1), topUp);
+});
+
+function hideFromBlock(): void {
+    const actions = find(WhoToFollow(), (props) => props.onHide !== undefined)!;
+    (actions.props.onHide as () => void)();
+}
+
+test('hiding from one block hides both, and a count chosen in the settings brings them back once it loads', async () => {
+    suggestedUsers = suggestions('ada', 'bob', 'cleo', 'dina');
+
+    hideFromBlock();
+
+    assert.equal(hasElementNamed(WhoToFollow(), 'WhoToFollowHidden'), true);
+    assert.equal(
+        hasElementNamed(WhoToFollowInLog(), 'WhoToFollowHidden'),
+        true,
+    );
+
+    (WhoToFollowTabs().props.onChange as (value: number) => void)(1);
+    await Promise.resolve();
+    const reload = reloads.at(-1)!;
+
+    assert.deepEqual(reload.only, [
+        'showsWhoToFollow',
+        'whoToFollowCount',
+        'suggestedUsers',
+    ]);
+    assert.equal(hasElementNamed(WhoToFollow(), 'WhoToFollowHidden'), true);
+
+    whoToFollowCount = 1;
+    reload.onFinish?.();
+
+    assert.equal(hasElementNamed(WhoToFollow(), 'WhoToFollowHidden'), false);
+    assert.equal(hasElementNamed(WhoToFollow(), 'SuggestedUserRow'), true);
+});
+
+type Focus = 'none' | 'clicked' | 'keyboard';
+
+/**
+ * Runs the effects of the block's latest render only, with the block on screen. A click leaves focus in the block that
+ * matches :focus-within but not :focus-visible, like on the menu button once the menu closes.
+ */
+function showWhoToFollow(
+    isHovered = false,
+    focus: Focus = 'none',
+    top = 100,
+): void {
+    effects.length = 0;
+    const block = WhoToFollow()!;
+    (block.props.ref as { current: unknown }).current = {
+        checkVisibility: () => true,
+        getBoundingClientRect: () => ({ top, bottom: top + 300 }),
+        matches: (selector: string) =>
+            selector
+                .split(', ')
+                .some(
+                    (part) =>
+                        (part === ':hover' && isHovered) ||
+                        (part === ':focus-within' && focus !== 'none'),
+                ),
+        querySelector: (selector: string) =>
+            selector.includes(':focus-visible') && focus === 'keyboard'
+                ? {}
+                : null,
+    };
+    effects.splice(0).forEach((effect) => effect());
+}
+
+test('suggests other people every minute in the background', () => {
+    document.cookie = '';
+    suggestedUsers = suggestions('ada', 'bob', 'cleo', 'dina');
+    showWhoToFollow();
+
+    assert.deepEqual(
+        intervals.map(({ delay }) => delay),
+        [60_000],
+    );
+
+    intervals[0].callback();
+
+    assert.deepEqual(reloads.at(-1)?.only, ['suggestedUsers']);
+    assert.equal(reloads.at(-1)?.async, true);
+    assert.equal(
+        document.cookie,
+        'who_to_follow_round=1;path=/;max-age=86400;SameSite=Lax',
+    );
+    document.cookie = '';
+});
+
+test('changing the count cancels a refresh still waiting for the people of the count from before', async () => {
+    document.cookie = '';
+    suggestedUsers = suggestions('ada', 'bob', 'cleo', 'dina');
+    showWhoToFollow();
+    intervals[0].callback();
+    const refresh = reloads.at(-1)!;
+
+    (WhoToFollowTabs().props.onChange as (value: number) => void)(5);
+    await Promise.resolve();
+
+    assert.deepEqual(refresh.only, ['suggestedUsers']);
+    assert.equal(refresh.isCancelled, true);
+    assert.deepEqual(reloads.at(-1)?.only, [
+        'showsWhoToFollow',
+        'whoToFollowCount',
+        'suggestedUsers',
+    ]);
+    assert.equal(reloads.at(-1)?.isCancelled, undefined);
+    document.cookie = '';
+});
+
+test('waits while the pointer or keyboard focus is on the suggestions', () => {
+    suggestedUsers = suggestions('ada', 'bob', 'cleo', 'dina');
+
+    for (const [isHovered, focus] of [
+        [true, 'none'],
+        [false, 'keyboard'],
+    ] as const) {
+        intervals.length = 0;
+        showWhoToFollow(isHovered, focus);
+        const sent = reloads.length;
+
+        intervals[0].callback();
+
+        assert.equal(reloads.length, sent);
+    }
+});
+
+test('focus a click leaves on the block does not hold up the next suggestions', () => {
+    suggestedUsers = suggestions('ada', 'bob', 'cleo', 'dina');
+    showWhoToFollow(false, 'clicked');
+    const sent = reloads.length;
+
+    intervals[0].callback();
+
+    assert.equal(reloads.length, sent + 1);
+    document.cookie = '';
+});
+
+test('leaves the suggestions alone once they are scrolled out of view', () => {
+    suggestedUsers = suggestions('ada', 'bob', 'cleo', 'dina');
+
+    for (const top of [-400, 900]) {
+        intervals.length = 0;
+        showWhoToFollow(false, 'none', top);
+        const sent = reloads.length;
+
+        intervals[0].callback();
+
+        assert.equal(reloads.length, sent);
+    }
+});
+
+test('does not suggest other people on its own when switched off, hidden or still dismissing', () => {
+    const [ada, bob, cleo, dina] = suggestions('ada', 'bob', 'cleo', 'dina');
+
+    refreshesWhoToFollow = false;
+    suggestedUsers = [ada, bob, cleo, dina];
+    showWhoToFollow();
+    assert.equal(intervals.length, 0);
+
+    refreshesWhoToFollow = true;
+    dismissSuggestion(ada);
+    showWhoToFollow();
+    assert.equal(intervals.length, 0);
+
+    refreshSharedState(new Map([['who-to-follow-dismissing', 0]]));
+    hideFromBlock();
+    showWhoToFollow();
+    assert.equal(intervals.length, 0);
 });

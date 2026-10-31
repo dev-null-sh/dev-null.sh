@@ -186,7 +186,8 @@ final readonly class SuggestedUsersQuery
         $pages = [];
 
         do {
-            $networkSlots = $prioritizeNetwork ? $limit : $limit - $randomizer->getInt(1, max(1, $limit - 1));
+            // A single slot goes to either pool, so one suggestion isn't always someone popular.
+            $networkSlots = $prioritizeNetwork ? $limit : $limit - $randomizer->getInt($limit > 1 ? 1 : 0, max(1, $limit - 1));
             $popular ??= new Collection($randomizer->shuffleArray($popularPool->all()));
 
             $pageNetwork = $network->take(max($networkSlots, $limit - $popular->count()));
