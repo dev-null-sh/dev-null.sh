@@ -33,6 +33,7 @@ declare module '@inertiajs/core' {
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
             dimsLanes: boolean;
+            eventThemeChoice: string;
             repliesPerPage: number;
             clock: SharedClock;
             /** When the server rendered the page, in milliseconds. */

@@ -420,6 +420,225 @@
     --lane-5: #fcc419;
 }
 
+/* Event themes: a new palette for the days around Halloween, Christmas and New Year, switched on by the data-event-theme
+   attribute on the root element. Each has a light and a dark variant, and leaves the commit lanes alone. */
+:root[data-event-theme='halloween'] {
+    --background: #fbf5ee;
+    --foreground: #1f1710;
+    --card: #fffdf9;
+    --card-foreground: #1f1710;
+    --popover: #fffdf9;
+    --popover-foreground: #1f1710;
+    --primary: #c2410c;
+    --primary-foreground: #ffffff;
+    --primary-hover: #9a3412;
+    --primary-soft: #fdeadb;
+    --secondary: #f3e9de;
+    --secondary-foreground: #1f1710;
+    --muted: #f3e9de;
+    --muted-foreground: #6b5a4a;
+    --accent: #f3e9de;
+    --accent-foreground: #1f1710;
+    --border: #eadccd;
+    --input: #dccbb8;
+    --ring: #c2410c;
+    --rail: #dccbb8;
+}
+
+:root[data-event-theme='halloween'].dark {
+    --background: #120c14;
+    --foreground: #f1e9f5;
+    --card: #1a1220;
+    --card-foreground: #f1e9f5;
+    --popover: #21162a;
+    --popover-foreground: #f1e9f5;
+    --primary: #ff8a4c;
+    --primary-foreground: #120c14;
+    --primary-hover: #ffa270;
+    --primary-soft: #2e1a12;
+    --secondary: #241a2b;
+    --secondary-foreground: #f1e9f5;
+    --muted: #241a2b;
+    --muted-foreground: #ae9fb8;
+    --accent: #241a2b;
+    --accent-foreground: #f1e9f5;
+    --border: #2c2033;
+    --input: #3a2c44;
+    --ring: #ff8a4c;
+    --rail: #3a2c44;
+}
+
+:root[data-event-theme='christmas'] {
+    --background: #f8f6f1;
+    --foreground: #161a17;
+    --card: #fffefb;
+    --card-foreground: #161a17;
+    --popover: #fffefb;
+    --popover-foreground: #161a17;
+    --primary: #b3262c;
+    --primary-foreground: #ffffff;
+    --primary-hover: #962024;
+    --primary-soft: #fbe9e9;
+    --secondary: #efece4;
+    --secondary-foreground: #161a17;
+    --muted: #efece4;
+    --muted-foreground: #5e5a50;
+    --accent: #efece4;
+    --accent-foreground: #161a17;
+    --border: #e3e0d6;
+    --input: #d3cfc2;
+    --ring: #b3262c;
+    --rail: #d3cfc2;
+}
+
+:root[data-event-theme='christmas'].dark {
+    --background: #0e1512;
+    --foreground: #ecf1ee;
+    --card: #141d19;
+    --card-foreground: #ecf1ee;
+    --popover: #1a2520;
+    --popover-foreground: #ecf1ee;
+    --primary: #ff7b7b;
+    --primary-foreground: #0e1512;
+    --primary-hover: #ff9494;
+    --primary-soft: #2b1717;
+    --secondary: #1c2823;
+    --secondary-foreground: #ecf1ee;
+    --muted: #1c2823;
+    --muted-foreground: #9fb0a6;
+    --accent: #1c2823;
+    --accent-foreground: #ecf1ee;
+    --border: #243029;
+    --input: #2f3d35;
+    --ring: #ff7b7b;
+    --rail: #2f3d35;
+}
+
+:root[data-event-theme='newyear'] {
+    --background: #faf7ef;
+    --foreground: #1c1807;
+    --card: #fffdf7;
+    --card-foreground: #1c1807;
+    --popover: #fffdf7;
+    --popover-foreground: #1c1807;
+    --primary: #a16207;
+    --primary-foreground: #ffffff;
+    --primary-hover: #854d0e;
+    --primary-soft: #fbf0d2;
+    --secondary: #f2ecda;
+    --secondary-foreground: #1c1807;
+    --muted: #f2ecda;
+    --muted-foreground: #6b5f3e;
+    --accent: #f2ecda;
+    --accent-foreground: #1c1807;
+    --border: #ece3c8;
+    --input: #ddd1ae;
+    --ring: #a16207;
+    --rail: #ddd1ae;
+}
+
+:root[data-event-theme='newyear'].dark {
+    --background: #0b0d17;
+    --foreground: #eef0fa;
+    --card: #12152a;
+    --card-foreground: #eef0fa;
+    --popover: #191d38;
+    --popover-foreground: #eef0fa;
+    --primary: #f5c542;
+    --primary-foreground: #0b0d17;
+    --primary-hover: #f8d56f;
+    --primary-soft: #2a2410;
+    --secondary: #181c36;
+    --secondary-foreground: #eef0fa;
+    --muted: #181c36;
+    --muted-foreground: #9aa0c4;
+    --accent: #181c36;
+    --accent-foreground: #eef0fa;
+    --border: #232744;
+    --input: #31365a;
+    --ring: #f5c542;
+    --rail: #31365a;
+}
+
+/* Halloween adds a glow behind the page, then on wide screens a cobweb in the top corner, a pumpkin and a skeleton at
+   the bottom, and a bat that crosses the page now and then. They are decoration only: they ignore the pointer, and
+   their empty alternative text keeps them out of screen readers. */
+:root[data-event-theme='halloween'] body {
+    background-image:
+        radial-gradient(
+            50rem 22rem at 50% -10rem,
+            color-mix(in oklab, var(--primary) 16%, transparent),
+            transparent
+        ),
+        radial-gradient(
+            40rem 24rem at 100% 100%,
+            color-mix(in oklab, #7c3aed 12%, transparent),
+            transparent
+        );
+    background-attachment: fixed;
+}
+
+@media (min-width: 80rem) {
+    :root[data-event-theme='halloween']::before,
+    :root[data-event-theme='halloween']::after {
+        position: fixed;
+        z-index: 7;
+        line-height: 1;
+        pointer-events: none;
+        user-select: none;
+    }
+
+    :root[data-event-theme='halloween']::before {
+        content: '🕸️' / '';
+        top: 0;
+        right: 0;
+        font-size: 3rem;
+        opacity: 0.8;
+    }
+
+    :root[data-event-theme='halloween']::after {
+        content: '🎃 💀' / '';
+        right: 1.25rem;
+        bottom: 0.75rem;
+        font-size: 1.75rem;
+        letter-spacing: 0.5rem;
+    }
+}
+
+@media (min-width: 64rem) and (prefers-reduced-motion: no-preference) {
+    :root[data-event-theme='halloween'] body::before {
+        content: '🦇' / '';
+        position: fixed;
+        top: 4rem;
+        left: 0;
+        z-index: 7;
+        font-size: 1.5rem;
+        line-height: 1;
+        pointer-events: none;
+        user-select: none;
+        animation: bat-fly 50s linear infinite;
+    }
+}
+
+@keyframes bat-fly {
+    0%,
+    80% {
+        translate: -3rem 0;
+    }
+    86% {
+        translate: 25vw 3rem;
+    }
+    90% {
+        translate: 50vw -1rem;
+    }
+    94% {
+        translate: 75vw 4rem;
+    }
+    100% {
+        translate: calc(100vw + 3rem) 0;
+    }
+}
+
 @layer base {
     * {
         @apply border-border;
