@@ -96,7 +96,7 @@ final class HandleInertiaRequests extends Middleware
                 'bioProfiles' => fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [],
                 // The organizations the user can post as, shown like the commits they author.
                 'organizations' => fn (): array => $user instanceof User ? $user->organizations()->get()
-                    ->map(fn (Organization $organization): array => [...$organization->toArray(), 'type' => 'organization', 'id' => $organization->id, 'lane' => $organization->lane()])
+                    ->map(fn (Organization $organization): array => ['type' => 'organization', ...$organization->toArray()])
                     ->all() : [],
                 'isAdmin' => $isAdmin,
                 'automaticTranslation' => $user->automatic_translation ?? true,
