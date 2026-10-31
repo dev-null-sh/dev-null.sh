@@ -49,6 +49,22 @@ it('tells which reply continues the thread of each reply', function (): void {
         ->assertJsonPath('data.1.continuation_id', null);
 });
 
+it('leaves out the reply the client shows elsewhere, such as the continuation, as the web does', function (): void {
+    $parent = Commit::factory()->create(['created_at' => now()->subMinutes(3)]);
+    $continuation = Commit::factory()->for($parent->user)->for($parent, 'parent')->create(['created_at' => now()->subMinutes(2)]);
+    $reply = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinute()]);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-reply.index', [$parent, 'except' => $continuation->id]))
+        ->assertOk()
+        ->assertJsonPath('data.*.id', [$reply->id]);
+});
+
+it('validates the reply to leave out', function (): void {
+    signedApiRequest($this->keyPair, 'GET', route('api-commit-reply.index', [Commit::factory()->create(), 'except' => 'not-a-uuid']))
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('except');
+});
+
 it('shows the stars and saves of each reply as the user sees them', function (): void {
     $parent = Commit::factory()->create();
     $starred = Commit::factory()->for($parent, 'parent')->create(['created_at' => now()->subMinutes(2)]);
