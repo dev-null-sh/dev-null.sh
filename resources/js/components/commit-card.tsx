@@ -263,6 +263,7 @@ export function CommitCard({
             )}
             tabIndex={-1}
             data-commit={commit.id}
+            data-focused-commit={isFocused || undefined}
             data-permalink={wasDeleted ? undefined : permalink.url}
             data-test="commit"
             onMouseDown={prefetchClickedCommit}
