@@ -150,7 +150,8 @@ export function useKeyboardShortcuts(
 
             if (
                 hasModKey(event) &&
-                event.key.toLowerCase() === 'b' &&
+                (event.key.toLowerCase() === 'b' ||
+                    (event.code === 'KeyB' && !/^[a-z]$/i.test(event.key))) &&
                 !event.shiftKey &&
                 !event.altKey &&
                 !event.repeat
