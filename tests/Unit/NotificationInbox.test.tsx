@@ -53,6 +53,7 @@ const quote: NotificationGroup = {
     group_id: 'notice',
     type: 'quoted',
     actor: { ...actor, is_followed: false },
+    organization: null,
     actors: [actor],
     actors_count: 1,
     event_count: 1,

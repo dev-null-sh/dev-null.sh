@@ -8,15 +8,22 @@ use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Models\Commit;
 use App\Models\Notification;
+use App\Queries\ProfileRecipientsQuery;
 use App\Queries\SilencedActorQuery;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 final readonly class CreateQuoteNotifications
 {
+    public function __construct(private ProfileRecipientsQuery $recipients)
+    {
+        //
+    }
+
     /**
-     * Notifies the author of each quoted commit, but only once the quote is approved, so
-     * nobody hears about a quote they cannot see yet. Nobody hears from people they mute or
-     * from across a block either. Safe to call more than once.
+     * Notifies the author of each quoted commit, every member of it for an organization's, but only once the quote
+     * is approved, so nobody hears about a quote they cannot see yet. Nobody hears about their own quote, from people
+     * they mute or from across a block either. Safe to call more than once.
      */
     public function handle(Commit ...$commits): void
     {
@@ -29,41 +36,32 @@ final readonly class CreateQuoteNotifications
             return;
         }
 
-        $silenced = new SilencedActorQuery('quoted.user_id', 'commits.user_id');
+        $silenced = new SilencedActorQuery('recipients.user_id', 'commits.user_id');
 
+        /** @var Collection<int, object{id: string, user_id: string, recipient_id: string, organization_id: string|null}> $quotes */
         $quotes = Commit::query()
-            ->select('commits.*')
             ->join('commits as quoted', 'quoted.id', '=', 'commits.quoted_commit_id')
+            ->joinSub($this->recipients->builder(), 'recipients', 'recipients.profile_id', '=', 'quoted.author_id')
             ->whereKey($quoteIds)
-            ->whereNotNull('quoted.user_id')
+            ->whereNull('quoted.deleted_at')
             ->where('commits.status', CommitStatus::Approved)
+            ->whereColumn('recipients.user_id', '<>', 'commits.user_id')
             ->whereNotExists($silenced->mutes(...))
             ->whereNotExists($silenced->blocking(...))
             ->whereNotExists($silenced->blockers(...))
-            ->with('quotedCommit')
-            ->get();
+            ->toBase()
+            ->get(['commits.id', 'commits.user_id', 'recipients.user_id as recipient_id', 'recipients.organization_id']);
 
-        $notifications = [];
-
-        foreach ($quotes as $quote) {
-            $quoted = $quote->quotedCommit;
-
-            if (! $quoted instanceof Commit || $quoted->user_id === $quote->user_id) {
-                continue;
-            }
-
-            $notifications[] = [
-                'id' => Str::uuid7()->toString(),
-                'recipient_id' => $quoted->user_id,
-                'actor_id' => $quote->user_id,
-                'type' => NotificationType::Quoted->value,
-                'commit_id' => $quote->id,
-                'key' => 'quoted:'.$quote->id,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ];
-        }
-
-        Notification::query()->insertOrIgnore($notifications);
+        Notification::query()->insertOrIgnore($quotes->map(fn (object $quote): array => [
+            'id' => Str::uuid7()->toString(),
+            'recipient_id' => $quote->recipient_id,
+            'actor_id' => $quote->user_id,
+            'organization_id' => $quote->organization_id,
+            'type' => NotificationType::Quoted->value,
+            'commit_id' => $quote->id,
+            'key' => 'quoted:'.$quote->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ])->all());
     }
 }

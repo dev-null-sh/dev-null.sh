@@ -790,7 +790,9 @@ export function NotificationContent({
         (!summary && notification.type === 'starred')
             ? show(actor)
             : CommitController.show({
-                  profile: isOwnCommit ? user : actor,
+                  profile: isOwnCommit
+                      ? (notification.organization ?? user)
+                      : actor,
                   commit: notification.commit,
               });
     const time = (
@@ -802,14 +804,19 @@ export function NotificationContent({
             {formatRelativeTime(notification.created_at, now)}
         </time>
     );
+    // A member hears about the organization's commits and mentions as the organization's, not their own.
+    const organization = notification.organization;
+    const whose = organization ? `@${organization.handle}'s` : 'your';
     const action = {
         followed: 'followed you',
-        replied: 'replied to your commit',
-        quoted: 'quoted your commit',
+        replied: `replied to ${whose} commit`,
+        quoted: `quoted ${whose} commit`,
         starred: isImageOnly
-            ? `starred your ${starredImages.length === 1 ? 'image' : 'images'}`
-            : 'starred your commit',
-        mentioned: 'mentioned you',
+            ? `starred ${whose} ${starredImages.length === 1 ? 'image' : 'images'}`
+            : `starred ${whose} commit`,
+        mentioned: organization
+            ? `mentioned @${organization.handle}`
+            : 'mentioned you',
         first_commit: 'made their first commit',
         approved: 'Your commit was approved',
         rejected: 'Your commit was rejected',

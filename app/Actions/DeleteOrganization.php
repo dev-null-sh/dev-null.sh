@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Enums\TopicType;
 use App\Models\Commit;
+use App\Models\Notification;
 use App\Models\Organization;
 use Illuminate\Support\Facades\DB;
 
@@ -17,9 +18,9 @@ final readonly class DeleteOrganization
     }
 
     /**
-     * Deletes an organization GitHub no longer has, with its members and followers, and unlinks the commits that mention
-     * it, so none links to a page that is gone. Its own commits are deleted as their posters would, leaving tombstones
-     * for the replies under them, and lose their author with its profile.
+     * Deletes an organization GitHub no longer has, with its members and followers and what they heard about it, and
+     * unlinks the commits that mention it, so none links to a page that is gone. Its own commits are deleted as their
+     * posters would, leaving tombstones for the replies under them, and lose their author with its profile.
      */
     public function handle(Organization $organization): void
     {
@@ -37,6 +38,7 @@ final readonly class DeleteOrganization
                 ->where('topic_id', $organization->id)
                 ->delete();
 
+            Notification::query()->where('organization_id', $organization->id)->delete();
             $organization->members()->detach();
             $organization->followers()->detach();
             $organization->delete();

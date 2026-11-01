@@ -1,5 +1,6 @@
 import type { User } from '@/types/auth';
 import type { Commit, DeletedCommit } from '@/types/commit';
+import type { Organization } from '@/types/organization';
 
 type BaseNotification = {
     id: string;
@@ -9,6 +10,8 @@ type BaseNotification = {
     created_at: string;
     updated_at: string;
     actor: User & { is_followed: boolean };
+    // The organization the user hears about it for, as one of its members, or null when it is their own.
+    organization: Organization | null;
     reason: string | null;
 };
 

@@ -408,17 +408,19 @@ final readonly class CreateExport
     }
 
     /**
-     * Moderators stay anonymous, as they are on the notifications page, and level-ups are the user's own doing.
+     * Moderators stay anonymous, as they are on the notifications page, and level-ups are the user's own doing. An
+     * organization's notifications name the organization the user heard about it for.
      *
      * @return Generator<int, array<string, int|string|null>>
      */
     private function notifications(User $user): Generator
     {
-        /** @var LazyCollection<int, object{type: string, actor: string, commit_id: string|null, reason: string|null, level: int|string|null, read_at: string|null, created_at: string}> $notifications */
+        /** @var LazyCollection<int, object{type: string, actor: string, organization: string|null, commit_id: string|null, reason: string|null, level: int|string|null, read_at: string|null, created_at: string}> $notifications */
         $notifications = $user->notifications()
             ->join('profiles as actor_profiles', 'actor_profiles.id', '=', 'notifications.actor_id')
+            ->leftJoin('profiles as organization_profiles', 'organization_profiles.id', '=', 'notifications.organization_id')
             ->toBase()
-            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actor_profiles.handle as actor'])
+            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actor_profiles.handle as actor', 'organization_profiles.handle as organization'])
             ->lazyById(500, 'notifications.id', 'id');
 
         foreach ($notifications as $notification) {
@@ -427,6 +429,7 @@ final readonly class CreateExport
             yield [
                 'type' => $notification->type,
                 'actor' => $isModeration ? null : $notification->actor,
+                'organization' => $notification->organization,
                 'commit_id' => $notification->commit_id,
                 'reason' => $notification->reason,
                 'level' => $notification->level === null ? null : (int) $notification->level,

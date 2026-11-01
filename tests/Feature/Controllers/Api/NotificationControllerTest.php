@@ -53,6 +53,7 @@ it('lists the notifications of the user, newest first', function (): void {
             'created_at' => now()->toIso8601ZuluString(),
             'actor' => [...$user($replied->actor), 'is_followed' => false],
             'actors' => [[...$user($replied->actor), 'is_followed' => false]],
+            'organization' => null,
             'group_id' => $replied->id,
             'event_count' => 1,
             'actors_count' => 1,

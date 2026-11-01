@@ -14,6 +14,7 @@ import type {
     Commit,
     Notification,
     NotificationGroup,
+    Organization,
     User,
 } from '../../resources/js/types';
 
@@ -276,6 +277,36 @@ test('links the actor to their profile apart from the commit link', async () => 
     assert.doesNotMatch(links[2], /hover:underline/);
     assert.doesNotMatch(body, /<a\b(?:(?!<\/a>).)*<a\b/s);
     assert.match(body, /starred your commit<\/a>/);
+});
+
+test("says a member hears about the organization's commits and mentions for the organization", async () => {
+    const organization = {
+        id: 'laravel',
+        handle: 'laravel',
+        name: 'Laravel',
+        lane: null,
+    } as Organization;
+    const body = await render(
+        (['replied', 'quoted', 'starred', 'mentioned'] as const).map(
+            (type) =>
+                ({
+                    ...notification,
+                    id: type,
+                    group_id: type,
+                    type,
+                    organization,
+                }) as NotificationGroup,
+        ),
+    );
+
+    assert.match(body, /replied to @laravel&#x27;s commit<\/a>/);
+    assert.match(body, /quoted @laravel&#x27;s commit<\/a>/);
+    assert.match(
+        body,
+        /href="\/@laravel\/commits\/reply"[^>]*>starred @laravel&#x27;s commit<\/a>/,
+    );
+    assert.match(body, /mentioned @laravel<\/a>/);
+    assert.doesNotMatch(body, /your commit|mentioned you/);
 });
 
 test('previews the person of a single reply from the avatar and the name', async () => {

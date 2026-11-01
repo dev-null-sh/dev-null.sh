@@ -65,6 +65,8 @@ final readonly class UpdateCommitStatuses
                     'id' => Str::uuid7()->toString(),
                     'recipient_id' => $commit->user_id,
                     'actor_id' => $commit->user_id,
+                    // Its poster hears about an organization's commit as the organization's.
+                    'organization_id' => $commit->author_id === $commit->user_id ? null : $commit->author_id,
                     'type' => NotificationType::Rejected->value,
                     'commit_id' => $commit->id,
                     'key' => 'moderated:'.$commit->id,
