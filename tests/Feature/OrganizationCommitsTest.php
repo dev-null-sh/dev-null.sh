@@ -12,8 +12,10 @@ use App\Enums\Log;
 use App\Enums\OrganizationRole;
 use App\Jobs\CheckUserLevel;
 use App\Models\Commit;
+use App\Models\CommitImage;
 use App\Models\Notification;
 use App\Models\Organization;
+use App\Models\Poll;
 use App\Models\User;
 use App\Queries\LatestLogCommitsQuery;
 use Illuminate\Support\Facades\Bus;
@@ -167,9 +169,31 @@ it('exports the commits someone posted for an organization', function (): void {
         'quoted_commit_id' => null,
         'body' => 'Laravel 13 is out',
         'status' => 'approved',
+        'images' => [],
         'created_at' => $commit->created_at->toIso8601String(),
         'deleted_at' => null,
     ]])->and(iterator_to_array($export['commits']))->toBe([]);
+});
+
+it('exports the images and polls of what someone posted for an organization, even once GitHub no longer has it', function (): void {
+    $commit = Commit::factory()->for($this->member)->create(['author_id' => $this->organization->id]);
+    $image = CommitImage::factory()->for($commit)->create();
+    Poll::factory()->for($commit)->withOptions('Tabs', 'Spaces')->create();
+
+    $export = resolve(CreateExport::class)->handle($this->member);
+    $exported = iterator_to_array($export['organization_commits'])[0];
+
+    expect($exported['images'])->toBe([route('commit-image.show', $image)])
+        ->and(iterator_to_array($export['polls'])[0]['options'])->toBe(['Tabs', 'Spaces']);
+
+    resolve(DeleteOrganization::class)->handle($this->organization);
+
+    $exported = iterator_to_array(resolve(CreateExport::class)->handle($this->member)['organization_commits']);
+
+    expect($exported)->toHaveCount(1)
+        ->and($exported[0]['id'])->toBe($commit->id)
+        ->and($exported[0]['organization'])->toBeNull()
+        ->and($exported[0]['deleted_at'])->not->toBeNull();
 });
 
 it('lists the commits of an organization on its page, first', function (): void {

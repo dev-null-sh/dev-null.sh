@@ -217,7 +217,8 @@ final readonly class CreateExport
     }
 
     /**
-     * What the user posted for organizations, which is theirs to read back, though the organizations' own.
+     * What the user posted for organizations, which is theirs to read back, though the organizations' own, even once
+     * GitHub no longer has the organization and its commits lost their author.
      *
      * @return Generator<int, array<string, mixed>>
      */
@@ -226,8 +227,8 @@ final readonly class CreateExport
         $commits = Commit::query()
             ->withTrashed()
             ->where('user_id', $user->id)
-            ->whereColumn('author_id', '!=', 'user_id')
-            ->with('author')
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query->whereColumn('author_id', '!=', 'user_id')->orWhereNull('author_id'))
+            ->with(['author', 'images:id,commit_id'])
             ->lazyById(500);
 
         foreach ($commits as $commit) {
@@ -238,6 +239,7 @@ final readonly class CreateExport
                 'quoted_commit_id' => $commit->quoted_commit_id,
                 'body' => $commit->body,
                 'status' => $commit->status->value,
+                'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
                 'created_at' => $commit->created_at->toIso8601String(),
                 'deleted_at' => $commit->deleted_at?->toIso8601String(),
             ];
@@ -245,12 +247,14 @@ final readonly class CreateExport
     }
 
     /**
+     * The polls of every commit the user posted, theirs or an organization's.
+     *
      * @return Generator<int, ExportPoll>
      */
     private function polls(User $user): Generator
     {
         $polls = Poll::query()
-            ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->where('author_id', $user->id))
+            ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id))
             ->with('options')
             ->lazyById(500);
 
