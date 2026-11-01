@@ -388,3 +388,17 @@ it("tells whoever the organization replies to once the reply is approved, but no
         ['recipient_id' => $alice->id, 'actor_id' => $this->organization->id, 'type' => NotificationType::Replied],
     ]);
 });
+
+it('still tells whoever the organization replied to or quoted once the poster deleted their account', function (): void {
+    [$alice, $bob] = User::factory()->count(2)->create();
+    $reply = Commit::factory()->for($this->member)->for(Commit::factory()->for($alice), 'parent')->pending()->create(['author_id' => $this->organization->id]);
+    $quote = Commit::factory()->for($this->member)->pending()->create(['author_id' => $this->organization->id, 'quoted_commit_id' => Commit::factory()->for($bob)->create()->id]);
+    resolve(DeleteUser::class)->handle($this->member);
+
+    resolve(UpdateCommitStatuses::class)->handle([$reply->id, $quote->id], CommitStatus::Approved);
+
+    expect(Notification::query()->pluck('actor_id', 'recipient_id')->all())->toEqualCanonicalizing([
+        $alice->id => $this->organization->id,
+        $bob->id => $this->organization->id,
+    ]);
+});

@@ -47,7 +47,7 @@ final readonly class CreateQuoteNotifications
             ->whereKey($quoteIds)
             ->whereNull('quoted.deleted_at')
             ->where('commits.status', CommitStatus::Approved)
-            ->whereColumn('recipients.user_id', '<>', 'commits.user_id')
+            ->whereRaw('recipients.user_id is distinct from commits.user_id')
             ->whereColumn('recipients.profile_id', '<>', 'commits.author_id')
             ->whereNotExists($silenced->mutes(...))
             ->whereNotExists($silenced->blocking(...))
