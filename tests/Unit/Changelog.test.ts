@@ -1,26 +1,30 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { ChangelogPullRequest } from '../../resources/js/lib/changelog.ts';
+import type { ChangelogCommit } from '../../resources/js/lib/changelog.ts';
 import {
     authorLane,
     changelogDayHeading,
     changelogDays,
 } from '../../resources/js/lib/changelog.ts';
 
-function pullRequest(
+function commit(
     number: number,
-    mergedAt: string,
+    committedAt: string,
     login: string,
-): ChangelogPullRequest {
+): ChangelogCommit {
+    const sha = String(number).padStart(40, '0');
+
     return {
-        number,
+        sha,
+        url: `https://github.com/dev-null-sh/dev-null.sh/commit/${sha}`,
+        pull_request: {
+            number,
+            url: `https://github.com/dev-null-sh/dev-null.sh/pull/${number}`,
+        },
         type: 'feat',
         breaking: false,
         title: `Change ${number}`,
-        url: `https://github.com/dev-null-sh/dev-null.sh/pull/${number}`,
-        sha: 'c897f86700000000000000000000000000000000',
-        commit_url: 'https://github.com/dev-null-sh/dev-null.sh/commit/c897f86700000000000000000000000000000000',
-        merged_at: mergedAt,
+        committed_at: committedAt,
         author: {
             login,
             avatar: `https://avatars.githubusercontent.com/u/${number}`,
@@ -31,13 +35,13 @@ function pullRequest(
     };
 }
 
-void test('groups merges by the reader’s calendar day, newest first, with who merged on each', () => {
+void test('groups commits by the reader’s calendar day, newest first, with who committed on each', () => {
     const days = changelogDays(
         [
-            pullRequest(377, '2026-10-18T00:53:44Z', 'xHeaven'),
-            pullRequest(310, '2026-10-17T23:26:43Z', 'simonhamp'),
-            pullRequest(376, '2026-10-17T22:48:40Z', 'xHeaven'),
-            pullRequest(304, '2026-10-17T21:15:34Z', 'ahosker'),
+            commit(377, '2026-10-18T00:53:44Z', 'xHeaven'),
+            commit(310, '2026-10-17T23:26:43Z', 'simonhamp'),
+            commit(376, '2026-10-17T22:48:40Z', 'xHeaven'),
+            commit(304, '2026-10-17T21:15:34Z', 'ahosker'),
         ],
         'Europe/Budapest',
     );
@@ -45,7 +49,7 @@ void test('groups merges by the reader’s calendar day, newest first, with who 
     assert.deepEqual(
         days.map((day) => ({
             date: day.date,
-            numbers: day.pullRequests.map((pullRequest) => pullRequest.number),
+            numbers: day.commits.map((commit) => commit.pull_request?.number),
             authors: day.authors.map((author) => author.login),
         })),
         [
@@ -55,11 +59,11 @@ void test('groups merges by the reader’s calendar day, newest first, with who 
     );
 });
 
-void test('puts a merge on the day it was in the reader’s time zone', () => {
-    const merges = [pullRequest(377, '2026-10-18T03:30:00Z', 'xHeaven')];
+void test('puts a commit on the day it was in the reader’s time zone', () => {
+    const commits = [commit(377, '2026-10-18T03:30:00Z', 'xHeaven')];
 
-    assert.equal(changelogDays(merges, 'Europe/Budapest')[0].date, '2026-10-18');
-    assert.equal(changelogDays(merges, 'America/Los_Angeles')[0].date, '2026-10-17');
+    assert.equal(changelogDays(commits, 'Europe/Budapest')[0].date, '2026-10-18');
+    assert.equal(changelogDays(commits, 'America/Los_Angeles')[0].date, '2026-10-17');
 });
 
 void test('keeps the lane an author chose on /dev/null', () => {

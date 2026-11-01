@@ -21,6 +21,7 @@ test('to array', function (): void {
             'reason',
             'subject_id',
             'level',
+            'organization_id',
             'rank',
             'rank_description',
         ]);

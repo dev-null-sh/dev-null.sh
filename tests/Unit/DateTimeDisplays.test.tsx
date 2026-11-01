@@ -52,6 +52,8 @@ const { TooltipProvider } =
     await import('../../resources/js/components/ui/tooltip');
 const { default: Metrics } =
     await import('../../resources/js/pages/operations/metrics');
+const { default: Traffic } =
+    await import('../../resources/js/pages/operations/traffic');
 const { default: Bulk } =
     await import('../../resources/js/pages/moderation/bulk');
 const { UserModerationStatus } =
@@ -235,6 +237,7 @@ test('scheduled dates and both action labels follow viewer preferences without c
                         data: [
                             {
                                 id: 'scheduled-review',
+                                author: null,
                                 body: null,
                                 body_segments: [],
                                 preview_segments: null,
@@ -271,6 +274,53 @@ test('scheduled dates and both action labels follow viewer preferences without c
         );
         assert.match(html, /dateTime="2026-12-19T00:35:00Z"/);
     }
+});
+
+test('traffic hours follow clock preferences without shifting UTC buckets or date inputs', () => {
+    process.env.TZ = 'Pacific/Honolulu';
+    setReaderClock(browserClock());
+    const totals = {
+        visitors: 7,
+        pageviews: 11,
+        avg_duration: 43,
+        bounce_rate: 0.2,
+    };
+    const page = (isHourly: boolean) =>
+        renderToString(
+            <Traffic
+                trafficRange={{
+                    from: '2026-10-19',
+                    to: isHourly ? '2026-10-19' : '2026-10-20',
+                }}
+                trafficFilters={{}}
+                traffic={{
+                    current: 3,
+                    totals,
+                    timeline: [
+                        {
+                            ...totals,
+                            date: isHourly
+                                ? '2026-10-19T00:35:00Z'
+                                : '2026-10-19',
+                        },
+                    ],
+                    breakdowns: {
+                        pages: [],
+                        referrers: [],
+                        countries: [],
+                        devices: [],
+                        browsers: [],
+                    },
+                }}
+            />,
+        ).replaceAll('<!-- -->', '');
+    auth.dateTime = { dateFormat: 'day_first', timeFormat: '24h' };
+    assert.match(page(true), /00:35 · 19 Oct 2026<\/time>/);
+    assert.match(page(true), /dateTime="2026-10-19T00:35:00Z"/);
+    assert.match(page(true), /value="2026-10-19"/);
+    auth.dateTime = { dateFormat: 'month_first', timeFormat: '12h' };
+    assert.match(page(true), /12:35\s*AM · Oct 19, 2026<\/time>/i);
+    assert.match(page(false), /dateTime="2026-10-19">Oct 19, 2026<\/time>/);
 });
 
 test('forecast dates keep their UTC calendar day and follow viewer date order', () => {

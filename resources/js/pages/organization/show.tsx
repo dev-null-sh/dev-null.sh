@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { useIsFollowing } from '@/components/follow-button';
 import { GitHubIcon } from '@/components/github-icon';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { OrganizationFollowButton } from '@/components/organization-follow-button';
@@ -29,7 +30,7 @@ export default function Show({
     isFollowing,
 }: {
     organization: Organization;
-    tab: 'mentions';
+    tab: 'commits' | 'mentions';
     commits: CursorPaginated<Commit>;
     claimUrl: string;
     settingsUrl: string | null;
@@ -45,6 +46,9 @@ export default function Show({
     // Only the first claim makes an admin. While a claim failed, its alert offers to try again instead.
     const claimable = auth.user !== null && admins.length === 0;
     const canClaim = claimable && claimFailed === undefined;
+    const [isFollowingNow] = useIsFollowing(organization, isFollowing);
+    const shownFollowersCount =
+        followersCount + Number(isFollowingNow) - Number(isFollowing);
 
     return (
         <>
@@ -90,7 +94,7 @@ export default function Show({
                         )}
                         {settingsUrl && (
                             <Button variant="outline" asChild>
-                                <Link href={settingsUrl}>
+                                <Link href={settingsUrl} prefetch>
                                     <Settings />
                                     Settings
                                 </Link>
@@ -174,12 +178,12 @@ export default function Show({
                 <p className="mt-4 flex gap-1.5 text-sm">
                     <span
                         className="font-mono font-medium tabular-nums"
-                        title={exactCountTitle(followersCount)}
+                        title={exactCountTitle(shownFollowersCount)}
                     >
-                        {formatCount(followersCount)}
+                        {formatCount(shownFollowersCount)}
                     </span>
                     <span className="text-muted-foreground">
-                        {followersCount === 1 ? 'follower' : 'followers'}
+                        {shownFollowersCount === 1 ? 'follower' : 'followers'}
                     </span>
                 </p>
 
@@ -190,6 +194,7 @@ export default function Show({
                             <Link
                                 key={admin.id}
                                 href={show(admin.handle)}
+                                prefetch
                                 className="flex items-center gap-1.5 text-foreground hover:underline"
                             >
                                 <UserAvatar
@@ -257,8 +262,15 @@ export default function Show({
                     reset={['commits']}
                     tabs={[
                         {
-                            title: 'Mentions',
+                            title: 'Commits',
                             href: show(organization),
+                            isActive: tab === 'commits',
+                        },
+                        {
+                            title: 'Mentions',
+                            href: show(organization, {
+                                query: { tab: 'mentions' },
+                            }),
                             isActive: tab === 'mentions',
                         },
                     ]}
@@ -267,14 +279,25 @@ export default function Show({
                 <CommitFeed
                     key={`${organization.handle}:${tab}`}
                     commits={commits}
-                    end={`That's the first commit mentioning @${organization.handle}.`}
+                    end={
+                        tab === 'mentions'
+                            ? `That's the first commit mentioning @${organization.handle}.`
+                            : `That's @${organization.handle}'s first commit.`
+                    }
                     empty={
-                        <EmptyFeed
-                            command={`$ git log --grep=@${organization.handle}`}
-                        >
-                            Nobody has mentioned @{organization.handle} yet.
-                            Mention it in a commit and it shows up here.
-                        </EmptyFeed>
+                        tab === 'mentions' ? (
+                            <EmptyFeed
+                                command={`$ git log --grep=@${organization.handle}`}
+                            >
+                                Nobody has mentioned @{organization.handle} yet.
+                                Mention it in a commit and it shows up here.
+                            </EmptyFeed>
+                        ) : (
+                            <EmptyFeed command="fatal: no commits yet">
+                                @{organization.handle} hasn't committed anything
+                                yet.
+                            </EmptyFeed>
+                        )
                     }
                 />
             </div>

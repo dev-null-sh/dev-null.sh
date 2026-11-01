@@ -92,7 +92,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 4,
+        'schema_version' => 5,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -132,6 +132,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         ],
         'active_days' => [],
         'commits' => [],
+        'organization_commits' => [],
         'polls' => [],
         'poll_votes' => [],
         'stars' => [],
@@ -219,6 +220,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
     $other = User::factory()->create();
     $parent = Commit::factory()->for($other)->rejected()->create(['body' => 'Another developer private parent body']);
     $approved = Commit::factory()->for($user)->create(['body' => "Shipped Unicode support 🚀\nNext: docs.", 'pasteis_count' => 3]);
+    $approved->headlines()->create(['name' => 'Unicode support ships']);
     $pending = Commit::factory()->for($user)->pending()->create();
     $rejected = Commit::factory()->for($user)->rejected()->create();
     $reply = Commit::factory()->for($user)->create(['parent_id' => $parent->id]);
@@ -389,6 +391,7 @@ it('exports received notifications without revealing moderators', function (): v
         ->and($notifications['followed'])->toBe([
             'type' => 'followed',
             'actor' => 'friendly-dev',
+            'organization' => null,
             'commit_id' => null,
             'reason' => null,
             'level' => null,
@@ -398,6 +401,7 @@ it('exports received notifications without revealing moderators', function (): v
         ->and($notifications['rejected'])->toBe([
             'type' => 'rejected',
             'actor' => null,
+            'organization' => null,
             'commit_id' => $commit->id,
             'reason' => 'Looks like spam.',
             'level' => null,
@@ -407,6 +411,7 @@ it('exports received notifications without revealing moderators', function (): v
         ->and($notifications['leveled_up'])->toBe([
             'type' => 'leveled_up',
             'actor' => null,
+            'organization' => null,
             'commit_id' => null,
             'reason' => null,
             'level' => 3,

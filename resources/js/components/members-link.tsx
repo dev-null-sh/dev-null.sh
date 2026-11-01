@@ -22,7 +22,7 @@ export function MembersLink({
             {children}
         </a>
     ) : (
-        <Link href={href} className={className} title={title}>
+        <Link href={href} prefetch className={className} title={title}>
             {children}
         </Link>
     );

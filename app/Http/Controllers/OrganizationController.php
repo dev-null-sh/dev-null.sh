@@ -8,6 +8,7 @@ use App\Enums\OrganizationRole;
 use App\Http\Requests\ShowOrganizationRequest;
 use App\Models\Organization;
 use App\Models\User;
+use App\Queries\OrganizationCommitsQuery;
 use App\Queries\OrganizationMentionsQuery;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -19,12 +20,12 @@ use Inertia\Response;
 final readonly class OrganizationController
 {
     /**
-     * Organization pages are public, at the "@handle" of users, and show the organization's GitHub profile and the
-     * commits that mention it, in the lane its admins chose or /dev/null's blue, with its admins, first one first, how
+     * Organization pages are public, at the "@handle" of users, and show the organization's GitHub profile, its own
+     * commits and the commits that mention it, in the lane its admins chose or /dev/null's blue, with its admins, first one first, how
      * many follow it and whether the viewer does, and the organization's link preview, and its members the way to its
      * settings. Like users' pages, they move for good to the handle's own case.
      */
-    public function show(ShowOrganizationRequest $request, #[CurrentUser] ?User $currentUser, OrganizationMentionsQuery $mentions, PageMetadata $metadata): RedirectResponse|Response
+    public function show(ShowOrganizationRequest $request, #[CurrentUser] ?User $currentUser, OrganizationCommitsQuery $organizationCommits, OrganizationMentionsQuery $mentions, PageMetadata $metadata): RedirectResponse|Response
     {
         $organization = $request->organization();
         assert($organization instanceof Organization);
@@ -39,7 +40,7 @@ final readonly class OrganizationController
         return Inertia::render('organization/show', [
             'organization' => $organization,
             'tab' => $request->tab(...),
-            'commits' => Inertia::scroll(fn () => $mentions->builder($organization, $currentUser)
+            'commits' => Inertia::scroll(fn () => ($request->tab() === 'mentions' ? $mentions : $organizationCommits)->builder($organization, $currentUser)
                 ->cursorPaginate(20)
                 ->appends(['tab' => $request->tab()])),
             'claimUrl' => route('organization-admin.store', $organization),

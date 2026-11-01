@@ -61,20 +61,21 @@ it('finds contribution opportunities using either helpful label and returns only
     expect($result['complete'])->toBeFalse();
 });
 
-it('returns recent production merges from the changelog without internal author data', function (): void {
+it('returns recent production commits from the changelog without internal author data', function (): void {
     $github = $this->mock(GitHubProvider::class);
-    $github->shouldReceive('closedPullRequests')->with('dev-null-sh/dev-null.sh', 'production', 1, 100)->andReturn(collect(range(12, 1))->map(fn (int $number): array => [
-        'number' => $number, 'title' => "feat: change {$number}",
-        'html_url' => "https://github.com/dev-null-sh/dev-null.sh/pull/{$number}",
-        'merged_at' => sprintf('2026-10-19T00:00:%02dZ', $number), 'updated_at' => sprintf('2026-10-19T00:00:%02dZ', $number),
-        'merge_commit_sha' => 'abc', 'user' => ['id' => 1, 'login' => 'alice', 'avatar_url' => 'https://github.com/alice.png'],
+    $github->shouldReceive('commits')->with('dev-null-sh/dev-null.sh', 'production', 1, 100)->andReturn(collect(range(12, 1))->map(fn (int $number): array => [
+        'sha' => "sha{$number}", 'message' => "feat: change {$number} (#{$number})",
+        'url' => "https://github.com/dev-null-sh/dev-null.sh/commit/sha{$number}",
+        'committed_at' => sprintf('2026-10-19T00:00:%02dZ', $number),
+        'parents' => $number === 1 ? [] : ['sha'.($number - 1)],
+        'author' => ['id' => 1, 'login' => 'alice', 'avatar_url' => 'https://github.com/alice.png'],
     ])->all());
 
     $result = json_decode(new RepositoryInsights()->handle(new ToolRequest(['metric' => 'recent_changes'])), true);
 
-    expect($result['pull_requests'])->toHaveCount(10);
-    expect($result['pull_requests'][0])->toBe([
-        'title' => 'Change 12', 'url' => 'https://github.com/dev-null-sh/dev-null.sh/pull/12', 'author' => 'alice', 'merged_at' => '2026-10-19T00:00:12Z',
+    expect($result['commits'])->toHaveCount(10);
+    expect($result['commits'][0])->toBe([
+        'title' => 'Change 12', 'url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/sha12', 'author' => 'alice', 'committed_at' => '2026-10-19T00:00:12Z',
     ]);
     expect($result['definition'])->toContain('not a verified deployment time');
 });
@@ -112,7 +113,7 @@ it('does not turn GitHub failures into zero counts or cache the failure', functi
 it('reports unavailable changelogs and incomplete searches instead of claiming complete evidence', function (string $metric): void {
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('repository')->andReturn(['stars' => 42, 'forks' => 9]);
-    $github->shouldReceive('closedPullRequests')->andThrow(new RequestException(new Response(new Psr7Response(503))));
+    $github->shouldReceive('commits')->andThrow(new RequestException(new Response(new Psr7Response(503))));
     $github->shouldReceive('searchIssues')->andReturn(['incomplete' => true, 'total' => 0, 'items' => []]);
 
     expect(new RepositoryInsights()->handle(new ToolRequest(['metric' => $metric])))->toContain('temporarily unavailable');
@@ -120,7 +121,7 @@ it('reports unavailable changelogs and incomplete searches instead of claiming c
 
 it('refuses arbitrary repository operations without a request', function (): void {
     $github = $this->mock(GitHubProvider::class);
-    $github->shouldNotReceive('contributors', 'repository', 'languages', 'searchIssues', 'closedPullRequests');
+    $github->shouldNotReceive('contributors', 'repository', 'languages', 'searchIssues', 'commits');
 
     expect(new RepositoryInsights()->handle(new ToolRequest(['metric' => 'delete_repository'])))->toContain('Unsupported repository metric');
 });

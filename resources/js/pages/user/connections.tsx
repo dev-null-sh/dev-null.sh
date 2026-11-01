@@ -82,6 +82,7 @@ export default function Connections({
                 <div className="flex h-14 items-center gap-3 border-b px-4 sm:px-6">
                     <Link
                         href={show(user)}
+                        prefetch
                         aria-label={`Back to @${user.handle}`}
                         className="text-muted-foreground hover:text-foreground"
                     >
@@ -169,6 +170,7 @@ export default function Connections({
                                 >
                                     <Link
                                         href={show(organization.handle)}
+                                        prefetch
                                         className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-4 sm:pl-6"
                                     >
                                         <OrganizationAvatar
@@ -238,6 +240,7 @@ export default function Connections({
                             >
                                 <Link
                                     href={show(person)}
+                                    prefetch
                                     className="flex min-w-0 flex-1 items-start gap-3 py-3 pl-4 sm:pl-6"
                                 >
                                     <UserAvatar

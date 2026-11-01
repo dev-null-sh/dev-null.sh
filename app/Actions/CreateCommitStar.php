@@ -40,7 +40,8 @@ final readonly class CreateCommitStar
             $this->updateCommitHotScores->handle([$commit->id]);
 
             if ($commit->user_id !== $user->id) {
-                $author = $commit->user()->first();
+                // Stars on an organization's commit count toward no one's level.
+                $author = $commit->author_id === $commit->user_id ? $commit->user()->first() : null;
 
                 DB::afterCommit(function () use ($user, $author): void {
                     dispatch(new CheckUserLevel($user));

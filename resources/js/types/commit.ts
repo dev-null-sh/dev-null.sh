@@ -79,6 +79,11 @@ export type CommitAuthor =
     | (User & { type: 'user' })
     | (Organization & { type: 'organization' });
 
+export type OrganizationAuthor = Extract<
+    CommitAuthor,
+    { type: 'organization' }
+>;
+
 export type Commit = {
     id: string;
     parent_id: string | null;
@@ -114,6 +119,8 @@ export type Commit = {
     images?: CommitImage[];
     ai_decision?: Exclude<CommitStatus, 'pending'> | null;
     ai_categories?: string[] | null;
+    // Who posted an organization's commit, which only moderators get: null once that account is deleted.
+    poster?: User | null;
 };
 
 export type QuotedCommit = Pick<

@@ -161,13 +161,16 @@ export type ForecastPoint = LinePoint & { lower: number; upper: number };
 
 /**
  * A daily line, solid for what happened and dashed for what is expected next, with the expected range as a wash
- * behind the dashes. Hovering any day shows its value, and, for a forecast day, its range.
+ * behind the dashes. Hovering any day shows its value, and, for a forecast day, its range. Points are days unless
+ * `formatDate` labels them otherwise, hours say.
  */
 export function LineChart({
     history,
     forecast = [],
     height = 200,
     format = compactNumber,
+    formatTick = compactNumber,
+    formatDate: formatPointDate,
     label,
     unit,
 }: {
@@ -175,6 +178,8 @@ export function LineChart({
     forecast?: ForecastPoint[];
     height?: number;
     format?: (value: number) => string;
+    formatTick?: (value: number) => string;
+    formatDate?: (date: string) => string;
     label: string;
     unit: string;
 }) {
@@ -282,7 +287,7 @@ export function LineChart({
                                 textAnchor="end"
                                 className="fill-muted-foreground font-mono text-[11px] tabular-nums"
                             >
-                                {compactNumber(tick)}
+                                {formatTick(tick)}
                             </text>
                         </g>
                     ))}
@@ -298,10 +303,11 @@ export function LineChart({
                                     }
                                     className="fill-muted-foreground font-mono text-[11px]"
                                 >
-                                    {formatDate(day.date, {
-                                        timeZone: 'UTC',
-                                        year: false,
-                                    })}
+                                    {formatPointDate?.(day.date) ??
+                                        formatDate(day.date, {
+                                            timeZone: 'UTC',
+                                            year: false,
+                                        })}
                                 </text>
                             ),
                     )}
@@ -376,10 +382,11 @@ export function LineChart({
             {active && hovered !== null && (
                 <Tooltip x={x(hovered)} width={width}>
                     <p className="font-medium">
-                        {formatDate(active.date, {
-                            timeZone: 'UTC',
-                            year: false,
-                        })}
+                        {formatPointDate?.(active.date) ??
+                            formatDate(active.date, {
+                                timeZone: 'UTC',
+                                year: false,
+                            })}
                         {active.isForecast && (
                             <span className="font-normal opacity-70">
                                 {' '}
@@ -414,6 +421,8 @@ export function LineChart({
                             <tr key={day.date}>
                                 <th scope="row">
                                     <time dateTime={day.date}>
+                                        {formatPointDate &&
+                                            `${formatPointDate(day.date)} · `}
                                         {formatDate(day.date, {
                                             timeZone: 'UTC',
                                             year: true,

@@ -11,7 +11,8 @@ use Illuminate\Foundation\Http\FormRequest;
 final class ShowApiCommitRequest extends FormRequest
 {
     /**
-     * Anyone may see an approved commit. A signed request may also see its user's own pending or rejected commits.
+     * Anyone may see an approved commit. A signed request may also see its user's own pending or rejected commits, and
+     * their organizations'.
      */
     public function authorize(): Response
     {

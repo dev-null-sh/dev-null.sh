@@ -21,6 +21,7 @@ import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLi
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { ActionTooltip } from '@/components/action-tooltip';
 import { AuthorAvatar } from '@/components/author-avatar';
+import { AuthorSwitcher } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import { FoldedCommitBody } from '@/components/commit-body';
 import {
@@ -56,6 +57,7 @@ import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
+import { OrganizationAvatar } from '@/components/organization-avatar';
 import { ReplyRecipientPicker } from '@/components/reply-recipient-picker';
 import { StashLabel } from '@/components/stash-label';
 import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
@@ -66,6 +68,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useDateTime } from '@/hooks/use-date-time';
 import {
@@ -77,6 +80,7 @@ import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
@@ -89,7 +93,7 @@ import {
 } from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
-import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import {
     characterCount,
     cn,
@@ -104,6 +108,7 @@ import type {
     CursorPaginated,
     DeletedFlash,
     FlashToast,
+    OrganizationAuthor,
     ThreadCommit,
 } from '@/types';
 
@@ -551,6 +556,7 @@ export function ShowThreadLink({ thread }: { thread: Thread }) {
 
     return (
         <Link
+            prefetch
             href={CommitController.show({ profile: commit.author, commit })}
             className="mt-2 -ml-2 flex w-fit items-center gap-1 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             aria-label={`Show thread by @${commit.author.handle}`}
@@ -889,13 +895,15 @@ function ReplySkeleton() {
         <div
             role="status"
             aria-label="Loading replies"
-            className="flex gap-2 pt-2.5 pl-(--indent) motion-safe:animate-pulse sm:gap-2.5"
+            className="pt-2.5 pl-(--indent) motion-safe:animate-in motion-safe:delay-300 motion-safe:fill-mode-backwards motion-safe:fade-in"
         >
-            <span className="size-6 shrink-0 rounded-full bg-muted sm:size-7" />
-            <span className="flex-1">
-                <span className="my-1 block h-3 w-1/3 rounded bg-muted" />
-                <span className="my-1.5 block h-3 w-3/4 rounded bg-muted" />
-                <span className="mt-2.5 block h-3 w-24 rounded bg-muted" />
+            <span className="flex gap-2 motion-safe:animate-pulse sm:gap-2.5">
+                <span className="size-6 shrink-0 rounded-full bg-muted sm:size-7" />
+                <span className="flex-1">
+                    <span className="my-1 block h-3 w-1/3 rounded bg-muted" />
+                    <span className="my-1.5 block h-3 w-3/4 rounded bg-muted" />
+                    <span className="mt-2.5 block h-3 w-24 rounded bg-muted" />
+                </span>
             </span>
         </div>
     );
@@ -1106,7 +1114,7 @@ function CommitReply({
         [nodeRef],
     );
 
-    const isOwn = reply.author.id === auth.user?.id;
+    const isOwn = useOwnsCommit()(reply);
     const isFlattened = depth > maxIndentDepth;
     const isQuote = reply.quoted_commit_id === parent.id;
     const permalink = CommitController.show({
@@ -1161,6 +1169,7 @@ function CommitReply({
                 <div className="relative shrink-0">
                     <UserPreview user={reply.author} anchor={avatarRef}>
                         <Link
+                            prefetch
                             ref={avatarNodeRef}
                             href={show(reply.author)}
                             className="block rounded-full"
@@ -1197,12 +1206,14 @@ function CommitReply({
                             className="flex min-w-0 items-baseline gap-1.5"
                         >
                             <Link
+                                prefetch
                                 href={show(reply.author)}
                                 className="truncate font-semibold hover:underline"
                             >
                                 {reply.author.name}
                             </Link>
                             <Link
+                                prefetch
                                 href={show(reply.author)}
                                 tabIndex={-1}
                                 className="hidden truncate font-mono text-xs text-muted-foreground sm:inline"
@@ -1212,6 +1223,7 @@ function CommitReply({
                         </UserPreview>
                         {isQuote && (
                             <Link
+                                prefetch
                                 href={permalink}
                                 className="shrink-0 font-mono text-xs text-primary hover:underline"
                                 data-test="quote-reply-label"
@@ -1231,6 +1243,7 @@ function CommitReply({
                             }
                         >
                             <Link
+                                prefetch
                                 href={permalink}
                                 className="shrink-0 font-mono text-xs text-muted-foreground hover:underline"
                             >
@@ -1353,6 +1366,7 @@ function ReplyComposer({
     onReplied: (parent: RepliedParent) => void;
 }) {
     const { user } = useUser();
+    const [author, setAuthor] = useState<OrganizationAuthor | null>(null);
     const commitNotFound = useCommitNotFound();
     const participants = Array.from(
         new Map(
@@ -1483,6 +1497,7 @@ function ReplyComposer({
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
                 : {}),
+            ...(author !== null && { author: author.handle }),
         }));
 
         request
@@ -1490,6 +1505,7 @@ function ReplyComposer({
                 onSuccess: (reply) => {
                     attachments.clear();
                     drop();
+                    setAuthor(null);
                     linkCard.reset();
                     returnFocusToCommit();
                     router.flash(() => reply);
@@ -1605,6 +1621,21 @@ function ReplyComposer({
             />
             <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                 <div className="mr-auto flex min-w-0 items-center gap-2">
+                    <AuthorSwitcher
+                        user={user}
+                        author={author}
+                        onChange={setAuthor}
+                        fallback={null}
+                    >
+                        {author === null ? (
+                            <UserAvatar user={user} className="size-6" />
+                        ) : (
+                            <OrganizationAvatar
+                                organization={author}
+                                className="size-6"
+                            />
+                        )}
+                    </AuthorSwitcher>
                     <ImagePickerButton
                         count={images.length}
                         disabled={processing}

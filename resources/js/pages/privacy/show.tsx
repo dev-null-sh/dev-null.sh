@@ -20,7 +20,11 @@ function Mail() {
 }
 
 function Terms() {
-    return <Link href={TermsController.show()}>terms of service</Link>;
+    return (
+        <Link href={TermsController.show()} prefetch>
+            terms of service
+        </Link>
+    );
 }
 
 export default function Show() {
@@ -34,11 +38,10 @@ export default function Show() {
             >
                 <DocumentSection id="who" title="Who we are">
                     <p>
-                        {COMPANY_NAME}, a company registered in Portugal ("we",
-                        "us"), operates <WordmarkText>/dev/null</WordmarkText>{' '}
-                        and everything we offer under that name or any other,
-                        now or in the future (the "service"), and is the
-                        controller of the personal data processed in it.
+                        <WordmarkText>/dev/null</WordmarkText> ("we", "us") is a
+                        social network for developers at dev-null.sh. This
+                        policy covers it and everything we offer under that name
+                        or any other, now or in the future (the "service").
                         Contact: <Mail />.
                     </p>
                 </DocumentSection>
@@ -115,7 +118,7 @@ export default function Show() {
                             <>
                                 <strong>From our apps:</strong> when you approve
                                 a device, such as{' '}
-                                <Link href={AppController.index()}>
+                                <Link href={AppController.index()} prefetch>
                                     the Mac app
                                 </Link>
                                 , its key's fingerprint, its name (for a Mac,
@@ -322,7 +325,11 @@ export default function Show() {
 
                 <DocumentSection id="contact" title="Contact">
                     <p>
-                        {COMPANY_NAME}, <Mail />. See also our <Terms />.
+                        <WordmarkText>/dev/null</WordmarkText> is property of{' '}
+                        {COMPANY_NAME}, a company registered in Portugal, which
+                        is "we" and "us" in this policy and the controller of
+                        the personal data processed in the service. Contact:{' '}
+                        <Mail />. See also our <Terms />.
                     </p>
                 </DocumentSection>
             </DocumentPage>

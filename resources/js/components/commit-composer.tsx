@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
+import { AuthorSwitcher } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import {
     ImageDropOverlay,
@@ -64,9 +65,10 @@ import {
     cn,
     isRejectedSubmission,
     laneColor,
+    organizationLaneColor,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { User } from '@/types';
+import type { OrganizationAuthor, User } from '@/types';
 
 // The ring moves quickly while a post starts and slows toward the limit, yet only closes at the limit.
 function bodyProgress(count: number): number {
@@ -96,6 +98,8 @@ function CommitComposerBody({
     id,
     isInDialog,
     user,
+    author,
+    onAuthorChange,
     stash,
     attachments,
     linkCard,
@@ -113,6 +117,8 @@ function CommitComposerBody({
     id: string;
     isInDialog: boolean;
     user: User;
+    author: OrganizationAuthor | null;
+    onAuthorChange: (author: OrganizationAuthor | null) => void;
     stash: UseStashReturn;
     attachments: ReturnType<typeof useImageAttachments>;
     linkCard: UseLinkCardReturn;
@@ -179,6 +185,19 @@ function CommitComposerBody({
         return () => observer.disconnect();
     }, [isInDialog]);
 
+    const ownNode = isInDialog ? (
+        <RailAvatar user={user} progress={progress} />
+    ) : (
+        <Link
+            prefetch
+            href={show(user)}
+            aria-label="View your profile"
+            className="flex rounded-full"
+        >
+            <RailAvatar user={user} progress={progress} />
+        </Link>
+    );
+
     const insertEmoji = useEmojiInsertion({
         body,
         updateBody,
@@ -195,22 +214,27 @@ function CommitComposerBody({
                 <ImageDropOverlay className="inset-2" />
             )}
             <GraphRail
-                lane={laneColor(user.lane)}
+                lane={
+                    author === null
+                        ? laneColor(user.lane)
+                        : organizationLaneColor(author.lane)
+                }
                 variant="staged"
                 isFilled={isFilled}
                 hasTail={!isInDialog}
                 node={
-                    isInDialog ? (
-                        <RailAvatar user={user} progress={progress} />
-                    ) : (
-                        <Link
-                            href={show(user)}
-                            aria-label="View your profile"
-                            className="flex rounded-full"
-                        >
+                    <AuthorSwitcher
+                        user={user}
+                        author={author}
+                        onChange={onAuthorChange}
+                        fallback={ownNode}
+                    >
+                        {author === null ? (
                             <RailAvatar user={user} progress={progress} />
-                        </Link>
-                    )
+                        ) : (
+                            <RailAvatar user={author} />
+                        )}
+                    </AuthorSwitcher>
                 }
             />
 
@@ -414,6 +438,7 @@ function CommitComposerBody({
                                 message={scheduleError}
                             />
                             <Link
+                                prefetch
                                 href={ScheduledCommitController.index()}
                                 className="text-xs font-medium text-primary hover:underline"
                             >
@@ -590,6 +615,7 @@ export function CommitComposer({
     const { isScheduling, scheduledAt, setScheduledAt, setIsScheduling } =
         schedule;
     const { user } = useUser();
+    const [author, setAuthor] = useState<OrganizationAuthor | null>(null);
     const stash = useStash(user.id, 'commit');
     const { body } = stash;
     const linkCard = useLinkCard(body);
@@ -693,6 +719,7 @@ export function CommitComposer({
             transform={(data) => ({
                 ...data,
                 commit_rules_accepted: commitRules.hasAccepted(),
+                ...(author !== null && { author: author.handle }),
                 ...(hasImages && {
                     images: attachments.images,
                     image_descriptions: attachments.descriptions,
@@ -710,6 +737,7 @@ export function CommitComposer({
                 }
 
                 drop();
+                setAuthor(null);
                 setScheduledAt('');
                 setIsScheduling(false);
                 attachments.clear();
@@ -730,6 +758,8 @@ export function CommitComposer({
                         id={id}
                         isInDialog={isInDialog}
                         user={user}
+                        author={author}
+                        onAuthorChange={setAuthor}
                         stash={stash}
                         attachments={attachments}
                         linkCard={linkCard}

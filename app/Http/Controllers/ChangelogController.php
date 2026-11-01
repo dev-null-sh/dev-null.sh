@@ -20,7 +20,7 @@ final readonly class ChangelogController
 
             return Inertia::render('changelog/show')->withViewData(['preview' => $metadata->page(
                 'Changelog - /dev/null',
-                'What was merged into /dev/null, day by day: every pull request that shipped to production, newest first, with who made it.',
+                'What shipped to /dev/null, day by day: every commit on production, newest first, with who made it.',
                 route('changelog.index'),
             )]);
         }
@@ -28,7 +28,7 @@ final readonly class ChangelogController
         $days = $changelog->get($request->timeZone(), $request->before());
 
         return response()->json([
-            'pullRequests' => $days['pullRequests'] ?? null,
+            'commits' => $days['commits'] ?? null,
             'olderBefore' => $days['olderBefore'] ?? null,
             'commitsUrl' => 'https://github.com/'.config()->string('services.github.repository').'/commits/'.ChangelogQuery::Branch,
         ]);

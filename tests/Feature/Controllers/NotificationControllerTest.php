@@ -75,20 +75,20 @@ it('hides notifications that no longer hold', function (): void {
     $response->assertInertia(fn ($page) => $page->has('notifications.data', 0));
 });
 
-it('marks notifications read when the inbox opens and clears the badge', function (): void {
+it('leaves notifications unread when the inbox loads, so a prefetch reads nothing', function (): void {
     $user = User::factory()->create();
     $notification = Notification::factory()->for($user, 'recipient')->create();
 
     $response = $this->actingAs($user)->get(route('notification.index'));
 
     $response->assertInertia(fn ($page) => $page
-        ->where('notifications.data.0.read_at', now()->startOfSecond()->toJSON())
-        ->where('auth.unreadNotificationsCount', 0));
+        ->where('notifications.data.0.read_at', null)
+        ->where('auth.unreadNotificationsCount', 1));
 
-    expect($notification->refresh()->read_at)->not->toBeNull();
+    expect($notification->refresh()->read_at)->toBeNull();
 });
 
-it('shares when the inbox was read so activity read on this visit stands apart from earlier visits', function (): void {
+it('shares when the inbox loaded so activity read on this visit stands apart from earlier visits', function (): void {
     $user = User::factory()->create();
     $earlier = Notification::factory()->for($user, 'recipient')->replied()->create(['read_at' => now()->subDay(), 'created_at' => now()->subDays(2)]);
     $latest = Notification::factory()->for($user, 'recipient')->create();
@@ -98,7 +98,7 @@ it('shares when the inbox was read so activity read on this visit stands apart f
     $response->assertInertia(fn ($page) => $page
         ->where('readAt', now()->startOfSecond()->toJSON())
         ->where('notifications.data.0.id', $latest->id)
-        ->where('notifications.data.0.read_at', now()->startOfSecond()->toJSON())
+        ->where('notifications.data.0.read_at', null)
         ->where('notifications.data.1.id', $earlier->id)
         ->where('notifications.data.1.read_at', now()->subDay()->startOfSecond()->toJSON()));
 });
@@ -120,13 +120,11 @@ it('groups stars per commit, newest stargazer first', function (): void {
         ->where('notifications.data.0.actor.id', $stargazers[3]->id)
         ->where('notifications.data.0.commit.id', $commit->id)
         ->where('notifications.data.0.actors_count', 4)
-        ->where('notifications.data.0.unread_count', 0)
+        ->where('notifications.data.0.unread_count', 4)
         ->has('notifications.data.0.actors', 3)
         ->where('notifications.data.0.actors.0.id', $stargazers[3]->id)
         ->missing('notifications.data.0.actors.0.email')
         ->missing('notifications.data.0.position'));
-
-    expect($user->notifications()->unread()->exists())->toBeFalse();
 });
 
 it('shows the images of a starred commit', function (): void {

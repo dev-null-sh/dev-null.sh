@@ -6,20 +6,28 @@ namespace App\Actions;
 
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Enums\TopicType;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\User;
+use App\Queries\ProfileRecipientsQuery;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final readonly class CreateFirstCommitNotifications
 {
+    public function __construct(private ProfileRecipientsQuery $recipients)
+    {
+        //
+    }
+
     /**
      * Tells the author's followers about their first commit, so it gets an answer: a newcomer's followers mostly
      * came from GitHub, and never chose to follow them here. Only once the commit is approved, and only for the
      * author's first top-level commit that was ever approved. Never from or to bots, nor to the people it mentions
-     * or quotes, who already hear about it. Nobody hears from people they mute or from across a block. Safe to call
+     * or quotes, or the members of the organizations it does, who already hear about it. Nobody hears from people they mute or from across a block. Safe to call
      * more than once.
      */
     public function handle(Commit ...$commits): void
@@ -59,7 +67,13 @@ final readonly class CreateFirstCommitNotifications
                 ->whereNotIn('users.github_id', User::BOT_GITHUB_IDS)
                 ->whereNotIn('users.id', $author->mutedBy()->newPivotQuery()->select('muter_id'))
                 ->whereNotIn('users.id', $author->idsAcrossBlocks())
-                ->whereNotIn('users.id', [...array_values($commit->mentions ?? []), ...array_filter([$commit->quotedCommit?->user_id])])
+                ->whereNotIn('users.id', DB::query()->fromSub($this->recipients->builder(), 'recipients')
+                    ->whereIn('profile_id', [
+                        ...array_values($commit->mentions ?? []),
+                        ...array_filter([$commit->quotedCommit?->author_id]),
+                        ...DB::table('commit_topics')->where('commit_id', $commit->id)->where('topic_type', TopicType::Organization)->pluck('topic_id'),
+                    ])
+                    ->select('user_id'))
                 ->pluck('users.id');
 
             foreach ($followerIds as $followerId) {

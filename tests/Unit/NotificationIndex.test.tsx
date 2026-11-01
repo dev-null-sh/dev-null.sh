@@ -14,6 +14,7 @@ import type {
     Commit,
     Notification,
     NotificationGroup,
+    Organization,
     User,
 } from '../../resources/js/types';
 
@@ -276,6 +277,60 @@ test('links the actor to their profile apart from the commit link', async () => 
     assert.doesNotMatch(links[2], /hover:underline/);
     assert.doesNotMatch(body, /<a\b(?:(?!<\/a>).)*<a\b/s);
     assert.match(body, /starred your commit<\/a>/);
+});
+
+test("says a member hears about the organization's commits and mentions for the organization", async () => {
+    const organization = {
+        id: 'laravel',
+        handle: 'laravel',
+        name: 'Laravel',
+        lane: null,
+    } as Organization;
+    const body = await render(
+        (['replied', 'quoted', 'starred', 'mentioned'] as const).map(
+            (type) =>
+                ({
+                    ...notification,
+                    id: type,
+                    group_id: type,
+                    type,
+                    organization,
+                }) as NotificationGroup,
+        ),
+    );
+
+    assert.match(body, /replied to @laravel&#x27;s commit<\/a>/);
+    assert.match(body, /quoted @laravel&#x27;s commit<\/a>/);
+    assert.match(
+        body,
+        /href="\/@laravel\/commits\/reply"[^>]*>starred @laravel&#x27;s commit<\/a>/,
+    );
+    assert.match(body, /mentioned @laravel<\/a>/);
+    assert.doesNotMatch(body, /your commit|mentioned you/);
+});
+
+test('tells every member of the organization about its rejected commit', async () => {
+    const organization = {
+        id: 'laravel',
+        handle: 'laravel',
+        name: 'Laravel',
+        lane: null,
+    } as Organization;
+    const body = await render([
+        {
+            ...notification,
+            type: 'rejected',
+            reason: 'Spam',
+            organization,
+        } as NotificationGroup,
+    ]);
+
+    assert.match(body, /@laravel&#x27;s commit was rejected/);
+    assert.match(
+        body,
+        /Only @laravel&#x27;s members can see this update and its rejected commit\./,
+    );
+    assert.doesNotMatch(body, /Your commit|Only you/);
 });
 
 test('previews the person of a single reply from the avatar and the name', async () => {

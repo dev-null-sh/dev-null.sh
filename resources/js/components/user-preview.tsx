@@ -9,9 +9,8 @@ import { BioText } from '@/components/bio-text';
 import {
     FollowLabel,
     followVisitOptions,
-    onFollowHttpException,
+    useFollow,
     useFollowHover,
-    useIsFollowing,
 } from '@/components/follow-button';
 import {
     LiveAvatarMarker,
@@ -21,7 +20,7 @@ import { LocalTime } from '@/components/local-time';
 import { MembersLink } from '@/components/members-link';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
-import { UserSafetyMenu } from '@/components/user-safety-menu';
+import { useIsMuting, UserSafetyMenu } from '@/components/user-safety-menu';
 import { signIn } from '@/lib/auth';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
@@ -317,10 +316,6 @@ export function UserPreview({
                         <UserPreviewContent
                             user={previewUser}
                             data={data}
-                            onChange={(next) => {
-                                cache.set(previewUrl, next);
-                                setData(next);
-                            }}
                             onMenuOpenChange={(isOpen) => {
                                 isMenuOpen.current = isOpen;
                                 clearTimeout(timer.current);
@@ -340,12 +335,10 @@ export function UserPreview({
 function UserPreviewContent({
     user,
     data,
-    onChange,
     onMenuOpenChange,
 }: {
     user: User | Profile;
     data: PreviewData | null;
-    onChange: (data: PreviewData) => void;
     onMenuOpenChange: (isOpen: boolean) => void;
 }) {
     const {
@@ -356,17 +349,14 @@ function UserPreviewContent({
     const lane = laneColor(user.lane);
 
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
-    const [isFollowing, setIsFollowing] = useIsFollowing(
+    const { isFollowing, callbacks } = useFollow(
         user,
         data?.isFollowing ?? false,
     );
+    const [isMuting] = useIsMuting(user, data?.isMuting ?? false);
+    const followsDelta =
+        Number(isFollowing) - Number(data?.isFollowing ?? false);
 
-    const [pendingFollows, setPendingFollows] = useState<boolean | null>(null);
-    const shownIsFollowing = pendingFollows ?? isFollowing;
-
-    /**
-     * The button flips right away, but like every other follow control the shared state only changes once the server confirms, so there is nothing to roll back.
-     */
     const toggleFollow = () => {
         if (auth.user === null) {
             signIn();
@@ -374,40 +364,21 @@ function UserPreviewContent({
             return;
         }
 
-        if (!data || data.isUnavailable || pendingFollows !== null) {
+        if (!data || data.isUnavailable) {
             return;
         }
 
-        const follows = !isFollowing;
-        setPendingFollows(follows);
-
         router.visit(
-            follows
-                ? UserFollowController.store(user)
-                : UserFollowController.destroy(user),
+            isFollowing
+                ? UserFollowController.destroy(user)
+                : UserFollowController.store(user),
             {
                 preserveScroll: true,
                 preserveState: true,
                 async: true,
                 ...followVisitOptions(component, log, commits),
-                onSuccess: () => {
-                    setIsFollowing(follows);
-                    router.flushAll();
-                    onChange({
-                        ...data,
-                        isFollowing: follows,
-                        user: {
-                            ...data.user,
-                            followers_count:
-                                data.user.followers_count +
-                                Number(follows) -
-                                Number(data.isFollowing),
-                        },
-                    });
-                },
-                onHttpException: (response) =>
-                    onFollowHttpException(user, response),
-                onFinish: () => setPendingFollows(null),
+                ...callbacks,
+                onSuccess: () => router.flushAll(),
             },
         );
     };
@@ -415,7 +386,11 @@ function UserPreviewContent({
     return (
         <div style={{ '--lane': lane } as CSSProperties}>
             <div className="flex items-start justify-between gap-3">
-                <Link href={show(user)} className="relative rounded-full">
+                <Link
+                    href={show(user)}
+                    prefetch
+                    className="relative rounded-full"
+                >
                     <UserAvatar
                         user={user}
                         className={cn(
@@ -442,7 +417,7 @@ function UserPreviewContent({
                                 <Button
                                     size="sm"
                                     variant={
-                                        shownIsFollowing ? 'outline' : 'default'
+                                        isFollowing ? 'outline' : 'default'
                                     }
                                     className="group/follow min-w-26"
                                     onClick={() => {
@@ -451,15 +426,14 @@ function UserPreviewContent({
                                     }}
                                     onMouseLeave={onMouseLeave}
                                     aria-label={
-                                        shownIsFollowing
+                                        isFollowing
                                             ? `Unfollow @${user.handle}`
                                             : `${data.followsYou ? 'Follow back' : 'Follow'} @${user.handle}`
                                     }
-                                    aria-busy={pendingFollows !== null}
                                     data-test="user-preview-follow-button"
                                 >
                                     <FollowLabel
-                                        isFollowing={shownIsFollowing}
+                                        isFollowing={isFollowing}
                                         isJustToggled={isJustToggled}
                                         followsYou={data.followsYou}
                                     />
@@ -473,6 +447,7 @@ function UserPreviewContent({
 
             <Link
                 href={show(user)}
+                prefetch
                 className="mt-3 block truncate font-semibold hover:underline"
             >
                 {user.name}
@@ -488,7 +463,7 @@ function UserPreviewContent({
                         Follows you
                     </span>
                 )}
-                {data?.isMuting && (
+                {isMuting && (
                     <span className="ml-1 shrink-0 rounded-sm bg-muted px-1.5 py-0.5 font-sans text-xs">
                         Muted
                     </span>
@@ -554,13 +529,15 @@ function UserPreviewContent({
                             <span
                                 className="font-mono font-medium"
                                 title={exactCountTitle(
-                                    data.user.followers_count,
+                                    data.user.followers_count + followsDelta,
                                 )}
                             >
-                                {formatCount(data.user.followers_count)}
+                                {formatCount(
+                                    data.user.followers_count + followsDelta,
+                                )}
                             </span>{' '}
                             <span className="text-muted-foreground">
-                                {data.user.followers_count === 1
+                                {data.user.followers_count + followsDelta === 1
                                     ? 'follower'
                                     : 'followers'}
                             </span>

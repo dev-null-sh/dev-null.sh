@@ -60,7 +60,7 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-test('pins and unpins only after persistence succeeds, updating the inbox order and thread', async () => {
+test('pins and unpins straight away, then settles on the pin time the server saved', async () => {
     const target = orgTarget(older);
     seedThread(target, {
         messages: [],
@@ -87,7 +87,7 @@ test('pins and unpins only after persistence succeeds, updating the inbox order 
     const saving = setConversationPinned(target, true);
     assert.deepEqual(
         chatSnapshot().conversations?.map(({ id }) => id),
-        ['recent', 'older'],
+        ['older', 'recent'],
     );
     finish(Response.json({ pinned_at: at }));
     await saving;
@@ -102,6 +102,10 @@ test('pins and unpins only after persistence succeeds, updating the inbox order 
         JSON.stringify({ pinned: true }),
     );
     const removing = setConversationPinned(target, false);
+    assert.deepEqual(
+        chatSnapshot().conversations?.map(({ id }) => id),
+        ['recent', 'older'],
+    );
     finish(Response.json({ pinned_at: null }));
     await removing;
     assert.deepEqual(

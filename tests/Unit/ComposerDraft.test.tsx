@@ -88,6 +88,7 @@ const { LinkCardPicker } =
     await import('../../resources/js/components/link-card-picker');
 const { PollEditor } =
     await import('../../resources/js/components/poll-editor');
+const { GraphRail } = await import('../../resources/js/components/graph-rail');
 
 type Element = ReactElement<Record<string, unknown>>;
 
@@ -695,6 +696,36 @@ test('commands are not offered while the draft has images, a poll or a schedule'
         render().fields.some((element) => element.type === IssueCommandBadge),
         false,
     );
+});
+
+test('schedules as the organization picked from the avatar', () => {
+    const organization = {
+        type: 'organization',
+        id: 'laravel',
+        handle: 'laravel',
+        lane: null,
+    };
+    const node = () =>
+        render().fields.find((element) => element.type === GraphRail)!.props
+            .node as Element;
+    const find = (key: string, value: unknown) =>
+        render().fields.find((element) => element.props[key] === value)!;
+
+    (find('aria-controls', 'body-schedule').props.onClick as () => void)();
+    (node().props.onChange as (author: unknown) => void)(organization);
+    (find('id', 'body-scheduled-at').props.onChange as (value: string) => void)(
+        '2026-10-17T10:30',
+    );
+
+    assert.equal(node().props.author, organization);
+    assert.deepEqual(render().form.props.transform({ body: draft.body }), {
+        body: draft.body,
+        commit_rules_accepted: true,
+        author: 'laravel',
+        scheduled_at: new Date('2026-10-17T10:30')
+            .toISOString()
+            .replace(/\.\d{3}Z$/, '+00:00'),
+    });
 });
 
 test('turning scheduling off clears the chosen time and commits now', () => {

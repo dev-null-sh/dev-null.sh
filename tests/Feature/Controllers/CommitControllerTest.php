@@ -48,7 +48,7 @@ it('flashes the created commit', function (): void {
     $response->assertInertiaFlash('committed', [
         'id' => $commit->id,
         'body' => 'Initial commit',
-        'user' => ['handle' => $user->handle],
+        'author' => ['handle' => $user->handle],
     ])->assertInertiaFlash('achievementsUnlocked', ['init']);
 });
 
@@ -67,7 +67,7 @@ it('keeps the created commit flashed through the reload a deploy forces on the r
     expect($page['flash']['committed'] ?? null)->toBe([
         'id' => $user->commits()->sole()->id,
         'body' => 'Initial commit',
-        'user' => ['handle' => $user->handle],
+        'author' => ['handle' => $user->handle],
     ]);
 });
 

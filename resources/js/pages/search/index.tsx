@@ -9,7 +9,7 @@ import { GraphCanvas } from '@/components/graph-canvas';
 import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
 import { searchCommits, suggestedQueries } from '@/lib/commit-search';
-import { authorLaneColor, laneColor } from '@/lib/utils';
+import { authorLaneColor } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 const skeletonDelay = 300;
@@ -24,16 +24,15 @@ export default function Index({ query }: { query: string }) {
     const { results, isWaiting } = useCommitSearch(query);
 
     const search = (term: string) => {
-        router.get(
-            SearchController.index({ query: term === '' ? {} : { q: term } }),
-            {},
-            {
-                preserveState: true,
-                preserveScroll: true,
-                replace: true,
-                onSuccess: () => rememberSearch(userId, term),
-            },
-        );
+        router.replace({
+            url: SearchController.index.url({
+                query: term === '' ? {} : { q: term },
+            }),
+            props: (props: { query: string }) => ({ ...props, query: term }),
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => rememberSearch(userId, term),
+        });
     };
 
     const submit = (event: FormEvent) => {

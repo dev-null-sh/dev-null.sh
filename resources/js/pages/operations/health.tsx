@@ -134,6 +134,7 @@ function BacklogsPanel({
                         )}
                         {moderation.pending > 0 && (
                             <Link
+                                prefetch
                                 href={ModerationController.show()}
                                 className="rounded-sm text-primary underline-offset-4 hover:underline"
                             >

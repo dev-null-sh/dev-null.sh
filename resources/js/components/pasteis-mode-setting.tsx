@@ -1,13 +1,14 @@
 import { router, usePage } from '@inertiajs/react';
-import { useState } from 'react';
 import { toast } from 'sonner';
 import { update } from '@/actions/App/Http/Controllers/UserPasteisModeController';
+import { usePicked } from '@/hooks/use-picked';
 import { cn } from '@/lib/utils';
 
 export function PasteisModeSetting() {
     const { auth } = usePage().props;
-    const enabled = auth.pasteis !== null;
-    const [processing, setProcessing] = useState(false);
+    const { picked, pick } = usePicked<boolean>();
+    const processing = picked !== null;
+    const enabled = picked ?? auth.pasteis !== null;
 
     const toggle = () => {
         if (processing) {
@@ -20,8 +21,7 @@ export function PasteisModeSetting() {
             {
                 preserveScroll: true,
                 only: ['auth'],
-                onStart: () => setProcessing(true),
-                onFinish: () => setProcessing(false),
+                onFinish: pick(!enabled),
                 onError: () =>
                     toast.error(
                         'Could not save pastéis mode. Please try again.',

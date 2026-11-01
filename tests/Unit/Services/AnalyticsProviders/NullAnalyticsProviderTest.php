@@ -18,6 +18,7 @@ it('has a site nobody visits', function (): void {
     expect($provider->traffic($from, $to))->toBe([
         'current' => 0,
         'totals' => ['visitors' => 0, 'pageviews' => 0, 'avg_duration' => 0, 'bounce_rate' => 0.0],
+        'timeline' => [],
         'breakdowns' => ['pages' => [], 'referrers' => [], 'countries' => [], 'devices' => [], 'browsers' => []],
     ])
         ->and($provider->eventVisitors($from, $to, 'signup'))->toBeNull()

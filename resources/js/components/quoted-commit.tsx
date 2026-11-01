@@ -93,6 +93,7 @@ export function QuotedCommit({
 
     return (
         <Link
+            prefetch
             href={CommitController.show({ profile: commit.author, commit })}
             className={cn(
                 className,

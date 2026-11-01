@@ -24,7 +24,7 @@ it('knows nobody and holds nothing', function (): void {
         ->and($provider->sshKeys('octocat'))->toBe([])
         ->and($provider->avatar('https://avatars.githubusercontent.com/u/583231'))->toBeNull()
         ->and($provider->readme('octocat'))->toBeNull()
-        ->and($provider->closedPullRequests('dev-null-sh/dev-null.sh', 'production', 1, 100))->toBe([])
+        ->and($provider->commits('dev-null-sh/dev-null.sh', 'production', 1, 100))->toBe([])
         ->and($provider->contributors('dev-null-sh/dev-null.sh', 1, 100))->toBe([])
         ->and($provider->issue('dev-null-sh/dev-null.sh', 1))->toBeNull()
         ->and($provider->createIssue('Broken', 'Broken.', ['bug']))->toBe(['number' => 0, 'url' => 'https://github.com/dev-null-sh/dev-null.sh/issues'])

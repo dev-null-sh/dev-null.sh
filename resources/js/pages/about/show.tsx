@@ -64,7 +64,11 @@ function EventTitle({ event }: { event: StoryEvent }) {
     const face = event.commit?.author ?? event.person;
 
     if (face) {
-        return <Link href={`/@${face.login}`}>{event.title}</Link>;
+        return (
+            <Link href={`/@${face.login}`} prefetch>
+                {event.title}
+            </Link>
+        );
     }
 
     if (event.href === undefined) {
@@ -92,6 +96,7 @@ function JoinCommit({ commit }: { commit: StoryCommit }) {
 
     return (
         <Link
+            prefetch
             href={`/@${author.login}/commits/${commit.id}`}
             className="mt-2 block rounded-lg border bg-background px-3.5 py-3 no-underline! transition-colors hover:bg-muted"
         >
@@ -225,6 +230,7 @@ function Founders() {
             {storyFounders.map((founder) => (
                 <li key={founder.login}>
                     <Link
+                        prefetch
                         href={`/@${founder.login}`}
                         className="flex flex-col items-center gap-2 rounded-md border px-3 py-4 text-center no-underline! transition-colors hover:bg-muted"
                     >
@@ -317,6 +323,7 @@ function Contributors({ contributors }: { contributors: StoryContributor[] }) {
                             className="block"
                         >
                             <Link
+                                prefetch
                                 href={show({ handle: contributor.handle })}
                                 aria-label={`@${contributor.handle} on /dev/null`}
                                 className={className}

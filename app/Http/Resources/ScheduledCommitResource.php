@@ -11,7 +11,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
  * A commit the user queued, as the web's Scheduled page shows it. Once submitted, its body lives on the commit and
- * only the status says what became of it: scheduled, the commit's moderation status, or deleted.
+ * only the status says what became of it: scheduled, the commit's moderation status, or deleted. Its author is the
+ * organization it goes out as, or null when it goes out as the user.
  *
  * @mixin ScheduledCommit
  */
@@ -24,6 +25,7 @@ final class ScheduledCommitResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'author' => $this->author === null ? null : ProfileResource::make($this->author)->resolve($request),
             ...($this->submitted_at === null && $this->body !== null
                 ? ['body' => $this->body, ...resolve(CommitBodies::class)->segments($this->body)]
                 : ['body' => null, 'body_segments' => [], 'preview_segments' => null]),

@@ -6,7 +6,9 @@ namespace App\Http\Requests;
 
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
+use App\Models\Organization;
 use App\Models\User;
+use App\Rules\OrganizationToPostAs;
 use App\Rules\ScheduledCommitLimit;
 use App\Services\Urls;
 use Illuminate\Contracts\Validation\ValidationRule;
@@ -34,6 +36,7 @@ final class CreateScheduledCommitRequest extends FormRequest
 
         return [
             'body' => CreateCommitRequest::bodyRules($this->hasFile('images')),
+            'author' => ['nullable', 'string', new OrganizationToPostAs($user)],
             'scheduled_at' => ['required', 'date_format:Y-m-d\TH:i:sP', 'after:now', 'before_or_equal:'.now()->addDays(30)->toIso8601String(), new ScheduledCommitLimit($user)],
             'parent_id' => ['prohibited'],
             'link_preview_url' => ['nullable', 'string', Rule::in(is_string($body) ? resolve(Urls::class)->all($body) : [])],
@@ -71,6 +74,17 @@ final class CreateScheduledCommitRequest extends FormRequest
         }
 
         return $this->filled('link_preview_url') ? $this->string('link_preview_url')->value() : false;
+    }
+
+    /**
+     * The organization the commit goes out as, or null when it goes out as the user.
+     */
+    public function organization(): ?Organization
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return OrganizationToPostAs::of($user, $this->input('author'));
     }
 
     public function poll(): ?NewPoll

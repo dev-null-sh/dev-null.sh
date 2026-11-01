@@ -13,28 +13,26 @@ beforeEach(function (): void {
 });
 
 /**
- * @param  list<array{number: int, title: string, merged_at: string|null}>  $pullRequests
+ * @param  list<array{sha: string, message: string, committed_at: string, parents: list<string>}>  $commits
  * @return list<array<string, mixed>>
  */
-function emailDraftPullRequests(array $pullRequests): array
+function emailDraftCommits(array $commits): array
 {
-    return array_map(fn (array $pullRequest): array => [
-        ...$pullRequest,
-        'html_url' => "https://github.com/dev-null-sh/dev-null.sh/pull/{$pullRequest['number']}",
-        'updated_at' => $pullRequest['merged_at'] ?? '2026-10-01T00:00:00Z',
-        'merge_commit_sha' => mb_str_pad((string) $pullRequest['number'], 40, 'a'),
-        'user' => ['id' => 1, 'login' => 'octocat', 'avatar_url' => 'https://avatars.githubusercontent.com/u/1'],
-    ], $pullRequests);
+    return array_map(fn (array $commit): array => [
+        ...$commit,
+        'url' => "https://github.com/dev-null-sh/dev-null.sh/commit/{$commit['sha']}",
+        'author' => ['id' => 1, 'login' => 'octocat', 'avatar_url' => 'https://avatars.githubusercontent.com/u/1'],
+    ], $commits);
 }
 
-it('drafts an email from what was merged in the time it looks back over', function (string $draft, int $days, array $merged): void {
-    $this->mock(GitHubProvider::class)->shouldReceive('closedPullRequests')->with('dev-null-sh/dev-null.sh', 'production', Mockery::any(), Mockery::any())->andReturn(emailDraftPullRequests([
-        ['number' => 3, 'title' => 'feat: email everyone', 'merged_at' => '2026-10-23T10:00:00Z'],
-        ['number' => 2, 'title' => 'docs: closed without merging', 'merged_at' => null],
-        ['number' => 1, 'title' => 'fix: older fix', 'merged_at' => '2026-10-10T10:00:00Z'],
+it('drafts an email from what landed in the time it looks back over', function (string $draft, int $days, array $landed): void {
+    $this->mock(GitHubProvider::class)->shouldReceive('commits')->with('dev-null-sh/dev-null.sh', 'production', Mockery::any(), Mockery::any())->andReturn(emailDraftCommits([
+        ['sha' => 'c3', 'message' => 'feat: email everyone (#3)', 'committed_at' => '2026-10-23T10:00:00Z', 'parents' => ['c1']],
+        ['sha' => 'c2', 'message' => 'docs: on a branch production never took', 'committed_at' => '2026-10-22T10:00:00Z', 'parents' => ['c1']],
+        ['sha' => 'c1', 'message' => 'fix: older fix', 'committed_at' => '2026-10-10T10:00:00Z', 'parents' => []],
     ]));
     $this->mock(EmailDraftProvider::class)->shouldReceive('draft')->once()
-        ->withArgs(fn (int $lookBack, array $pullRequests): bool => $lookBack === $days && array_column($pullRequests, 'number') === $merged)
+        ->withArgs(fn (int $lookBack, array $commits): bool => $lookBack === $days && array_column($commits, 'sha') === $landed)
         ->andReturn(['subject' => 'What shipped', 'body' => "## New\n\n- Emails"]);
 
     $this->actingAs(User::factory()->create(['handle' => 'admin']))
@@ -42,12 +40,12 @@ it('drafts an email from what was merged in the time it looks back over', functi
         ->assertOk()
         ->assertExactJson(['subject' => 'What shipped', 'body' => "## New\n\n- Emails"]);
 })->with([
-    'weekly' => ['weekly', 7, [3]],
-    'monthly' => ['monthly', 30, [3, 1]],
+    'weekly' => ['weekly', 7, ['c3']],
+    'monthly' => ['monthly', 30, ['c3', 'c1']],
 ]);
 
-it('still drafts when nothing was merged', function (): void {
-    $this->mock(GitHubProvider::class)->shouldReceive('closedPullRequests')->with('dev-null-sh/dev-null.sh', 'production', Mockery::any(), Mockery::any())->andReturn([]);
+it('still drafts when nothing landed', function (): void {
+    $this->mock(GitHubProvider::class)->shouldReceive('commits')->with('dev-null-sh/dev-null.sh', 'production', Mockery::any(), Mockery::any())->andReturn([]);
     $this->mock(EmailDraftProvider::class)->shouldReceive('draft')->once()->with(7, [])->andReturn(['subject' => 'Quiet week', 'body' => 'Nothing shipped.']);
 
     $this->actingAs(User::factory()->create(['handle' => 'admin']))
@@ -57,7 +55,7 @@ it('still drafts when nothing was merged', function (): void {
 });
 
 it('fails when the changelog can not be read', function (): void {
-    $this->mock(GitHubProvider::class)->shouldReceive('closedPullRequests')->andThrow(new ConnectionException('timed out'));
+    $this->mock(GitHubProvider::class)->shouldReceive('commits')->andThrow(new ConnectionException('timed out'));
     $this->mock(EmailDraftProvider::class)->shouldNotReceive('draft');
 
     $this->actingAs(User::factory()->create(['handle' => 'admin']))

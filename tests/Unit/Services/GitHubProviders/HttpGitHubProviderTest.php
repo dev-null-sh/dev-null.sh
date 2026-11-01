@@ -190,15 +190,44 @@ it('reads the profile readme as html, and is null when there is none', function 
     Http::assertSent(fn (Request $request): bool => $request->header('Accept') === ['application/vnd.github.html+json']);
 });
 
-it('reads a page of the closed pull requests into the branch, most recently updated first', function (): void {
-    Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/pulls*' => Http::response([['number' => 1]])]);
+it('reads a page of the commits on the branch, with the author GitHub links to each, if any', function (): void {
+    Http::fake(['api.github.com/repos/dev-null-sh/dev-null.sh/commits*' => Http::response([
+        [
+            'sha' => 'aaa',
+            'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/aaa',
+            'commit' => ['message' => 'feat: something (#1)', 'committer' => ['date' => '2026-10-18T10:00:00Z'], 'author' => ['name' => 'Octo Cat']],
+            'author' => ['id' => 583231, 'login' => 'octocat', 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231?v=4'],
+            'parents' => [['sha' => 'bbb'], ['sha' => 'ccc']],
+        ],
+        [
+            'sha' => 'bbb',
+            'html_url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/bbb',
+            'commit' => ['message' => 'fix: pushed from an unknown email', 'committer' => ['date' => '2026-10-18T09:00:00Z'], 'author' => ['name' => 'Someone']],
+            'author' => null,
+            'parents' => [],
+        ],
+    ])]);
 
-    expect(new HttpGitHubProvider()->closedPullRequests('dev-null-sh/dev-null.sh', 'production', 2, 100))->toBe([['number' => 1]]);
+    expect(new HttpGitHubProvider()->commits('dev-null-sh/dev-null.sh', 'production', 2, 100))->toBe([
+        [
+            'sha' => 'aaa',
+            'message' => 'feat: something (#1)',
+            'url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/aaa',
+            'committed_at' => '2026-10-18T10:00:00Z',
+            'parents' => ['bbb', 'ccc'],
+            'author' => ['id' => 583231, 'login' => 'octocat', 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231?v=4'],
+        ],
+        [
+            'sha' => 'bbb',
+            'message' => 'fix: pushed from an unknown email',
+            'url' => 'https://github.com/dev-null-sh/dev-null.sh/commit/bbb',
+            'committed_at' => '2026-10-18T09:00:00Z',
+            'parents' => [],
+            'author' => ['id' => null, 'login' => 'Someone', 'avatar_url' => 'https://avatars.githubusercontent.com/u/10137'],
+        ],
+    ]);
 
-    Http::assertSent(fn (Request $request): bool => $request['state'] === 'closed'
-        && $request['base'] === 'production'
-        && $request['sort'] === 'updated'
-        && $request['direction'] === 'desc'
+    Http::assertSent(fn (Request $request): bool => $request['sha'] === 'production'
         && $request['per_page'] === 100
         && $request['page'] === 2);
 });

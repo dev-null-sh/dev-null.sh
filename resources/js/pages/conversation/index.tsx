@@ -264,6 +264,7 @@ function ThreadHeader({
             <BackToRemotes />
             <Link
                 href={show(partner)}
+                prefetch
                 className="flex min-w-0 items-center gap-3 rounded-lg"
             >
                 <UserAvatar

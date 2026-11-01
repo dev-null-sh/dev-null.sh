@@ -11,7 +11,7 @@ use App\Contracts\Services\EmailDraftProvider;
  */
 final readonly class NullEmailDraftProvider implements EmailDraftProvider
 {
-    public function draft(int $days, array $pullRequests): array
+    public function draft(int $days, array $commits): array
     {
         return ['subject' => '', 'body' => ''];
     }

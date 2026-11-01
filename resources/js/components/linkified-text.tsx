@@ -225,6 +225,7 @@ function CommitLink({
 
     return (
         <Link
+            prefetch
             href={CommitController.show({ profile: handle, commit })}
             title={url}
             aria-label={`@${handle}’s commit ${hash}`}
@@ -710,6 +711,7 @@ function withMentions(
                     userId={userId}
                 >
                     <Link
+                        prefetch
                         href={show(userId)}
                         className="font-medium text-primary hover:underline"
                         data-test="mention"
@@ -719,6 +721,7 @@ function withMentions(
                 </UserPreview>
             ) : organizationId ? (
                 <Link
+                    prefetch
                     key={`mention-${offset + match.index}`}
                     href={showOrganizationMention(organizationId)}
                     className="font-medium text-primary hover:underline"

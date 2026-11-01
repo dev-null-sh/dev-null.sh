@@ -31,6 +31,7 @@ final class CommitBuilder extends Builder
     private const array COLUMNS_BUT_EMBEDDING = [
         'id', 'user_id', 'body', 'created_at', 'updated_at', 'status', 'parent_id', 'deleted_at', 'link_preview_id',
         'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count', 'author_id',
+        'headlines_classified_at',
     ];
 
     /**
@@ -65,8 +66,8 @@ final class CommitBuilder extends Builder
     }
 
     /**
-     * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits.
-     * A block hides the commits from each one's profile from the other.
+     * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits,
+     * and the members of an organization the organization's. A block hides the commits from each one's profile from the other.
      */
     public function visibleTo(?User $user): self
     {
@@ -76,7 +77,8 @@ final class CommitBuilder extends Builder
 
         return $this->where(fn (Builder $query): Builder => $query
             ->where($this->qualifyColumn('status'), CommitStatus::Approved)
-            ->orWhere($this->qualifyColumn('user_id'), $user->id))
+            ->orWhere($this->qualifyColumn('user_id'), $user->id)
+            ->orWhereIn($this->qualifyColumn('author_id'), $user->organizations()->newPivotQuery()->select('organization_id')))
             ->where(fn (Builder $query): Builder => $query
                 ->whereNull($this->qualifyColumn('author_id'))
                 ->orWhereNotIn($this->qualifyColumn('author_id'), $user->idsAcrossBlocks()));

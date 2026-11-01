@@ -13,7 +13,7 @@ import { OrganizationAvatar } from '@/components/organization-avatar';
 import { UserAvatar } from '@/components/user-avatar';
 import { bridgeDuration } from '@/lib/graph';
 import { cn, laneStrokeStyle } from '@/lib/utils';
-import type { CommitAuthor, User } from '@/types';
+import type { OrganizationAuthor, User } from '@/types';
 
 type Props = {
     lane: string;
@@ -393,9 +393,7 @@ export function RailAvatar({
     user,
     progress,
 }: {
-    user:
-        | Pick<User, 'name' | 'avatar_url' | 'live'>
-        | Extract<CommitAuthor, { type: 'organization' }>;
+    user: Pick<User, 'name' | 'avatar_url' | 'live'> | OrganizationAuthor;
     // Fills the ring clockwise from 0 to 1, as a post grows toward its limit. At 0 the ring stays dashed.
     progress?: number;
 }) {

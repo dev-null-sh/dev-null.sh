@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Dto\ReaderClock;
+use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
 use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
@@ -16,6 +18,7 @@ use App\Queries\DevelopersCountQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
+use App\Services\Features;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -93,6 +96,12 @@ final class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'bioProfiles' => fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [],
+                // The organizations the user is a member of, shown like the commits they author: theirs too, and who they
+                // can post as once the feature is on.
+                'organizations' => fn (): array => $user instanceof User ? $user->organizations()->get()
+                    ->map(fn (Organization $organization): array => ['type' => 'organization', ...$organization->toArray()])
+                    ->all() : [],
+                'canPostAsOrganization' => fn (): bool => resolve(Features::class)->enabled(Feature::OrganizationCommits),
                 'isAdmin' => $isAdmin,
                 'automaticTranslation' => $user->automatic_translation ?? true,
                 'mustReadCommitRules' => $user instanceof User && $user->commit_rules_accepted_at === null,
@@ -100,6 +109,7 @@ final class HandleInertiaRequests extends Middleware
                     'dateFormat' => $user?->date_format,
                     'timeFormat' => $user?->time_format,
                 ],
+                'termsToAccept' => $user instanceof User && ! $user->hasAcceptedCurrentTerms() ? config()->string('legal.terms_version') : null,
                 'log' => fn (): ?Log => $request->user()?->log,
                 'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0,
                 'unreadMessagesCount' => fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0,
@@ -119,9 +129,9 @@ final class HandleInertiaRequests extends Middleware
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
-            'liveFollowing' => fn (): Collection => $user instanceof User && $hasAside
-                ? resolve(LiveFollowingQuery::class)->get($user)
-                : collect(),
+            ...$user instanceof User && $hasAside ? [
+                'liveFollowing' => Inertia::once(fn (): Collection => resolve(LiveFollowingQuery::class)->get($user))->until(60),
+            ] : [],
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,
             'clock' => ReaderClock::of($request)->toArray(),

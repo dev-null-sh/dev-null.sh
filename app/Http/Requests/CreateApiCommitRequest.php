@@ -7,8 +7,10 @@ namespace App\Http\Requests;
 use App\Dto\NewPoll;
 use App\Enums\PollDuration;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\MentionedUsersQuery;
+use App\Rules\OrganizationToPostAs;
 use App\Rules\VisibleCommit;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -52,6 +54,7 @@ final class CreateApiCommitRequest extends FormRequest
 
         return [
             'body' => CreateCommitRequest::bodyRules($this->hasFile('images')),
+            'author' => ['nullable', 'string', new OrganizationToPostAs($user)],
             'parent_id' => ['bail', 'nullable', 'uuid', new VisibleCommit($user)],
             'reply_recipients' => ['sometimes', 'list', 'max:'.CreateCommitReplyRequest::MAX_REPLY_RECIPIENTS],
             'reply_recipients.*' => ['required', 'string', 'distinct', Rule::in(array_values($this->parentMentions()))],
@@ -165,6 +168,17 @@ final class CreateApiCommitRequest extends FormRequest
         $recipients = $this->validated('reply_recipients', []);
 
         return array_intersect($this->parentMentions(), $recipients);
+    }
+
+    /**
+     * The organization the user posts as, or null when they post as themselves.
+     */
+    public function organization(): ?Organization
+    {
+        $user = $this->user();
+        assert($user instanceof User);
+
+        return OrganizationToPostAs::of($user, $this->input('author'));
     }
 
     /**
