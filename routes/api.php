@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Exceptions\ApiException;
 use App\Http\Controllers\Api\CallController;
+use App\Http\Controllers\Api\CommitContinuationController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
 use App\Http\Controllers\Api\CommitPinController;
@@ -260,6 +261,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('commits/{commit}/replies', [CommitReplyController::class, 'index'])
             ->withTrashed()
             ->name('api-commit-reply.index');
+        Route::get('commits/{commit}/continuation', [CommitContinuationController::class, 'index'])
+            ->name('api-commit-continuation.index');
 
         // Commit Report: a commit that doesn't exist or was deleted gets the same answer as one the user may not see...
         Route::post('commits/{commit}/reports', [CommitReportController::class, 'store'])
