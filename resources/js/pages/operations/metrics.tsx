@@ -908,7 +908,7 @@ function ActiveUserCounts({
                         aria-hidden
                         className="size-2.5 rounded-sm bg-muted-foreground/45"
                     />
-                    lost, below: first of 7 days without a visit
+                    lost: not back in the 7 following days
                 </li>
             </ul>
             <DailyBars
@@ -949,7 +949,7 @@ function ActiveUserCounts({
                             `${formatCount(day.regular)} regulars, ${formatCount(day.back)} back after 7+ days away`,
                             day.lost === null
                                 ? 'lost: counted from tomorrow'
-                                : `${formatCount(day.lost)} lost: first of 7 days without a visit${day.lost_complete ? '' : ', so far'}`,
+                                : `${formatCount(day.lost)} lost: not back in the 7 following days${day.lost_complete ? '' : ', so far'}`,
                             ...(isShadowed
                                 ? [
                                       `${formatCount(Math.abs(change))} ${change >= 0 ? 'fewer' : 'more'} than the ${formatCount(before.count)} of ${formatZonedDate(before.date, 'UTC')}, net`,
