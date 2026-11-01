@@ -17,10 +17,17 @@ export function EditProfileMenu() {
 
     const sync = () =>
         router.visit(UserProfileController.update(), {
+            except: ['suggestedUsers', 'commits'],
             preserveScroll: true,
             onStart: () => setIsSyncing(true),
             onFinish: () => setIsSyncing(false),
-            onSuccess: () => router.flushAll(),
+            onSuccess: (page) => {
+                router.flushAll();
+
+                if (page.props.suggestedUsers === undefined) {
+                    router.reload({ only: ['suggestedUsers'] });
+                }
+            },
         });
 
     return (
