@@ -24,10 +24,12 @@ final readonly class DeleteOrganization
     public function handle(Organization $organization): void
     {
         DB::transaction(function () use ($organization): void {
-            // A commit posted for it meanwhile waits on the profile, then fails, rather than slipping past the deletion
-            // and losing its author while still live.
+            // A commit posted for it meanwhile waits on the profile, and one restored meanwhile on its own row, then
+            // fails or stays deleted, rather than slipping past the deletion and losing its author while still live.
             $organization->profile()->lockForUpdate()->first();
-            $organization->profile->commits()->get()->each(fn (Commit $commit): Commit => $this->deleteCommit->handle($commit));
+            $organization->profile->commits()->withTrashed()->orderBy('id')->lockForUpdate()->get()
+                ->reject(fn (Commit $commit): bool => $commit->trashed())
+                ->each(fn (Commit $commit): Commit => $this->deleteCommit->handle($commit));
             $organization->profile->commits()->withTrashed()->update(['author_id' => null]);
 
             DB::table('commit_topics')

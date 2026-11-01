@@ -237,9 +237,12 @@ final class Commit extends Model
             && $this->created_at->greaterThan(now()->subMinutes(self::CHECKING_MINUTES));
     }
 
+    /**
+     * A deleted commit comes back within seconds, unless its account or organization has gone since.
+     */
     public function isRestorable(): bool
     {
-        return $this->user_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
+        return $this->user_id !== null && $this->author_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
     }
 
     /**

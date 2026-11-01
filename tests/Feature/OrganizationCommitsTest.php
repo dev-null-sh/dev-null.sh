@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommitRestoration;
 use App\Actions\CreateCommitStar;
 use App\Actions\CreateExport;
 use App\Actions\DeleteOrganization;
@@ -217,4 +218,16 @@ it('shares the organizations a member can post as', function (): void {
             ->where('auth.organizations.0.id', $this->organization->id)
             ->where('auth.organizations.0.handle', 'Laravel')
             ->where('auth.organizations.0.lane', null));
+});
+
+it('never restores a commit of an organization GitHub no longer has, even within the undo window', function (): void {
+    $live = Commit::factory()->for($this->member)->create(['author_id' => $this->organization->id]);
+    $deleted = Commit::factory()->for($this->member)->create(['author_id' => $this->organization->id]);
+    $deleted->delete();
+
+    resolve(DeleteOrganization::class)->handle($this->organization);
+
+    foreach ([$live, $deleted] as $commit) {
+        expect(resolve(CreateCommitRestoration::class)->handle($commit)->trashed())->toBeTrue();
+    }
 });
