@@ -15,6 +15,7 @@ use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PushSubscription;
 use App\Models\User;
+use App\Models\UserReport;
 use App\Models\UserTimeout;
 use App\Queries\CommitBuilder;
 use App\Services\CommitTranslations;
@@ -52,6 +53,7 @@ use Traversable;
  *     pending_organization_follows: list<string>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
+ *     profile_reports: Traversable<int, array<string, mixed>>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
  *     remote_mutes: array<int, array{to: string|null, muted_until_at: string|null}>,
  *     notifications: Generator<int, array<string, int|string|null>>,
@@ -127,6 +129,12 @@ final readonly class CreateExport
                 'reason' => $report->reason,
                 'details' => $report->details,
                 'attachments' => $report->toArray()['attachments'],
+                'created_at' => $report->created_at->toIso8601String(),
+            ])->getIterator(),
+            'profile_reports' => UserReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (UserReport $report): array => [
+                'user_id' => $report->user_id,
+                'reason' => $report->reason,
+                'details' => $report->details,
                 'created_at' => $report->created_at->toIso8601String(),
             ])->getIterator(),
             'remote_mutes' => Conversation::query()

@@ -35,7 +35,15 @@ final class ApiException extends HttpException
             ? new self(ApiErrorCode::UserBlocked, __("You blocked :name. Neither of you can follow, reply to, or star the other, or see each other's commits.", [
                 'name' => $user->name,
             ]), data: ['user' => $shown])
-            : new self(ApiErrorCode::UserUnavailable, __("This profile isn't available."));
+            : self::userUnavailable();
+    }
+
+    /**
+     * A person who doesn't exist, or who blocked the user. Reports answer them alike, so nothing tells them apart.
+     */
+    public static function userUnavailable(): self
+    {
+        return new self(ApiErrorCode::UserUnavailable, __("This profile isn't available."));
     }
 
     /**

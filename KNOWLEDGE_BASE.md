@@ -40,6 +40,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [Orgs: group chats](#orgs-group-chats)
   - [Muting and blocking](#muting-and-blocking)
   - [Reporting commits](#reporting-commits)
+  - [Reporting people](#reporting-people)
   - [Appearance, color, and timezone](#appearance-color-and-timezone)
   - [Installing /dev/null as an app](#installing-devnull-as-an-app)
   - [Activity graphs and README embeds](#activity-graphs-and-readme-embeds)
@@ -456,9 +457,15 @@ Sources: [safety settings](resources/js/pages/safety/edit.tsx), [mute action](ap
 
 ### Reporting commits
 
-Report another person's visible, approved commit or reply privately from its controls. Choose a reason (spam or misleading links, harassment or hate, harmful or private information, or something else) and optionally add up to **500 characters** of detail. Attach up to **three JPEG, PNG, or WebP images**, each up to **10 MB**, using the image picker, paste, or drag and drop. Attachments can include descriptions and are visible only to you and moderators. You can report a particular commit once, and file up to five reports a minute. Reporting does not immediately hide or reject the content. Moderators review reports without the reporter's identity and can dismiss the report or reject the commit, with an optional reason sent to its author. Deleting a reported commit keeps its reports. This is a content-safety report, not a software bug report; use `/bug` for app defects.
+Report another person's visible, approved commit or reply privately from its controls. Choose a reason (spam or misleading links, harassment or hate, harmful or private information, child safety, or something else) and optionally add up to **500 characters** of detail. Attach up to **three JPEG, PNG, or WebP images**, each up to **10 MB**, using the image picker, paste, or drag and drop. Attachments can include descriptions and are visible only to you and moderators. You can report a particular commit once, and file up to five reports a minute. Reporting does not immediately hide or reject the content. Moderators review reports without the reporter's identity and can dismiss the report or reject the commit, with an optional reason sent to its author. Deleting a reported commit keeps its reports. This is a content-safety report, not a software bug report; use `/bug` for app defects.
 
 Sources: [report control](resources/js/components/commit-report-button.tsx), [report validation](app/Http/Requests/CreateCommitReportRequest.php), [reported-commit controller](app/Http/Controllers/ReportedCommitController.php).
+
+### Reporting people
+
+Report another person privately from the menu on their profile, or from the menu of your private chat with them. Individual messages can't be reported: a report from a chat is a report about the person, with the same reasons as commits and up to **500 characters** of optional detail. It carries no messages, and moderators don't see the conversation. No images can be attached. The person isn't told. You can still report someone you blocked. You can have one open report on a person, and file up to five such reports a minute. Reporting doesn't block them or hide anything. Moderators review reports without the reporter's identity and can dismiss the report, put the person in timeout, or ban them.
+
+Sources: [report dialog](resources/js/components/user-report-dialog.tsx), [report validation](app/Http/Requests/CreateUserReportRequest.php), [reported-user controller](app/Http/Controllers/ReportedUserController.php).
 
 ### Appearance, color, and timezone
 
@@ -552,7 +559,7 @@ A signed request sees what the web shows you, such as your own pending commits. 
 - rename orgs, add people to them, change their roles, remove them, and leave an org, with the same maintainer rules as the web;
 - stash or reopen conversations and orgs, pin and mute them, merge or drop message requests, and send typing indicators;
 - switch Pastéis mode and give pastéis;
-- report commits;
+- report commits and people;
 - search people and organizations by name or handle, and commits by meaning, with the web's limit of 15 commit searches a minute;
 - schedule commits, list your queue, cancel a scheduled commit, or post it early;
 - pin a commit to your profile, or unpin it;
@@ -606,7 +613,7 @@ Choose **Download JSON** in Settings → Profile to export your account data. Th
 - SSH key fingerprints, approved devices, and your timeout history;
 - active-session metadata: IP address, browser information, and last activity.
 
-Other people's replies and received messages are not included as your authored data. Message images, message reactions, scheduled commits, and ban records are not included either. Reports you filed include their reason, details, and attachment references; reports filed by other people are excluded. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
+Other people's replies and received messages are not included as your authored data. Message images, message reactions, scheduled commits, and ban records are not included either. Reports you filed, on commits and on people, include their reason and details, and attachment references for commits; reports filed by other people are excluded. Image and voice-note references are URLs, not an archive of the media files. Deleted commit entries do not restore content already erased after the undo window.
 
 The export does not expose session IDs, authentication tokens, private SSH keys, or other people's poll choices. Keep the downloaded JSON private because it includes personal account information. Exports are limited to **three per hour**.
 

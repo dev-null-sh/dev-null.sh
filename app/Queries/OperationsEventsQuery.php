@@ -55,6 +55,7 @@ final readonly class OperationsEventsQuery
                 'signup', 'ban', 'timeout' => $event->actor === null ? null : route('user.show', $event->actor, false),
                 'failed_job' => route('system-health.show', absolute: false),
                 'report' => route('reported-commit.index', absolute: false),
+                'profile_report' => route('reported-user.index', absolute: false),
                 'approved' => route('commit.show', [$event->author, $event->commit_id], false),
                 'held' => route('moderation.show', absolute: false),
                 'feature' => route('feature.index', absolute: false),
@@ -121,6 +122,8 @@ final readonly class OperationsEventsQuery
                 ->unionAll($this->failedJobs($since))
                 ->unionAll($this->reports($since))
                 ->unionAll($this->dismissedReports($since))
+                ->unionAll($this->profileReports($since))
+                ->unionAll($this->dismissedProfileReports($since))
                 ->unionAll($this->verdicts($since))
                 ->unionAll($this->heldCommits($since))
                 ->unionAll($this->bans($since))
@@ -178,6 +181,28 @@ final readonly class OperationsEventsQuery
             ->selectRaw(<<<'SQL'
                 'reports' as source, 'report' as kind, id::text || ':dismissed' as row_id, dismissed_at as at,
                 'notice' as level, 'Report dismissed' as message, coalesce(?::jsonb->>reason, reason) as detail,
+                null::text as actor, null::text as author, null::text as commit_id
+                SQL, [json_encode(CommitReport::REASONS)])
+            ->where('dismissed_at', '>=', $since);
+    }
+
+    private function profileReports(CarbonImmutable $since): Builder
+    {
+        return DB::table('user_reports')
+            ->selectRaw(<<<'SQL'
+                'reports' as source, 'profile_report' as kind, id::text as row_id, created_at as at,
+                'warning' as level, 'Profile reported: ' || coalesce(?::jsonb->>reason, reason) as message,
+                null::text as detail, null::text as actor, null::text as author, null::text as commit_id
+                SQL, [json_encode(CommitReport::REASONS)])
+            ->where('created_at', '>=', $since);
+    }
+
+    private function dismissedProfileReports(CarbonImmutable $since): Builder
+    {
+        return DB::table('user_reports')
+            ->selectRaw(<<<'SQL'
+                'reports' as source, 'profile_report' as kind, id::text || ':dismissed' as row_id, dismissed_at as at,
+                'notice' as level, 'Profile report dismissed' as message, coalesce(?::jsonb->>reason, reason) as detail,
                 null::text as actor, null::text as author, null::text as commit_id
                 SQL, [json_encode(CommitReport::REASONS)])
             ->where('dismissed_at', '>=', $since);

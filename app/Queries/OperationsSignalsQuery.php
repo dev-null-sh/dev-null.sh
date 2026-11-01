@@ -86,7 +86,7 @@ final readonly class OperationsSignalsQuery
             $this->failedJobs(),
             $this->linkPreviews(),
             $this->moderationBacklog($moderation['pending'], $moderation['oldest_pending_age']),
-            $this->openReports($moderation['open_reports']),
+            $this->openReports($moderation['open_reports'], $moderation['open_profile_reports']),
             $this->trend('signups', 'Signups', array_column($days, 'signups'), route('site-activity.show', absolute: false)),
             $this->trend('active_users', 'Active users', array_column($days, 'active_users'), route('product-metrics.show', absolute: false)),
             $this->activation($today),
@@ -201,7 +201,7 @@ final readonly class OperationsSignalsQuery
     /**
      * @return Signal
      */
-    private function openReports(int $reports): array
+    private function openReports(int $reports, int $profileReports): array
     {
         return [
             'key' => 'open_reports',
@@ -209,7 +209,7 @@ final readonly class OperationsSignalsQuery
             'status' => $reports > 0 ? 'warn' : 'ok',
             'title' => $reports === 0 ? 'No open reports' : Number::format($reports).' open '.str('report')->plural($reports),
             'detail' => Number::format($reports).' open',
-            'href' => route('reported-commit.index', absolute: false),
+            'href' => $profileReports > 0 && $profileReports === $reports ? route('reported-user.index', absolute: false) : route('reported-commit.index', absolute: false),
         ];
     }
 

@@ -1,10 +1,12 @@
 import { Head, Link } from '@inertiajs/react';
-import { Ban } from 'lucide-react';
+import { Ban, Flag } from 'lucide-react';
+import { useState } from 'react';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import { EmptyFeed } from '@/components/commit-feed';
 import { clearMentionSuggestionsCache } from '@/components/mention-textarea';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserReportDialog } from '@/components/user-report-dialog';
 import AppLayout from '@/layouts/app-layout';
 import { edit as editSafety } from '@/routes/safety';
 import type { User } from '@/types';
@@ -16,6 +18,8 @@ export default function Unavailable({
     handle: string;
     blockedUser: User | null;
 }) {
+    const [isReporting, setIsReporting] = useState(false);
+
     return (
         <>
             <Head title={`@${handle}`} />
@@ -52,6 +56,14 @@ export default function Unavailable({
                                         Unblock @{handle}
                                     </Link>
                                 </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setIsReporting(true)}
+                                    data-test="report-user"
+                                >
+                                    <Flag />
+                                    Report @{handle}
+                                </Button>
                                 <Button variant="ghost" asChild>
                                     <Link href={editSafety()}>
                                         Muted and blocked people
@@ -59,6 +71,11 @@ export default function Unavailable({
                                 </Button>
                             </div>
                         </EmptyFeed>
+                        <UserReportDialog
+                            user={blockedUser}
+                            open={isReporting}
+                            onOpenChange={setIsReporting}
+                        />
                     </>
                 ) : (
                     <EmptyFeed command={`fatal: @${handle} is unavailable`}>

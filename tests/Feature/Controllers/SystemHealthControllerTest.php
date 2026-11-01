@@ -34,7 +34,7 @@ it('shows the operational health of the app to admins', function (): void {
             ->has('failureTrend.by_job', 1)
             ->where('connectivity', ['database' => true, 'cache' => true])
             ->where('linkPreviews', ['pending' => 1, 'failed' => 1])
-            ->where('moderation', ['pending' => 2, 'oldest_pending_age' => 600, 'open_reports' => 0, 'active_timeouts' => 0])
+            ->where('moderation', ['pending' => 2, 'oldest_pending_age' => 600, 'open_reports' => 0, 'open_profile_reports' => 0, 'active_timeouts' => 0])
             ->where('runtime', [
                 'environment' => 'testing',
                 'php' => PHP_VERSION,
