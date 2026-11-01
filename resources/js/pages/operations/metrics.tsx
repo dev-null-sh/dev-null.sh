@@ -341,8 +341,8 @@ function FunnelValue({ funnel }: { funnel?: Funnel }) {
 }
 
 /**
- * Stripes of the panel's color over a mark whose value was backfilled, and is a floor: the mark keeps its color, so its
- * size still reads as its value.
+ * Stripes of the panel's color over a mark whose value isn't settled: backfilled, and a floor, or still counting, like
+ * people lost who may yet come back. The mark keeps its color, so its size still reads as its value.
  */
 const BACKFILLED_STRIPES =
     'bg-[image:repeating-linear-gradient(135deg,transparent_0_4px,color-mix(in_oklab,var(--card)_70%,transparent)_4px_6px)]';
@@ -361,6 +361,7 @@ type DailyBar = {
     details?: string[];
     segments?: DailySegment[];
     shadow?: number;
+    below?: DailySegment;
 };
 
 function DateAxis({ range }: { range: TrafficRange }) {
@@ -396,7 +397,8 @@ function shadowPath(from: number, to: number): string {
  * its value against the tallest, and a line at the average of the range, to tell the days above it from the days below.
  * A partial day, still counting, is lighter, unless the bar is stacked from segments, the first at the bottom, whose
  * own colors carry the meaning. A backfilled day is striped, as its value is a floor. A bar with a shadow is narrower,
- * and the bar of the day before casts a shadow onto it, curving from its top down to the shadow's value. Tooltips of
+ * and the bar of the day before casts a shadow onto it, curving from its top down to the shadow's value. A bar can hang
+ * a value below the axis, on the same scale, and the chart grows below the axis to fit the deepest. Tooltips of
  * the bars near an edge align with it, so they stay on screen. The chart takes the height left in its panel, 12rem at
  * least.
  */
@@ -440,6 +442,7 @@ function DailyBars({
     const label = (date: string) => formatZonedDate(date, 'UTC');
     const byDate = new Map(bars.map((bar) => [bar.date, bar]));
     const hasShadows = bars.some((bar) => bar.shadow !== undefined);
+    const bottom = Math.max(0, ...bars.map((bar) => bar.below?.value ?? 0));
     const dates: string[] = [];
 
     for (
@@ -452,157 +455,186 @@ function DailyBars({
 
     return (
         <figure className="@container flex flex-1 flex-col pt-5">
-            <div className="relative min-h-48 flex-1">
-                <div
-                    key={`${range.from}:${range.to}`}
-                    className="absolute inset-0 flex items-end gap-(--bar-gap) border-b border-rail [--bar-gap:min(0.25rem,var(--fitting-gap))] sm:[--bar-gap:min(0.5rem,var(--fitting-gap))]"
-                    style={
-                        {
-                            '--fitting-gap': `${25 / dates.length}cqw`,
-                        } as CSSProperties
-                    }
-                >
-                    {average !== null && (
-                        <div
-                            className="pointer-events-none absolute inset-x-0 z-[1] border-t border-dashed border-foreground/50"
-                            style={{ bottom: `${(average / top) * 100}%` }}
-                        >
-                            <span className="absolute bottom-full left-0 mb-0.5 rounded-sm bg-background/90 px-1 font-mono text-xs text-muted-foreground tabular-nums">
-                                avg {format(average)}
-                            </span>
-                        </div>
-                    )}
-                    {dates.map((date, index) => {
-                        const bar = byDate.get(date);
-                        const before = byDate.get(dates[index - 1]);
-
-                        return (
+            <div className="flex min-h-48 flex-1 flex-col">
+                <div className="relative flex-1">
+                    <div
+                        key={`${range.from}:${range.to}`}
+                        className="absolute inset-0 flex items-end gap-(--bar-gap) border-b border-rail [--bar-gap:min(0.25rem,var(--fitting-gap))] sm:[--bar-gap:min(0.5rem,var(--fitting-gap))]"
+                        style={
+                            {
+                                '--fitting-gap': `${25 / dates.length}cqw`,
+                            } as CSSProperties
+                        }
+                    >
+                        {average !== null && (
                             <div
-                                key={date}
-                                className="group relative flex h-full flex-1 items-end justify-center"
+                                className="pointer-events-none absolute inset-x-0 z-[1] border-t border-dashed border-foreground/50"
+                                style={{ bottom: `${(average / top) * 100}%` }}
                             >
-                                {bar && (
-                                    <>
-                                        {bar.shadow !== undefined && before && (
-                                            <svg
-                                                aria-hidden
-                                                viewBox="0 0 100 100"
-                                                preserveAspectRatio="none"
-                                                className="absolute bottom-0 h-full text-muted-foreground"
-                                                style={{
-                                                    left: 'calc(-20% - var(--bar-gap))',
-                                                    width: 'calc(40% + var(--bar-gap))',
-                                                }}
-                                            >
-                                                <defs>
-                                                    <linearGradient
-                                                        id={`${shadowId}-${date}`}
-                                                    >
-                                                        <stop
-                                                            offset="0"
-                                                            stopColor="currentColor"
-                                                            stopOpacity={0.32}
-                                                        />
-                                                        <stop
-                                                            offset="1"
-                                                            stopColor="currentColor"
-                                                            stopOpacity={0.08}
-                                                        />
-                                                    </linearGradient>
-                                                </defs>
-                                                <path
-                                                    d={shadowPath(
-                                                        100 -
-                                                            (before.value /
-                                                                top) *
-                                                                100,
-                                                        100 -
-                                                            (bar.shadow / top) *
-                                                                100,
-                                                    )}
-                                                    fill={`url(#${shadowId}-${date})`}
-                                                />
-                                            </svg>
-                                        )}
-                                        {bar.segments ? (
-                                            <div
-                                                className={cn(
-                                                    'relative flex flex-col-reverse gap-0.5 overflow-hidden rounded-t',
-                                                    hasShadows
-                                                        ? 'w-3/5'
-                                                        : 'w-full',
-                                                )}
-                                                style={{
-                                                    height: `${(bar.value / top) * 100}%`,
-                                                }}
-                                            >
-                                                {bar.segments
-                                                    .filter(
-                                                        (segment) =>
-                                                            segment.value > 0,
-                                                    )
-                                                    .map((segment) => (
-                                                        <div
-                                                            key={
-                                                                segment.className
-                                                            }
-                                                            className={
-                                                                segment.className
-                                                            }
-                                                            style={{
-                                                                flex: `${segment.value} 1 0`,
-                                                            }}
-                                                        />
-                                                    ))}
-                                            </div>
-                                        ) : (
-                                            <div
-                                                className={cn(
-                                                    'w-full rounded-t',
-                                                    bar.isPartial
-                                                        ? 'bg-primary/40'
-                                                        : 'bg-primary',
-                                                    bar.isBackfilled &&
-                                                        BACKFILLED_STRIPES,
-                                                )}
-                                                style={{
-                                                    height: `${(bar.value / top) * 100}%`,
-                                                }}
-                                            />
-                                        )}
-                                        <div
-                                            className={cn(
-                                                'pointer-events-none absolute bottom-full z-10 mb-2 hidden rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block',
-                                                index < dates.length / 3
-                                                    ? 'left-0'
-                                                    : index >=
-                                                        (dates.length * 2) / 3
-                                                      ? 'right-0'
-                                                      : 'left-1/2 -translate-x-1/2',
-                                            )}
-                                        >
-                                            <p className="text-muted-foreground">
-                                                {label(date)}
-                                                {bar.isPartial && ', so far'}
-                                            </p>
-                                            <p className="font-medium tabular-nums">
-                                                {bar.label}
-                                            </p>
-                                            {bar.details?.map((detail) => (
-                                                <p
-                                                    key={detail}
-                                                    className="text-muted-foreground tabular-nums"
-                                                >
-                                                    {detail}
-                                                </p>
-                                            ))}
-                                        </div>
-                                    </>
-                                )}
+                                <span className="absolute bottom-full left-0 mb-0.5 rounded-sm bg-background/90 px-1 font-mono text-xs text-muted-foreground tabular-nums">
+                                    avg {format(average)}
+                                </span>
                             </div>
-                        );
-                    })}
+                        )}
+                        {dates.map((date, index) => {
+                            const bar = byDate.get(date);
+                            const before = byDate.get(dates[index - 1]);
+
+                            return (
+                                <div
+                                    key={date}
+                                    className="group relative flex h-full flex-1 items-end justify-center"
+                                >
+                                    {bar && (
+                                        <>
+                                            {bar.shadow !== undefined &&
+                                                before && (
+                                                    <svg
+                                                        aria-hidden
+                                                        viewBox="0 0 100 100"
+                                                        preserveAspectRatio="none"
+                                                        className="absolute bottom-0 h-full text-muted-foreground"
+                                                        style={{
+                                                            left: 'calc(-20% - var(--bar-gap))',
+                                                            width: 'calc(40% + var(--bar-gap))',
+                                                        }}
+                                                    >
+                                                        <defs>
+                                                            <linearGradient
+                                                                id={`${shadowId}-${date}`}
+                                                            >
+                                                                <stop
+                                                                    offset="0"
+                                                                    stopColor="currentColor"
+                                                                    stopOpacity={
+                                                                        0.32
+                                                                    }
+                                                                />
+                                                                <stop
+                                                                    offset="1"
+                                                                    stopColor="currentColor"
+                                                                    stopOpacity={
+                                                                        0.08
+                                                                    }
+                                                                />
+                                                            </linearGradient>
+                                                        </defs>
+                                                        <path
+                                                            d={shadowPath(
+                                                                100 -
+                                                                    (before.value /
+                                                                        top) *
+                                                                        100,
+                                                                100 -
+                                                                    (bar.shadow /
+                                                                        top) *
+                                                                        100,
+                                                            )}
+                                                            fill={`url(#${shadowId}-${date})`}
+                                                        />
+                                                    </svg>
+                                                )}
+                                            {bar.segments ? (
+                                                <div
+                                                    className={cn(
+                                                        'relative flex flex-col-reverse gap-0.5 overflow-hidden rounded-t',
+                                                        hasShadows
+                                                            ? 'w-3/5'
+                                                            : 'w-full',
+                                                    )}
+                                                    style={{
+                                                        height: `${(bar.value / top) * 100}%`,
+                                                    }}
+                                                >
+                                                    {bar.segments
+                                                        .filter(
+                                                            (segment) =>
+                                                                segment.value >
+                                                                0,
+                                                        )
+                                                        .map((segment) => (
+                                                            <div
+                                                                key={
+                                                                    segment.className
+                                                                }
+                                                                className={
+                                                                    segment.className
+                                                                }
+                                                                style={{
+                                                                    flex: `${segment.value} 1 0`,
+                                                                }}
+                                                            />
+                                                        ))}
+                                                </div>
+                                            ) : (
+                                                <div
+                                                    className={cn(
+                                                        'w-full rounded-t',
+                                                        bar.isPartial
+                                                            ? 'bg-primary/40'
+                                                            : 'bg-primary',
+                                                        bar.isBackfilled &&
+                                                            BACKFILLED_STRIPES,
+                                                    )}
+                                                    style={{
+                                                        height: `${(bar.value / top) * 100}%`,
+                                                    }}
+                                                />
+                                            )}
+                                            {bar.below &&
+                                                bar.below.value > 0 && (
+                                                    <div
+                                                        className={cn(
+                                                            'absolute top-full left-1/2 -translate-x-1/2 rounded-b',
+                                                            hasShadows
+                                                                ? 'w-3/5'
+                                                                : 'w-full',
+                                                            bar.below.className,
+                                                        )}
+                                                        style={{
+                                                            height: `${(bar.below.value / top) * 100}%`,
+                                                        }}
+                                                    />
+                                                )}
+                                            <div
+                                                className={cn(
+                                                    'pointer-events-none absolute bottom-full z-10 mb-2 hidden rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block',
+                                                    index < dates.length / 3
+                                                        ? 'left-0'
+                                                        : index >=
+                                                            (dates.length * 2) /
+                                                                3
+                                                          ? 'right-0'
+                                                          : 'left-1/2 -translate-x-1/2',
+                                                )}
+                                            >
+                                                <p className="text-muted-foreground">
+                                                    {label(date)}
+                                                    {bar.isPartial &&
+                                                        ', so far'}
+                                                </p>
+                                                <p className="font-medium tabular-nums">
+                                                    {bar.label}
+                                                </p>
+                                                {bar.details?.map((detail) => (
+                                                    <p
+                                                        key={detail}
+                                                        className="text-muted-foreground tabular-nums"
+                                                    >
+                                                        {detail}
+                                                    </p>
+                                                ))}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
+                {bottom > 0 && (
+                    <div aria-hidden style={{ flex: `${bottom / top} 1 0` }} />
+                )}
             </div>
             <DateAxis range={range} />
             <div className="sr-only">
@@ -805,12 +837,17 @@ function ActivationByDay({
 }
 
 /**
- * The parts of a day's active users, from the bottom of the bar: returning users in blue, then the day's signups in
- * amber, darker when they activated. Signups too young to tell are hatched, as they are not settled yet. The colors are
- * this chart's own, so they live on its wrapper, not in the theme.
+ * The parts of a day's active users, from the bottom of the bar: regulars in blue, people back after a week or more
+ * away in a lighter blue, then the day's signups in amber, darker when they activated. Signups too young to tell are
+ * hatched, as they are not settled yet. The ambers are this chart's own, so they live on its wrapper, not in the theme.
  */
 const ACTIVE_USER_PARTS = [
-    { key: 'returning', label: 'returning users', className: 'bg-primary' },
+    { key: 'regular', label: 'regulars', className: 'bg-primary' },
+    {
+        key: 'back',
+        label: 'back after 7+ days away',
+        className: 'bg-primary/40',
+    },
     {
         key: 'activated',
         label: 'new, activated',
@@ -836,9 +873,10 @@ const NEW_USER_PARTS = [
 ] as const;
 
 /**
- * Each bar after the first is shadowed by the day before's, from its total down to the day's returning users. They may
- * have been there the day before or come back after a longer gap, so the drop is a net change: the people who stopped
- * coming, minus the people back after a break. Today, still counting, gets no shadow.
+ * Each bar after the first is shadowed by the day before's, from its total down to the day's regulars and people back,
+ * so the drop is a net change. Below the axis hang the people lost that day, the day after they were last seen, so the
+ * flows behind the change show: back above, lost below. Lost is striped until its week without a visit is over, as
+ * some may still come back. The legend leaves the shadow out. Today, still counting, gets no shadow and no lost.
  */
 function ActiveUserCounts({
     range,
@@ -866,19 +904,11 @@ function ActiveUserCounts({
                     </li>
                 ))}
                 <li className="flex items-center gap-1.5">
-                    <svg
+                    <span
                         aria-hidden
-                        viewBox="0 0 100 100"
-                        preserveAspectRatio="none"
-                        className="h-2.5 w-4 text-muted-foreground"
-                    >
-                        <path
-                            d={shadowPath(0, 60)}
-                            fill="currentColor"
-                            fillOpacity={0.3}
-                        />
-                    </svg>
-                    change since the day before, net
+                        className="size-2.5 rounded-sm bg-muted-foreground/45"
+                    />
+                    lost: not back in the 7 following days
                 </li>
             </ul>
             <DailyBars
@@ -901,9 +931,8 @@ function ActiveUserCounts({
                         before !== undefined &&
                         Date.parse(day.date) - Date.parse(before.date) ===
                             86_400_000;
-                    const change = isShadowed
-                        ? before.count - day.returning
-                        : 0;
+                    const returning = day.regular + day.back;
+                    const change = isShadowed ? before.count - returning : 0;
                     const fresh = NEW_USER_PARTS.filter(
                         (part) => day[part.key] > 0,
                     );
@@ -917,7 +946,10 @@ function ActiveUserCounts({
                         isPartial,
                         label: `${formatCount(day.count)} active`,
                         details: [
-                            `${formatCount(day.returning)} returning users, back after any gap`,
+                            `${formatCount(day.regular)} regulars, ${formatCount(day.back)} back after 7+ days away`,
+                            day.lost === null
+                                ? 'lost: counted from tomorrow'
+                                : `${formatCount(day.lost)} lost: not back in the 7 following days${day.lost_complete ? '' : ', so far'}`,
                             ...(isShadowed
                                 ? [
                                       `${formatCount(Math.abs(change))} ${change >= 0 ? 'fewer' : 'more'} than the ${formatCount(before.count)} of ${formatZonedDate(before.date, 'UTC')}, net`,
@@ -928,12 +960,26 @@ function ActiveUserCounts({
                                       `${formatCount(fresh.reduce((sum, part) => sum + day[part.key], 0))} new: ${fresh.map((part) => `${formatCount(day[part.key])} ${part.label}`).join(', ')}`,
                                   ]
                                 : []),
+                            ...(day.backfilled
+                                ? ['back and lost approximate']
+                                : []),
                         ],
                         segments: ACTIVE_USER_PARTS.map((part) => ({
                             value: day[part.key],
                             className: part.className,
                         })),
-                        shadow: isShadowed ? day.returning : undefined,
+                        shadow: isShadowed ? returning : undefined,
+                        below:
+                            day.lost === null
+                                ? undefined
+                                : {
+                                      value: day.lost,
+                                      className: cn(
+                                          'bg-muted-foreground/45',
+                                          !day.lost_complete &&
+                                              BACKFILLED_STRIPES,
+                                      ),
+                                  },
                     };
                 })}
                 caption="Daily active users"

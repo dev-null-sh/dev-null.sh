@@ -25,7 +25,7 @@ it('shows the product metrics of all time to admins', function (): void {
             ->where('activeUsers.daily', 1)
             ->where('responses.commits', 0)
             ->where('newcomerFollows.newcomers', 2)
-            ->where('activeUserCounts', [['date' => '2026-10-17', 'count' => 7, 'returning' => 6, 'activated' => 0, 'not_activated' => 1, 'pending' => 0]])
+            ->where('activeUserCounts', [['date' => '2026-10-17', 'count' => 7, 'regular' => 6, 'back' => 0, 'lost' => 0, 'lost_complete' => false, 'backfilled' => true, 'activated' => 0, 'not_activated' => 1, 'pending' => 0]])
             ->missing('funnel')
             ->loadDeferredProps(fn ($reload) => $reload
                 ->where('funnel.signups', 2)
