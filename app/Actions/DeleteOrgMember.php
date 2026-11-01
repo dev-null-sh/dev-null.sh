@@ -25,6 +25,8 @@ final readonly class DeleteOrgMember
     public function handle(User $actor, Conversation $org, User $member): void
     {
         DB::transaction(function () use ($actor, $org, $member): void {
+            Conversation::query()->whereKey($org->id)->lockForUpdate()->firstOrFail();
+
             ConversationParticipant::query()->where('conversation_id', $org->id)->where('user_id', $member->id)->delete();
 
             $remaining = $org->participants()->with('user')->oldest('id')->get();
