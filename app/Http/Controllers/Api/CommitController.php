@@ -14,6 +14,7 @@ use App\Models\Commit;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitPageQuery;
+use App\Services\CommitSourceResolver;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Response;
@@ -49,9 +50,9 @@ final readonly class CommitController
      * Answers with the new commit as its page shows it, with the commit it quotes and its poll, pending review unless
      * the user is an admin.
      */
-    public function store(CreateApiCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, CommitPageQuery $page): JsonResponse
+    public function store(CreateApiCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, CommitPageQuery $page, CommitSourceResolver $sources): JsonResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit(), $request->images(), $request->imageDescriptions(), poll: $request->poll(), replyRecipients: $request->replyRecipients(), organization: $request->organization());
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit(), $request->images(), $request->imageDescriptions(), poll: $request->poll(), replyRecipients: $request->replyRecipients(), organization: $request->organization(), source: $sources->from($request));
 
         return CommitResource::make($page->get($commit, $user))
             ->response()

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\DeleteScheduledCommit;
 use App\Actions\UpdateScheduledCommitSubmittedAt;
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Enums\PollDuration;
 use App\Jobs\UnfurlLink;
@@ -64,6 +65,26 @@ it('schedules a commit only the user sees until it is submitted', function (): v
     expect($scheduled->user_id)->toBe($this->user->id)
         ->and($scheduled->scheduled_at->equalTo(now()->addHour()))->toBeTrue()
         ->and(Commit::query()->count())->toBe(0);
+});
+
+it('carries the scheduled commits client source into publication', function (): void {
+    $body = json_encode([
+        'body' => 'Shipped from macOS.',
+        'scheduled_at' => now()->addHour()->toIso8601String(),
+    ], JSON_THROW_ON_ERROR);
+
+    $this->call('POST', route('api-scheduled-commit.store'), server: [
+        ...signApiRequest($this->keyPair, 'POST', route('api-scheduled-commit.store'), $body),
+        'HTTP_USER_AGENT' => 'DevNull-Mac/1.0',
+    ], content: $body)->assertCreated()->assertJsonPath('data.source', 'macos');
+
+    $scheduled = ScheduledCommit::query()->sole();
+    expect($scheduled->source)->toBe(CommitSource::Macos);
+
+    $this->travel(1)->hour();
+    $this->artisan('commits:submit-scheduled')->assertSuccessful();
+
+    expect(Commit::query()->sole()->source)->toBe(CommitSource::Macos);
 });
 
 it('schedules a poll that opens with its commit at the due time', function (): void {

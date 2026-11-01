@@ -25,6 +25,7 @@ const commit = {
     ],
     preview_segments: null,
     status: 'approved',
+    source: 'tui',
     created_at: '2026-10-16T11:51:00.000000Z',
     author: { id: 'author', name: 'Matthieu Napoli', handle: 'mnapoli' },
 } as QuotedCommitData;
@@ -70,7 +71,7 @@ async function render(
 }
 
 for (const isPreview of [false, true]) {
-     test(`renders a quoted code block highlighted ${isPreview ? 'in the composer' : 'in the log'}`, async () => {
+    test(`renders a quoted code block highlighted ${isPreview ? 'in the composer' : 'in the log'}`, async () => {
         const body = await render(isPreview);
 
         assert.match(body, /<pre[^>]*><span class="hl-keyword">return<\/span>/);
@@ -78,14 +79,22 @@ for (const isPreview of [false, true]) {
     });
 }
 
- test('keeps the quote a single link', async () => {
+test('keeps the quote a single link', async () => {
     const body = await render(false);
 
     assert.equal(body.match(/<a\b/g)?.length, 1);
     assert.doesNotMatch(body, /<button\b/);
 });
 
- test('shows the images, link card and embed of a quoted commit inside the single quote link', async () => {
+test('shows its own known source and omits an unknown one', async () => {
+    const source = await render(false);
+    const unknown = await render(false, { ...commit, source: null });
+
+    assert.match(source, /data-test="commit-source"[^>]*>tui</);
+    assert.doesNotMatch(unknown, /data-test="commit-source"/);
+});
+
+test('shows the images, link card and embed of a quoted commit inside the single quote link', async () => {
     const image = {
         id: 'image',
         url: '/storage/commit-images/sunset.webp',
@@ -132,7 +141,7 @@ for (const isPreview of [false, true]) {
     }
 });
 
- test('cuts a long quoted commit off at its preview', async () => {
+test('cuts a long quoted commit off at its preview', async () => {
     const body = await render(false, {
         ...commit,
         body: 'We now have long posts! You can write long articles on /dev/null.',
@@ -149,7 +158,7 @@ for (const isPreview of [false, true]) {
     assert.doesNotMatch(body, /long articles/);
 });
 
- test('shows the options of a quoted poll without letting anyone vote inside the quote', async () => {
+test('shows the options of a quoted poll without letting anyone vote inside the quote', async () => {
     const body = await render(false, { ...commit, poll });
 
     assert.match(body, /data-test="commit-poll"/);
@@ -159,7 +168,7 @@ for (const isPreview of [false, true]) {
     assert.doesNotMatch(body, /<(input|button|fieldset|label)\b/);
 });
 
- test('shows the results of a quoted poll once the viewer may see them', async () => {
+test('shows the results of a quoted poll once the viewer may see them', async () => {
     const body = await render(true, {
         ...commit,
         poll: {

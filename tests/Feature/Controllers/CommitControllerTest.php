@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CreateQuoteNotifications;
 use App\Actions\DeleteUser;
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -33,7 +34,8 @@ it('may create a commit', function (): void {
 
     $response->assertRedirectToRoute('log.show', Log::Following);
 
-    expect($user->commits()->sole()->body)->toBe('Hello, devnull!');
+    expect($user->commits()->sole()->body)->toBe('Hello, devnull!')
+        ->and($user->commits()->sole()->source)->toBe(CommitSource::Web);
 });
 
 it('flashes the created commit', function (): void {

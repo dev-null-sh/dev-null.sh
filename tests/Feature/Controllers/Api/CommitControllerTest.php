@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Enums\PollDuration;
 use App\Http\Requests\CreateApiCommitRequest;
@@ -65,6 +66,7 @@ it('shows an approved commit to anyone', function (): void {
             'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
             'short_hash' => 'e3f4a5b',
             'body' => 'Shipped the public API',
+            'source' => null,
             'parent_id' => null,
             'html_url' => route('commit.show', [$user, $commit]),
             'created_at' => now()->toIso8601ZuluString(),
@@ -295,6 +297,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'id' => '019a2b3c-4d5e-7f60-8a9b-0c1d2e3f4a5b',
                 'short_hash' => 'e3f4a5b',
                 'body' => 'Ask @nunomaduro about `@Override`',
+                'source' => null,
                 'parent_id' => $root->id,
                 'html_url' => route('commit.show', [$user, $commit]),
                 'created_at' => now()->toIso8601ZuluString(),
@@ -324,6 +327,7 @@ it('shows a signed request the commit as its page shows it to its user', functio
                 'id' => $root->id,
                 'short_hash' => mb_substr(str_replace('-', '', $root->id), -7),
                 'body' => 'Who broke prod?',
+                'source' => null,
                 'parent_id' => null,
                 'html_url' => route('commit.show', [$root->user, $root]),
                 'created_at' => now()->subMinute()->toIso8601ZuluString(),
@@ -575,6 +579,31 @@ it('creates a commit from a signed request, pending review', function (): void {
         ->assertJsonMissingPath('ancestors');
 
     expect($commit->status)->toBe(CommitStatus::Pending);
+});
+
+it('records a signed clients source from its established product name', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $body = json_encode(['body' => 'TUI post'], JSON_THROW_ON_ERROR);
+
+    $response = $this->call('POST', route('api-commit.store'), server: [
+        ...signApiRequest($keyPair, 'POST', route('api-commit.store'), $body),
+        'HTTP_USER_AGENT' => 'devnull-tui/1.2.3',
+    ], content: $body);
+
+    $response->assertCreated()->assertJsonPath('data.source', 'tui');
+
+    expect($user->commits()->sole()->source)->toBe(CommitSource::Tui);
+});
+
+it('leaves a signed commit without a recognized client source unlabelled', function (): void {
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'POST', route('api-commit.store'), ['body' => 'Unknown client'])->assertCreated()
+        ->assertJsonPath('data.source', null);
+
+    expect($user->commits()->sole()->source)->toBeNull();
 });
 
 it('publishes the commits of admins right away', function (): void {

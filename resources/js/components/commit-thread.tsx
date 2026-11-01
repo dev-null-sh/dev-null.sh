@@ -34,6 +34,7 @@ import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
 import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
+import { CommitSourceBadge } from '@/components/commit-source-badge';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
 import { useCommitTranslation } from '@/components/commit-translation';
@@ -1194,7 +1195,7 @@ function CommitReply({
                         'opacity-50': wasDeleted,
                     })}
                 >
-                    <div className="flex items-baseline gap-1.5 text-sm">
+                    <div className="flex flex-wrap items-baseline gap-1.5 text-sm">
                         <UserPreview
                             user={reply.author}
                             anchor={avatarRef}
@@ -1243,6 +1244,7 @@ function CommitReply({
                                 </time>
                             </Link>
                         </TimestampTooltip>
+                        <CommitSourceBadge source={reply.source} size="small" />
                         <CommitStatusBadge commit={reply} size="small" />
                         {isOwn && (
                             <Tooltip>

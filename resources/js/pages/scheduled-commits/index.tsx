@@ -11,6 +11,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import ScheduledCommitSubmissionController from '@/actions/App/Http/Controllers/ScheduledCommitSubmissionController';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { CommitSourceBadge } from '@/components/commit-source-badge';
 import { Button } from '@/components/ui/button';
 import {
     Tooltip,
@@ -26,6 +27,7 @@ import type { BodySegment } from '@/types';
 
 type ScheduledCommit = {
     id: string;
+    source: string | null;
     body: string | null;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
@@ -205,12 +207,20 @@ export default function Index({
                                                     : 'Scheduled'
                                                 : labels[scheduled.status]}
                                         </p>
-                                        <time
-                                            dateTime={scheduled.scheduled_at}
-                                            className="mt-1 block font-mono text-xs text-muted-foreground"
-                                        >
-                                            {when}
-                                        </time>
+                                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                            <time
+                                                dateTime={
+                                                    scheduled.scheduled_at
+                                                }
+                                                className="font-mono text-xs text-muted-foreground"
+                                            >
+                                                {when}
+                                            </time>
+                                            <CommitSourceBadge
+                                                source={scheduled.source}
+                                                size="small"
+                                            />
+                                        </div>
                                     </div>
                                     {scheduled.status === 'scheduled' && (
                                         <div className="flex shrink-0 gap-2">

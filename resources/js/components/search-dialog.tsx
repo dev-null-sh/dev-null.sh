@@ -19,6 +19,7 @@ import ProfileSearchController from '@/actions/App/Http/Controllers/ProfileSearc
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
 import { AuthorAvatar } from '@/components/author-avatar';
 import { OrganizationAvatar } from '@/components/organization-avatar';
+import { CommitSourceBadge } from '@/components/commit-source-badge';
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
@@ -905,6 +906,7 @@ function CommitResult({ commit }: { commit: Commit }) {
                     >
                         {formatRelativeTime(commit.created_at, now)}
                     </time>
+                    <CommitSourceBadge source={commit.source} size="small" />
                 </span>
                 <span
                     className="line-clamp-2 text-sm text-pretty"

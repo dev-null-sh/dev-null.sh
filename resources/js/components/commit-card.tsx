@@ -10,6 +10,7 @@ import { CommitPastelButton } from '@/components/commit-pastel-button';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitQuoteButton } from '@/components/commit-quote-button';
 import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
+import { CommitSourceBadge } from '@/components/commit-source-badge';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
 import {
@@ -338,7 +339,7 @@ export function CommitCard({
                         })}
                     >
                         <div className="min-w-0 flex-1">
-                            <div className="flex items-baseline gap-1.5 text-[15px]">
+                            <div className="flex flex-wrap items-baseline gap-1.5 text-[15px]">
                                 <UserPreview
                                     user={commit.author}
                                     anchor={nodeRef}
@@ -386,6 +387,8 @@ export function CommitCard({
                                         </time>
                                     </Link>
                                 </TimestampTooltip>
+
+                                <CommitSourceBadge source={commit.source} />
 
                                 <ThreadPositionBadge
                                     threadPosition={threadPosition}
