@@ -14,13 +14,18 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
+use Illuminate\Queue\Attributes\Timeout;
 use Illuminate\Support\Facades\Log;
 
 /**
  * Imports the GitHub follows of every user not imported yet, a few users at a time, without notifying anyone: each job
  * queues the next one, after the users it read, so a run takes no worker for long, survives deploys and waits for the
  * GitHub rate limit to reset by itself. It is unique, so launching it twice doesn't run it twice.
+ *
+ * Its timeout leaves room for the budget plus the longest a single user can take, under the queue's retry_after.
  */
+#[Timeout(300)]
 final class ImportAllGitHubFollowsJob implements ShouldBeUniqueUntilProcessing, ShouldQueue
 {
     use Queueable;
@@ -32,6 +37,12 @@ final class ImportAllGitHubFollowsJob implements ShouldBeUniqueUntilProcessing, 
      * organizations pauses, so they carry on meanwhile.
      */
     public const int Reserve = 1500;
+
+    /**
+     * The seconds a job spends importing before it leaves the rest to the next one, so it ends well within the worker's
+     * timeout: a user rarely takes a second, but one following thousands takes up to twenty requests.
+     */
+    public const int Budget = 30;
 
     public function __construct(public ?string $after = null)
     {
@@ -57,12 +68,15 @@ final class ImportAllGitHubFollowsJob implements ShouldBeUniqueUntilProcessing, 
             ->limit(self::BatchSize)
             ->get();
 
+        $deadline = now()->addSeconds(self::Budget);
+
         foreach ($users as $user) {
             try {
                 $createUserGitHubFollows->handle($user, notify: false);
             } catch (RequestException $exception) {
-                if (in_array($exception->response->status(), [403, 429], true)) {
-                    $this->continueAt(now()->addMinutes(15));
+                if ($this->isRateLimited($exception->response)) {
+                    $retryAfter = $exception->response->header('Retry-After');
+                    $this->continueAt(is_numeric($retryAfter) ? now()->addSeconds((int) $retryAfter) : now()->addMinutes(15));
 
                     return;
                 }
@@ -74,6 +88,12 @@ final class ImportAllGitHubFollowsJob implements ShouldBeUniqueUntilProcessing, 
             }
 
             $this->after = $user->id;
+
+            if (now()->greaterThanOrEqualTo($deadline)) {
+                $this->continueAt(now());
+
+                return;
+            }
         }
 
         if ($users->count() < self::BatchSize) {
@@ -83,6 +103,15 @@ final class ImportAllGitHubFollowsJob implements ShouldBeUniqueUntilProcessing, 
         }
 
         $this->continueAt(now());
+    }
+
+    /**
+     * GitHub answers a rate limit, primary or secondary, with a 429 or a 403 that says so. Any other 403 won't go away by
+     * waiting, so that user is skipped rather than holding up everyone after them.
+     */
+    private function isRateLimited(Response $response): bool
+    {
+        return $response->status() === 429 || ($response->status() === 403 && str_contains(mb_strtolower($response->body()), 'rate limit'));
     }
 
     /**

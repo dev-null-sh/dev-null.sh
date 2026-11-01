@@ -79,7 +79,7 @@ it('waits for the rate limit to reset, at most 15 minutes at a time, keeping req
     'reset in an hour' => [1000, 60, 15],
 ]);
 
-it('waits 15 minutes when github rate limits it, and imports that user then', function (int $status): void {
+it('waits when github rate limits it, as long as github asks or 15 minutes, and imports that user then', function (int $status, array $headers, int $delaySeconds): void {
     Queue::fake();
     $this->freezeSecond();
 
@@ -89,24 +89,52 @@ it('waits 15 minutes when github rate limits it, and imports that user then', fu
     $github->shouldReceive('rateLimit')->andReturnNull();
     $github->shouldReceive('followingIds')->with($imported->handle, 10)->andReturn(['users' => [], 'organizations' => []]);
     $github->shouldReceive('followerIds')->andReturn([]);
-    $github->shouldReceive('followingIds')->with($limited->handle, 10)->andThrow(new RequestException(new Response(new Psr7Response($status))));
+    $github->shouldReceive('followingIds')->with($limited->handle, 10)->andThrow(new RequestException(new Response(new Psr7Response($status, $headers, '{"message":"You have exceeded a secondary rate limit."}'))));
 
     new ImportAllGitHubFollowsJob()->handle($github, resolve(CreateUserGitHubFollows::class));
 
     expect($limited->refresh()->github_follows_imported_at)->toBeNull();
     Queue::assertPushed(ImportAllGitHubFollowsJob::class, fn (ImportAllGitHubFollowsJob $job): bool => $job->after === $imported->id
-        && CarbonImmutable::instance($job->delay)->equalTo(now()->addMinutes(15)));
-})->with([403, 429]);
+        && CarbonImmutable::instance($job->delay)->equalTo(now()->addSeconds($delaySeconds)));
+})->with([
+    '403' => [403, [], 900],
+    '429' => [429, [], 900],
+    'retry after' => [403, ['Retry-After' => '60'], 60],
+]);
+
+it('leaves the rest of the batch to the next job once it has spent its budget', function (): void {
+    Queue::fake();
+    $this->freezeSecond();
+
+    [$slow, $next] = User::factory()->count(2)->create()->sortBy('id')->values();
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('rateLimit')->andReturnNull();
+    $github->shouldReceive('followingIds')->with($slow->handle, 10)->andReturnUsing(function (): array {
+        $this->travel(ImportAllGitHubFollowsJob::Budget)->seconds();
+
+        return ['users' => [], 'organizations' => []];
+    });
+    $github->shouldReceive('followerIds')->andReturn([]);
+    $github->shouldReceive('followingIds')->with($next->handle, 10)->never();
+
+    new ImportAllGitHubFollowsJob()->handle($github, resolve(CreateUserGitHubFollows::class));
+
+    expect($slow->refresh()->github_follows_imported_at)->not->toBeNull();
+    Queue::assertPushed(ImportAllGitHubFollowsJob::class, fn (ImportAllGitHubFollowsJob $job): bool => $job->after === $slow->id
+        && CarbonImmutable::instance($job->delay)->equalTo(now()));
+});
 
 it('skips the users github fails on, reporting all but the accounts renamed since their last sign-in', function (): void {
     Queue::fake();
     Exceptions::fake();
 
-    [$renamed, $failing, $unreachable, $user] = User::factory()->count(4)->create()->sortBy('id')->values();
+    [$renamed, $forbidden, $failing, $unreachable, $user] = User::factory()->count(5)->create()->sortBy('id')->values();
 
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('rateLimit')->andReturnNull();
     $github->shouldReceive('followingIds')->with($renamed->handle, 10)->andThrow(new RequestException(new Response(new Psr7Response(404))));
+    $github->shouldReceive('followingIds')->with($forbidden->handle, 10)->andThrow(new RequestException(new Response(new Psr7Response(403, [], '{"message":"Forbidden"}'))));
     $github->shouldReceive('followingIds')->with($failing->handle, 10)->andThrow(new RequestException(new Response(new Psr7Response(500))));
     $github->shouldReceive('followingIds')->with($unreachable->handle, 10)->andThrow(new ConnectionException());
     $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn(['users' => [], 'organizations' => []]);
@@ -117,5 +145,5 @@ it('skips the users github fails on, reporting all but the accounts renamed sinc
     expect($renamed->refresh()->github_follows_imported_at)->toBeNull()
         ->and($user->refresh()->github_follows_imported_at)->not->toBeNull();
 
-    Exceptions::assertReportedCount(2);
+    Exceptions::assertReportedCount(3);
 });
