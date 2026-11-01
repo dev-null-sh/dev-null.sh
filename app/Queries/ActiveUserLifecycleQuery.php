@@ -32,10 +32,6 @@ final readonly class ActiveUserLifecycleQuery
     {
         $today = CarbonImmutable::today();
 
-        if ($from->isAfter($today)) {
-            return [];
-        }
-
         /** @var list<object{date: string, new: int, regular: int, back: int, lost: int}> $rows */
         $rows = DB::select(<<<'SQL'
             with active as (

@@ -21,7 +21,6 @@ import type {
     AcquisitionDay,
     ActivationDay,
     ActiveUserCount,
-    LifecycleDay,
     ActiveUsers,
     CommitResponses,
     RetentionByDay as RetentionByDayData,
@@ -31,6 +30,7 @@ import type {
     RetentionDay,
     Funnel,
     FunnelRate,
+    LifecycleDay,
     MetricsRange,
     NewcomerFollows,
     TrafficRange,
@@ -1053,148 +1053,141 @@ function ActiveUserLifecycle({
                     )
                         .toISOString()
                         .slice(0, 10)}
-                    marker={STRIPES_SWATCH}
+                    marker={
+                        <span
+                            aria-hidden
+                            className={cn(
+                                'size-3 rounded-sm',
+                                parts[0].className,
+                                BACKFILLED_STRIPES,
+                            )}
+                        />
+                    }
                 />
             )}
-            {days.length === 0 ? (
-                <div className="flex flex-1 flex-col pt-5">
-                    <div className="flex min-h-48 flex-1 items-center justify-center border-b border-rail px-4">
-                        <p className="max-w-sm text-center font-mono text-[13px] text-balance text-muted-foreground">
-                            nothing yet: days are counted up to today
-                        </p>
-                    </div>
-                    <DateAxis range={range} />
-                </div>
-            ) : (
-                <figure className="@container flex flex-1 flex-col pt-5">
+            <figure className="@container flex flex-1 flex-col pt-5">
+                <div
+                    key={`${range.from}:${range.to}`}
+                    className="relative flex min-h-48 flex-1 gap-(--bar-gap) [--bar-gap:min(0.25rem,var(--fitting-gap))] sm:[--bar-gap:min(0.5rem,var(--fitting-gap))]"
+                    style={
+                        {
+                            '--fitting-gap': `${25 / dates.length}cqw`,
+                        } as CSSProperties
+                    }
+                >
                     <div
-                        key={`${range.from}:${range.to}`}
-                        className="relative flex min-h-48 flex-1 gap-(--bar-gap) [--bar-gap:min(0.25rem,var(--fitting-gap))] sm:[--bar-gap:min(0.5rem,var(--fitting-gap))]"
-                        style={
-                            {
-                                '--fitting-gap': `${25 / dates.length}cqw`,
-                            } as CSSProperties
-                        }
-                    >
-                        <div
-                            aria-hidden
-                            className="pointer-events-none absolute inset-x-0 border-t border-rail"
-                            style={{ top: `${(top / scale) * 100}%` }}
-                        />
-                        {dates.map((date, index) => {
-                            const day = byDate.get(date);
-                            const isPartial = day?.lost === null;
+                        aria-hidden
+                        className="pointer-events-none absolute inset-x-0 border-t border-rail"
+                        style={{ top: `${(top / scale) * 100}%` }}
+                    />
+                    {dates.map((date, index) => {
+                        const day = byDate.get(date);
+                        const isPartial = day?.lost === null;
 
-                            return (
-                                <div
-                                    key={date}
-                                    className="group relative flex h-full flex-1 flex-col"
-                                >
-                                    {day && (
-                                        <>
-                                            <div
-                                                className="flex items-end"
-                                                style={{
-                                                    height: `${(top / scale) * 100}%`,
-                                                }}
-                                            >
-                                                <div
-                                                    className={cn(
-                                                        'relative flex w-full flex-col-reverse gap-0.5 overflow-hidden rounded-t',
-                                                        isPartial &&
-                                                            'opacity-50',
-                                                    )}
-                                                    style={{
-                                                        height: `${(up(day) / Math.max(Number.MIN_VALUE, top)) * 100}%`,
-                                                    }}
-                                                >
-                                                    {parts
-                                                        .filter(
-                                                            (part) =>
-                                                                day[part.key] >
-                                                                0,
-                                                        )
-                                                        .map((part) => (
-                                                            <div
-                                                                key={part.key}
-                                                                className={cn(
-                                                                    part.className,
-                                                                    day.backfilled &&
-                                                                        BACKFILLED_STRIPES,
-                                                                )}
-                                                                style={{
-                                                                    flex: `${day[part.key]} 1 0`,
-                                                                }}
-                                                            />
-                                                        ))}
-                                                </div>
-                                            </div>
+                        return (
+                            <div
+                                key={date}
+                                className="group relative flex h-full flex-1 flex-col"
+                            >
+                                {day && (
+                                    <>
+                                        <div
+                                            className="flex items-end"
+                                            style={{
+                                                height: `${(top / scale) * 100}%`,
+                                            }}
+                                        >
                                             <div
                                                 className={cn(
-                                                    'w-full rounded-b bg-muted-foreground/45',
-                                                    day.backfilled &&
-                                                        BACKFILLED_STRIPES,
+                                                    'relative flex w-full flex-col-reverse gap-0.5 overflow-hidden rounded-t',
+                                                    isPartial && 'opacity-50',
                                                 )}
                                                 style={{
-                                                    height: `${((day.lost ?? 0) / scale) * 100}%`,
+                                                    height: `${(up(day) / Math.max(Number.MIN_VALUE, top)) * 100}%`,
                                                 }}
+                                            >
+                                                {parts
+                                                    .filter(
+                                                        (part) =>
+                                                            day[part.key] > 0,
+                                                    )
+                                                    .map((part) => (
+                                                        <div
+                                                            key={part.key}
+                                                            className={cn(
+                                                                part.className,
+                                                                day.backfilled &&
+                                                                    BACKFILLED_STRIPES,
+                                                            )}
+                                                            style={{
+                                                                flex: `${day[part.key]} 1 0`,
+                                                            }}
+                                                        />
+                                                    ))}
+                                            </div>
+                                        </div>
+                                        <div
+                                            className={cn(
+                                                'w-full rounded-b bg-muted-foreground/45',
+                                                day.backfilled &&
+                                                    BACKFILLED_STRIPES,
+                                            )}
+                                            style={{
+                                                height: `${((day.lost ?? 0) / scale) * 100}%`,
+                                            }}
+                                        />
+                                        <div
+                                            className={cn(
+                                                'pointer-events-none absolute z-10 hidden rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block',
+                                                index < dates.length / 3
+                                                    ? 'left-0'
+                                                    : index >=
+                                                        (dates.length * 2) / 3
+                                                      ? 'right-0'
+                                                      : 'left-1/2 -translate-x-1/2',
+                                            )}
+                                            style={{
+                                                bottom: `calc(${100 - ((top - up(day)) / scale) * 100}% + 0.5rem)`,
+                                            }}
+                                        >
+                                            <LifecycleTip
+                                                day={day}
+                                                view={view}
                                             />
-                                            <div
-                                                className={cn(
-                                                    'pointer-events-none absolute z-10 hidden rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block',
-                                                    index < dates.length / 3
-                                                        ? 'left-0'
-                                                        : index >=
-                                                            (dates.length * 2) /
-                                                                3
-                                                          ? 'right-0'
-                                                          : 'left-1/2 -translate-x-1/2',
-                                                )}
-                                                style={{
-                                                    bottom: `calc(${100 - ((top - up(day)) / scale) * 100}% + 0.5rem)`,
-                                                }}
-                                            >
-                                                <LifecycleTip
-                                                    day={day}
-                                                    view={view}
-                                                />
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
-                            );
-                        })}
-                    </div>
-                    <DateAxis range={range} />
-                    <div className="sr-only">
-                        <table>
-                            <caption>
-                                Active users by where they come from
-                            </caption>
-                            <thead>
-                                <tr>
-                                    <th scope="col">Day</th>
-                                    <th scope="col">Back</th>
-                                    <th scope="col">Regulars</th>
-                                    <th scope="col">New</th>
-                                    <th scope="col">Lost</th>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+                <DateAxis range={range} />
+                <div className="sr-only">
+                    <table>
+                        <caption>Active users by where they come from</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Day</th>
+                                <th scope="col">Back</th>
+                                <th scope="col">Regulars</th>
+                                <th scope="col">New</th>
+                                <th scope="col">Lost</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {days.map((day) => (
+                                <tr key={day.date}>
+                                    <th scope="row">{day.date}</th>
+                                    <td>{day.back}</td>
+                                    <td>{day.regular}</td>
+                                    <td>{day.new}</td>
+                                    <td>{day.lost ?? 'not yet'}</td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                {days.map((day) => (
-                                    <tr key={day.date}>
-                                        <th scope="row">{day.date}</th>
-                                        <td>{day.back}</td>
-                                        <td>{day.regular}</td>
-                                        <td>{day.new}</td>
-                                        <td>{day.lost ?? 'not yet'}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </figure>
-            )}
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </figure>
         </div>
     );
 }
@@ -1708,6 +1701,7 @@ export default function Show({
                 </Panel>
 
                 <Panel
+                    className="xl:col-span-2"
                     title="Back and lost"
                     meta="utc"
                     fill
