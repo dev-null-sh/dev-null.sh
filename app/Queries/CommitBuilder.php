@@ -66,7 +66,7 @@ final class CommitBuilder extends Builder
 
     /**
      * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits,
-     * and the members of an organization its own. A block hides the commits from each one's profile from the other.
+     * and the members of an organization the organization's. A block hides the commits from each one's profile from the other.
      */
     public function visibleTo(?User $user): self
     {

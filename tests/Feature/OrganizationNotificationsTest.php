@@ -14,11 +14,13 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Enums\OperationsEventSource;
 use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
+use App\Queries\OperationsEventsQuery;
 
 beforeEach(function (): void {
     $this->organization = Organization::factory()->create(['handle' => 'laravel']);
@@ -270,4 +272,11 @@ it('lets the members of an organization see its pending commits and their images
         ->and($pending->imagesAreVisibleTo($outsider))->toBeFalse()
         ->and(Commit::query()->visibleTo($this->member)->whereKey($pending->id)->exists())->toBeTrue()
         ->and(Commit::query()->visibleTo($outsider)->whereKey($pending->id)->exists())->toBeFalse();
+});
+
+it("lists an organization's rejected commit once in the operations feed, as its poster's", function (): void {
+    resolve(UpdateCommitStatuses::class)->handle([$this->commit->id], CommitStatus::Rejected, 'Spam');
+
+    expect(collect(resolve(OperationsEventsQuery::class)->get(now()->subDay()->toImmutable(), OperationsEventSource::Moderation))
+        ->where('message', 'Commit rejected')->pluck('actor')->all())->toBe([$this->admin->handle]);
 });
