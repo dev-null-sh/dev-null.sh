@@ -246,3 +246,15 @@ it('never restores a commit of an organization GitHub no longer has, even within
         expect(resolve(CreateCommitRestoration::class)->handle($commit)->trashed())->toBeTrue();
     }
 });
+
+it('lets a member restore a commit of the organization whose poster deleted their account', function (): void {
+    $poster = User::factory()->create();
+    $this->organization->members()->attach($poster->id, ['role' => OrganizationRole::Member]);
+    $commit = Commit::factory()->for($poster)->create(['author_id' => $this->organization->id]);
+    resolve(DeleteUser::class)->handle($poster);
+
+    $this->actingAs($this->member)->delete(route('commit.destroy', $commit))->assertRedirect();
+    $this->post(route('commit-restoration.store', $commit))->assertRedirect();
+
+    expect($commit->refresh()->trashed())->toBeFalse();
+});

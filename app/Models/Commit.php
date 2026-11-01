@@ -238,11 +238,13 @@ final class Commit extends Model
     }
 
     /**
-     * A deleted commit comes back within seconds, unless its account or organization has gone since.
+     * A deleted commit comes back within seconds, unless its author has gone since: a deleted account takes its own
+     * commits' authors with it, and an organization GitHub no longer has its own. Whoever posted an organization's
+     * commit may have gone, while its members still can bring it back.
      */
     public function isRestorable(): bool
     {
-        return $this->user_id !== null && $this->author_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
+        return $this->author_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
     }
 
     /**
