@@ -8,7 +8,9 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /** Adds nullable source metadata without requiring attribution for existing commits. */
+    /**
+     * Adds nullable source metadata without requiring attribution for existing commits.
+     */
     public function up(): void
     {
         Schema::table('commits', function (Blueprint $table): void {
