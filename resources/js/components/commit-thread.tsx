@@ -1420,6 +1420,7 @@ function ReplyComposer({
         reply_recipients: [],
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const imageInputRef = useRef<HTMLInputElement>(null);
     const commitRules = useCommitRules();
     const isReplyable =
         (images.length > 0 || characterCount(body.trim()) >= minBodyLength) &&
@@ -1562,6 +1563,14 @@ function ReplyComposer({
                     value={body}
                     onValueChange={updateBody}
                     onKeyDown={onKeyDown}
+                    onImage={() => imageInputRef.current?.click()}
+                    commandContext={{
+                        surface: 'reply',
+                        hasPoll: false,
+                        imageCount: images.length,
+                        isScheduling: false,
+                        processing,
+                    }}
                     onPaste={attachments.onPaste}
                     onFocus={isRestored ? moveCaretToEnd : undefined}
                     maxLength={maxRawBodyLength}
@@ -1640,6 +1649,7 @@ function ReplyComposer({
                         disabled={processing}
                         reading={attachments.reading}
                         onPick={attachments.pick}
+                        inputRef={imageInputRef}
                         className="size-8"
                     />
                     <PreviewToggle preview={preview} className="-ml-2 size-8" />

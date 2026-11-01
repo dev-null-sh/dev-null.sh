@@ -77,7 +77,7 @@ export function CommitComposerDialog({
                     onEscapeKeyDown={(event) => {
                         if (
                             document.querySelector(
-                                '[data-mention-suggestions], [data-command-suggestions], [role="dialog"].yarl__root',
+                                '[data-mention-suggestions], [data-slash-suggestions], [data-emoji-suggestions], [data-issue-suggestions], [role="dialog"].yarl__root',
                             ) ||
                             (typeof Element !== 'undefined' &&
                                 event.target instanceof Element &&
@@ -91,7 +91,7 @@ export function CommitComposerDialog({
                             typeof Element !== 'undefined' &&
                             event.target instanceof Element &&
                             event.target.closest(
-                                '[data-mention-suggestions], [data-command-suggestions], [role="dialog"].yarl__root',
+                                '[data-mention-suggestions], [data-slash-suggestions], [data-emoji-suggestions], [data-issue-suggestions], [role="dialog"].yarl__root',
                             )
                         ) {
                             event.preventDefault();
