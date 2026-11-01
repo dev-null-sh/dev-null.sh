@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\ConversationKind;
+use App\Jobs\DeleteLiveInput;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -33,8 +34,8 @@ final readonly class DeleteUser
      * other people replied to: those stay behind as tombstones with no author or body, so the replies under them keep their thread.
      * What they posted for organizations stays, and only forgets who posted it.
      * The database cascades the image rows of erased commits and the user's scheduled commits, and the voice notes of their
-     * messages, but the files are erased here. Orgs the user was the last one in go too, with everything sent in them,
-     * as they do when the last member leaves.
+     * messages, but the files are erased here, and so is their live input on Cloudflare, which could otherwise still take a stream.
+     * Orgs the user was the last one in go too, with everything sent in them, as they do when the last member leaves.
      */
     public function handle(User $user): void
     {
@@ -86,6 +87,10 @@ final readonly class DeleteUser
                 Cache::forget($key);
             }
         });
+
+        if ($user->live_input_id !== null) {
+            dispatch(new DeleteLiveInput($user->live_input_id));
+        }
     }
 
     /**

@@ -7,7 +7,13 @@ import type { User } from '@/types';
 /**
  * Going live, or ending the stream, from your own profile, where other people's profiles have the mute and block menu.
  */
-export function ProfileLiveButton({ user }: { user: Pick<User, 'live'> }) {
+export function ProfileLiveButton({
+    user,
+    canStreamHere = false,
+}: {
+    user: Pick<User, 'live'>;
+    canStreamHere?: boolean;
+}) {
     const [isGoingLive, setIsGoingLive] = useState(false);
     const [isEnding, setIsEnding] = useState(false);
 
@@ -47,7 +53,11 @@ export function ProfileLiveButton({ user }: { user: Pick<User, 'live'> }) {
                 </Button>
             )}
 
-            <GoLiveDialog open={isGoingLive} onOpenChange={setIsGoingLive} />
+            <GoLiveDialog
+                open={isGoingLive}
+                onOpenChange={setIsGoingLive}
+                canStreamHere={canStreamHere}
+            />
         </>
     );
 }

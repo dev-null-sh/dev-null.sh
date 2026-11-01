@@ -20,6 +20,7 @@ use App\Queries\UserActivityQuery;
 use App\Queries\UserCommitsQuery;
 use App\Queries\UserModerationQuery;
 use App\Queries\UserStreakQuery;
+use App\Services\CloudflareStream;
 use App\Services\PageMetadata;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\RedirectResponse;
@@ -33,7 +34,7 @@ final readonly class UserController
     /**
      * Profiles are public, so guests and crawlers read the same page, with the profile's link preview.
      */
-    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, UserModerationQuery $moderation, FollowersYouKnowQuery $followersYouKnow, GitHubReadmeQuery $readme, BioProfilesQuery $bioProfiles, PageMetadata $metadata): Response
+    public function show(ShowUserRequest $request, #[CurrentUser] ?User $currentUser, User $user, UserActivityQuery $activity, UserStreakQuery $streaks, UserAchievementsQuery $achievements, PushAccessQuery $pushAccess, UserCommitsQuery $commits, PinnedCommitQuery $pinned, UserModerationQuery $moderation, FollowersYouKnowQuery $followersYouKnow, GitHubReadmeQuery $readme, BioProfilesQuery $bioProfiles, PageMetadata $metadata, CloudflareStream $stream): Response
     {
         $blockerId = $currentUser?->blockerIdWith($user);
 
@@ -64,6 +65,7 @@ final readonly class UserController
             'followersYouKnow' => fn (): ?array => $currentUser instanceof User && $currentUser->isNot($user)
                 ? $followersYouKnow->preview($user, $currentUser)
                 : null,
+            'canStreamHere' => fn (): bool => $currentUser?->is($user) === true && $stream->configured(),
             'canPush' => fn (): bool => $currentUser instanceof User
                 && $currentUser->canMessage($user)
                 && ! in_array($pushAccess->get($currentUser, $user), [PushAccess::Restricted, PushAccess::Closed], true),
