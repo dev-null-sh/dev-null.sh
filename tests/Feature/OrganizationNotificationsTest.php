@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateCommit;
 use App\Actions\CreateCommitStar;
 use App\Actions\CreateCommitTopics;
 use App\Actions\CreateMentionNotifications;
@@ -309,4 +310,95 @@ it("asks Tom to answer the organization's commits addressed to him, as anyone's"
     resolve(UpdateCommitStatuses::class)->handle([$reply->id], CommitStatus::Approved);
 
     Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $reply->id);
+});
+
+it('tells whoever the organization replies to, quotes or mentions, from the organization, even if they block or mute who posted it', function (): void {
+    [$alice, $bob, $carol] = User::factory()->count(3)->create();
+    $alice->blocking()->attach($this->admin);
+    $bob->muting()->attach($this->admin);
+    $carol->blockers()->attach($this->member);
+    $reply = Commit::factory()->for($this->admin)->for(Commit::factory()->for($alice), 'parent')->create(['author_id' => $this->organization->id]);
+    $quote = Commit::factory()->for($this->admin)->create(['author_id' => $this->organization->id, 'quoted_commit_id' => Commit::factory()->for($bob)->create()->id]);
+    $mention = Commit::factory()->for($this->member)->create([
+        'author_id' => $this->organization->id,
+        'body' => 'Hello @'.$carol->handle,
+        'mentions' => [mb_strtolower($carol->handle) => $carol->id],
+    ]);
+
+    resolve(CreateReplyNotifications::class)->handle($reply);
+    resolve(CreateQuoteNotifications::class)->handle($quote);
+    resolve(CreateMentionNotifications::class)->handle($mention);
+
+    expect(Notification::query()->get(['recipient_id', 'actor_id', 'organization_id', 'type'])->map->only(['recipient_id', 'actor_id', 'organization_id', 'type'])->all())->toEqualCanonicalizing([
+        ['recipient_id' => $alice->id, 'actor_id' => $this->organization->id, 'organization_id' => null, 'type' => NotificationType::Replied],
+        ['recipient_id' => $bob->id, 'actor_id' => $this->organization->id, 'organization_id' => null, 'type' => NotificationType::Quoted],
+        ['recipient_id' => $carol->id, 'actor_id' => $this->organization->id, 'organization_id' => null, 'type' => NotificationType::Mentioned],
+    ]);
+
+    $this->actingAs($alice)
+        ->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('notifications.data.0.actor.type', 'organization')
+            ->where('notifications.data.0.actor.handle', 'laravel')
+            ->where('notifications.data.0.actors.0.handle', 'laravel'));
+
+    signedApiRequest(apiKeyPairFor($bob), 'GET', route('api-notification.index'))
+        ->assertOk()
+        ->assertJsonPath('data.0.actor.type', 'organization')
+        ->assertJsonPath('data.0.actor.id', $this->organization->id)
+        ->assertJsonPath('data.0.actor.handle', 'laravel');
+
+    resolve(DeleteOrganization::class)->handle($this->organization);
+
+    expect(Notification::query()->exists())->toBeFalse();
+});
+
+it('tells no member what the organization does to its own commits or mentioning itself, but still whoever else it mentions', function (): void {
+    $carol = User::factory()->create();
+    $reply = Commit::factory()->for($this->member)->for($this->commit, 'parent')->create([
+        'author_id' => $this->organization->id,
+        'body' => 'More from @laravel, with @'.$carol->handle,
+        'mentions' => [mb_strtolower($carol->handle) => $carol->id],
+    ]);
+    $quote = Commit::factory()->for($this->member)->create(['author_id' => $this->organization->id, 'quoted_commit_id' => $this->commit->id]);
+    resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => $this->organization->id]);
+
+    resolve(CreateReplyNotifications::class)->handle($reply);
+    resolve(CreateQuoteNotifications::class)->handle($quote);
+    resolve(CreateMentionNotifications::class)->handle($reply);
+
+    expect(Notification::query()->pluck('type', 'recipient_id')->all())->toBe([$carol->id => NotificationType::Mentioned]);
+});
+
+it("tells whoever the organization replies to once the reply is approved, but no one of the organization's first commit", function (): void {
+    Queue::fake();
+    $alice = User::factory()->create();
+    $follower = User::factory()->create();
+    $follower->following()->attach($this->member);
+    $this->organization->followers()->attach($follower);
+
+    $first = resolve(CreateCommit::class)->handle($this->member, 'Hello from Laravel', organization: $this->organization);
+    $reply = resolve(CreateCommit::class)->handle($this->member, 'Thanks!', Commit::factory()->for($alice)->create(), organization: $this->organization);
+
+    expect(Notification::query()->exists())->toBeFalse();
+
+    resolve(UpdateCommitStatuses::class)->handle([$first->id, $reply->id], CommitStatus::Approved);
+
+    expect(Notification::query()->get(['recipient_id', 'actor_id', 'type'])->map->only(['recipient_id', 'actor_id', 'type'])->all())->toBe([
+        ['recipient_id' => $alice->id, 'actor_id' => $this->organization->id, 'type' => NotificationType::Replied],
+    ]);
+});
+
+it('still tells whoever the organization replied to or quoted once the poster deleted their account', function (): void {
+    [$alice, $bob] = User::factory()->count(2)->create();
+    $reply = Commit::factory()->for($this->member)->for(Commit::factory()->for($alice), 'parent')->pending()->create(['author_id' => $this->organization->id]);
+    $quote = Commit::factory()->for($this->member)->pending()->create(['author_id' => $this->organization->id, 'quoted_commit_id' => Commit::factory()->for($bob)->create()->id]);
+    resolve(DeleteUser::class)->handle($this->member);
+
+    resolve(UpdateCommitStatuses::class)->handle([$reply->id, $quote->id], CommitStatus::Approved);
+
+    expect(Notification::query()->pluck('actor_id', 'recipient_id')->all())->toEqualCanonicalizing([
+        $alice->id => $this->organization->id,
+        $bob->id => $this->organization->id,
+    ]);
 });

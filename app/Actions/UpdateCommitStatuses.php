@@ -101,12 +101,12 @@ final readonly class UpdateCommitStatuses
                     ->whereNull('opened_at')
                     ->update(['opened_at' => now()]);
 
-                // As when they are posted, an organization's commits notify no one yet.
+                // As when they are posted, only a person's first commit is announced.
                 $personal = $commits->filter(fn (Commit $commit): bool => $commit->author_id === $commit->user_id);
 
-                $this->createReplyNotifications->handle(...$personal);
-                $this->createQuoteNotifications->handle(...$personal);
-                $this->createMentionNotifications->handle(...$personal);
+                $this->createReplyNotifications->handle(...$commits);
+                $this->createQuoteNotifications->handle(...$commits);
+                $this->createMentionNotifications->handle(...$commits);
                 $this->createFirstCommitNotifications->handle(...$personal);
 
                 $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));

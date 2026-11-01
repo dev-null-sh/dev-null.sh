@@ -1,6 +1,11 @@
 import type { User } from '@/types/auth';
-import type { Commit, DeletedCommit } from '@/types/commit';
+import type { Commit, DeletedCommit, OrganizationAuthor } from '@/types/commit';
 import type { Organization } from '@/types/organization';
+
+// Whoever did it: a user, who says whether you follow them, or an organization replying, quoting or mentioning.
+export type Actor =
+    | (User & { type: 'user'; is_followed: boolean })
+    | OrganizationAuthor;
 
 type BaseNotification = {
     id: string;
@@ -9,7 +14,7 @@ type BaseNotification = {
     read_at: string | null;
     created_at: string;
     updated_at: string;
-    actor: User & { is_followed: boolean };
+    actor: Actor;
     // The organization the user hears about it for, as one of its members, or null when it is their own.
     organization: Organization | null;
     reason: string | null;
@@ -18,7 +23,7 @@ type BaseNotification = {
 export type NotificationGroup = Notification & {
     group_id: string;
     event_count: number;
-    actors: User[];
+    actors: Actor[];
     actors_count: number;
     unread_count: number;
 };

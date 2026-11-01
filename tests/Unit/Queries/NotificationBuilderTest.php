@@ -27,11 +27,11 @@ it('keeps follows that still hold', function (): void {
 it('hides follows once unfollowed, until followed again', function (): void {
     $notification = Notification::factory()->create();
 
-    resolve(DeleteUserFollow::class)->handle($notification->actor, $notification->recipient);
+    resolve(DeleteUserFollow::class)->handle($notification->actor->user, $notification->recipient);
 
     expect(Notification::query()->relevant()->exists())->toBeFalse();
 
-    resolve(CreateUserFollow::class)->handle($notification->actor, $notification->recipient);
+    resolve(CreateUserFollow::class)->handle($notification->actor->user, $notification->recipient);
 
     expect(Notification::query()->relevant()->sole()->is($notification))->toBeTrue();
 });
@@ -39,8 +39,8 @@ it('hides follows once unfollowed, until followed again', function (): void {
 it('does not mistake a follow back for a follow', function (): void {
     $notification = Notification::factory()->create();
 
-    resolve(DeleteUserFollow::class)->handle($notification->actor, $notification->recipient);
-    resolve(CreateUserFollow::class)->handle($notification->recipient, $notification->actor);
+    resolve(DeleteUserFollow::class)->handle($notification->actor->user, $notification->recipient);
+    resolve(CreateUserFollow::class)->handle($notification->recipient, $notification->actor->user);
 
     expect(Notification::query()->where('recipient_id', $notification->recipient_id)->relevant()->exists())->toBeFalse();
 });
@@ -150,7 +150,7 @@ it('deletes stars along with the starred commit', function (): void {
 });
 
 it('deletes notifications along with the actor', function (Notification $notification): void {
-    resolve(DeleteUser::class)->handle($notification->actor);
+    resolve(DeleteUser::class)->handle($notification->actor->user);
 
     expect($notification->fresh())->toBeNull();
 })->with([
@@ -188,7 +188,7 @@ it('hides replies, mentions and stars across a block in either direction', funct
 
     $recipientBlocks
         ? $notification->recipient->blocking()->attach($notification->actor_id)
-        : $notification->actor->blocking()->attach($notification->recipient_id);
+        : $notification->actor->user->blocking()->attach($notification->recipient_id);
 
     expect(Notification::query()->relevant()->exists())->toBeFalse();
 })->with(['replied', 'mentioned', 'starred'])->with([true, false]);

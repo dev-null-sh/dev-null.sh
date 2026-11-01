@@ -6,6 +6,7 @@ namespace App\Queries;
 
 use App\Enums\NotificationType;
 use App\Models\Notification;
+use App\Models\Profile;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
@@ -13,6 +14,7 @@ use Illuminate\Contracts\Pagination\CursorPaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 
@@ -34,7 +36,7 @@ final readonly class NotificationGroupsQuery
         $query = Notification::query()->fromSub($events, 'notifications')
             ->where('group_rank', 1)
             ->with([
-                'actor' => fn (BelongsTo $query): BelongsTo => $query
+                'actor.user' => fn (HasOne $query): HasOne => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
                 'commit',
                 'organization',
@@ -107,7 +109,7 @@ final readonly class NotificationGroupsQuery
     {
         return $this->group($this->visible($user), $type, $notification)
             ->with([
-                'actor' => fn (BelongsTo $query): BelongsTo => $query
+                'actor.user' => fn (HasOne $query): HasOne => $query
                     ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($user->id)]),
                 'organization',
             ]);
@@ -237,7 +239,7 @@ final readonly class NotificationGroupsQuery
     private function loadStackedActors(array $groups): void
     {
         $grouped = array_filter($groups, fn (Notification $group): bool => $group->actors_count > 1);
-        $actors = $grouped === [] ? new Collection() : User::query()
+        $actors = $grouped === [] ? new Collection() : Profile::query()->with(['user', 'organization'])
             ->findMany(array_merge(...array_map($this->stackedActorIds(...), $grouped)));
 
         foreach ($groups as $group) {

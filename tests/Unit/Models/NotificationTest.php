@@ -48,5 +48,5 @@ it('may point to a starred commit', function (): void {
 
     expect($notification->type)->toBe(NotificationType::Starred)
         ->and($notification->commit->user_id)->toBe($notification->recipient_id)
-        ->and($notification->actor->hasStarred($notification->commit))->toBeTrue();
+        ->and($notification->actor->user->hasStarred($notification->commit))->toBeTrue();
 });

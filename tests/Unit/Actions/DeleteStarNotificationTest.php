@@ -10,7 +10,7 @@ it('deletes the notification about a star', function (): void {
     $sameCommit = Notification::factory()->for($notification->recipient, 'recipient')->starred($notification->commit)->create();
     $otherCommit = Notification::factory()->for($notification->recipient, 'recipient')->for($notification->actor, 'actor')->starred()->create();
 
-    resolve(DeleteStarNotification::class)->handle($notification->actor, $notification->commit);
+    resolve(DeleteStarNotification::class)->handle($notification->actor->user, $notification->commit);
 
     expect($notification->fresh())->toBeNull()
         ->and($sameCommit->fresh())->not->toBeNull()
@@ -20,7 +20,7 @@ it('deletes the notification about a star', function (): void {
 it('keeps other notifications from the same actor about the commit', function (): void {
     $notification = Notification::factory()->replied()->create();
 
-    resolve(DeleteStarNotification::class)->handle($notification->actor, $notification->commit);
+    resolve(DeleteStarNotification::class)->handle($notification->actor->user, $notification->commit);
 
     expect($notification->fresh())->not->toBeNull();
 });

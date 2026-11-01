@@ -68,7 +68,7 @@ it('hides notifications that no longer hold', function (): void {
     $user = User::factory()->create();
     $notification = Notification::factory()->for($user, 'recipient')->create();
 
-    resolve(DeleteUserFollow::class)->handle($notification->actor, $user);
+    resolve(DeleteUserFollow::class)->handle($notification->actor->user, $user);
 
     $response = $this->actingAs($user)->get(route('notification.index'));
 
