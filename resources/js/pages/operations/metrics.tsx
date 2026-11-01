@@ -837,14 +837,13 @@ function ActivationByDay({
 }
 
 /**
- * The parts of a day's active users, from the bottom of the bar: people back after a week or more away in blue, as it
- * is what bringing people back moves, regulars in a lighter blue, then the day's signups in amber, darker when they
- * activated. Signups too young to tell are hatched, as they are not settled yet. The ambers are this chart's own, so
- * they live on its wrapper, not in the theme.
+ * The parts of a day's active users, from the bottom of the bar: regulars in a light blue, people back after a week or
+ * more away in blue, then the day's signups in amber, darker when they activated. Signups too young to tell are
+ * hatched, as they are not settled yet. The ambers are this chart's own, so they live on its wrapper, not in the theme.
  */
 const ACTIVE_USER_PARTS = [
-    { key: 'back', label: 'back after 7+ days away', className: 'bg-primary' },
     { key: 'regular', label: 'regulars', className: 'bg-primary/40' },
+    { key: 'back', label: 'back after 7+ days away', className: 'bg-primary' },
     {
         key: 'activated',
         label: 'new, activated',
