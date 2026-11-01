@@ -75,7 +75,10 @@ vi.doMock('@inertiajs/react', async () => ({
             }
 
             return () =>
-                navigateListeners.splice(navigateListeners.indexOf(listener), 1);
+                navigateListeners.splice(
+                    navigateListeners.indexOf(listener),
+                    1,
+                );
         },
         replaceProp: (
             _key: string,
@@ -191,11 +194,18 @@ function isSuggested(user: SuggestedUser): boolean {
     return row.props.inert !== true;
 }
 
-function blockFromSafetyMenu(user: SuggestedUser): void {
-    const block = find(
+function safetyMenuBlock(user: SuggestedUser): ReactElement<Props> | null {
+    const dialog = find(
         UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
-        (props) => props.children === 'Block',
+        (props) => 'open' in props && props.user === user,
     );
+    assert.ok(dialog);
+
+    return find(render(dialog), (props) => props.children === 'Block');
+}
+
+function blockFromSafetyMenu(user: SuggestedUser): void {
+    const block = safetyMenuBlock(user);
     assert.ok(block);
     (block.props.onClick as () => void)();
     visits.at(-1)?.onSuccess?.();
@@ -291,7 +301,10 @@ for (const followsYou of [true, false]) {
             );
             assert.ok(row);
             const control = render(row) as ReactElement<Props>;
-            const button = find(render(control), (props) => 'aria-label' in props);
+            const button = find(
+                render(control),
+                (props) => 'aria-label' in props,
+            );
             assert.ok(button);
             assert.equal(
                 button.props['aria-label'],
@@ -327,7 +340,8 @@ for (const type of [
             });
 
             assert.equal(
-                find(page, (props) => props.children === 'Follows you') !== null,
+                find(page, (props) => props.children === 'Follows you') !==
+                    null,
                 type === 'followers' && followsYou,
             );
             if (type === 'followers' && followsYou) {
@@ -529,10 +543,7 @@ test('a preview unfollow that fails after a block keeps who to follow unfollowed
     (previewFollowButton(user, true).props.onClick as () => void)();
     const unfollow = visits.at(-1);
 
-    const block = find(
-        UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
-        (props) => props.children === 'Block',
-    );
+    const block = safetyMenuBlock(user);
     assert.ok(block);
     (block.props.onClick as () => void)();
     visits.at(-1)?.onSuccess?.();
@@ -682,9 +693,9 @@ function suggestionRow(user: SuggestedUser): Props {
 }
 
 function dismissSuggestion(user: SuggestedUser): boolean {
-    return (
-        suggestionRow(user).onDismiss as (onFailed: () => void) => boolean
-    )(() => {});
+    return (suggestionRow(user).onDismiss as (onFailed: () => void) => boolean)(
+        () => {},
+    );
 }
 
 function hasElementNamed(node: ReactNode, name: string): boolean {

@@ -1,11 +1,33 @@
 import { router, usePage } from '@inertiajs/react';
-import { LinkIcon, Send, Share2 } from 'lucide-react';
+import {
+    Ban,
+    EllipsisVertical,
+    Flag,
+    LinkIcon,
+    Send,
+    Trash2,
+    UserCheck,
+    UserPlus,
+    Volume2,
+    VolumeX,
+} from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { Ref } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ConversationController from '@/actions/App/Http/Controllers/ConversationController';
-import { CommitReportButton } from '@/components/commit-report-button';
+import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
+import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
+import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
+import {
+    CommitReportDialog,
+    useCanReport,
+} from '@/components/commit-report-button';
 import { useCopyLink } from '@/components/copy-link-button';
+import {
+    followVisitOptions,
+    onFollowHttpException,
+    useIsFollowing,
+} from '@/components/follow-button';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { SearchDialog } from '@/components/search-dialog';
 import { Button } from '@/components/ui/button';
@@ -21,6 +43,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuShortcut,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -29,21 +52,40 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+    forgetPreview,
+    usePreviewRelationship,
+} from '@/components/user-preview';
+import { BlockUserDialog, visitSafety } from '@/components/user-safety-menu';
+import { signIn } from '@/lib/auth';
 import { sendMessage } from '@/lib/chat';
 import { cn } from '@/lib/utils';
-import type { Commit, User } from '@/types';
+import type { Commit, CursorPaginated, User } from '@/types';
+
+type PendingAction = 'send' | 'block' | 'report' | 'delete';
 
 export function CommitSecondaryActions({
     commit,
     keyShortcut,
     isReply = false,
+    onDelete,
 }: {
     commit: Commit;
     keyShortcut?: string;
     isReply?: boolean;
+    /** Set when the viewer can delete the commit: it gets the menu's trigger, to return focus to on cancel. */
+    onDelete?: (trigger: HTMLButtonElement | null) => void;
 }) {
     const { auth } = usePage().props;
     const shareTriggerRef = useRef<HTMLButtonElement>(null);
+    const canReport = useCanReport(commit);
+    const [isReporting, setIsReporting] = useState(false);
+    const [isConfirmingBlock, setIsConfirmingBlock] = useState(false);
+    const { author } = commit;
+    const canBlock =
+        auth.user !== null &&
+        author.type === 'user' &&
+        author.id !== auth.user.id;
     const [isPicking, setIsPicking] = useState(false);
     const [isPickerMounted, setIsPickerMounted] = useState(false);
     const [recipient, setRecipient] = useState<User | null>(null);
@@ -91,15 +133,40 @@ export function CommitSecondaryActions({
                         : 'md:commit-hover:opacity-100 md:commit-focus-within:opacity-100',
                 )}
             >
-                <CommitShareMenu
+                <CommitMoreMenu
                     commit={commit}
                     keyShortcut={keyShortcut}
                     canSend={canSend}
+                    canReport={canReport}
+                    canDelete={onDelete !== undefined}
                     triggerRef={shareTriggerRef}
-                    onSend={pickRecipient}
+                    onPending={(action) => {
+                        if (action === 'send') {
+                            pickRecipient();
+                        } else if (action === 'block') {
+                            setIsConfirmingBlock(true);
+                        } else if (action === 'report') {
+                            setIsReporting(true);
+                        } else {
+                            onDelete?.(shareTriggerRef.current);
+                        }
+                    }}
                 />
-                <CommitReportButton commit={commit} />
             </div>
+            {canBlock && (
+                <BlockUserDialog
+                    user={author}
+                    open={isConfirmingBlock}
+                    onOpenChange={setIsConfirmingBlock}
+                />
+            )}
+            {canReport && (
+                <CommitReportDialog
+                    commit={commit}
+                    open={isReporting}
+                    onOpenChange={setIsReporting}
+                />
+            )}
             {canSend && isPickerMounted && (
                 <SearchDialog
                     open={isPicking}
@@ -166,21 +233,27 @@ export function CommitSecondaryActions({
     );
 }
 
-function CommitShareMenu({
+function CommitMoreMenu({
     commit,
     keyShortcut,
     canSend,
+    canReport,
+    canDelete,
     triggerRef,
-    onSend,
+    onPending,
 }: {
     commit: Commit;
     keyShortcut?: string;
     canSend: boolean;
+    canReport: boolean;
+    canDelete: boolean;
     triggerRef: Ref<HTMLButtonElement>;
-    onSend: () => void;
+    onPending: (action: PendingAction) => void;
 }) {
+    const { auth } = usePage().props;
     const { copyLink } = useCopyLink(commit);
-    const pendingSend = useRef(false);
+    const pending = useRef<PendingAction | null>(null);
+    const { author } = commit;
 
     return (
         <>
@@ -201,28 +274,33 @@ function CommitShareMenu({
                             <button
                                 ref={triggerRef}
                                 type="button"
-                                aria-label="Share commit"
+                                aria-label="More actions"
                                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-[state=open]:bg-accent data-[state=open]:text-foreground"
-                                data-test="share-commit-button"
+                                data-test="commit-menu-button"
                             >
-                                <Share2 aria-hidden className="size-4" />
+                                <EllipsisVertical
+                                    aria-hidden
+                                    className="size-4"
+                                />
                             </button>
                         </DropdownMenuTrigger>
                     </TooltipTrigger>
-                    <TooltipContent>Share</TooltipContent>
+                    <TooltipContent>More</TooltipContent>
                 </Tooltip>
                 <DropdownMenuContent
                     align="end"
-                    className="w-48"
+                    className="w-56"
                     onCloseAutoFocus={(event) => {
-                        if (!pendingSend.current) {
+                        const action = pending.current;
+
+                        if (action === null) {
                             return;
                         }
 
                         event.preventDefault();
-                        pendingSend.current = false;
-                        // Open the picker after the menu has finished closing.
-                        onSend();
+                        pending.current = null;
+                        // Open what comes next after the menu has finished closing.
+                        onPending(action);
                     }}
                 >
                     <DropdownMenuItem
@@ -240,7 +318,7 @@ function CommitShareMenu({
                     {canSend && (
                         <DropdownMenuItem
                             onSelect={() => {
-                                pendingSend.current = true;
+                                pending.current = 'send';
                             }}
                             data-test="share-in-remotes"
                         >
@@ -248,8 +326,161 @@ function CommitShareMenu({
                             Send in Remotes
                         </DropdownMenuItem>
                     )}
+                    {author.type === 'user' && author.id !== auth.user?.id && (
+                        <>
+                            <DropdownMenuSeparator />
+                            <CommitAuthorItems
+                                author={author}
+                                onBlock={() => {
+                                    pending.current = 'block';
+                                }}
+                            />
+                        </>
+                    )}
+                    {(canReport || canDelete) && <DropdownMenuSeparator />}
+                    {canReport && (
+                        <DropdownMenuItem
+                            onSelect={() => {
+                                pending.current = 'report';
+                            }}
+                            data-test="report-commit"
+                        >
+                            <Flag />
+                            Report commit
+                        </DropdownMenuItem>
+                    )}
+                    {canDelete && (
+                        <DropdownMenuItem
+                            variant="destructive"
+                            onSelect={() => {
+                                pending.current = 'delete';
+                            }}
+                            data-test="delete-commit-button"
+                        >
+                            <Trash2 />
+                            Delete commit
+                        </DropdownMenuItem>
+                    )}
                 </DropdownMenuContent>
             </DropdownMenu>
+        </>
+    );
+}
+
+/**
+ * Commits don't say whether you follow, mute or block their author, so the items ask the author's preview once the
+ * menu opens, and wait for it before offering any of them.
+ */
+function CommitAuthorItems({
+    author,
+    onBlock,
+}: {
+    author: User;
+    onBlock: () => void;
+}) {
+    const {
+        component,
+        props: { auth, log, commits },
+    } = usePage<{ commits?: CursorPaginated<Commit> }>();
+    const isSignedIn = auth.user !== null;
+    const relationship = usePreviewRelationship(author, isSignedIn);
+    const isLoading = isSignedIn && relationship === null;
+    const [isFollowing, setIsFollowing] = useIsFollowing(
+        author,
+        relationship?.isFollowing ?? false,
+    );
+
+    const toggleFollow = () => {
+        if (!isSignedIn) {
+            signIn();
+
+            return;
+        }
+
+        router.visit(
+            isFollowing
+                ? UserFollowController.destroy(author)
+                : UserFollowController.store(author),
+            {
+                preserveScroll: true,
+                preserveState: true,
+                async: true,
+                ...followVisitOptions(component, log, commits),
+                onSuccess: () => {
+                    setIsFollowing(!isFollowing);
+                    router.flushAll();
+                },
+                onHttpException: (response) =>
+                    onFollowHttpException(author, response),
+            },
+        );
+    };
+
+    const visit = (action: Parameters<typeof router.visit>[0]) =>
+        visitSafety(action, { onSuccess: () => forgetPreview(author) });
+
+    return (
+        <>
+            {!relationship?.isBlocking && (
+                <DropdownMenuItem
+                    disabled={isLoading}
+                    onSelect={toggleFollow}
+                    data-test="follow-commit-author"
+                >
+                    {isFollowing ? <UserCheck /> : <UserPlus />}
+                    <span
+                        className="min-w-0 truncate"
+                        title={`@${author.handle}`}
+                    >
+                        {isFollowing ? 'Unfollow' : 'Follow'} @{author.handle}
+                    </span>
+                </DropdownMenuItem>
+            )}
+            {isSignedIn && (
+                <>
+                    <DropdownMenuItem
+                        disabled={isLoading}
+                        onSelect={() =>
+                            visit(
+                                relationship?.isMuting
+                                    ? UserMuteController.destroy(author)
+                                    : UserMuteController.store(author),
+                            )
+                        }
+                        data-test="mute-commit-author"
+                    >
+                        {relationship?.isMuting ? <Volume2 /> : <VolumeX />}
+                        <span
+                            className="min-w-0 truncate"
+                            title={`@${author.handle}`}
+                        >
+                            {relationship?.isMuting ? 'Unmute' : 'Mute'} @
+                            {author.handle}
+                        </span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        variant={
+                            relationship?.isBlocking ? 'default' : 'destructive'
+                        }
+                        disabled={isLoading}
+                        onSelect={() =>
+                            relationship?.isBlocking
+                                ? visit(UserBlockController.destroy(author))
+                                : onBlock()
+                        }
+                        data-test="block-commit-author"
+                    >
+                        <Ban />
+                        <span
+                            className="min-w-0 truncate"
+                            title={`@${author.handle}`}
+                        >
+                            {relationship?.isBlocking ? 'Unblock' : 'Block'} @
+                            {author.handle}
+                        </span>
+                    </DropdownMenuItem>
+                </>
+            )}
         </>
     );
 }

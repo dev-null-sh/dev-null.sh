@@ -11,6 +11,7 @@ let refs: Array<{ current: unknown }> = [];
 let refCursor = 0;
 let signedIn = true;
 let remotesEnabled = true;
+let canReport = false;
 const sendMessage = vi.fn();
 const visit = vi.fn();
 const copyLink = vi.fn();
@@ -50,7 +51,12 @@ vi.doMock('../../resources/js/components/copy-link-button', () => ({
     useCopyLink: () => ({ copyLink }),
 }));
 vi.doMock('../../resources/js/components/commit-report-button', () => ({
-    CommitReportButton: () => null,
+    CommitReportDialog: () => null,
+    useCanReport: () => canReport,
+}));
+vi.doMock('../../resources/js/components/user-preview', () => ({
+    forgetPreview: () => undefined,
+    usePreviewRelationship: () => null,
 }));
 
 const { CommitSecondaryActions } =
@@ -73,6 +79,7 @@ afterEach(() => {
     refCursor = 0;
     signedIn = true;
     remotesEnabled = true;
+    canReport = false;
     sendMessage.mockClear();
     visit.mockClear();
     copyLink.mockClear();
@@ -91,14 +98,18 @@ function elements(node: ReactNode): Element[] {
     ];
 }
 
-function render(value: Commit = commit, keyShortcut?: string): Element[] {
+function render(
+    value: Commit = commit,
+    keyShortcut?: string,
+    onDelete?: (trigger: HTMLButtonElement | null) => void,
+): Element[] {
     cursor = 0;
     refCursor = 0;
     return elements(
-        CommitSecondaryActions({ commit: value, keyShortcut }),
+        CommitSecondaryActions({ commit: value, keyShortcut, onDelete }),
     ).flatMap((element) =>
         typeof element.type === 'function' &&
-        element.type.name === 'CommitShareMenu'
+        element.type.name === 'CommitMoreMenu'
             ? [
                   element,
                   ...elements(
@@ -121,21 +132,22 @@ function selectSend(value: Commit = commit): void {
     )();
 }
 
-function closeShareMenu(value: Commit = commit): boolean {
-    const menu = render(value).find(
+function closeShareMenu(
+    value: Commit = commit,
+    onDelete?: (trigger: HTMLButtonElement | null) => void,
+): boolean {
+    const menu = render(value, undefined, onDelete).find(
         (element) =>
             element.props.align === 'end' &&
             typeof element.props.onCloseAutoFocus === 'function',
     )!;
     let prevented = false;
 
-    (menu.props.onCloseAutoFocus as (event: Event) => void)(
-        {
-            preventDefault: () => {
-                prevented = true;
-            },
-        } as Event,
-    );
+    (menu.props.onCloseAutoFocus as (event: Event) => void)({
+        preventDefault: () => {
+            prevented = true;
+        },
+    } as Event);
 
     return prevented;
 }
@@ -156,9 +168,9 @@ function confirm(value: Commit = commit): Element[] {
     const picker = selected.find(
         (element) => element.props.pickerScope === 'share',
     )!;
-    (picker.props.onCloseAutoFocus as (event: Event) => void)(
-        { preventDefault() {} } as Event,
-    );
+    (picker.props.onCloseAutoFocus as (event: Event) => void)({
+        preventDefault() {},
+    } as Event);
     return render(value);
 }
 
@@ -179,8 +191,9 @@ test('only offers sharing for signed-in developers with Remotes and approved com
             false,
         );
         assert.equal(
-            tree.find((element) => typeof element.props.onSend === 'function')!
-                .props.canSend,
+            tree.find(
+                (element) => typeof element.props.onPending === 'function',
+            )!.props.canSend,
             false,
         );
     }
@@ -280,7 +293,7 @@ test('guests can copy a link without opening Remotes', () => {
     const tree = render();
     assert.ok(
         tree.find(
-            (element) => element.props['data-test'] === 'share-commit-button',
+            (element) => element.props['data-test'] === 'commit-menu-button',
         ),
     );
     (
@@ -345,7 +358,7 @@ test('cancelling the recipient picker restores focus to Share', () => {
 
     const pickerTree = render();
     const menu = pickerTree.find(
-        (element) => typeof element.props.onSend === 'function',
+        (element) => typeof element.props.onPending === 'function',
     )!;
     const focus = vi.fn();
     (menu.props.triggerRef as { current: unknown }).current = { focus };
@@ -356,9 +369,8 @@ test('cancelling the recipient picker restores focus to Share', () => {
     (picker.props.onOpenChange as (open: boolean) => void)(false);
     const preventDefault = vi.fn();
     (
-        render().find(
-            (element) => element.props.pickerScope === 'share',
-        )!.props.onCloseAutoFocus as (event: Event) => void
+        render().find((element) => element.props.pickerScope === 'share')!.props
+            .onCloseAutoFocus as (event: Event) => void
     )({ preventDefault } as unknown as Event);
 
     assert.equal(preventDefault.mock.calls.length, 1);
@@ -373,25 +385,25 @@ test('cancelling the recipient picker restores focus to Share', () => {
 test('closing the confirmation returns focus to Share', () => {
     const tree = confirm();
     const menu = tree.find(
-        (element) => typeof element.props.onSend === 'function',
+        (element) => typeof element.props.onPending === 'function',
     )!;
     const focus = vi.fn();
     (menu.props.triggerRef as { current: unknown }).current = { focus };
 
-    const cancel = tree.find(
-        (element) => element.props.variant === 'outline',
-    )!;
+    const cancel = tree.find((element) => element.props.variant === 'outline')!;
     (cancel.props.onClick as () => void)();
 
     const preventDefault = vi.fn();
     const content = render().find(
         (element) =>
             typeof element.props.className === 'string' &&
-            element.props.className.includes('grid-rows-[auto_minmax(0,1fr)_auto]'),
+            element.props.className.includes(
+                'grid-rows-[auto_minmax(0,1fr)_auto]',
+            ),
     )!;
-    (content.props.onCloseAutoFocus as (event: Event) => void)(
-        { preventDefault } as unknown as Event,
-    );
+    (content.props.onCloseAutoFocus as (event: Event) => void)({
+        preventDefault,
+    } as unknown as Event);
 
     assert.equal(preventDefault.mock.calls.length, 1);
     assert.equal(focus.mock.calls.length, 1);
@@ -419,4 +431,119 @@ test('copying the link does not open the recipient picker', () => {
         render().some((element) => element.props.pickerScope === 'share'),
         false,
     );
+});
+
+function select(
+    dataTest: string,
+    value: Commit = commit,
+    onDelete?: (trigger: HTMLButtonElement | null) => void,
+): void {
+    (
+        render(value, undefined, onDelete).find(
+            (element) => element.props['data-test'] === dataTest,
+        )!.props.onSelect as () => void
+    )();
+}
+
+test('reporting opens the report dialog once the menu has closed', () => {
+    canReport = true;
+    const dialog = () =>
+        render().find(
+            (element) =>
+                typeof element.type === 'function' &&
+                element.type.name === 'CommitReportDialog',
+        )!;
+
+    select('report-commit');
+    assert.equal(dialog().props.open, false);
+    assert.equal(closeShareMenu(), true);
+    assert.equal(dialog().props.open, true);
+});
+
+test('only offers reporting when the viewer can report the commit', () => {
+    assert.equal(
+        render().some(
+            (element) => element.props['data-test'] === 'report-commit',
+        ),
+        false,
+    );
+});
+
+test('deleting hands the menu trigger to the card once the menu has closed', () => {
+    const onDelete = vi.fn();
+    const trigger = { focus: vi.fn() };
+
+    select('delete-commit-button', commit, onDelete);
+    (
+        render(commit, undefined, onDelete).find(
+            (element) => typeof element.props.onPending === 'function',
+        )!.props.triggerRef as { current: unknown }
+    ).current = trigger;
+    assert.equal(onDelete.mock.calls.length, 0);
+    assert.equal(closeShareMenu(commit, onDelete), true);
+
+    assert.deepEqual(onDelete.mock.calls, [[trigger]]);
+});
+
+test('only offers deleting when the card can delete the commit', () => {
+    assert.equal(
+        render().some(
+            (element) => element.props['data-test'] === 'delete-commit-button',
+        ),
+        false,
+    );
+    assert.ok(
+        render(commit, undefined, () => undefined).some(
+            (element) => element.props['data-test'] === 'delete-commit-button',
+        ),
+    );
+});
+
+test("offers following, muting and blocking the author of other people's commits only", () => {
+    const followItem = (value: Commit) =>
+        render(value).some(
+            (element) =>
+                typeof element.type === 'function' &&
+                element.type.name === 'CommitAuthorItems',
+        );
+    const author = { ...commit.author, type: 'user' } as Commit['author'];
+
+    assert.equal(followItem({ ...commit, author }), true);
+    assert.equal(
+        followItem({
+            ...commit,
+            author: { ...author, id: 'viewer' } as Commit['author'],
+        }),
+        false,
+    );
+    assert.equal(
+        followItem({
+            ...commit,
+            author: { ...author, type: 'organization' } as Commit['author'],
+        }),
+        false,
+    );
+});
+
+test('blocking confirms in a dialog once the menu has closed', () => {
+    const value = {
+        ...commit,
+        author: { ...commit.author, type: 'user' },
+    } as Commit;
+    const dialog = () =>
+        render(value).find(
+            (element) =>
+                typeof element.type === 'function' &&
+                element.type.name === 'BlockUserDialog',
+        )!;
+    const items = render(value).find(
+        (element) =>
+            typeof element.type === 'function' &&
+            element.type.name === 'CommitAuthorItems',
+    )!;
+
+    (items.props.onBlock as () => void)();
+    assert.equal(dialog().props.open, false);
+    assert.equal(closeShareMenu(value), true);
+    assert.equal(dialog().props.open, true);
 });

@@ -1,5 +1,5 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { CornerDownRight, Trash2 } from 'lucide-react';
+import { CornerDownRight } from 'lucide-react';
 import type { MouseEvent, PointerEvent, ReactNode } from 'react';
 import { useCallback, useContext, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
@@ -43,11 +43,6 @@ import {
 } from '@/components/thread-position-badge';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { UserPreview } from '@/components/user-preview';
 import {
     useCommitNotFound,
@@ -177,6 +172,13 @@ export function CommitCard({
             router.visit(click.url);
         }
     };
+
+    const deleteFrom = isDeletable
+        ? (trigger: HTMLButtonElement | null) => {
+              deleteButtonRef.current = trigger;
+              setDeletion('confirming');
+          }
+        : undefined;
 
     const cancelDeletion = () => {
         setDeletion('idle');
@@ -401,40 +403,12 @@ export function CommitCard({
                                         tabIndex={-1}
                                         className={cn(
                                             'hidden font-mono text-[13px] text-muted-foreground transition-opacity hover:text-foreground sm:inline',
-                                            {
-                                                'commit-hover:opacity-0 commit-focus-within:opacity-0 [@media(hover:none)]:opacity-0':
-                                                    isDeletable,
-                                                'sm:hidden': isFocused,
-                                            },
+                                            { 'sm:hidden': isFocused },
                                         )}
                                         title={`Commit ${commit.id}`}
                                     >
                                         {hash}
                                     </Link>
-
-                                    {isDeletable && (
-                                        <Tooltip>
-                                            <TooltipTrigger asChild>
-                                                <button
-                                                    ref={deleteButtonRef}
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setDeletion(
-                                                            'confirming',
-                                                        )
-                                                    }
-                                                    aria-label="Revert commit"
-                                                    className="-my-1 rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 sm:absolute sm:top-1/2 sm:-right-1.5 sm:my-0 sm:-translate-y-1/2 sm:opacity-0 sm:commit-hover:opacity-100 sm:commit-focus-within:opacity-100 [@media(hover:none)]:opacity-100"
-                                                    data-test="delete-commit-button"
-                                                >
-                                                    <Trash2 className="size-4" />
-                                                </button>
-                                            </TooltipTrigger>
-                                            <TooltipContent>
-                                                Revert commit
-                                            </TooltipContent>
-                                        </Tooltip>
-                                    )}
                                 </span>
                             </div>
 
@@ -548,13 +522,17 @@ export function CommitCard({
                                         />
                                         {translation.button}
                                     </div>
-                                    <CommitSecondaryActions commit={commit} />
+                                    <CommitSecondaryActions
+                                        commit={commit}
+                                        onDelete={deleteFrom}
+                                    />
                                 </div>
                             ) : (
                                 <ThreadActions
                                     thread={thread}
                                     hasKeyboardShortcuts
                                     hasComposer={false}
+                                    onDelete={deleteFrom}
                                     actions={
                                         <>
                                             <CommitStarButton

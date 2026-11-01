@@ -1,3 +1,4 @@
+import type { VisitOptions } from '@inertiajs/core';
 import { router } from '@inertiajs/react';
 import { Ban, Ellipsis, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
@@ -46,23 +47,12 @@ export function UserSafetyMenu({
         onOpenChange?.(menu || dialog);
     };
 
-    const visit = (
-        action: Parameters<typeof router.visit>[0],
-        onSuccess?: () => void,
-    ) => {
-        router.visit(action, {
-            preserveScroll: true,
+    const visit = (action: Parameters<typeof router.visit>[0]) => {
+        visitSafety(action, {
             onStart: () => setIsSaving(true),
             onFinish: () => {
                 setIsSaving(false);
                 changeOpen(false, false);
-            },
-            onSuccess: () => {
-                clearMentionSuggestionsCache();
-
-                onSuccess?.();
-
-                router.flushAll();
             },
         });
     };
@@ -118,40 +108,82 @@ export function UserSafetyMenu({
                 </DropdownMenuContent>
             </DropdownMenu>
 
-            <Dialog
+            <BlockUserDialog
+                user={user}
                 open={isConfirmingBlock}
                 onOpenChange={(open) => changeOpen(false, open)}
-            >
-                <DialogContent>
-                    <DialogTitle>Block @{user.handle}?</DialogTitle>
-                    <DialogDescription>
-                        You'll stop following each other. Neither of you will be
-                        able to message, follow, reply to, or star the other, or
-                        see each other's commits. They won't be told, but
-                        they'll see your profile as unavailable. You can unblock
-                        them any time from your settings.
-                    </DialogDescription>
-
-                    <DialogFooter className="gap-2">
-                        <DialogClose asChild>
-                            <Button variant="outline">Cancel</Button>
-                        </DialogClose>
-
-                        <Button
-                            variant="destructive"
-                            disabled={isSaving}
-                            onClick={() =>
-                                visit(UserBlockController.store(user), () =>
-                                    rememberBlock(user),
-                                )
-                            }
-                            data-test="confirm-block-button"
-                        >
-                            Block
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            />
         </>
+    );
+}
+
+/**
+ * Muting and blocking change whose commits and mentions you see, so every cached page and suggestion forgets them.
+ */
+export function visitSafety(
+    action: Parameters<typeof router.visit>[0],
+    { onSuccess, ...options }: VisitOptions = {},
+): void {
+    router.visit(action, {
+        preserveScroll: true,
+        ...options,
+        onSuccess: (page) => {
+            clearMentionSuggestionsCache();
+
+            onSuccess?.(page);
+
+            router.flushAll();
+        },
+    });
+}
+
+export function BlockUserDialog({
+    user,
+    open,
+    onOpenChange,
+}: {
+    user: Pick<User, 'id' | 'handle'>;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+}) {
+    const [isSaving, setIsSaving] = useState(false);
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogTitle>Block @{user.handle}?</DialogTitle>
+                <DialogDescription>
+                    You'll stop following each other. Neither of you will be
+                    able to message, follow, reply to, or star the other, or see
+                    each other's commits. They won't be told, but they'll see
+                    your profile as unavailable. You can unblock them any time
+                    from your settings.
+                </DialogDescription>
+
+                <DialogFooter className="gap-2">
+                    <DialogClose asChild>
+                        <Button variant="outline">Cancel</Button>
+                    </DialogClose>
+
+                    <Button
+                        variant="destructive"
+                        disabled={isSaving}
+                        onClick={() =>
+                            visitSafety(UserBlockController.store(user), {
+                                onStart: () => setIsSaving(true),
+                                onFinish: () => {
+                                    setIsSaving(false);
+                                    onOpenChange(false);
+                                },
+                                onSuccess: () => rememberBlock(user),
+                            })
+                        }
+                        data-test="confirm-block-button"
+                    >
+                        Block
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
