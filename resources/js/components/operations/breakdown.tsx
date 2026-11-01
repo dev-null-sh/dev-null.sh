@@ -117,7 +117,7 @@ export function Breakdown({
                                             aria-pressed={isSelected}
                                             onClick={() => onSelect(row.name)}
                                             className={cn(
-                                                'relative block w-full cursor-pointer truncate rounded-sm text-left outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring',
+                                                'relative -my-2.5 block w-full cursor-pointer truncate rounded-sm py-2.5 text-left outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring',
                                                 isSelected
                                                     ? 'text-primary'
                                                     : row.name === '' &&

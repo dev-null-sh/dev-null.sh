@@ -78,7 +78,7 @@ final readonly class FathomAnalyticsProvider implements AnalyticsProvider
                 return null;
             }
 
-            $key = "operations:fathom-report:{$from->toDateString()}:{$to->toDateString()}:".md5(serialize($filters));
+            $key = "operations:fathom-report:{$from->toDateString()}:{$to->toDateString()}:".hash('sha256', serialize($filters));
             $report = Cache::remember($key, 300, fn (): array => [
                 'totals' => $this->totals($this->aggregate($from, $to, ['aggregates' => self::TOTALS], filters: $filters)->fluent('0')),
                 'timeline' => $this->timeline($from, $to, $filters),

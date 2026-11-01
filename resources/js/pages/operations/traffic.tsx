@@ -1,6 +1,6 @@
 import { Deferred, Head, router } from '@inertiajs/react';
 import { X } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import TrafficController from '@/actions/App/Http/Controllers/TrafficController';
 import { Breakdown } from '@/components/operations/breakdown';
 import { compactNumber, LineChart } from '@/components/operations/charts';
@@ -167,7 +167,8 @@ function without(
 type Selection = { range: TrafficRange; filters: TrafficFilters };
 
 /**
- * The filters in use, each removable, or a hint that rows filter the report. The row keeps its height either way.
+ * The filters in use, each removable, or a hint that rows filter the report. The row keeps its height either way, and
+ * takes the focus of a removed filter, so keyboard users don't lose their place.
  */
 function FilterBar({
     filters,
@@ -177,9 +178,21 @@ function FilterBar({
     onChange: (filters: TrafficFilters) => void;
 }) {
     const entries = Object.entries(filters) as [TrafficFilter, string][];
+    const bar = useRef<HTMLDivElement>(null);
+
+    const change = (next: TrafficFilters) => {
+        bar.current?.focus();
+        onChange(next);
+    };
 
     return (
-        <div className="mb-3 flex min-h-9 flex-wrap items-center gap-2 font-mono text-[13px] sm:min-h-7">
+        <div
+            ref={bar}
+            tabIndex={-1}
+            role="group"
+            aria-label="Filters"
+            className="mb-3 flex min-h-9 flex-wrap items-center gap-2 font-mono text-[13px] outline-none sm:min-h-7"
+        >
             {entries.length === 0 ? (
                 <span className="text-muted-foreground">
                     all visits · pick a row below to filter
@@ -192,9 +205,9 @@ function FilterBar({
                             variant="secondary"
                             size="sm"
                             className="h-9 max-w-full min-w-0 gap-1.5 px-2 font-mono text-[13px] sm:h-7"
-                            aria-label={`Remove the ${filter} filter`}
+                            aria-label={`Remove ${filter}: ${filterValue(filter, value)}`}
                             title={`${filter}: ${filterValue(filter, value)}`}
-                            onClick={() => onChange(without(filters, filter))}
+                            onClick={() => change(without(filters, filter))}
                         >
                             <span className="text-muted-foreground">
                                 {filter}
@@ -208,7 +221,7 @@ function FilterBar({
                     {entries.length > 1 && (
                         <PresetButton
                             isActive={false}
-                            onClick={() => onChange({})}
+                            onClick={() => change({})}
                         >
                             clear
                         </PresetButton>
@@ -352,7 +365,7 @@ export default function Show({
     const [isLoading, setIsLoading] = useState(false);
     const current = picked ?? { range: trafficRange, filters: trafficFilters };
 
-    const isHourly = current.range.from === current.range.to;
+    const isHourly = trafficRange.from === trafficRange.to;
 
     const change = (next: Selection) => {
         const release = pick(next);
