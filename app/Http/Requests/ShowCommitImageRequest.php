@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Actions\CreateCommitImageSignedUrl;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use Illuminate\Auth\Access\Response;
@@ -12,18 +13,29 @@ use Illuminate\Support\Facades\Storage;
 
 final class ShowCommitImageRequest extends FormRequest
 {
+    private ?string $signedUrl = null;
+
     /**
      * Pending and rejected images never leave the server for anyone but their author and moderators, or the temporary
-     * URL the API gave one of them, until the commit is deleted.
+     * URL the API gave one of them, until the commit is deleted. So only images anyone may see get a signed storage URL that works without this check.
+     * Cloud storage answers a missing file behind a signed URL itself, so storage is only asked about files streamed from here.
      */
-    public function authorize(): Response
+    public function authorize(CreateCommitImageSignedUrl $action): Response
     {
         $commitImage = $this->route('commitImage');
         assert($commitImage instanceof CommitImage);
 
         $commit = Commit::query()->find($commitImage->commit_id);
 
-        return $commit instanceof Commit && ($commit->imagesAreVisibleTo($this->user()) || (! $commit->trashed() && $this->hasValidSignature())) && Storage::disk()->exists($commitImage->path)
+        if (! $commit instanceof Commit || ! ($commit->imagesAreVisibleTo($this->user()) || (! $commit->trashed() && $this->hasValidSignature()))) {
+            return Response::denyAsNotFound();
+        }
+
+        $this->signedUrl = $commit->imagesAreVisibleTo(null)
+            ? $action->handle($commitImage, $this->download())
+            : null;
+
+        return $this->signedUrl !== null || Storage::disk()->exists($commitImage->path)
             ? Response::allow()
             : Response::denyAsNotFound();
     }
@@ -36,6 +48,17 @@ final class ShowCommitImageRequest extends FormRequest
         return [];
     }
 
+    /**
+     * Where the image can be fetched straight from cloud storage, if it can.
+     */
+    public function signedUrl(): ?string
+    {
+        return $this->signedUrl;
+    }
+
+    /**
+     * Whether the image is wanted as a file to save rather than shown in the page.
+     */
     public function download(): bool
     {
         return $this->boolean('download');
