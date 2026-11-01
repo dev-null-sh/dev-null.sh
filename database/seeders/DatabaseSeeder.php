@@ -92,8 +92,10 @@ final class DatabaseSeeder extends Seeder
         $laravel = $this->organization('laravel', 'Laravel', 958072);
         [$maintainer, $contributor, $reviewer, $artisan] = $users->take(4)->all();
 
-        $devNull->admins()->syncWithoutDetaching([$localDeveloper->id]);
-        $devNull->members()->syncWithoutDetaching(array_fill_keys([$maintainer->id, $contributor->id, $reviewer->id], ['role' => OrganizationRole::Member]));
+        $devNull->members()->syncWithoutDetaching([
+            $localDeveloper->id => ['role' => OrganizationRole::Admin],
+            ...array_fill_keys([$maintainer->id, $contributor->id, $reviewer->id], ['role' => OrganizationRole::Member]),
+        ]);
         $devNull->followers()->syncWithoutDetaching($users->take(5)->modelKeys());
         $laravel->admins()->syncWithoutDetaching([$artisan->id]);
         $laravel->followers()->syncWithoutDetaching([$localDeveloper->id, $maintainer->id]);
@@ -125,12 +127,14 @@ final class DatabaseSeeder extends Seeder
     }
 
     /**
-     * The organization as GitHub has it, with its real GitHub ID and avatar, so it looks like itself.
+     * The organization as GitHub has it, with its real GitHub ID and avatar, so it looks like itself. One already
+     * seeded is found by its GitHub ID first, like a renamed one, then by its handle.
      */
     private function organization(string $handle, string $name, int $githubId): Organization
     {
-        $github = ['github_id' => (string) $githubId, 'avatar_url' => "https://avatars.githubusercontent.com/u/{$githubId}?v=4"];
-        $organization = Organization::query()->whereRelation('profile', 'handle', $handle)->first();
+        $github = ['handle' => $handle, 'github_id' => (string) $githubId, 'avatar_url' => "https://avatars.githubusercontent.com/u/{$githubId}?v=4"];
+        $organization = Organization::query()->whereRelation('profile', 'github_id', (string) $githubId)->first()
+            ?? Organization::query()->whereRelation('profile', 'handle', $handle)->first();
 
         if ($organization instanceof Organization) {
             $organization->profile->update($github);
@@ -138,7 +142,7 @@ final class DatabaseSeeder extends Seeder
             return $organization;
         }
 
-        return Organization::factory()->create(['handle' => $handle, 'name' => $name, ...$github]);
+        return Organization::factory()->create(['name' => $name, ...$github]);
     }
 
     /**

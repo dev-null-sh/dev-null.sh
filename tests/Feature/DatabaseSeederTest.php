@@ -106,6 +106,25 @@ it('reuses existing GitHub organizations', function (): void {
         ->and(resolve(OrganizationMentionsQuery::class)->builder($laravel, null)->count())->toBe(3);
 });
 
+it('reuses a GitHub organization renamed since it was seeded', function (): void {
+    $laravel = Organization::factory()->create(['handle' => 'laravel-old', 'github_id' => '958072']);
+
+    $this->seed(DatabaseSeeder::class);
+
+    expect(Organization::query()->whereRelation('profile', 'github_id', '958072')->sole()->id)->toBe($laravel->id)
+        ->and($laravel->profile->refresh()->handle)->toBe('laravel');
+});
+
+it('makes the local developer an admin of /dev/null when they are already a member', function (): void {
+    $localDeveloper = User::factory()->create(['github_id' => 'local']);
+    $devNull = Organization::factory()->create(['handle' => 'dev-null-sh']);
+    $devNull->members()->attach($localDeveloper->id, ['role' => OrganizationRole::Member]);
+
+    $this->seed(DatabaseSeeder::class);
+
+    expect($devNull->roleOf($localDeveloper))->toBe(OrganizationRole::Admin);
+});
+
 it('gives the local developer conversations to read and reply to', function (bool $requests, int $fetched, int $unread): void {
     config(['remotes.requests' => $requests]);
 
