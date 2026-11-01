@@ -63,14 +63,22 @@ export type TrafficRow = {
     pageviews: number;
 };
 
+export type TrafficTotals = {
+    visitors: number;
+    pageviews: number;
+    avg_duration: number;
+    bounce_rate: number;
+};
+
+/**
+ * The totals of a UTC day (`2026-10-31`), or of a UTC hour (`2026-10-31T13:00:00Z`) when the range is a single day.
+ */
+export type TrafficPoint = TrafficTotals & { date: string };
+
 export type Traffic = {
     current: number;
-    totals: {
-        visitors: number;
-        pageviews: number;
-        avg_duration: number;
-        bounce_rate: number;
-    };
+    totals: TrafficTotals;
+    timeline: TrafficPoint[];
     breakdowns: Record<
         'pages' | 'referrers' | 'countries' | 'devices' | 'browsers',
         TrafficRow[]
@@ -81,6 +89,18 @@ export type TrafficRange = {
     from: string;
     to: string;
 };
+
+export type TrafficFilter =
+    | 'page'
+    | 'referrer'
+    | 'country'
+    | 'device'
+    | 'browser';
+
+/**
+ * The value each filtered field must have: an empty one is a direct visit or an unknown value.
+ */
+export type TrafficFilters = Partial<Record<TrafficFilter, string>>;
 
 export type MetricsRange = TrafficRange & { all_time: boolean };
 
