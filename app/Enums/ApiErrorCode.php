@@ -16,6 +16,7 @@ enum ApiErrorCode: string
     case UserBlocked = 'user_blocked';
     case UserUnavailable = 'user_unavailable';
     case OwnCommit = 'own_commit';
+    case OwnProfile = 'own_profile';
     case CommitUnavailable = 'commit_unavailable';
     case PasteisExhausted = 'pasteis_exhausted';
     case RateLimited = 'rate_limited';
@@ -29,7 +30,7 @@ enum ApiErrorCode: string
         return match ($this) {
             self::InvalidGrant => 400,
             self::InvalidSignature, self::DeviceNotApproved => 401,
-            self::UserBlocked, self::UserUnavailable, self::OwnCommit, self::TimedOut, self::Banned, self::CommitRulesRequired => 403,
+            self::UserBlocked, self::UserUnavailable, self::OwnCommit, self::OwnProfile, self::TimedOut, self::Banned, self::CommitRulesRequired => 403,
             self::CommitUnavailable => 404,
             self::PasteisExhausted => 422,
             self::RateLimited => 429,

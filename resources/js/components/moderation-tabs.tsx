@@ -2,12 +2,13 @@ import { index as bulk } from '@/actions/App/Http/Controllers/BulkActivityContro
 import { index as people } from '@/actions/App/Http/Controllers/ModeratedUserController';
 import { show } from '@/actions/App/Http/Controllers/ModerationController';
 import { index } from '@/actions/App/Http/Controllers/ReportedCommitController';
+import { index as profileReports } from '@/actions/App/Http/Controllers/ReportedUserController';
 import { PageTabs } from '@/components/page-tabs';
 
 export function ModerationTabs({
     active,
 }: {
-    active: 'pending' | 'reports' | 'people' | 'bulk';
+    active: 'pending' | 'reports' | 'profile-reports' | 'people' | 'bulk';
 }) {
     return (
         <PageTabs
@@ -15,6 +16,7 @@ export function ModerationTabs({
             tabs={[
                 {
                     title: 'Pending review',
+                    shortTitle: 'Pending',
                     href: show(),
                     isActive: active === 'pending',
                 },
@@ -24,7 +26,14 @@ export function ModerationTabs({
                     isActive: active === 'reports',
                 },
                 {
+                    title: 'Profile reports',
+                    shortTitle: 'Profiles',
+                    href: profileReports(),
+                    isActive: active === 'profile-reports',
+                },
+                {
                     title: 'Timeouts & bans',
+                    shortTitle: 'Timeouts',
                     href: people(),
                     isActive: active === 'people',
                 },

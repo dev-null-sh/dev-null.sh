@@ -6,6 +6,7 @@ import {
     Bell,
     BellOff,
     Ellipsis,
+    Flag,
     LogOut,
     Pin,
     PinOff,
@@ -30,6 +31,7 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { UserReportDialog } from '@/components/user-report-dialog';
 import { useChat } from '@/hooks/use-chat';
 import { useNow } from '@/hooks/use-now';
 import {
@@ -47,7 +49,7 @@ import { show } from '@/routes/user';
 import type { ConversationSummary, User } from '@/types';
 
 /**
- * Stash (archive), pop (unarchive), and block or leave, from the conversation's own header or from its row in the
+ * Stash (archive), pop (unarchive), report the person, and block or leave, from the conversation's own header or from its row in the
  * inbox.
  */
 export function ConversationActions({
@@ -85,6 +87,7 @@ export function ConversationActions({
     const [isConfirmingBlock, setIsConfirmingBlock] = useState(false);
     const [isBlocking, setIsBlocking] = useState(false);
     const [isChoosingMute, setIsChoosingMute] = useState(false);
+    const [isReporting, setIsReporting] = useState(false);
     const [isSavingMute, setIsSavingMute] = useState(false);
     const [isSavingPin, setIsSavingPin] = useState(false);
     const pendingPin = useRef<boolean | null>(null);
@@ -103,17 +106,25 @@ export function ConversationActions({
             : (conversation?.muted_until_at ?? null);
     const isMuted = isRemoteMuted(until, now.getTime());
 
-    const changeOpen = (menu: boolean, dialog: boolean, mute = false) => {
+    const changeOpen = (
+        menu: boolean,
+        dialog: boolean,
+        mute = false,
+        report = false,
+    ) => {
         setIsMenuOpen(menu);
         setIsConfirmingBlock(dialog);
         setIsChoosingMute(mute);
-        if (menu || dialog || mute) {
+        setIsReporting(report);
+        if (menu || dialog || mute || report) {
             onPresenceChange?.(true);
         }
     };
 
     const closeAutoFocus = () =>
-        onPresenceChange?.(isMenuOpen || isConfirmingBlock || isChoosingMute);
+        onPresenceChange?.(
+            isMenuOpen || isConfirmingBlock || isChoosingMute || isReporting,
+        );
 
     const mute = async (duration: MuteDuration) => {
         setIsSavingMute(true);
@@ -197,7 +208,12 @@ export function ConversationActions({
                 modal={false}
                 open={isMenuOpen}
                 onOpenChange={(open) =>
-                    changeOpen(open, isConfirmingBlock, isChoosingMute)
+                    changeOpen(
+                        open,
+                        isConfirmingBlock,
+                        isChoosingMute,
+                        isReporting,
+                    )
                 }
             >
                 <DropdownMenuTrigger asChild>
@@ -269,6 +285,17 @@ export function ConversationActions({
                         {isMuted ? 'Unmute' : 'Mute'}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
+                    {target.kind === 'direct' && (
+                        <DropdownMenuItem
+                            onSelect={() =>
+                                changeOpen(false, false, false, true)
+                            }
+                            data-test="report-user"
+                        >
+                            <Flag />
+                            Report {title}
+                        </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                         variant="destructive"
                         onSelect={() => changeOpen(false, true)}
@@ -281,6 +308,17 @@ export function ConversationActions({
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
+
+            {target.kind === 'direct' && (
+                <UserReportDialog
+                    user={target.partner}
+                    open={isReporting}
+                    onOpenChange={(open) =>
+                        changeOpen(false, false, false, open)
+                    }
+                    onCloseAutoFocus={closeAutoFocus}
+                />
+            )}
 
             <Dialog
                 open={isChoosingMute}

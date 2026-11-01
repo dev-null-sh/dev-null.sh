@@ -26,6 +26,7 @@ use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\PushSubscription;
 use App\Models\User;
+use App\Models\UserReport;
 use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
 use Illuminate\Http\UploadedFile;
@@ -420,6 +421,16 @@ it('erases private report attachments when the reporter or reported author is de
     Storage::disk()->assertExists($path);
     resolve(DeleteUser::class)->handle($deleteReporter ? $reporter : $commit->user);
     Storage::disk()->assertMissing($path);
+    $this->assertModelMissing($report);
+})->with([true, false]);
+
+it('erases profile reports when the reporter or the person reported is deleted', function (bool $deleteReporter): void {
+    $reporter = User::factory()->create();
+    $reported = User::factory()->create();
+    $report = UserReport::factory()->create(['reporter_id' => $reporter->id, 'user_id' => $reported->id]);
+
+    resolve(DeleteUser::class)->handle($deleteReporter ? $reporter : $reported);
+
     $this->assertModelMissing($report);
 })->with([true, false]);
 

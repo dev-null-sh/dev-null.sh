@@ -289,6 +289,7 @@ export type ModerationBacklog = {
     pending: number;
     oldest_pending_age: number | null;
     open_reports: number;
+    open_profile_reports: number;
     active_timeouts: number;
 };
 

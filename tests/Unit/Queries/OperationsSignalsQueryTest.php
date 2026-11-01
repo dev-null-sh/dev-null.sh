@@ -6,6 +6,7 @@ use App\Models\Commit;
 use App\Models\CommitReport;
 use App\Models\LinkPreview;
 use App\Models\User;
+use App\Models\UserReport;
 use App\Queries\ConnectivityQuery;
 use App\Queries\OperationsSignalsQuery;
 use Carbon\CarbonImmutable;
@@ -182,6 +183,16 @@ it('warns of open reports', function (): void {
     CommitReport::factory()->count(2)->create();
 
     expect(signal('open_reports'))->toMatchArray(['status' => 'warn', 'title' => '2 open reports', 'detail' => '2 open', 'href' => '/moderation/reports']);
+});
+
+it('links to the profile reports when those are all that is open', function (): void {
+    UserReport::factory()->create();
+
+    expect(signal('open_reports'))->toMatchArray(['title' => '1 open report', 'href' => '/moderation/profile-reports']);
+
+    CommitReport::factory()->create();
+
+    expect(signal('open_reports'))->toMatchArray(['title' => '2 open reports', 'href' => '/moderation/reports']);
 });
 
 it('passes without open reports', function (): void {

@@ -22,6 +22,7 @@ use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\SshKey;
 use App\Models\User;
+use App\Models\UserReport;
 use App\Models\UserTimeout;
 use App\Services\CommitTranslations;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -141,6 +142,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'pending_organization_follows' => [],
         'messages' => [],
         'reports' => [],
+        'profile_reports' => [],
         'remote_mutes' => [],
         'remote_pins' => [],
         'notifications' => [],
@@ -663,6 +665,22 @@ it('exports only reports and private attachment references submitted by the user
         ->and($data['reports'][0]['attachments'][0]['description'])->toBe('Private screenshot')
         ->and($response->streamedContent())->not->toContain($report->images[0]['path'], 'Someone else reported me');
     $this->get($data['reports'][0]['attachments'][0]['url'])->assertOk();
+});
+
+it('exports only the profile reports the user filed', function (): void {
+    $user = User::factory()->create();
+    $mine = UserReport::factory()->create(['reporter_id' => $user->id, 'reason' => 'child_safety', 'details' => 'My report']);
+    UserReport::factory()->create(['user_id' => $user->id, 'details' => 'Someone else reported me']);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['profile_reports'])->toBe([[
+        'user_id' => $mine->user_id,
+        'reason' => 'child_safety',
+        'details' => 'My report',
+        'created_at' => $mine->created_at->toIso8601String(),
+    ]])->and($response->streamedContent())->not->toContain('Someone else reported me');
 });
 
 it('exports subscription metadata without delivery endpoints', function (): void {
