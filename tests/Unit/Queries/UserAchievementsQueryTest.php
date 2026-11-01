@@ -311,9 +311,9 @@ it('does not grant luddite to Tom or someone he has never befriended', function 
 });
 
 it('does not identify Tom by a mutable handle', function (): void {
-    $user = User::factory()->create();
-    $other = User::factory()->create(['handle' => 'tom']);
-    $other->following()->attach($user);
+    $user = User::factory()->create(['befriended_by_tom_at' => now()]);
+    $user->following()->attach(User::factory()->create(['handle' => 'devnull-tom', 'github_id' => CreateTomFriendship::GITHUB_ID]));
+    User::factory()->create(['handle' => 'tom'])->following()->attach($user);
 
     $result = resolve(UserAchievementsQuery::class)->get($user, null);
 
@@ -325,7 +325,7 @@ it('adds the shell shocked reward to activity xp and includes the luddite penalt
     Commit::factory()->for($user)->create();
 
     if ($unfollowedTom) {
-        User::factory()->create(['github_id' => CreateTomFriendship::GITHUB_ID])->following()->attach($user);
+        $user->update(['befriended_by_tom_at' => now()]);
     }
 
     $result = resolve(UserAchievementsQuery::class)->get($user, null);
