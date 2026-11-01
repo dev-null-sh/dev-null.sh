@@ -19,14 +19,15 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 final readonly class NotificationController
 {
     /**
-     * The notifications grouped and filtered by ?type= like the web does it. As on the web, listing them marks every
-     * notification as read, whatever the filter, and read_at says when, so the ones read since then are the new ones.
-     * A commit comes with its author and the commit it replies to, when the user may see it.
+     * The notifications grouped and filtered by ?type= like the web does it. As on the web, listing them marks the
+     * notifications the filter shows as read, so the rest is still new under another filter, and read_at says when, so
+     * the ones read since then are the new ones. A commit comes with its author and the commit it replies to, when the
+     * user may see it.
      */
     public function index(ListNotificationsRequest $request, #[CurrentUser] User $user, NotificationGroupsQuery $query, UpdateNotificationsReadAt $action): AnonymousResourceCollection
     {
-        $readAt = $action->handle($user);
         $type = $request->type($user);
+        $readAt = $action->handle($user, $type);
 
         $notifications = $query->paginate($user, $type, $request->through());
 

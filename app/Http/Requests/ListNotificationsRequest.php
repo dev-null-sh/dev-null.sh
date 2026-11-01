@@ -15,9 +15,14 @@ final class ListNotificationsRequest extends FormRequest
 {
     public const string TYPE_RULE = 'regex:/\A(?:all|none|(?:replies|quotes|stars|mentions|follows|moderation)(?:,(?:replies|quotes|stars|mentions|follows|moderation))*)\z/';
 
+    /**
+     * The filter the browser keeps, including one this response is about to set, so the unread badge counts under the
+     * same filter the inbox just marked read.
+     */
     public static function rememberedType(Request $request, User $user): string
     {
-        $type = $request->cookie('notification_types_'.$user->id, 'all');
+        $cookie = 'notification_types_'.$user->id;
+        $type = Cookie::queued($cookie)?->getValue() ?? $request->cookie($cookie, 'all');
 
         return is_string($type) && preg_match(mb_substr(self::TYPE_RULE, 6), $type) === 1 ? $type : 'all';
     }
