@@ -12,7 +12,6 @@ it('imports the github follows of the user', function (bool $notify, int $notifi
     $followed = User::factory()->create();
 
     $github = $this->mock(GitHubProvider::class);
-    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
     $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn(['users' => [$followed->github_id], 'organizations' => []]);
     $github->shouldReceive('followerIds')->with($user->handle, 10)->andReturn([]);
 

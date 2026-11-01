@@ -40,10 +40,12 @@ final readonly class CreateUserGitHubFollows
             return;
         }
 
-        $login = $this->github->login($user->github_id);
-        $followingIds = $login === null ? ['users' => [], 'organizations' => []] : $this->github->followingIds($login, self::MaxPages);
+        // The handle is the GitHub login as of the user's last sign-in, which saves looking it up by ID: a sign-in
+        // updates it right before importing. An account renamed since then isn't found, or in the rare case someone took
+        // its old handle, has theirs read instead.
+        $followingIds = $this->github->followingIds($user->handle, self::MaxPages);
         $following = $importsPeople ? $this->users($user, $followingIds['users']) : new Collection();
-        $followers = $importsPeople && $login !== null ? $this->users($user, $this->github->followerIds($login, self::MaxPages)) : new Collection();
+        $followers = $importsPeople ? $this->users($user, $this->github->followerIds($user->handle, self::MaxPages)) : new Collection();
         $organizationIds = collect($followingIds['organizations'])->unique()->values();
 
         DB::transaction(function () use ($user, $notify, $following, $followers, $organizationIds, $importsPeople, $importsOrganizations): void {
