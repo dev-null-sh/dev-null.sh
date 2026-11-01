@@ -947,14 +947,14 @@ function ActiveUserCounts({
 }
 
 /**
- * Where a day's active users come from, from the axis up: back after a week or more away in aqua, as it is what a
- * campaign to bring people back moves, then regulars in blue and the day's signups in amber, like the daily active
- * users. Lost, the people who reached a week away that day, hangs below the axis. The colors are this chart's own, so
- * they live on its wrapper, not in the theme.
+ * Where a day's active users come from, from the axis up: back after a week or more away in blue, as it is what a
+ * campaign to bring people back moves, then regulars in a lighter blue and the day's signups in amber, like the daily
+ * active users. Lost, the people who reached a week away that day, hangs below the axis. The amber is this chart's own,
+ * so it lives on its wrapper, not in the theme.
  */
 const LIFECYCLE_PARTS = [
-    { key: 'back', label: 'back after 7+ days away', className: 'bg-(--back)' },
-    { key: 'regular', label: 'regulars', className: 'bg-primary' },
+    { key: 'back', label: 'back after 7+ days away', className: 'bg-primary' },
+    { key: 'regular', label: 'regulars', className: 'bg-primary/40' },
     { key: 'new', label: 'new', className: 'bg-(--new)' },
 ] as const;
 
@@ -1024,7 +1024,7 @@ function ActiveUserLifecycle({
     }
 
     return (
-        <div className="flex flex-1 flex-col gap-1 [--back:#1baf7a] [--new:#c96f12] dark:[--back:#2fbf8c] dark:[--new:#e0893a]">
+        <div className="flex flex-1 flex-col gap-1 [--new:#c96f12] dark:[--new:#e0893a]">
             <ul className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
                 {parts.map((part) => (
                     <li key={part.key} className="flex items-center gap-1.5">
