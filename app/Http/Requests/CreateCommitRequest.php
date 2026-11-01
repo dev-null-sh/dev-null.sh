@@ -56,7 +56,7 @@ final class CreateCommitRequest extends FormRequest
         return [
             'poll' => ['nullable', 'array:options,duration', 'prohibits:parent_id,images'],
             'poll.options' => ['required_with:poll', 'list', 'min:'.NewPoll::MinOptions, 'max:'.NewPoll::MaxOptions],
-            'poll.options.*' => ['required', 'string', 'max:'.NewPoll::MaxOptionLength, 'distinct:ignore_case'],
+            'poll.options.*' => ['required', 'string', 'max:'.NewPoll::MaxOptionRawLength, new CommitBodyLength(NewPoll::MaxOptionLength), 'distinct:ignore_case'],
             'poll.duration' => ['required_with:poll', Rule::enum(PollDuration::class)],
             'images' => ['nullable', 'list', 'max:'.CreateCommitImages::MAX_IMAGES],
             'images.*' => [
@@ -104,6 +104,7 @@ final class CreateCommitRequest extends FormRequest
     {
         return [
             'image_descriptions.*' => 'image description',
+            'poll.options.*' => 'option :position',
         ];
     }
 

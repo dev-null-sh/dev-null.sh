@@ -2,6 +2,8 @@ import { ChevronDown, Plus, X } from 'lucide-react';
 import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { Button } from '@/components/ui/button';
+import { bodyCharacterCount } from '@/lib/commit';
+import { maxUrlLength } from '@/lib/urls';
 import { cn } from '@/lib/utils';
 
 export type PollDraft = {
@@ -12,6 +14,14 @@ export type PollDraft = {
 export const emptyPollDraft: PollDraft = { options: ['', ''], duration: 1440 };
 
 const maxOptionLength = 50;
+
+/** Links count as at most 23 characters, so an option may be this long with the longest link. */
+const maxRawOptionLength = maxOptionLength + maxUrlLength;
+
+/** Measured as the server measures it, with each link counting as at most 23 characters, as in the body. */
+export function isPollOptionTooLong(option: string): boolean {
+    return bodyCharacterCount(option) > maxOptionLength;
+}
 
 const maxOptions = 4;
 
@@ -76,7 +86,11 @@ export function PollEditor({
 
             <div className="space-y-2">
                 {poll.options.map((option, index) => {
-                    const error = errors[`poll.options.${index}`];
+                    const error =
+                        errors[`poll.options.${index}`] ??
+                        (isPollOptionTooLong(option)
+                            ? `The option ${index + 1} field must not be greater than ${maxOptionLength} characters.`
+                            : undefined);
 
                     return (
                         <div key={index}>
@@ -105,7 +119,7 @@ export function PollEditor({
                                     suggestsMentions={false}
                                     rows={1}
                                     wrap="off"
-                                    maxLength={maxOptionLength}
+                                    maxLength={maxRawOptionLength}
                                     placeholder={`Option ${index + 1}`}
                                     autoComplete="off"
                                     aria-invalid={error ? true : undefined}

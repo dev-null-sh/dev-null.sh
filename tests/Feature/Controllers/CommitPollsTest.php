@@ -149,6 +149,44 @@ it('validates the poll', function (array $poll, array|string $errors): void {
     'no options' => [['duration' => 1440], 'poll.options'],
 ]);
 
+it('counts a link in a poll option as at most 23 characters, as in the body', function (): void {
+    $user = User::factory()->create();
+    $link = 'https://github.com/dev-null-sh/dev-null.sh/pull/1366';
+
+    $this->actingAs($user)
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), [
+            'body' => 'Which one first?',
+            'poll' => ['options' => ["Review {$link} first", 'Later'], 'duration' => PollDuration::OneDay->value],
+        ])
+        ->assertSessionHasNoErrors();
+
+    expect(Poll::query()->sole()->options()->orderBy('position')->pluck('label')->all())->toBe(["Review {$link} first", 'Later']);
+});
+
+it('accepts a poll option of exactly 50 characters once its link is counted', function (): void {
+    $option = str_repeat('a', 26).' https://example.com/'.str_repeat('b', 40);
+
+    $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Tabs or spaces?', 'poll' => ['options' => ['Tabs', $option], 'duration' => 1440]])
+        ->assertSessionHasNoErrors();
+
+    expect(Poll::query()->sole()->options()->where('label', $option)->exists())->toBeTrue();
+});
+
+it('validates the length of a poll option with links', function (string $option, string $error): void {
+    $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Tabs or spaces?', 'poll' => ['options' => ['Tabs', $option], 'duration' => 1440]])
+        ->assertSessionHasErrors(['poll.options.1' => $error]);
+
+    expect(Commit::query()->count())->toBe(0);
+})->with([
+    'one character over, with a link' => [str_repeat('a', 27).' https://example.com/'.str_repeat('b', 40), 'The option 2 field must not be greater than 50 characters.'],
+    'an oversized link' => ['https://example.com/'.str_repeat('a', 2048), 'Each link must not be greater than 2048 characters.'],
+]);
+
 it('may not attach a poll to a reply', function (): void {
     $parent = Commit::factory()->create();
 

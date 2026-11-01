@@ -17,7 +17,7 @@ export const urlPattern = new RegExp(
     'gu',
 );
 const schemePattern = /^https?:\/\//i;
-const maxUrlLength = 2048;
+export const maxUrlLength = 2048;
 const brackets = [
     ['(', ')'],
     ['[', ']'],
