@@ -53,6 +53,7 @@ it('renders the activity graph links with the timezone preference', function (?s
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('activityGraphUrl', url('/@octocat/graph.svg'))
+            ->where('badgeUrl', url('/@octocat/badge.svg'))
             ->where('profileUrl', url('/@octocat'))
             ->where('auth.user.timezone', $timezone));
 })->with([null, 'Europe/Budapest']);
