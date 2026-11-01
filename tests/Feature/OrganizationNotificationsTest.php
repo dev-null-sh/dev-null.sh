@@ -105,12 +105,16 @@ it('tells someone mentioned both themselves and as a member of the organization 
 
 it('keeps each member from hearing from people they mute or across a block', function (): void {
     $troll = User::factory()->create();
+    $blocked = User::factory()->create();
+    $blocker = User::factory()->create();
     $this->member->muting()->attach($troll);
-    $reply = Commit::factory()->for($this->commit, 'parent')->for($troll)->create();
+    $this->member->blocking()->attach($blocked);
+    $blocker->blocking()->attach($this->member);
+    $replies = collect([$troll, $blocked, $blocker])->map(fn (User $user): Commit => Commit::factory()->for($this->commit, 'parent')->for($user)->create());
 
-    resolve(CreateReplyNotifications::class)->handle($reply);
+    resolve(CreateReplyNotifications::class)->handle(...$replies);
 
-    expect(Notification::query()->pluck('recipient_id')->all())->toBe([$this->admin->id]);
+    expect(Notification::query()->pluck('recipient_id')->unique()->values()->all())->toBe([$this->admin->id]);
 });
 
 it('stops telling members once they are removed, keeping what they already heard', function (): void {
@@ -176,4 +180,42 @@ it('exports the organization each notification was for', function (): void {
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['notifications'][0]['organization'])->toBe('laravel');
+});
+
+it('shows every member the commit of the organization a quote quotes', function (): void {
+    $quote = Commit::factory()->create(['quoted_commit_id' => $this->commit->id]);
+    resolve(CreateQuoteNotifications::class)->handle($quote);
+
+    $this->actingAs($this->member)
+        ->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page->where('notifications.data.0.commit.quoted_commit.id', $this->commit->id));
+});
+
+it('groups what a member hears about for the organization apart from what they hear about for themselves', function (): void {
+    $thread = Commit::factory()->create();
+    $personal = Commit::factory()->for($thread, 'parent')->create([
+        'body' => 'Thanks @'.$this->admin->handle,
+        'mentions' => [mb_strtolower($this->admin->handle) => $this->admin->id],
+    ]);
+    $organizational = Commit::factory()->for($thread, 'parent')->create(['body' => 'Thanks @laravel', 'created_at' => now()->addMinute()]);
+    resolve(CreateCommitTopics::class)->handle($organizational, ['laravel' => $this->organization->id]);
+    resolve(CreateMentionNotifications::class)->handle($personal, $organizational);
+
+    $this->actingAs($this->admin)
+        ->get(route('notification.index', ['type' => 'mentions']))
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 2)
+            ->where('notifications.data.0.organization.handle', 'laravel')
+            ->where('notifications.data.1.organization', null));
+});
+
+it("tells no member about a newcomer's first commit that mentions the organization twice", function (): void {
+    $newcomer = User::factory()->create();
+    $newcomer->followers()->attach($this->member);
+    $commit = Commit::factory()->for($newcomer)->pending()->create(['body' => 'Hello @laravel']);
+    resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => $this->organization->id]);
+
+    resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
+
+    expect($this->member->notifications()->pluck('type')->all())->toBe([NotificationType::Mentioned]);
 });

@@ -658,8 +658,8 @@ function OwnCommitExcerpt({ segments }: { segments: BodySegment[] }) {
 }
 
 /**
- * A quote always quotes the recipient's own commit, so it shows like the other commits of theirs here, or as the usual
- * tombstone once deleted.
+ * A quote always quotes the recipient's own commit, or their organization's, so it shows like the other commits of
+ * theirs here, or as the usual tombstone once deleted.
  */
 function QuotedOwnCommit({
     commit,

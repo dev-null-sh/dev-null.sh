@@ -52,24 +52,28 @@ final readonly class NotificationGroupsQuery
     }
 
     /**
-     * The inbox shows a quote with the commit it quotes, which is always the recipient's own, so only the recipient's
-     * commits load there: a reply that quotes someone else never brings along a commit the recipient may not see.
+     * The inbox shows a quote with the commit it quotes, which is always the recipient's own or the organization's they
+     * heard about it for, so only those commits load there: a reply that quotes someone else never brings along a
+     * commit the recipient may not see.
      *
      * @param  CursorPaginator<int, Notification>  $groups
      * @return CursorPaginator<int, Notification>
      */
     public function withQuotedCommits(User $user, CursorPaginator $groups): CursorPaginator
     {
-        new Collection($groups->items())->loadMissing([
-            'commit.quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->whereBelongsTo($user),
+        $items = new Collection($groups->items());
+        $authorIds = $items->pluck('organization_id')->filter()->push($user->id)->unique()->values()->all();
+
+        $items->loadMissing([
+            'commit.quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->whereIn('author_id', $authorIds),
         ]);
 
         return $groups;
     }
 
     /**
-     * A star is always on the recipient's own commit, so its images may show beside it: an image-only commit has nothing
-     * else to show.
+     * A star is always on the recipient's own commit, or the organization's they heard about it for, so its images may
+     * show beside it: an image-only commit has nothing else to show.
      *
      * @param  CursorPaginator<int, Notification>  $groups
      * @return CursorPaginator<int, Notification>
@@ -155,7 +159,8 @@ final readonly class NotificationGroupsQuery
         // Deleted ancestors supply grouping identity only; content comes from relevant notifications. A commit's
         // recorded root is always one of its ancestors, so the walk up the thread only continues past it when the
         // recorded root is itself a reply. Follows never group across days, as a busy account gets followed so often
-        // that its follows would otherwise never stop joining a single group.
+        // that its follows would otherwise never stop joining a single group. What a member hears about for an
+        // organization never groups with what they hear about for themselves, which says "you" instead.
         $sql = <<<SQL
             WITH RECURSIVE visible AS ({$visible->toSql()}),
             threads AS (
@@ -174,7 +179,8 @@ final readonly class NotificationGroupsQuery
             topics AS (
                 SELECT visible.*,
                     CASE WHEN visible.type = 'starred' THEN 'starred'
-                        WHEN visible.type = 'replied' THEN 'replied' ELSE 'activity' END AS topic_kind,
+                        WHEN visible.type = 'replied' THEN 'replied'
+                        WHEN visible.organization_id IS NOT NULL THEN 'organization' ELSE 'activity' END AS topic_kind,
                     CASE WHEN visible.type = 'followed' THEN visible.recipient_id
                         WHEN visible.type = 'starred' THEN visible.commit_id
                         WHEN visible.type = 'replied' THEN visible.id
