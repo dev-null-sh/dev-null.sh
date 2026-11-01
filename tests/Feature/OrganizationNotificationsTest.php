@@ -7,6 +7,8 @@ use App\Actions\CreateCommitTopics;
 use App\Actions\CreateMentionNotifications;
 use App\Actions\CreateQuoteNotifications;
 use App\Actions\CreateReplyNotifications;
+use App\Actions\CreateTomFriendship;
+use App\Actions\CreateWorldReply;
 use App\Actions\DeleteCommitStar;
 use App\Actions\DeleteOrganization;
 use App\Actions\DeleteOrganizationMember;
@@ -16,11 +18,14 @@ use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
 use App\Enums\OperationsEventSource;
 use App\Enums\OrganizationRole;
+use App\Jobs\CheckUserLevel;
+use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
 use App\Queries\OperationsEventsQuery;
+use Illuminate\Support\Facades\Queue;
 
 beforeEach(function (): void {
     $this->organization = Organization::factory()->create(['handle' => 'laravel']);
@@ -279,4 +284,29 @@ it("lists an organization's rejected commit once in the operations feed, as its 
 
     expect(collect(resolve(OperationsEventsQuery::class)->get(now()->subDay()->toImmutable(), OperationsEventSource::Moderation))
         ->where('message', 'Commit rejected')->pluck('actor')->all())->toBe([$this->admin->handle]);
+});
+
+it('greets the organization for its hello world, which tells every member', function (): void {
+    $commit = Commit::factory()->for($this->member)->create(['author_id' => $this->organization->id, 'body' => 'Hello, World!']);
+
+    resolve(CreateWorldReply::class)->handle($commit);
+
+    $reply = $commit->replies()->sole();
+
+    expect($reply->body)->toBe("Hello, {$this->organization->name}.")
+        ->and(Notification::query()->where('commit_id', $reply->id)->pluck('organization_id', 'recipient_id')->all())->toEqualCanonicalizing([
+            $this->admin->id => $this->organization->id,
+            $this->member->id => $this->organization->id,
+        ]);
+});
+
+it("asks Tom to answer the organization's commits addressed to him, as anyone's", function (): void {
+    config(['ai.providers.opencode.key' => 'test', 'ai.providers.openai.key' => 'test']);
+    $tom = User::factory()->create(['handle' => 'tom', 'github_id' => CreateTomFriendship::GITHUB_ID]);
+    $reply = Commit::factory()->pending()->for(Commit::factory()->for($tom), 'parent')->for($this->member)->create(['author_id' => $this->organization->id]);
+    Queue::fake([ReplyAsTom::class, CheckUserLevel::class]);
+
+    resolve(UpdateCommitStatuses::class)->handle([$reply->id], CommitStatus::Approved);
+
+    Queue::assertPushed(ReplyAsTom::class, fn (ReplyAsTom $job): bool => $job->commitId === $reply->id);
 });

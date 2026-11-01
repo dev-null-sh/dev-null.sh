@@ -93,7 +93,7 @@ final readonly class CreateCommit
                 $this->updateCommitHotScores->handle([$commit->id]);
             }
 
-            // An organization's commits notify no one yet, and get no welcome or answer: each would show who posted it.
+            // An organization's commits notify no one yet: each would show who posted it.
             if (! $organization instanceof Organization) {
                 $this->createReplyNotifications->handle($commit);
                 $this->createQuoteNotifications->handle($commit);
@@ -105,12 +105,9 @@ final readonly class CreateCommit
                 dispatch(new UnfurlLink($linkPreview));
             }
 
-            if (! $organization instanceof Organization) {
-                $this->createWorldReply->handle($commit);
-            }
+            $this->createWorldReply->handle($commit);
 
             if ($commit->status === CommitStatus::Approved
-                && ! $organization instanceof Organization
                 && $user->github_id !== CreateTomFriendship::GITHUB_ID
             ) {
                 $tom = $this->tomQuery->get();

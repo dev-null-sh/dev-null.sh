@@ -100,7 +100,7 @@ final readonly class UpdateCommitStatuses
                     ->whereNull('opened_at')
                     ->update(['opened_at' => now()]);
 
-                // As when they are posted, an organization's commits notify no one yet, and get no welcome or answer.
+                // As when they are posted, an organization's commits notify no one yet.
                 $personal = $commits->filter(fn (Commit $commit): bool => $commit->author_id === $commit->user_id);
 
                 $this->createReplyNotifications->handle(...$personal);
@@ -108,11 +108,11 @@ final readonly class UpdateCommitStatuses
                 $this->createMentionNotifications->handle(...$personal);
                 $this->createFirstCommitNotifications->handle(...$personal);
 
-                $personal->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
+                $commits->each(fn (Commit $commit) => $this->createWorldReply->handle($commit));
                 LinkCommitTopics::dispatchFor(...$commits->all());
 
                 if (($tom = $this->tomQuery->get()) instanceof User) {
-                    foreach ($personal as $commit) {
+                    foreach ($commits as $commit) {
                         if ($commit->user?->github_id !== CreateTomFriendship::GITHUB_ID
                             && $commit->isAddressedTo($tom)) {
                             dispatch(new ReplyAsTom($commit->id));
