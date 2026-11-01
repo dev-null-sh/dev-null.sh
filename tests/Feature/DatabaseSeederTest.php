@@ -119,6 +119,7 @@ it('reuses existing GitHub organizations', function (): void {
     $this->seed(DatabaseSeeder::class);
 
     expect(Organization::query()->whereRelation('profile', 'handle', 'laravel')->sole()->id)->toBe($laravel->id)
+        ->and($laravel->profile->refresh()->name)->toBe('Laravel')
         ->and(resolve(OrganizationMentionsQuery::class)->builder($laravel, null)->count())->toBe(3);
 });
 

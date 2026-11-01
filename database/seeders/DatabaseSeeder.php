@@ -147,7 +147,7 @@ final class DatabaseSeeder extends Seeder
      */
     private function organization(string $handle, string $name, int $githubId): Organization
     {
-        $github = ['handle' => $handle, 'github_id' => (string) $githubId, 'avatar_url' => "https://avatars.githubusercontent.com/u/{$githubId}?v=4"];
+        $github = ['handle' => $handle, 'name' => $name, 'github_id' => (string) $githubId, 'avatar_url' => "https://avatars.githubusercontent.com/u/{$githubId}?v=4"];
         $organization = Organization::query()->whereRelation('profile', 'github_id', (string) $githubId)->first()
             ?? Organization::query()->whereRelation('profile', 'handle', $handle)->first();
 
@@ -157,7 +157,7 @@ final class DatabaseSeeder extends Seeder
             return $organization;
         }
 
-        return Organization::factory()->create(['name' => $name, ...$github]);
+        return Organization::factory()->create($github);
     }
 
     /**
