@@ -990,8 +990,8 @@ function LifecycleViewPicker({
 /**
  * One slot per day of the range, like the daily bars, with the people who came up from the axis and the ones lost
  * down from it, on one scale. Back vs lost leaves out regulars and signups, so a return after a break isn't lost
- * under everyone who never left. A backfilled day is striped, as its regulars look back; today, still counting, is
- * lighter and has no lost yet.
+ * under everyone who never left. A backfilled day is striped, as the days it looks back on miss the days people only
+ * read; today, still counting, is lighter and has no lost yet.
  */
 function ActiveUserLifecycle({
     range,
@@ -1130,7 +1130,11 @@ function ActiveUserLifecycle({
                                                 </div>
                                             </div>
                                             <div
-                                                className="w-full rounded-b bg-muted-foreground/45"
+                                                className={cn(
+                                                    'w-full rounded-b bg-muted-foreground/45',
+                                                    day.backfilled &&
+                                                        BACKFILLED_STRIPES,
+                                                )}
                                                 style={{
                                                     height: `${((day.lost ?? 0) / scale) * 100}%`,
                                                 }}
