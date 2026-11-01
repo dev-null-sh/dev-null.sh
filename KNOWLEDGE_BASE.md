@@ -748,7 +748,7 @@ Watch the livestreams:
 
 Timestamped livestream references in this knowledge base were located using YouTube's automatic English captions. They point to discussions and spoken reports, not independently verified deployment times. Captions can misrecognize names and technical terms; historical proposals are not evidence of current product behavior.
 
-Sources: [Laravel News's livestream announcement](https://laravel-news.com/social-network-php-48-hours) names Nuno, Brent, and Matthieu and links both days; Pauline confirms her participation as part of the livestream team. The repository's [livestream component](resources/js/components/live-stream.tsx) links day two.
+Sources: [Laravel News's livestream announcement](https://laravel-news.com/social-network-php-48-hours) names Nuno, Brent, and Matthieu and links both days; Pauline confirms her participation as part of the livestream team.
 
 ### Tom
 
