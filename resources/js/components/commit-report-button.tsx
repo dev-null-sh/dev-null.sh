@@ -1,5 +1,4 @@
 import { useForm, usePage } from '@inertiajs/react';
-import { Flag } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useId, useState } from 'react';
 import { store } from '@/actions/App/Http/Controllers/CommitReportController';
@@ -20,13 +19,7 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
-    DialogTrigger,
 } from '@/components/ui/dialog';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import type { Commit } from '@/types';
@@ -45,33 +38,6 @@ export function useCanReport(commit: Commit): boolean {
         auth.user !== null &&
         commit.status === 'approved' &&
         commit.author.id !== auth.user.id
-    );
-}
-
-export function CommitReportButton({ commit }: { commit: Commit }) {
-    const [open, setOpen] = useState(false);
-
-    if (!useCanReport(commit)) {
-        return null;
-    }
-
-    return (
-        <CommitReportDialog commit={commit} open={open} onOpenChange={setOpen}>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <DialogTrigger asChild>
-                        <button
-                            type="button"
-                            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                            aria-label="Report commit"
-                        >
-                            <Flag aria-hidden className="size-4" />
-                        </button>
-                    </DialogTrigger>
-                </TooltipTrigger>
-                <TooltipContent>Report commit</TooltipContent>
-            </Tooltip>
-        </CommitReportDialog>
     );
 }
 

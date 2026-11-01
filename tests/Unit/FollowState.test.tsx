@@ -191,11 +191,18 @@ function isSuggested(user: SuggestedUser): boolean {
     return row.props.inert !== true;
 }
 
-function blockFromSafetyMenu(user: SuggestedUser): void {
-    const block = find(
+function safetyMenuBlock(user: SuggestedUser): ReactElement<Props> | null {
+    const dialog = find(
         UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
-        (props) => props.children === 'Block',
+        (props) => 'open' in props && props.user === user,
     );
+    assert.ok(dialog);
+
+    return find(render(dialog), (props) => props.children === 'Block');
+}
+
+function blockFromSafetyMenu(user: SuggestedUser): void {
+    const block = safetyMenuBlock(user);
     assert.ok(block);
     (block.props.onClick as () => void)();
     visits.at(-1)?.onSuccess?.();
@@ -529,10 +536,7 @@ test('a preview unfollow that fails after a block keeps who to follow unfollowed
     (previewFollowButton(user, true).props.onClick as () => void)();
     const unfollow = visits.at(-1);
 
-    const block = find(
-        UserSafetyMenu({ user, isMuting: false, isBlocking: false }),
-        (props) => props.children === 'Block',
-    );
+    const block = safetyMenuBlock(user);
     assert.ok(block);
     (block.props.onClick as () => void)();
     visits.at(-1)?.onSuccess?.();
