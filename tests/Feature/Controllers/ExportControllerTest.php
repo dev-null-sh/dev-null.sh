@@ -17,9 +17,9 @@ use App\Models\Device;
 use App\Models\Message;
 use App\Models\MessageVoice;
 use App\Models\Notification;
+use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\PollVote;
-use App\Models\Profile;
 use App\Models\SshKey;
 use App\Models\User;
 use App\Models\UserTimeout;
@@ -90,7 +90,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 4,
+        'schema_version' => 5,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -126,7 +126,9 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
             'created_at' => $user->created_at->toIso8601String(),
             'updated_at' => $user->updated_at->toIso8601String(),
         ],
+        'active_days' => [],
         'commits' => [],
+        'organization_commits' => [],
         'polls' => [],
         'poll_votes' => [],
         'stars' => [],
@@ -136,6 +138,8 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'blocking' => [],
         'dismissed_suggestions' => [],
         'organizations' => [],
+        'followed_organizations' => [],
+        'pending_organization_follows' => [],
         'messages' => [],
         'reports' => [],
         'remote_mutes' => [],
@@ -212,6 +216,7 @@ it('exports all the signed-in users commits including replies, deleted ones, and
     $other = User::factory()->create();
     $parent = Commit::factory()->for($other)->rejected()->create(['body' => 'Another developer private parent body']);
     $approved = Commit::factory()->for($user)->create(['body' => "Shipped Unicode support 🚀\nNext: docs.", 'pasteis_count' => 3]);
+    $approved->headlines()->create(['name' => 'Unicode support ships']);
     $pending = Commit::factory()->for($user)->pending()->create();
     $rejected = Commit::factory()->for($user)->rejected()->create();
     $reply = Commit::factory()->for($user)->create(['parent_id' => $parent->id]);
@@ -450,8 +455,8 @@ it('exports ssh key fingerprints and sessions without session ids or payloads', 
 it('exports the organizations the user is a member of with their role, first joined first, without their other members', function (): void {
     $this->freezeSecond();
     $user = User::factory()->create();
-    $laravel = Profile::factory()->organization()->create(['handle' => 'laravel']);
-    $bref = Profile::factory()->organization()->create(['handle' => 'brefphp']);
+    $laravel = Organization::factory()->create(['handle' => 'laravel']);
+    $bref = Organization::factory()->create(['handle' => 'brefphp']);
     $bref->admins()->attach($user->id, ['created_at' => now()->subDay()]);
     $laravel->members()->attach([$user->id => ['role' => OrganizationRole::Member, 'created_at' => now()], User::factory()->create()->id => ['role' => OrganizationRole::Admin, 'created_at' => now()]]);
 
@@ -464,18 +469,75 @@ it('exports the organizations the user is a member of with their role, first joi
     ]);
 });
 
+it('exports the days the user was seen, oldest first, without the days of others', function (): void {
+    $user = User::factory()->create(['last_seen_at' => now()]);
+    DB::table('user_active_days')->insert([
+        ['user_id' => $user->id, 'seen_at' => '2026-10-21'],
+        ['user_id' => $user->id, 'seen_at' => '2026-10-19'],
+        ['user_id' => User::factory()->create()->id, 'seen_at' => '2026-10-20'],
+    ]);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['active_days'])->toBe(['2026-10-19', '2026-10-21']);
+});
+
+it('exports today when the export is the first visit of the day', function (): void {
+    $this->travelTo(now()->setDate(2026, 10, 30)->setTime(12, 0));
+    $user = User::factory()->create(['last_seen_at' => '2026-10-29']);
+    DB::table('user_active_days')->insert(['user_id' => $user->id, 'seen_at' => '2026-10-29']);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['active_days'])->toBe(['2026-10-29', '2026-10-30']);
+});
+
+it('exports the organizations the user follows, first follow first', function (): void {
+    $this->freezeSecond();
+    $user = User::factory()->create();
+    $laravel = Organization::factory()->create(['handle' => 'laravel']);
+    $bref = Organization::factory()->create(['handle' => 'brefphp']);
+    $user->followedOrganizations()->attach($laravel, ['created_at' => now()]);
+    $user->followedOrganizations()->attach($bref, ['created_at' => now()->subDay()]);
+    User::factory()->create()->followedOrganizations()->attach(Organization::factory()->create());
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['followed_organizations'])->toBe([
+        ['handle' => 'brefphp', 'followed_at' => now()->subDay()->toIso8601String()],
+        ['handle' => 'laravel', 'followed_at' => now()->toIso8601String()],
+    ]);
+});
+
+it('exports the github organizations the user waits to follow', function (): void {
+    $user = User::factory()->create();
+    DB::table('pending_organization_follows')->insert([
+        ['user_id' => $user->id, 'github_id' => '958072', 'created_at' => now()],
+        ['user_id' => $user->id, 'github_id' => '1', 'created_at' => now()],
+        ['user_id' => User::factory()->create()->id, 'github_id' => '2', 'created_at' => now()],
+    ]);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['pending_organization_follows'])->toBe(['1', '958072']);
+});
+
 it('exports the devices approved for the app, oldest first', function (): void {
     $user = User::factory()->create();
     $older = Device::factory()->for($user)->create(['name' => 'devnull on iPad', 'approved_at' => now()->subWeek(), 'last_used_at' => now()->subDay()]);
-    $newer = Device::factory()->for($user)->create(['name' => 'devnull on iPhone', 'approved_at' => now()->subDay()]);
+    $newer = Device::factory()->for($user)->create(['name' => 'iPhone', 'app_id' => 'ios:com.nativephp.devnull', 'app_name' => '/dev/null for iOS', 'approved_at' => now()->subDay()]);
     $other = Device::factory()->create();
 
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['devices'])->toBe([
-        ['name' => 'devnull on iPad', 'fingerprint' => $older->fingerprint, 'approved_at' => now()->subWeek()->toIso8601String(), 'last_used_at' => now()->subDay()->toIso8601String()],
-        ['name' => 'devnull on iPhone', 'fingerprint' => $newer->fingerprint, 'approved_at' => now()->subDay()->toIso8601String(), 'last_used_at' => null],
+        ['name' => 'devnull on iPad', 'app_id' => null, 'app_name' => null, 'fingerprint' => $older->fingerprint, 'approved_at' => now()->subWeek()->toIso8601String(), 'last_used_at' => now()->subDay()->toIso8601String()],
+        ['name' => 'iPhone', 'app_id' => 'ios:com.nativephp.devnull', 'app_name' => '/dev/null for iOS', 'fingerprint' => $newer->fingerprint, 'approved_at' => now()->subDay()->toIso8601String(), 'last_used_at' => null],
     ])
         ->and($response->streamedContent())->not->toContain($other->fingerprint);
 });

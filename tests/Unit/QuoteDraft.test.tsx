@@ -87,8 +87,7 @@ test('quotes submit restored images and clear the complete draft only on success
     draft.body = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
     const commit = {
         id: 'quoted',
-        user_id: 'author',
-        user: { handle: 'author' },
+        author: { id: 'author', handle: 'author' },
         status: 'approved',
     } as Commit;
     const button = CommitQuoteButton({ commit })!;
@@ -198,8 +197,7 @@ test('quotes submit restored images and clear the complete draft only on success
 test('passes slash command context to the quote composer textarea', () => {
     const commit = {
         id: 'quoted',
-        user_id: 'author',
-        user: { handle: 'author' },
+        author: { id: 'author', handle: 'author' },
         status: 'approved',
     } as Commit;
     const button = CommitQuoteButton({ commit })!;
@@ -237,8 +235,7 @@ test('passes slash command context to the quote composer textarea', () => {
 test('escape in the preview returns to writing without closing the quote', () => {
     const commit = {
         id: 'quoted',
-        user_id: 'author',
-        user: { handle: 'author' },
+        author: { id: 'author', handle: 'author' },
         status: 'approved',
     } as Commit;
     const button = CommitQuoteButton({ commit })!;
@@ -288,8 +285,7 @@ test('quotes let the author pick which link gets the card', () => {
         'Read https://laravel.com/docs first, then https://github.com/laravel/framework';
     const commit = {
         id: 'quoted',
-        user_id: 'author',
-        user: { handle: 'author' },
+        author: { id: 'author', handle: 'author' },
         status: 'approved',
     } as Commit;
     const button = CommitQuoteButton({ commit })!;

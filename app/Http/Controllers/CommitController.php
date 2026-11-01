@@ -12,6 +12,7 @@ use App\Http\Requests\CreateCommitRequest;
 use App\Http\Requests\DeleteCommitRequest;
 use App\Http\Requests\ShowCommitRequest;
 use App\Models\Commit;
+use App\Models\Profile;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitContinuationQuery;
@@ -32,7 +33,7 @@ final readonly class CommitController
     /**
      * Commits are public, so guests and crawlers read the same page, with the commit's link preview and the replies shown under it as structured data.
      */
-    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, User $user, Commit $commit, CommitPageQuery $page, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies, PageMetadata $metadata): Response
+    public function show(ShowCommitRequest $request, #[CurrentUser] ?User $currentUser, Profile $profile, Commit $commit, CommitPageQuery $page, CommitAncestorsQuery $ancestors, CommitContinuationQuery $continuation, CommitRepliesQuery $replies, PageMetadata $metadata): Response
     {
         $focusedCommit = null;
         $getCommit = function () use (&$focusedCommit, $page, $commit, $currentUser): Commit {
@@ -50,7 +51,7 @@ final readonly class CommitController
         };
 
         $preview = $currentUser instanceof User || $request->inertia() ? null : $metadata->commit(
-            $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.user']),
+            $commit->loadPublicPreview()->loadCount('stars')->load(['images', 'linkPreview', 'quotedCommit.author']),
             $getReplies()->items(),
         );
 
@@ -66,14 +67,15 @@ final readonly class CommitController
     {
         $before = $achievements->unlockedBadgeNames($user);
 
-        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll());
+        $organization = $request->organization();
+        $commit = $action->handle($user, $request->string('body')->value(), quotedCommit: $request->quotedCommit(), images: $request->images(), imageDescriptions: $request->imageDescriptions(), linkPreview: $request->linkPreview(), poll: $request->poll(), organization: $organization);
 
         $unlocked = $achievements->unlockedBadgeNames($user)->diff($before)->values();
 
         Inertia::flash('committed', [
             'id' => $commit->id,
             'body' => $commit->body,
-            'user' => ['handle' => $user->handle],
+            'author' => ['handle' => ($organization ?? $user)->handle],
         ]);
 
         if ($unlocked->isNotEmpty()) {
@@ -102,10 +104,10 @@ final readonly class CommitController
             'server_time' => now()->toJSON(),
         ]);
 
-        $commitUrl = route('commit.show', [$commit->user, $commit]);
+        $commitUrl = route('commit.show', [$commit->author, $commit]);
 
         if (Str::is([$commitUrl, "{$commitUrl}/photos/*"], url()->previous())) {
-            return to_route('user.show', $commit->user);
+            return to_route('user.show', $commit->author);
         }
 
         return back();

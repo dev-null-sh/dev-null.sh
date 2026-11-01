@@ -47,13 +47,14 @@ export function CommitPastelButton({
     const busy = useRef(false);
     const emoji = useRef<HTMLImageElement>(null);
 
-    if (!auth.pasteis || !auth.user) {
+    // An organization's commits take no pastéis: they would go to whoever posted them.
+    if (!auth.pasteis || !auth.user || commit.author.type === 'organization') {
         return null;
     }
 
     const userId = auth.user.id;
-    const isOwn = commit.user_id === userId;
-    const readOnly = isOwn || commit.status !== 'approved' || !commit.user_id;
+    const isOwn = commit.author.id === userId;
+    const readOnly = isOwn || commit.status !== 'approved';
     const label = `${formatExactCount(count)} ${count === 1 ? 'pastel' : 'pastéis'}`;
 
     const award = async () => {

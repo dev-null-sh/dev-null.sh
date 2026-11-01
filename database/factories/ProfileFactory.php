@@ -30,14 +30,4 @@ final class ProfileFactory extends Factory
             'website' => fake()->url(),
         ];
     }
-
-    public function organization(): self
-    {
-        return $this->state(fn (array $attributes): array => [
-            'type' => ProfileType::Organization,
-            'handle' => fake()->unique()->slug(2),
-            'name' => fake()->company(),
-            'github_synced_at' => now(),
-        ]);
-    }
 }

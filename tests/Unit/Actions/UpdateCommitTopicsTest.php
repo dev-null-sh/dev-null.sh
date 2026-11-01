@@ -5,8 +5,8 @@ declare(strict_types=1);
 use App\Actions\CreateCommitTopics;
 use App\Actions\UpdateCommitTopics;
 use App\Contracts\Services\GitHubProvider;
-use App\Enums\ProfileType;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\Profile;
 use App\Models\User;
 use GuzzleHttp\Psr7\Response as Psr7Response;
@@ -43,10 +43,10 @@ it('links the organizations GitHub has to the commit, from their GitHub profile'
 
     resolve(UpdateCommitTopics::class)->handle($commit);
 
-    $organization = Profile::query()->where('type', ProfileType::Organization)->sole();
+    $organization = Organization::query()->sole();
 
-    expect($organization)
-        ->github_id->toBe('958072')
+    expect($organization->profile->github_id)->toBe('958072')
+        ->and($organization)
         ->handle->toBe('laravel')
         ->name->toBe('Laravel')
         ->avatar_url->toBe('https://avatars.githubusercontent.com/u/958072?v=4')
@@ -77,7 +77,7 @@ it('only asks GitHub about the handles that are neither a user nor a known organ
     $github = $this->mock(GitHubProvider::class);
 
     $tom = User::factory()->create(['handle' => 'tom']);
-    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
     $commit = Commit::factory()->create(['body' => 'Hi @tom, @laravel', 'mentions' => ['tom' => $tom->id]]);
 
     resolve(UpdateCommitTopics::class)->handle($commit);
@@ -114,7 +114,7 @@ it('does not ask about a handle again for a day once it is not an organization',
     resolve(UpdateCommitTopics::class)->handle($commit);
 
     $github->shouldHaveReceived('accountByLogin')->twice();
-    expect(Profile::query()->where('type', ProfileType::Organization)->count())->toBe(0)
+    expect(Organization::query()->count())->toBe(0)
         ->and($commit->refresh()->organization_mentions)->toBeNull();
 
     $this->travel(2)->days();
@@ -129,7 +129,7 @@ it('refreshes a known organization once its profile is a day old', function (): 
     $github->shouldReceive('rateLimit')->andReturnNull();
     $github->shouldReceive('account')->with('958072')->andReturn(gitHubOrganization(['name' => 'Laravel, Inc.']));
 
-    $organization = Profile::factory()->organization()->create(['github_id' => '958072', 'handle' => 'laravel', 'github_synced_at' => now()->subHours(Profile::FRESH_FOR_HOURS)->subMinute()]);
+    $organization = Organization::factory()->create(['github_id' => '958072', 'handle' => 'laravel', 'github_synced_at' => now()->subHours(Organization::FRESH_FOR_HOURS)->subMinute()]);
     $commit = Commit::factory()->create(['body' => '@laravel', 'mentions' => []]);
 
     resolve(UpdateCommitTopics::class)->handle($commit);
@@ -145,20 +145,20 @@ it('deletes a known organization GitHub no longer has, and unlinks the commits t
     $github->shouldReceive('rateLimit')->andReturnNull();
     $github->shouldReceive('account')->with('958072')->andReturnNull();
 
-    $organization = Profile::factory()->organization()->create(['github_id' => '958072', 'handle' => 'laravel', 'github_synced_at' => now()->subDays(2)]);
+    $organization = Organization::factory()->create(['github_id' => '958072', 'handle' => 'laravel', 'github_synced_at' => now()->subDays(2)]);
     $earlier = Commit::factory()->create(['body' => 'Thanks @laravel', 'mentions' => []]);
     resolve(CreateCommitTopics::class)->handle($earlier, ['laravel' => $organization->id]);
     $commit = Commit::factory()->create(['body' => '@laravel', 'mentions' => []]);
 
     resolve(UpdateCommitTopics::class)->handle($commit);
 
-    expect(Profile::query()->where('type', ProfileType::Organization)->count())->toBe(0)
+    expect(Organization::query()->count())->toBe(0)
         ->and($commit->refresh()->organization_mentions)->toBeNull()
         ->and($earlier->refresh()->organization_mentions)->toBeNull();
 });
 
 it('keeps the organizations the commit already links to', function (): void {
-    $organization = Profile::factory()->organization()->create(['handle' => 'now-renamed']);
+    $organization = Organization::factory()->create(['handle' => 'now-renamed']);
     $commit = Commit::factory()->create(['body' => '@renamed', 'mentions' => []]);
     resolve(CreateCommitTopics::class)->handle($commit, ['renamed' => $organization->id]);
 
@@ -230,12 +230,18 @@ it('keeps asking while enough requests are left', function (): void {
     expect(Cache::has('github-organizations:paused'))->toBeFalse();
 });
 
-it('throws when GitHub fails, so the job tries again', function (): void {
+it('throws when GitHub fails, rate limits or forbids anything else, so the job tries again', function (Psr7Response $response): void {
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('rateLimit')->andReturnNull();
-    $github->shouldReceive('accountByLogin')->with('laravel')->andThrow(new RequestException(new Response(new Psr7Response(502))));
+    $github->shouldReceive('accountByLogin')->with('laravel')->andThrow(new RequestException(new Response($response)));
 
     $commit = Commit::factory()->create(['body' => '@laravel', 'mentions' => []]);
 
     expect(fn () => resolve(UpdateCommitTopics::class)->handle($commit))->toThrow(RequestException::class);
-});
+})->with([
+    'an error' => fn (): Psr7Response => new Psr7Response(502),
+    'the primary rate limit' => fn (): Psr7Response => new Psr7Response(403, ['X-RateLimit-Remaining' => '0']),
+    'a secondary rate limit' => fn (): Psr7Response => new Psr7Response(403, ['Retry-After' => '60']),
+    'a secondary rate limit without headers' => fn (): Psr7Response => new Psr7Response(403, [], '{"message":"You have exceeded a secondary rate limit. Please wait a few minutes before you try again."}'),
+    'any other refusal' => fn (): Psr7Response => new Psr7Response(403, [], '{"message":"Resource not accessible by integration"}'),
+]);

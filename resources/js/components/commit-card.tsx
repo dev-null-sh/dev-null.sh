@@ -54,16 +54,17 @@ import {
     useIsCommitDeleted,
 } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { clickedCommit } from '@/lib/commit-click';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import { measureCommitSize } from '@/lib/commit-size';
 import {
+    authorLaneColor,
     cn,
     formatFullDateTime,
     formatRelativeTime,
     isDeleted,
     isWithinSeconds,
-    laneColor,
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -127,7 +128,7 @@ export function CommitCard({
     const nodeRef = useRef<HTMLAnchorElement>(null);
     const graphNodeRef = useGraphNode({
         id: commit.id,
-        lane: laneColor(commit.user.lane),
+        lane: authorLaneColor(commit.author),
         after: graphAfter,
         dimmed: isDimmed,
         ring: isGroupedWithPrevious ? railDotRing : 0,
@@ -157,11 +158,11 @@ export function CommitCard({
     const endsOnDot =
         hasRailTail && railNodePosition !== 'bottom' && endsWithDot;
     const graphEndId = `${commit.id}:end`;
-    const isOwn = commit.user_id === auth.user?.id;
+    const isOwn = useOwnsCommit()(commit);
     const isFresh = isOwn && isWithinSeconds(commit.created_at, 15);
     const isDeletable = isOwn && canDelete;
     const hash = shortHash(commit.id);
-    const permalink = CommitController.show({ user: commit.user, commit });
+    const permalink = CommitController.show({ profile: commit.author, commit });
 
     const openClickedCommit = (event: MouseEvent<HTMLElement>) => {
         const click = clickedCommit(
@@ -174,6 +175,14 @@ export function CommitCard({
             window.open(click.url, '_blank', 'noopener');
         } else if (click) {
             router.visit(click.url);
+        }
+    };
+
+    const prefetchClickedCommit = (event: MouseEvent<HTMLElement>) => {
+        const click = clickedCommit(event, '', window.location.pathname);
+
+        if (click && !click.newTab) {
+            router.prefetch(click.url, { method: 'get' }, {});
         }
     };
 
@@ -256,6 +265,7 @@ export function CommitCard({
             data-commit={commit.id}
             data-permalink={wasDeleted ? undefined : permalink.url}
             data-test="commit"
+            onMouseDown={prefetchClickedCommit}
             onClick={openClickedCommit}
             onAuxClick={openClickedCommit}
             onPointerMove={
@@ -270,7 +280,7 @@ export function CommitCard({
                 data-graph-leaving={deletion === 'deleting' || undefined}
             >
                 <GraphRail
-                    lane={laneColor(commit.user.lane)}
+                    lane={authorLaneColor(commit.author)}
                     previousLane={previousLane}
                     endsWithDot={endsWithDot}
                     endsOnActions
@@ -290,18 +300,19 @@ export function CommitCard({
                     }}
                     node={
                         <UserPreview
-                            user={commit.user}
+                            user={commit.author}
                             anchor={nodeRef}
                             className="flex"
                         >
                             <LiveStreamTrigger
-                                user={commit.user}
+                                user={commit.author}
                                 hoverCard={false}
                                 className="flex"
                             >
                                 <Link
+                                    prefetch
                                     ref={nodeLinkRef}
-                                    href={show(commit.user)}
+                                    href={show(commit.author)}
                                     tabIndex={-1}
                                     className={cn(
                                         'group/node flex rounded-full',
@@ -315,7 +326,7 @@ export function CommitCard({
                                     {isGroupedWithPrevious ? (
                                         <RailDot className="group-hover/node:scale-125" />
                                     ) : (
-                                        <RailAvatar user={commit.user} />
+                                        <RailAvatar user={commit.author} />
                                     )}
                                 </Link>
                             </LiveStreamTrigger>
@@ -338,23 +349,25 @@ export function CommitCard({
                         <div className="min-w-0 flex-1">
                             <div className="flex items-baseline gap-1.5 text-[15px]">
                                 <UserPreview
-                                    user={commit.user}
+                                    user={commit.author}
                                     anchor={nodeRef}
                                     className="flex min-w-0 items-baseline gap-1.5"
                                     onHoverChange={onAuthorHover}
                                 >
                                     <Link
-                                        href={show(commit.user)}
+                                        prefetch
+                                        href={show(commit.author)}
                                         className="truncate font-semibold hover:underline"
                                     >
-                                        {commit.user.name}
+                                        {commit.author.name}
                                     </Link>
                                     <Link
-                                        href={show(commit.user)}
+                                        prefetch
+                                        href={show(commit.author)}
                                         tabIndex={-1}
                                         className="shrink-4 truncate font-mono text-[13px] text-muted-foreground"
                                     >
-                                        @{commit.user.handle}
+                                        @{commit.author.handle}
                                     </Link>
                                 </UserPreview>
                                 <span
@@ -365,9 +378,14 @@ export function CommitCard({
                                 </span>
                                 <TimestampTooltip
                                     date={commit.created_at}
-                                    author={commit.user}
+                                    author={
+                                        commit.author.type === 'user'
+                                            ? commit.author
+                                            : undefined
+                                    }
                                 >
                                     <Link
+                                        prefetch
                                         href={permalink}
                                         className="shrink-0 font-mono text-[13px] text-muted-foreground hover:underline"
                                         data-test="commit-permalink"
@@ -392,6 +410,7 @@ export function CommitCard({
                                     className="relative ml-auto flex shrink-0 items-center self-center"
                                 >
                                     <Link
+                                        prefetch
                                         href={permalink}
                                         tabIndex={-1}
                                         className={cn(
@@ -441,14 +460,15 @@ export function CommitCard({
                             )}
                             {commit.parent && !isDeleted(commit.parent) && (
                                 <Link
+                                    prefetch
                                     href={CommitController.show({
-                                        user: commit.parent.user,
+                                        profile: commit.parent.author,
                                         commit: commit.parent,
                                     })}
                                     className="mt-0.5 flex w-fit items-center gap-1 font-mono text-xs text-muted-foreground hover:text-foreground"
                                 >
                                     <CornerDownRight className="size-3" />
-                                    replying to @{commit.parent.user.handle}
+                                    replying to @{commit.parent.author.handle}
                                 </Link>
                             )}
                             <div ref={bodyRef} style={translation.bodyStyle}>
@@ -499,7 +519,11 @@ export function CommitCard({
                                 <p className="mt-2 font-mono text-[13px] text-muted-foreground">
                                     <TimestampTooltip
                                         date={commit.created_at}
-                                        author={commit.user}
+                                        author={
+                                            commit.author.type === 'user'
+                                                ? commit.author
+                                                : undefined
+                                        }
                                     >
                                         <time dateTime={commit.created_at}>
                                             {formatFullDateTime(
@@ -574,7 +598,7 @@ export function CommitCard({
                 <RailSegment
                     lane={
                         hasRailTail && !endsWithDot
-                            ? laneColor(commit.user.lane)
+                            ? authorLaneColor(commit.author)
                             : undefined
                     }
                     isDimmed={isDimmed}
@@ -646,7 +670,7 @@ export function CommitCard({
                         <RailSegment
                             lane={
                                 hasRailTail && !endsWithDot
-                                    ? laneColor(commit.user.lane)
+                                    ? authorLaneColor(commit.author)
                                     : undefined
                             }
                             isDimmed={isDimmed}

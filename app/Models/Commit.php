@@ -26,6 +26,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 /**
  * @property-read string $id
  * @property-read string|null $user_id
+ * @property-read string|null $author_id
  * @property-read string|null $parent_id
  * @property-read string|null $root_id
  * @property-read float $hot_score
@@ -38,6 +39,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CommitStatus|null $ai_decision
  * @property-read list<string>|null $ai_categories
  * @property-read list<float>|null $embedding
+ * @property-read CarbonInterface|null $headlines_classified_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
@@ -45,6 +47,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read int $pasteis_count
  * @property-read bool $starred
  * @property-read User|null $user
+ * @property-read Profile|null $author
  * @property-read Collection<int, User> $stars
  * @property-read Commit|null $parent
  * @property-read Collection<int, Commit> $replies
@@ -56,11 +59,16 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Commit|null $quotedCommit
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
+ * @property-read Collection<int, Headline> $headlines
  */
 #[Hidden([
+    'user',
+    'user_id',
+    'author_id',
     'ai_decision',
     'ai_categories',
     'embedding',
+    'headlines_classified_at',
 ])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -110,6 +118,7 @@ final class Commit extends Model
         return [
             'id' => 'string',
             'user_id' => 'string',
+            'author_id' => 'string',
             'parent_id' => 'string',
             'root_id' => 'string',
             'hot_score' => 'float',
@@ -123,6 +132,7 @@ final class Commit extends Model
             'ai_decision' => CommitStatus::class,
             'ai_categories' => 'array',
             'embedding' => AsVector::class,
+            'headlines_classified_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
@@ -152,6 +162,8 @@ final class Commit extends Model
     }
 
     /**
+     * The user who posted the commit, whom moderation holds to account.
+     *
      * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
@@ -160,11 +172,29 @@ final class Commit extends Model
     }
 
     /**
+     * The profile the commit is from, which everyone sees, with the user or the organization it is.
+     *
+     * @return BelongsTo<Profile, $this>
+     */
+    public function author(): BelongsTo
+    {
+        return $this->belongsTo(Profile::class)->with(['user', 'organization']);
+    }
+
+    /**
      * @return BelongsToMany<User, $this>
      */
     public function stars(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'stars')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<Headline, $this>
+     */
+    public function headlines(): BelongsToMany
+    {
+        return $this->belongsToMany(Headline::class)->withTimestamps(updatedAt: false);
     }
 
     /**
@@ -181,11 +211,20 @@ final class Commit extends Model
     {
         $explicitMentions = array_intersect_key($this->mentions ?? [], array_flip(resolve(Mentions::class)->handles($this->body)));
 
-        return in_array($user->id, $explicitMentions, true) || $this->parent?->user_id === $user->id;
+        return in_array($user->id, $explicitMentions, true) || $this->parent?->author_id === $user->id;
     }
 
     /**
-     * Approved commits are visible to everyone but people across a block. Authors can also see their own.
+     * A commit is its author's own: a person's, or each member's of the organization it is from.
+     */
+    public function isOwnedBy(User $user): bool
+    {
+        return $this->author_id !== null && ($this->author_id === $user->id || $user->organizations()->whereKey($this->author_id)->exists());
+    }
+
+    /**
+     * Approved commits are visible to everyone but people across a block with their author, which an organization never
+     * is. Whoever posted a commit can also see it.
      */
     public function isVisibleTo(?User $user): bool
     {
@@ -193,8 +232,10 @@ final class Commit extends Model
             return true;
         }
 
+        $author = $this->author?->user;
+
         return $this->status === CommitStatus::Approved
-            && (! $user instanceof User || ! $this->user instanceof User || ! $user->hasBlockWith($this->user));
+            && (! $user instanceof User || ! $author instanceof User || ! $user->hasBlockWith($author));
     }
 
     /**
@@ -208,9 +249,14 @@ final class Commit extends Model
             && $this->created_at->greaterThan(now()->subMinutes(self::CHECKING_MINUTES));
     }
 
+    /**
+     * A deleted commit comes back within seconds, unless its author has gone since: a deleted account takes its own
+     * commits' authors with it, and an organization GitHub no longer has its own. Whoever posted an organization's
+     * commit may have gone, while its members still can bring it back.
+     */
     public function isRestorable(): bool
     {
-        return $this->user_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
+        return $this->author_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
     }
 
     /**
@@ -261,6 +307,17 @@ final class Commit extends Model
         return $this->belongsTo(self::class, 'quoted_commit_id');
     }
 
+    public function headlineBody(): string
+    {
+        $quoted = $this->quotedCommit;
+
+        if ($quoted === null || $quoted->trashed() || $quoted->status !== CommitStatus::Approved || $quoted->body === '') {
+            return $this->body;
+        }
+
+        return json_encode(['post' => $this->body, 'quoted_post' => $quoted->body], JSON_THROW_ON_ERROR);
+    }
+
     /**
      * @return HasMany<Commit, $this>
      */
@@ -303,7 +360,7 @@ final class Commit extends Model
                 ->whereKey($this->getAttributeFromArray($this->getKeyName()))->first()->replies_count ?? 0,
         ])->syncOriginalAttribute('replies_count');
 
-        return $this->load(['user', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('user')]);
+        return $this->load(['author', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)->with('author')]);
     }
 
     /**
@@ -314,8 +371,8 @@ final class Commit extends Model
         return hash('xxh3', (string) json_encode([
             $this->body,
             $this->replies_count,
-            $this->user?->openGraphIdentity(),
-            $this->parent?->user?->handle,
+            [$this->author?->name, $this->author?->handle, $this->author?->avatar_url, $this->author?->owner()?->lane()],
+            $this->parent?->author?->handle,
         ]));
     }
 }

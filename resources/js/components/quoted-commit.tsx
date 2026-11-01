@@ -1,12 +1,12 @@
 import { Link } from '@inertiajs/react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
+import { AuthorAvatar } from '@/components/author-avatar';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
 import { LinkPreview } from '@/components/link-preview';
-import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import {
     cn,
@@ -48,12 +48,12 @@ export function QuotedCommit({
         <>
             <span className="flex min-w-0 items-center gap-1.5 text-sm">
                 <span className="sr-only">{label}</span>
-                <UserAvatar user={commit.user} className="size-5" />
+                <AuthorAvatar author={commit.author} className="size-5" />
                 <span className="truncate font-semibold">
-                    {commit.user.name}
+                    {commit.author.name}
                 </span>
                 <span className="truncate font-mono text-xs text-muted-foreground">
-                    @{commit.user.handle}
+                    @{commit.author.handle}
                 </span>
                 <span aria-hidden className="text-muted-foreground">
                     ·
@@ -96,7 +96,8 @@ export function QuotedCommit({
 
     return (
         <Link
-            href={CommitController.show({ user: commit.user, commit })}
+            prefetch
+            href={CommitController.show({ profile: commit.author, commit })}
             className={cn(
                 className,
                 'transition-colors hover:bg-accent focus-visible:bg-accent',

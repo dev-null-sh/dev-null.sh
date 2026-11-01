@@ -98,10 +98,9 @@ it('refreshes the entire loaded inbox window without losing older pages', functi
         ->assertJsonCount(41, 'props.notifications.data')
         ->assertJsonPath('props.notifications.data.0.id', $new->id)
         ->assertJsonPath('props.notifications.data.40.id', $notices[39]->id)
-        ->assertJsonPath('props.auth.unreadNotificationsCount', 0)
         ->assertJsonMissingPath('props.auth.user');
 
-    expect($new->refresh()->read_at)->not->toBeNull();
+    expect($new->refresh()->read_at)->toBeNull();
     $this->get($response->json('props.notifications.next_page_url'))
         ->assertJsonCount(20, 'props.notifications.data')
         ->assertJsonPath('props.notifications.data.0.id', $notices[40]->id);
@@ -143,8 +142,11 @@ it('polls fresh filtered groups and excludes activity that is no longer relevant
         ->assertJsonPath('props.notifications.data.0.id', $latest->id)
         ->assertJsonPath('props.notifications.data.0.group_id', $latest->id)
         ->assertJsonPath('props.notifications.data.0.event_count', 1)
-        ->assertJsonPath('props.notifications.data.1.id', $old->id)
-        ->assertJsonPath('props.auth.unreadNotificationsCount', 0);
+        ->assertJsonPath('props.notifications.data.1.id', $old->id);
+
+    expect($latest->refresh()->read_at)->toBeNull();
+
+    $this->putJson(route('notification-read-at.update'), ['through' => $latest->created_at->toJSON()])->assertNoContent();
 
     expect($latest->refresh()->read_at)->not->toBeNull()
         ->and($follow->refresh()->read_at)->not->toBeNull()
@@ -363,11 +365,11 @@ it('filters event types while retaining all members of each group', function ():
 it('preserves the first read timestamp when reopening the inbox', function (): void {
     $user = User::factory()->create();
     $one = Notification::factory()->for($user, 'recipient')->create();
-    $this->actingAs($user)->get(route('notification.index'))->assertOk();
+    $this->actingAs($user)->putJson(route('notification-read-at.update'), ['through' => $one->created_at->toJSON()])->assertNoContent();
     $readAt = $one->refresh()->read_at;
     expect($readAt)->not->toBeNull();
     $this->travel(5)->minutes();
-    $this->get(route('notification.index'))->assertOk();
+    $this->putJson(route('notification-read-at.update'), ['through' => now()->toJSON()])->assertNoContent();
     expect($one->refresh()->read_at->equalTo($readAt))->toBeTrue();
 });
 
@@ -389,8 +391,8 @@ it('marks all relevant activity read beyond the first page and selected type', f
     $other = Notification::factory()->replied()->create();
 
     $this->actingAs($user)->get(route('notification.index', ['type' => 'replies']))
-        ->assertOk()->assertInertia(fn ($page) => $page->has('notifications.data', 20)
-        ->where('auth.unreadNotificationsCount', 0));
+        ->assertOk()->assertInertia(fn ($page) => $page->has('notifications.data', 20));
+    $this->putJson(route('notification-read-at.update'), ['through' => now()->toJSON()])->assertNoContent();
     expect($user->notifications()->relevant()->unread()->count())->toBe(0)
         ->and($follow->refresh()->read_at)->not->toBeNull()
         ->and($events->last()->refresh()->read_at)->not->toBeNull()
@@ -400,15 +402,16 @@ it('marks all relevant activity read beyond the first page and selected type', f
 
 it('leaves later arrivals unread until the inbox is visited again', function (): void {
     $user = User::factory()->create();
-    Notification::factory()->for($user, 'recipient')->create();
-    $this->actingAs($user)->get(route('notification.index'))->assertOk();
+    $first = Notification::factory()->for($user, 'recipient')->create();
+    $this->actingAs($user)->putJson(route('notification-read-at.update'), ['through' => $first->created_at->toJSON()])->assertNoContent();
     $this->travel(5)->minutes();
     $latest = Notification::factory()->for($user, 'recipient')->mentioned()->create();
 
     $this->get(route('log.show', 'trending'))->assertInertia(fn ($page) => $page
         ->where('auth.unreadNotificationsCount', 1));
     expect($latest->refresh()->read_at)->toBeNull();
-    $this->get(route('notification.index', ['type' => 'follows']))->assertInertia(fn ($page) => $page
+    $this->putJson(route('notification-read-at.update'), ['through' => $latest->created_at->toJSON()])->assertNoContent();
+    $this->get(route('log.show', 'trending'))->assertInertia(fn ($page) => $page
         ->where('auth.unreadNotificationsCount', 0));
     expect($latest->refresh()->read_at)->not->toBeNull();
 });
@@ -451,8 +454,7 @@ it('keeps lifetime star groups separate from conversations and supports filterin
         ->assertInertia(fn ($page) => $page
             ->has('notifications.data', 1)
             ->where('filters.type', 'stars')
-            ->where('notifications.data.0.group_id', $old->id)
-            ->where('auth.unreadNotificationsCount', 0));
+            ->where('notifications.data.0.group_id', $old->id));
 
     $this->getJson(route('notification-group.show', [$latest, 'type' => 'stars']))->assertOk()
         ->assertJsonCount(2, 'data')
@@ -502,11 +504,11 @@ it('includes quotes in the inbox and filters their history without reading hidde
             ->where('filters.type', 'quotes')
             ->where('notifications.data.0.id', $quote->id)
             ->where('notifications.data.0.type', 'quoted')
-            ->where('notifications.data.0.commit.id', $quote->commit_id)
-            ->where('auth.unreadNotificationsCount', 0));
+            ->where('notifications.data.0.commit.id', $quote->commit_id));
     $this->getJson(route('notification-group.show', [$quote, 'type' => 'quotes']))->assertOk()
         ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $quote->id);
     $this->getJson(route('notification-group.show', $hidden))->assertNotFound();
+    $this->putJson(route('notification-read-at.update'), ['through' => now()->toJSON()])->assertNoContent();
 
     expect($quote->refresh()->read_at)->not->toBeNull()
         ->and($hidden->refresh()->read_at)->toBeNull();
@@ -546,10 +548,11 @@ it('excludes silenced actors from groups, history and read acknowledgements', fu
             ->where('notifications.data.0.id', $visible->id)
             ->where('notifications.data.0.event_count', 1)
             ->where('notifications.data.0.actors_count', 1)
-            ->where('auth.unreadNotificationsCount', 0));
+            ->where('auth.unreadNotificationsCount', 1));
     $this->getJson(route('notification-group.show', $visible))->assertOk()
         ->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $visible->id);
     $this->getJson(route('notification-group.show', $hidden))->assertNotFound();
+    $this->putJson(route('notification-read-at.update'), ['through' => now()->toJSON()])->assertNoContent();
 
     expect($visible->refresh()->read_at)->not->toBeNull()
         ->and($hidden->refresh()->read_at)->toBeNull();

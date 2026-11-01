@@ -1,4 +1,5 @@
 import type { User } from '@/types/auth';
+import type { Organization } from '@/types/organization';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
 
@@ -70,9 +71,21 @@ export type CommitTranslation = {
     } | null;
 };
 
+/**
+ * The profile a commit is from: a user's, or an organization's, which has no hover card or local time, and is in
+ * /dev/null's blue until its admins choose a lane.
+ */
+export type CommitAuthor =
+    | (User & { type: 'user' })
+    | (Organization & { type: 'organization' });
+
+export type OrganizationAuthor = Extract<
+    CommitAuthor,
+    { type: 'organization' }
+>;
+
 export type Commit = {
     id: string;
-    user_id: string;
     parent_id: string | null;
     hot_score: number;
     body: string;
@@ -89,13 +102,16 @@ export type Commit = {
     stars_count: number;
     pasteis_count: number;
     starred: boolean;
-    user: User;
+    author: CommitAuthor;
     replies_count?: number;
     reply_preview?: CursorPaginated<ThreadCommit>;
     continuation_id?: string | null;
     starred_order?: string | null;
     is_pinned?: boolean;
-    parent?: (Omit<Commit, 'parent'> & { user: User }) | DeletedCommit | null;
+    parent?:
+        | (Omit<Commit, 'parent'> & { author: CommitAuthor })
+        | DeletedCommit
+        | null;
     link_preview?: LinkPreview | null;
     poll?: Poll | null;
     quoted_commit_id: string | null;
@@ -108,7 +124,6 @@ export type Commit = {
 export type QuotedCommit = Pick<
     Commit,
     | 'id'
-    | 'user_id'
     | 'body'
     | 'body_segments'
     | 'preview_segments'
@@ -116,7 +131,7 @@ export type QuotedCommit = Pick<
     | 'is_checking'
     | 'created_at'
     | 'deleted_at'
-    | 'user'
+    | 'author'
     | 'replies_count'
     | 'poll'
     | 'link_preview'

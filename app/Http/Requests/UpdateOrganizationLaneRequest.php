@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
@@ -12,8 +12,7 @@ use Illuminate\Foundation\Http\FormRequest;
 final class UpdateOrganizationLaneRequest extends FormRequest
 {
     /**
-     * Only the organization's admins choose its color. Users' profiles have no admins, so they look like they do not
-     * exist.
+     * Only the organization's admins choose its color, so to everyone else it looks like it does not exist.
      */
     public function authorize(): Response
     {
@@ -21,9 +20,9 @@ final class UpdateOrganizationLaneRequest extends FormRequest
         assert($user instanceof User);
 
         $organization = $this->route('organization');
-        assert($organization instanceof Profile);
+        assert($organization instanceof Organization);
 
-        return $organization->admins()->whereKey($user->id)->exists() ? Response::allow() : Response::denyAsNotFound();
+        return $organization->isAdmin($user) ? Response::allow() : Response::denyAsNotFound();
     }
 
     /**

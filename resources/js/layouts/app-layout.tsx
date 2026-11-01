@@ -22,6 +22,7 @@ import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
 import { SearchDialog } from '@/components/search-dialog';
+import { TermsDialog } from '@/components/terms-dialog';
 import { useChat, useRemoteAlerts, useUnreadMessages } from '@/hooks/use-chat';
 import { useIsComposerInView } from '@/hooks/use-composer-visibility';
 import { usePageDeletion } from '@/hooks/use-deleted-resources';
@@ -199,6 +200,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 {isGuest && <LocalSignInDialog />}
 
                 {isGuest && <GuestJoinSheet />}
+
+                {auth.user !== null && <TermsDialog user={auth.user} />}
             </div>
             <NotificationTitle />
         </>

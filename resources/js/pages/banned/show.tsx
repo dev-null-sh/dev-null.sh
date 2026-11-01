@@ -54,6 +54,7 @@ export default function Banned({
                                 follows. Your GitHub account is not touched, but
                                 it can't sign up again. See the{' '}
                                 <Link
+                                    prefetch
                                     href={`${TermsController.show.url()}#rules`}
                                     className="text-foreground underline underline-offset-4"
                                 >

@@ -16,7 +16,6 @@ import type { Commit } from '../../resources/js/types';
 const reply = (id: string): Commit =>
     ({
         id,
-        user_id: 'author',
         parent_id: 'parent',
         quoted_commit_id: null,
         created_at: new Date().toISOString(),
@@ -25,7 +24,7 @@ const reply = (id: string): Commit =>
         body_segments: [{ type: 'text', text: `Visible reply ${id}` }],
         preview_segments: [{ type: 'text', text: `Visible reply ${id}` }],
         replies_count: 0,
-        user: {
+        author: {
             id: 'author',
             name: 'Author',
             handle: 'author',
@@ -68,7 +67,7 @@ async function renderThread(
     const result = await createInertiaApp({
         page: {
             component: 'test',
-            props: { auth: { user: null }, errors: {}, repliesPerPage },
+            props: { auth: { organizations: [], user: null }, errors: {}, repliesPerPage },
             url: '/',
             version: null,
             clearHistory: false,
@@ -108,7 +107,7 @@ async function renderReplyComposer(mentions: Record<string, string> | null) {
         page: {
             component: 'test',
             props: {
-                auth: { user: commit.user, log: {} },
+                auth: { organizations: [], user: commit.author, log: {} },
                 errors: {},
                 repliesPerPage: 3,
             },

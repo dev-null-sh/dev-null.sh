@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Contracts\Services;
 
-use App\Enums\GitHubOrganizationMembership;
 use Carbon\CarbonImmutable;
 
 /**
@@ -46,10 +45,10 @@ interface GitHubProvider
     public function login(string $githubId): ?string;
 
     /**
-     * Where the user the token is for stands in the organization. The token needs the read:org scope. Matched by the
-     * organization's ID, so a renamed handle that someone else took since doesn't count.
+     * Whether the user shows their membership of the organization on GitHub, which only members can do. Both are
+     * looked up by their immutable ID, so a renamed handle that someone else took since doesn't count.
      */
-    public function organizationMembership(string $token, string $handle, string $githubId): GitHubOrganizationMembership;
+    public function isPublicMember(string $organizationGithubId, string $githubId): bool;
 
     /**
      * Whether the user the token is for has a GitHub Sponsors listing. Null when GitHub can't say.
@@ -57,9 +56,10 @@ interface GitHubProvider
     public function hasSponsorsListing(string $token): ?bool;
 
     /**
-     * The IDs of the accounts the user follows, up to the given number of pages.
+     * The IDs of the accounts the user follows, up to the given number of pages, the people apart from the
+     * organizations.
      *
-     * @return list<string>
+     * @return array{users: list<string>, organizations: list<string>}
      */
     public function followingIds(string $login, int $maxPages): array;
 

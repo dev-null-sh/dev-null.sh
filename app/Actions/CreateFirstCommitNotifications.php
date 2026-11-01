@@ -42,7 +42,7 @@ final readonly class CreateFirstCommitNotifications
             // Deleted commits count too: whoever committed before isn't making their first commit.
             ->whereNotExists(fn (QueryBuilder $earlier): QueryBuilder => $earlier
                 ->from('commits as earlier')
-                ->whereColumn('earlier.user_id', 'commits.user_id')
+                ->whereColumn('earlier.author_id', 'commits.author_id')
                 ->whereNull('earlier.parent_id')
                 ->where('earlier.status', CommitStatus::Approved)
                 ->whereColumn('earlier.created_at', '<', 'commits.created_at'))

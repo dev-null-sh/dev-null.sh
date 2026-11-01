@@ -26,6 +26,22 @@ it('creates an org with people who follow the maintainer', function (): void {
         ->assertJsonPath('conversations.0.members.0.role', 'maintainer');
 });
 
+it('adds people whatever the case of their handles, but each only once', function (): void {
+    $mark = User::factory()->create();
+    [$nuno] = followersOf($mark, 1);
+
+    $this->actingAs($mark)
+        ->postJson(route('org.store'), ['members' => [mb_strtoupper($nuno->handle), $nuno->handle]])
+        ->assertJsonValidationErrors(['members.0', 'members.1']);
+
+    $org = $this->actingAs($mark)
+        ->postJson(route('org.store'), ['members' => [mb_strtoupper($nuno->handle)]])
+        ->assertCreated()
+        ->json('org.id');
+
+    expect(Conversation::query()->findOrFail($org)->roleOf($nuno)?->value)->toBe('contributor');
+});
+
 it('identifies orgs by uuids', function (): void {
     $mark = User::factory()->create();
     [$nuno] = followersOf($mark, 1);

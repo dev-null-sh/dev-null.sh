@@ -9,7 +9,7 @@ const PLACEHOLDER_WIDTHS = ['w-3/5', 'w-1/2', 'w-2/3', 'w-2/5', 'w-1/3'];
 /**
  * A ranked list with a bar behind each name, sized from the largest row. Empty names print the given word, muted;
  * the others print as formatted, or as rendered when a row needs more than text, a link say. Without rows yet, it
- * holds the room of the rows it expects.
+ * holds the room of the rows it expects. With `onSelect`, each name is a button, and the selected one is highlighted.
  */
 export function Breakdown({
     title,
@@ -19,6 +19,8 @@ export function Breakdown({
     expectedRows = 10,
     formatName = (name) => name,
     renderName,
+    selected,
+    onSelect,
     className,
 }: {
     title: string;
@@ -28,6 +30,8 @@ export function Breakdown({
     expectedRows?: number;
     formatName?: (name: string) => string;
     renderName?: (name: string) => ReactNode;
+    selected?: string;
+    onSelect?: (name: string) => void;
     className?: string;
 }) {
     const top = Math.max(0, ...(rows ?? []).map((row) => row.count));
@@ -83,6 +87,11 @@ export function Breakdown({
                     {rows?.map((row) => {
                         const name =
                             row.name === '' ? empty : formatName(row.name);
+                        const isSelected = selected === row.name;
+                        const label =
+                            renderName && row.name !== ''
+                                ? renderName(row.name)
+                                : name;
 
                         return (
                             <tr key={row.name}>
@@ -92,23 +101,44 @@ export function Breakdown({
                                 >
                                     <span
                                         aria-hidden
-                                        className="absolute inset-y-1.5 left-0 -ml-2 rounded bg-muted"
+                                        className={cn(
+                                            'absolute inset-y-1.5 left-0 -ml-2 rounded',
+                                            isSelected
+                                                ? 'bg-primary-soft'
+                                                : 'bg-muted',
+                                        )}
                                         style={{
                                             width: `calc(${top > 0 ? (row.count / top) * 100 : 0}% + 0.5rem)`,
                                         }}
                                     />
-                                    <span
-                                        className={cn(
-                                            'relative block truncate',
-                                            row.name === '' &&
-                                                'text-muted-foreground',
-                                        )}
-                                        title={name}
-                                    >
-                                        {renderName && row.name !== ''
-                                            ? renderName(row.name)
-                                            : name}
-                                    </span>
+                                    {onSelect ? (
+                                        <button
+                                            type="button"
+                                            aria-pressed={isSelected}
+                                            onClick={() => onSelect(row.name)}
+                                            className={cn(
+                                                'relative -my-2.5 block w-full cursor-pointer truncate rounded-sm py-2.5 text-left outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring',
+                                                isSelected
+                                                    ? 'text-primary'
+                                                    : row.name === '' &&
+                                                          'text-muted-foreground',
+                                            )}
+                                            title={name}
+                                        >
+                                            {label}
+                                        </button>
+                                    ) : (
+                                        <span
+                                            className={cn(
+                                                'relative block truncate',
+                                                row.name === '' &&
+                                                    'text-muted-foreground',
+                                            )}
+                                            title={name}
+                                        >
+                                            {label}
+                                        </span>
+                                    )}
                                 </th>
                                 <td className="py-2.5 text-right font-mono text-[13px] font-medium tabular-nums">
                                     {formatCount(row.count)}

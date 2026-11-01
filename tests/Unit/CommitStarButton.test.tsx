@@ -13,11 +13,11 @@ async function render(
     commit: Partial<Commit> = {},
 ): Promise<string> {
     const result = await createInertiaApp<{
-        auth: { user: { id: string } | null };
+        auth: { organizations: [], user: { id: string } | null };
     }>({
         page: {
             component: 'star',
-            props: { auth: { user }, errors: {} },
+            props: { auth: { organizations: [], user }, errors: {} },
             url: '/@author/commit',
             version: null,
             clearHistory: false,
@@ -31,7 +31,7 @@ async function render(
                 commit={
                     {
                         id: 'commit',
-                        user_id: 'author',
+                        author: { id: 'author' },
                         status: 'approved',
                         starred: false,
                         stars_count: 2,

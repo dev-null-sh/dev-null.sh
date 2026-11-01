@@ -60,6 +60,7 @@ final readonly class CreateWorldReply
             }
 
             $reply = $world->commits()->create([
+                'user_id' => $world->id,
                 'body' => "Hello, {$author->name}.",
                 'parent_id' => $commit->id,
                 'root_id' => $commit->threadRootId(),
@@ -86,7 +87,7 @@ final readonly class CreateWorldReply
         }
 
         return DB::transaction(function (): User {
-            Profile::query()->create([
+            $profile = Profile::query()->create([
                 'type' => ProfileType::User,
                 'github_id' => self::GITHUB_ID,
                 'handle' => self::HANDLE,
@@ -94,7 +95,7 @@ final readonly class CreateWorldReply
                 'bio' => 'I answer to hello world.',
             ]);
 
-            return User::query()->create(['github_id' => self::GITHUB_ID, 'onboarded_at' => now()]);
+            return User::query()->create(['id' => $profile->id, 'github_id' => self::GITHUB_ID, 'onboarded_at' => now()]);
         });
     }
 }

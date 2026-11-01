@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\NotificationType;
+use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Conversation;
@@ -37,7 +38,9 @@ use Traversable;
  *     schema_version: int,
  *     exported_at: string,
  *     profile: array<string, bool|int|string|null>,
+ *     active_days: Generator<int, string>,
  *     commits: Generator<int, array<string, mixed>>,
+ *     organization_commits: Generator<int, array<string, mixed>>,
  *     polls: Generator<int, ExportPoll>,
  *     poll_votes: Generator<int, ExportPollVote>,
  *     stars: Generator<int, string>,
@@ -47,6 +50,8 @@ use Traversable;
  *     blocking: Generator<int, ExportUser>,
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     organizations: array<int, array{handle: string, role: string, joined_at: string}>,
+ *     followed_organizations: array<int, array{handle: string, followed_at: string}>,
+ *     pending_organization_follows: list<string>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
@@ -54,7 +59,7 @@ use Traversable;
  *     notifications: Generator<int, array<string, int|string|null>>,
  *     ssh_keys: array<mixed>,
  *     push_subscriptions: array<int, array{id: string}>,
- *     devices: array<int, array{name: string, fingerprint: string, approved_at: string, last_used_at: string|null}>,
+ *     devices: array<int, array{name: string, app_id: string|null, app_name: string|null, fingerprint: string, approved_at: string, last_used_at: string|null}>,
  *     timeouts: array<int, array{reason: string, ends_at: string, created_at: string}>,
  *     sessions: Collection<int, stdClass>
  * }
@@ -69,7 +74,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 4,
+            'schema_version' => 5,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -105,7 +110,9 @@ final readonly class CreateExport
                 'created_at' => $user->created_at->toIso8601String(),
                 'updated_at' => $user->updated_at->toIso8601String(),
             ],
+            'active_days' => $this->activeDays($user),
             'commits' => $this->commits($user),
+            'organization_commits' => $this->organizationCommits($user),
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
             'stars' => $this->stars($user),
@@ -115,6 +122,8 @@ final readonly class CreateExport
             'blocking' => $this->handles($user->blocking()),
             'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
             'organizations' => $this->organizations($user),
+            'followed_organizations' => $this->followedOrganizations($user),
+            'pending_organization_follows' => $this->pendingOrganizationFollows($user),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
                 'commit_id' => $report->commit_id,
@@ -158,6 +167,8 @@ final readonly class CreateExport
             ])->all(),
             'devices' => $user->devices()->oldest('approved_at')->get()->map(fn (Device $device): array => [
                 'name' => $device->name,
+                'app_id' => $device->app_id,
+                'app_name' => $device->app_name,
                 'fingerprint' => $device->fingerprint,
                 'approved_at' => $device->approved_at->toIso8601String(),
                 'last_used_at' => $device->last_used_at?->toIso8601String(),
@@ -206,6 +217,38 @@ final readonly class CreateExport
     }
 
     /**
+     * What the user posted for organizations, which is theirs to read back, though the organizations' own, even once
+     * GitHub no longer has the organization and its commits lost their author.
+     *
+     * @return Generator<int, array<string, mixed>>
+     */
+    private function organizationCommits(User $user): Generator
+    {
+        $commits = Commit::query()
+            ->withTrashed()
+            ->where('user_id', $user->id)
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query->whereColumn('author_id', '!=', 'user_id')->orWhereNull('author_id'))
+            ->with(['author', 'images:id,commit_id'])
+            ->lazyById(500);
+
+        foreach ($commits as $commit) {
+            yield [
+                'id' => $commit->id,
+                'organization' => $commit->author?->handle,
+                'parent_id' => $commit->parent_id,
+                'quoted_commit_id' => $commit->quoted_commit_id,
+                'body' => $commit->body,
+                'status' => $commit->status->value,
+                'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
+                'created_at' => $commit->created_at->toIso8601String(),
+                'deleted_at' => $commit->deleted_at?->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
+     * The polls of every commit the user posted, theirs or an organization's.
+     *
      * @return Generator<int, ExportPoll>
      */
     private function polls(User $user): Generator
@@ -239,6 +282,22 @@ final readonly class CreateExport
                 'option' => $vote->option->label,
                 'created_at' => $vote->created_at->toIso8601String(),
             ];
+        }
+    }
+
+    /**
+     * The days the user was seen, oldest first. They are read while the export streams, after the request asking for it
+     * was recorded, so an export that is the first visit of the day includes that day.
+     *
+     * @return Generator<int, string>
+     */
+    private function activeDays(User $user): Generator
+    {
+        /** @var LazyCollection<int, object{seen_at: string}> $days */
+        $days = DB::table('user_active_days')->where('user_id', $user->id)->oldest('seen_at')->cursor();
+
+        foreach ($days as $day) {
+            yield $day->seen_at;
         }
     }
 
@@ -295,7 +354,7 @@ final readonly class CreateExport
     private function handles(BelongsToMany $users): Generator
     {
         /** @var LazyCollection<int, object{handle: string}> $users */
-        $users = $users->join('profiles', 'profiles.github_id', '=', 'users.github_id')->toBase()->select(['users.id', 'profiles.handle'])->lazyById(500, 'users.id', 'id');
+        $users = $users->join('profiles', 'profiles.id', '=', 'users.id')->toBase()->select(['users.id', 'profiles.handle'])->lazyById(500, 'users.id', 'id');
 
         foreach ($users as $user) {
             yield ['handle' => $user->handle];
@@ -321,6 +380,34 @@ final readonly class CreateExport
     }
 
     /**
+     * @return array<int, array{handle: string, followed_at: string}>
+     */
+    private function followedOrganizations(User $user): array
+    {
+        /** @var Collection<int, object{handle: string, created_at: string}> $follows */
+        $follows = $user->followedOrganizations()->newPivotQuery()
+            ->join('profiles', 'profiles.id', '=', 'organization_follows.organization_id')
+            ->oldest('organization_follows.created_at')
+            ->get(['profiles.handle', 'organization_follows.created_at']);
+
+        return $follows->map(fn (object $follow): array => [
+            'handle' => $follow->handle,
+            'followed_at' => CarbonImmutable::parse($follow->created_at)->toIso8601String(),
+        ])->all();
+    }
+
+    /**
+     * The GitHub IDs of the organizations the user follows on GitHub, to follow here once they are on /dev/null.
+     *
+     * @return list<string>
+     */
+    private function pendingOrganizationFollows(User $user): array
+    {
+        /** @var list<string> */
+        return DB::table('pending_organization_follows')->where('user_id', $user->id)->orderBy('github_id')->pluck('github_id')->all();
+    }
+
+    /**
      * Moderators stay anonymous, as they are on the notifications page, and level-ups are the user's own doing.
      *
      * @return Generator<int, array<string, int|string|null>>
@@ -329,8 +416,7 @@ final readonly class CreateExport
     {
         /** @var LazyCollection<int, object{type: string, actor: string, commit_id: string|null, reason: string|null, level: int|string|null, read_at: string|null, created_at: string}> $notifications */
         $notifications = $user->notifications()
-            ->join('users as actors', 'actors.id', '=', 'notifications.actor_id')
-            ->join('profiles as actor_profiles', 'actor_profiles.github_id', '=', 'actors.github_id')
+            ->join('profiles as actor_profiles', 'actor_profiles.id', '=', 'notifications.actor_id')
             ->toBase()
             ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actor_profiles.handle as actor'])
             ->lazyById(500, 'notifications.id', 'id');

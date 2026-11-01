@@ -11,6 +11,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import ScheduledCommitSubmissionController from '@/actions/App/Http/Controllers/ScheduledCommitSubmissionController';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { StableLabel } from '@/components/stable-label';
 import { Button } from '@/components/ui/button';
 import {
     Tooltip,
@@ -85,6 +86,8 @@ export default function Index({
                   }
                 : scheduled;
         });
+    const isCommitting = (id: string) =>
+        busy?.id === id && busy.action === 'commit';
     usePoll(30_000, backgroundPollOptions({ only: ['scheduledCommits'] }));
 
     useEffect(() => {
@@ -224,10 +227,13 @@ export default function Index({
                                                     commitNow(scheduled)
                                                 }
                                             >
-                                                {busy?.id === scheduled.id &&
-                                                busy.action === 'commit'
-                                                    ? 'Committing…'
-                                                    : 'Commit now'}
+                                                <StableLabel
+                                                    label="Commit now"
+                                                    pendingLabel="Committing…"
+                                                    isPending={isCommitting(
+                                                        scheduled.id,
+                                                    )}
+                                                />
                                             </Button>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
@@ -240,19 +246,35 @@ export default function Index({
                                                                 id: scheduled.id,
                                                                 action: 'cancel',
                                                             });
-                                                            router.delete(
-                                                                ScheduledCommitController.destroy(
-                                                                    scheduled.id,
-                                                                ),
-                                                                {
-                                                                    preserveScroll: true,
-                                                                    onFinish:
-                                                                        () =>
-                                                                            setBusy(
-                                                                                null,
+                                                            router
+                                                                .optimistic<{
+                                                                    scheduledCommits: typeof scheduledCommits;
+                                                                }>((props) => ({
+                                                                    scheduledCommits:
+                                                                        {
+                                                                            ...props.scheduledCommits,
+                                                                            data: props.scheduledCommits.data.filter(
+                                                                                (
+                                                                                    row,
+                                                                                ) =>
+                                                                                    row.id !==
+                                                                                    scheduled.id,
                                                                             ),
-                                                                },
-                                                            );
+                                                                        },
+                                                                }))
+                                                                .delete(
+                                                                    ScheduledCommitController.destroy(
+                                                                        scheduled.id,
+                                                                    ),
+                                                                    {
+                                                                        preserveScroll: true,
+                                                                        onFinish:
+                                                                            () =>
+                                                                                setBusy(
+                                                                                    null,
+                                                                                ),
+                                                                    },
+                                                                );
                                                         }}
                                                         className="self-center rounded-md p-1.5 text-muted-foreground transition hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-50"
                                                     >
@@ -328,14 +350,16 @@ export default function Index({
                 scheduledCommits.next_page_url) && (
                 <div className="flex justify-between border-t px-6 py-4 text-sm text-primary">
                     {scheduledCommits.prev_page_url ? (
-                        <Link href={scheduledCommits.prev_page_url}>
+                        <Link href={scheduledCommits.prev_page_url} prefetch>
                             Previous
                         </Link>
                     ) : (
                         <span />
                     )}
                     {scheduledCommits.next_page_url && (
-                        <Link href={scheduledCommits.next_page_url}>Next</Link>
+                        <Link href={scheduledCommits.next_page_url} prefetch>
+                            Next
+                        </Link>
                     )}
                 </div>
             )}

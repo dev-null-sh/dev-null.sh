@@ -383,8 +383,41 @@ it('leaves who to follow and live following out of the operations console, which
     $shared = $middleware->share($request);
 
     expect($shared)->not->toHaveKey('suggestedUsers')
-        ->and($shared['liveFollowing']())->toBeEmpty();
+        ->and($shared)->not->toHaveKey('liveFollowing');
 })->with(['/operations', '/operations/events']);
+
+it('keeps the live following list of the aside for a minute, unless a partial reload asks for it', function (): void {
+    $this->freezeSecond();
+    $user = User::factory()->create();
+    $live = User::factory()->create([
+        'live_platform' => LivePlatform::YouTube,
+        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'live_ends_at' => now()->addHour(),
+    ]);
+    $user->following()->attach($live);
+    $headers = [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+    ];
+
+    $this->actingAs($user)->withHeaders($headers)->get(route('starred.index'))
+        ->assertOk()
+        ->assertJsonPath('props.liveFollowing.0.id', $live->id)
+        ->assertJsonPath('onceProps.liveFollowing.expiresAt', now()->addMinute()->getTimestampMs());
+
+    $this->withHeaders([...$headers, 'X-Inertia-Except-Once-Props' => 'liveFollowing'])->get(route('starred.index'))
+        ->assertOk()
+        ->assertJsonMissingPath('props.liveFollowing');
+
+    $this->withHeaders([
+        ...$headers,
+        'X-Inertia-Except-Once-Props' => 'liveFollowing',
+        'X-Inertia-Partial-Component' => 'starred/index',
+        'X-Inertia-Partial-Data' => 'liveFollowing',
+    ])->get(route('starred.index'))
+        ->assertOk()
+        ->assertJsonPath('props.liveFollowing.0.id', $live->id);
+});
 
 it('suggests the round of people the user refreshed to', function (string $cookie, int $round): void {
     $middleware = new HandleInertiaRequests();

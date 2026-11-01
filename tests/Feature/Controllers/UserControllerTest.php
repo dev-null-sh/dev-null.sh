@@ -7,7 +7,7 @@ use App\Enums\Log;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\LinkPreview;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\DB;
@@ -45,14 +45,14 @@ it('renders a user profile', function (): void {
             ->has('achievements')
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
-            ->where('commits.data.0.user.handle', 'octocat')
+            ->where('commits.data.0.author.handle', 'octocat')
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
 });
 
 it('says which accounts the bio and company mention are on dev/null', function (): void {
-    Profile::factory()->organization()->create(['handle' => 'laravel']);
+    Organization::factory()->create(['handle' => 'laravel']);
     User::factory()->create(['handle' => 'TaylorOtwell']);
     User::factory()->create(['handle' => 'octocat', 'bio' => 'Thanks @taylorotwell and @nobody', 'company' => '@laravel']);
 
@@ -62,7 +62,7 @@ it('says which accounts the bio and company mention are on dev/null', function (
 });
 
 it('shares which accounts the bio of the signed-in user mentions are on dev/null', function (): void {
-    Profile::factory()->organization()->create(['handle' => 'laravel']);
+    Organization::factory()->create(['handle' => 'laravel']);
     $user = User::factory()->create(['bio' => 'Building @laravel']);
 
     $this->actingAs($user)
@@ -528,7 +528,7 @@ it('keeps the replies other people left under the replies of a deleted account',
             ->where('ancestors.0.id', $root->id)
             ->where('ancestors.1.id', $reply->id)
             ->missing('ancestors.1.body')
-            ->missing('ancestors.1.user'));
+            ->missing('ancestors.1.author'));
 
     $this->actingAs($root->user)
         ->getJson(route('commit-reply.index', $root))
@@ -536,7 +536,7 @@ it('keeps the replies other people left under the replies of a deleted account',
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.id', $reply->id)
         ->assertJsonPath('data.0.replies_count', 1)
-        ->assertJsonMissingPath('data.0.user');
+        ->assertJsonMissingPath('data.0.author');
 
     $this->getJson(route('api-commit.show', $reply))->assertNotFound();
 
@@ -654,7 +654,7 @@ it('includes the quoted commits of the user commits', function (): void {
         ->assertInertia(fn ($page) => $page
             ->has('commits.data', 1)
             ->where('commits.data.0.quoted_commit.body', 'The quoted commit')
-            ->where('commits.data.0.quoted_commit.user.handle', 'taylorotwell'));
+            ->where('commits.data.0.quoted_commit.author.handle', 'taylorotwell'));
 });
 
 it('includes the link previews of the user commits', function (): void {
@@ -698,7 +698,7 @@ it('preloads only replies visible to the profile visitor', function (): void {
         ->where('commits.data.0.reply_preview.data.0.id', $ownPending->id)
         ->where('commits.data.0.reply_preview.data.1.id', $visible->id)
         ->where('commits.data.0.reply_preview.next_cursor', null)
-        ->missing('commits.data.0.reply_preview.data.0.user.email'));
+        ->missing('commits.data.0.reply_preview.data.0.author.email'));
 });
 
 it('offers a remote only when the viewer could push to the profile', function (string $case, bool $canPush): void {
@@ -831,34 +831,8 @@ it('keeps the query string out of the handle it moves a profile to', function ()
 it('moves the people lists of a profile for good to the handle in its own case', function (string $list): void {
     User::factory()->create(['handle' => 'OctoCat']);
 
-    $this->get("/@octocat/{$list}")
+    $this->actingAs(User::factory()->create())
+        ->get("/@octocat/{$list}")
         ->assertMovedPermanently()
         ->assertRedirect("/@OctoCat/{$list}");
 })->with(['following', 'followers', 'mutuals']);
-
-it('opens each profile at its own case when a stale profile holds the handle in another case', function (): void {
-    $lower = User::factory()->create(['handle' => 'octocat']);
-    $mixed = User::factory()->create(['handle' => 'OctoCat']);
-
-    $this->get('/@octocat')->assertOk()->assertInertia(fn ($page) => $page->where('user.id', $lower->id));
-    $this->get('/@OctoCat')->assertOk()->assertInertia(fn ($page) => $page->where('user.id', $mixed->id));
-
-    $redirect = $this->get('/@OCTOCAT')->assertMovedPermanently();
-
-    expect($redirect->headers->get('Location'))->toBeIn([url('/@octocat'), url('/@OctoCat')])
-        ->and($this->get('/@OCTOCAT')->headers->get('Location'))->toBe($redirect->headers->get('Location'));
-
-    $this->get((string) $redirect->headers->get('Location'))->assertOk();
-});
-
-it('opens the user rather than an organization holding the handle in another case, unless the case is exact', function (): void {
-    $user = User::factory()->create(['handle' => 'Laravel']);
-    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
-
-    $this->get('/@LARAVEL')->assertRedirect('/@Laravel')->assertMovedPermanently();
-    $this->get('/@Laravel')->assertOk()->assertInertia(fn ($page) => $page->component('user/show')->where('user.id', $user->id));
-    $this->get('/@laravel')->assertOk()->assertInertia(fn ($page) => $page->component('organization/show')->where('organization.id', $organization->id));
-
-    expect(new Profile()->resolveRouteBinding('LARAVEL', 'handle')?->getKey())->toBe($user->profile->getKey())
-        ->and(new Profile()->resolveRouteBinding('laravel', 'handle')?->getKey())->toBe($organization->getKey());
-});

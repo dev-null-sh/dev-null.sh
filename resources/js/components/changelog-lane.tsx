@@ -72,6 +72,7 @@ export function ChangelogAuthorLink({
     return (
         <UserPreview user={{ handle: author.handle }} className="flex min-w-0">
             <Link
+                prefetch
                 href={show({ handle: author.handle })}
                 onClick={onClick}
                 aria-label={

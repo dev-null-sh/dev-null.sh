@@ -14,6 +14,7 @@ import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
 import { trackFollowRequests } from '@/lib/follow-requests';
 import { pageTitle } from '@/lib/page-title';
+import { trackPrefetchedPages } from '@/lib/prefetched-pages';
 import { registerServiceWorker } from '@/lib/service-worker';
 import { browserClock, clockOf, setReaderClock } from '@/lib/utils';
 import { trackVisualViewport } from '@/lib/visual-viewport';
@@ -23,6 +24,7 @@ trackCurrentPage();
 trackCommitPhotoPage();
 trackVisualViewport();
 trackAnalyticsEvents();
+trackPrefetchedPages();
 
 void createInertiaApp({
     title: pageTitle,

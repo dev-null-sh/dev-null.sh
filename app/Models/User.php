@@ -9,7 +9,6 @@ use App\Actions\CreateWorldReply;
 use App\Dto\LiveStream;
 use App\Enums\LivePlatform;
 use App\Enums\Log;
-use App\Enums\ProfileType;
 use App\Enums\RemotesFrom;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
@@ -61,6 +60,7 @@ use LogicException;
  * @property-read Log $log
  * @property-read CarbonInterface|null $onboarded_at
  * @property-read CarbonInterface|null $github_follows_imported_at
+ * @property-read CarbonInterface|null $github_organization_follows_imported_at
  * @property-read string|null $remember_token
  * @property-read CarbonInterface|null $github_synced_at
  * @property-read CarbonInterface|null $last_seen_at
@@ -111,6 +111,7 @@ use LogicException;
     'log',
     'onboarded_at',
     'github_follows_imported_at',
+    'github_organization_follows_imported_at',
     'live_platform',
     'live_url',
     'live_ends_at',
@@ -206,6 +207,7 @@ final class User extends Authenticatable
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',
+            'github_organization_follows_imported_at' => 'datetime',
             'remember_token' => 'string',
             'live_platform' => LivePlatform::class,
             'live_url' => 'string',
@@ -221,19 +223,17 @@ final class User extends Authenticatable
     }
 
     /**
-     * The GitHub account the user signed in with never changes, so it links the user to their profile.
+     * A user shares their profile's ID, as an organization does.
      *
      * @return BelongsTo<Profile, $this>
      */
     public function profile(): BelongsTo
     {
-        return $this->belongsTo(Profile::class, 'github_id', 'github_id');
+        return $this->belongsTo(Profile::class, 'id');
     }
 
     /**
-     * Resolves "@handle" URLs through the profile, which holds the handle, whatever its case, like GitHub. A stale
-     * profile may still hold the same handle in another case, so the exact case wins, then a user's, then always the
-     * same one, like Profile::resolveRouteBindingQuery() for the link preview images.
+     * Resolves "@handle" URLs through the profile, which holds the handle, whatever its case, like GitHub.
      *
      * @param  Model|BuilderContract|Relation<Model, Model, mixed>  $query
      * @param  mixed  $value
@@ -242,16 +242,18 @@ final class User extends Authenticatable
     public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
     {
         return $field === 'handle'
-            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('github_id')->whereRaw('LOWER(handle) = LOWER(?)', [$value])->orderByRaw('handle = ? desc', [$value])->orderByRaw('type = ? desc', [ProfileType::User])->orderBy('handle')->limit(1), 'github_id')
+            ? parent::resolveRouteBindingQuery($query, Profile::query()->select('id')->where('handle', $value), 'id')
             : parent::resolveRouteBindingQuery($query, $value, $field);
     }
 
     /**
+     * The commits from the user's own profile.
+     *
      * @return HasMany<Commit, $this>
      */
     public function commits(): HasMany
     {
-        return $this->hasMany(Commit::class);
+        return $this->hasMany(Commit::class, 'author_id');
     }
 
     /**
@@ -334,13 +336,23 @@ final class User extends Authenticatable
     }
 
     /**
-     * The organizations the user is a member of, see `Profile::members()`.
+     * The organizations the user is a member of, see `Organization::members()`.
      *
-     * @return BelongsToMany<Profile, $this>
+     * @return BelongsToMany<Organization, $this>
      */
     public function organizations(): BelongsToMany
     {
-        return $this->belongsToMany(Profile::class, 'organization_members', 'user_id', 'organization_id')->withPivot('role')->withTimestamps(updatedAt: false);
+        return $this->belongsToMany(Organization::class, 'organization_members', 'user_id', 'organization_id')->withPivot('role')->withTimestamps(updatedAt: false);
+    }
+
+    /**
+     * The organizations the user follows, see `Organization::followers()`.
+     *
+     * @return BelongsToMany<Organization, $this>
+     */
+    public function followedOrganizations(): BelongsToMany
+    {
+        return $this->belongsToMany(Organization::class, 'organization_follows', 'user_id', 'organization_id')->withTimestamps(updatedAt: false);
     }
 
     /**
@@ -450,7 +462,7 @@ final class User extends Authenticatable
     }
 
     /**
-     * Unlike loadCount(), counts follows on the pivot table alone: the self-referencing
+     * Unlike loadCount(), counts follows on the pivot tables alone: the self-referencing
      * relations would otherwise join the users table for every follow. Commits are
      * counted as the viewer sees them, which is all of them for the user themselves.
      */
@@ -493,15 +505,12 @@ final class User extends Authenticatable
 
     public function mention(): string
     {
-        return '@'.$this->handle;
+        return $this->profile->mention();
     }
 
-    /**
-     * How link previews title the user, without repeating a name that is just the handle.
-     */
     public function nameWithHandle(): string
     {
-        return $this->name === $this->handle ? $this->mention() : $this->name.' ('.$this->mention().')';
+        return $this->profile->nameWithHandle();
     }
 
     public function isFollowing(self $user): bool
@@ -668,7 +677,7 @@ final class User extends Authenticatable
         $counts = [
             'commits_count' => $commits,
             'followers_count' => $this->followers()->newPivotQuery()->count(),
-            'following_count' => $this->following()->newPivotQuery()->count(),
+            'following_count' => $this->following()->newPivotQuery()->count() + $this->followedOrganizations()->newPivotQuery()->count(),
         ];
 
         $this->forceFill($counts)->syncOriginalAttributes(array_keys($counts));

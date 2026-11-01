@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Enums\OrganizationRole;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
@@ -18,10 +17,10 @@ final class CreateOrganizationMemberRequest extends FormRequest
         $user = $this->user();
         assert($user instanceof User);
 
-        return match ($this->organization()->roleOf($user)) {
-            null => Response::denyAsNotFound(),
-            OrganizationRole::Member => Response::deny('Only admins can add members.'),
-            OrganizationRole::Admin => Response::allow(),
+        return match (true) {
+            ! $this->organization()->isMember($user) => Response::denyAsNotFound(),
+            ! $this->organization()->isAdmin($user) => Response::deny('Only admins can add members.'),
+            default => Response::allow(),
         };
     }
 
@@ -54,16 +53,16 @@ final class CreateOrganizationMemberRequest extends FormRequest
                 $validator->errors()->add('handle', "There's no @{$this->handle()} on /dev/null.");
             } elseif ($user->hasBlockWith($member)) {
                 $validator->errors()->add('handle', "You can't add {$member->mention()}.");
-            } elseif ($this->organization()->roleOf($member) instanceof OrganizationRole) {
+            } elseif ($this->organization()->isMember($member)) {
                 $validator->errors()->add('handle', "{$member->mention()} is already a member.");
             }
         }];
     }
 
-    public function organization(): Profile
+    public function organization(): Organization
     {
         $organization = $this->route('organization');
-        assert($organization instanceof Profile);
+        assert($organization instanceof Organization);
 
         return $organization;
     }

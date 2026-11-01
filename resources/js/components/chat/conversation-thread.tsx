@@ -1072,6 +1072,7 @@ const ThreadItem = memo(function ThreadItem({
                 >
                     <Link
                         href={show(item.author)}
+                        prefetch
                         className="flex min-w-0 items-center gap-1.5 rounded-sm text-xs text-muted-foreground"
                         title={item.author.name}
                     >
@@ -1908,7 +1909,14 @@ function Composer({
                         />
                     </div>
                 )}
-                <div className="flex items-end gap-2">
+                <div
+                    className={cn(
+                        'flex items-end gap-x-2',
+                        !isVoicing &&
+                            'flex-wrap rounded-lg border border-input bg-card p-1 focus-within:border-primary',
+                        shownError !== null && 'border-destructive',
+                    )}
+                >
                     {isVoicing ? (
                         <VoiceNoteComposer
                             voiceNote={voiceNote}
@@ -1919,18 +1927,68 @@ function Composer({
                             <label htmlFor={id} className="sr-only">
                                 {placeholder}
                             </label>
+                            <div className="relative min-w-0 basis-full">
+                                <MentionTextarea
+                                    id={id}
+                                    ref={input}
+                                    members={members}
+                                    org={
+                                        target.kind === 'org'
+                                            ? target.org.id
+                                            : undefined
+                                    }
+                                    rows={1}
+                                    autoFocus={autoFocus}
+                                    value={body}
+                                    maxLength={maxLength}
+                                    onValueChange={(value) => {
+                                        stash.updateBody(value);
+                                        showError(null);
+                                        attachments.clearError();
+
+                                        if (value.trim() !== '') {
+                                            pingTyping(target);
+                                        }
+                                    }}
+                                    onFocus={moveCaretToEnd}
+                                    onPaste={onPaste}
+                                    onKeyDown={onKeyDown}
+                                    aria-invalid={
+                                        shownError !== null || undefined
+                                    }
+                                    className={cn(
+                                        'block field-sizing-content max-h-[min(10rem,calc(var(--visual-viewport-height,100dvh)/4))] min-h-10 w-full resize-none overflow-x-hidden bg-transparent px-3 py-2 text-base leading-snug outline-none focus-visible:outline-none md:text-[15px]',
+                                        {
+                                            'min-h-9 py-1.5 md:text-sm':
+                                                isCompact,
+                                        },
+                                    )}
+                                    data-test="message-input"
+                                />
+                                {body === '' && (
+                                    <span
+                                        aria-hidden
+                                        className={cn(
+                                            'pointer-events-none absolute inset-x-0 top-0 truncate px-3 py-2 text-base leading-snug text-muted-foreground md:text-[15px]',
+                                            { 'py-1.5 md:text-sm': isCompact },
+                                        )}
+                                    >
+                                        {placeholder}
+                                    </span>
+                                )}
+                            </div>
                             <ImagePickerButton
                                 count={attachments.images.length}
                                 reading={attachments.reading}
                                 onPick={attachments.pick}
                                 className={cn(
-                                    '-mx-1 shrink-0',
+                                    'shrink-0',
                                     isCompact ? 'size-9' : 'size-10',
                                 )}
                             />
                             <Tooltip>
                                 <TooltipTrigger asChild>
-                                    <span className="-mx-1 inline-flex shrink-0">
+                                    <span className="inline-flex shrink-0">
                                         <Button
                                             type="button"
                                             variant="ghost"
@@ -1979,7 +2037,7 @@ function Composer({
                                         }
                                         aria-label={pingLabel}
                                         className={cn(
-                                            '-mx-1 shrink-0 text-muted-foreground',
+                                            'shrink-0 text-muted-foreground',
                                             isCompact ? 'size-9' : 'size-10',
                                         )}
                                         data-test="send-ping"
@@ -1998,56 +2056,6 @@ function Composer({
                                 isCompact={isCompact}
                                 onClick={() => setIsConfirmingCall(true)}
                             />
-                            <div className="relative min-w-0 flex-1">
-                                <MentionTextarea
-                                    id={id}
-                                    ref={input}
-                                    members={members}
-                                    org={
-                                        target.kind === 'org'
-                                            ? target.org.id
-                                            : undefined
-                                    }
-                                    rows={1}
-                                    autoFocus={autoFocus}
-                                    value={body}
-                                    maxLength={maxLength}
-                                    onValueChange={(value) => {
-                                        stash.updateBody(value);
-                                        showError(null);
-                                        attachments.clearError();
-
-                                        if (value.trim() !== '') {
-                                            pingTyping(target);
-                                        }
-                                    }}
-                                    onFocus={moveCaretToEnd}
-                                    onPaste={onPaste}
-                                    onKeyDown={onKeyDown}
-                                    aria-invalid={
-                                        shownError !== null || undefined
-                                    }
-                                    className={cn(
-                                        'block field-sizing-content max-h-[min(10rem,calc(var(--visual-viewport-height,100dvh)/4))] min-h-10 w-full resize-none overflow-x-hidden rounded-lg border border-input bg-card px-4 py-2 text-base leading-snug outline-none focus-visible:border-primary focus-visible:outline-none aria-invalid:border-destructive md:text-[15px]',
-                                        {
-                                            'min-h-9 py-1.5 md:text-sm':
-                                                isCompact,
-                                        },
-                                    )}
-                                    data-test="message-input"
-                                />
-                                {body === '' && (
-                                    <span
-                                        aria-hidden
-                                        className={cn(
-                                            'pointer-events-none absolute inset-x-px top-px truncate px-4 py-2 text-base leading-snug text-muted-foreground md:text-[15px]',
-                                            { 'py-1.5 md:text-sm': isCompact },
-                                        )}
-                                    >
-                                        {placeholder}
-                                    </span>
-                                )}
-                            </div>
                         </>
                     )}
                     <Button
@@ -2062,8 +2070,13 @@ function Composer({
                         // Pushing keeps the keyboard open, so the next message can follow right away.
                         onPointerDown={(event) => event.preventDefault()}
                         className={cn(
-                            'shrink-0',
+                            'ml-auto shrink-0',
                             isCompact ? 'h-9 min-w-16' : 'h-10 min-w-20',
+                            !isVoicing &&
+                                trimmed === '' &&
+                                !hasImages &&
+                                !attachments.reading &&
+                                'invisible',
                         )}
                     >
                         Push
@@ -2089,18 +2102,12 @@ function AccessBar({
     isCompact: boolean;
     onDropped?: () => void;
 }) {
-    const [isSettling, setIsSettling] = useState(false);
-
-    const settle = async (isMerging: boolean) => {
-        setIsSettling(true);
-        const isSettled = await settleRequest(partner, isMerging);
-        setIsSettling(false);
-
-        if (!isSettled) {
-            toast.error('Could not update the request. Try again.');
-
-            return;
-        }
+    const settle = (isMerging: boolean) => {
+        void settleRequest(partner, isMerging).then((isSettled) => {
+            if (!isSettled) {
+                toast.error('Could not update the request. Try again.');
+            }
+        });
 
         if (!isMerging) {
             onDropped?.();
@@ -2129,16 +2136,14 @@ function AccessBar({
                         <Button
                             variant="outline"
                             className="min-w-16"
-                            disabled={isSettling}
-                            onClick={() => void settle(false)}
+                            onClick={() => settle(false)}
                             data-test="drop-request"
                         >
                             Drop
                         </Button>
                         <Button
                             className="min-w-20"
-                            disabled={isSettling}
-                            onClick={() => void settle(true)}
+                            onClick={() => settle(true)}
                             data-test="merge-request"
                         >
                             Merge

@@ -6,7 +6,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-final class ListUserSearchRequest extends FormRequest
+final class CreateOrganizationFollowRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -14,12 +14,10 @@ final class ListUserSearchRequest extends FormRequest
     }
 
     /**
-     * @return array<string, array<int, string>>
+     * @return array{}
      */
     public function rules(): array
     {
-        return [
-            'q' => ['nullable', 'string', 'max:100'],
-        ];
+        return [];
     }
 }

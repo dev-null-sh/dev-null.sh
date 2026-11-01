@@ -8,6 +8,7 @@ use App\Contracts\Services\AnalyticsProvider;
 use App\Contracts\Services\EmailDraftProvider;
 use App\Contracts\Services\EmbeddingProvider;
 use App\Contracts\Services\GitHubProvider;
+use App\Contracts\Services\HeadlineProvider;
 use App\Contracts\Services\LinkPreviewProvider;
 use App\Contracts\Services\ModerationProvider;
 use App\Contracts\Services\PushNotificationProvider;
@@ -27,6 +28,8 @@ use App\Services\EmbeddingProviders\NullEmbeddingProvider;
 use App\Services\EmbeddingProviders\OpenAIEmbeddingProvider;
 use App\Services\GitHubProviders\HttpGitHubProvider;
 use App\Services\GitHubProviders\NullGitHubProvider;
+use App\Services\HeadlineProviders\NullHeadlineProvider;
+use App\Services\HeadlineProviders\OpenAIHeadlineProvider;
 use App\Services\LinkPreviewProviders\HttpLinkPreviewProvider;
 use App\Services\LinkPreviewProviders\NullLinkPreviewProvider;
 use App\Services\ModerationProviders\NullModerationProvider;
@@ -42,6 +45,7 @@ use App\Services\TranslationProviders\OpenCodeTranslationProvider;
 use App\Services\TurnProviders\CloudflareTurnProvider;
 use App\Services\TurnProviders\LocalTurnProvider;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Foundation\DevCommands;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -63,6 +67,7 @@ final class AppServiceProvider extends ServiceProvider
         EmailDraftProvider::class => OpenCodeEmailDraftProvider::class,
         EmbeddingProvider::class => OpenAIEmbeddingProvider::class,
         GitHubProvider::class => HttpGitHubProvider::class,
+        HeadlineProvider::class => OpenAIHeadlineProvider::class,
         LinkPreviewProvider::class => HttpLinkPreviewProvider::class,
         ModerationProvider::class => OpenAIModerationProvider::class,
         PushNotificationProvider::class => WebPushNotificationProvider::class,
@@ -82,6 +87,7 @@ final class AppServiceProvider extends ServiceProvider
         EmailDraftProvider::class => NullEmailDraftProvider::class,
         EmbeddingProvider::class => NullEmbeddingProvider::class,
         GitHubProvider::class => NullGitHubProvider::class,
+        HeadlineProvider::class => NullHeadlineProvider::class,
         LinkPreviewProvider::class => NullLinkPreviewProvider::class,
         ModerationProvider::class => NullModerationProvider::class,
         PushNotificationProvider::class => NullPushNotificationProvider::class,
@@ -106,6 +112,8 @@ final class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        DevCommands::artisan('serve', 'server');
+
         $this->bootRateLimitingDefaults();
 
         $this->bootExceptionHandling();
@@ -227,7 +235,7 @@ final class AppServiceProvider extends ServiceProvider
 
         // Every commit search pays for an embedding and a relevance verdict, so it gets a budget of its own...
         RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(15)
-            ->by($request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip())
+            ->by($this->userId($request))
             ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
                 ['message' => 'Slow down: too many searches. Give it a few seconds.'],
                 429,

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 use App\Actions\CreateOrganizationOpenGraphImage;
 use App\Actions\CreateUserOpenGraphImage;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\OpenGraphCanvas;
 
 it('draws the avatar of an organization square, where a person is round', function (): void {
-    $organization = Profile::factory()->organization()->create(['avatar_url' => null, 'bio' => null]);
+    $organization = Organization::factory()->create(['avatar_url' => null, 'bio' => null]);
     $user = User::factory()->create(['avatar_url' => null, 'bio' => null]);
 
     $organizationImage = imagecreatefromstring(resolve(CreateOrganizationOpenGraphImage::class)->handle($organization));
@@ -22,7 +22,7 @@ it('draws the avatar of an organization square, where a person is round', functi
 });
 
 it('draws the rail in the blue of /dev/null while the admins chose no lane', function (): void {
-    $organization = Profile::factory()->organization()->create(['avatar_url' => null, 'bio' => null]);
+    $organization = Organization::factory()->create(['avatar_url' => null, 'bio' => null]);
 
     $image = imagecreatefromstring(resolve(CreateOrganizationOpenGraphImage::class)->handle($organization));
 
@@ -31,7 +31,7 @@ it('draws the rail in the blue of /dev/null while the admins chose no lane', fun
 });
 
 it('draws the rail in the lane the admins chose, drawing it again once they change it', function (): void {
-    $organization = Profile::factory()->organization()->create(['avatar_url' => null, 'bio' => null, 'preferred_lane' => 1]);
+    $organization = Organization::factory()->create(['avatar_url' => null, 'bio' => null, 'preferred_lane' => 1]);
     $action = resolve(CreateOrganizationOpenGraphImage::class);
 
     $palette = imagecreatefromstring($action->handle($organization));
@@ -45,7 +45,7 @@ it('draws the rail in the lane the admins chose, drawing it again once they chan
 });
 
 it('fits descriptions that would overflow the card', function (): void {
-    $organization = Profile::factory()->organization()->create([
+    $organization = Organization::factory()->create([
         'avatar_url' => null,
         'bio' => str_repeat('The PHP framework for web artisans, shipping before lunch. ', 4),
     ]);

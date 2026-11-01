@@ -1,11 +1,11 @@
 import { Head, router } from '@inertiajs/react';
 import { Bot, Check, X } from 'lucide-react';
 import { useId, useState } from 'react';
+import { toast } from 'sonner';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
-import InputError from '@/components/input-error';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -62,22 +62,15 @@ function AiDecision({ commit }: { commit: Commit }) {
 
 function ModerationActions({
     isSelected,
-    isDisabled,
     onSelectedChange,
     onModerate,
 }: {
     isSelected: boolean;
-    isDisabled: boolean;
     onSelectedChange: (isSelected: boolean) => void;
-    onModerate: (
-        route: ModerationRoute,
-        reason?: string,
-        onError?: (message: string) => void,
-    ) => void;
+    onModerate: (route: ModerationRoute, reason: string) => void;
 }) {
     const [showReason, setShowReason] = useState(false);
     const [reason, setReason] = useState('');
-    const [error, setError] = useState('');
     const reasonId = useId();
 
     return (
@@ -85,7 +78,6 @@ function ModerationActions({
             <div className="mt-3 flex flex-wrap items-center gap-2">
                 <Checkbox
                     checked={isSelected}
-                    disabled={isDisabled}
                     onCheckedChange={(checked) =>
                         onSelectedChange(checked === true)
                     }
@@ -95,8 +87,9 @@ function ModerationActions({
                 />
                 <Button
                     size="sm"
-                    disabled={isDisabled}
-                    onClick={() => onModerate(CommitApprovalController.store)}
+                    onClick={() =>
+                        onModerate(CommitApprovalController.store, '')
+                    }
                     aria-keyshortcuts="a"
                     data-test="approve-commit-button"
                 >
@@ -110,13 +103,8 @@ function ModerationActions({
                 <Button
                     variant="outline"
                     size="sm"
-                    disabled={isDisabled}
                     onClick={() =>
-                        onModerate(
-                            CommitRejectionController.store,
-                            reason,
-                            setError,
-                        )
+                        onModerate(CommitRejectionController.store, reason)
                     }
                     aria-keyshortcuts="x"
                     data-test="reject-commit-button"
@@ -129,7 +117,6 @@ function ModerationActions({
                     <Button
                         variant="ghost"
                         size="sm"
-                        disabled={isDisabled}
                         onClick={() => setShowReason(true)}
                     >
                         Add reason
@@ -142,14 +129,9 @@ function ModerationActions({
                     <textarea
                         id={reasonId}
                         value={reason}
-                        onChange={(event) => {
-                            setReason(event.target.value);
-                            setError('');
-                        }}
+                        onChange={(event) => setReason(event.target.value)}
                         maxLength={280}
-                        disabled={isDisabled}
-                        aria-invalid={Boolean(error)}
-                        aria-describedby={`${reasonId}-help${error ? ` ${reasonId}-error` : ''}`}
+                        aria-describedby={`${reasonId}-help`}
                         autoFocus
                         className="block min-h-20 w-full resize-y rounded-md border bg-transparent px-3 py-2 text-base outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/50 disabled:opacity-50 md:text-[15px]"
                     />
@@ -162,11 +144,22 @@ function ModerationActions({
                             {280 - reason.length}
                         </span>
                     </div>
-                    <InputError id={`${reasonId}-error`} message={error} />
                 </div>
             )}
         </div>
     );
+}
+
+function withoutCommits(
+    props: { commits: CursorPaginated<Commit> },
+    ids: ReadonlySet<string>,
+): { commits: CursorPaginated<Commit> } {
+    return {
+        commits: {
+            ...props.commits,
+            data: props.commits.data.filter((commit) => !ids.has(commit.id)),
+        },
+    };
 }
 
 export default function Show({
@@ -174,52 +167,49 @@ export default function Show({
 }: {
     commits: CursorPaginated<Commit>;
 }) {
-    const [isModerating, setIsModerating] = useState(false);
     const commitNotFound = useCommitNotFound();
 
     const moderate = (
         commit: Commit,
         route: ModerationRoute,
-        reason?: string,
-        onError?: (message: string) => void,
+        reason: string,
     ) => {
         const index = commits.data.findIndex(({ id }) => id === commit.id);
         const neighbour = commits.data[index + 1] ?? commits.data[index - 1];
 
-        setIsModerating(true);
+        router
+            .optimistic((props: { commits: CursorPaginated<Commit> }) =>
+                withoutCommits(props, new Set([commit.id])),
+            )
+            .visit(route(commit), {
+                data:
+                    route === CommitRejectionController.store ? { reason } : {},
+                preserveScroll: true,
+                only: ['commits', 'hasUnmoderatedCommits'],
+                reset: ['commits'],
+                onHttpException: (response) =>
+                    !commitNotFound(commit.id, response),
+                onError: (errors) =>
+                    toast.error(
+                        errors.reason ??
+                            'Could not moderate this commit. Try again.',
+                    ),
+            });
 
-        router.visit(route(commit), {
-            data:
-                route === CommitRejectionController.store
-                    ? { reason: reason ?? '' }
-                    : {},
-            preserveScroll: true,
-            only: ['commits', 'hasUnmoderatedCommits'],
-            reset: ['commits'],
-            onSuccess: () =>
-                requestAnimationFrame(() => {
-                    const row = neighbour
-                        ? document.querySelector<HTMLElement>(
-                              `[data-commit="${neighbour.id}"]`,
-                          )
-                        : null;
+        requestAnimationFrame(() => {
+            const row = neighbour
+                ? document.querySelector<HTMLElement>(
+                      `[data-commit="${neighbour.id}"]`,
+                  )
+                : null;
 
-                    if (row) {
-                        focusCommit(row);
-                    }
-                }),
-            onFinish: () => setIsModerating(false),
-            onHttpException: (response) => !commitNotFound(commit.id, response),
-            onError: (errors) =>
-                onError?.(
-                    errors.reason ??
-                        'Could not moderate this commit. Try again.',
-                ),
+            if (row) {
+                focusCommit(row);
+            }
         });
     };
 
     const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-    const [approving, setApproving] = useState(false);
 
     const selectedIds = commits.data
         .map((commit) => commit.id)
@@ -246,15 +236,17 @@ export default function Show({
         );
 
     const approveSelected = () =>
-        router.visit(ModerationController.update(), {
-            data: { commits: selectedIds },
-            preserveScroll: true,
-            only: ['commits', 'hasUnmoderatedCommits'],
-            reset: ['commits'],
-            onStart: () => setApproving(true),
-            onSuccess: () => setSelected(new Set()),
-            onFinish: () => setApproving(false),
-        });
+        router
+            .optimistic((props: { commits: CursorPaginated<Commit> }) =>
+                withoutCommits(props, new Set(selectedIds)),
+            )
+            .visit(ModerationController.update(), {
+                data: { commits: selectedIds },
+                preserveScroll: true,
+                only: ['commits', 'hasUnmoderatedCommits'],
+                reset: ['commits'],
+                onSuccess: () => setSelected(new Set()),
+            });
 
     return (
         <>
@@ -281,7 +273,6 @@ export default function Show({
                                       ? 'indeterminate'
                                       : false
                             }
-                            disabled={approving || isModerating}
                             onCheckedChange={(checked) =>
                                 toggleAll(checked === true)
                             }
@@ -298,20 +289,14 @@ export default function Show({
                         <Button
                             size="sm"
                             className="ml-auto"
-                            disabled={
-                                approving ||
-                                isModerating ||
-                                selectedIds.length === 0
-                            }
+                            disabled={selectedIds.length === 0}
                             onClick={approveSelected}
                             data-test="approve-selected-commits-button"
                         >
                             <Check />
-                            {approving
-                                ? 'Approving…'
-                                : selectedIds.length > 0
-                                  ? `Approve ${selectedIds.length} ${selectedIds.length === 1 ? 'commit' : 'commits'}`
-                                  : 'Approve selected'}
+                            {selectedIds.length > 0
+                                ? `Approve ${selectedIds.length} ${selectedIds.length === 1 ? 'commit' : 'commits'}`
+                                : 'Approve selected'}
                         </Button>
                     </div>
                 )}
@@ -326,12 +311,11 @@ export default function Show({
                         <AiDecision commit={commit} />
                         <ModerationActions
                             isSelected={selected.has(commit.id)}
-                            isDisabled={isModerating || approving}
                             onSelectedChange={(isSelected) =>
                                 toggle(commit.id, isSelected)
                             }
-                            onModerate={(route, reason, onError) =>
-                                moderate(commit, route, reason, onError)
+                            onModerate={(route, reason) =>
+                                moderate(commit, route, reason)
                             }
                         />
                     </>

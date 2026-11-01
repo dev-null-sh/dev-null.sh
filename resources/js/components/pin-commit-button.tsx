@@ -6,8 +6,9 @@ import CommitPinController from '@/actions/App/Http/Controllers/CommitPinControl
 import { ActionTooltip } from '@/components/action-tooltip';
 import { Spinner } from '@/components/ui/spinner';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
+import { restoreFeedCommit } from '@/lib/commit-mutation-options';
 import { toastWhenThrottled } from '@/lib/throttle';
-import type { Commit } from '@/types';
+import type { Commit, CursorPaginated } from '@/types';
 
 export function PinCommitButton({
     commit,
@@ -22,28 +23,54 @@ export function PinCommitButton({
     const label = isPinned ? 'Unpin from profile' : 'Pin to profile';
 
     const togglePin = () => {
-        router.visit(
-            isPinned
-                ? CommitPinController.destroy(commit)
-                : CommitPinController.update(commit),
-            {
-                only: ['commits', 'pinnedCommit'],
-                reset: ['commits'],
-                onStart: () => setIsSaving(true),
-                onFinish: () => setIsSaving(false),
-                onSuccess: () =>
-                    toast.success(
-                        isPinned
-                            ? 'Commit unpinned.'
-                            : 'Commit pinned to your profile.',
-                    ),
-                onError: () =>
-                    toast.error('Could not update your pinned commit.'),
-                onHttpException: (response) =>
-                    !commitNotFound(commit.id, response) &&
-                    !toastWhenThrottled(response),
-            },
-        );
+        router
+            .optimistic(
+                (props: {
+                    commits: CursorPaginated<Commit>;
+                    pinnedCommit: Commit | null;
+                }) => {
+                    const rows = props.commits.data.filter(
+                        (row) => row.id !== commit.id,
+                    );
+                    const unpinned = isPinned ? commit : props.pinnedCommit;
+                    const restored = unpinned
+                        ? restoreFeedCommit(rows, unpinned, 'latest')
+                        : rows;
+                    const belongsToLaterPage =
+                        props.commits.next_cursor !== null &&
+                        restored.at(-1)?.id === unpinned?.id;
+
+                    return {
+                        pinnedCommit: isPinned ? null : commit,
+                        commits: {
+                            ...props.commits,
+                            data: belongsToLaterPage ? rows : restored,
+                        },
+                    };
+                },
+            )
+            .visit(
+                isPinned
+                    ? CommitPinController.destroy(commit)
+                    : CommitPinController.update(commit),
+                {
+                    only: ['commits', 'pinnedCommit'],
+                    reset: ['commits'],
+                    onStart: () => setIsSaving(true),
+                    onFinish: () => setIsSaving(false),
+                    onSuccess: () =>
+                        toast.success(
+                            isPinned
+                                ? 'Commit unpinned.'
+                                : 'Commit pinned to your profile.',
+                        ),
+                    onError: () =>
+                        toast.error('Could not update your pinned commit.'),
+                    onHttpException: (response) =>
+                        !commitNotFound(commit.id, response) &&
+                        !toastWhenThrottled(response),
+                },
+            );
     };
 
     return (

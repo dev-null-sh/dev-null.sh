@@ -77,7 +77,7 @@ function scheduleEffect(
 vi.doMock('@inertiajs/react', () => ({
     Head: () => null,
     Link: () => null,
-    usePage: () => ({ props: { auth: { user: viewer } } }),
+    usePage: () => ({ props: { auth: { organizations: [], user: viewer } } }),
     usePoll: (_interval: number, options: () => ReloadOptions) => {
         pollOptions = options;
         return { stop: vi.fn() };
@@ -310,7 +310,7 @@ function insertAt(
                       const user = authors.length
                           ? authors[index % authors.length]
                           : { id: 'author', name: 'Author', avatar_url: null };
-                      return { id: row.dataset.commit, user_id: user.id, user };
+                      return { id: row.dataset.commit, author: user };
                   }),
                   ...previous.data,
               ],
@@ -517,7 +517,7 @@ for (const [total, label] of [
         const result = insertAt(500, false, authors, 'latest', total);
         const nodes = result.finish();
         assert.equal(
-            nodes.filter((node) => node.props.user !== undefined).length,
+            nodes.filter((node) => node.props.author !== undefined).length,
             Math.min(total, 3),
         );
         const badge = nodes.find(
@@ -535,9 +535,9 @@ test('previews distinct authors from the loaded commits', () => {
         avatar_url: null,
     } as User;
     const nodes = insertAt(500, false, [author]).finish();
-    const previews = nodes.filter((node) => node.props.user !== undefined);
+    const previews = nodes.filter((node) => node.props.author !== undefined);
     assert.equal(previews.length, 1);
-    assert.equal((previews[0].props.user as User).id, author.id);
+    assert.equal((previews[0].props.author as User).id, author.id);
     assert.equal(
         nodes.find((node) => node.type === 'button')!.props['aria-label'],
         '3 new commits above. Scroll to top',
@@ -733,8 +733,8 @@ for (const log of ['following', 'latest'] as const) {
         );
         assert.deepEqual(
             nodes
-                .filter((n) => n.props.user)
-                .map((n) => (n.props.user as User).id),
+                .filter((n) => n.props.author)
+                .map((n) => (n.props.author as User).id),
             ['author-1', 'author-2', 'author-3'],
         );
         assert.equal(
@@ -759,8 +759,8 @@ for (const log of ['following', 'latest'] as const) {
             /opacity-0/,
         );
         assert.equal(
-            fading.filter((n) => n.props.user).length,
-            before.filter((n) => n.props.user).length,
+            fading.filter((n) => n.props.author).length,
+            before.filter((n) => n.props.author).length,
         );
         vi.advanceTimersByTime(450);
         assert.equal(
@@ -783,13 +783,11 @@ test('reconciles removals and new arrivals in the same polling cycle', () => {
         data: [
             {
                 id: 'next-0',
-                user_id: 'next-author',
-                user: { id: 'next-author' },
+                author: { id: 'next-author' },
             },
             {
                 id: 'next-1',
-                user_id: 'next-author',
-                user: { id: 'next-author' },
+                author: { id: 'next-author' },
             },
             ...result.data(),
         ],

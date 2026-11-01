@@ -114,6 +114,7 @@ export function TimeoutDialog() {
                                 you wrote was lost. Until then, have a look at
                                 the{' '}
                                 <Link
+                                    prefetch
                                     href={`${TermsController.show.url()}#rules`}
                                     className="text-foreground underline underline-offset-4"
                                     onClick={() => setTimeoutShown(null)}

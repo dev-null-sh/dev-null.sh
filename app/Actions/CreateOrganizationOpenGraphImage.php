@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Contracts\Services\GitHubProvider;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Services\OpenGraphCanvas;
 use Illuminate\Support\Facades\Cache;
 
@@ -24,7 +24,7 @@ final readonly class CreateOrganizationOpenGraphImage
         //
     }
 
-    public function handle(Profile $organization): string
+    public function handle(Organization $organization): string
     {
         return Cache::remember(
             "open-graph-image:organization:{$organization->id}:{$organization->openGraphImageVersion()}",
@@ -36,7 +36,7 @@ final readonly class CreateOrganizationOpenGraphImage
     /**
      * Drawn like a profile's card, in the organization's lane, /dev/null's blue until its admins choose one.
      */
-    private function render(Profile $organization): string
+    private function render(Organization $organization): string
     {
         $canvas = new OpenGraphCanvas($this->github);
         $lane = $organization->lane() === null ? OpenGraphCanvas::PRIMARY : $canvas->lane($organization->lane());

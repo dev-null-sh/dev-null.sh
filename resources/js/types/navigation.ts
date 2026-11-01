@@ -12,5 +12,4 @@ export type NavItem = {
     isActive?: boolean;
     hasIndicator?: boolean;
     badge?: number;
-    prefetch?: boolean;
 };

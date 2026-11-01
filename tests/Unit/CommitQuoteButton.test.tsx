@@ -10,7 +10,7 @@ import type { Commit } from '../../resources/js/types';
 
 const commit = {
     id: 'quote-target',
-    user_id: 'author',
+    author: { id: 'author' },
     status: 'approved',
 } as Commit;
 

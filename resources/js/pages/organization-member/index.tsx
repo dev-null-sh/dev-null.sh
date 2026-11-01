@@ -1,6 +1,8 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
-import { useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import MentionSuggestionController from '@/actions/App/Http/Controllers/MentionSuggestionController';
 import OrganizationMemberController from '@/actions/App/Http/Controllers/OrganizationMemberController';
 import { show } from '@/actions/App/Http/Controllers/UserController';
 import { Button } from '@/components/ui/button';
@@ -16,6 +18,7 @@ import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import OrganizationSettingsLayout from '@/layouts/organization-settings/layout';
+import { toastWhenThrottled } from '@/lib/throttle';
 import { cn, formatFullDateTime, formatRelativeTime } from '@/lib/utils';
 import type { Organization, User } from '@/types';
 
@@ -23,14 +26,12 @@ type Role = 'admin' | 'member';
 
 type Member = User & { role: Role; joined_at: string };
 
-type OrganizationWithId = Organization & { id: string };
-
 export default function Index({
     organization,
     role,
     members,
 }: {
-    organization: OrganizationWithId;
+    organization: Organization;
     role: Role;
     members: Member[];
 }) {
@@ -75,7 +76,12 @@ export default function Index({
                     </p>
                 </header>
 
-                {isAdmin && <AddMemberForm organization={organization} />}
+                {isAdmin && (
+                    <AddMemberForm
+                        organization={organization}
+                        members={members}
+                    />
+                )}
 
                 <ul className="overflow-hidden rounded-lg border">
                     {members.map((member) => (
@@ -105,35 +111,206 @@ export default function Index({
 }
 
 /**
- * Admins add people by their handle. They join as members, and can then be made admins.
+ * Admins add people by their handle, searching people by handle or name as they type. They join as members, and
+ * can then be made admins.
  */
-function AddMemberForm({ organization }: { organization: OrganizationWithId }) {
+function AddMemberForm({
+    organization,
+    members,
+}: {
+    organization: Organization;
+    members: Member[];
+}) {
+    const id = useId();
+    const [handle, setHandle] = useState('');
+    const [results, setResults] = useState<User[]>([]);
+    const [isOpen, setIsOpen] = useState(false);
+    const [activeIndex, setActiveIndex] = useState(0);
+    const query = handle.trim().replace(/^@/, '');
+
+    useEffect(() => {
+        if (query === '') {
+            return;
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(async () => {
+            const response = await fetch(
+                MentionSuggestionController.index({ query: { q: query } }).url,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                    signal: controller.signal,
+                },
+            ).catch(() => null);
+
+            if (!response?.ok) {
+                if (response) {
+                    toastWhenThrottled(response);
+                }
+
+                return;
+            }
+
+            const { users } = (await response.json()) as { users: User[] };
+
+            setResults(users);
+            setActiveIndex(0);
+        }, 120);
+
+        return () => {
+            clearTimeout(timeout);
+            controller.abort();
+        };
+    }, [query]);
+
+    // The last results stay up while the next ones load, so the list doesn't flash empty between keystrokes.
+    const suggestions =
+        query === ''
+            ? []
+            : results.filter(
+                  (user) => !members.some((member) => member.id === user.id),
+              );
+    const isListed = isOpen && suggestions.length > 0;
+    const selectedIndex = Math.min(activeIndex, suggestions.length - 1);
+
+    const select = (user: User) => {
+        setHandle(user.handle);
+        setIsOpen(false);
+    };
+
+    const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+        if (!isListed) {
+            return;
+        }
+
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+            event.preventDefault();
+            const step = event.key === 'ArrowDown' ? 1 : -1;
+            setActiveIndex(
+                (selectedIndex + step + suggestions.length) %
+                    suggestions.length,
+            );
+        } else if (event.key === 'Enter' || event.key === 'Tab') {
+            // A handle already typed in full is added on Enter, instead of picked again...
+            if (
+                event.key === 'Enter' &&
+                suggestions[selectedIndex].handle.toLowerCase() ===
+                    query.toLowerCase()
+            ) {
+                setIsOpen(false);
+
+                return;
+            }
+
+            event.preventDefault();
+            select(suggestions[selectedIndex]);
+        } else if (event.key === 'Escape') {
+            event.preventDefault();
+            setIsOpen(false);
+        }
+    };
+
     return (
         <Form
             {...OrganizationMemberController.store.form(organization.id)}
             options={{ preserveScroll: true }}
-            resetOnSuccess
+            onSuccess={() => setHandle('')}
             className="mb-5"
         >
             {({ errors, processing }) => (
                 <>
                     <label htmlFor="member-handle" className="sr-only">
-                        Handle of the person to add
+                        Handle or name of the person to add
                     </label>
                     <div className="flex max-w-md gap-2">
-                        <input
-                            id="member-handle"
-                            name="handle"
-                            required
-                            maxLength={40}
-                            autoComplete="off"
-                            autoCapitalize="none"
-                            spellCheck={false}
-                            placeholder="@handle"
-                            aria-invalid={errors.handle ? true : undefined}
-                            aria-describedby="member-handle-error"
-                            className="h-9 min-w-0 flex-1 rounded-md border border-input bg-transparent px-3 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive md:text-sm dark:bg-input/30"
-                        />
+                        {/* The list overlays the members below, so opening it moves nothing. */}
+                        <div className="relative min-w-0 flex-1">
+                            <input
+                                id="member-handle"
+                                name="handle"
+                                value={handle}
+                                onChange={(event) => {
+                                    setHandle(event.target.value);
+                                    setIsOpen(true);
+                                }}
+                                onFocus={() => setIsOpen(true)}
+                                onBlur={() => setIsOpen(false)}
+                                onKeyDown={handleKeyDown}
+                                required
+                                maxLength={40}
+                                autoComplete="off"
+                                autoCapitalize="none"
+                                spellCheck={false}
+                                placeholder="Search by @handle or name"
+                                role="combobox"
+                                aria-expanded={isListed}
+                                aria-autocomplete="list"
+                                aria-controls={
+                                    isListed ? `${id}-suggestions` : undefined
+                                }
+                                aria-activedescendant={
+                                    isListed
+                                        ? `${id}-${suggestions[selectedIndex].id}`
+                                        : undefined
+                                }
+                                aria-invalid={errors.handle ? true : undefined}
+                                aria-describedby="member-handle-error"
+                                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-base outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive md:text-sm dark:bg-input/30"
+                            />
+
+                            {isListed && (
+                                <ul
+                                    id={`${id}-suggestions`}
+                                    role="listbox"
+                                    aria-label="People to add"
+                                    onMouseDown={(event) =>
+                                        event.preventDefault()
+                                    }
+                                    className="absolute inset-x-0 top-full z-50 mt-1 max-h-72 overflow-y-auto overscroll-contain rounded-lg border bg-popover p-1.5 text-popover-foreground shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)]"
+                                >
+                                    {suggestions.map((user, index) => (
+                                        <li
+                                            key={user.id}
+                                            id={`${id}-${user.id}`}
+                                            role="option"
+                                            aria-selected={
+                                                index === selectedIndex
+                                            }
+                                            onMouseMove={() =>
+                                                setActiveIndex(index)
+                                            }
+                                            onClick={() => select(user)}
+                                            className={cn(
+                                                'flex cursor-pointer items-center gap-2.5 rounded-sm px-2.5 py-2',
+                                                {
+                                                    'bg-accent':
+                                                        index === selectedIndex,
+                                                },
+                                            )}
+                                        >
+                                            <UserAvatar
+                                                user={user}
+                                                className="size-8 shrink-0"
+                                            />
+                                            <span className="min-w-0 flex-1">
+                                                <span
+                                                    className="block truncate text-sm font-semibold"
+                                                    title={user.name}
+                                                >
+                                                    {user.name}
+                                                </span>
+                                                <span className="block truncate font-mono text-xs text-muted-foreground">
+                                                    @{user.handle}
+                                                </span>
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
                         <Button type="submit" disabled={processing}>
                             Add
                         </Button>
@@ -159,7 +336,7 @@ function MemberRow({
     isLastAdmin,
     onRemoved,
 }: {
-    organization: OrganizationWithId;
+    organization: Organization;
     member: Member;
     isAdmin: boolean;
     isLastAdmin: boolean;
@@ -184,6 +361,7 @@ function MemberRow({
         router.visit(OrganizationMemberController.update(route), {
             data: { role },
             preserveScroll: true,
+            preserveState: true,
             // Another admin may have changed the members since the page loaded...
             onError: (errors) => toast.error(Object.values(errors)[0]),
             onFinish: () => setPendingRole(null),
@@ -208,6 +386,7 @@ function MemberRow({
 
                 router.visit(OrganizationMemberController.destroy(route), {
                     preserveScroll: true,
+                    preserveState: true,
                     // A removal the server refused, as another admin left meanwhile, keeps the member listed...
                     onSuccess: (page) => {
                         isRemoved = !(
@@ -250,7 +429,11 @@ function MemberRow({
             <div className="min-h-0 overflow-hidden">
                 {/* On phones the controls get their own line under the name, which stays readable. */}
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
-                    <Link href={show(member.handle)} className="shrink-0">
+                    <Link
+                        href={show(member.handle)}
+                        prefetch
+                        className="shrink-0"
+                    >
                         <UserAvatar
                             user={member}
                             className="size-9"
@@ -262,6 +445,7 @@ function MemberRow({
                         <p className="truncate font-medium" title={member.name}>
                             <Link
                                 href={show(member.handle)}
+                                prefetch
                                 className="hover:underline"
                             >
                                 {member.name}

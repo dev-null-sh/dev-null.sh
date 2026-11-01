@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\DeleteUser;
 use App\Models\Commit;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -35,7 +35,7 @@ it('returns a summary of the user for the user preview', function (): void {
 });
 
 it('says which accounts the bio mentions are on dev/null', function (bool $guest): void {
-    Profile::factory()->organization()->create(['handle' => 'Laravel']);
+    Organization::factory()->create(['handle' => 'Laravel']);
     User::factory()->create(['handle' => 'octocat', 'bio' => 'Building @laravel, previously @nobody']);
 
     ($guest ? $this : $this->actingAs(User::factory()->create()))

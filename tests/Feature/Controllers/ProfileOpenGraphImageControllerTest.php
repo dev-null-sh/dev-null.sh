@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 
 it('renders a link preview image of a profile for guests', function (): void {
@@ -71,7 +71,7 @@ it('reuses the rendered image until the profile changes', function (): void {
 it('renders a link preview image of an organization for guests', function (): void {
     $this->mock(GitHubProvider::class)->shouldReceive('avatar')->once()->with('https://avatars.githubusercontent.com/u/958072')->andReturn(fakeAvatar());
 
-    Profile::factory()->organization()->create(['handle' => 'laravel', 'avatar_url' => 'https://avatars.githubusercontent.com/u/958072']);
+    Organization::factory()->create(['handle' => 'laravel', 'avatar_url' => 'https://avatars.githubusercontent.com/u/958072']);
 
     $response = $this->get('/@laravel/og.png');
 
@@ -84,7 +84,7 @@ it('renders a link preview image of an organization for guests', function (): vo
 
 it('renders an organization without an avatar or bio without requesting anything', function (): void {
     $this->mock(GitHubProvider::class)->shouldNotReceive('avatar');
-    Profile::factory()->organization()->create(['handle' => 'laravel', 'avatar_url' => null, 'bio' => null]);
+    Organization::factory()->create(['handle' => 'laravel', 'avatar_url' => null, 'bio' => null]);
 
     $this->get('/@laravel/og.png')
         ->assertOk()
@@ -95,13 +95,13 @@ it('reuses the rendered image of an organization until it changes', function ():
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('avatar')->once()->andReturn(fakeAvatar());
 
-    $organization = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
 
     $this->get('/@laravel/og.png')->assertOk();
     $this->get('/@laravel/og.png')->assertOk();
 
     $github->shouldReceive('avatar')->once()->andReturn(fakeAvatar());
-    $organization->update(['bio' => 'Updated on GitHub.']);
+    $organization->profile->update(['bio' => 'Updated on GitHub.']);
 
     $this->get('/@laravel/og.png')->assertOk();
 });
@@ -111,7 +111,7 @@ it('returns not found for unknown handles', function (): void {
 });
 
 it('renders the link preview image of a profile whatever the case of the handle', function (): void {
-    Profile::factory()->organization()->create(['handle' => 'Laravel']);
+    Organization::factory()->create(['handle' => 'Laravel']);
 
     $this->get('/@laravel/og.png')
         ->assertOk()

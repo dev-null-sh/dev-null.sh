@@ -9,15 +9,15 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Every feature is on until an administrator switches it off, so only the switched off ones are stored.
+ * A feature keeps its default until an administrator switches it, so only the switched ones are stored.
  */
 final readonly class Features
 {
-    private const string CACHE_KEY = 'features:disabled';
+    private const string CACHE_KEY = 'features:switched';
 
     public function enabled(Feature $feature): bool
     {
-        return ! in_array($feature->value, $this->disabled(), true);
+        return $this->switched()[$feature->value] ?? $feature->isEnabledByDefault();
     }
 
     /** @return list<array{name: string, enabled: bool}> */
@@ -40,16 +40,15 @@ final readonly class Features
         Cache::memo()->forget(self::CACHE_KEY);
     }
 
-    /** @return list<string> */
-    private function disabled(): array
+    /** @return array<string, bool> */
+    private function switched(): array
     {
-        /** @var list<string> $disabled */
-        $disabled = Cache::memo()->rememberForever(self::CACHE_KEY, fn (): array => DB::table('features')
-            ->where('enabled', false)
-            ->pluck('name')
-            ->values()
+        /** @var array<string, bool> $switched */
+        $switched = Cache::memo()->rememberForever(self::CACHE_KEY, fn (): array => DB::table('features')
+            ->pluck('enabled', 'name')
+            ->map(fn (mixed $enabled): bool => (bool) $enabled)
             ->all());
 
-        return $disabled;
+        return $switched;
     }
 }

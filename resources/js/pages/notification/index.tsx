@@ -1,5 +1,12 @@
 import type { CancelToken } from '@inertiajs/core';
-import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
+import {
+    Head,
+    InfiniteScroll,
+    Link,
+    router,
+    useHttp,
+    usePoll,
+} from '@inertiajs/react';
 import {
     ArrowUp,
     AtSign,
@@ -17,6 +24,7 @@ import type { ReactNode, RefObject } from 'react';
 import {
     Fragment,
     useEffect,
+    useEffectEvent,
     useId,
     useLayoutEffect,
     useRef,
@@ -25,6 +33,7 @@ import {
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
+import NotificationReadAtController from '@/actions/App/Http/Controllers/NotificationReadAtController';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
 import { replaceFailedImage } from '@/components/commit-images';
@@ -241,6 +250,28 @@ export default function Index({
             setArrivals((count) => count + arrived);
         }
     }, [notifications.data]);
+
+    const markRead = useHttp<{ through: string }>({ through: '' });
+    const newestAt = notifications.data[0]?.created_at;
+    const hasUnread = notifications.data.some(
+        (group) => group.unread_count > 0,
+    );
+
+    const markReadThrough = useEffectEvent((through: string) => {
+        markRead.transform(() => ({ through }));
+        void markRead
+            .put(NotificationReadAtController.update.url())
+            .then(() => {
+                router.flushAll();
+                router.reload({ only: ['auth.unreadNotificationsCount'] });
+            });
+    });
+
+    useEffect(() => {
+        if (newestAt !== undefined && hasUnread) {
+            markReadThrough(newestAt);
+        }
+    }, [newestAt, hasUnread]);
 
     useEffect(() => {
         if (arrivals === 0) {
@@ -695,6 +726,7 @@ export function ActorAvatar({
             <span ref={anchor} className="flex">
                 {linked ? (
                     <Link
+                        prefetch
                         href={show(user)}
                         tabIndex={-1}
                         aria-hidden
@@ -740,6 +772,9 @@ export function NotificationContent({
         notification.type === 'followed' || notification.type === 'starred'
             ? actorsCount - 1
             : 0;
+    // Two people are both named; "and N others" is kept for three or more.
+    const secondActor =
+        otherActors === 1 && actors[1]?.id !== actor.id ? actors[1] : undefined;
     const grouped =
         summary &&
         (actorsCount > 1 ||
@@ -787,7 +822,7 @@ export function NotificationContent({
         (!summary && notification.type === 'starred')
             ? show(actor)
             : CommitController.show({
-                  user: isOwnCommit ? user : actor,
+                  profile: isOwnCommit ? user : actor,
                   commit: notification.commit,
               });
     const time = (
@@ -863,6 +898,7 @@ export function NotificationContent({
                             className="relative z-10 flex min-w-0 items-center"
                         >
                             <Link
+                                prefetch
                                 href={show(actor)}
                                 className="flex min-w-0 items-center gap-1.5 rounded-md outline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
                             >
@@ -885,6 +921,7 @@ export function NotificationContent({
                             {action}
                         </span>
                         <Link
+                            prefetch
                             href={href}
                             className="ml-auto flex shrink-0 items-center gap-2 rounded-md pl-2 outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
                         >
@@ -892,7 +929,7 @@ export function NotificationContent({
                             {time}
                         </Link>
                     </div>
-                    <Link href={href} tabIndex={-1} className="block">
+                    <Link href={href} prefetch tabIndex={-1} className="block">
                         {excerpt}
                     </Link>
                 </div>
@@ -904,6 +941,7 @@ export function NotificationContent({
         return (
             <div className="flex items-start gap-3">
                 <Link
+                    prefetch
                     href={href}
                     className="flex min-w-0 flex-1 gap-2.5 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
                 >
@@ -958,6 +996,7 @@ export function NotificationContent({
     const actorLinks = (
         <>
             <Link
+                prefetch
                 href={show(actor)}
                 className="relative z-10 truncate font-semibold hover:underline"
                 title={actor.name}
@@ -965,6 +1004,7 @@ export function NotificationContent({
                 {actor.name}
             </Link>
             <Link
+                prefetch
                 href={show(actor)}
                 tabIndex={-1}
                 className="relative z-10 shrink-4 truncate font-mono text-[13px] text-muted-foreground"
@@ -977,6 +1017,7 @@ export function NotificationContent({
 
     const rowLink = (
         <Link
+            prefetch
             href={href}
             data-notification-link
             className="after:absolute after:inset-0 after:z-[1] after:rounded-md after:outline-offset-4 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring"
@@ -1134,20 +1175,41 @@ export function NotificationContent({
                                             (grouped ? (
                                                 <>
                                                     <Link
+                                                        prefetch
                                                         href={show(actor)}
                                                         className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
                                                         title={actor.name}
                                                     >
                                                         {actor.name}
                                                     </Link>{' '}
-                                                    {otherActors > 0 && (
-                                                        <span
-                                                            title={exactCountTitle(
-                                                                otherActors,
-                                                            )}
-                                                        >
-                                                            {`and ${formatCount(otherActors)} ${otherActors === 1 ? 'other' : 'others'} `}
-                                                        </span>
+                                                    {secondActor ? (
+                                                        <>
+                                                            and{' '}
+                                                            <Link
+                                                                prefetch
+                                                                href={show(
+                                                                    secondActor,
+                                                                )}
+                                                                className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
+                                                                title={
+                                                                    secondActor.name
+                                                                }
+                                                            >
+                                                                {
+                                                                    secondActor.name
+                                                                }
+                                                            </Link>{' '}
+                                                        </>
+                                                    ) : (
+                                                        otherActors > 0 && (
+                                                            <span
+                                                                title={exactCountTitle(
+                                                                    otherActors,
+                                                                )}
+                                                            >
+                                                                {`and ${formatCount(otherActors)} ${otherActors === 1 ? 'other' : 'others'} `}
+                                                            </span>
+                                                        )
                                                     )}
                                                 </>
                                             ) : (
@@ -1158,6 +1220,7 @@ export function NotificationContent({
                                                         className="relative z-10"
                                                     >
                                                         <Link
+                                                            prefetch
                                                             href={show(actor)}
                                                             className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
                                                             title={actor.name}
@@ -1165,6 +1228,7 @@ export function NotificationContent({
                                                             {actor.name}
                                                         </Link>{' '}
                                                         <Link
+                                                            prefetch
                                                             href={show(actor)}
                                                             tabIndex={-1}
                                                             className="relative z-10 inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"

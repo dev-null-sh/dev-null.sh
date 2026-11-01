@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 
 it('suggests the people the user follows without a term, most recently followed first', function (): void {
@@ -337,10 +337,10 @@ it('uses the quote thread rather than the quoted thread when replying to a quote
 
 it('suggests organizations that have a page, the closest matches first', function (): void {
     $user = User::factory()->create();
-    Profile::factory()->organization()->create(['handle' => 'laravel-shift', 'name' => 'Shift']);
-    Profile::factory()->organization()->create(['handle' => 'laravel', 'name' => 'Laravel']);
-    Profile::factory()->organization()->create(['handle' => 'tighten', 'name' => 'Laravel Tighten']);
-    Profile::factory()->organization()->create(['handle' => 'spatie', 'name' => 'Spatie']);
+    Organization::factory()->create(['handle' => 'laravel-shift', 'name' => 'Shift']);
+    Organization::factory()->create(['handle' => 'laravel', 'name' => 'Laravel']);
+    Organization::factory()->create(['handle' => 'tighten', 'name' => 'Laravel Tighten']);
+    Organization::factory()->create(['handle' => 'spatie', 'name' => 'Spatie']);
 
     $this->actingAs($user)->getJson('/search/mentions?q=@Laravel')
         ->assertOk()
@@ -355,7 +355,7 @@ it('suggests organizations that have a page, the closest matches first', functio
 it('does not suggest organizations within an org', function (): void {
     $mark = User::factory()->create(['handle' => 'mark']);
     [$taylor] = followersOf($mark, 1);
-    Profile::factory()->organization()->create(['handle' => 'laravel']);
+    Organization::factory()->create(['handle' => 'laravel']);
     $org = createOrg($mark, [$taylor]);
 
     $this->actingAs($mark)

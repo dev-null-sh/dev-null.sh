@@ -37,7 +37,7 @@ it('renders pending commits oldest first', function (): void {
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Newer')
-            ->has('commits.data.0.user'));
+            ->has('commits.data.0.author'));
 });
 
 it('shows the ai decision on commits', function (): void {
@@ -174,7 +174,7 @@ it('shows who a pending reply is replying to', function (): void {
 
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
-            ->where('commits.data.0.parent.user.handle', 'octocat'));
+            ->where('commits.data.0.parent.author.handle', 'octocat'));
 });
 
 it('shows what a pending quote is quoting', function (): void {
@@ -188,7 +188,7 @@ it('shows what a pending quote is quoting', function (): void {
     $response->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('commits.data.1.quoted_commit.body', 'Quoted while pending')
-            ->where('commits.data.1.quoted_commit.user.handle', 'octocat'));
+            ->where('commits.data.1.quoted_commit.author.handle', 'octocat'));
 });
 
 it('includes the link previews of pending commits', function (): void {

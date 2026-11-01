@@ -18,11 +18,17 @@ const LANES = [0, 1, 2, 3, 4, 5].map((lane) => `var(--lane-${lane})`);
 export function ProductHuntBanner() {
     const [now, setNow] = useState(() => Date.now());
 
+    const hasEnded = now >= LAUNCH_ENDS_AT;
+
     useEffect(() => {
+        if (hasEnded) {
+            return;
+        }
+
         const interval = setInterval(() => setNow(Date.now()), 1000);
 
         return () => clearInterval(interval);
-    }, []);
+    }, [hasEnded]);
 
     if (now < LAUNCH_STARTS_AT || now >= LAUNCH_ENDS_AT) {
         return null;

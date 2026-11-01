@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\UserCommitsQuery;
 
@@ -18,8 +19,16 @@ it('includes the top-level commits of the user newest first', function (): void 
     $commits = resolve(UserCommitsQuery::class)->builder($user, User::factory()->create())->get();
 
     expect($commits->modelKeys())->toBe([$newer->id, $older->id])
-        ->and($commits->first()->relationLoaded('user'))->toBeTrue()
+        ->and($commits->first()->relationLoaded('author'))->toBeTrue()
         ->and($commits->last()->replies_count)->toBe(1);
+});
+
+it('includes the commits from the user, not the ones they post for another profile', function (): void {
+    $user = User::factory()->create();
+    $own = Commit::factory()->for($user)->create();
+    Commit::factory()->for($user)->create(['author_id' => Organization::factory()->create()->id]);
+
+    expect(resolve(UserCommitsQuery::class)->builder($user, null)->get()->modelKeys())->toBe([$own->id]);
 });
 
 it('only includes the commits the viewer may see', function (): void {
@@ -57,5 +66,5 @@ it('includes the replies of the user with the parents the viewer may see', funct
     expect($replies->modelKeys())->toBe([$replyToHidden->id, $reply->id])
         ->and($replies->first()->parent)->toBeNull()
         ->and($replies->last()->parent?->id)->toBe($parent->id)
-        ->and($replies->last()->parent?->relationLoaded('user'))->toBeTrue();
+        ->and($replies->last()->parent?->relationLoaded('author'))->toBeTrue();
 });

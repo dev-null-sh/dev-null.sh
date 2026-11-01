@@ -5,6 +5,7 @@ import {
     BookOpen,
     Star,
     FileText,
+    HeartHandshake,
     LogOut,
     Settings,
     Shield,
@@ -13,6 +14,7 @@ import {
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
 import AppController from '@/actions/App/Http/Controllers/AppController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
+import PartnerController from '@/actions/App/Http/Controllers/PartnerController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
@@ -93,6 +95,7 @@ export function UserMenuContent({ user }: Props) {
                         <Link
                             className="block w-full cursor-pointer"
                             href={OperationsController.show()}
+                            prefetch
                             onClick={cleanup}
                         >
                             <Activity className="mr-2" />
@@ -107,6 +110,7 @@ export function UserMenuContent({ user }: Props) {
                     <Link
                         className="block w-full cursor-pointer"
                         href={AboutController.show()}
+                        prefetch
                         onClick={cleanup}
                     >
                         <BookOpen className="mr-2" />
@@ -116,7 +120,19 @@ export function UserMenuContent({ user }: Props) {
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full cursor-pointer"
+                        href={PartnerController.index()}
+                        prefetch
+                        onClick={cleanup}
+                    >
+                        <HeartHandshake className="mr-2" />
+                        Partners
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
                         href={AppController.index()}
+                        prefetch
                         onClick={cleanup}
                     >
                         <AppWindow className="mr-2" />
@@ -127,6 +143,7 @@ export function UserMenuContent({ user }: Props) {
                     <Link
                         className="block w-full cursor-pointer"
                         href={TermsController.show()}
+                        prefetch
                         onClick={cleanup}
                     >
                         <FileText className="mr-2" />
@@ -137,6 +154,7 @@ export function UserMenuContent({ user }: Props) {
                     <Link
                         className="block w-full cursor-pointer"
                         href={PrivacyController.show()}
+                        prefetch
                         onClick={cleanup}
                     >
                         <Shield className="mr-2" />

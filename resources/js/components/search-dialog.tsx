@@ -15,8 +15,10 @@ import {
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import ProfileSearchController from '@/actions/App/Http/Controllers/ProfileSearchController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
-import UserSearchController from '@/actions/App/Http/Controllers/UserSearchController';
+import { AuthorAvatar } from '@/components/author-avatar';
+import { OrganizationAvatar } from '@/components/organization-avatar';
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
@@ -26,6 +28,7 @@ import {
     rememberSearch,
     useRecentSearches,
 } from '@/hooks/use-recent-searches';
+import { signIn } from '@/lib/auth';
 import { searchCandidates } from '@/lib/chat';
 import {
     searchCommits,
@@ -40,9 +43,14 @@ import {
     searchesCommits,
     searchIntent,
 } from '@/lib/search-intent';
-import { cn, formatRelativeTime, laneColor } from '@/lib/utils';
+import {
+    authorLaneColor,
+    cn,
+    formatRelativeTime,
+    laneColor,
+} from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit, User } from '@/types';
+import type { Commit, CommitAuthor, Organization, User } from '@/types';
 
 const developerDebounce = 120;
 
@@ -58,8 +66,9 @@ type Found<T> = { term: string; items: T[]; throttled?: boolean };
 type Option =
     | { kind: 'action'; id: string; action: SearchAction }
     | { kind: 'developer'; id: string; user: User; reason?: string | null }
+    | { kind: 'organization'; id: string; organization: Organization }
     | { kind: 'commit'; id: string; commit: Commit }
-    | { kind: 'all'; id: string }
+    | { kind: 'all'; id: string; needsSignIn: boolean }
     | { kind: 'suggestion'; id: string; term: string }
     | { kind: 'recent'; id: string; term: string };
 
@@ -70,7 +79,8 @@ const suggestionOptions: Option[] = suggestedQueries.map((term, index) => ({
 }));
 
 /**
- * Searches developers and commits. Picking a developer for a new conversation narrows it to developers, says why
+ * Searches developers, organizations and commits. Guests only search developers and organizations: each commit search pays for AI, so they're asked to
+ * sign in for those instead. Picking a developer for a new conversation narrows it to developers, says why
  * anyone can't be messaged, and hands the pick back instead of opening their profile. Given `onAction`, it also offers
  * to write a commit, open an issue or go live when the search names one, above what it found.
  */
@@ -104,13 +114,15 @@ export function SearchDialog({
     const input = useRef<HTMLInputElement>(null);
     const [activeIndex, setActiveIndex] = useState(0);
     const isPicking = onPickDeveloper !== undefined;
+    const isMember = userId !== null;
 
     const term = query.trim();
     const developerTerm = term.replace(/^@/u, '');
     const intent = isPicking ? 'developer' : searchIntent(term);
-    const commitTerm = searchesCommits(intent) ? term : '';
+    const commitQuery = searchesCommits(intent) ? term : '';
+    const commitTerm = isMember ? commitQuery : '';
 
-    const developers = useDebouncedSearch(
+    const developers = useDebouncedSearch<FoundDeveloper | FoundOrganization>(
         developerTerm,
         developerDebounce,
         isPicking
@@ -126,13 +138,23 @@ export function SearchDialog({
 
     const visibleDevelopers = developers
         .resultsFor(developerTerm)
-        .filter(({ user }) => user.id !== excludeId);
+        .filter(
+            (found): found is FoundDeveloper =>
+                'user' in found && found.user.id !== excludeId,
+        );
+    const visibleOrganizations = developers
+        .resultsFor(developerTerm)
+        .filter((found): found is FoundOrganization => 'organization' in found);
     const visibleCommits = commits.resultsFor(commitTerm);
     const results = optionsFor(
         intent,
         intent === 'topic' ? visibleDevelopers.slice(0, 2) : visibleDevelopers,
+        intent === 'topic'
+            ? visibleOrganizations.slice(0, 2)
+            : visibleOrganizations,
         visibleCommits,
-        commitTerm,
+        commitQuery,
+        !isMember,
         onAction && !isPicking ? searchActions(term, { isLive }) : [],
     );
     const isLoading = developers.isLoading || commits.isLoading;
@@ -186,6 +208,12 @@ export function SearchDialog({
         }
 
         close();
+
+        if (option.kind === 'all' && option.needsSignIn) {
+            signIn();
+
+            return;
+        }
 
         if (option.kind === 'action') {
             onAction?.(option.action);
@@ -260,7 +288,7 @@ export function SearchDialog({
                     <DialogPrimitive.Description className="sr-only">
                         {isPicking
                             ? 'Find a developer by name or handle to message.'
-                            : 'Find developers by name or handle, or commits by what they are about.'}
+                            : 'Find developers and organizations by name or handle, or commits by what they are about.'}
                     </DialogPrimitive.Description>
 
                     <div className="flex items-center gap-3 border-b px-4">
@@ -472,18 +500,16 @@ function useDebouncedSearch<T>(
 
 type FoundDeveloper = { user: User; reason?: string | null };
 
-async function searchRemoteCandidates(
-    term: string,
-    signal: AbortSignal,
-): Promise<FoundDeveloper[]> {
-    return searchCandidates(term, { for: 'remote' }, signal);
-}
+type FoundOrganization = { organization: Organization };
 
+/**
+ * Organizations come back with the developers, after them, so both arrive together.
+ */
 function searchDevelopers(
     term: string,
     signal: AbortSignal,
-): Promise<FoundDeveloper[]> {
-    return fetch(UserSearchController.index({ query: { q: term } }).url, {
+): Promise<Array<FoundDeveloper | FoundOrganization>> {
+    return fetch(ProfileSearchController.index({ query: { q: term } }).url, {
         headers: {
             Accept: 'application/json',
             'X-Requested-With': 'XMLHttpRequest',
@@ -501,16 +527,19 @@ function searchDevelopers(
 
             return response.json();
         })
-        .then((data: { users: User[] }) =>
-            data.users.map((user) => ({ user })),
-        );
+        .then((data: { users: User[]; organizations: Organization[] }) => [
+            ...data.users.map((user) => ({ user })),
+            ...data.organizations.map((organization) => ({ organization })),
+        ]);
 }
 
 function optionsFor(
     intent: ReturnType<typeof searchIntent>,
     developers: FoundDeveloper[],
+    organizations: FoundOrganization[],
     commits: Commit[],
     commitTerm: string,
+    needsSignIn: boolean,
     actions: SearchAction[],
 ): Option[] {
     const actionOptions: Option[] = actions.map((action) => ({
@@ -524,13 +553,20 @@ function optionsFor(
         user,
         reason,
     }));
+    const organizationOptions: Option[] = organizations.map(
+        ({ organization }) => ({
+            kind: 'organization',
+            id: `organization-${organization.handle}`,
+            organization,
+        }),
+    );
     const commitOptions: Option[] = commits.map((commit) => ({
         kind: 'commit',
         id: `commit-${commit.id}`,
         commit,
     }));
     const seeAll: Option[] =
-        commitTerm === '' ? [] : [{ kind: 'all', id: 'all' }];
+        commitTerm === '' ? [] : [{ kind: 'all', id: 'all', needsSignIn }];
 
     if (intent === 'topic') {
         return [
@@ -538,15 +574,23 @@ function optionsFor(
             ...commitOptions,
             ...seeAll,
             ...developerOptions,
+            ...organizationOptions,
         ];
     }
 
-    return [...actionOptions, ...developerOptions, ...commitOptions, ...seeAll];
+    return [
+        ...actionOptions,
+        ...developerOptions,
+        ...organizationOptions,
+        ...commitOptions,
+        ...seeAll,
+    ];
 }
 
 const headings: Record<Option['kind'], ReactNode> = {
     action: 'Actions',
     developer: 'Developers',
+    organization: 'Organizations',
     commit: 'Most relevant commits',
     all: null,
     recent: (
@@ -581,9 +625,13 @@ function hrefFor(
         return show(option.user);
     }
 
+    if (option.kind === 'organization') {
+        return show(option.organization);
+    }
+
     if (option.kind === 'commit') {
         return CommitController.show({
-            user: option.commit.user,
+            profile: option.commit.author,
             commit: option.commit,
         });
     }
@@ -647,6 +695,7 @@ function ResultOption({
                 {option.kind === 'action' ||
                 option.kind === 'suggestion' ||
                 option.kind === 'recent' ||
+                (option.kind === 'all' && option.needsSignIn) ||
                 (option.kind === 'developer' && onPickDeveloper) ? (
                     <button
                         type="button"
@@ -667,6 +716,7 @@ function ResultOption({
                 ) : (
                     <Link
                         href={hrefFor(option, term)}
+                        prefetch
                         tabIndex={-1}
                         onMouseMove={onHover}
                         onClick={onOpen}
@@ -689,6 +739,10 @@ function OptionContent({ option }: { option: Option }): ReactNode {
         return <DeveloperResult user={option.user} reason={option.reason} />;
     }
 
+    if (option.kind === 'organization') {
+        return <OrganizationResult organization={option.organization} />;
+    }
+
     if (option.kind === 'commit') {
         return <CommitResult commit={option.commit} />;
     }
@@ -709,7 +763,9 @@ function OptionContent({ option }: { option: Option }): ReactNode {
 
     return (
         <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-primary">
-            See all matching commits
+            {option.needsSignIn
+                ? 'Sign in to search commits'
+                : 'See all matching commits'}
             <ArrowRight aria-hidden className="size-4" />
         </span>
     );
@@ -787,18 +843,53 @@ function DeveloperResult({
     );
 }
 
+function OrganizationResult({ organization }: { organization: Organization }) {
+    return (
+        <>
+            <OrganizationAvatar
+                organization={organization}
+                className="size-9 shrink-0"
+            />
+            <span className="min-w-0 flex-1">
+                <span className="flex items-baseline gap-1.5">
+                    <span
+                        className="truncate font-semibold"
+                        title={organization.name}
+                    >
+                        {organization.name}
+                    </span>
+                    <span
+                        className="min-w-0 shrink truncate font-mono text-[13px] text-muted-foreground"
+                        title={`@${organization.handle}`}
+                    >
+                        @{organization.handle}
+                    </span>
+                </span>
+                {organization.bio && (
+                    <span
+                        className="block truncate text-sm text-muted-foreground"
+                        title={organization.bio}
+                    >
+                        {organization.bio}
+                    </span>
+                )}
+            </span>
+        </>
+    );
+}
+
 function CommitResult({ commit }: { commit: Commit }) {
     const now = useNow();
 
     return (
         <>
-            <UserAvatar
-                user={commit.user}
+            <AuthorAvatar
+                author={commit.author}
                 className="size-9 shrink-0 self-start"
             />
             <span className="min-w-0 flex-1">
                 <span className="flex items-baseline gap-1.5 text-sm">
-                    <Handle user={commit.user} />
+                    <Handle user={commit.author} />
                     <span aria-hidden className="text-muted-foreground">
                         ·
                     </span>
@@ -820,13 +911,18 @@ function CommitResult({ commit }: { commit: Commit }) {
     );
 }
 
-function Handle({ user }: { user: User }) {
+function Handle({ user }: { user: User | CommitAuthor }) {
     return (
         <span className="flex min-w-0 shrink items-center gap-1 font-mono text-[13px] text-muted-foreground">
             <span
                 aria-hidden
                 className="size-1.5 shrink-0 rounded-full"
-                style={{ background: laneColor(user.lane) }}
+                style={{
+                    background:
+                        'type' in user
+                            ? authorLaneColor(user)
+                            : laneColor(user.lane),
+                }}
             />
             <span className="truncate">@{user.handle}</span>
         </span>

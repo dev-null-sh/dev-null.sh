@@ -20,13 +20,20 @@ const offlineUrl = '/offline.html';
 const offlineFiles = [offlineUrl, '/favicon.ico', '/favicon.svg'];
 
 self.addEventListener('push', (event) => {
-    event.waitUntil(self.registration.showNotification('/dev/null · Remotes', {
-        body: 'You have a new message in Remotes.',
-        icon: '/icon-192.png',
-        tag: 'devnull-remotes',
-        silent: true,
-        data: { url: '/remotes' },
-    }));
+    event.waitUntil(Promise.all([
+        self.registration.showNotification('/dev/null · Remotes', {
+            body: 'You have a new message in Remotes.',
+            icon: '/icon-192.png',
+            tag: 'devnull-remotes',
+            silent: true,
+            data: { url: '/remotes' },
+        }),
+        self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+            for (const client of clients) {
+                client.postMessage({ type: 'remote-push' });
+            }
+        }),
+    ]));
 });
 
 self.addEventListener('notificationclick', (event) => {

@@ -229,6 +229,7 @@ function LiveStreamSheet({
                             <Button variant="secondary" asChild>
                                 <Link
                                     href={show(user)}
+                                    prefetch
                                     onClick={() => onOpenChange(false)}
                                 >
                                     Open profile

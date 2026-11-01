@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Contracts\Services\GitHubProvider;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use GdImage;
 use Illuminate\Support\Arr;
@@ -85,10 +85,10 @@ final readonly class OpenGraphCanvas
      *
      * @param  positive-int  $size
      */
-    public function avatar(User|Profile $owner, int $x, int $y, int $size, int $lane): void
+    public function avatar(User|Organization $owner, int $x, int $y, int $size, int $lane): void
     {
         $radius = $size / 2;
-        $corner = $owner instanceof Profile ? $size * 0.18 : $radius;
+        $corner = $owner instanceof Organization ? $size * 0.18 : $radius;
         $centerX = $x + $radius;
         $centerY = $y + $radius;
 
@@ -130,7 +130,7 @@ final readonly class OpenGraphCanvas
     /**
      * The mono handle, led by a dot in the user's lane.
      */
-    public function handle(User|Profile $owner, int $size, int $x, int $y, int $width, int $lane): void
+    public function handle(User|Organization $owner, int $size, int $x, int $y, int $width, int $lane): void
     {
         $this->circle($x + $size * 0.22, $y - $size * 0.34, $size * 0.22, $lane);
 
@@ -182,7 +182,7 @@ final readonly class OpenGraphCanvas
     /**
      * The name as Geist can draw it, or the handle when nothing is left.
      */
-    public function name(User|Profile $owner): string
+    public function name(User|Organization $owner): string
     {
         $name = $this->clean($owner->name);
 

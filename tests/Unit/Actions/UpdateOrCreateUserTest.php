@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\UpdateOrCreateUser;
 use App\Contracts\Services\GitHubProvider;
+use App\Models\Profile;
 use App\Models\User;
 use Laravel\Socialite\Two\User as GitHubUser;
 
@@ -27,6 +28,7 @@ it('creates a user from github', function (): void {
 
     expect($user->exists)->toBeTrue()
         ->and($user->github_id)->toBe('583231')
+        ->and($user->id)->toBe(Profile::query()->where('github_id', '583231')->sole()->id)
         ->and($user->handle)->toBe('octocat')
         ->and($user->name)->toBe('The Octocat')
         ->and($user->email)->toBe('octocat@github.com')
@@ -239,7 +241,7 @@ it('moves an existing bot to its reserved handle when the github owner signs in'
     $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
     $bot = User::factory()->create(['github_id' => $githubId, 'handle' => mb_strtolower($handle)]);
     $profile = $bot->only(['id', 'name', 'avatar_url', 'bio', 'onboarded_at', 'remotes_enabled']);
-    $post = $bot->commits()->create(['body' => 'An existing bot post.']);
+    $post = $bot->commits()->create(['user_id' => $bot->id, 'body' => 'An existing bot post.']);
     $friend = User::factory()->create();
     $bot->following()->attach($friend);
     $friend->following()->attach($bot);

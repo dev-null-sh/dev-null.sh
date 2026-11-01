@@ -6,6 +6,8 @@ namespace App\Services\AnalyticsProviders;
 
 use App\Contracts\Services\AnalyticsProvider;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
+use Carbon\CarbonPeriod;
 use Closure;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Http\Client\PendingRequest;
@@ -16,7 +18,10 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Fluent;
 
 /**
+ * @phpstan-import-type TrafficTotals from AnalyticsProvider
+ * @phpstan-import-type TrafficPoint from AnalyticsProvider
  * @phpstan-import-type TrafficBreakdown from AnalyticsProvider
+ * @phpstan-import-type TrafficFilter from AnalyticsProvider
  * @phpstan-import-type TrafficReport from AnalyticsProvider
  */
 final readonly class FathomAnalyticsProvider implements AnalyticsProvider
@@ -38,13 +43,30 @@ final readonly class FathomAnalyticsProvider implements AnalyticsProvider
     ];
 
     /**
+     * The aggregates of the totals, overall and over time.
+     */
+    private const string TOTALS = 'uniques,pageviews,avg_duration,bounce_rate';
+
+    /**
+     * Each filter and the Fathom field it matches.
+     */
+    private const array FILTERS = [
+        'page' => 'pathname',
+        'referrer' => 'referrer_hostname',
+        'country' => 'country_code',
+        'device' => 'device_type',
+        'browser' => 'browser',
+    ];
+
+    /**
      * Every Fathom API call counts against the account's monthly pageviews and hourly rate limit, so current visitors
      * are cached for a minute and each range's report for five. A failed read is not cached, so the next refresh tries
      * again.
      *
+     * @param  array<TrafficFilter, string>  $filters
      * @return TrafficReport|null
      */
-    public function traffic(CarbonImmutable $from, CarbonImmutable $to): ?array
+    public function traffic(CarbonImmutable $from, CarbonImmutable $to, array $filters = []): ?array
     {
         try {
             $current = Cache::remember('operations:fathom-current', 60, fn (): mixed => $this->request()
@@ -56,19 +78,12 @@ final readonly class FathomAnalyticsProvider implements AnalyticsProvider
                 return null;
             }
 
-            $report = Cache::remember("operations:fathom-report:{$from->toDateString()}:{$to->toDateString()}", 300, function () use ($from, $to): array {
-                $totals = $this->aggregate($from, $to, ['aggregates' => 'uniques,pageviews,avg_duration,bounce_rate'])->fluent('0');
-
-                return [
-                    'totals' => [
-                        'visitors' => $totals->integer('uniques'),
-                        'pageviews' => $totals->integer('pageviews'),
-                        'avg_duration' => $totals->integer('avg_duration'),
-                        'bounce_rate' => $totals->float('bounce_rate'),
-                    ],
-                    'breakdowns' => collect(self::BREAKDOWNS)->map(fn (string $field): array => $this->breakdown($from, $to, $field))->all(),
-                ];
-            });
+            $key = "operations:fathom-report:{$from->toDateString()}:{$to->toDateString()}:".hash('sha256', serialize($filters));
+            $report = Cache::remember($key, 300, fn (): array => [
+                'totals' => $this->totals($this->aggregate($from, $to, ['aggregates' => self::TOTALS], filters: $filters)->fluent('0')),
+                'timeline' => $this->timeline($from, $to, $filters),
+                'breakdowns' => collect(self::BREAKDOWNS)->map(fn (string $field): array => $this->breakdown($from, $to, $field, $filters))->all(),
+            ]);
         } catch (HttpClientException) {
             return null;
         }
@@ -150,11 +165,57 @@ final readonly class FathomAnalyticsProvider implements AnalyticsProvider
     }
 
     /**
+     * Fathom gives the bounce rate as a percentage.
+     *
+     * @param  Fluent<string, mixed>  $row
+     * @return TrafficTotals
+     */
+    private function totals(Fluent $row): array
+    {
+        return [
+            'visitors' => $row->integer('uniques'),
+            'pageviews' => $row->integer('pageviews'),
+            'avg_duration' => $row->integer('avg_duration'),
+            'bounce_rate' => $row->float('bounce_rate') / 100,
+        ];
+    }
+
+    /**
+     * Every hour of a single day, or every day of a longer range, up to now. Fathom leaves out the empty ones, so they
+     * count zero.
+     *
+     * @param  array<TrafficFilter, string>  $filters
+     * @return array<int, TrafficPoint>
+     */
+    private function timeline(CarbonImmutable $from, CarbonImmutable $to, array $filters): array
+    {
+        $isHourly = $from->isSameDay($to);
+        $rows = $this->aggregate($from, $to, [
+            'aggregates' => self::TOTALS,
+            'date_grouping' => $isHourly ? 'hour' : 'day',
+            'sort_by' => 'timestamp:asc',
+        ], filters: $filters)
+            ->collect()
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->mapInto(Fluent::class)
+            ->keyBy(fn (Fluent $row): string => $row->string('date')->value());
+
+        return collect(CarbonPeriod::create($from->utc()->startOfDay(), $isHourly ? '1 hour' : '1 day', $to->utc()->endOfDay()->min(now()))->toArray())
+            ->map(fn (CarbonInterface $at): array => [
+                'date' => $isHourly ? $at->toIso8601ZuluString() : $at->toDateString(),
+                ...$this->totals($rows->get($at->format($isHourly ? 'Y-m-d H:i:s' : 'Y-m-d'), new Fluent())),
+            ])
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<TrafficFilter, string>  $filters
      * @return array<int, TrafficBreakdown>
      */
-    private function breakdown(CarbonImmutable $from, CarbonImmutable $to, string $field): array
+    private function breakdown(CarbonImmutable $from, CarbonImmutable $to, string $field, array $filters): array
     {
-        return $this->aggregate($from, $to, ['aggregates' => 'uniques,pageviews', 'field_grouping' => $field, 'sort_by' => 'uniques:desc', 'limit' => 10])
+        return $this->aggregate($from, $to, ['aggregates' => 'uniques,pageviews', 'field_grouping' => $field, 'sort_by' => 'uniques:desc', 'limit' => 10], filters: $filters)
             ->collect()
             ->filter(fn (mixed $row): bool => is_array($row))
             ->mapInto(Fluent::class)
@@ -169,11 +230,12 @@ final readonly class FathomAnalyticsProvider implements AnalyticsProvider
 
     /**
      * The range runs from the start of its first day to the end of its last, or now when that is today. It reports on
-     * pageviews, or on the custom event named.
+     * pageviews, or on the custom event named, matching every filter.
      *
      * @param  array<string, string|int>  $query
+     * @param  array<TrafficFilter, string>  $filters
      */
-    private function aggregate(CarbonImmutable $from, CarbonImmutable $to, array $query, ?string $event = null): Response
+    private function aggregate(CarbonImmutable $from, CarbonImmutable $to, array $query, ?string $event = null, array $filters = []): Response
     {
         return $this->request()
             ->get('aggregations', [
@@ -183,6 +245,11 @@ final readonly class FathomAnalyticsProvider implements AnalyticsProvider
                 'date_from' => $from->utc()->startOfDay()->format('Y-m-d H:i:s'),
                 'date_to' => $to->utc()->endOfDay()->min(now())->format('Y-m-d H:i:s'),
                 'timezone' => 'UTC',
+                ...$filters === [] ? [] : ['filters' => json_encode(collect($filters)->map(fn (string $value, string $filter): array => [
+                    'property' => self::FILTERS[$filter],
+                    'operator' => 'is',
+                    'value' => $value,
+                ])->values()->all())],
                 ...$query,
             ])
             ->throw();

@@ -10,17 +10,17 @@ import type { Commit } from '../../resources/js/types';
 
 const commit = {
     id: 'commit',
-    user_id: 'author',
+    author: { id: 'author' },
     status: 'approved',
 } as Commit;
 
 async function desktopActionsClasses(isReply: boolean): Promise<string[]> {
     const result = await createInertiaApp<{
-        auth: { user: { id: string } | null };
+        auth: { organizations: [], user: { id: string } | null };
     }>({
         page: {
             component: 'actions',
-            props: { auth: { user: { id: 'viewer' } }, errors: {} },
+            props: { auth: { organizations: [], user: { id: 'viewer' } }, errors: {} },
             url: '/@author/commit',
             version: null,
             clearHistory: false,

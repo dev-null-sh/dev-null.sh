@@ -115,7 +115,15 @@ export default function Bulk({
                             key={preset.scale}
                             isActive={preset.scale === scale}
                             onClick={() =>
-                                router.reload({ data: { scale: preset.scale } })
+                                router.reload({
+                                    data: { scale: preset.scale },
+                                    only: [
+                                        'scale',
+                                        'activity',
+                                        'thresholds',
+                                        'moderation',
+                                    ],
+                                })
                             }
                         >
                             {preset.label}
@@ -207,6 +215,7 @@ function Row({
     return (
         <li className="flex items-center gap-3 px-4 py-3">
             <Link
+                prefetch
                 href={show(user)}
                 className="flex min-w-0 flex-1 items-center gap-3"
             >

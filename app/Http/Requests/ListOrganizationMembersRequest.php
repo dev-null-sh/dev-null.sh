@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Enums\OrganizationRole;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
@@ -21,9 +20,9 @@ final class ListOrganizationMembersRequest extends FormRequest
         assert($user instanceof User);
 
         $organization = $this->route('organization');
-        assert($organization instanceof Profile);
+        assert($organization instanceof Organization);
 
-        return $organization->roleOf($user) instanceof OrganizationRole ? Response::allow() : Response::denyAsNotFound();
+        return $organization->isMember($user) ? Response::allow() : Response::denyAsNotFound();
     }
 
     /**

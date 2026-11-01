@@ -8,7 +8,7 @@ use App\Enums\CommitStatus;
 use App\Enums\RepliesPerPage;
 use App\Enums\TopicType;
 use App\Models\Commit;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\CommitTranslations;
 use Illuminate\Contracts\Database\Query\Expression;
@@ -30,7 +30,8 @@ final class CommitBuilder extends Builder
      */
     private const array COLUMNS_BUT_EMBEDDING = [
         'id', 'user_id', 'body', 'created_at', 'updated_at', 'status', 'parent_id', 'deleted_at', 'link_preview_id',
-        'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count',
+        'quoted_commit_id', 'mentions', 'ai_decision', 'ai_categories', 'root_id', 'hot_score', 'pasteis_count', 'author_id',
+        'headlines_classified_at',
     ];
 
     /**
@@ -66,7 +67,7 @@ final class CommitBuilder extends Builder
 
     /**
      * Approved commits are visible to everyone, guests included, while authors may also see their own pending or rejected commits.
-     * A block hides each one's commits from the other.
+     * A block hides the commits from each one's profile from the other.
      */
     public function visibleTo(?User $user): self
     {
@@ -78,8 +79,8 @@ final class CommitBuilder extends Builder
             ->where($this->qualifyColumn('status'), CommitStatus::Approved)
             ->orWhere($this->qualifyColumn('user_id'), $user->id))
             ->where(fn (Builder $query): Builder => $query
-                ->whereNull($this->qualifyColumn('user_id'))
-                ->orWhereNotIn($this->qualifyColumn('user_id'), $user->idsAcrossBlocks()));
+                ->whereNull($this->qualifyColumn('author_id'))
+                ->orWhereNotIn($this->qualifyColumn('author_id'), $user->idsAcrossBlocks()));
     }
 
     /**
@@ -88,8 +89,8 @@ final class CommitBuilder extends Builder
     public function withoutMutedAuthorsFor(?User $user): self
     {
         return $user instanceof User ? $this->where(fn (Builder $query): Builder => $query
-            ->whereNull($this->qualifyColumn('user_id'))
-            ->orWhereNotIn($this->qualifyColumn('user_id'), $user->mutedIds())) : $this;
+            ->whereNull($this->qualifyColumn('author_id'))
+            ->orWhereNotIn($this->qualifyColumn('author_id'), $user->mutedIds())) : $this;
     }
 
     /**
@@ -179,7 +180,7 @@ final class CommitBuilder extends Builder
             ->from((new Commit)->getTable().' as earliest_reply')
             ->select('earliest_reply.id')
             ->whereColumn('earliest_reply.parent_id', $this->qualifyColumn('id'))
-            ->whereColumn('earliest_reply.user_id', $this->qualifyColumn('user_id'))
+            ->whereColumn('earliest_reply.author_id', $this->qualifyColumn('author_id'))
             ->oldest('earliest_reply.created_at')
             ->oldest('earliest_reply.id')
             ->limit(1);
@@ -204,7 +205,7 @@ final class CommitBuilder extends Builder
             'quotedCommit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withTrashed()
                 ->where(fn (self $query): self => $query->visibleTo($viewer))
-                ->with(['user', 'linkPreview', 'images'])
+                ->with(['author', 'linkPreview', 'images'])
                 ->withPollFor($viewer),
         ]);
     }
@@ -217,7 +218,7 @@ final class CommitBuilder extends Builder
     /**
      * The commits linked to the organization by a mention, whatever handle it had when they were written.
      */
-    public function mentioning(Profile $organization): self
+    public function mentioning(Organization $organization): self
     {
         return $this->whereExists(fn (QueryBuilder $query): QueryBuilder => $query
             ->from('commit_topics')
@@ -234,7 +235,7 @@ final class CommitBuilder extends Builder
         return $this
             ->withVisibleReplyCount(null)
             ->withCount('stars')
-            ->with(['user', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
+            ->with(['author', 'linkPreview', 'images', 'parent' => fn (BelongsTo $query): BelongsTo => $query->where('status', CommitStatus::Approved)]);
     }
 
     public function pending(): self
@@ -292,7 +293,7 @@ final class CommitBuilder extends Builder
     public function withCardDataFor(?User $viewer): self
     {
         return $this
-            ->with(['user', 'linkPreview', 'images'])
+            ->with(['author', 'linkPreview', 'images'])
             ->withQuotedCommitFor($viewer)
             ->withStarsFor($viewer)
             ->withPollFor($viewer)

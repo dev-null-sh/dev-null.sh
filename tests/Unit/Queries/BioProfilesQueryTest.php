@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use Illuminate\Support\Facades\DB;
 
 it('finds the users and organizations on dev/null the bio and company mention', function (): void {
-    Profile::factory()->organization()->create(['handle' => 'Laravel']);
+    Organization::factory()->create(['handle' => 'Laravel']);
     User::factory()->create(['handle' => 'taylorotwell']);
     $user = User::factory()->create(['bio' => 'Thanks @TaylorOtwell, not `@laravel` in code, and @nobody', 'company' => '@laravel']);
 

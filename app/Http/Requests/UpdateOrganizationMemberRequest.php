@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests;
 
 use App\Enums\OrganizationRole;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
@@ -25,8 +25,8 @@ final class UpdateOrganizationMemberRequest extends FormRequest
         assert($user instanceof User);
 
         return match (true) {
-            ! $this->organization()->roleOf($user) instanceof OrganizationRole || ! $this->organization()->roleOf($this->member()) instanceof OrganizationRole => Response::denyAsNotFound(),
-            $this->organization()->roleOf($user) !== OrganizationRole::Admin => Response::deny('Only admins can change roles.'),
+            ! $this->organization()->isMember($user) || ! $this->organization()->isMember($this->member()) => Response::denyAsNotFound(),
+            ! $this->organization()->isAdmin($user) => Response::deny('Only admins can change roles.'),
             $user->is($this->member()) && $this->role() === OrganizationRole::Admin => Response::deny("You're already an admin."),
             default => Response::allow(),
         };
@@ -54,10 +54,10 @@ final class UpdateOrganizationMemberRequest extends FormRequest
         }];
     }
 
-    public function organization(): Profile
+    public function organization(): Organization
     {
         $organization = $this->route('organization');
-        assert($organization instanceof Profile);
+        assert($organization instanceof Organization);
 
         return $organization;
     }

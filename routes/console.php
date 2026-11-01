@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\DeleteStoredFiles;
 use App\Jobs\EmbedKnowledgeBase;
 use App\Jobs\EndLiveStreams;
+use App\Models\Headline;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schedule;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Schedule;
 Schedule::command('commits:submit-scheduled')->everyMinute()->withoutOverlapping(5);
 Schedule::job(new EmbedKnowledgeBase())->hourly();
 Schedule::job(new EndLiveStreams())->everyFiveMinutes();
+Schedule::command('model:prune', ['--model' => [Headline::class]])->hourly()->withoutOverlapping();
 
 Schedule::call(function (): void {
     DB::table('pending_file_deletions')->orderBy('id')->chunkById(100, function (Collection $pending): void {
