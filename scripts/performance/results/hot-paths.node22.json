@@ -1,0 +1,110 @@
+{
+    "runtime": "v22.16.0",
+    "samples": 31,
+    "graph_parity_layouts": 300,
+    "emoji_parity_queries": 3096,
+    "results": [
+        {
+            "workload": "graph 20 replies",
+            "before_ms": 0.00683,
+            "after_ms": 0.00482,
+            "reduction_percent": 29.4
+        },
+        {
+            "workload": "graph 100 replies",
+            "before_ms": 0.09567,
+            "after_ms": 0.02311,
+            "reduction_percent": 75.8
+        },
+        {
+            "workload": "graph 500 replies",
+            "before_ms": 1.99698,
+            "after_ms": 0.1102,
+            "reduction_percent": 94.5
+        },
+        {
+            "workload": "graph 2000 replies",
+            "before_ms": 35.6511,
+            "after_ms": 0.54689,
+            "reduction_percent": 98.5
+        },
+        {
+            "workload": "graph 500 trunk-only nodes",
+            "before_ms": 0.05059,
+            "after_ms": 0.04906,
+            "reduction_percent": 3
+        },
+        {
+            "workload": "chat scroll 100 messages",
+            "before_ms": 0.00031,
+            "after_ms": 0.00007,
+            "reduction_percent": 77.3
+        },
+        {
+            "workload": "chat scroll 1000 messages",
+            "before_ms": 0.00422,
+            "after_ms": 0.00007,
+            "reduction_percent": 98.3
+        },
+        {
+            "workload": "chat scroll 10000 messages",
+            "before_ms": 0.03754,
+            "after_ms": 0.00007,
+            "reduction_percent": 99.8
+        },
+        {
+            "workload": "certificate scan 10 highlighted lines, no hash",
+            "before_ms": 0.00819,
+            "after_ms": 0.00017,
+            "reduction_percent": 97.9
+        },
+        {
+            "workload": "certificate scan 100 highlighted lines, no hash",
+            "before_ms": 0.07225,
+            "after_ms": 0.0009,
+            "reduction_percent": 98.8
+        },
+        {
+            "workload": "certificate match present",
+            "before_ms": 0.00033,
+            "after_ms": 0.00023,
+            "reduction_percent": 28.9
+        },
+        {
+            "workload": "emoji search \"\"",
+            "before_ms": 0.66144,
+            "after_ms": 0.5395,
+            "reduction_percent": 18.4
+        },
+        {
+            "workload": "emoji search \"a\"",
+            "before_ms": 0.58159,
+            "after_ms": 0.37784,
+            "reduction_percent": 35
+        },
+        {
+            "workload": "emoji search \"heart\"",
+            "before_ms": 0.09212,
+            "after_ms": 0.03109,
+            "reduction_percent": 66.3
+        },
+        {
+            "workload": "emoji search \"no_such_shortcode\"",
+            "before_ms": 0.05143,
+            "after_ms": 0.01105,
+            "reduction_percent": 78.5
+        },
+        {
+            "workload": "inbox search 100 conversations",
+            "before_ms": 0.03629,
+            "after_ms": 0.00532,
+            "reduction_percent": 85.3
+        },
+        {
+            "workload": "inbox search 1000 conversations",
+            "before_ms": 3.21808,
+            "after_ms": 0.05628,
+            "reduction_percent": 98.3
+        }
+    ]
+}

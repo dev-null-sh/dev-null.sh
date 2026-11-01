@@ -5,17 +5,36 @@ import type { Message } from '../../resources/js/types/index.ts';
 
 const originalCSS = globalThis.CSS;
 globalThis.CSS = { escape: (value: string) => value } as typeof CSS;
-after(() => { globalThis.CSS = originalCSS; });
+after(() => {
+    globalThis.CSS = originalCSS;
+});
 
-const messages = (count: number): Message[] => Array.from({ length: count }, (_, index) => ({ id: index + 1, client_id: `message-${index + 1}`, event: null }) as Message);
+const messages = (count: number): Message[] =>
+    Array.from(
+        { length: count },
+        (_, index) =>
+            ({
+                id: index + 1,
+                client_id: `message-${index + 1}`,
+                event: null,
+            }) as Message,
+    );
 
-function scroller(tops: Record<number, number>, bottom = 600, textTops = tops): HTMLElement {
+function scroller(
+    tops: Record<number, number>,
+    bottom = 600,
+    textTops = tops,
+): HTMLElement {
     return {
         getBoundingClientRect: () => ({ bottom }),
         querySelector: (selector: string) => {
             const id = Number(selector.match(/\d+/)?.[0]);
-            const positions = selector.startsWith('[data-message-id=') ? textTops : tops;
-            return positions[id] === undefined ? null : { getBoundingClientRect: () => ({ top: positions[id] }) };
+            const positions = selector.startsWith('[data-message-id=')
+                ? textTops
+                : tops;
+            return positions[id] === undefined
+                ? null
+                : { getBoundingClientRect: () => ({ top: positions[id] }) };
         },
     } as unknown as HTMLElement;
 }
@@ -37,7 +56,11 @@ void test('does not offer a scroll shortcut for fewer than 25 messages or missin
 });
 
 void test('counts messages rather than org events or gaps in server ids', () => {
-    const rows = messages(30).map((message) => ({ ...message, id: message.id * 10, client_id: `message-${message.id * 10}` }));
+    const rows = messages(30).map((message) => ({
+        ...message,
+        id: message.id * 10,
+        client_id: `message-${message.id * 10}`,
+    }));
     rows.push({ id: 999, event: { type: 'joined' } } as unknown as Message);
 
     assert.equal(isBehindLatest(scroller({ 60: 601, 70: 599 }), rows), true);
@@ -45,7 +68,10 @@ void test('counts messages rather than org events or gaps in server ids', () => 
 
 void test('uses the actual viewport edge and bubble height instead of a fixed pixel distance', () => {
     assert.equal(isBehindLatest(scroller({ 6: 430 }, 420), messages(30)), true);
-    assert.equal(isBehindLatest(scroller({ 6: 430 }, 650), messages(30)), false);
+    assert.equal(
+        isBehindLatest(scroller({ 6: 430 }, 650), messages(30)),
+        false,
+    );
 });
 
 void test('offers the present when an image-only message is the newest-25 boundary', () => {
@@ -57,5 +83,20 @@ void test('offers the present when an image-only message is the newest-25 bounda
 });
 
 void test('keeps the shortcut hidden while a boundary image is visible above its text caption', () => {
-    assert.equal(isBehindLatest(scroller({ 6: 599 }, 600, { 6: 650 }), messages(30)), false);
+    assert.equal(
+        isBehindLatest(scroller({ 6: 599 }, 600, { 6: 650 }), messages(30)),
+        false,
+    );
+});
+
+void test('does not inspect old history once the newest 25 messages are found', () => {
+    const rows = messages(10_000);
+    for (const row of rows.slice(0, -25)) {
+        Object.defineProperty(row, 'event', {
+            get: () => {
+                throw new Error('Scrolled through old history');
+            },
+        });
+    }
+    assert.equal(isBehindLatest(scroller({ 9976: 601 }), rows), true);
 });

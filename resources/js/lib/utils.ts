@@ -58,24 +58,47 @@ export function readerClock(): Clock {
     );
 }
 
-const dayFormats = new Map<string, Intl.DateTimeFormat>();
+// Bound process-wide SSR caches; keys include every option, never a reader's clock alone.
+const dateFormats = new Map<string, Intl.DateTimeFormat>();
+const MAX_DATE_FORMATS = 128;
+
+function dateFormat(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
+    const key = JSON.stringify(options);
+    let format = dateFormats.get(key);
+
+    if (format === undefined) {
+        format = new Intl.DateTimeFormat(dateLocale, options);
+
+        if (dateFormats.size >= MAX_DATE_FORMATS) {
+            dateFormats.delete(dateFormats.keys().next().value!);
+        }
+
+        dateFormats.set(key, format);
+    }
+
+    return format;
+}
+
+// Match Date.toLocaleString's behavior for invalid dates.
+function formatDate(date: Date, options: Intl.DateTimeFormatOptions): string {
+    return Number.isNaN(date.getTime())
+        ? 'Invalid Date'
+        : dateFormat(options).format(date);
+}
+
+let relativeFormat: Intl.RelativeTimeFormat | undefined;
 
 /** The calendar day a moment falls on in a time zone. */
 function dayIn(
     date: Date,
     timeZone: string,
 ): { year: number; month: number; day: number } {
-    let format = dayFormats.get(timeZone);
-
-    if (format === undefined) {
-        format = new Intl.DateTimeFormat(dateLocale, {
-            timeZone,
-            year: 'numeric',
-            month: 'numeric',
-            day: 'numeric',
-        });
-        dayFormats.set(timeZone, format);
-    }
+    const format = dateFormat({
+        timeZone,
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+    });
 
     const parts = Object.fromEntries(
         format.formatToParts(date).map((part) => [part.type, part.value]),
@@ -127,7 +150,7 @@ export function formatRelativeTime(date: string, now: Date = new Date()) {
 
     const { timeZone } = readerClock();
 
-    return new Date(date).toLocaleDateString(dateLocale, {
+    return formatDate(new Date(date), {
         month: 'short',
         day: 'numeric',
         year:
@@ -139,7 +162,7 @@ export function formatRelativeTime(date: string, now: Date = new Date()) {
 }
 
 export function formatFullDate(date: string): string {
-    return new Date(date).toLocaleDateString(dateLocale, {
+    return formatDate(new Date(date), {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
@@ -150,9 +173,7 @@ export function formatFullDate(date: string): string {
 export function formatFullDateTime(date: string, timeZone?: string): string {
     const zone = timeZone ?? readerClock().timeZone;
 
-    return `${formatZonedTime(date, zone)} · ${new Date(
-        date,
-    ).toLocaleDateString(dateLocale, {
+    return `${formatZonedTime(date, zone)} · ${formatDate(new Date(date), {
         month: 'short',
         day: 'numeric',
         year: 'numeric',
@@ -176,10 +197,11 @@ export function formatSyncedAgo(date: string, now: Date): string {
               ? [Math.floor(seconds / 3600), 'hour']
               : [Math.floor(seconds / 86400), 'day'];
 
-    return new Intl.RelativeTimeFormat(dateLocale, { numeric: 'auto' }).format(
-        -value,
-        unit,
-    );
+    relativeFormat ??= new Intl.RelativeTimeFormat(dateLocale, {
+        numeric: 'auto',
+    });
+
+    return relativeFormat.format(-value, unit);
 }
 
 export function laneColor(lane: Lane): string {
@@ -299,7 +321,7 @@ export function formatDayLabel(date: string, now: Date = new Date()): string {
         return 'Yesterday';
     }
 
-    return new Date(date).toLocaleDateString(dateLocale, {
+    return formatDate(new Date(date), {
         weekday: 'short',
         month: 'short',
         day: 'numeric',
@@ -314,7 +336,7 @@ export function browserTimeZone(): string {
 
 /** A time of day in a time zone, its hours running as the reader's clock does. */
 export function formatZonedTime(date: string, timeZone: string): string {
-    return new Date(date).toLocaleTimeString(dateLocale, {
+    return formatDate(new Date(date), {
         hour: 'numeric',
         minute: '2-digit',
         hourCycle: readerClock().hourCycle,
@@ -331,7 +353,7 @@ export function formatClockTime(date: string): string {
 export function formatClockDateTime(date: string): string {
     const { timeZone, hourCycle } = readerClock();
 
-    return new Date(date).toLocaleString(dateLocale, {
+    return formatDate(new Date(date), {
         dateStyle: 'medium',
         timeStyle: 'short',
         hourCycle,
@@ -341,7 +363,7 @@ export function formatClockDateTime(date: string): string {
 
 /** The month a moment falls in on the reader's calendar, like `October 2026`. */
 export function formatClockMonth(date: string): string {
-    return new Date(date).toLocaleDateString(dateLocale, {
+    return formatDate(new Date(date), {
         month: 'long',
         year: 'numeric',
         timeZone: readerClock().timeZone,
@@ -351,7 +373,7 @@ export function formatClockMonth(date: string): string {
 /** The hour, from 0 to 23, and the minute a moment falls on on the reader's clock. */
 export function clockTimeOf(date: string): { hour: number; minute: number } {
     const parts = Object.fromEntries(
-        new Intl.DateTimeFormat(dateLocale, {
+        dateFormat({
             hour: 'numeric',
             minute: 'numeric',
             hourCycle: 'h23',
@@ -368,7 +390,7 @@ export function clockTimeOf(date: string): { hour: number; minute: number } {
  * The offset a timezone has at a moment, like `UTC +02:00`, or `UTC` when it has none.
  */
 export function formatUtcOffset(date: Date, timeZone: string): string {
-    const offset = new Intl.DateTimeFormat('en-US', {
+    const offset = dateFormat({
         timeZone,
         timeZoneName: 'longOffset',
     })
@@ -385,7 +407,7 @@ export function formatUtcOffset(date: Date, timeZone: string): string {
 export function formatZonedDate(date: string, timeZone: string): string {
     const value = new Date(date);
 
-    return value.toLocaleDateString(dateLocale, {
+    return formatDate(value, {
         month: 'short',
         day: 'numeric',
         year:
