@@ -872,7 +872,60 @@ for (const log of ['latest', 'following'] as const) {
         assert.equal(result.currentScroll(), 0);
         vi.advanceTimersByTime(450);
         assert.equal(
-            result.render().some((node) => node.type === 'button'),
+            result
+                .render()
+                .some(
+                    (node) =>
+                        node.type === 'button' &&
+                        node.props['data-test'] !== 'return-to-reading',
+                ),
+            false,
+        );
+    });
+    test(`offers a way back to the reading row after jumping to the top of ${log}`, () => {
+        const result = insertAt(1500, false, [], log);
+        const button = result.finish().find((node) => node.type === 'button')!;
+        const readingAt = result.currentScroll();
+        (button.props.onClick as () => void)();
+        result.progressScroll(0, 0);
+        vi.advanceTimersByTime(450);
+        const back = result
+            .render()
+            .find((node) => node.props['data-test'] === 'return-to-reading')!;
+        assert.ok(back);
+        (back.props.onClick as () => void)();
+        assert.equal(result.currentScroll(), readingAt);
+        assert.equal(
+            result
+                .render()
+                .some(
+                    (node) => node.props['data-test'] === 'return-to-reading',
+                ),
+            false,
+        );
+    });
+    test(`drops the way back once the reader scrolls there on ${log}`, () => {
+        const result = insertAt(1500, false, [], log);
+        const button = result.finish().find((node) => node.type === 'button')!;
+        const readingAt = result.currentScroll();
+        (button.props.onClick as () => void)();
+        result.progressScroll(0, 0);
+        vi.advanceTimersByTime(450);
+        result.scrollTo(readingAt - 300);
+        assert.ok(
+            result
+                .render()
+                .some(
+                    (node) => node.props['data-test'] === 'return-to-reading',
+                ),
+        );
+        result.scrollTo(readingAt);
+        assert.equal(
+            result
+                .render()
+                .some(
+                    (node) => node.props['data-test'] === 'return-to-reading',
+                ),
             false,
         );
     });

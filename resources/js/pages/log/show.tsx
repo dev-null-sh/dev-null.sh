@@ -1,6 +1,6 @@
 import type { CancelToken, PageProps } from '@inertiajs/core';
 import { Head, Link, router, usePage, usePoll } from '@inertiajs/react';
-import { ArrowUp } from 'lucide-react';
+import { ArrowDown, ArrowUp } from 'lucide-react';
 import {
     useCallback,
     useEffect,
@@ -46,6 +46,10 @@ export default function Show({
         commits: Commit[];
         leaving: boolean;
     } | null>(null);
+    const [readingRow, setReadingRow] = useState<{
+        id: string;
+        offset: number;
+    } | null>(null);
     const [stateLog, setStateLog] = useState(log);
     const loadRequest = useRef<CancelToken | null>(null);
     const loadingNew = useRef(false);
@@ -55,6 +59,7 @@ export default function Show({
     if (stateLog !== log) {
         setStateLog(log);
         setNotice(null);
+        setReadingRow(null);
     }
 
     const commitDialogClosedCount = useCommitDialogClosedCount();
@@ -69,7 +74,7 @@ export default function Show({
         top: number;
         scrollY: number;
     } | null>(null);
-    const returningToTop = useRef(false);
+    const jumping = useRef(false);
     const nativeAnchoring = useRef<string | null>(null);
     const [composer, setComposer] = useState<HTMLDivElement | null>(null);
     useLaneSwipe(feedRef, log);
@@ -77,7 +82,7 @@ export default function Show({
 
     useLayoutEffect(() => {
         followAnchor.current = null;
-        returningToTop.current = false;
+        jumping.current = false;
 
         return () => {
             if (nativeAnchoring.current !== null) {
@@ -107,7 +112,7 @@ export default function Show({
 
     const preserveReadingPosition = useCallback(
         (ids: Set<string>) => {
-            if (returningToTop.current) return;
+            if (jumping.current) return;
             const headerBottom =
                 tabsRef.current?.getBoundingClientRect().bottom ?? 0;
             const focused = document.activeElement?.closest<HTMLElement>(
@@ -146,7 +151,7 @@ export default function Show({
     );
 
     const restoreReadingPosition = useCallback(() => {
-        if (returningToTop.current) return;
+        if (jumping.current) return;
         const anchor = followAnchor.current;
         if (!anchor?.row.isConnected) return;
 
@@ -187,7 +192,7 @@ export default function Show({
         };
         let scrollTimer: ReturnType<typeof setTimeout> | undefined;
         const updateScroll = () => {
-            if (!returningToTop.current) {
+            if (!jumping.current) {
                 restoreReadingPosition();
                 return;
             }
@@ -195,7 +200,7 @@ export default function Show({
             // Smooth scrolling owns the viewport until it finishes or the reader interrupts it.
             clearTimeout(scrollTimer);
             scrollTimer = setTimeout(() => {
-                returningToTop.current = false;
+                jumping.current = false;
                 preserveReadingPosition(
                     new Set(commits.data.map((commit) => commit.id)),
                 );
@@ -206,7 +211,7 @@ export default function Show({
         window.addEventListener('scroll', updateScroll, {
             passive: true,
         });
-        if (returningToTop.current) updateScroll();
+        if (jumping.current) updateScroll();
 
         return () => {
             observer.disconnect();
@@ -518,6 +523,58 @@ export default function Show({
         };
     }, [dismissNotice]);
 
+    const feedRows = useCallback(
+        () =>
+            Array.from(
+                feedRef.current?.querySelectorAll<HTMLElement>(
+                    '[data-commit]',
+                ) ?? [],
+            ),
+        [],
+    );
+
+    // Once the reader scrolls back to the row on their own, or it is gone, the way back is no longer needed.
+    useEffect(() => {
+        if (readingRow === null) return;
+        const update = () => {
+            if (jumping.current) return;
+            const headerBottom =
+                tabsRef.current?.getBoundingClientRect().bottom ?? 0;
+            const row = feedRows().find(
+                (row) => row.dataset.commit === readingRow.id,
+            );
+            if (
+                !row?.isConnected ||
+                row.getBoundingClientRect().top <=
+                    headerBottom + readingRow.offset
+            )
+                setReadingRow(null);
+        };
+        window.addEventListener('scroll', update, { passive: true });
+
+        return () => window.removeEventListener('scroll', update);
+    }, [readingRow, feedRows]);
+
+    const returnToReadingRow = () => {
+        const row = feedRows().find(
+            (row) => row.dataset.commit === readingRow?.id,
+        );
+        setReadingRow(null);
+        if (!row || readingRow === null) return;
+        const headerBottom =
+            tabsRef.current?.getBoundingClientRect().bottom ?? 0;
+        const top =
+            window.scrollY +
+            row.getBoundingClientRect().top -
+            headerBottom -
+            readingRow.offset;
+        // A scroll that goes nowhere fires no scroll event, which would leave the jump owning the viewport.
+        if (Math.abs(top - window.scrollY) < 1) return;
+        jumping.current = true;
+        followAnchor.current = null;
+        window.scrollTo({ top, behavior: 'smooth' });
+    };
+
     const authors = [
         ...new Map(
             notice?.commits.map((commit) => [commit.author.id, commit.author]),
@@ -571,7 +628,25 @@ export default function Show({
                     <button
                         type="button"
                         onClick={() => {
-                            returningToTop.current = true;
+                            const headerBottom =
+                                tabsRef.current?.getBoundingClientRect()
+                                    .bottom ?? 0;
+                            const row = feedRows().find(
+                                (row) =>
+                                    row.getBoundingClientRect().bottom >
+                                    headerBottom,
+                            );
+                            setReadingRow(
+                                row
+                                    ? {
+                                          id: row.dataset.commit ?? '',
+                                          offset:
+                                              row.getBoundingClientRect().top -
+                                              headerBottom,
+                                      }
+                                    : null,
+                            );
+                            jumping.current = true;
                             followAnchor.current = null;
                             window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
@@ -615,6 +690,25 @@ export default function Show({
                             )}
                         </span>
                         <span className="min-w-0 truncate">New commits</span>
+                    </button>
+                </div>
+            )}
+
+            {notice === null && readingRow !== null && (
+                <div
+                    className="pointer-events-none sticky z-10 flex h-0 items-start justify-center"
+                    style={{ top: tabsHeight }}
+                >
+                    <button
+                        type="button"
+                        onClick={returnToReadingRow}
+                        className="pointer-events-auto mt-3 flex min-h-11 max-w-[calc(100vw-2rem)] items-center justify-center gap-1.5 rounded-md border bg-card px-4 py-1.5 text-sm font-medium text-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-accent motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+                        data-test="return-to-reading"
+                    >
+                        <ArrowDown className="size-4 shrink-0" />
+                        <span className="min-w-0 truncate">
+                            Back to where you were
+                        </span>
                     </button>
                 </div>
             )}
