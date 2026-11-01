@@ -12,9 +12,18 @@ let refCursor = 0;
 let signedIn = true;
 let remotesEnabled = true;
 let canReport = false;
+let relationship: {
+    isFollowing: boolean;
+    isMuting: boolean;
+    isBlocking: boolean;
+} | null = null;
 const sendMessage = vi.fn();
 const visit = vi.fn();
 const copyLink = vi.fn();
+const signIn = vi.fn();
+const visitSafety = vi.fn();
+const forgetPreview = vi.fn();
+const setIsFollowing = vi.fn();
 
 vi.doMock('react', () => ({
     ...React,
@@ -30,7 +39,7 @@ vi.doMock('react', () => ({
     },
 }));
 vi.doMock('@inertiajs/react', () => ({
-    router: { visit },
+    router: { visit, flushAll: () => undefined },
     usePage: () => ({
         props: {
             auth: {
@@ -55,15 +64,34 @@ vi.doMock('../../resources/js/components/commit-report-button', () => ({
     useCanReport: () => canReport,
 }));
 vi.doMock('../../resources/js/components/user-preview', () => ({
-    forgetPreview: () => undefined,
-    usePreviewRelationship: () => null,
+    forgetPreview,
+    usePreviewRelationship: () => relationship,
 }));
+vi.doMock('../../resources/js/components/user-safety-menu', () => ({
+    BlockUserDialog: () => null,
+    visitSafety,
+}));
+vi.doMock('../../resources/js/components/follow-button', () => ({
+    followVisitOptions: () => ({}),
+    onFollowHttpException: () => false,
+    useIsFollowing: (_user: unknown, isFollowing: boolean) => [
+        isFollowing,
+        setIsFollowing,
+    ],
+}));
+vi.doMock('../../resources/js/lib/auth', () => ({ signIn }));
 
 const { CommitSecondaryActions } =
     await import('../../resources/js/components/commit-secondary-actions');
 const { Dialog } = await import('../../resources/js/components/ui/dialog');
 const { default: CommitController } =
     await import('../../resources/js/actions/App/Http/Controllers/CommitController');
+const { default: UserBlockController } =
+    await import('../../resources/js/actions/App/Http/Controllers/UserBlockController');
+const { default: UserFollowController } =
+    await import('../../resources/js/actions/App/Http/Controllers/UserFollowController');
+const { default: UserMuteController } =
+    await import('../../resources/js/actions/App/Http/Controllers/UserMuteController');
 const commit = {
     id: '123e4567-e89b-12d3-a456-426614174000',
     author: { id: 'author', handle: 'author' },
@@ -80,7 +108,12 @@ afterEach(() => {
     signedIn = true;
     remotesEnabled = true;
     canReport = false;
+    relationship = null;
     sendMessage.mockClear();
+    signIn.mockClear();
+    visitSafety.mockClear();
+    forgetPreview.mockClear();
+    setIsFollowing.mockClear();
     visit.mockClear();
     copyLink.mockClear();
     vi.unstubAllGlobals();
@@ -143,11 +176,13 @@ function closeShareMenu(
     )!;
     let prevented = false;
 
-    (menu.props.onCloseAutoFocus as (event: Event) => void)({
-        preventDefault: () => {
-            prevented = true;
-        },
-    } as Event);
+    (menu.props.onCloseAutoFocus as (event: Event) => void)(
+        {
+            preventDefault: () => {
+                prevented = true;
+            },
+        } as Event,
+    );
 
     return prevented;
 }
@@ -168,9 +203,9 @@ function confirm(value: Commit = commit): Element[] {
     const picker = selected.find(
         (element) => element.props.pickerScope === 'share',
     )!;
-    (picker.props.onCloseAutoFocus as (event: Event) => void)({
-        preventDefault() {},
-    } as Event);
+    (picker.props.onCloseAutoFocus as (event: Event) => void)(
+        { preventDefault() {} } as Event,
+    );
     return render(value);
 }
 
@@ -191,9 +226,8 @@ test('only offers sharing for signed-in developers with Remotes and approved com
             false,
         );
         assert.equal(
-            tree.find(
-                (element) => typeof element.props.onPending === 'function',
-            )!.props.canSend,
+            tree.find((element) => typeof element.props.onPending === 'function')!
+                .props.canSend,
             false,
         );
     }
@@ -369,8 +403,9 @@ test('cancelling the recipient picker restores focus to Share', () => {
     (picker.props.onOpenChange as (open: boolean) => void)(false);
     const preventDefault = vi.fn();
     (
-        render().find((element) => element.props.pickerScope === 'share')!.props
-            .onCloseAutoFocus as (event: Event) => void
+        render().find(
+            (element) => element.props.pickerScope === 'share',
+        )!.props.onCloseAutoFocus as (event: Event) => void
     )({ preventDefault } as unknown as Event);
 
     assert.equal(preventDefault.mock.calls.length, 1);
@@ -390,20 +425,20 @@ test('closing the confirmation returns focus to Share', () => {
     const focus = vi.fn();
     (menu.props.triggerRef as { current: unknown }).current = { focus };
 
-    const cancel = tree.find((element) => element.props.variant === 'outline')!;
+    const cancel = tree.find(
+        (element) => element.props.variant === 'outline',
+    )!;
     (cancel.props.onClick as () => void)();
 
     const preventDefault = vi.fn();
     const content = render().find(
         (element) =>
             typeof element.props.className === 'string' &&
-            element.props.className.includes(
-                'grid-rows-[auto_minmax(0,1fr)_auto]',
-            ),
+            element.props.className.includes('grid-rows-[auto_minmax(0,1fr)_auto]'),
     )!;
-    (content.props.onCloseAutoFocus as (event: Event) => void)({
-        preventDefault,
-    } as unknown as Event);
+    (content.props.onCloseAutoFocus as (event: Event) => void)(
+        { preventDefault } as unknown as Event,
+    );
 
     assert.equal(preventDefault.mock.calls.length, 1);
     assert.equal(focus.mock.calls.length, 1);
@@ -433,6 +468,11 @@ test('copying the link does not open the recipient picker', () => {
     );
 });
 
+const userCommit = {
+    ...commit,
+    author: { ...commit.author, type: 'user' },
+} as Commit;
+
 function select(
     dataTest: string,
     value: Commit = commit,
@@ -445,14 +485,42 @@ function select(
     )();
 }
 
+function component(tree: Element[], name: string): Element | undefined {
+    return tree.find(
+        (element) =>
+            typeof element.type === 'function' && element.type.name === name,
+    );
+}
+
+function authorItems(onBlock: () => void = () => undefined): Element[] {
+    const items = component(render(userCommit), 'CommitAuthorItems')!;
+
+    return elements(
+        (items.type as (props: Record<string, unknown>) => ReactNode)({
+            ...items.props,
+            onBlock,
+        }),
+    );
+}
+
+function authorItem(dataTest: string, onBlock?: () => void): Element {
+    return authorItems(onBlock).find(
+        (element) => element.props['data-test'] === dataTest,
+    )!;
+}
+
+function text(element: Element): string {
+    return elements(element)
+        .flatMap((child) =>
+            React.Children.toArray(child.props.children as ReactNode),
+        )
+        .filter((child) => typeof child === 'string')
+        .join('');
+}
+
 test('reporting opens the report dialog once the menu has closed', () => {
     canReport = true;
-    const dialog = () =>
-        render().find(
-            (element) =>
-                typeof element.type === 'function' &&
-                element.type.name === 'CommitReportDialog',
-        )!;
+    const dialog = () => component(render(), 'CommitReportDialog')!;
 
     select('report-commit');
     assert.equal(dialog().props.open, false);
@@ -499,51 +567,155 @@ test('only offers deleting when the card can delete the commit', () => {
     );
 });
 
-test("offers following, muting and blocking the author of other people's commits only", () => {
-    const followItem = (value: Commit) =>
-        render(value).some(
-            (element) =>
-                typeof element.type === 'function' &&
-                element.type.name === 'CommitAuthorItems',
-        );
-    const author = { ...commit.author, type: 'user' } as Commit['author'];
+test('offers following, muting and blocking the author of other people\'s commits only', () => {
+    const author = userCommit.author;
 
-    assert.equal(followItem({ ...commit, author }), true);
+    assert.ok(component(render(userCommit), 'CommitAuthorItems'));
     assert.equal(
-        followItem({
-            ...commit,
-            author: { ...author, id: 'viewer' } as Commit['author'],
-        }),
-        false,
+        component(
+            render({
+                ...userCommit,
+                author: { ...author, id: 'viewer' },
+            } as Commit),
+            'CommitAuthorItems',
+        ),
+        undefined,
     );
     assert.equal(
-        followItem({
-            ...commit,
-            author: { ...author, type: 'organization' } as Commit['author'],
-        }),
+        component(
+            render({
+                ...userCommit,
+                author: { ...author, type: 'organization' },
+            } as Commit),
+            'CommitAuthorItems',
+        ),
+        undefined,
+    );
+});
+
+test('waits for the author\'s preview before offering follow, mute or block', () => {
+    for (const dataTest of [
+        'follow-commit-author',
+        'mute-commit-author',
+        'block-commit-author',
+    ]) {
+        assert.equal(authorItem(dataTest).props.disabled, true);
+    }
+});
+
+test('follows the author, then shares that they are followed', () => {
+    relationship = { isFollowing: false, isMuting: false, isBlocking: false };
+    const follow = authorItem('follow-commit-author');
+    assert.equal(follow.props.disabled, false);
+    assert.equal(text(follow), 'Follow @author');
+
+    (follow.props.onSelect as () => void)();
+
+    assert.deepEqual(
+        visit.mock.calls[0][0],
+        UserFollowController.store(userCommit.author),
+    );
+    (visit.mock.calls[0][1] as { onSuccess: () => void }).onSuccess();
+    assert.deepEqual(setIsFollowing.mock.calls, [[true]]);
+});
+
+test('unfollows an author already followed', () => {
+    relationship = { isFollowing: true, isMuting: false, isBlocking: false };
+    const unfollow = authorItem('follow-commit-author');
+    assert.equal(text(unfollow), 'Unfollow @author');
+
+    (unfollow.props.onSelect as () => void)();
+
+    assert.deepEqual(
+        visit.mock.calls[0][0],
+        UserFollowController.destroy(userCommit.author),
+    );
+});
+
+test('guests are only offered following, which signs them in', () => {
+    signedIn = false;
+    const items = authorItems();
+    assert.equal(
+        items.some((element) =>
+            ['mute-commit-author', 'block-commit-author'].includes(
+                element.props['data-test'] as string,
+            ),
+        ),
         false,
+    );
+
+    const follow = authorItem('follow-commit-author');
+    assert.equal(follow.props.disabled, false);
+    (follow.props.onSelect as () => void)();
+
+    assert.equal(signIn.mock.calls.length, 1);
+    assert.equal(visit.mock.calls.length, 0);
+});
+
+test('muting and unmuting forget the author\'s stale preview', () => {
+    for (const isMuting of [false, true]) {
+        visitSafety.mockClear();
+        forgetPreview.mockClear();
+        relationship = { isFollowing: false, isMuting, isBlocking: false };
+        const mute = authorItem('mute-commit-author');
+        assert.equal(
+            text(mute),
+            `${isMuting ? 'Unmute' : 'Mute'} @author`,
+        );
+
+        (mute.props.onSelect as () => void)();
+
+        assert.deepEqual(
+            visitSafety.mock.calls[0][0],
+            isMuting
+                ? UserMuteController.destroy(userCommit.author)
+                : UserMuteController.store(userCommit.author),
+        );
+        (visitSafety.mock.calls[0][1] as { onSuccess: () => void }).onSuccess();
+        assert.deepEqual(forgetPreview.mock.calls, [[userCommit.author]]);
+    }
+});
+
+test('blocking asks for confirmation instead of blocking right away', () => {
+    relationship = { isFollowing: false, isMuting: false, isBlocking: false };
+    const onBlock = vi.fn();
+    const block = authorItem('block-commit-author', onBlock);
+    assert.equal(text(block), 'Block @author');
+    assert.equal(block.props.variant, 'destructive');
+
+    (block.props.onSelect as () => void)();
+
+    assert.equal(onBlock.mock.calls.length, 1);
+    assert.equal(visitSafety.mock.calls.length, 0);
+});
+
+test('a blocked author can be unblocked but not followed', () => {
+    relationship = { isFollowing: false, isMuting: false, isBlocking: true };
+    const onBlock = vi.fn();
+    assert.equal(
+        authorItems().some(
+            (element) => element.props['data-test'] === 'follow-commit-author',
+        ),
+        false,
+    );
+
+    const unblock = authorItem('block-commit-author', onBlock);
+    assert.equal(text(unblock), 'Unblock @author');
+    (unblock.props.onSelect as () => void)();
+
+    assert.equal(onBlock.mock.calls.length, 0);
+    assert.deepEqual(
+        visitSafety.mock.calls[0][0],
+        UserBlockController.destroy(userCommit.author),
     );
 });
 
 test('blocking confirms in a dialog once the menu has closed', () => {
-    const value = {
-        ...commit,
-        author: { ...commit.author, type: 'user' },
-    } as Commit;
-    const dialog = () =>
-        render(value).find(
-            (element) =>
-                typeof element.type === 'function' &&
-                element.type.name === 'BlockUserDialog',
-        )!;
-    const items = render(value).find(
-        (element) =>
-            typeof element.type === 'function' &&
-            element.type.name === 'CommitAuthorItems',
-    )!;
+    const dialog = () => component(render(userCommit), 'BlockUserDialog')!;
+    const items = component(render(userCommit), 'CommitAuthorItems')!;
 
     (items.props.onBlock as () => void)();
     assert.equal(dialog().props.open, false);
-    assert.equal(closeShareMenu(value), true);
+    assert.equal(closeShareMenu(userCommit), true);
     assert.equal(dialog().props.open, true);
 });

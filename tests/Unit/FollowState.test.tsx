@@ -75,10 +75,7 @@ vi.doMock('@inertiajs/react', async () => ({
             }
 
             return () =>
-                navigateListeners.splice(
-                    navigateListeners.indexOf(listener),
-                    1,
-                );
+                navigateListeners.splice(navigateListeners.indexOf(listener), 1);
         },
         replaceProp: (
             _key: string,
@@ -301,10 +298,7 @@ for (const followsYou of [true, false]) {
             );
             assert.ok(row);
             const control = render(row) as ReactElement<Props>;
-            const button = find(
-                render(control),
-                (props) => 'aria-label' in props,
-            );
+            const button = find(render(control), (props) => 'aria-label' in props);
             assert.ok(button);
             assert.equal(
                 button.props['aria-label'],
@@ -340,8 +334,7 @@ for (const type of [
             });
 
             assert.equal(
-                find(page, (props) => props.children === 'Follows you') !==
-                    null,
+                find(page, (props) => props.children === 'Follows you') !== null,
                 type === 'followers' && followsYou,
             );
             if (type === 'followers' && followsYou) {
@@ -693,9 +686,9 @@ function suggestionRow(user: SuggestedUser): Props {
 }
 
 function dismissSuggestion(user: SuggestedUser): boolean {
-    return (suggestionRow(user).onDismiss as (onFailed: () => void) => boolean)(
-        () => {},
-    );
+    return (
+        suggestionRow(user).onDismiss as (onFailed: () => void) => boolean
+    )(() => {});
 }
 
 function hasElementNamed(node: ReactNode, name: string): boolean {
