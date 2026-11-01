@@ -9,6 +9,7 @@ use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
 use App\Queries\ConversationsQuery;
+use App\Queries\LogQueries\FollowingLogQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\OrganizationMentionsQuery;
 use Database\Seeders\DatabaseSeeder;
@@ -95,6 +96,21 @@ it('gives the local developer GitHub organizations with threads that mention the
         ->and($devNullMentions->whereNotNull('parent_id'))->toHaveCount(1)
         ->and($devNullMentions->whereNull('parent_id')->every(fn (Commit $commit): bool => $commit->replies_count > 0))->toBeTrue()
         ->and($mentions->builder($laravel, $localDeveloper)->count())->toBe(3);
+});
+
+it('gives the GitHub organizations commits of their own, posted by their members', function (): void {
+    $this->seed(DatabaseSeeder::class);
+
+    $localDeveloper = User::query()->where('github_id', 'local')->sole();
+    $devNull = Organization::query()->whereRelation('profile', 'handle', 'dev-null-sh')->sole();
+    $laravel = Organization::query()->whereRelation('profile', 'handle', 'laravel')->sole();
+    $following = resolve(FollowingLogQuery::class)->builder($localDeveloper)->get();
+
+    expect($devNull->profile->commits()->topLevel()->count())->toBe(3)
+        ->and($laravel->profile->commits()->topLevel()->count())->toBe(2)
+        ->and($devNull->profile->commits()->whereNotIn('user_id', $devNull->members()->select('users.id'))->exists())->toBeFalse()
+        ->and($laravel->profile->commits()->whereNotIn('user_id', $laravel->members()->select('users.id'))->exists())->toBeFalse()
+        ->and($following->where('author_id', $laravel->id))->toHaveCount(2);
 });
 
 it('reuses existing GitHub organizations', function (): void {
