@@ -15,6 +15,7 @@ use App\Models\Commit;
 use App\Models\CommitReport;
 use App\Models\Notification;
 use App\Models\User;
+use App\Models\UserReport;
 use App\Models\UserTimeout;
 use App\Queries\OperationsEventsQuery;
 use App\Services\Features;
@@ -90,6 +91,41 @@ it('logs reports by their reason, never what the reporter wrote, and their dismi
             'detail' => null,
             'actor' => 'reporter',
             'href' => '/moderation/reports',
+        ],
+    ]);
+});
+
+it('logs profile reports by their reason, never who filed them or what they wrote, and their dismissals', function (): void {
+    $reporter = User::factory()->create(['handle' => 'reporter', 'created_at' => now()->subWeek()]);
+    $report = UserReport::factory()->create([
+        'reporter_id' => $reporter->id,
+        'user_id' => User::factory()->create(['created_at' => now()->subWeek()])->id,
+        'reason' => 'child_safety',
+        'details' => 'Something private',
+        'created_at' => now()->subHours(2),
+    ]);
+    $report->forceFill(['dismissed_at' => now()->subHour()])->save();
+
+    expect(resolve(OperationsEventsQuery::class)->get(now()->subDay()->toImmutable(), OperationsEventSource::Reports))->toBe([
+        [
+            'id' => "reports:{$report->id}:dismissed",
+            'source' => 'reports',
+            'level' => 'notice',
+            'at' => '2026-10-20T11:30:00+00:00',
+            'message' => 'Profile report dismissed',
+            'detail' => CommitReport::REASONS['child_safety'],
+            'actor' => null,
+            'href' => '/moderation/profile-reports',
+        ],
+        [
+            'id' => "reports:{$report->id}",
+            'source' => 'reports',
+            'level' => 'warning',
+            'at' => '2026-10-20T10:30:00+00:00',
+            'message' => 'Profile reported: '.CommitReport::REASONS['child_safety'],
+            'detail' => null,
+            'actor' => null,
+            'href' => '/moderation/profile-reports',
         ],
     ]);
 });

@@ -105,6 +105,7 @@ use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\RelatedCommitController;
 use App\Http\Controllers\RemoteCandidateController;
 use App\Http\Controllers\ReportedCommitController;
+use App\Http\Controllers\ReportedUserController;
 use App\Http\Controllers\SafetyController;
 use App\Http\Controllers\ScheduledCommitController;
 use App\Http\Controllers\ScheduledCommitSubmissionController;
@@ -138,6 +139,7 @@ use App\Http\Controllers\UserPreviewController;
 use App\Http\Controllers\UserProfileController;
 use App\Http\Controllers\UserRemotePreferencesController;
 use App\Http\Controllers\UserRemotesController;
+use App\Http\Controllers\UserReportController;
 use App\Http\Controllers\UserSitemapController;
 use App\Http\Controllers\UserTimeoutController;
 use App\Http\Controllers\UserTimezoneController;
@@ -544,6 +546,8 @@ Route::middleware('auth')->group(function (): void {
     Route::get('moderation/reports/{report}/images/{image}', [CommitReportImageController::class, 'show'])->whereUuid('report')->whereIn('image', ['0', '1', '2'])->name('commit-report-image.show');
     Route::get('moderation/reports', [ReportedCommitController::class, 'index'])->name('reported-commit.index');
     Route::delete('moderation/reports/{report}', [CommitReportController::class, 'destroy'])->name('commit-report.destroy');
+    Route::get('moderation/profile-reports', [ReportedUserController::class, 'index'])->name('reported-user.index');
+    Route::delete('moderation/profile-reports/{report}', [UserReportController::class, 'destroy'])->whereUuid('report')->name('user-report.destroy');
     Route::post('moderation/{commit}/approval', [CommitApprovalController::class, 'store'])
         ->name('commit-approval.store');
     Route::post('moderation/{commit}/rejection', [CommitRejectionController::class, 'store'])
@@ -667,6 +671,11 @@ Route::middleware('auth')->group(function (): void {
         ->name('user-block.store');
     Route::delete('@{user:handle}/block', [UserBlockController::class, 'destroy'])
         ->name('user-block.destroy');
+
+    // User Report...
+    Route::post('@{user:handle}/reports', [UserReportController::class, 'store'])
+        ->middleware('throttle:user-reports')
+        ->name('user-report.store');
 
     // Suggestion Dismissal...
     Route::post('@{user:handle}/dismiss', [SuggestionDismissalController::class, 'store'])

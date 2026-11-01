@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/react';
-import { Ban, Ellipsis, Volume2, VolumeX } from 'lucide-react';
+import { Ban, Ellipsis, Flag, Volume2, VolumeX } from 'lucide-react';
 import { useState } from 'react';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
@@ -20,6 +20,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { UserReportDialog } from '@/components/user-report-dialog';
 import { cn } from '@/lib/utils';
 import type { User } from '@/types';
 
@@ -38,12 +39,14 @@ export function UserSafetyMenu({
 }) {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [isConfirmingBlock, setIsConfirmingBlock] = useState(false);
+    const [isReporting, setIsReporting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
-    const changeOpen = (menu: boolean, dialog: boolean) => {
+    const changeOpen = (menu: boolean, dialog: boolean, report = false) => {
         setIsMenuOpen(menu);
         setIsConfirmingBlock(dialog);
-        onOpenChange?.(menu || dialog);
+        setIsReporting(report);
+        onOpenChange?.(menu || dialog || report);
     };
 
     const visit = (
@@ -72,7 +75,9 @@ export function UserSafetyMenu({
             <DropdownMenu
                 modal={false}
                 open={isMenuOpen}
-                onOpenChange={(open) => changeOpen(open, isConfirmingBlock)}
+                onOpenChange={(open) =>
+                    changeOpen(open, isConfirmingBlock, isReporting)
+                }
             >
                 <DropdownMenuTrigger asChild>
                     <Button
@@ -102,6 +107,13 @@ export function UserSafetyMenu({
                             : `Mute @${user.handle}`}
                     </DropdownMenuItem>
                     <DropdownMenuItem
+                        onSelect={() => changeOpen(false, false, true)}
+                        data-test="report-user"
+                    >
+                        <Flag />
+                        Report @{user.handle}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                         variant={isBlocking ? 'default' : 'destructive'}
                         disabled={isSaving}
                         onSelect={() =>
@@ -117,6 +129,12 @@ export function UserSafetyMenu({
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>
+
+            <UserReportDialog
+                user={user}
+                open={isReporting}
+                onOpenChange={(open) => changeOpen(false, false, open)}
+            />
 
             <Dialog
                 open={isConfirmingBlock}

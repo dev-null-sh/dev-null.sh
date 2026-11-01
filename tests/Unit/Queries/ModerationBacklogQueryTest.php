@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\CommitReport;
+use App\Models\User;
+use App\Models\UserReport;
 use App\Models\UserTimeout;
 use App\Queries\ModerationBacklogQuery;
 
@@ -12,6 +14,7 @@ it('has nothing waiting on a moderator', function (): void {
         'pending' => 0,
         'oldest_pending_age' => null,
         'open_reports' => 0,
+        'open_profile_reports' => 0,
         'active_timeouts' => 0,
     ]);
 });
@@ -26,13 +29,18 @@ it('counts the pending commits, how long the oldest waited, the open reports and
     CommitReport::factory()->create()->forceFill(['dismissed_at' => now()])->save();
     CommitReport::factory()->for(Commit::factory()->rejected())->create();
 
+    UserReport::factory()->create();
+    UserReport::factory()->create(['dismissed_at' => now()]);
+    UserReport::factory()->create(['user_id' => User::factory()->create(['banned_at' => now()])->id]);
+
     UserTimeout::factory()->create();
     UserTimeout::factory()->ended()->create();
 
     expect(resolve(ModerationBacklogQuery::class)->get())->toBe([
         'pending' => 2,
         'oldest_pending_age' => 7200,
-        'open_reports' => 1,
+        'open_reports' => 2,
+        'open_profile_reports' => 1,
         'active_timeouts' => 1,
     ]);
 });

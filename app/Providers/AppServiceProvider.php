@@ -150,6 +150,7 @@ final class AppServiceProvider extends ServiceProvider
         ));
 
         RateLimiter::for('commit-reports', fn (Request $request): Limit => Limit::perMinute(5)->by($this->userId($request)));
+        RateLimiter::for('user-reports', fn (Request $request): Limit => Limit::perMinute(5)->by($this->userId($request)));
 
         // Every sync costs four GitHub API requests, out of a shared hourly budget. The mobile app shares it, and gets the
         // same message with a code...

@@ -11,7 +11,7 @@ import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
 import AppLayout from '@/layouts/app-layout';
-import { formatFullDateTime } from '@/lib/utils';
+import { cn, formatFullDateTime } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 type Report = {
@@ -113,7 +113,14 @@ export default function Reports({
                                 canDelete={false}
                                 actions={
                                     <div className="mt-3 grid gap-2 border-t pt-3">
-                                        <p className="text-sm font-medium">
+                                        <p
+                                            className={cn(
+                                                'text-sm font-medium',
+                                                report.reason ===
+                                                    'child_safety' &&
+                                                    'text-destructive',
+                                            )}
+                                        >
                                             {reasons[report.reason]}
                                         </p>
                                         {report.details && (

@@ -79,6 +79,7 @@ use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
 use App\Http\Controllers\Api\UserRemotePreferencesController;
 use App\Http\Controllers\Api\UserRemotesController;
+use App\Http\Controllers\Api\UserReportController;
 use App\Http\Controllers\Api\UserSearchController;
 use App\Http\Controllers\Api\UserSettingsController;
 use App\Http\Controllers\Api\UserTermsController;
@@ -315,6 +316,12 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('me/muted', [UserMuteController::class, 'index'])->name('api-user-mute.index');
         Route::post('users/{user:handle}/mute', [UserMuteController::class, 'store'])->name('api-user-mute.store');
         Route::delete('users/{user:handle}/mute', [UserMuteController::class, 'destroy'])->name('api-user-mute.destroy');
+
+        // User Report: someone who doesn't exist gets the same answer as someone who blocked the user...
+        Route::post('users/{user:handle}/reports', [UserReportController::class, 'store'])
+            ->middleware('throttle:user-reports')
+            ->missing(fn (): JsonResponse => ApiException::userUnavailable()->render())
+            ->name('api-user-report.store');
 
         // User Block...
         Route::get('me/blocked', [UserBlockController::class, 'index'])->name('api-user-block.index');

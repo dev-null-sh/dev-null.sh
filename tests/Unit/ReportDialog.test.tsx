@@ -57,3 +57,46 @@ test('leaves the report form out until the dialog opens, so every card stays lig
     assert.ok(result);
     assert.equal(forms.mock.calls.length, 0);
 });
+
+test('leaves the profile report form out until the dialog opens, so every chat row stays light', async () => {
+    forms.mockClear();
+
+    const { UserReportDialog } =
+        await import('../../resources/js/components/user-report-dialog');
+
+    const result = await Inertia.createInertiaApp({
+        page: {
+            component: 'test',
+            props: { auth: { user: { id: 'reader' } }, errors: {} },
+            url: '/',
+            version: null,
+            clearHistory: false,
+            encryptHistory: false,
+            rescuedProps: [],
+            rememberedState: {},
+            flash: {},
+        },
+        resolve: () => () => (
+            <UserReportDialog
+                user={{ handle: 'reported' }}
+                open={false}
+                onOpenChange={() => {}}
+            />
+        ),
+        render: renderToString,
+        setup: ({ App, props }) => <App {...props} />,
+    });
+
+    assert.ok(result);
+    assert.equal(forms.mock.calls.length, 0);
+});
+
+test('offers the same report reasons the server takes', async () => {
+    const { reportReasons } =
+        await import('../../resources/js/lib/report-reasons');
+
+    assert.deepEqual(
+        reportReasons.map(([value]) => value),
+        ['spam', 'harassment', 'unsafe', 'child_safety', 'other'],
+    );
+});

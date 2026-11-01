@@ -29,14 +29,8 @@ import {
 } from '@/components/ui/tooltip';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
+import { reportReasons } from '@/lib/report-reasons';
 import type { Commit } from '@/types';
-
-const reasons = [
-    ['spam', 'Spam or misleading links'],
-    ['harassment', 'Harassment or hate'],
-    ['unsafe', 'Harmful or private information'],
-    ['other', 'Something else'],
-];
 
 export function useCanReport(commit: Commit): boolean {
     const { auth } = usePage().props;
@@ -207,7 +201,7 @@ function ReportForm({
                     <legend className="mb-2 text-sm font-medium">
                         Why are you reporting this commit?
                     </legend>
-                    {reasons.map(([value, label]) => (
+                    {reportReasons.map(([value, label]) => (
                         <label
                             key={value}
                             className="flex min-h-9 cursor-pointer items-center gap-3 rounded-md border px-3 py-2 text-sm has-checked:border-primary has-checked:bg-primary-soft"
