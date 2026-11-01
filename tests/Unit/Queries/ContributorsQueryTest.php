@@ -3,11 +3,13 @@
 declare(strict_types=1);
 
 use App\Contracts\Services\GitHubProvider;
+use App\Models\User;
 use App\Queries\ContributorsQuery;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Defer\DeferredCallbackCollection;
 use Illuminate\Support\Facades\Cache;
 
 it('lists everyone with a commit, as GitHub counts them', function (): void {
@@ -73,10 +75,12 @@ it('skips what GitHub sends without a login, an account or a count', function ()
     expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'xHeaven', 'commits' => 187, 'handle' => null]]);
 });
 
-it('asks GitHub again an hour later, not before', function (): void {
-    $accounts = [gitHubContributor('xHeaven', 187)];
+it('asks GitHub again an hour later, after the response, while serving the old list', function (): void {
     $github = $this->mock(GitHubProvider::class);
-    $github->shouldReceive('contributors')->andReturnUsing(fn (string $repository, int $page, int $perPage): array => array_slice($accounts, ($page - 1) * $perPage, $perPage));
+    $github->shouldReceive('contributors')->andReturnUsing(
+        fn (): array => [gitHubContributor('xHeaven', 187)],
+        fn (): array => [gitHubContributor('xHeaven', 188)],
+    );
 
     resolve(ContributorsQuery::class)->get();
     $this->travel(59)->minutes();
@@ -85,8 +89,14 @@ it('asks GitHub again an hour later, not before', function (): void {
     $github->shouldHaveReceived('contributors')->times(1);
 
     $this->travel(2)->minutes();
-    resolve(ContributorsQuery::class)->get();
 
+    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'xHeaven', 'commits' => 187, 'handle' => null]]);
+    resolve(ContributorsQuery::class)->get();
+    $github->shouldHaveReceived('contributors')->times(1);
+
+    resolve(DeferredCallbackCollection::class)->invoke();
+
+    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'xHeaven', 'commits' => 188, 'handle' => null]]);
     $github->shouldHaveReceived('contributors')->times(2);
 });
 
@@ -148,4 +158,63 @@ it('discards a partial list after a later page fails and recovers when the failu
 
     expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'recovered', 'commits' => 12, 'handle' => null]]);
     $github->shouldHaveReceived('contributors')->times(3);
+});
+
+it('keeps the last list while GitHub is unreachable, and asks again a minute later', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturnUsing(
+        fn (): array => [gitHubContributor('xHeaven', 187)],
+        fn () => throw new ConnectionException('timeout'),
+        fn (): array => [gitHubContributor('xHeaven', 188)],
+    );
+    $contributor = User::factory()->create(['github_id' => (string) crc32('xHeaven')]);
+
+    resolve(ContributorsQuery::class)->get();
+    $this->travel(61)->minutes();
+    resolve(ContributorsQuery::class)->get();
+    resolve(DeferredCallbackCollection::class)->invoke();
+
+    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'xHeaven', 'commits' => 187, 'handle' => $contributor->handle]])
+        ->and(resolve(ContributorsQuery::class)->includes($contributor))->toBeTrue();
+    $github->shouldHaveReceived('contributors')->times(2);
+
+    $this->travel(61)->seconds();
+    resolve(ContributorsQuery::class)->get();
+    resolve(DeferredCallbackCollection::class)->invoke();
+
+    expect(resolve(ContributorsQuery::class)->get())->toBe([['login' => 'xHeaven', 'commits' => 188, 'handle' => $contributor->handle]]);
+    $github->shouldHaveReceived('contributors')->times(3);
+});
+
+it('forgets the last list after a week without an answer from GitHub', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturnUsing(
+        fn (): array => [gitHubContributor('xHeaven', 187)],
+        fn () => throw new ConnectionException('timeout'),
+    );
+
+    resolve(ContributorsQuery::class)->get();
+    $this->travel(8)->days();
+
+    expect(resolve(ContributorsQuery::class)->get())->toBeNull();
+});
+
+it('includes a user by their GitHub account, not their handle', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andReturn([gitHubContributor('xHeaven', 187)]);
+
+    $contributor = User::factory()->create(['handle' => 'jubianchi', 'github_id' => (string) crc32('xHeaven')]);
+    $namesake = User::factory()->create(['handle' => 'xHeaven']);
+
+    expect(resolve(ContributorsQuery::class)->includes($contributor))->toBeTrue()
+        ->and(resolve(ContributorsQuery::class)->includes($namesake))->toBeFalse();
+
+    $github->shouldHaveReceived('contributors')->times(1);
+});
+
+it('includes nobody while GitHub is unreachable', function (): void {
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('contributors')->andThrow(new ConnectionException('timeout'));
+
+    expect(resolve(ContributorsQuery::class)->includes(User::factory()->create()))->toBeFalse();
 });

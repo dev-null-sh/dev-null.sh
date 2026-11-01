@@ -8,6 +8,7 @@ import {
     FileCode,
     Flame,
     GitMerge,
+    GitPullRequest,
     Key,
     Server,
     Shield,
@@ -51,6 +52,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     'bot-off': BotOff,
     bomb: Bomb,
     'dragon-ball': DragonBallIcon,
+    'git-pull-request': GitPullRequest,
 };
 
 export function AchievementsShelf({

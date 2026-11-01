@@ -21,6 +21,7 @@ enum Achievement: string
     case Luddite = 'luddite';
     case ShellShocked = 'shell_shocked';
     case SuperSaiyan = 'super_saiyan';
+    case Contributor = 'contributor';
 
     public function label(): string
     {
@@ -40,6 +41,7 @@ enum Achievement: string
             self::Luddite => 'luddite',
             self::ShellShocked => 'shell shocked',
             self::SuperSaiyan => 'super-saiyan',
+            self::Contributor => 'contributor',
         };
     }
 
@@ -61,6 +63,7 @@ enum Achievement: string
             self::Luddite => 'Unfollowed Tom. Costs 100 XP until you follow him again.',
             self::ShellShocked => "Survived the php2shell downtime of Oct '26. Earns 100 XP.",
             self::SuperSaiyan => 'Y—your follower count. It... it’s over 9000!!!1!',
+            self::Contributor => 'Shipped code to the /dev/null repository itself. Earns 25 XP.',
         };
     }
 
@@ -82,6 +85,7 @@ enum Achievement: string
             self::Luddite => 'bot-off',
             self::ShellShocked => 'bomb',
             self::SuperSaiyan => 'dragon-ball',
+            self::Contributor => 'git-pull-request',
         };
     }
 
@@ -103,6 +107,7 @@ enum Achievement: string
             self::Luddite => 1,
             self::ShellShocked => 1,
             self::SuperSaiyan => 9000,
+            self::Contributor => 1,
         };
     }
 }
