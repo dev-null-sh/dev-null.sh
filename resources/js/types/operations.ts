@@ -57,18 +57,14 @@ export type GitHubRateLimit = {
     resets_at: string;
 };
 
-export type TrafficRow = {
-    name: string;
-    visitors: number;
-    pageviews: number;
-};
-
 export type TrafficTotals = {
     visitors: number;
     pageviews: number;
     avg_duration: number;
     bounce_rate: number;
 };
+
+export type TrafficRow = TrafficTotals & { name: string };
 
 /**
  * The totals of a UTC day (`2026-10-31`), or of a UTC hour (`2026-10-31T13:00:00Z`) when the range is a single day.

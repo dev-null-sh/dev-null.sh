@@ -43,7 +43,7 @@ final readonly class FathomAnalyticsProvider implements AnalyticsProvider
     ];
 
     /**
-     * The aggregates of the totals, overall and over time.
+     * The aggregates of the totals, overall, over time and by breakdown row.
      */
     private const string TOTALS = 'uniques,pageviews,avg_duration,bounce_rate';
 
@@ -215,15 +215,11 @@ final readonly class FathomAnalyticsProvider implements AnalyticsProvider
      */
     private function breakdown(CarbonImmutable $from, CarbonImmutable $to, string $field, array $filters): array
     {
-        return $this->aggregate($from, $to, ['aggregates' => 'uniques,pageviews', 'field_grouping' => $field, 'sort_by' => 'uniques:desc', 'limit' => 10], filters: $filters)
+        return $this->aggregate($from, $to, ['aggregates' => self::TOTALS, 'field_grouping' => $field, 'sort_by' => 'uniques:desc', 'limit' => 10], filters: $filters)
             ->collect()
             ->filter(fn (mixed $row): bool => is_array($row))
             ->mapInto(Fluent::class)
-            ->map(fn (Fluent $row): array => [
-                'name' => $row->string($field)->value(),
-                'visitors' => $row->integer('uniques'),
-                'pageviews' => $row->integer('pageviews'),
-            ])
+            ->map(fn (Fluent $row): array => ['name' => $row->string($field)->value(), ...$this->totals($row)])
             ->values()
             ->all();
     }

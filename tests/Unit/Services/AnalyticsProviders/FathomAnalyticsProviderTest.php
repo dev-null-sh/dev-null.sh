@@ -14,7 +14,7 @@ beforeEach(function (): void {
     $this->travelTo(CarbonImmutable::parse('2026-10-18 12:00:00'));
 });
 
-it('reads current visitors, totals, totals by day, and the top pages, referrers, countries, devices, and browsers in the range', function (): void {
+it('reads current visitors, totals, totals by day, and the totals of the top pages, referrers, countries, devices, and browsers in the range', function (): void {
     Http::fake([
         'api.usefathom.com/v1/current_visitors*' => Http::response(['total' => 7]),
         'api.usefathom.com/v1/aggregations*' => fn (Request $request) => Http::response(match ($request->data()['field_grouping'] ?? $request->data()['date_grouping'] ?? null) {
@@ -23,8 +23,11 @@ it('reads current visitors, totals, totals by day, and the top pages, referrers,
                 ['uniques' => '100', 'pageviews' => '300', 'avg_duration' => '40', 'bounce_rate' => '50', 'date' => '2026-10-13'],
                 ['uniques' => '500', 'pageviews' => '1200', 'avg_duration' => '43', 'bounce_rate' => '20', 'date' => '2026-10-18'],
             ],
-            'pathname' => [['pathname' => '/', 'uniques' => '500', 'pageviews' => '900'], ['pathname' => '/about', 'uniques' => '80', 'pageviews' => '100']],
-            'referrer_hostname' => [['referrer_hostname' => '', 'uniques' => '300', 'pageviews' => '700']],
+            'pathname' => [
+                ['pathname' => '/', 'uniques' => '500', 'pageviews' => '900', 'avg_duration' => '61', 'bounce_rate' => '30'],
+                ['pathname' => '/about', 'uniques' => '80', 'pageviews' => '100', 'avg_duration' => '12', 'bounce_rate' => '75.5'],
+            ],
+            'referrer_hostname' => [['referrer_hostname' => '', 'uniques' => '300', 'pageviews' => '700', 'avg_duration' => '45', 'bounce_rate' => '40']],
             default => [],
         }),
     ]);
@@ -45,8 +48,11 @@ it('reads current visitors, totals, totals by day, and the top pages, referrers,
             ['date' => '2026-10-18', 'visitors' => 500, 'pageviews' => 1200, 'avg_duration' => 43, 'bounce_rate' => 0.2],
         ],
         'breakdowns' => [
-            'pages' => [['name' => '/', 'visitors' => 500, 'pageviews' => 900], ['name' => '/about', 'visitors' => 80, 'pageviews' => 100]],
-            'referrers' => [['name' => '', 'visitors' => 300, 'pageviews' => 700]],
+            'pages' => [
+                ['name' => '/', 'visitors' => 500, 'pageviews' => 900, 'avg_duration' => 61, 'bounce_rate' => 0.3],
+                ['name' => '/about', 'visitors' => 80, 'pageviews' => 100, 'avg_duration' => 12, 'bounce_rate' => 0.755],
+            ],
+            'referrers' => [['name' => '', 'visitors' => 300, 'pageviews' => 700, 'avg_duration' => 45, 'bounce_rate' => 0.4]],
             'countries' => [],
             'devices' => [],
             'browsers' => [],
@@ -60,6 +66,8 @@ it('reads current visitors, totals, totals by day, and the top pages, referrers,
         && $request->data()['date_from'] === '2026-10-12 00:00:00'
         && $request->data()['date_to'] === '2026-10-18 12:00:00'
         && ! isset($request->data()['filters']));
+    Http::assertSent(fn (Request $request): bool => ($request->data()['field_grouping'] ?? null) === 'pathname'
+        && $request->data()['aggregates'] === 'uniques,pageviews,avg_duration,bounce_rate');
     Http::assertSent(fn (Request $request): bool => ($request->data()['date_grouping'] ?? null) === 'day'
         && $request->data()['sort_by'] === 'timestamp:asc');
 });
