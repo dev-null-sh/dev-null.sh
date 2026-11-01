@@ -106,6 +106,22 @@ it("counts stars and replies on an organization's commits as reaching the organi
         ->and(($this->activity)()['replies'])->toBe([]);
 });
 
+it('still counts stars and replies on the commits of a deleted organization, which reach no one', function (): void {
+    $starrer = User::factory()->create();
+    $replier = User::factory()->create();
+    $orphan = Commit::factory()->create(['author_id' => null, 'created_at' => '2026-10-22 00:00:00']);
+
+    ($this->star)($starrer, ($this->people)(30));
+    $orphan->stars()->attach($starrer, ['created_at' => '2026-10-23 01:00:00', 'updated_at' => '2026-10-23 01:00:00']);
+    ($this->reply)($replier, ($this->people)(20));
+    Commit::factory()->for($replier)->for($orphan, 'parent')->create(['created_at' => '2026-10-23 01:00:00']);
+
+    expect(($this->activity)()['stars'])
+        ->sequence(fn ($row) => $row->user->id->toBe($starrer->id)->reach->toBe(30)->count->toBe(31))
+        ->and(($this->activity)()['replies'])
+        ->sequence(fn ($row) => $row->user->id->toBe($replier->id)->reach->toBe(20)->count->toBe(21));
+});
+
 it('lists the accounts that posted 15 times a day', function (): void {
     $mass = User::factory()->create();
     $prolific = User::factory()->create();

@@ -81,7 +81,7 @@ final readonly class BulkActivityQuery
                 join users starrer on starrer.id = s.user_id
                 join commits c on c.id = s.commit_id
                 left join users author on author.id = c.author_id
-                where starrer.github_id <> all(?::text[]) and s.created_at >= ? and c.author_id is not null
+                where starrer.github_id <> all(?::text[]) and s.created_at >= ?
                 group by s.user_id
                 having count(distinct c.author_id) >= ?
                 order by reach desc, count desc, s.user_id
@@ -94,7 +94,7 @@ final readonly class BulkActivityQuery
                 join users replier on replier.id = r.user_id
                 join commits p on p.id = r.parent_id
                 left join users author on author.id = p.author_id
-                where replier.github_id <> all(?::text[]) and r.created_at >= ? and p.author_id <> r.user_id
+                where replier.github_id <> all(?::text[]) and r.created_at >= ? and p.author_id is distinct from r.user_id
                 group by r.user_id
                 having count(distinct p.author_id) >= ?
                 order by reach desc, count desc, r.user_id
