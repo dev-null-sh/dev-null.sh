@@ -12,6 +12,7 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserPreview } from '@/components/user-preview';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { show } from '@/routes/user';
 import type { Commit, CursorPaginated, User } from '@/types';
@@ -85,24 +86,26 @@ export function CommitStargazersDialog({
                 <ul data-test="stargazers" className="-mx-2">
                     {stargazers.map((stargazer) => (
                         <li key={stargazer.id}>
-                            <Link
-                                href={show(stargazer)}
-                                onClick={() => setOpen(false)}
-                                className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"
-                            >
-                                <UserAvatar
-                                    user={stargazer}
-                                    className="size-9"
-                                />
-                                <span className="min-w-0">
-                                    <span className="block truncate text-sm font-medium">
-                                        {stargazer.name}
+                            <UserPreview user={stargazer} className="block">
+                                <Link
+                                    href={show(stargazer)}
+                                    onClick={() => setOpen(false)}
+                                    className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"
+                                >
+                                    <UserAvatar
+                                        user={stargazer}
+                                        className="size-9"
+                                    />
+                                    <span className="min-w-0">
+                                        <span className="block truncate text-sm font-medium">
+                                            {stargazer.name}
+                                        </span>
+                                        <span className="block truncate font-mono text-[13px] text-muted-foreground">
+                                            @{stargazer.handle}
+                                        </span>
                                     </span>
-                                    <span className="block truncate font-mono text-[13px] text-muted-foreground">
-                                        @{stargazer.handle}
-                                    </span>
-                                </span>
-                            </Link>
+                                </Link>
+                            </UserPreview>
                         </li>
                     ))}
                     {loading &&
