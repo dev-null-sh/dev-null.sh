@@ -1,7 +1,7 @@
 import { router, usePage } from '@inertiajs/react';
 import {
     Ban,
-    EllipsisVertical,
+    Ellipsis,
     Flag,
     LinkIcon,
     Send,
@@ -278,10 +278,7 @@ function CommitMoreMenu({
                                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none data-[state=open]:bg-accent data-[state=open]:text-foreground"
                                 data-test="commit-menu-button"
                             >
-                                <EllipsisVertical
-                                    aria-hidden
-                                    className="size-4"
-                                />
+                                <Ellipsis aria-hidden className="size-4" />
                             </button>
                         </DropdownMenuTrigger>
                     </TooltipTrigger>
