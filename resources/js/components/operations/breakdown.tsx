@@ -8,9 +8,9 @@ const PLACEHOLDER_WIDTHS = ['w-3/5', 'w-1/2', 'w-2/3', 'w-2/5', 'w-1/3'];
 
 /**
  * A ranked list with a bar behind each name, sized from `max`, or from the largest row without it. Counts print with
- * `format`, as whole numbers by default. Empty names print the given word, muted;
- * the others print as formatted, or as rendered when a row needs more than text, a link say. Without rows yet, it
- * holds the room of the rows it expects. With `onSelect`, each name is a button, and the selected one is highlighted.
+ * `format`, as whole numbers by default. Empty names print the given word, muted; the others print as formatted, or as
+ * rendered when a row needs more than text, a link say. Without rows yet, it holds the room of the rows it expects.
+ * With `onSelect`, each name is a button, and the selected one is highlighted.
  */
 export function Breakdown({
     title,

@@ -24,10 +24,10 @@ use Carbon\CarbonImmutable;
 interface AnalyticsProvider
 {
     /**
-     * The visitors on the site right now, and the totals, the totals of each UTC hour of a single day or each UTC day of
-     * a longer range, and the totals of the top ten pages, referrers, countries, devices and browsers in the range, of
-     * the visits matching every filter. An empty name or filter is a direct visit or an unknown value. The bounce rate is a
-     * fraction of visits.
+     * The visitors on the site right now, and the totals, the totals of each UTC hour of a single day or each UTC day
+     * of a longer range, and the totals of the top ten pages, referrers, countries, devices and browsers in the range,
+     * of the visits matching every filter. An empty name or filter is a direct visit or an unknown value. The bounce
+     * rate is a fraction of visits.
      *
      * @param  array<TrafficFilter, string>  $filters
      * @return TrafficReport|null
