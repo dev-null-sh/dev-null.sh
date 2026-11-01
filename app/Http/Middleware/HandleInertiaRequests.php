@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Middleware;
 
 use App\Dto\ReaderClock;
+use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
 use App\Http\Requests\ListNotificationsRequest;
@@ -17,6 +18,7 @@ use App\Queries\DevelopersCountQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
+use App\Services\Features;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -94,8 +96,8 @@ final class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'bioProfiles' => fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [],
-                // The organizations the user can post as, shown like the commits they author.
-                'organizations' => fn (): array => $user instanceof User ? $user->organizations()->get()
+                // The organizations the user can post as, shown like the commits they author, once the feature is on.
+                'organizations' => fn (): array => $user instanceof User && resolve(Features::class)->enabled(Feature::OrganizationCommits) ? $user->organizations()->get()
                     ->map(fn (Organization $organization): array => ['type' => 'organization', ...$organization->toArray()])
                     ->all() : [],
                 'isAdmin' => $isAdmin,

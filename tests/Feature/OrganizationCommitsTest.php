@@ -9,6 +9,7 @@ use App\Actions\DeleteOrganization;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitStatuses;
 use App\Enums\CommitStatus;
+use App\Enums\Feature;
 use App\Enums\Log;
 use App\Enums\OrganizationRole;
 use App\Jobs\CheckUserLevel;
@@ -19,9 +20,11 @@ use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\User;
 use App\Queries\LatestLogCommitsQuery;
+use App\Services\Features;
 use Illuminate\Support\Facades\Bus;
 
 beforeEach(function (): void {
+    resolve(Features::class)->update(Feature::OrganizationCommits, true);
     $this->organization = Organization::factory()->create(['handle' => 'Laravel']);
     $this->member = User::factory()->create(['pasteis_mode' => true]);
     $this->organization->members()->attach($this->member->id, ['role' => OrganizationRole::Member]);
@@ -41,6 +44,18 @@ it('lets a member commit as the organization, by its handle in any case', functi
     expect($commit->author_id)->toBe($this->organization->id)
         ->and($commit->user_id)->toBe($this->member->id)
         ->and(Notification::query()->where('recipient_id', $mentioned->id)->exists())->toBeFalse();
+});
+
+it('lets no one post as an organization until administrators switch it on', function (): void {
+    resolve(Features::class)->update(Feature::OrganizationCommits, false);
+
+    $this->actingAs($this->member)
+        ->post(route('commit.store'), ['body' => 'Not yet', 'author' => 'laravel'])
+        ->assertSessionHasErrors(['author' => "Posting as an organization isn't available yet."]);
+    $this->get(route('log.show', Log::Following))
+        ->assertInertia(fn ($page) => $page->where('auth.organizations', []));
+
+    expect(Commit::query()->exists())->toBeFalse();
 });
 
 it('only lets members commit as an organization', function (): void {

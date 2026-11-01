@@ -36,7 +36,7 @@ export type Connectivity = {
 };
 
 export type Feature = {
-    name: 'translations';
+    name: 'translations' | 'organization_commits';
     enabled: boolean;
 };
 
