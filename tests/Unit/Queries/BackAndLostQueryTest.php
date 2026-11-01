@@ -21,7 +21,7 @@ function backAndLostOf(string $from, string $to): array
 {
     return collect(resolve(BackAndLostQuery::class)->get(CarbonImmutable::parse($from), CarbonImmutable::parse($to)))
         ->keyBy('date')
-        ->map(fn (array $day): array => [$day['back'], $day['lost']])
+        ->map(fn (array $day): array => [$day['back'], $day['lost'], $day['lost_complete']])
         ->all();
 }
 
@@ -32,21 +32,19 @@ it('counts the people back after a week away, not the ones who signed up or were
     visitedOn(User::factory()->create(['created_at' => '2026-11-14 10:00:00']), '2026-11-15');
     visitedOn(User::factory()->create(['github_id' => CreateTomFriendship::GITHUB_ID, 'created_at' => '2026-11-01 10:00:00']), '2026-11-01', '2026-11-15');
 
-    expect(backAndLostOf('2026-11-15', '2026-11-15'))->toBe(['2026-11-15' => [1, 0]]);
+    expect(backAndLostOf('2026-11-15', '2026-11-15'))->toBe(['2026-11-15' => [1, 0, false]]);
 });
 
-it('counts as lost the people seen a week before and not since, on the day it is sure, so not today', function (): void {
-    visitedOn(User::factory()->create(['created_at' => '2026-11-01 10:00:00']), '2026-11-01', '2026-11-10');
-    visitedOn(User::factory()->create(['created_at' => '2026-11-01 10:00:00']), '2026-11-10', '2026-11-17');
-    visitedOn(User::factory()->create(['created_at' => '2026-11-01 10:00:00']), '2026-11-10', '2026-11-18');
-    visitedOn(User::factory()->create(['created_at' => '2026-11-01 10:00:00']), '2026-11-13');
+it('counts the people lost on their first day of a week away, complete once the week is over, and not today', function (): void {
+    visitedOn(User::factory()->create(['created_at' => '2026-11-01 10:00:00']), '2026-11-05', '2026-11-13');
+    visitedOn(User::factory()->create(['created_at' => '2026-11-01 10:00:00']), '2026-11-05', '2026-11-12');
 
-    expect(backAndLostOf('2026-11-16', '2026-11-25'))->toBe([
-        '2026-11-16' => [0, 0],
-        '2026-11-17' => [0, 2],
-        '2026-11-18' => [1, 0],
-        '2026-11-19' => [0, 0],
-        '2026-11-20' => [0, null],
+    expect(collect(backAndLostOf('2026-11-06', '2026-11-25'))->only(['2026-11-06', '2026-11-12', '2026-11-13', '2026-11-14', '2026-11-20'])->all())->toBe([
+        '2026-11-06' => [0, 1, true],
+        '2026-11-12' => [0, 0, true],
+        '2026-11-13' => [1, 1, true],
+        '2026-11-14' => [0, 1, false],
+        '2026-11-20' => [0, null, false],
     ]);
 });
 

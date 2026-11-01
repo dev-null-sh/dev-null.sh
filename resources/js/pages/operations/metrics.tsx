@@ -874,9 +874,9 @@ const NEW_USER_PARTS = [
 
 /**
  * Each bar after the first is shadowed by the day before's, from its total down to the day's regulars and people back,
- * so the drop is a net change. Below the axis hang the people lost that day, a week after they were last seen, so the
- * flows behind the change show: back above, lost below. Lost is striped while the days it looks back on are
- * backfilled; back and regulars are approximate then too, which the tooltip tells. The legend leaves the shadow out. Today, still counting, gets no shadow and no lost.
+ * so the drop is a net change. Below the axis hang the people lost that day, the day after they were last seen, so the
+ * flows behind the change show: back above, lost below. Lost is striped until its week without a visit is over, as
+ * some may still come back. The legend leaves the shadow out. Today, still counting, gets no shadow and no lost.
  */
 function ActiveUserCounts({
     range,
@@ -908,7 +908,7 @@ function ActiveUserCounts({
                         aria-hidden
                         className="size-2.5 rounded-sm bg-muted-foreground/45"
                     />
-                    lost, below: 7 days without a visit
+                    lost, below: first of 7 days without a visit
                 </li>
             </ul>
             <DailyBars
@@ -948,8 +948,8 @@ function ActiveUserCounts({
                         details: [
                             `${formatCount(day.regular)} regulars, ${formatCount(day.back)} back after 7+ days away`,
                             day.lost === null
-                                ? 'lost: counted tomorrow'
-                                : `${formatCount(day.lost)} lost: 7 days without a visit`,
+                                ? 'lost: counted from tomorrow'
+                                : `${formatCount(day.lost)} lost: first of 7 days without a visit${day.lost_complete ? '' : ', so far'}`,
                             ...(isShadowed
                                 ? [
                                       `${formatCount(Math.abs(change))} ${change >= 0 ? 'fewer' : 'more'} than the ${formatCount(before.count)} of ${formatZonedDate(before.date, 'UTC')}, net`,
@@ -976,7 +976,8 @@ function ActiveUserCounts({
                                       value: day.lost,
                                       className: cn(
                                           'bg-muted-foreground/45',
-                                          day.backfilled && BACKFILLED_STRIPES,
+                                          !day.lost_complete &&
+                                              BACKFILLED_STRIPES,
                                       ),
                                   },
                     };

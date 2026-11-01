@@ -174,6 +174,7 @@ export type ActiveUserCount = {
     regular: number;
     back: number;
     lost: number | null;
+    lost_complete: boolean;
     backfilled: boolean;
     activated: number;
     not_activated: number;

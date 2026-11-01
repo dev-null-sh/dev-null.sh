@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Fluent;
 
 /**
- * @phpstan-type ActiveUserCount array{date: string, count: int, regular: int, back: int, lost: int|null, backfilled: bool, activated: int, not_activated: int, pending: int}
+ * @phpstan-type ActiveUserCount array{date: string, count: int, regular: int, back: int, lost: int|null, lost_complete: bool, backfilled: bool, activated: int, not_activated: int, pending: int}
  */
 final readonly class ActiveUserCountsQuery
 {
@@ -66,6 +66,7 @@ final readonly class ActiveUserCountsQuery
                     'regular' => $returning - $back,
                     'back' => $back,
                     'lost' => $backAndLost[$date]['lost'] ?? null,
+                    'lost_complete' => $backAndLost[$date]['lost_complete'] ?? false,
                     'backfilled' => $backAndLost[$date]['backfilled'] ?? false,
                     'activated' => $activated,
                     'not_activated' => $eligible - $activated,
