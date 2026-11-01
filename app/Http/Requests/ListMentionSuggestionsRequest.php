@@ -23,9 +23,15 @@ final class ListMentionSuggestionsRequest extends FormRequest
         $user = $this->user();
         assert($user instanceof User);
 
-        $org = $this->org();
+        if ($this->filled('org')) {
+            $org = $this->org();
 
-        return ! $org instanceof Conversation || $org->roleOf($user) instanceof OrgRole ? Response::allow() : Response::denyAsNotFound();
+            return $org instanceof Conversation && $org->roleOf($user) instanceof OrgRole
+                ? Response::allow()
+                : Response::denyAsNotFound();
+        }
+
+        return Response::allow();
     }
 
     /**

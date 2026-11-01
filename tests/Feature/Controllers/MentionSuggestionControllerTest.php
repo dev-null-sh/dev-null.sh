@@ -126,6 +126,12 @@ it("does not suggest an org's members to people outside it", function (): void {
         ->assertNotFound();
 });
 
+it('returns 404 when querying mentions for a non-existent org', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->getJson(route('mention-suggestion.index', ['q' => '', 'org' => '00000000-0000-0000-0000-000000000000']))
+        ->assertNotFound();
+});
+
 it('rejects overly long queries', function (): void {
     $response = $this->actingAs(User::factory()->create())
         ->getJson('/search/mentions?q='.str_repeat('a', 101));
