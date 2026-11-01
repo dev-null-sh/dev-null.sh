@@ -18,6 +18,16 @@ function Privacy() {
     return <Link href={PrivacyController.show()}>privacy policy</Link>;
 }
 
+function MobileApps() {
+    return (
+        <>
+            <WordmarkText>/dev/null</WordmarkText> mobile apps for iOS and
+            Android built by NativePHP (Bifrost Technology, LLC,{' '}
+            <code>com.nativephp.devnull</code>)
+        </>
+    );
+}
+
 export default function Show() {
     return (
         <>
@@ -114,22 +124,23 @@ export default function Show() {
 
                 <DocumentSection id="apps" title="Apps">
                     <p>
-                        Our apps, such as{' '}
+                        Our apps are part of the service. They include{' '}
                         <Link href={AppController.index()}>
                             /dev/null for Mac
                         </Link>
-                        , are part of the service. We let you install and use
-                        them on devices you own or control, only to use the
-                        service, under a personal, non-exclusive,
-                        non-transferable license that ends when your access to
-                        the service ends. Get them only from dev-null.sh. Each
-                        device you approve can act as you until you revoke it in
-                        your settings, and you are responsible for what happens
-                        through it. We may update, limit, or stop offering any
-                        app, and an outdated version may stop working. Apps we
-                        haven't had notarized by Apple ask you to approve them
-                        in macOS before they first open, and you install them at
-                        your own risk.
+                        , from dev-null.sh, and the <MobileApps />, from the App
+                        Store and Google Play. These terms apply to all of them.
+                        We let you install and use them on devices you own or
+                        control, only to use the service, under a personal,
+                        non-exclusive, non-transferable license that ends when
+                        your access to the service ends. Get them only from
+                        those places. Each device you approve can act as you
+                        until you revoke it in your settings, and you are
+                        responsible for what happens through it. We may update,
+                        limit, or stop offering any app, and an outdated version
+                        may stop working. Apps we haven't had notarized by Apple
+                        ask you to approve them in macOS before they first open,
+                        and you install them at your own risk.
                     </p>
                 </DocumentSection>
 
@@ -138,7 +149,11 @@ export default function Show() {
                     <DocumentList
                         items={[
                             'Break the law, or post anything illegal.',
-                            'Post sexual content involving minors. We report it to the authorities.',
+                            <>
+                                Sexually abuse or exploit a child, or post,
+                                share, or ask for anything that does. See{' '}
+                                <a href="#child-safety">child safety</a>.
+                            </>,
                             'Threaten, harass, or abuse anyone, or post hateful, sexual, or violent content.',
                             'Post engagement bait: posts that fish for stars, replies, or follows instead of saying something.',
                             'Post low-effort content: one-word posts, the same post over and over, or copy-pasted memes.',
@@ -161,6 +176,43 @@ export default function Show() {
                         reports and act on content that breaks these rules
                         within 24 hours, by removing it and restricting or
                         banning the account that posted it.
+                    </p>
+                </DocumentSection>
+
+                <DocumentSection id="child-safety" title="Child safety">
+                    <p>
+                        We prohibit child sexual abuse and exploitation (CSAE)
+                        everywhere on the service, and we have zero tolerance
+                        for it. That covers dev-null.sh and the <MobileApps />,
+                        and everything on them: commits, replies, messages,
+                        images, voice notes, and profiles. A child is anyone
+                        under 18.
+                    </p>
+                    <p>You must not use the service to:</p>
+                    <DocumentList
+                        items={[
+                            'Create, post, share, store, ask for, or link to child sexual abuse material (CSAM), including drawn, edited, or AI-generated images of a child.',
+                            'Groom a child, or contact a child for any sexual purpose.',
+                            'Sextort a child, or threaten or pressure a child into sharing sexual images.',
+                            'Sexualize a child in any other way, in any form.',
+                            'Traffic a child, or promote, encourage, or excuse the sexual abuse or exploitation of children.',
+                        ]}
+                    />
+                    <p>
+                        To report a child safety concern, use Report in a
+                        commit's menu. For anything else, including a profile or
+                        a message, write to <Mail />. Tell us where it is, but
+                        don't send copies of any images. If a child is in
+                        immediate danger, contact your local emergency services
+                        first.
+                    </p>
+                    <p>
+                        We act on reports within 24 hours. When we find CSAE, we
+                        remove it and permanently ban the account. We comply
+                        with the child safety laws that apply to us, and report
+                        it to the relevant law enforcement and child protection
+                        authorities, such as the National Center for Missing and
+                        Exploited Children (NCMEC).
                     </p>
                 </DocumentSection>
 

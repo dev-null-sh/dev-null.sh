@@ -15,6 +15,6 @@ return [
     |
     */
 
-    'terms_version' => '2026-10-25T00:00:00Z',
+    'terms_version' => '2026-11-01T00:00:00Z',
 
 ];

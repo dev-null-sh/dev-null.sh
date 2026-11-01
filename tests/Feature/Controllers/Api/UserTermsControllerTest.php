@@ -21,7 +21,7 @@ it('says whether the person accepted the terms as they stand', function (): void
 });
 
 it('records that the terms were accepted, and answers as the current user endpoint does', function (): void {
-    Date::setTestNow('2026-10-25 12:00:00');
+    Date::setTestNow('2026-11-01 12:00:00');
 
     $user = User::factory()->create();
     $keyPair = apiKeyPairFor($user);
@@ -30,7 +30,7 @@ it('records that the terms were accepted, and answers as the current user endpoi
 
     $response->assertOk()
         ->assertJsonPath('data.terms_accepted', true)
-        ->assertJsonPath('data.terms_accepted_at', '2026-10-25T12:00:00Z')
+        ->assertJsonPath('data.terms_accepted_at', '2026-11-01T12:00:00Z')
         ->assertExactJson(signedApiRequest($keyPair, 'GET', route('api-current-user.show'))->json());
 
     expect($user->refresh()->hasAcceptedCurrentTerms())->toBeTrue();
