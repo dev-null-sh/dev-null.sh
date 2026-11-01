@@ -26,8 +26,13 @@ for (const [source, label] of Object.entries(labels)) {
             </TooltipProvider>,
         );
 
-        assert.match(badge, new RegExp(`>${label}</span>$`));
-        assert.match(badge, new RegExp(`aria-label="Committed via ${label}"`));
+        assert.match(
+            badge,
+            new RegExp(
+                `<span class="sr-only">Committed via </span>${label}</span>$`,
+            ),
+        );
+        assert.doesNotMatch(badge, /aria-label=/);
     });
 }
 
@@ -49,8 +54,11 @@ test('renders a newly introduced backend source without a frontend change', () =
         </TooltipProvider>,
     );
 
-    assert.match(badge, />headless<\/span>$/);
-    assert.match(badge, /aria-label="Committed via headless"/);
+    assert.match(
+        badge,
+        /<span class="sr-only">Committed via <\/span>headless<\/span>$/,
+    );
+    assert.doesNotMatch(badge, /aria-label=/);
 });
 
 for (const source of [null, undefined]) {
