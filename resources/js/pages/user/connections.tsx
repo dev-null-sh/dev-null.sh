@@ -20,10 +20,7 @@ import type { CursorPaginated, Organization, User } from '@/types';
 
 type Connection = User & { is_followed: boolean; follows_you: boolean };
 
-type FollowedOrganization = Organization & {
-    id: string;
-    is_followed: boolean;
-};
+type FollowedOrganization = Organization & { is_followed: boolean };
 
 type ConnectionType =
     | 'followers'

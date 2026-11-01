@@ -19,6 +19,7 @@ import { GitHubProfile } from '@/components/github-profile';
 import InputError from '@/components/input-error';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LaneOptions, LanePreview } from '@/components/lane-picker';
+import { OrganizationAvatar } from '@/components/organization-avatar';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
@@ -28,14 +29,18 @@ import { useClipboard } from '@/hooks/use-clipboard';
 import { useUser } from '@/hooks/use-user';
 import { useKeyLabels } from '@/lib/keyboard';
 import { formatCount } from '@/lib/numbers';
-import { cn, laneColor } from '@/lib/utils';
-import type { Lane, SuggestedUser, User } from '@/types';
+import { cn, laneColor, organizationLaneColor } from '@/lib/utils';
+import type { Lane, Organization, SuggestedUser, User } from '@/types';
 
 const laneNames = ['orange', 'green', 'violet', 'teal', 'rose', 'ochre'];
+
+type OrganizationWithLane = Organization & { lane: Lane | null };
 
 type GitHubImport = {
     following: User[];
     followingCount: number;
+    organizations: OrganizationWithLane[];
+    organizationsCount: number;
     followers: User[];
     followersCount: number;
     pendingCount: number;
@@ -47,6 +52,12 @@ function people(count: number): string {
 
 function developers(count: number): string {
     return count === 1 ? '1 developer' : `${formatCount(count)} developers`;
+}
+
+function orgs(count: number): string {
+    return count === 1
+        ? '1 organization'
+        : `${formatCount(count)} organizations`;
 }
 
 const countUpDuration = 900;
@@ -93,20 +104,28 @@ function useCountUp(target: number, delay: number): number {
  */
 function ImportStat({
     users,
+    organizations = [],
     count,
     label,
     delay,
     children,
 }: {
     users: User[];
+    organizations?: OrganizationWithLane[];
     count: number;
     label: string;
     delay: number;
     children: ReactNode;
 }) {
     const value = useCountUp(count, delay);
-    const shown = users.slice(0, 5);
-    const stagger = countUpDuration / Math.max(shown.length, 1);
+    // Organizations get at least two of the five places, so they show next to the people.
+    const shownOrganizations = organizations.slice(
+        0,
+        Math.max(2, 5 - users.length),
+    );
+    const shownUsers = users.slice(0, 5 - shownOrganizations.length);
+    const shownCount = shownUsers.length + shownOrganizations.length;
+    const stagger = countUpDuration / Math.max(shownCount, 1);
 
     return (
         <div className="min-w-0 p-4">
@@ -120,7 +139,7 @@ function ImportStat({
                 <span className="text-[15px] font-semibold">{label}</span>
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2.5 p-0.5">
-                {shown.map((user, index) => (
+                {shownUsers.map((user, index) => (
                     <span
                         key={user.id}
                         className="rounded-full motion-safe:animate-node-in"
@@ -138,14 +157,34 @@ function ImportStat({
                         />
                     </span>
                 ))}
-                {count > shown.length && (
+                {shownOrganizations.map((organization, index) => (
+                    <span
+                        key={organization.handle}
+                        className="rounded-md motion-safe:animate-node-in"
+                        style={
+                            {
+                                '--lane': organizationLaneColor(
+                                    organization.lane,
+                                ),
+                                animationDelay: `${delay + (shownUsers.length + index) * stagger}ms`,
+                            } as CSSProperties
+                        }
+                    >
+                        <OrganizationAvatar
+                            organization={organization}
+                            className="size-8 ring-2 ring-(--lane) ring-offset-2 ring-offset-card"
+                            pixels={64}
+                        />
+                    </span>
+                ))}
+                {count > shownCount && (
                     <span
                         className="font-mono text-xs text-muted-foreground motion-safe:animate-in motion-safe:fill-mode-both motion-safe:fade-in"
                         style={{
                             animationDelay: `${delay + countUpDuration}ms`,
                         }}
                     >
-                        +{formatCount(count - shown.length)}
+                        +{formatCount(count - shownCount)}
                     </span>
                 )}
             </div>
@@ -243,14 +282,15 @@ function GitHubImportCard({
 
     const { following, followingCount, followers, followersCount } =
         githubImport;
-    const { pendingCount } = githubImport;
+    const { organizations, organizationsCount, pendingCount } = githubImport;
+    const allFollowingCount = followingCount + organizationsCount;
 
-    if (followingCount === 0 && followersCount === 0 && pendingCount === 0) {
+    if (allFollowingCount === 0 && followersCount === 0 && pendingCount === 0) {
         return null;
     }
 
-    const hasImported = followingCount > 0 || followersCount > 0;
-    const followersDelay = followingCount > 0 ? 450 : 150;
+    const hasImported = allFollowingCount > 0 || followersCount > 0;
+    const followersDelay = allFollowingCount > 0 ? 450 : 150;
 
     return (
         <div className="mb-6 overflow-hidden rounded-lg border bg-card">
@@ -264,19 +304,26 @@ function GitHubImportCard({
                 <div
                     className={cn('grid divide-y', {
                         'sm:grid-cols-2 sm:divide-x sm:divide-y-0':
-                            followingCount > 0 && followersCount > 0,
+                            allFollowingCount > 0 && followersCount > 0,
                     })}
                 >
-                    {followingCount > 0 && (
+                    {allFollowingCount > 0 && (
                         <ImportStat
                             users={following}
-                            count={followingCount}
+                            organizations={organizations}
+                            count={allFollowingCount}
                             label="following"
                             delay={150}
                         >
-                            {followingCount === 1
-                                ? 'Someone you follow on GitHub is already here. You follow them now.'
-                                : 'People you follow on GitHub who are already here. You follow them now.'}
+                            {organizationsCount === 0
+                                ? followingCount === 1
+                                    ? 'Someone you follow on GitHub is already here. You follow them now.'
+                                    : 'People you follow on GitHub who are already here. You follow them now.'
+                                : followingCount === 0
+                                  ? organizationsCount === 1
+                                      ? 'An organization you follow on GitHub is already here. You follow it now.'
+                                      : 'Organizations you follow on GitHub that are already here. You follow them now.'
+                                  : 'Developers and organizations you follow on GitHub who are already here. You follow them now.'}
                         </ImportStat>
                     )}
                     {followersCount > 0 && (
@@ -544,6 +591,11 @@ export default function Show({
     const headingRef = useRef<HTMLHeadingElement>(null);
 
     const importedFollowingCount = githubImport?.followingCount ?? 0;
+    const importedOrganizationsCount = githubImport?.organizationsCount ?? 0;
+    const imported = [
+        importedFollowingCount > 0 && developers(importedFollowingCount),
+        importedOrganizationsCount > 0 && orgs(importedOrganizationsCount),
+    ].filter(Boolean);
     const isImporting = githubImport === null;
     const [hasGivenUp, setHasGivenUp] = useState(false);
     const wasImporting = useRef(isImporting);
@@ -741,8 +793,8 @@ export default function Show({
                 <StepContent
                     headingRef={headingRef}
                     title={
-                        importedFollowingCount > 0
-                            ? `You already follow ${developers(importedFollowingCount)}.`
+                        imported.length > 0
+                            ? `You already follow ${imported.join(' and ')}.`
                             : 'Follow a few developers.'
                     }
                     description={

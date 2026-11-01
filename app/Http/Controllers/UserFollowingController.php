@@ -28,7 +28,7 @@ final readonly class UserFollowingController
             'organizations' => Inertia::scroll(function () use ($organizations, $user, $currentUser): CursorPaginator {
                 $page = $organizations->builder($user, $currentUser)->cursorPaginate(10, cursorName: 'organizations_cursor');
 
-                collect($page->items())->each(fn (Organization $organization): Organization => $organization->makeVisible(['id', 'is_followed']));
+                collect($page->items())->each(fn (Organization $organization): Organization => $organization->makeVisible('is_followed'));
 
                 return $page;
             }),

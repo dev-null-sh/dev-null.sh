@@ -9,13 +9,13 @@ import {
     useState,
 } from 'react';
 import LogController from '@/actions/App/Http/Controllers/LogController';
+import { AuthorAvatar } from '@/components/author-avatar';
 import { CommitComposer } from '@/components/commit-composer';
 import { useCommitDialogClosedCount } from '@/components/commit-composer-dialog';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { FollowButton } from '@/components/follow-button';
 import { LinkifiedText } from '@/components/linkified-text';
 import { PageTabs } from '@/components/page-tabs';
-import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { WhoToFollowInLog } from '@/components/who-to-follow';
 import { useComposerVisibility } from '@/hooks/use-composer-visibility';
@@ -358,7 +358,7 @@ export default function Show({
                     const arrivals = incoming.data.filter(
                         (commit) =>
                             !known.has(commit.id) &&
-                            commit.user_id !== user?.id,
+                            commit.author.id !== user?.id,
                     );
                     if (
                         arrivals.length === 0 ||
@@ -520,7 +520,7 @@ export default function Show({
 
     const authors = [
         ...new Map(
-            notice?.commits.map((commit) => [commit.user.id, commit.user]),
+            notice?.commits.map((commit) => [commit.author.id, commit.author]),
         ).values(),
     ];
     const announcementLabel = `${notice?.commits.length ?? 0} new ${notice?.commits.length === 1 ? 'commit' : 'commits'} above. Scroll to top`;
@@ -596,8 +596,8 @@ export default function Show({
                                     key={author.id}
                                     className="shrink-0 motion-safe:animate-in motion-safe:duration-250 motion-safe:fade-in"
                                 >
-                                    <UserAvatar
-                                        user={author}
+                                    <AuthorAvatar
+                                        author={author}
                                         pixels={48}
                                         className="size-6 ring-2 ring-primary"
                                     />
@@ -680,18 +680,21 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
             <ul className="mt-5 divide-y rounded-lg border text-left">
                 {suggestions.map((commit) => (
                     <li key={commit.id} className="flex items-center gap-3 p-3">
-                        <UserPreview user={commit.user} className="shrink-0">
-                            <UserAvatar user={commit.user} className="size-9" />
+                        <UserPreview user={commit.author} className="shrink-0">
+                            <AuthorAvatar
+                                author={commit.author}
+                                className="size-9"
+                            />
                         </UserPreview>
                         <div className="min-w-0 flex-1">
                             <p className="truncate text-sm">
-                                <UserPreview user={commit.user}>
+                                <UserPreview user={commit.author}>
                                     <span className="font-semibold">
-                                        {commit.user.name}
+                                        {commit.author.name}
                                     </span>
                                 </UserPreview>{' '}
                                 <span className="font-mono text-[13px] text-muted-foreground">
-                                    @{commit.user.handle}
+                                    @{commit.author.handle}
                                 </span>
                             </p>
                             <p className="truncate text-sm text-muted-foreground">
@@ -706,7 +709,7 @@ function Suggestions({ suggestions }: { suggestions: Commit[] }) {
                             </p>
                         </div>
                         <FollowButton
-                            user={commit.user}
+                            user={commit.author}
                             isFollowing={false}
                             size="sm"
                             className="min-w-24 shrink-0"

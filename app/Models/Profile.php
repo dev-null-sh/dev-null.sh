@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Attributes\Visible;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
@@ -81,18 +82,63 @@ final class Profile extends Model
     }
 
     /**
+     * Shown, a profile is its user's or its organization's, with what is its type's alone, like a user's live stream.
+     *
+     * @return array<mixed>
+     */
+    public function toArray(): array
+    {
+        return ['type' => $this->type, ...$this->owner()?->toArray() ?? []];
+    }
+
+    public function mention(): string
+    {
+        return '@'.$this->handle;
+    }
+
+    /**
+     * How link previews title the profile, without repeating a name that is just the handle.
+     */
+    public function nameWithHandle(): string
+    {
+        return $this->name === $this->handle ? $this->mention() : $this->name.' ('.$this->mention().')';
+    }
+
+    /**
+     * Loaded from its profile, the user reads their GitHub identity from it.
+     *
      * @return HasOne<User, $this>
      */
     public function user(): HasOne
     {
-        return $this->hasOne(User::class, 'id');
+        return $this->hasOne(User::class, 'id')->without('profile')->chaperone('profile');
     }
 
     /**
+     * Loaded from its profile, the organization reads its GitHub identity from it.
+     *
      * @return HasOne<Organization, $this>
      */
     public function organization(): HasOne
     {
-        return $this->hasOne(Organization::class, 'id');
+        return $this->hasOne(Organization::class, 'id')->without('profile')->chaperone('profile');
+    }
+
+    /**
+     * The commits from the profile, a user's or an organization's.
+     *
+     * @return HasMany<Commit, $this>
+     */
+    public function commits(): HasMany
+    {
+        return $this->hasMany(Commit::class, 'author_id');
+    }
+
+    /**
+     * The user or the organization whose profile it is.
+     */
+    public function owner(): User|Organization|null
+    {
+        return $this->user ?? $this->organization;
     }
 }

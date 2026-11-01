@@ -29,7 +29,7 @@ export function useLastVisit(
     );
     const isNewFromOthers = commits
         .slice(0, Math.max(firstSeen, 0))
-        .some((commit) => commit.user_id !== userId);
+        .some((commit) => commit.author.id !== userId);
 
     return isNewFromOthers ? commits[firstSeen].id : null;
 }

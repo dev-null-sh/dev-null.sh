@@ -6,7 +6,9 @@ use App\Actions\UpdateOrCreateOrganization;
 use App\Enums\ProfileType;
 use App\Models\Organization;
 use App\Models\Profile;
+use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Support\Facades\DB;
 
 it('updates the organization with the same GitHub ID when it is renamed', function (): void {
     $organization = Organization::factory()->create(['github_id' => '958072', 'handle' => 'laravel-old', 'github_synced_at' => now()->subWeek()]);
@@ -59,4 +61,17 @@ it("fails rather than turn a user's profile into an organization, which GitHub a
 
     expect($profile->refresh()->type)->toBe(ProfileType::User)
         ->and(Organization::query()->exists())->toBeFalse();
+});
+
+it('is followed, once created, by the users following it on GitHub whose follows were imported before', function (): void {
+    [$follower, $other] = User::factory()->count(2)->create();
+    DB::table('pending_organization_follows')->insert([
+        ['user_id' => $follower->id, 'github_id' => '958072', 'created_at' => now()],
+        ['user_id' => $other->id, 'github_id' => '1', 'created_at' => now()],
+    ]);
+
+    $organization = resolve(UpdateOrCreateOrganization::class)->handle(['login' => 'laravel', 'id' => 958072]);
+
+    expect($organization->followers()->pluck('users.id')->all())->toBe([$follower->id])
+        ->and(DB::table('pending_organization_follows')->pluck('user_id')->all())->toBe([$other->id]);
 });

@@ -16,17 +16,10 @@ import { UserAvatar } from '@/components/user-avatar';
 import AppLayout from '@/layouts/app-layout';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { organizationLaneColor } from '@/lib/utils';
-import type {
-    Commit,
-    CursorPaginated,
-    Lane,
-    Organization,
-    User,
-} from '@/types';
+import type { Commit, CursorPaginated, Organization, User } from '@/types';
 
 export default function Show({
     organization,
-    lane,
     tab,
     commits,
     claimUrl,
@@ -35,8 +28,7 @@ export default function Show({
     followersCount,
     isFollowing,
 }: {
-    organization: Organization & { id: string };
-    lane: Lane | null;
+    organization: Organization;
     tab: 'mentions';
     commits: CursorPaginated<Commit>;
     claimUrl: string;
@@ -75,7 +67,9 @@ export default function Show({
                         pixels={160}
                         style={
                             {
-                                '--lane': organizationLaneColor(lane),
+                                '--lane': organizationLaneColor(
+                                    organization.lane,
+                                ),
                             } as CSSProperties
                         }
                     />
@@ -123,7 +117,11 @@ export default function Show({
                     <span
                         aria-hidden
                         className="size-2 rounded-full"
-                        style={{ background: organizationLaneColor(lane) }}
+                        style={{
+                            background: organizationLaneColor(
+                                organization.lane,
+                            ),
+                        }}
                     />
                     @{organization.handle}
                     <span className="ml-1 shrink-0 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">

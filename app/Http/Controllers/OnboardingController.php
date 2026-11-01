@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\UpdateUserOnboardedAt;
 use App\Http\Requests\ShowOnboardingRequest;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
 use Illuminate\Container\Attributes\CurrentUser;
@@ -42,7 +43,7 @@ final readonly class OnboardingController
      * What the GitHub import brought over: null until the job has run. The follows it made share its timestamp, give
      * or take the time the job took. Tom's friendship is made at sign-up too, right before, so bots are left out.
      *
-     * @return array{following: Collection<int, User>, followingCount: int, followers: Collection<int, User>, followersCount: int, pendingCount: int}|null
+     * @return array{following: Collection<int, User>, followingCount: int, organizations: Collection<int, array<mixed>>, organizationsCount: int, followers: Collection<int, User>, followersCount: int, pendingCount: int}|null
      */
     private function githubImport(ShowOnboardingRequest $request, User $user): ?array
     {
@@ -55,10 +56,18 @@ final readonly class OnboardingController
         $imported = fn (BelongsToMany $follows): BelongsToMany => $follows
             ->wherePivotBetween('created_at', [$importedAt->copy()->subSeconds(10), $importedAt])
             ->whereNotIn('users.github_id', User::BOT_GITHUB_IDS);
+        // Organizations are imported on their own for the users who signed up before they could be followed...
+        $organizationsImportedAt = $user->github_organization_follows_imported_at ?? $importedAt;
+        $organizations = fn (): BelongsToMany => $user->followedOrganizations()
+            ->wherePivotBetween('created_at', [$organizationsImportedAt->copy()->subSeconds(10), $organizationsImportedAt]);
 
         return [
             'following' => $imported($user->following())->oldest('users.id')->limit(5)->get(),
             'followingCount' => $imported($user->following())->count(),
+            // With their lane, drawn around their avatar like people's.
+            'organizations' => $organizations()->oldest('organizations.id')->limit(5)->get()
+                ->map(fn (Organization $organization): array => [...$organization->toArray(), 'lane' => $organization->lane()]),
+            'organizationsCount' => $organizations()->count(),
             'followers' => $imported($user->followers())->oldest('users.id')->limit(5)->get(),
             'followersCount' => $imported($user->followers())->count(),
             // SKETCH: pending follows aren't stored yet (see the pending_follows table of feat/unclaimed-profiles).

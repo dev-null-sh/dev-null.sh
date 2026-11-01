@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ProfileSearchController from '@/actions/App/Http/Controllers/ProfileSearchController';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
+import { AuthorAvatar } from '@/components/author-avatar';
 import { OrganizationAvatar } from '@/components/organization-avatar';
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
@@ -43,9 +44,9 @@ import {
     searchesCommits,
     searchIntent,
 } from '@/lib/search-intent';
-import { cn, laneColor } from '@/lib/utils';
+import { authorLaneColor, cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit, Organization, User } from '@/types';
+import type { Commit, CommitAuthor, Organization, User } from '@/types';
 
 const developerDebounce = 120;
 
@@ -633,7 +634,7 @@ function hrefFor(
 
     if (option.kind === 'commit') {
         return CommitController.show({
-            user: option.commit.user,
+            profile: option.commit.author,
             commit: option.commit,
         });
     }
@@ -885,13 +886,13 @@ function CommitResult({ commit }: { commit: Commit }) {
 
     return (
         <>
-            <UserAvatar
-                user={commit.user}
+            <AuthorAvatar
+                author={commit.author}
                 className="size-9 shrink-0 self-start"
             />
             <span className="min-w-0 flex-1">
                 <span className="flex items-baseline gap-1.5 text-sm">
-                    <Handle user={commit.user} />
+                    <Handle user={commit.author} />
                     <span aria-hidden className="text-muted-foreground">
                         ·
                     </span>
@@ -913,13 +914,18 @@ function CommitResult({ commit }: { commit: Commit }) {
     );
 }
 
-function Handle({ user }: { user: User }) {
+function Handle({ user }: { user: User | CommitAuthor }) {
     return (
         <span className="flex min-w-0 shrink items-center gap-1 font-mono text-[13px] text-muted-foreground">
             <span
                 aria-hidden
                 className="size-1.5 shrink-0 rounded-full"
-                style={{ background: laneColor(user.lane) }}
+                style={{
+                    background:
+                        'type' in user
+                            ? authorLaneColor(user)
+                            : laneColor(user.lane),
+                }}
             />
             <span className="truncate">@{user.handle}</span>
         </span>

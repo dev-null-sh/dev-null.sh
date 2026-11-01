@@ -24,7 +24,7 @@ final readonly class OrganizationMentionsQuery
             ->withoutMutedAuthorsFor($viewer)
             ->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
                 ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
-                ->with('user')])
+                ->with('author')])
             ->withVisibleReplyCount($viewer)
             ->withReplyPreviews($viewer)
             ->withCardDataFor($viewer)

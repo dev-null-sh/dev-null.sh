@@ -64,6 +64,7 @@ use LogicException;
  * @property-read Log $log
  * @property-read CarbonInterface|null $onboarded_at
  * @property-read CarbonInterface|null $github_follows_imported_at
+ * @property-read CarbonInterface|null $github_organization_follows_imported_at
  * @property-read string|null $remember_token
  * @property-read CarbonInterface|null $github_synced_at
  * @property-read CarbonInterface|null $last_seen_at
@@ -116,6 +117,7 @@ use LogicException;
     'log',
     'onboarded_at',
     'github_follows_imported_at',
+    'github_organization_follows_imported_at',
     'live_platform',
     'live_url',
     'live_ends_at',
@@ -215,6 +217,7 @@ final class User extends Authenticatable
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',
+            'github_organization_follows_imported_at' => 'datetime',
             'remember_token' => 'string',
             'live_platform' => LivePlatform::class,
             'live_url' => 'string',
@@ -512,15 +515,12 @@ final class User extends Authenticatable
 
     public function mention(): string
     {
-        return '@'.$this->handle;
+        return $this->profile->mention();
     }
 
-    /**
-     * How link previews title the user, without repeating a name that is just the handle.
-     */
     public function nameWithHandle(): string
     {
-        return $this->name === $this->handle ? $this->mention() : $this->name.' ('.$this->mention().')';
+        return $this->profile->nameWithHandle();
     }
 
     public function isFollowing(self $user): bool

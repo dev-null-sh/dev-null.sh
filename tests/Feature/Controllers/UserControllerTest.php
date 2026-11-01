@@ -45,7 +45,7 @@ it('renders a user profile', function (): void {
             ->has('achievements')
             ->has('commits.data', 2)
             ->where('commits.data.0.body', 'Newer')
-            ->where('commits.data.0.user.handle', 'octocat')
+            ->where('commits.data.0.author.handle', 'octocat')
             ->where('commits.data.0.stars_count', 0)
             ->where('commits.data.0.starred', false)
             ->where('commits.data.1.body', 'Older'));
@@ -528,7 +528,7 @@ it('keeps the replies other people left under the replies of a deleted account',
             ->where('ancestors.0.id', $root->id)
             ->where('ancestors.1.id', $reply->id)
             ->missing('ancestors.1.body')
-            ->missing('ancestors.1.user'));
+            ->missing('ancestors.1.author'));
 
     $this->actingAs($root->user)
         ->getJson(route('commit-reply.index', $root))
@@ -536,7 +536,7 @@ it('keeps the replies other people left under the replies of a deleted account',
         ->assertJsonCount(1, 'data')
         ->assertJsonPath('data.0.id', $reply->id)
         ->assertJsonPath('data.0.replies_count', 1)
-        ->assertJsonMissingPath('data.0.user');
+        ->assertJsonMissingPath('data.0.author');
 
     $this->getJson(route('api-commit.show', $reply))->assertNotFound();
 
@@ -654,7 +654,7 @@ it('includes the quoted commits of the user commits', function (): void {
         ->assertInertia(fn ($page) => $page
             ->has('commits.data', 1)
             ->where('commits.data.0.quoted_commit.body', 'The quoted commit')
-            ->where('commits.data.0.quoted_commit.user.handle', 'taylorotwell'));
+            ->where('commits.data.0.quoted_commit.author.handle', 'taylorotwell'));
 });
 
 it('includes the link previews of the user commits', function (): void {
@@ -698,7 +698,7 @@ it('preloads only replies visible to the profile visitor', function (): void {
         ->where('commits.data.0.reply_preview.data.0.id', $ownPending->id)
         ->where('commits.data.0.reply_preview.data.1.id', $visible->id)
         ->where('commits.data.0.reply_preview.next_cursor', null)
-        ->missing('commits.data.0.reply_preview.data.0.user.email'));
+        ->missing('commits.data.0.reply_preview.data.0.author.email'));
 });
 
 it('offers a remote only when the viewer could push to the profile', function (string $case, bool $canPush): void {

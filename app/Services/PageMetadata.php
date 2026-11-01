@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\CommitStatus;
+use App\Enums\ProfileType;
 use App\Models\Commit;
 use App\Models\LinkPreview;
 use App\Models\Organization;
+use App\Models\Profile;
 use App\Models\User;
 use App\Queries\MacAppReleaseQuery;
 use Illuminate\Support\Arr;
@@ -18,7 +20,7 @@ use Illuminate\Support\Str;
  * @phpstan-type Image array{url: string, width: int, height: int, type: string, alt: string}
  * @phpstan-type Feed array{url: string, title: string}
  * @phpstan-type WebsiteMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
- * @phpstan-type CommitMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, publishedAt: string, author: string, feed: Feed, structuredData: array<string, mixed>}
+ * @phpstan-type CommitMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, publishedAt: string, author: string, feed?: Feed, structuredData: array<string, mixed>}
  * @phpstan-type UserMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, feed: Feed, handle: string, structuredData: array<string, mixed>}
  * @phpstan-type OrganizationMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, handle: string, structuredData: array<string, mixed>}
  *
@@ -180,39 +182,39 @@ final readonly class PageMetadata
      */
     public function commit(Commit $commit, array $replies = []): ?array
     {
-        $user = $commit->user;
+        $profile = $commit->author;
 
-        if ($commit->trashed() || $commit->status !== CommitStatus::Approved || ! $user instanceof User) {
+        if ($commit->trashed() || $commit->status !== CommitStatus::Approved || ! $profile instanceof Profile) {
             return null;
         }
 
         $parent = $commit->parent;
-        $parentUser = $parent instanceof Commit && ! $parent->trashed() && $parent->status === CommitStatus::Approved
-            ? $parent->user
+        $parentProfile = $parent instanceof Commit && ! $parent->trashed() && $parent->status === CommitStatus::Approved
+            ? $parent->author
             : null;
-        $url = route('commit.show', [$user, $commit]);
+        $url = route('commit.show', [$profile, $commit]);
 
-        $author = $parentUser instanceof User
-            ? "{$user->nameWithHandle()} replying to {$parentUser->mention()} on /dev/null"
-            : "{$user->nameWithHandle()} on /dev/null";
+        $author = $parentProfile instanceof Profile
+            ? "{$profile->nameWithHandle()} replying to {$parentProfile->mention()} on /dev/null"
+            : "{$profile->nameWithHandle()} on /dev/null";
 
         $body = Str::squish($this->urls->withShortenedUrls($commit->body));
         $title = $author.': “'.Str::limit($body, self::TITLE_EXCERPT_LENGTH, '…', preserveWords: true).'”';
         $description = Str::limit($body, self::DESCRIPTION_LENGTH, '…', preserveWords: true);
 
         $images = [
-            ...$this->commitImages($commit, $user),
+            ...$this->commitImages($commit, $profile),
             [
-                'url' => route('commit-open-graph-image.show', ['user' => $user, 'commit' => $commit, 'v' => $commit->openGraphImageVersion()]),
+                'url' => route('commit-open-graph-image.show', ['profile' => $profile, 'commit' => $commit, 'v' => $commit->openGraphImageVersion()]),
                 'width' => OpenGraphCanvas::WIDTH,
                 'height' => OpenGraphCanvas::HEIGHT,
                 'type' => 'image/png',
-                'alt' => "{$user->nameWithHandle()}: {$description}",
+                'alt' => "{$profile->nameWithHandle()}: {$description}",
             ],
         ];
 
         $comments = collect($replies)
-            ->filter(fn (Commit $reply): bool => ! $reply->trashed() && $reply->status === CommitStatus::Approved && $reply->user instanceof User)
+            ->filter(fn (Commit $reply): bool => ! $reply->trashed() && $reply->status === CommitStatus::Approved && $reply->author instanceof Profile)
             ->take(self::MAX_COMMENTS)
             ->map(fn (Commit $reply): array => $this->comment($reply))
             ->values()
@@ -228,8 +230,8 @@ final readonly class PageMetadata
             'robots' => self::INDEXABLE,
             'images' => $images,
             'publishedAt' => $commit->created_at->toIso8601String(),
-            'author' => route('user.show', $user),
-            'feed' => $this->feed($user),
+            'author' => route('user.show', $profile),
+            ...$profile->user instanceof User ? ['feed' => $this->feed($profile->user)] : [],
             'structuredData' => [
                 '@context' => 'https://schema.org',
                 '@type' => 'SocialMediaPosting',
@@ -239,15 +241,15 @@ final readonly class PageMetadata
                 'headline' => Str::limit($description, 110, '…', preserveWords: true),
                 'text' => $commit->body,
                 'datePublished' => $commit->created_at->toIso8601String(),
-                'author' => $this->person($user),
+                'author' => $this->person($profile),
                 'image' => array_column($images, 'url'),
                 'commentCount' => $commit->replies_count,
                 'interactionStatistic' => [
                     $this->interactionCounter('LikeAction', $commit->stars_count),
                     $this->interactionCounter('CommentAction', $commit->replies_count),
                 ],
-                ...$parent instanceof Commit && $parentUser instanceof User ? [
-                    'isPartOf' => route('commit.show', [$parentUser, $parent]),
+                ...$parent instanceof Commit && $parentProfile instanceof Profile ? [
+                    'isPartOf' => route('commit.show', [$parentProfile, $parent]),
                 ] : [],
                 ...$sharedContent !== null ? ['sharedContent' => $sharedContent] : [],
                 ...$comments !== [] ? ['comment' => $comments] : [],
@@ -279,7 +281,7 @@ final readonly class PageMetadata
                 'url' => route('user.show', $user),
                 'dateCreated' => $user->created_at->toIso8601String(),
                 'mainEntity' => [
-                    ...$this->person($user),
+                    ...$this->person($user->profile),
                     'identifier' => $user->id,
                     ...$user->bio !== null ? ['description' => $user->bio] : [],
                     ...$user->avatar_url !== null ? ['image' => $user->avatar_url] : [],
@@ -303,8 +305,7 @@ final readonly class PageMetadata
      */
     public function organization(Organization $organization): array
     {
-        $nameWithHandle = $organization->name === $organization->handle ? "@{$organization->handle}" : "{$organization->name} (@{$organization->handle})";
-        $title = "{$nameWithHandle} on /dev/null";
+        $title = "{$organization->profile->nameWithHandle()} on /dev/null";
         $url = route('user.show', $organization->handle);
 
         return [
@@ -344,7 +345,7 @@ final readonly class PageMetadata
     /**
      * @return list<Image>
      */
-    private function commitImages(Commit $commit, User $user): array
+    private function commitImages(Commit $commit, Profile $profile): array
     {
         if (! $commit->relationLoaded('images') || ! $commit->imagesAreVisibleTo(null)) {
             return [];
@@ -360,8 +361,8 @@ final readonly class PageMetadata
                 'height' => $image->height,
                 'type' => 'image/webp',
                 'alt' => $count === 1
-                    ? "Image attached to the commit of {$user->nameWithHandle()}"
-                    : 'Image '.($index + 1)." of {$count} attached to the commit of {$user->nameWithHandle()}",
+                    ? "Image attached to the commit of {$profile->nameWithHandle()}"
+                    : 'Image '.($index + 1)." of {$count} attached to the commit of {$profile->nameWithHandle()}",
             ];
         }
 
@@ -404,11 +405,11 @@ final readonly class PageMetadata
     {
         $quoted = $commit->relationLoaded('quotedCommit') ? $commit->quotedCommit : null;
 
-        if ($quoted instanceof Commit && ! $quoted->trashed() && $quoted->status === CommitStatus::Approved && $quoted->user instanceof User) {
+        if ($quoted instanceof Commit && ! $quoted->trashed() && $quoted->status === CommitStatus::Approved && $quoted->author instanceof Profile) {
             return [
                 '@type' => 'SocialMediaPosting',
-                'url' => route('commit.show', [$quoted->user, $quoted]),
-                'author' => $this->person($quoted->user),
+                'url' => route('commit.show', [$quoted->author, $quoted]),
+                'author' => $this->person($quoted->author),
             ];
         }
 
@@ -432,27 +433,28 @@ final readonly class PageMetadata
      */
     private function comment(Commit $reply): array
     {
-        assert($reply->user instanceof User);
+        $author = $reply->author;
+        assert($author instanceof Profile);
 
         return [
             '@type' => 'Comment',
-            'url' => route('commit.show', [$reply->user, $reply]),
+            'url' => route('commit.show', [$author, $reply]),
             'text' => $reply->body,
             'datePublished' => $reply->created_at->toIso8601String(),
-            'author' => $this->person($reply->user),
+            'author' => $this->person($author),
         ];
     }
 
     /**
      * @return array{'@type': string, name: string, alternateName: string, url: string}
      */
-    private function person(User $user): array
+    private function person(Profile $profile): array
     {
         return [
-            '@type' => 'Person',
-            'name' => $user->name,
-            'alternateName' => $user->mention(),
-            'url' => route('user.show', $user),
+            '@type' => $profile->type === ProfileType::Organization ? 'Organization' : 'Person',
+            'name' => $profile->name,
+            'alternateName' => $profile->mention(),
+            'url' => route('user.show', $profile),
         ];
     }
 

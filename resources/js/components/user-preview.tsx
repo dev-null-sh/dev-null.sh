@@ -29,7 +29,13 @@ import { cn, laneColor } from '@/lib/utils';
 import { preview } from '@/routes/mention';
 import { show } from '@/routes/user';
 import { show as userPreview } from '@/routes/user-preview';
-import type { Commit, CursorPaginated, Profile, User } from '@/types';
+import type {
+    Commit,
+    CommitAuthor,
+    CursorPaginated,
+    Profile,
+    User,
+} from '@/types';
 
 type PreviewData = {
     bioProfiles: Record<string, string>;
@@ -110,7 +116,10 @@ export function UserPreview({
     anchor,
     onHoverChange,
 }: {
-    user: User | Pick<User, 'handle'>;
+    /**
+     * An organization's commits have no hover card, so they only report hovering.
+     */
+    user: User | Pick<User, 'handle'> | CommitAuthor;
     userId?: string;
     children: ReactNode;
     className?: string;
@@ -128,7 +137,11 @@ export function UserPreview({
     const [data, setData] = useState<PreviewData | null>(
         () => cache.get(previewUrl) ?? null,
     );
-    const previewUser = data?.user ?? ('id' in user ? user : null);
+    const previewUser =
+        data?.user ??
+        ('id' in user && !('type' in user && user.type === 'organization')
+            ? user
+            : null);
 
     const close = () => {
         setIsOpen(false);
@@ -250,7 +263,10 @@ export function UserPreview({
                     }
 
                     changeHover(true);
-                    scheduleOpen();
+
+                    if (!('type' in user && user.type === 'organization')) {
+                        scheduleOpen();
+                    }
                 }}
                 onPointerLeave={(event) => {
                     if (event.pointerType !== 'mouse') {

@@ -59,7 +59,7 @@ export function CommitQuoteButton({
     const [isOpen, setIsOpen] = useState(false);
     const hasStash = useHasStash(auth.user?.id ?? null, `quote-${commit.id}`);
 
-    if (commit.status !== 'approved' && commit.user_id !== auth.user?.id) {
+    if (commit.status !== 'approved' && commit.author.id !== auth.user?.id) {
         return null;
     }
 
@@ -199,7 +199,7 @@ function QuoteComposer({
                 <ImageDropOverlay className="fixed" />
             )}
             <DialogTitle className="text-base">
-                Quote @{commit.user.handle}
+                Quote @{commit.author.handle}
             </DialogTitle>
             <DialogDescription className="sr-only">
                 Write a commit of your own. This commit is embedded below it.

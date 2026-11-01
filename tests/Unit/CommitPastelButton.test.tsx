@@ -79,7 +79,7 @@ const recipient = { id: 'author', pasteis_received: 9 };
 
 const commit = {
     id: 'commit',
-    user_id: 'author',
+    author: { id: 'author' },
     status: 'approved',
     pasteis_count: 5,
 } as never;

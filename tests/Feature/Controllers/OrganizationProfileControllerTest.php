@@ -18,7 +18,7 @@ it('shows admins the profile of the organization in its settings, with its color
             ->component('organization-profile/edit')
             ->where('organization.id', $organization->id)
             ->where('role', 'admin')
-            ->where('lane', '#1a2b3c')
+            ->where('organization.lane', '#1a2b3c')
             ->missing('organization.lane_color'));
 });
 

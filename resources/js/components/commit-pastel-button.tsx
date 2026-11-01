@@ -52,8 +52,8 @@ export function CommitPastelButton({
     }
 
     const userId = auth.user.id;
-    const isOwn = commit.user_id === userId;
-    const readOnly = isOwn || commit.status !== 'approved' || !commit.user_id;
+    const isOwn = commit.author.id === userId;
+    const readOnly = isOwn || commit.status !== 'approved';
     const label = `${formatExactCount(count)} ${count === 1 ? 'pastel' : 'pastéis'}`;
 
     const award = async () => {

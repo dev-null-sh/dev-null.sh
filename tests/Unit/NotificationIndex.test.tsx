@@ -49,7 +49,7 @@ const notification = {
                 html: '<span class="hl-keyword">return</span> round($score, 6);',
             },
         ],
-    } as Omit<Commit, 'user'>,
+    } as Omit<Commit, 'author'>,
 } as NotificationGroup;
 
 async function renderPage(page: () => ReactElement): Promise<string> {

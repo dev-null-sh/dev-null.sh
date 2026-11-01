@@ -159,6 +159,7 @@ final class Organization extends Model
     public function toArray(): array
     {
         return [
+            'id' => $this->id,
             'handle' => $this->handle,
             'name' => $this->name,
             'avatar_url' => $this->avatar_url,
@@ -166,6 +167,7 @@ final class Organization extends Model
             'location' => $this->location,
             'website' => $this->website,
             ...parent::toArray(),
+            'lane' => $this->lane(),
         ];
     }
 

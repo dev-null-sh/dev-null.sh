@@ -14,7 +14,6 @@ import type { Commit } from '../../resources/js/types';
 const commit = (id: string, lane: number): Commit =>
     ({
         id,
-        user_id: `author-${id}`,
         parent_id: null,
         quoted_commit_id: null,
         created_at: new Date().toISOString(),
@@ -23,7 +22,7 @@ const commit = (id: string, lane: number): Commit =>
         body_segments: [{ type: 'text', text: `Commit ${id}` }],
         preview_segments: [{ type: 'text', text: `Commit ${id}` }],
         replies_count: 0,
-        user: {
+        author: {
             id: `author-${id}`,
             name: `Author ${id}`,
             handle: `author-${id}`,

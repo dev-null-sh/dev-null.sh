@@ -44,7 +44,7 @@ export function useCanReport(commit: Commit): boolean {
     return (
         auth.user !== null &&
         commit.status === 'approved' &&
-        commit.user_id !== auth.user.id
+        commit.author.id !== auth.user.id
     );
 }
 

@@ -13,7 +13,6 @@ import type {
 
 const commit = {
     id: 'quoted',
-    user_id: 'author',
     body: "I'm leaking the Algorithm @nunomaduro\n```php\nreturn round($score, 6);\n```",
     body_segments: [
         { type: 'text', text: "I'm leaking the Algorithm @nunomaduro\n" },
@@ -27,7 +26,7 @@ const commit = {
     preview_segments: null,
     status: 'approved',
     created_at: '2026-10-16T11:51:00.000000Z',
-    user: { id: 'author', name: 'Matthieu Napoli', handle: 'mnapoli' },
+    author: { id: 'author', name: 'Matthieu Napoli', handle: 'mnapoli' },
 } as QuotedCommitData;
 
 const poll = {

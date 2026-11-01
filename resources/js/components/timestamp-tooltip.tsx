@@ -16,7 +16,10 @@ export function TimestampTooltip({
     children,
 }: {
     date: string;
-    author: User;
+    /**
+     * Whose local time to show next to the reader's, when it's a person's.
+     */
+    author?: User;
     children: ReactNode;
 }) {
     return (
@@ -28,7 +31,7 @@ export function TimestampTooltip({
 }
 
 /** The tooltip itself, once the surrounding one has mounted: its parts need it. */
-function ZonedTimesTooltip({ date, author }: { date: string; author: User }) {
+function ZonedTimesTooltip({ date, author }: { date: string; author?: User }) {
     if (!useTooltipArmed()) {
         return null;
     }
@@ -46,7 +49,7 @@ function ZonedTimesTooltip({ date, author }: { date: string; author: User }) {
     );
 }
 
-function ZonedTimes({ date, author }: { date: string; author: User }) {
+function ZonedTimes({ date, author }: { date: string; author?: User }) {
     const { formatZonedDate, formatZonedTime } = useDateTime();
     const { auth } = usePage().props;
 
@@ -56,7 +59,9 @@ function ZonedTimes({ date, author }: { date: string; author: User }) {
             lane: auth.user?.lane,
             timeZone: auth.user?.timezone ?? browserTimeZone(),
         },
-        ...(author.timezone !== null && author.id !== auth.user?.id
+        ...(author !== undefined &&
+        author.timezone !== null &&
+        author.id !== auth.user?.id
             ? [
                   {
                       who: author.name.split(' ')[0],

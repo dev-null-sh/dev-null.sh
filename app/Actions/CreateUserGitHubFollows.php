@@ -5,20 +5,24 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Contracts\Services\GitHubProvider;
+use App\Enums\ProfileType;
+use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Brings a user's GitHub network over, once: they follow the people they follow on GitHub, and the people
- * following them on GitHub follow them here. It only ever adds follows, and never runs twice, so an unfollow sticks.
+ * Brings a user's GitHub network over, once: they follow the people and the organizations they follow on GitHub, and
+ * the people following them on GitHub follow them here. The organizations not on /dev/null yet are kept, so the user
+ * follows them once they are. It only ever adds follows, and never runs twice, so an unfollow sticks. Organizations are
+ * marked as imported apart, so the users imported before organizations could be followed get them on another run.
  */
 final readonly class CreateUserGitHubFollows
 {
     /**
      * Up to 1,000 accounts each way, so a popular account can't use up the rate limit on its own.
      */
-    private const int MaxPages = 10;
+    public const int MaxPages = 10;
 
     public function __construct(
         private GitHubProvider $github,
@@ -29,22 +33,20 @@ final readonly class CreateUserGitHubFollows
 
     public function handle(User $user, bool $notify = true): void
     {
-        if ($user->github_follows_imported_at !== null) {
+        $importsPeople = $user->github_follows_imported_at === null;
+        $importsOrganizations = $user->github_organization_follows_imported_at === null;
+
+        if (! $importsPeople && ! $importsOrganizations) {
             return;
         }
 
         $login = $this->github->login($user->github_id);
+        $followingIds = $login === null ? ['users' => [], 'organizations' => []] : $this->github->followingIds($login, self::MaxPages);
+        $following = $importsPeople ? $this->users($user, $followingIds['users']) : new Collection();
+        $followers = $importsPeople && $login !== null ? $this->users($user, $this->github->followerIds($login, self::MaxPages)) : new Collection();
+        $organizationIds = collect($followingIds['organizations'])->unique()->values();
 
-        if ($login === null) {
-            $user->update(['github_follows_imported_at' => now()]);
-
-            return;
-        }
-
-        $following = $this->users($user, $this->github->followingIds($login, self::MaxPages));
-        $followers = $this->users($user, $this->github->followerIds($login, self::MaxPages));
-
-        DB::transaction(function () use ($user, $following, $followers, $notify): void {
+        DB::transaction(function () use ($user, $notify, $following, $followers, $organizationIds, $importsPeople, $importsOrganizations): void {
             $followedIds = $user->following()->syncWithoutDetaching($following->modelKeys())['attached'];
             $followerIds = $user->followers()->syncWithoutDetaching($followers->modelKeys())['attached'];
 
@@ -58,7 +60,25 @@ final readonly class CreateUserGitHubFollows
                 }
             }
 
-            $user->update(['github_follows_imported_at' => now()]);
+            if ($importsOrganizations) {
+                // Waits for an organization being created from GitHub right now, which follows the pending rows it finds
+                // (UpdateOrCreateOrganization), so the follow is made on one side or the other.
+                DB::select('select pg_advisory_xact_lock(hashtextextended(?, 0))', [UpdateOrCreateOrganization::FollowsLock]);
+
+                $organizations = Profile::query()->where('type', ProfileType::Organization)->whereIn('github_id', $organizationIds)->get();
+
+                $user->followedOrganizations()->syncWithoutDetaching($organizations->modelKeys());
+
+                DB::table('pending_organization_follows')->insertOrIgnore($organizationIds
+                    ->reject(fn (string $id): bool => $organizations->contains('github_id', $id))
+                    ->map(fn (string $id): array => ['user_id' => $user->id, 'github_id' => $id, 'created_at' => now()])
+                    ->all());
+            }
+
+            $user->update(array_filter([
+                'github_follows_imported_at' => $importsPeople ? now() : null,
+                'github_organization_follows_imported_at' => $importsOrganizations ? now() : null,
+            ]));
         });
     }
 

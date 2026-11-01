@@ -47,7 +47,7 @@ it('lists quotes of the users commits', function (): void {
             ->has('notifications.data.0.actors', 1)
             ->where('notifications.data.0.actors.0.id', $quoted->actor_id)
             ->where('notifications.data.0.commit.id', $quoted->commit_id)
-            ->where('notifications.data.0.commit.user_id', $quoted->actor_id));
+            ->missing('notifications.data.0.commit.user_id'));
 });
 
 it('lists mentions of the user', function (): void {

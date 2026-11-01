@@ -9,10 +9,11 @@ import {
 } from '@/components/graph-canvas';
 import type { GraphNodeSpec } from '@/components/graph-canvas';
 import { LiveAvatarMarker } from '@/components/live-stream-card';
+import { OrganizationAvatar } from '@/components/organization-avatar';
 import { UserAvatar } from '@/components/user-avatar';
 import { bridgeDuration } from '@/lib/graph';
 import { cn, laneStrokeStyle } from '@/lib/utils';
-import type { User } from '@/types';
+import type { CommitAuthor, User } from '@/types';
 
 type Props = {
     lane: string;
@@ -392,17 +393,26 @@ export function RailAvatar({
     user,
     progress,
 }: {
-    user: Pick<User, 'name' | 'avatar_url' | 'live'>;
+    user:
+        | Pick<User, 'name' | 'avatar_url' | 'live'>
+        | Extract<CommitAuthor, { type: 'organization' }>;
     // Fills the ring clockwise from 0 to 1, as a post grows toward its limit. At 0 the ring stays dashed.
     progress?: number;
 }) {
-    const isLive = Boolean(user.live);
+    const isOrganization = 'type' in user && user.type === 'organization';
+    const isLive = 'live' in user && Boolean(user.live);
 
     return (
-        <span className="relative flex rounded-full bg-card">
+        <span
+            className={cn(
+                'relative flex bg-card',
+                isOrganization ? 'rounded-lg' : 'rounded-full',
+            )}
+        >
             <span
                 className={cn(
-                    'relative flex rounded-full border-2 border-(--lane) p-0.5 transition-opacity duration-200',
+                    'relative flex border-2 border-(--lane) p-0.5 transition-opacity duration-200',
+                    isOrganization ? 'rounded-lg' : 'rounded-full',
                     dimmedNode,
                     {
                         'border-red-600': isLive,
@@ -457,7 +467,14 @@ export function RailAvatar({
                         </svg>
                     </>
                 )}
-                <UserAvatar user={user} className="size-10" />
+                {isOrganization ? (
+                    <OrganizationAvatar
+                        organization={user}
+                        className="size-10"
+                    />
+                ) : (
+                    <UserAvatar user={user} className="size-10" />
+                )}
             </span>
             {isLive && (
                 <LiveAvatarMarker className="px-1 text-[9px] leading-3.5" />
