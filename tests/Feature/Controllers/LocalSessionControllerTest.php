@@ -105,7 +105,7 @@ it('seeds activity for a local developer who already signed in', function (): vo
 
     $this->assertAuthenticatedAs($localDeveloper);
 
-    expect($localDeveloper->commits()->topLevel()->count())->toBe(3)
+    expect($localDeveloper->commits()->topLevel()->count())->toBe(4)
         ->and($localDeveloper->following()->count())->toBe(3)
         ->and($localDeveloper->notifications()->unread()->count())->toBe(12);
 

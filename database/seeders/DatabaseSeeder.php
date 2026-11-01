@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace Database\Seeders;
 
+use App\Actions\CreateCommitTopics;
 use App\Actions\CreateConversation;
 use App\Actions\CreateMessage;
 use App\Actions\CreateOrg;
 use App\Actions\UpdateCommitHotScores;
 use App\Actions\UpdateConversationReadThrough;
+use App\Enums\OrganizationRole;
 use App\Enums\RemotesFrom;
 use App\Models\Commit;
 use App\Models\Notification;
+use App\Models\Organization;
 use App\Models\User;
+use App\Queries\MentionedOrganizationsQuery;
+use App\Queries\MentionedUsersQuery;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Seeder;
@@ -28,6 +33,9 @@ final class DatabaseSeeder extends Seeder
         private readonly CreateMessage $createMessage,
         private readonly CreateOrg $createOrg,
         private readonly UpdateConversationReadThrough $updateConversationReadThrough,
+        private readonly CreateCommitTopics $createCommitTopics,
+        private readonly MentionedOrganizationsQuery $mentionedOrganizations,
+        private readonly MentionedUsersQuery $mentionedUsers,
     ) {
         //
     }
@@ -55,6 +63,8 @@ final class DatabaseSeeder extends Seeder
                 fn (): array => ['created_at' => fake()->dateTimeBetween('-3 days')],
             )->create();
 
+            $this->seedOrganizations($localDeveloper, $users);
+
             $commits = Commit::query()->topLevel()->get();
 
             $commits->each(fn (Commit $commit) => $this->engage($commit, $users));
@@ -68,6 +78,83 @@ final class DatabaseSeeder extends Seeder
 
             $this->converse($localDeveloper, $users);
         });
+    }
+
+    /**
+     * Two GitHub organizations, as if someone had mentioned them: /dev/null, which the local developer manages, and
+     * Laravel, which they follow. Their pages list threads that mention them, as they have no commits of their own.
+     *
+     * @param  Collection<int, User>  $users
+     */
+    private function seedOrganizations(User $localDeveloper, Collection $users): void
+    {
+        $devNull = $this->organization('dev-null-sh', '/dev/null', 344393722);
+        $laravel = $this->organization('laravel', 'Laravel', 958072);
+        [$maintainer, $contributor, $reviewer, $artisan] = $users->take(4)->all();
+
+        $devNull->admins()->syncWithoutDetaching([$localDeveloper->id]);
+        $devNull->members()->syncWithoutDetaching(array_fill_keys([$maintainer->id, $contributor->id, $reviewer->id], ['role' => OrganizationRole::Member]));
+        $devNull->followers()->syncWithoutDetaching($users->take(5)->modelKeys());
+        $laravel->admins()->syncWithoutDetaching([$artisan->id]);
+        $laravel->followers()->syncWithoutDetaching([$localDeveloper->id, $maintainer->id]);
+
+        $threads = [
+            [$maintainer, 'Shipped threads on org pages for @dev-null-sh: every mention lands on the Mentions tab.', [$reviewer, $localDeveloper]],
+            [$contributor, 'First PR to @dev-null-sh merged. The review took longer than the code, as it should.', [$maintainer]],
+            [$reviewer, 'Reviewing the graph canvas for @dev-null-sh. The dashed lanes finally line up on Safari.', [$contributor, $maintainer]],
+            [$localDeveloper, 'Claimed the @dev-null-sh page. Members, say hi in the replies.', [$maintainer, $contributor, $reviewer]],
+            [$maintainer, '@dev-null-sh runs on @laravel: queues, broadcasting and a lot of Eloquent.', [$artisan]],
+            [$contributor, 'Wrote a seeder for @dev-null-sh so local orgs have something to show.', [$localDeveloper]],
+            [$artisan, 'Upgraded to the latest @laravel release in ten minutes, tests included.', [$maintainer]],
+            [$reviewer, 'TIL @laravel ships a Concurrency facade. Using it for the next import job.', [$artisan]],
+        ];
+
+        $createdAt = Date::now()->subWeeks(2)->toImmutable();
+
+        foreach ($threads as [$author, $body, $repliers]) {
+            $parent = $this->mentioningCommit($author, $body, $createdAt = $createdAt->addHours(fake()->numberBetween(6, 30)));
+
+            foreach ($repliers as $replier) {
+                $parent = Commit::factory()->for($replier)->for($parent, 'parent')->create([
+                    'created_at' => $createdAt = $createdAt->addMinutes(fake()->numberBetween(5, 90)),
+                ]);
+            }
+        }
+
+        $this->mentioningCommit($reviewer, 'Agreed, and @dev-null-sh should say so on its page.', $createdAt->addMinutes(5), $parent);
+    }
+
+    /**
+     * The organization as GitHub has it, with its real GitHub ID and avatar, so it looks like itself.
+     */
+    private function organization(string $handle, string $name, int $githubId): Organization
+    {
+        $github = ['github_id' => (string) $githubId, 'avatar_url' => "https://avatars.githubusercontent.com/u/{$githubId}?v=4"];
+        $organization = Organization::query()->whereRelation('profile', 'handle', $handle)->first();
+
+        if ($organization instanceof Organization) {
+            $organization->profile->update($github);
+
+            return $organization;
+        }
+
+        return Organization::factory()->create(['handle' => $handle, 'name' => $name, ...$github]);
+    }
+
+    /**
+     * A commit linked to the organizations its body mentions, as posting one links it.
+     */
+    private function mentioningCommit(User $author, string $body, CarbonInterface $createdAt, ?Commit $parent = null): Commit
+    {
+        $commit = Commit::factory()->for($author)->create([
+            'body' => $body,
+            'parent_id' => $parent?->id,
+            'created_at' => $createdAt,
+        ]);
+
+        $this->createCommitTopics->handle($commit, $this->mentionedOrganizations->get($body, $this->mentionedUsers->get($body)));
+
+        return $commit;
     }
 
     /**
