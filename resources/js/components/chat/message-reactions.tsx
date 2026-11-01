@@ -309,6 +309,8 @@ export function ReactionTray({
     const pendingReaction = useRef<string | null>(null);
     const [isReservingReaction, setIsReservingReaction] = useState(false);
     const reservesFirstReaction = isReservingReaction && !hasReactions;
+    // Under a message, the tray lines up with the side its react button sits on, so the pointer barely moves to it.
+    const alignsEnd = placement === 'beside' || !isMine;
 
     const close = () => {
         onOpenChange(false);
@@ -408,7 +410,7 @@ export function ReactionTray({
                 className={cn(
                     '-mx-2 flex min-h-0 items-start overflow-hidden px-2',
                     {
-                        'justify-end': isMine,
+                        'justify-end': alignsEnd,
                     },
                 )}
             >
@@ -467,7 +469,7 @@ export function ReactionTray({
                             </button>
                         </PopoverTrigger>
                         <PopoverContent
-                            align={isMine ? 'end' : 'start'}
+                            align={alignsEnd ? 'end' : 'start'}
                             collisionPadding={8}
                             className="flex h-[min(25rem,var(--radix-popover-content-available-height))] w-76 flex-col overflow-hidden rounded-lg p-0 shadow-[0_12px_32px_-12px_rgb(0_0_0/0.35)]"
                             onCloseAutoFocus={(event) => {
