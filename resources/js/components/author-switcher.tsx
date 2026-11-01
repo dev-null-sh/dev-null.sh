@@ -13,8 +13,8 @@ import { UserAvatar } from '@/components/user-avatar';
 import type { OrganizationAuthor, User } from '@/types';
 
 /**
- * The avatar of a composer, which members of an organization open to post as it instead of themselves. Everyone else
- * just sees their own.
+ * The avatar of a composer, which members of an organization open to post as it instead of themselves, once posting as
+ * an organization is switched on. Everyone else just sees their own.
  */
 export function AuthorSwitcher({
     user,
@@ -31,7 +31,7 @@ export function AuthorSwitcher({
 }) {
     const { auth } = usePage().props;
 
-    if (auth.organizations.length === 0) {
+    if (!auth.canPostAsOrganization || auth.organizations.length === 0) {
         return fallback;
     }
 

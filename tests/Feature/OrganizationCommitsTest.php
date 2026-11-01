@@ -52,8 +52,13 @@ it('lets no one post as an organization until administrators switch it on', func
     $this->actingAs($this->member)
         ->post(route('commit.store'), ['body' => 'Not yet', 'author' => 'laravel'])
         ->assertSessionHasErrors(['author' => "Posting as an organization isn't available yet."]);
+    signedApiRequest(apiKeyPairFor($this->member), 'POST', route('api-commit.store'), ['body' => 'Not yet', 'author' => 'laravel'])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('author');
     $this->get(route('log.show', Log::Following))
-        ->assertInertia(fn ($page) => $page->where('auth.organizations', []));
+        ->assertInertia(fn ($page) => $page
+            ->where('auth.canPostAsOrganization', false)
+            ->has('auth.organizations', 1));
 
     expect(Commit::query()->exists())->toBeFalse();
 });

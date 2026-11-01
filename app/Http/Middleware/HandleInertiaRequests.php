@@ -96,10 +96,12 @@ final class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => fn (): ?User => $request->user()?->loadCounts(),
                 'bioProfiles' => fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [],
-                // The organizations the user can post as, shown like the commits they author, once the feature is on.
-                'organizations' => fn (): array => $user instanceof User && resolve(Features::class)->enabled(Feature::OrganizationCommits) ? $user->organizations()->get()
+                // The organizations the user is a member of, shown like the commits they author: theirs too, and who they
+                // can post as once the feature is on.
+                'organizations' => fn (): array => $user instanceof User ? $user->organizations()->get()
                     ->map(fn (Organization $organization): array => ['type' => 'organization', ...$organization->toArray()])
                     ->all() : [],
+                'canPostAsOrganization' => fn (): bool => resolve(Features::class)->enabled(Feature::OrganizationCommits),
                 'isAdmin' => $isAdmin,
                 'automaticTranslation' => $user->automatic_translation ?? true,
                 'mustReadCommitRules' => $user instanceof User && $user->commit_rules_accepted_at === null,
