@@ -1,5 +1,5 @@
 import { Head, usePage, usePoll } from '@inertiajs/react';
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import { AppAside } from '@/components/app-aside';
 import {
     AppNav,
@@ -13,7 +13,6 @@ import {
     CommitComposerDialog,
     focusVisibleComposer,
 } from '@/components/commit-composer-dialog';
-import { CommitImageViewer } from '@/components/commit-image-viewer';
 import { CommitStarPolling } from '@/components/commit-star-polling';
 import { DeletedPageDialog } from '@/components/deleted-page-dialog';
 import { endStream, GoLiveDialog } from '@/components/go-live-dialog';
@@ -34,14 +33,21 @@ import { signIn } from '@/lib/auth';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import type { IssueKind } from '@/lib/issue-commands';
 import type { SearchAction } from '@/lib/search-actions';
+import type { CommitPhoto } from '@/lib/commit-photo';
 import { cn } from '@/lib/utils';
 import type { AppLayoutProps } from '@/types';
+
+// The lightbox is only needed once a photo opens, so it loads then instead of on every page.
+const CommitImageViewer = lazy(async () => ({
+    default: (await import('@/components/commit-image-viewer'))
+        .CommitImageViewer,
+}));
 
 export default function AppLayout({ children }: AppLayoutProps) {
     const {
         component,
-        props: { auth },
-    } = usePage();
+        props: { auth, photo },
+    } = usePage<{ photo?: CommitPhoto }>();
     const { isLayoutOpen } = useNavOpen();
     const [isShowingShortcuts, setIsShowingShortcuts] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
@@ -50,6 +56,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
         null,
     );
     const [isGoingLive, setIsGoingLive] = useState(false);
+    // Stays mounted after the photo closes, so the lightbox can animate out.
+    const [hasShownPhoto, setHasShownPhoto] = useState(false);
+
+    if (photo !== undefined && !hasShownPhoto) {
+        setHasShownPhoto(true);
+    }
     const showShortcuts = useCallback(() => setIsShowingShortcuts(true), []);
     const openSearch = useCallback(() => setIsSearching(true), []);
     const isGuest = auth.user === null;
@@ -154,7 +166,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 </MobileNav>
 
                 {deletedPage === null ? (
-                    <CommitImageViewer />
+                    hasShownPhoto && (
+                        <Suspense>
+                            <CommitImageViewer />
+                        </Suspense>
+                    )
                 ) : (
                     <DeletedPageDialog page={deletedPage} />
                 )}
