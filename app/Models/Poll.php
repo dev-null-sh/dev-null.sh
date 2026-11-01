@@ -34,6 +34,11 @@ final class Poll extends Model
     use HasUuids;
 
     /**
+     * Set when a signed-in viewer asks to see an open poll's counts. It does not record a vote.
+     */
+    private bool $revealResults = false;
+
+    /**
      * @return array<string, string>
      */
     public function casts(): array
@@ -49,7 +54,7 @@ final class Poll extends Model
     }
 
     /**
-     * Counts are only revealed to the author, to voters, and to everyone once the poll has closed, so they can't sway a vote. Voters are never revealed.
+     * Counts stay hidden unless the viewer has voted, owns the poll, the poll has closed, or this copy was asked to reveal them. Voters are never included.
      *
      * @return array{id: string, closes_at: string|null, is_closed: bool, has_voted: bool, total_votes: int|null, options: list<array{id: string, label: string, votes_count: int|null, voted: bool}>}
      */
@@ -57,7 +62,7 @@ final class Poll extends Model
     {
         $options = $this->options->all();
         $hasVoted = $this->options->contains(fn (PollOption $option): bool => $option->voted === true);
-        $showsResults = $hasVoted || $this->is_own === true || $this->isClosed();
+        $showsResults = $this->revealResults || $hasVoted || $this->is_own === true || $this->isClosed();
         $closesAt = $this->closesAt();
 
         return [
@@ -73,6 +78,13 @@ final class Poll extends Model
                 'voted' => $option->voted === true,
             ], $options)),
         ];
+    }
+
+    public function revealingResults(): self
+    {
+        $this->revealResults = true;
+
+        return $this;
     }
 
     /**

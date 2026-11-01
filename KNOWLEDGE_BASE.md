@@ -300,9 +300,9 @@ Livestream history: on [day two at 7:31:27](https://www.youtube.com/watch?v=nfmV
 
 Add a poll to a top-level commit with **two to four distinct options**, each up to **50 characters** (with the same emoji suggestions and `:shortcode:` conversion as the commit body), and a duration of **one hour, one day, three days, or seven days**. Polls cannot accompany images or be added to replies or quotes. Voting opens when the commit is approved, so time spent pending does not consume the voting period.
 
-Signed-in readers can choose one option and vote once while an approved, visible poll is open; a vote cannot be changed or withdrawn. The author cannot vote in their own poll. Results are visible to the author and people who have voted, and to everyone once the poll closes. Other people's individual votes are not revealed.
+Signed-in readers can choose one option and vote once while an approved, visible poll is open; a vote cannot be changed or withdrawn. The author cannot vote in their own poll. Results are visible to the author and to people who have voted. A signed-in reader who can see an open poll can also look at the results without a vote being recorded, and can still vote afterwards. Everyone, including guests, sees the results once the poll closes. Other people's individual votes are not revealed.
 
-Sources: [poll editor](resources/js/components/poll-editor.tsx), [poll results](app/Models/Poll.php), [voting rules](app/Rules/OpenPoll.php), [approval and poll opening](app/Actions/UpdateCommitStatuses.php).
+Sources: [poll editor](resources/js/components/poll-editor.tsx), [poll results](app/Models/Poll.php), [viewing results](app/Http/Controllers/CommitPollVoteController.php), [voting rules](app/Rules/OpenPoll.php), [approval and poll opening](app/Actions/UpdateCommitStatuses.php).
 
 ### Scheduled commits
 
