@@ -17,7 +17,7 @@ final readonly class ReportedUsersQuery
     }
 
     /**
-     * The open reports on people who are not banned, oldest first, each with what moderators can do about that person.
+     * The open reports on people who are not banned, child safety first and then oldest first, each with what moderators can do about that person.
      * Admins have no moderation menu, as on their profile. The reporter stays out of it.
      *
      * @return CursorPaginator<int, array<mixed>>
@@ -26,10 +26,11 @@ final readonly class ReportedUsersQuery
     {
         $reports = UserReport::query()
             ->select(['id', 'user_id', 'reason', 'details', 'created_at'])
+            ->selectRaw("(reason = 'child_safety')::int as priority")
             ->whereNull('dismissed_at')
             ->whereHas('user', fn (Builder $query): Builder => $query->whereNull('banned_at'))
             ->with('user')
-            ->oldest()->oldest('id')
+            ->orderByDesc('priority')->oldest()->oldest('id')
             ->cursorPaginate(20);
 
         $users = collect($reports->items())->map(fn (UserReport $report): User => $report->user)->reject(fn (User $user): bool => $user->isAdmin())->unique('id');

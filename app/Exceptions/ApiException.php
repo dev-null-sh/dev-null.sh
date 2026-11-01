@@ -39,7 +39,7 @@ final class ApiException extends HttpException
     }
 
     /**
-     * A person who doesn't exist, or who blocked the user. Reports answer them alike, so nothing tells them apart.
+     * A person who doesn't exist, or who blocked the user where a block stops the action.
      */
     public static function userUnavailable(): self
     {

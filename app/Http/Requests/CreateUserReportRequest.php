@@ -15,8 +15,7 @@ use Illuminate\Validation\Rules\In;
 final class CreateUserReportRequest extends FormRequest
 {
     /**
-     * Someone who blocked the reporter is unavailable to them, so they look like they do not exist. It doesn't go the
-     * other way: blocking someone must not cost you the chance to report them, and you still see who you blocked.
+     * A block in either direction doesn't stop a report, and the answer doesn't say whether there is one.
      */
     public function authorize(): Response
     {
@@ -26,12 +25,8 @@ final class CreateUserReportRequest extends FormRequest
         $user = $this->route('user');
         assert($user instanceof User);
 
-        if ($reporter->is($user)) {
-            return Response::deny('You cannot report yourself.');
-        }
-
-        return $user->isBlocking($reporter) && ! $reporter->isBlocking($user)
-            ? Response::denyAsNotFound()
+        return $reporter->is($user)
+            ? Response::deny('You cannot report yourself.')
             : Response::allow();
     }
 

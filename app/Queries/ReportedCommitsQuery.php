@@ -12,11 +12,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 final readonly class ReportedCommitsQuery
 {
-    /** @return CursorPaginator<int, CommitReport> */
+    /**
+     * Child safety reports first, then oldest first.
+     *
+     * @return CursorPaginator<int, CommitReport>
+     */
     public function paginate(User $viewer): CursorPaginator
     {
         return CommitReport::query()
             ->select(['id', 'commit_id', 'reason', 'details', 'images', 'created_at'])
+            ->selectRaw("(reason = 'child_safety')::int as priority")
             ->whereNull('dismissed_at')
             ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->approved()->visibleTo($viewer))
             ->with(['commit' => fn (BelongsTo $query): BelongsTo => $query
@@ -25,7 +30,7 @@ final readonly class ReportedCommitsQuery
                     ->where('status', CommitStatus::Approved)
                     ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
                     ->with('author')])])
-            ->oldest()->oldest('id')
+            ->orderByDesc('priority')->oldest()->oldest('id')
             ->cursorPaginate(20);
     }
 }

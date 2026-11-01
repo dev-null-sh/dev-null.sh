@@ -13,7 +13,7 @@ use Illuminate\Http\Response;
 final readonly class UserReportController
 {
     /**
-     * Reports are private, so there is nothing to answer with. Reporting someone again keeps the report still open.
+     * Reports are private, so there is nothing to answer with. Reporting someone again keeps the report still open, or raises it for child safety.
      */
     public function store(CreateApiUserReportRequest $request, #[CurrentUser] User $reporter, User $user, CreateUserReport $action): Response
     {

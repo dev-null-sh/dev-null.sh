@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\User;
 use App\Models\UserReport;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 beforeEach(function (): void {
@@ -53,29 +54,39 @@ it('may not report themselves, with a code', function (): void {
     expect(UserReport::query()->count())->toBe(0);
 });
 
-it('gives the same answer for someone who does not exist and someone who blocked the user', function (): void {
-    $blocker = User::factory()->create();
-    $blocker->blocking()->attach($this->user);
-    $answer = ['message' => "This profile isn't available.", 'code' => 'user_unavailable'];
-
-    signedApiRequest($this->keyPair, 'POST', route('api-user-report.store', $blocker), ['reason' => 'spam'])
-        ->assertForbidden()
-        ->assertExactJson($answer);
+it('answers user_unavailable for someone who does not exist', function (): void {
     signedApiRequest($this->keyPair, 'POST', '/api/v1/users/nobody-has-this-handle/reports', ['reason' => 'spam'])
         ->assertForbidden()
-        ->assertExactJson($answer);
+        ->assertExactJson(['message' => "This profile isn't available.", 'code' => 'user_unavailable']);
 
     expect(UserReport::query()->count())->toBe(0);
 });
 
-it('still lets the user report someone they blocked', function (): void {
-    $blocked = User::factory()->create();
-    $this->user->blocking()->attach($blocked);
+it('reports across a block in either direction, with the same answer as without one', function (bool $blockedByThem): void {
+    $other = User::factory()->create();
+    $blockedByThem ? $other->blocking()->attach($this->user) : $this->user->blocking()->attach($other);
 
-    signedApiRequest($this->keyPair, 'POST', route('api-user-report.store', $blocked), ['reason' => 'harassment'])
+    signedApiRequest($this->keyPair, 'POST', route('api-user-report.store', $other), ['reason' => 'harassment'])
         ->assertNoContent();
 
-    expect(UserReport::query()->sole()->user_id)->toBe($blocked->id);
+    expect(UserReport::query()->sole()->user_id)->toBe($other->id);
+})->with([true, false]);
+
+it('raises an open report for child safety and alerts moderators, but never lowers it', function (): void {
+    Mail::fake();
+    config(['app.admins' => ['moderator-demo']]);
+    User::factory()->create(['handle' => 'moderator-demo']);
+    $reported = User::factory()->create();
+
+    signedApiRequest($this->keyPair, 'POST', route('api-user-report.store', $reported), ['reason' => 'spam', 'details' => 'Links'])->assertNoContent();
+    Mail::assertNothingQueued();
+
+    signedApiRequest($this->keyPair, 'POST', route('api-user-report.store', $reported), ['reason' => 'child_safety', 'details' => 'They asked my age.'])->assertNoContent();
+    Mail::assertQueuedCount(1);
+    expect(UserReport::query()->sole())->reason->toBe('child_safety')->details->toBe("Links\n\nThey asked my age.");
+
+    signedApiRequest($this->keyPair, 'POST', route('api-user-report.store', $reported), ['reason' => 'other'])->assertNoContent();
+    expect(UserReport::query()->sole()->reason)->toBe('child_safety');
 });
 
 it('keeps the first report while it is open', function (): void {

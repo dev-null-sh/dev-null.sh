@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Enums\CommitStatus;
+use App\Mail\ChildSafetyReportEmail;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -14,6 +15,7 @@ use App\Services\EncryptedFiles;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
@@ -257,6 +259,65 @@ it('keeps the first report and does not reopen a dismissed duplicate', function 
         ->and($report->refresh()->reason)->toBe('spam')
         ->and($report->details)->toBeNull()
         ->and($report->dismissed_at)->not->toBeNull();
+});
+
+it('raises an open report for child safety with both sets of details, past 500 characters, and alerts moderators once', function (): void {
+    Mail::fake();
+    User::factory()->create(['handle' => 'moderator-demo']);
+    $commit = Commit::factory()->create();
+    $reporter = User::factory()->create();
+    $old = str_repeat('o', 500);
+    $new = str_repeat('n', 500);
+
+    $this->actingAs($reporter)->post(route('commit-report.store', $commit), ['reason' => 'spam', 'details' => $old]);
+    Mail::assertNothingQueued();
+
+    $this->actingAs($reporter)->post(route('commit-report.store', $commit), ['reason' => 'child_safety', 'details' => $new])->assertRedirect();
+    expect(CommitReport::query()->sole())->reason->toBe('child_safety')->details->toBe("{$old}\n\n{$new}");
+    Mail::assertQueuedCount(1);
+
+    $this->actingAs($reporter)->post(route('commit-report.store', $commit), ['reason' => 'other', 'details' => 'Dropped']);
+    $this->actingAs($reporter)->post(route('commit-report.store', $commit), ['reason' => 'child_safety']);
+    expect(CommitReport::query()->sole())->reason->toBe('child_safety')->details->toBe("{$old}\n\n{$new}");
+    Mail::assertQueuedCount(1);
+});
+
+it('alerts moderators of a new child safety report on a commit, linking to its queue', function (): void {
+    Mail::fake();
+    User::factory()->create(['handle' => 'moderator-demo']);
+
+    $this->actingAs(User::factory()->create())->post(route('commit-report.store', Commit::factory()->create()), ['reason' => 'child_safety', 'details' => 'Secret words']);
+
+    Mail::assertQueued(ChildSafetyReportEmail::class, function (ChildSafetyReportEmail $mail): bool {
+        $mail->assertSeeInHtml(route('reported-commit.index'))->assertDontSeeInHtml('Secret words');
+
+        return true;
+    });
+});
+
+it('leaves a dismissed report alone when child safety is reported on the same commit', function (): void {
+    Mail::fake();
+    User::factory()->create(['handle' => 'moderator-demo']);
+    $report = CommitReport::factory()->create(['reason' => 'spam', 'dismissed_at' => now()]);
+
+    $this->actingAs(User::query()->findOrFail($report->reporter_id))->post(route('commit-report.store', $report->commit_id), ['reason' => 'child_safety'])->assertRedirect();
+
+    expect($report->refresh())->reason->toBe('spam')->dismissed_at->not->toBeNull();
+    Mail::assertNothingQueued();
+});
+
+it('lists child safety reports first, across pages', function (): void {
+    $moderator = User::factory()->create(['handle' => 'moderator-demo']);
+    $reports = CommitReport::factory()->count(15)->create(['created_at' => now()])
+        ->concat(CommitReport::factory()->count(15)->create(['reason' => 'child_safety', 'created_at' => now()->addSecond()]));
+
+    $first = $this->actingAs($moderator)->get(route('reported-commit.index'))->assertOk()->inertiaProps('reports');
+    $second = $this->actingAs($moderator)->get(route('reported-commit.index', ['cursor' => $first['next_cursor']]))->assertOk()->inertiaProps('reports');
+    $all = collect([...$first['data'], ...$second['data']]);
+
+    expect($all->pluck('id')->sort()->values()->all())->toBe($reports->pluck('id')->sort()->values()->all())
+        ->and($all->take(15)->pluck('reason')->unique()->all())->toBe(['child_safety'])
+        ->and($first['data'][0])->not->toHaveKey('priority');
 });
 
 it('throttles reports per reporter including duplicates', function (): void {

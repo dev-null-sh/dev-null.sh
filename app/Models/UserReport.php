@@ -26,7 +26,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read CarbonInterface $updated_at
  * @property-read User $user
  */
-#[Visible(['id', 'reason', 'details', 'created_at', 'user'])]
+#[Visible(['id', 'reason', 'details', 'created_at', 'priority', 'user'])]
 #[Fillable(['user_id', 'reporter_id', 'reason', 'details'])]
 final class UserReport extends Model
 {

@@ -1,5 +1,5 @@
 import { Link } from '@inertiajs/react';
-import { Check, Ellipsis, Search, UserPlus, X } from 'lucide-react';
+import { Check, Ellipsis, Flag, Search, UserPlus, X } from 'lucide-react';
 import type { FormEvent, ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
+import { UserReportDialog } from '@/components/user-report-dialog';
 import { useChat } from '@/hooks/use-chat';
 import {
     addOrgMembers,
@@ -500,6 +501,7 @@ function MemberRow({
     isLastMaintainer: boolean;
 }) {
     const [isBusy, setIsBusy] = useState(false);
+    const [isReporting, setIsReporting] = useState(false);
 
     const run = async (change: () => Promise<void>) => {
         setIsBusy(true);
@@ -599,6 +601,13 @@ function MemberRow({
                                         Make maintainer
                                     </DropdownMenuItem>
                                 )}
+                                <DropdownMenuItem
+                                    onSelect={() => setIsReporting(true)}
+                                    data-test="report-user"
+                                >
+                                    <Flag />
+                                    Report @{member.user.handle}
+                                </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                     variant="destructive"
@@ -619,6 +628,13 @@ function MemberRow({
                         </DropdownMenu>
                     ))}
             </span>
+            {canManage && (
+                <UserReportDialog
+                    user={member.user}
+                    open={isReporting}
+                    onOpenChange={setIsReporting}
+                />
+            )}
         </li>
     );
 }

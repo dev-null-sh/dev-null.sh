@@ -74,7 +74,7 @@ export default function Reports({
                 <div className="flex h-14 items-center border-b px-4">
                     <h1 className="font-semibold">Moderation</h1>
                     <p className="ml-auto text-sm text-muted-foreground">
-                        Oldest first
+                        Child safety first, then oldest
                     </p>
                 </div>
                 <ModerationTabs active="reports" />

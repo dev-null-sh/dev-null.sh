@@ -71,17 +71,26 @@ export default function Unavailable({
                                 </Button>
                             </div>
                         </EmptyFeed>
-                        <UserReportDialog
-                            user={blockedUser}
-                            open={isReporting}
-                            onOpenChange={setIsReporting}
-                        />
                     </>
                 ) : (
                     <EmptyFeed command={`fatal: @${handle} is unavailable`}>
-                        This profile isn't available.
+                        <p>This profile isn't available.</p>
+                        <Button
+                            variant="outline"
+                            className="mt-4"
+                            onClick={() => setIsReporting(true)}
+                            data-test="report-user"
+                        >
+                            <Flag />
+                            Report @{handle}
+                        </Button>
                     </EmptyFeed>
                 )}
+                <UserReportDialog
+                    user={{ handle }}
+                    open={isReporting}
+                    onOpenChange={setIsReporting}
+                />
             </div>
         </>
     );

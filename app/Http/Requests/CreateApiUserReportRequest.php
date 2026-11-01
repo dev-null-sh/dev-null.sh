@@ -16,8 +16,7 @@ use Illuminate\Validation\Rules\In;
 final class CreateApiUserReportRequest extends FormRequest
 {
     /**
-     * As on the web, someone who blocked the reporter answers as if they do not exist, and the one who blocked may
-     * still report who they blocked. The app gets a code for both refusals.
+     * A block in either direction doesn't stop a report, and the answer doesn't say whether there is one.
      */
     public function authorize(): bool
     {
@@ -28,7 +27,6 @@ final class CreateApiUserReportRequest extends FormRequest
         assert($user instanceof User);
 
         throw_if($reporter->is($user), fn (): ApiException => new ApiException(ApiErrorCode::OwnProfile, __('You cannot report yourself.')));
-        throw_if($user->isBlocking($reporter) && ! $reporter->isBlocking($user), fn (): ApiException => ApiException::userUnavailable());
 
         return true;
     }

@@ -60,15 +60,15 @@ export default function ProfileReports({
                 <div className="flex h-14 items-center border-b px-4">
                     <h1 className="font-semibold">Moderation</h1>
                     <p className="ml-auto text-sm text-muted-foreground">
-                        Oldest first
+                        Child safety first, then oldest
                     </p>
                 </div>
                 <ModerationTabs active="profile-reports" />
             </div>
             <p className="border-b px-4 py-3 text-sm text-muted-foreground">
-                Private reports about people, from their profile or a private
-                chat. They carry no messages. Dismiss a report, or put the
-                person in timeout or ban them.
+                Private reports about people, from their profile, a private chat
+                or an org's member list. They carry no messages. Dismiss a
+                report, or put the person in timeout or ban them.
             </p>
             {reports.data.length === 0 ? (
                 <div className="px-6 py-16 text-center">

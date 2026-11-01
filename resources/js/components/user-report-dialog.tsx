@@ -16,7 +16,7 @@ import { reportReasons } from '@/lib/report-reasons';
 import type { User } from '@/types';
 
 /**
- * Reports a person, from their profile or a private chat. It's about them, so it never carries anything from a chat.
+ * Reports a person, from their profile, a private chat or an org's member list. It's about them, so it never carries anything from a chat.
  */
 export function UserReportDialog({
     user,

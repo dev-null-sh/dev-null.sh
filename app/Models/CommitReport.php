@@ -25,7 +25,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read CarbonInterface $updated_at
  * @property-read Commit|null $commit
  */
-#[Hidden(['images'])]
+#[Hidden(['images', 'priority'])]
 #[Fillable(['commit_id', 'reporter_id', 'reason', 'details'])]
 final class CommitReport extends Model
 {
@@ -34,11 +34,13 @@ final class CommitReport extends Model
 
     use HasUuids;
 
+    public const string CHILD_SAFETY = 'child_safety';
+
     public const array REASONS = [
         'spam' => 'Spam or misleading links',
         'harassment' => 'Harassment or hate',
         'unsafe' => 'Harmful or private information',
-        'child_safety' => 'Child safety, such as grooming or sexual content involving a minor',
+        self::CHILD_SAFETY => 'Child safety, such as grooming or sexual content involving a minor',
         'other' => 'Something else',
     ];
 

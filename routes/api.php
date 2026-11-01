@@ -317,7 +317,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::post('users/{user:handle}/mute', [UserMuteController::class, 'store'])->name('api-user-mute.store');
         Route::delete('users/{user:handle}/mute', [UserMuteController::class, 'destroy'])->name('api-user-mute.destroy');
 
-        // User Report: someone who doesn't exist gets the same answer as someone who blocked the user...
+        // User Report...
         Route::post('users/{user:handle}/reports', [UserReportController::class, 'store'])
             ->middleware('throttle:user-reports')
             ->missing(fn (): JsonResponse => ApiException::userUnavailable()->render())
