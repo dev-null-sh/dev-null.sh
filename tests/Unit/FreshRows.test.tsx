@@ -127,3 +127,23 @@ test('a row stays lit for a moment after it is seen, however the pointer moves',
 
     assert.equal(top.dataset.fresh, '');
 });
+
+test('input after a row faded on its own still waits for the rows below', () => {
+    const top = row('top');
+    const below = row('below');
+    light([top, below], ['top', 'below']);
+
+    see(top);
+    vi.advanceTimersByTime(7000);
+    listeners.get('pointermove')!();
+    vi.advanceTimersByTime(1800);
+
+    assert.equal(below.dataset.fresh, '');
+    assert.equal(listeners.size, 3);
+
+    see(below);
+    vi.advanceTimersByTime(7000);
+
+    assert.equal(below.dataset.fresh, 'fading');
+    assert.equal(listeners.size, 0);
+});

@@ -36,6 +36,7 @@ export function useFreshRows(
         let unsettled = elements.length;
 
         const settle = (row: HTMLElement) => {
+            hurried.add(row);
             row.dataset.fresh = 'fading';
             setTimeout(() => {
                 if (row.dataset.fresh === 'fading') {
