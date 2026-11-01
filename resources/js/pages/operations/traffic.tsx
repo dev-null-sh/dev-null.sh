@@ -11,6 +11,7 @@ import { Panel } from '@/components/operations/section';
 import { Stats } from '@/components/operations/stats';
 import { Status } from '@/components/operations/status';
 import { Button } from '@/components/ui/button';
+import { useDateTime } from '@/hooks/use-date-time';
 import { usePicked } from '@/hooks/use-picked';
 import OperationsLayout from '@/layouts/operations/layout';
 import { formatCount } from '@/lib/numbers';
@@ -137,15 +138,6 @@ function countryName(code: string): string {
     }
 }
 
-function hour(date: string): string {
-    return new Date(date).toLocaleTimeString('en', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hourCycle: 'h23',
-        timeZone: 'UTC',
-    });
-}
-
 /**
  * A filter's value as its breakdown prints it.
  */
@@ -250,6 +242,7 @@ function TrafficChart({
     metric: Metric;
     onMetric: (metric: Metric) => void;
 }) {
+    const { formatZonedTime } = useDateTime();
     const period = isHourly ? 'hour' : 'day';
 
     return (
@@ -279,7 +272,11 @@ function TrafficChart({
                     height={CHART_HEIGHT}
                     format={metric.format}
                     formatTick={metric.formatTick}
-                    formatDate={isHourly ? hour : undefined}
+                    formatDate={
+                        isHourly
+                            ? (date) => formatZonedTime(date, 'UTC')
+                            : undefined
+                    }
                     label={`${metric.label} per ${period}`}
                     unit={metric.label}
                 />

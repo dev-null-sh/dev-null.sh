@@ -284,7 +284,7 @@ it('shares the moment the page is rendered, which relative times count from on t
     expect($shared['now'])->toBe(1792845296789);
 });
 
-it("shares the reader's clock their browser left in cookies, so the server shows times as the browser will", function (?string $timeZone, ?string $hourCycle, array $clock): void {
+it("shares the reader's clock their browser left in cookies, so the server shows times as the browser will", function (?string $timeZone, ?string $hourCycle, array $clock, mixed $dateOrder = null): void {
     $middleware = new HandleInertiaRequests();
 
     $request = Request::create('/', 'GET');
@@ -297,9 +297,11 @@ it("shares the reader's clock their browser left in cookies, so the server shows
         $request->cookies->set('hour_cycle', $hourCycle);
     }
 
+    $request->cookies->set('date_order', $dateOrder);
+
     $shared = $middleware->share($request);
 
-    expect($shared['clock'])->toBe($clock);
+    expect($shared['clock'])->toBe($clock + ['dateOrder' => null]);
 })->with([
     'unknown on a first visit' => [null, null, ['timeZone' => null, 'hourCycle' => null]],
     'both' => ['Pacific/Auckland', 'h23', ['timeZone' => 'Pacific/Auckland', 'hourCycle' => 'h23']],
@@ -311,6 +313,10 @@ it("shares the reader's clock their browser left in cookies, so the server shows
     'UTC' => ['UTC', 'h23', ['timeZone' => 'UTC', 'hourCycle' => 'h23']],
     'not a time zone' => ['Mars/Olympus', 'h23', ['timeZone' => null, 'hourCycle' => 'h23']],
     'not an hour cycle' => ['Europe/Paris', 'h25', ['timeZone' => 'Europe/Paris', 'hourCycle' => null]],
+    'day first' => ['UTC', 'h23', ['timeZone' => 'UTC', 'hourCycle' => 'h23', 'dateOrder' => 'day_first'], 'day_first'],
+    'month first' => ['UTC', 'h23', ['timeZone' => 'UTC', 'hourCycle' => 'h23', 'dateOrder' => 'month_first'], 'month_first'],
+    'not a date order' => ['UTC', 'h23', ['timeZone' => 'UTC', 'hourCycle' => 'h23'], 'unknown'],
+    'not a date order string' => ['UTC', 'h23', ['timeZone' => 'UTC', 'hourCycle' => 'h23'], []],
 ]);
 
 it('shows 3 replies at a time unless the user picked one of the other counts', function (string $cookie, int $count): void {

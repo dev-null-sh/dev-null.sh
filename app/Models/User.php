@@ -7,9 +7,11 @@ namespace App\Models;
 use App\Actions\CreateTomFriendship;
 use App\Actions\CreateWorldReply;
 use App\Dto\LiveStream;
+use App\Enums\DateFormat;
 use App\Enums\LivePlatform;
 use App\Enums\Log;
 use App\Enums\RemotesFrom;
+use App\Enums\TimeFormat;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
@@ -53,6 +55,8 @@ use LogicException;
  * @property-read bool|null $automatic_translation
  * @property-read string|null $translation_language
  * @property-read string|null $timezone
+ * @property-read DateFormat|null $date_format
+ * @property-read TimeFormat|null $time_format
  * @property-read bool $show_local_time
  * @property-read LivePlatform|null $live_platform
  * @property-read string|null $live_url
@@ -91,6 +95,8 @@ use LogicException;
  * @property-read int $followers_count
  */
 #[Hidden([
+    'date_format',
+    'time_format',
     'profile',
     'github_id',
     'email',
@@ -151,6 +157,8 @@ final class User extends Authenticatable
      * @var array<string, mixed>
      */
     protected $attributes = [
+        'date_format' => null,
+        'time_format' => null,
         'log' => Log::Following->value,
         'translation_language' => null,
         'show_local_time' => false,
@@ -204,6 +212,8 @@ final class User extends Authenticatable
             'show_local_time' => 'boolean',
             'translation_language' => 'encrypted',
             'automatic_translation' => 'boolean',
+            'date_format' => DateFormat::class,
+            'time_format' => TimeFormat::class,
             'log' => Log::class,
             'onboarded_at' => 'datetime',
             'github_follows_imported_at' => 'datetime',

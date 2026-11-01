@@ -1,3 +1,6 @@
+import { createDateTime } from './date-time.ts';
+import type { DateTimePreferences } from './date-time.ts';
+
 export type ChangelogCommit = {
     sha: string;
     url: string;
@@ -93,6 +96,7 @@ export function changelogDayHeading(
     date: string,
     timeZone: string,
     now: Date = new Date(),
+    preferences: DateTimePreferences = {},
 ): { title: string; date: string } {
     const day = new Date(`${date}T12:00:00Z`);
     const today = new Date(
@@ -110,14 +114,9 @@ export function changelogDayHeading(
                         weekday: 'long',
                         timeZone: 'UTC',
                     }),
-        date: day.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year:
-                day.getUTCFullYear() === today.getUTCFullYear()
-                    ? undefined
-                    : 'numeric',
+        date: createDateTime(preferences).formatDate(day, {
             timeZone: 'UTC',
+            year: day.getUTCFullYear() !== today.getUTCFullYear(),
         }),
     };
 }

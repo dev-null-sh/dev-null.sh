@@ -19,11 +19,12 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
-import { formatClockDateTime, readerClock } from '@/lib/utils';
+import { readerClock } from '@/lib/utils';
 import type { BodySegment, OrganizationAuthor } from '@/types';
 
 type ScheduledCommit = {
@@ -50,6 +51,7 @@ export default function Index({
     };
 }) {
     const now = useNow();
+    const { formatFullDateTime } = useDateTime();
     const [busy, setBusy] = useState<{
         id: string;
         action: 'commit' | 'cancel';
@@ -192,9 +194,7 @@ export default function Index({
                         const due =
                             new Date(scheduled.scheduled_at).getTime() <=
                             now.getTime();
-                        const when = formatClockDateTime(
-                            scheduled.scheduled_at,
-                        );
+                        const when = formatFullDateTime(scheduled.scheduled_at);
                         return (
                             <li
                                 key={scheduled.id}

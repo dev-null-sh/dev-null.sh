@@ -4,10 +4,11 @@ import AppController from '@/actions/App/Http/Controllers/AppController';
 import DeviceController from '@/actions/App/Http/Controllers/DeviceController';
 import { Button } from '@/components/ui/button';
 import { WordmarkText } from '@/components/wordmark-text';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
 import AppLayout from '@/layouts/app-layout';
 import SettingsLayout from '@/layouts/settings/layout';
-import { cn, formatFullDateTime, formatRelativeTime } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { Device } from '@/types';
 
 export default function Index({ devices }: { devices: Device[] }) {
@@ -247,6 +248,7 @@ function DeviceRow({
  * "just now", "3m ago", or a date, in mono like every time devnull prints.
  */
 function Time({ date, now }: { date: string; now: Date }) {
+    const { formatRelativeTime, formatFullDateTime } = useDateTime();
     const relative = formatRelativeTime(date, now);
 
     return (

@@ -6,6 +6,7 @@ import { flushSync } from 'react-dom';
 import { twMerge } from 'tailwind-merge';
 import type { CommitAuthor, DeletedCommit, Lane, ThreadCommit } from '@/types';
 import type { FlashToast, TimeoutFlash } from '@/types/ui';
+import { createDateTime } from './date-time.ts';
 
 /**
  * The interface is in English, so month and weekday names are too, whatever the browser's language.
@@ -15,31 +16,55 @@ export const dateLocale = 'en-US';
 export type HourCycle = 'h11' | 'h12' | 'h23' | 'h24';
 
 /** The time zone times show in, and whether the hours run to 12 or to 24. */
-export type Clock = { timeZone: string; hourCycle: HourCycle };
+export type Clock = {
+    timeZone: string;
+    hourCycle: HourCycle;
+    dateOrder?: 'month_first' | 'day_first' | null;
+};
 
 /** The clock the server shares: the reader's, once their browser has told it. */
 export type SharedClock = {
     timeZone: string | null;
     hourCycle: HourCycle | null;
+    dateOrder?: 'month_first' | 'day_first' | null;
 };
 
 /** What the server renders with until the reader's browser has told it its clock. */
-const serverClock: Clock = { timeZone: 'UTC', hourCycle: 'h23' };
+const serverClock: Clock = {
+    timeZone: 'UTC',
+    hourCycle: 'h23',
+    dateOrder: 'month_first',
+};
 
 let currentClock: Clock | null = null;
 
 /** How this browser shows times: its time zone, and the hour cycle of its language. */
-export function browserClock(): Clock {
+export function browserClock(): Clock & {
+    dateOrder: 'month_first' | 'day_first';
+} {
     const { timeZone, hourCycle } = new Intl.DateTimeFormat(undefined, {
         hour: 'numeric',
     }).resolvedOptions();
 
-    return { timeZone, hourCycle: hourCycle ?? 'h23' };
+    const parts = new Intl.DateTimeFormat(undefined, {
+        day: 'numeric',
+        month: 'short',
+    }).formatToParts(new Date());
+
+    return {
+        timeZone,
+        hourCycle: hourCycle ?? 'h23',
+        dateOrder:
+            parts.findIndex((part) => part.type === 'day') <
+            parts.findIndex((part) => part.type === 'month')
+                ? 'day_first'
+                : 'month_first',
+    };
 }
 
 export function clockOf(shared: SharedClock | undefined): Clock | null {
     return shared?.timeZone && shared.hourCycle
-        ? { timeZone: shared.timeZone, hourCycle: shared.hourCycle }
+        ? { ...shared, timeZone: shared.timeZone, hourCycle: shared.hourCycle }
         : null;
 }
 
@@ -61,7 +86,7 @@ export function readerClock(): Clock {
 const dayFormats = new Map<string, Intl.DateTimeFormat>();
 
 /** The calendar day a moment falls on in a time zone. */
-function dayIn(
+export function dayIn(
     date: Date,
     timeZone: string,
 ): { year: number; month: number; day: number } {
@@ -104,61 +129,15 @@ export function toUrl(url: NonNullable<InertiaLinkProps['href']>): string {
     return typeof url === 'string' ? url : url.url;
 }
 
-export function formatRelativeTime(date: string, now: Date = new Date()) {
-    const seconds = Math.round(
-        (now.getTime() - new Date(date).getTime()) / 1000,
-    );
-
-    if (seconds < 60) {
-        return 'now';
-    }
-
-    if (seconds < 3600) {
-        return `${Math.floor(seconds / 60)}m`;
-    }
-
-    if (seconds < 86400) {
-        return `${Math.floor(seconds / 3600)}h`;
-    }
-
-    if (seconds < 604800) {
-        return `${Math.floor(seconds / 86400)}d`;
-    }
-
-    const { timeZone } = readerClock();
-
-    return new Date(date).toLocaleDateString(dateLocale, {
-        month: 'short',
-        day: 'numeric',
-        year:
-            dayIn(new Date(date), timeZone).year === dayIn(now, timeZone).year
-                ? undefined
-                : 'numeric',
-        timeZone,
-    });
-}
-
-export function formatFullDate(date: string): string {
-    return new Date(date).toLocaleDateString(dateLocale, {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        timeZone: readerClock().timeZone,
-    });
-}
-
-export function formatFullDateTime(date: string, timeZone?: string): string {
-    const zone = timeZone ?? readerClock().timeZone;
-
-    return `${formatZonedTime(date, zone)} · ${new Date(
-        date,
-    ).toLocaleDateString(dateLocale, {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        timeZone: zone,
-    })}`;
-}
+// Non-React callers use browser defaults. UI components bind account preferences with useDateTime().
+export const {
+    formatFullDate,
+    formatRelativeTime,
+    formatFullDateTime,
+    formatDayLabel,
+    formatZonedTime,
+    formatZonedDate,
+} = createDateTime();
 
 export function formatSyncedAgo(date: string, now: Date): string {
     const seconds = Math.round(
@@ -281,45 +260,8 @@ export function localDayKey(date: string): string {
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-export function formatDayLabel(date: string, now: Date = new Date()): string {
-    const { timeZone } = readerClock();
-    const day = dayIn(new Date(date), timeZone);
-    const today = dayIn(now, timeZone);
-    const daysAgo = Math.round(
-        (Date.UTC(today.year, today.month - 1, today.day) -
-            Date.UTC(day.year, day.month - 1, day.day)) /
-            86_400_000,
-    );
-
-    if (daysAgo === 0) {
-        return 'Today';
-    }
-
-    if (daysAgo === 1) {
-        return 'Yesterday';
-    }
-
-    return new Date(date).toLocaleDateString(dateLocale, {
-        weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        year: day.year === today.year ? undefined : 'numeric',
-        timeZone,
-    });
-}
-
 export function browserTimeZone(): string {
     return Intl.DateTimeFormat().resolvedOptions().timeZone;
-}
-
-/** A time of day in a time zone, its hours running as the reader's clock does. */
-export function formatZonedTime(date: string, timeZone: string): string {
-    return new Date(date).toLocaleTimeString(dateLocale, {
-        hour: 'numeric',
-        minute: '2-digit',
-        hourCycle: readerClock().hourCycle,
-        timeZone,
-    });
 }
 
 /** A time of day on the reader's clock, like `9:00 AM`. */
@@ -380,20 +322,6 @@ export function formatUtcOffset(date: Date, timeZone: string): string {
     }
 
     return offset.replace('GMT', 'UTC ');
-}
-
-export function formatZonedDate(date: string, timeZone: string): string {
-    const value = new Date(date);
-
-    return value.toLocaleDateString(dateLocale, {
-        month: 'short',
-        day: 'numeric',
-        year:
-            dayIn(value, timeZone).year === dayIn(new Date(), timeZone).year
-                ? undefined
-                : 'numeric',
-        timeZone,
-    });
 }
 
 export function timeZoneCity(timeZone: string): string {

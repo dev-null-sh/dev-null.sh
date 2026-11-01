@@ -23,6 +23,7 @@ import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
 import { SearchDialog } from '@/components/search-dialog';
 import { TermsDialog } from '@/components/terms-dialog';
+import { TimeoutDialog } from '@/components/timeout-dialog';
 import { useChat, useRemoteAlerts, useUnreadMessages } from '@/hooks/use-chat';
 import { useIsComposerInView } from '@/hooks/use-composer-visibility';
 import { usePageDeletion } from '@/hooks/use-deleted-resources';
@@ -182,6 +183,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     onOpenChange={setIsComposing}
                     issue={composingIssue}
                 />
+
+                <TimeoutDialog />
 
                 {!isGuest && (
                     <GoLiveDialog

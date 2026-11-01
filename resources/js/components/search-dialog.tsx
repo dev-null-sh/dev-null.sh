@@ -22,6 +22,7 @@ import { OrganizationAvatar } from '@/components/organization-avatar';
 import { DialogOverlay, DialogPortal } from '@/components/ui/dialog';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useNow } from '@/hooks/use-now';
 import {
     clearRecentSearches,
@@ -43,12 +44,7 @@ import {
     searchesCommits,
     searchIntent,
 } from '@/lib/search-intent';
-import {
-    authorLaneColor,
-    cn,
-    formatRelativeTime,
-    laneColor,
-} from '@/lib/utils';
+import { authorLaneColor, cn, laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { Commit, CommitAuthor, Organization, User } from '@/types';
 
@@ -879,6 +875,7 @@ function OrganizationResult({ organization }: { organization: Organization }) {
 }
 
 function CommitResult({ commit }: { commit: Commit }) {
+    const { formatRelativeTime } = useDateTime();
     const now = useNow();
 
     return (

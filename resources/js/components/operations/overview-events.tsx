@@ -3,9 +3,10 @@ import { Circle, CircleAlert, CircleX, Info } from 'lucide-react';
 import OperationsEventController from '@/actions/App/Http/Controllers/OperationsEventController';
 import { EmptyFeed } from '@/components/commit-feed';
 import { Panel } from '@/components/operations/section';
+import { useDateTime } from '@/hooks/use-date-time';
 import { useListSlide } from '@/hooks/use-list-slide';
 import { useNow } from '@/hooks/use-now';
-import { cn, formatFullDateTime, formatRelativeTime } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type { OperationsEvent, OperationsEventLevel } from '@/types';
 
 const LEVELS: Record<
@@ -19,6 +20,7 @@ const LEVELS: Record<
 };
 
 function EventRow({ event, now }: { event: OperationsEvent; now: Date }) {
+    const { formatFullDateTime, formatRelativeTime } = useDateTime();
     const level = LEVELS[event.level];
     const meta = [
         event.source,

@@ -105,6 +105,10 @@ final class HandleInertiaRequests extends Middleware
                 'isAdmin' => $isAdmin,
                 'automaticTranslation' => $user->automatic_translation ?? true,
                 'mustReadCommitRules' => $user instanceof User && $user->commit_rules_accepted_at === null,
+                'dateTime' => fn (): array => [
+                    'dateFormat' => $user?->date_format,
+                    'timeFormat' => $user?->time_format,
+                ],
                 'termsToAccept' => $user instanceof User && ! $user->hasAcceptedCurrentTerms() ? config()->string('legal.terms_version') : null,
                 'log' => fn (): ?Log => $request->user()?->log,
                 'unreadNotificationsCount' => fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0,

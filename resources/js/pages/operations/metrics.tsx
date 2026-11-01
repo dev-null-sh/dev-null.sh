@@ -13,10 +13,11 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
+import { useDateTime } from '@/hooks/use-date-time';
 import { usePicked } from '@/hooks/use-picked';
 import OperationsLayout, { PAGE_PROPS } from '@/layouts/operations/layout';
 import { formatCount } from '@/lib/numbers';
-import { cn, formatZonedDate } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 import type {
     AcquisitionDay,
     ActivationDay,
@@ -364,6 +365,7 @@ type DailyBar = {
 };
 
 function DateAxis({ range }: { range: TrafficRange }) {
+    const { formatZonedDate } = useDateTime();
     return (
         <div className="mt-1.5 flex justify-between font-mono text-xs text-muted-foreground tabular-nums">
             <span>{formatZonedDate(range.from, 'UTC')}</span>
@@ -417,6 +419,7 @@ function DailyBars({
     empty: string;
     format: (value: number) => string;
 }) {
+    const { formatZonedDate } = useDateTime();
     const shadowId = useId().replaceAll(/[^\w-]/g, '');
 
     if (bars.length === 0) {
@@ -617,7 +620,7 @@ function DailyBars({
                     <tbody>
                         {bars.map((bar) => (
                             <tr key={bar.date}>
-                                <th scope="row">{bar.date}</th>
+                                <th scope="row">{label(bar.date)}</th>
                                 <td>
                                     {[bar.label, ...(bar.details ?? [])].join(
                                         ', ',
@@ -847,6 +850,7 @@ function ActiveUserCounts({
     range: TrafficRange;
     counts: ActiveUserCount[];
 }) {
+    const { formatZonedDate } = useDateTime();
     const today = utcDate();
     const complete = counts.filter((day) => day.date !== today);
 
@@ -984,6 +988,7 @@ function BackfilledNote({
     recordedSince: string;
     marker: ReactNode;
 }) {
+    const { formatZonedDate } = useDateTime();
     return (
         <p className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
             {marker}
@@ -1106,6 +1111,7 @@ function RetentionTip({
  * floor.
  */
 function RetentionTable({ cohorts }: { cohorts: RetentionCohort[] }) {
+    const { formatZonedDate } = useDateTime();
     const top = Math.max(
         Number.MIN_VALUE,
         ...cohorts.flatMap((cohort) =>

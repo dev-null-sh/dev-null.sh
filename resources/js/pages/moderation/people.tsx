@@ -8,8 +8,8 @@ import { EmptyFeed } from '@/components/commit-feed';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
+import { useDateTime } from '@/hooks/use-date-time';
 import AppLayout from '@/layouts/app-layout';
-import { formatFullDateTime } from '@/lib/utils';
 import type { User } from '@/types';
 
 type Timeout = {
@@ -35,6 +35,7 @@ export default function People({
     timeouts: Timeout[];
     bans: Ban[];
 }) {
+    const { formatFullDateTime } = useDateTime();
     const endTimeout = (timeout: Timeout) =>
         router
             .optimistic((props: { timeouts: Timeout[] }) => ({
