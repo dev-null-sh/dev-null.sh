@@ -39,6 +39,11 @@ final class LinkPreview extends Model
     use HasUuids;
 
     /**
+     * Pages change their title, description and image over time, so a card this old is fetched again the next time its link is used.
+     */
+    public const int REFRESH_AFTER_DAYS = 7;
+
+    /**
      * @return array<string, string>
      */
     public function casts(): array
@@ -55,6 +60,11 @@ final class LinkPreview extends Model
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
+    }
+
+    public function needsFetching(): bool
+    {
+        return $this->fetched_at === null || $this->fetched_at->lt(now()->subDays(self::REFRESH_AFTER_DAYS));
     }
 
     /**

@@ -38,6 +38,18 @@ it('skips link previews that were fetched in the meantime', function (): void {
     expect($linkPreview->refresh()->title)->toBe('Fetched before');
 });
 
+it('fetches a link preview again when its page may have changed since', function (): void {
+    Http::fake(['https://93.184.216.34/*' => Http::response('<title>Renamed</title>', 200, ['Content-Type' => 'text/html'])]);
+
+    $linkPreview = LinkPreview::factory()->fetched()->create(['url' => 'https://93.184.216.34/', 'title' => 'Fetched last week', 'fetched_at' => now()->subDays(8)]);
+
+    dispatch_sync(new UnfurlLink($linkPreview));
+
+    expect($linkPreview->refresh())
+        ->title->toBe('Renamed')
+        ->fetched_at->toBeGreaterThan(now()->subMinute());
+});
+
 it('retries a page that may be reachable later', function (): void {
     Exceptions::fake();
 
