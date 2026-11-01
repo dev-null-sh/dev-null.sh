@@ -7,6 +7,7 @@ namespace App\Http\Middleware;
 use App\Dto\ReaderClock;
 use App\Enums\Log;
 use App\Enums\RepliesPerPage;
+use App\Enums\WhoToFollowCount;
 use App\Http\Requests\ListNotificationsRequest;
 use App\Models\Commit;
 use App\Models\User;
@@ -80,6 +81,7 @@ final class HandleInertiaRequests extends Middleware
         $suggestedUsers = $user instanceof User && $showsWhoToFollow && $hasAside
             ? Inertia::defer(fn (): Collection => resolve(SuggestedUsersQuery::class)->get(
                 $user,
+                limit: WhoToFollowCount::of($request)->value,
                 round: max(0, (int) $request->cookie('who_to_follow_round')),
                 spares: 3,
                 context: $context,
@@ -115,6 +117,8 @@ final class HandleInertiaRequests extends Middleware
             'hasUnmoderatedCommits' => fn (): bool => $isAdmin && Commit::query()->pending()->exists(),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
+            'whoToFollowCount' => WhoToFollowCount::of($request)->value,
+            'refreshesWhoToFollow' => $request->cookie('who_to_follow_auto_refresh') !== 'false',
             'liveFollowing' => fn (): Collection => $user instanceof User && $hasAside
                 ? resolve(LiveFollowingQuery::class)->get($user)
                 : collect(),

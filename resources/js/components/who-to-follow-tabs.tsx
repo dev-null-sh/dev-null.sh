@@ -1,26 +1,46 @@
 import type { LucideIcon } from 'lucide-react';
-import { Eye, EyeOff } from 'lucide-react';
+import { EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import { SegmentedControl } from '@/components/segmented-control';
 import { useWhoToFollow } from '@/hooks/use-who-to-follow';
 import { withViewTransition } from '@/lib/utils';
 
-export default function WhoToFollowTabs() {
-    const { showsWhoToFollow, setShowsWhoToFollow } = useWhoToFollow();
-    const [selected, setSelected] = useState(showsWhoToFollow);
+const counts = [1, 3, 5];
 
-    const tabs: { value: boolean; icon: LucideIcon; label: string }[] = [
-        { value: true, icon: Eye, label: 'Show' },
-        { value: false, icon: EyeOff, label: 'Hide' },
+/**
+ * Hide stands for 0, so hiding keeps the count chosen before for when the suggestions come back. Hiding or bringing
+ * them back from the block itself moves the selection along.
+ */
+export default function WhoToFollowTabs() {
+    const {
+        showsWhoToFollow,
+        setShowsWhoToFollow,
+        whoToFollowCount,
+        setWhoToFollowCount,
+    } = useWhoToFollow();
+    const shown = showsWhoToFollow ? whoToFollowCount : 0;
+    const [selected, setSelected] = useState(shown);
+    const [lastShown, setLastShown] = useState(shown);
+
+    if (shown !== lastShown) {
+        setLastShown(shown);
+        setSelected(shown);
+    }
+
+    const tabs: { value: number; icon?: LucideIcon; label: string }[] = [
+        { value: 0, icon: EyeOff, label: 'Hide' },
+        ...counts.map((count) => ({ value: count, label: String(count) })),
     ];
 
-    const select = (value: boolean): void => {
+    const select = (value: number): void => {
         if (value === selected) {
             return;
         }
 
         void withViewTransition(() => setSelected(value)).then(() =>
-            setShowsWhoToFollow(value),
+            value === 0
+                ? setShowsWhoToFollow(false)
+                : setWhoToFollowCount(value),
         );
     };
 
@@ -31,6 +51,7 @@ export default function WhoToFollowTabs() {
             options={tabs}
             value={selected}
             onChange={select}
+            className="tabular-nums"
         />
     );
 }

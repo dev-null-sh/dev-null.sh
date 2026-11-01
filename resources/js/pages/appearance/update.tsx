@@ -48,7 +48,7 @@ export default function Update() {
             <section className="border-t px-4 py-6 sm:px-6">
                 <Heading
                     title="Who to follow"
-                    description="Three people you might want to follow, in the right column, or in your log on smaller screens."
+                    description="People you might want to follow, in the right column, or in your log on smaller screens. Pick how many, or hide them."
                 />
                 <WhoToFollowTabs />
             </section>
