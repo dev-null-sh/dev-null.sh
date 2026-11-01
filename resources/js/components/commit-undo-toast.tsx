@@ -87,6 +87,7 @@ export function CommitUndoToast({
                 variant="outline"
                 onClick={undo}
                 disabled={processing || remaining === 0}
+                className="min-w-30"
             >
                 <Undo2 className="size-3.5" />
                 {processing ? 'Restoring…' : 'Undo'}
