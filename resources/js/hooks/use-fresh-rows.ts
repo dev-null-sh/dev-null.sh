@@ -28,48 +28,56 @@ export function useFreshRows(
                 row.dataset.fresh = '';
             });
 
-        // They stay lit until they are on screen, then while nobody is touching the page, and fade soon after the pointer
-        // starts moving. Rows that arrived while the reader was further down wait for them to scroll back up.
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        let sightedAt = 0;
-        let hurried = false;
-        const visible = new Set<Element>();
+        // Each row stays lit until it is on screen, then while nobody is touching the page, and fades soon after the
+        // pointer starts moving. Rows further down wait for the reader to scroll to them.
+        const timers = new Map<Element, ReturnType<typeof setTimeout>>();
+        const sightedAt = new Map<Element, number>();
+        const hurried = new Set<Element>();
+        let unsettled = elements.length;
 
-        const settle = () => {
-            elements.forEach((row) => {
-                row.dataset.fresh = 'fading';
-                setTimeout(() => {
-                    if (row.dataset.fresh === 'fading') {
-                        row.removeAttribute('data-fresh');
-                    }
-                }, 1400);
-            });
-            freshIds.current = new Set();
-            cleanup();
+        const settle = (row: HTMLElement) => {
+            row.dataset.fresh = 'fading';
+            setTimeout(() => {
+                if (row.dataset.fresh === 'fading') {
+                    row.removeAttribute('data-fresh');
+                }
+            }, 1400);
+            freshIds.current.delete(row.dataset[key] ?? '');
+
+            if (--unsettled === 0) {
+                cleanup();
+            }
+        };
+
+        const settleIn = (row: HTMLElement, delay: number) => {
+            clearTimeout(timers.get(row));
+            timers.set(
+                row,
+                setTimeout(() => settle(row), delay),
+            );
         };
 
         const hurry = () => {
-            if (hurried || sightedAt === 0 || Date.now() - sightedAt < 700) {
-                return;
-            }
-
-            hurried = true;
-            clearTimeout(timer);
-            timer = setTimeout(settle, 1800);
+            sightedAt.forEach((at, row) => {
+                if (!hurried.has(row) && Date.now() - at >= 700) {
+                    hurried.add(row);
+                    settleIn(row as HTMLElement, 1800);
+                }
+            });
         };
 
         const observer = new IntersectionObserver(
             (entries) => {
-                entries.forEach((entry) =>
-                    entry.isIntersecting
-                        ? visible.add(entry.target)
-                        : visible.delete(entry.target),
-                );
-
-                if (visible.size > 0 && sightedAt === 0) {
-                    sightedAt = Date.now();
-                    timer = setTimeout(settle, 7000);
-                }
+                entries
+                    .filter(
+                        (entry) =>
+                            entry.isIntersecting &&
+                            !sightedAt.has(entry.target),
+                    )
+                    .forEach((entry) => {
+                        sightedAt.set(entry.target, Date.now());
+                        settleIn(entry.target as HTMLElement, 7000);
+                    });
             },
             { threshold: 0.6 },
         );
@@ -77,7 +85,7 @@ export function useFreshRows(
         elements.forEach((row) => observer.observe(row));
 
         function cleanup() {
-            clearTimeout(timer);
+            timers.forEach((timer) => clearTimeout(timer));
             observer.disconnect();
             window.removeEventListener('pointermove', hurry);
             window.removeEventListener('wheel', hurry);
