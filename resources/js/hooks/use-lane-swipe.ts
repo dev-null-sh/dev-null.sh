@@ -1,9 +1,6 @@
-import { router } from '@inertiajs/react';
 import type { RefObject } from 'react';
-import { useEffect } from 'react';
-import LogController from '@/actions/App/Http/Controllers/LogController';
+import { useEffect, useEffectEvent } from 'react';
 import { swipedLane } from '@/lib/lane-swipe';
-import type { Log } from '@/types';
 
 /**
  * Mobile browsers use swipes that start at the edge of the screen for going back and forward.
@@ -11,18 +8,29 @@ import type { Log } from '@/types';
 const screenEdge = 24;
 
 /**
- * Lets touch users swipe sideways across the feed to switch lanes. It listens on the DOM rather than through React, so
- * touches inside dialogs portalled out of the feed never reach it. While it is active, the root opts out of the browser
+ * Lets touch users swipe sideways across a lane surface. It listens on the DOM rather than through React, so touches
+ * inside dialogs portalled out of the surface never reach it. While it is active, the root opts out of the browser
  * turning sideways swipes into back and forward navigation, which would otherwise win over the lane switch.
  */
-export function useLaneSwipe(
+export function useLaneSwipe<Lane extends string>(
     feedRef: RefObject<HTMLElement | null>,
-    log: Log,
+    lane: Lane,
+    lanes: readonly Lane[],
+    onLaneChange: (lane: Lane) => void,
+    enabled = true,
 ): void {
+    const onSwipe = useEffectEvent((deltaX: number, deltaY: number) => {
+        const nextLane = swipedLane(lane, lanes, deltaX, deltaY);
+
+        if (nextLane !== null) {
+            onLaneChange(nextLane);
+        }
+    });
+
     useEffect(() => {
         const feed = feedRef.current;
 
-        if (!feed) {
+        if (!enabled || !feed) {
             return;
         }
 
@@ -48,17 +56,7 @@ export function useLaneSwipe(
                 return;
             }
 
-            const lane = swipedLane(
-                log,
-                touch.clientX - from.x,
-                touch.clientY - from.y,
-            );
-
-            if (lane !== null) {
-                router.visit(LogController.show(lane), {
-                    viewTransition: true,
-                });
-            }
+            onSwipe(touch.clientX - from.x, touch.clientY - from.y);
         };
 
         const onTouchCancel = () => {
@@ -75,7 +73,7 @@ export function useLaneSwipe(
             feed.removeEventListener('touchend', onTouchEnd);
             feed.removeEventListener('touchcancel', onTouchCancel);
         };
-    }, [feedRef, log]);
+    }, [enabled, feedRef]);
 }
 
 /**
