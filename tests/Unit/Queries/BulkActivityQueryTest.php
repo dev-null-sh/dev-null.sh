@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\CreateTomFriendship;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\BulkActivityQuery;
 use Illuminate\Database\Eloquent\Collection;
@@ -81,6 +82,28 @@ it('lists the accounts that replied to 20 other people a day', function (): void
     expect(($this->activity)()['replies'])
         ->toHaveCount(1)
         ->sequence(fn ($row) => $row->user->id->toBe($mass->id)->reach->toBe(20)->count->toBe(20));
+});
+
+it("counts stars and replies on an organization's commits as reaching the organization, not the members who posted them", function (): void {
+    $organization = Organization::factory()->create();
+    $commits = ($this->people)(30, '2026-10-23 00:00:00')->map(fn (User $member): Commit => Commit::factory()->for($member)->create([
+        'author_id' => $organization->id,
+        'created_at' => '2026-10-22 00:00:00',
+    ]));
+    $fan = User::factory()->create();
+    $mass = User::factory()->create();
+
+    $commits->each(function (Commit $commit) use ($fan): void {
+        $commit->stars()->attach($fan, ['created_at' => '2026-10-23 01:00:00', 'updated_at' => '2026-10-23 01:00:00']);
+        Commit::factory()->for($fan)->for($commit, 'parent')->create(['created_at' => '2026-10-23 01:00:00']);
+    });
+    ($this->star)($mass, ($this->people)(29));
+    $commits->first()->stars()->attach($mass, ['created_at' => '2026-10-23 01:00:00', 'updated_at' => '2026-10-23 01:00:00']);
+
+    expect(($this->activity)()['stars'])
+        ->toHaveCount(1)
+        ->sequence(fn ($row) => $row->user->id->toBe($mass->id)->reach->toBe(30)->newcomers->toBe(0))
+        ->and(($this->activity)()['replies'])->toBe([]);
 });
 
 it('lists the accounts that posted 15 times a day', function (): void {
