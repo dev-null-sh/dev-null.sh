@@ -33,7 +33,11 @@ import {
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { MentionTextarea } from '@/components/mention-textarea';
 import type { PollDraft } from '@/components/poll-editor';
-import { emptyPollDraft, PollEditor } from '@/components/poll-editor';
+import {
+    emptyPollDraft,
+    isPollOptionTooLong,
+    PollEditor,
+} from '@/components/poll-editor';
 import {
     isExistingLocalTime,
     SchedulePicker,
@@ -658,7 +662,10 @@ export function CommitComposer({
             ? characterCount(body)
             : bodyCharacterCount(body)) <= maxBodyLength &&
         (poll === null ||
-            poll.options.every((option) => option.trim().length > 0));
+            poll.options.every(
+                (option) =>
+                    option.trim().length > 0 && !isPollOptionTooLong(option),
+            ));
 
     const isSubmittable =
         isCommittable &&
