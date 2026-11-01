@@ -5,6 +5,7 @@ import { store as reject } from '@/actions/App/Http/Controllers/CommitRejectionC
 import { destroy } from '@/actions/App/Http/Controllers/CommitReportController';
 import { CommitCard } from '@/components/commit-card';
 import { EmptyFeed } from '@/components/commit-feed';
+import { CommitPoster } from '@/components/commit-poster';
 import { GraphCanvas } from '@/components/graph-canvas';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
@@ -152,6 +153,7 @@ export default function Reports({
                                                 />
                                             </a>
                                         ))}
+                                        <CommitPoster commit={report.commit} />
                                         <p className="text-xs text-muted-foreground">
                                             Reported{' '}
                                             <time dateTime={report.created_at}>

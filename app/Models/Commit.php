@@ -223,6 +223,15 @@ final class Commit extends Model
     }
 
     /**
+     * Shows who posted an organization's commit, which only moderators see, so they can time out or ban that account. Null
+     * once it is deleted. A person's own commit has no poster apart from its author.
+     */
+    public function withPoster(): self
+    {
+        return $this->author_id === $this->user_id ? $this : $this->setRelation('poster', $this->user);
+    }
+
+    /**
      * Approved commits are visible to everyone but people across a block with their author, which an organization never
      * is. Whoever posted a commit can also see it, and the members of the organization it is from.
      */
