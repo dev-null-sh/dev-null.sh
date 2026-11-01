@@ -77,7 +77,7 @@ final class ImportAllGitHubFollowsJob implements ShouldBeUniqueUntilProcessing, 
         }
 
         if ($users->count() < self::BatchSize) {
-            Log::info('Imported the GitHub follows of every user.');
+            Log::info('Went through every user whose GitHub follows were not imported yet.');
 
             return;
         }

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateTomFriendship;
 use App\Actions\CreateUserGitHubFollows;
 use App\Contracts\Services\GitHubProvider;
 use App\Enums\NotificationType;
@@ -130,6 +131,21 @@ it('reads the github accounts under the handle the user last signed in with, wit
     resolve(CreateUserGitHubFollows::class)->handle($user);
 
     expect($user->refresh())
+        ->github_follows_imported_at->not->toBeNull()
+        ->github_organization_follows_imported_at->not->toBeNull();
+});
+
+it('imports nothing for the bots, whose handles belong to strangers on github', function (): void {
+    resolve(CreateTomFriendship::class)->handle(User::factory()->create());
+    $tom = User::query()->where('github_id', CreateTomFriendship::GITHUB_ID)->sole();
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('followingIds')->never();
+    $github->shouldReceive('followerIds')->never();
+
+    resolve(CreateUserGitHubFollows::class)->handle($tom);
+
+    expect($tom->refresh())
         ->github_follows_imported_at->not->toBeNull()
         ->github_organization_follows_imported_at->not->toBeNull();
 });

@@ -40,7 +40,7 @@ it('imports the github follows of the users not imported yet, without notifying 
 
     $github->shouldNotHaveReceived('followingIds', [$imported->handle, 10]);
     Queue::assertNothingPushed();
-    Log::shouldHaveReceived('info')->with('Imported the GitHub follows of every user.')->once();
+    Log::shouldHaveReceived('info')->with('Went through every user whose GitHub follows were not imported yet.')->once();
 });
 
 it('queues the next batch after a full one, from the last user it read', function (): void {
