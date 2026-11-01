@@ -341,8 +341,8 @@ function FunnelValue({ funnel }: { funnel?: Funnel }) {
 }
 
 /**
- * Stripes of the panel's color over a mark whose value was backfilled, and is a floor: the mark keeps its color, so its
- * size still reads as its value.
+ * Stripes of the panel's color over a mark whose value isn't settled: backfilled, and a floor, or still counting, like
+ * people lost who may yet come back. The mark keeps its color, so its size still reads as its value.
  */
 const BACKFILLED_STRIPES =
     'bg-[image:repeating-linear-gradient(135deg,transparent_0_4px,color-mix(in_oklab,var(--card)_70%,transparent)_4px_6px)]';
@@ -456,7 +456,7 @@ function DailyBars({
     return (
         <figure className="@container flex flex-1 flex-col pt-5">
             <div className="flex min-h-48 flex-1 flex-col">
-                <div className="relative" style={{ flex: `${top} 1 0` }}>
+                <div className="relative flex-1">
                     <div
                         key={`${range.from}:${range.to}`}
                         className="absolute inset-0 flex items-end gap-(--bar-gap) border-b border-rail [--bar-gap:min(0.25rem,var(--fitting-gap))] sm:[--bar-gap:min(0.5rem,var(--fitting-gap))]"
@@ -633,7 +633,7 @@ function DailyBars({
                     </div>
                 </div>
                 {bottom > 0 && (
-                    <div aria-hidden style={{ flex: `${bottom} 1 0` }} />
+                    <div aria-hidden style={{ flex: `${bottom / top} 1 0` }} />
                 )}
             </div>
             <DateAxis range={range} />
