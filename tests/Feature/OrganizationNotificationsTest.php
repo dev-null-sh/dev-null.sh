@@ -139,10 +139,24 @@ it('still tells the other members once the poster deleted their account', functi
     expect(Notification::query()->pluck('recipient_id')->all())->toBe([$this->member->id]);
 });
 
-it("tells the poster of an organization's rejected commit, for the organization", function (): void {
-    resolve(UpdateCommitStatuses::class)->handle([$this->commit->id], CommitStatus::Rejected);
+it('tells every member of the organization about its rejected commit, each as their own actor, while they are members', function (): void {
+    resolve(UpdateCommitStatuses::class)->handle([$this->commit->id], CommitStatus::Rejected, 'Spam');
 
-    expect(heardBy(NotificationType::Rejected))->toBe([$this->admin->id => $this->organization->id]);
+    expect(heardBy(NotificationType::Rejected))->toEqualCanonicalizing([
+        $this->admin->id => $this->organization->id,
+        $this->member->id => $this->organization->id,
+    ])->and(Notification::query()->whereColumn('actor_id', '<>', 'recipient_id')->exists())->toBeFalse();
+
+    $this->actingAs($this->member)
+        ->get(route('notification.index', ['type' => 'moderation']))
+        ->assertInertia(fn ($page) => $page->where('notifications.data.0.reason', 'Spam'));
+    $this->get(route('commit.show', ['profile' => 'laravel', 'commit' => $this->commit]))->assertOk();
+
+    resolve(DeleteOrganizationMember::class)->handle($this->organization, $this->member);
+
+    $this->get(route('notification.index', ['type' => 'moderation']))
+        ->assertInertia(fn ($page) => $page->has('notifications.data', 0));
+    $this->get(route('commit.show', ['profile' => 'laravel', 'commit' => $this->commit]))->assertNotFound();
 });
 
 it('deletes what the members heard about an organization GitHub no longer has', function (): void {
@@ -182,22 +196,19 @@ it('exports the organization each notification was for', function (): void {
     expect($data['notifications'][0]['organization'])->toBe('laravel');
 });
 
-it('shows every member the commit of the organization a quote quotes, unless only its poster may see it', function (): void {
+it('shows every member the commit of the organization a quote quotes, rejected too, until they leave it', function (): void {
     $quote = Commit::factory()->create(['quoted_commit_id' => $this->commit->id]);
     resolve(CreateQuoteNotifications::class)->handle($quote);
-
-    $this->actingAs($this->member)
-        ->get(route('notification.index'))
-        ->assertInertia(fn ($page) => $page->where('notifications.data.0.commit.quoted_commit.id', $this->commit->id));
-
     $this->commit->update(['status' => CommitStatus::Rejected]);
 
     $this->actingAs($this->member)
         ->get(route('notification.index'))
-        ->assertInertia(fn ($page) => $page->where('notifications.data.0.commit.quoted_commit', null));
-    $this->actingAs($this->admin)
-        ->get(route('notification.index'))
         ->assertInertia(fn ($page) => $page->where('notifications.data.0.commit.quoted_commit.id', $this->commit->id));
+
+    resolve(DeleteOrganizationMember::class)->handle($this->organization, $this->member);
+
+    $this->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page->where('notifications.data.0.commit.quoted_commit', null));
 });
 
 it('groups what a member hears about for the organization apart from what they hear about for themselves', function (): void {
@@ -247,4 +258,16 @@ it("tells no member about a newcomer's first commit that mentions the organizati
     resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Approved);
 
     expect($this->member->notifications()->pluck('type')->all())->toBe([NotificationType::Mentioned]);
+});
+
+it('lets the members of an organization see its pending commits and their images, as their own, and no one else', function (): void {
+    $pending = Commit::factory()->for($this->admin)->pending()->create(['author_id' => $this->organization->id]);
+    $outsider = User::factory()->create();
+
+    expect($pending->isVisibleTo($this->member))->toBeTrue()
+        ->and($pending->imagesAreVisibleTo($this->member))->toBeTrue()
+        ->and($pending->isVisibleTo($outsider))->toBeFalse()
+        ->and($pending->imagesAreVisibleTo($outsider))->toBeFalse()
+        ->and(Commit::query()->visibleTo($this->member)->whereKey($pending->id)->exists())->toBeTrue()
+        ->and(Commit::query()->visibleTo($outsider)->whereKey($pending->id)->exists())->toBeFalse();
 });

@@ -309,6 +309,30 @@ test("says a member hears about the organization's commits and mentions for the 
     assert.doesNotMatch(body, /your commit|mentioned you/);
 });
 
+test('tells every member of the organization about its rejected commit', async () => {
+    const organization = {
+        id: 'laravel',
+        handle: 'laravel',
+        name: 'Laravel',
+        lane: null,
+    } as Organization;
+    const body = await render([
+        {
+            ...notification,
+            type: 'rejected',
+            reason: 'Spam',
+            organization,
+        } as NotificationGroup,
+    ]);
+
+    assert.match(body, /@laravel&#x27;s commit was rejected/);
+    assert.match(
+        body,
+        /Only @laravel&#x27;s members can see this update and its rejected commit\./,
+    );
+    assert.doesNotMatch(body, /Your commit|Only you/);
+});
+
 test('previews the person of a single reply from the avatar and the name', async () => {
     const body = await render([notification]);
 

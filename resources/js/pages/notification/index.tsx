@@ -818,8 +818,8 @@ export function NotificationContent({
             ? `mentioned @${organization.handle}`
             : 'mentioned you',
         first_commit: 'made their first commit',
-        approved: 'Your commit was approved',
-        rejected: 'Your commit was rejected',
+        approved: `${organization ? whose : 'Your'} commit was approved`,
+        rejected: `${organization ? whose : 'Your'} commit was rejected`,
         leveled_up: level && `You reached level ${level.level}: ${level.rank}`,
     }[notification.type];
     const excerpt =
@@ -851,7 +851,9 @@ export function NotificationContent({
                 </p>
             )}
             <p className="mt-1">
-                Only you can see this update and your rejected commit.
+                {organization
+                    ? `Only @${organization.handle}'s members can see this update and its rejected commit.`
+                    : 'Only you can see this update and your rejected commit.'}
             </p>
         </div>
     );
