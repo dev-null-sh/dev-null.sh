@@ -94,11 +94,12 @@ final readonly class CreateCommit
                 $this->updateCommitHotScores->handle([$commit->id]);
             }
 
-            // An organization's commits notify no one yet: each would show who posted it.
+            $this->createReplyNotifications->handle($commit);
+            $this->createQuoteNotifications->handle($commit);
+            $this->createMentionNotifications->handle($commit);
+
+            // Only a person's first commit is announced to their followers, never an organization's.
             if (! $organization instanceof Organization) {
-                $this->createReplyNotifications->handle($commit);
-                $this->createQuoteNotifications->handle($commit);
-                $this->createMentionNotifications->handle($commit);
                 $this->createFirstCommitNotifications->handle($commit);
             }
 

@@ -26,16 +26,18 @@ final readonly class CreateMentionNotifications
 
     /**
      * Notifies everyone mentioned in each commit, and every member of the organizations it mentions, but only once the
-     * commit is approved, so nobody hears about a mention they cannot see yet. Someone mentioned both ways hears about
-     * it once, for themselves. Never for mentioning yourself, or for whoever already hears about it as a reply or a
-     * quote. Nobody hears from people they mute or from across a block either. Safe to call more than once.
+     * commit is approved, so nobody hears about a mention they cannot see yet. It comes from the commit's author: an
+     * organization's mention comes from the organization, whoever posted it. Someone mentioned both ways hears about
+     * it once, for themselves. Never for mentioning yourself, nor the members of an organization for it mentioning
+     * itself, nor whoever already hears about it as a reply or a quote. Nobody hears from authors they mute or from
+     * across a block either. Safe to call more than once.
      */
     public function handle(Commit ...$commits): void
     {
         $commits = Commit::query()
             ->whereKey(array_map(fn (Commit $commit): string => $commit->id, $commits))
             ->where('status', CommitStatus::Approved)
-            ->whereNotNull('user_id')
+            ->whereNotNull('author_id')
             ->with(['parent', 'quotedCommit'])
             ->get();
 
@@ -66,7 +68,7 @@ final readonly class CreateMentionNotifications
         /** @var Closure(?string): Collection<int, object{profile_id: string, user_id: string, organization_id: string|null}> $recipientsOf */
         $recipientsOf = fn (?string $profileId): Collection => $recipients->get((string) $profileId, new Collection());
 
-        $authorIds = $commits->pluck('user_id')->unique()->values()->all();
+        $authorIds = $commits->pluck('author_id')->unique()->values()->all();
         $silencedAuthors = fn (BelongsToMany $authors): BelongsToMany => $authors->whereKey($authorIds)->without('profile')->select('users.id');
         $users = User::query()
             ->whereKey($recipients->flatten()->pluck('user_id')->unique()->values()->all())
@@ -78,14 +80,18 @@ final readonly class CreateMentionNotifications
         $notifications = [];
 
         foreach ($commits as $commit) {
-            $authorId = $commit->user_id;
+            $authorId = $commit->author_id;
             assert($authorId !== null);
-            $hearsOtherwise = $recipientsOf($commit->parent?->author_id)->concat($recipientsOf($commit->quotedCommit?->author_id))->pluck('user_id');
+            // Replying to or quoting itself, an organization notifies none of its members.
+            $hearsOtherwise = collect([$commit->parent?->author_id, $commit->quotedCommit?->author_id])
+                ->reject(fn (?string $profileId): bool => $profileId === $authorId)
+                ->flatMap(fn (?string $profileId): Collection => $recipientsOf($profileId))
+                ->pluck('user_id');
 
             $mentioned = collect($mentionedByCommit->get($commit->id, []))
                 ->flatMap(fn (string $profileId): Collection => $recipientsOf($profileId))
                 ->unique('user_id')
-                ->reject(fn (object $recipient): bool => $recipient->user_id === $authorId || $hearsOtherwise->contains($recipient->user_id));
+                ->reject(fn (object $recipient): bool => $recipient->user_id === $commit->user_id || $recipient->profile_id === $authorId || $hearsOtherwise->contains($recipient->user_id));
 
             foreach ($mentioned as $recipient) {
                 $user = $users->get($recipient->user_id);
