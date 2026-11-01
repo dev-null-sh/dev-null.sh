@@ -19,6 +19,7 @@ import {
     ThreadReplyComposer,
     useThread,
 } from '@/components/commit-thread';
+import { CommitTimes } from '@/components/commit-times';
 import { useCommitTranslation } from '@/components/commit-translation';
 import {
     GraphDimmed,
@@ -547,6 +548,7 @@ export function CommitCard({
                                             keyShortcut="q"
                                         />
                                         {translation.button}
+                                        <CommitTimes commit={commit} />
                                     </div>
                                     <CommitSecondaryActions commit={commit} />
                                 </div>
@@ -571,6 +573,7 @@ export function CommitCard({
                                                 keyShortcut="q"
                                             />
                                             {translation.button}
+                                            <CommitTimes commit={commit} />
                                             {threadActions}
                                         </>
                                     }
