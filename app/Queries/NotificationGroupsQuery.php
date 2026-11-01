@@ -53,8 +53,8 @@ final readonly class NotificationGroupsQuery
 
     /**
      * The inbox shows a quote with the commit it quotes, which is always the recipient's own or the organization's they
-     * heard about it for, so only those commits load there: a reply that quotes someone else never brings along a
-     * commit the recipient may not see.
+     * heard about it for, so only those commits load there, as far as the recipient may see them: a reply that quotes
+     * someone else never brings along a commit the recipient may not see, nor does an organization's rejected one.
      *
      * @param  CursorPaginator<int, Notification>  $groups
      * @return CursorPaginator<int, Notification>
@@ -65,7 +65,8 @@ final readonly class NotificationGroupsQuery
         $authorIds = $items->pluck('organization_id')->filter()->push($user->id)->unique()->values()->all();
 
         $items->loadMissing([
-            'commit.quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->whereIn('author_id', $authorIds),
+            'commit.quotedCommit' => fn (BelongsTo $query): BelongsTo => $query->withTrashed()->whereIn('author_id', $authorIds)
+                ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($user)),
         ]);
 
         return $groups;
@@ -160,7 +161,7 @@ final readonly class NotificationGroupsQuery
         // recorded root is always one of its ancestors, so the walk up the thread only continues past it when the
         // recorded root is itself a reply. Follows never group across days, as a busy account gets followed so often
         // that its follows would otherwise never stop joining a single group. What a member hears about for an
-        // organization never groups with what they hear about for themselves, which says "you" instead.
+        // organization only groups with what they hear about for that organization: each names whose it is.
         $sql = <<<SQL
             WITH RECURSIVE visible AS ({$visible->toSql()}),
             threads AS (
@@ -180,7 +181,8 @@ final readonly class NotificationGroupsQuery
                 SELECT visible.*,
                     CASE WHEN visible.type = 'starred' THEN 'starred'
                         WHEN visible.type = 'replied' THEN 'replied'
-                        WHEN visible.organization_id IS NOT NULL THEN 'organization' ELSE 'activity' END AS topic_kind,
+                        WHEN visible.organization_id IS NOT NULL THEN CONCAT('organization:', visible.organization_id)
+                        ELSE 'activity' END AS topic_kind,
                     CASE WHEN visible.type = 'followed' THEN visible.recipient_id
                         WHEN visible.type = 'starred' THEN visible.commit_id
                         WHEN visible.type = 'replied' THEN visible.id

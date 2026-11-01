@@ -182,11 +182,20 @@ it('exports the organization each notification was for', function (): void {
     expect($data['notifications'][0]['organization'])->toBe('laravel');
 });
 
-it('shows every member the commit of the organization a quote quotes', function (): void {
+it('shows every member the commit of the organization a quote quotes, unless only its poster may see it', function (): void {
     $quote = Commit::factory()->create(['quoted_commit_id' => $this->commit->id]);
     resolve(CreateQuoteNotifications::class)->handle($quote);
 
     $this->actingAs($this->member)
+        ->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page->where('notifications.data.0.commit.quoted_commit.id', $this->commit->id));
+
+    $this->commit->update(['status' => CommitStatus::Rejected]);
+
+    $this->actingAs($this->member)
+        ->get(route('notification.index'))
+        ->assertInertia(fn ($page) => $page->where('notifications.data.0.commit.quoted_commit', null));
+    $this->actingAs($this->admin)
         ->get(route('notification.index'))
         ->assertInertia(fn ($page) => $page->where('notifications.data.0.commit.quoted_commit.id', $this->commit->id));
 });
@@ -207,6 +216,26 @@ it('groups what a member hears about for the organization apart from what they h
             ->has('notifications.data', 2)
             ->where('notifications.data.0.organization.handle', 'laravel')
             ->where('notifications.data.1.organization', null));
+});
+
+it('groups what a member hears about for each of their organizations apart', function (): void {
+    $symfony = Organization::factory()->create(['handle' => 'symfony']);
+    $symfony->members()->attach($this->admin->id, ['role' => OrganizationRole::Member]);
+    $thread = Commit::factory()->create();
+    $mentions = collect(['laravel' => $this->organization, 'symfony' => $symfony])->values()->map(function (Organization $organization, int $index) use ($thread): Commit {
+        $commit = Commit::factory()->for($thread, 'parent')->create(['body' => 'Thanks @'.$organization->handle, 'created_at' => now()->addMinutes($index)]);
+        resolve(CreateCommitTopics::class)->handle($commit, [$organization->handle => $organization->id]);
+
+        return $commit;
+    });
+    resolve(CreateMentionNotifications::class)->handle(...$mentions);
+
+    $this->actingAs($this->admin)
+        ->get(route('notification.index', ['type' => 'mentions']))
+        ->assertInertia(fn ($page) => $page
+            ->has('notifications.data', 2)
+            ->where('notifications.data.0.organization.handle', 'symfony')
+            ->where('notifications.data.1.organization.handle', 'laravel'));
 });
 
 it("tells no member about a newcomer's first commit that mentions the organization twice", function (): void {

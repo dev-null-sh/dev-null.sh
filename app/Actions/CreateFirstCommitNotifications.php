@@ -68,8 +68,11 @@ final readonly class CreateFirstCommitNotifications
                 ->whereNotIn('users.id', $author->mutedBy()->newPivotQuery()->select('muter_id'))
                 ->whereNotIn('users.id', $author->idsAcrossBlocks())
                 ->whereNotIn('users.id', DB::query()->fromSub($this->recipients->builder(), 'recipients')
-                    ->whereIn('profile_id', [...array_values($commit->mentions ?? []), ...array_filter([$commit->quotedCommit?->author_id])])
-                    ->orWhereIn('profile_id', DB::table('commit_topics')->where('commit_id', $commit->id)->where('topic_type', TopicType::Organization)->select('topic_id'))
+                    ->whereIn('profile_id', [
+                        ...array_values($commit->mentions ?? []),
+                        ...array_filter([$commit->quotedCommit?->author_id]),
+                        ...DB::table('commit_topics')->where('commit_id', $commit->id)->where('topic_type', TopicType::Organization)->pluck('topic_id'),
+                    ])
                     ->select('user_id'))
                 ->pluck('users.id');
 
