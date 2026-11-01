@@ -33,7 +33,7 @@ it('shows the product metrics of all time to admins', function (): void {
                 ->where('funnel.visitors', null)));
 });
 
-it('shows retention by signup day and by weekly cohort, where each day\'s active users come from, and when active days started being recorded', function (): void {
+it("shows retention by signup day and by weekly cohort, where each day's active users come from, and when active days started being recorded", function (): void {
     $admin = User::factory()->create(['handle' => 'admin', 'created_at' => '2026-10-16 09:00:00']);
     DB::table('user_active_days')->insert(['user_id' => $admin->id, 'seen_at' => '2026-10-17']);
 
