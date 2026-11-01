@@ -183,6 +183,8 @@ final readonly class CreateExport
     }
 
     /**
+     * Streams every commit the user owns, including deleted ones, with its recorded source and cached translations.
+     *
      * @return Generator<int, array<string, mixed>>
      */
     private function commits(User $user): Generator

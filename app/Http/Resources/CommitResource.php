@@ -37,6 +37,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 final class CommitResource extends JsonResource
 {
     /**
+     * Serializes public commits, signed-only fields, and deleted thread tombstones without exposing their body.
+     *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array

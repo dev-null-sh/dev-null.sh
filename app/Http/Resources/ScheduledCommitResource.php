@@ -19,6 +19,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
 final class ScheduledCommitResource extends JsonResource
 {
     /**
+     * Serializes an owner's scheduled commit, withholding its body after submission or deletion.
+     *
      * @return array<string, mixed>
      */
     public function toArray(Request $request): array
