@@ -29,6 +29,7 @@ export default function Edit({
     automaticLane,
     githubSyncedAt,
     activityGraphUrl,
+    badgeUrl,
     profileUrl,
 }: {
     translationLanguage: string | null;
@@ -37,6 +38,7 @@ export default function Edit({
     automaticLane: number;
     githubSyncedAt: string | null;
     activityGraphUrl: string;
+    badgeUrl?: string;
     profileUrl: string;
 }) {
     const { user } = useUser();
@@ -128,6 +130,7 @@ export default function Edit({
 
             <ActivityGraphEmbed
                 activityGraphUrl={activityGraphUrl}
+                badgeUrl={badgeUrl}
                 profileUrl={profileUrl}
             />
 
