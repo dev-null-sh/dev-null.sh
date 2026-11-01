@@ -123,6 +123,7 @@ use App\Http\Controllers\TrafficController;
 use App\Http\Controllers\UnsubscriptionController;
 use App\Http\Controllers\UserActivityGraphController;
 use App\Http\Controllers\UserAutomaticTranslationController;
+use App\Http\Controllers\UserBadgeController;
 use App\Http\Controllers\UserBanController;
 use App\Http\Controllers\UserBlockController;
 use App\Http\Controllers\UserController;
@@ -291,6 +292,11 @@ Route::get('@{user:handle}/feed.atom', [UserFeedController::class, 'show'])
 Route::get('@{user:handle}/graph.svg', [UserActivityGraphController::class, 'show'])
     ->middleware(['throttle:activity-graph', 'cache.headers:public;max_age=3600;etag'])
     ->name('user-activity-graph.show');
+
+// Compact profile badge, embedded in READMEs...
+Route::get('@{user:handle}/badge.svg', [UserBadgeController::class, 'show'])
+    ->middleware(['throttle:activity-graph', 'cache.headers:public;max_age=3600;etag'])
+    ->name('user-badge.svg');
 
 // Commit...
 Route::get('@{profile:handle}/commits/{commit}/og.png', [CommitOpenGraphImageController::class, 'show'])
