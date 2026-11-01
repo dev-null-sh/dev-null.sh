@@ -16,6 +16,7 @@ use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Sequence;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
@@ -34,6 +35,25 @@ it('may create a commit', function (): void {
     $response->assertRedirectToRoute('log.show', Log::Following);
 
     expect($user->commits()->sole()->body)->toBe('Hello, devnull!');
+});
+
+it('takes the unique lock of the level check only once the commit is saved', function (): void {
+    // On Postgres, a lock row left by an earlier check makes the insert fail and aborts the transaction it runs in.
+    config(['cache.default' => 'database']);
+    $user = User::factory()->create();
+    config(['app.admins' => [$user->username]]);
+    $outside = DB::transactionLevel();
+    $levels = [];
+    DB::listen(function (QueryExecuted $query) use (&$levels): void {
+        if (str_contains($query->sql, 'cache_locks')) {
+            $levels[] = DB::transactionLevel();
+        }
+    });
+
+    $this->actingAs($user)->post(route('commit.store'), ['body' => 'It was DNS.'])->assertSessionHasNoErrors();
+
+    expect($levels)->not->toBeEmpty()
+        ->and(array_unique($levels))->toBe([$outside]);
 });
 
 it('flashes the created commit', function (): void {
