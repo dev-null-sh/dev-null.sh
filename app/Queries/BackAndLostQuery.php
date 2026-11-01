@@ -9,9 +9,9 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
 /**
- * @phpstan-type LifecycleDay array{date: string, new: int, regular: int, back: int, lost: int|null, backfilled: bool}
+ * @phpstan-type BackAndLostDay array{date: string, back: int, lost: int|null, backfilled: bool}
  */
-final readonly class ActiveUserLifecycleQuery
+final readonly class BackAndLostQuery
 {
     /**
      * How many days without a visit make someone gone: back when they return after that, lost on the day they reach it.
@@ -19,20 +19,19 @@ final readonly class ActiveUserLifecycleQuery
     public const int GAP_DAYS = 7;
 
     /**
-     * Each day of the range up to today, oldest first, with the people seen that day split by where they come from: new,
-     * as they signed up that day, regular, as they were seen or signed up in the GAP_DAYS before, or back after a longer
-     * gap. Lost counts the people seen GAP_DAYS before and not since, so a return shows on the day it happens, whenever
-     * they signed up, and a loss on the day it's sure. Today is still counting, so it has no lost yet. A day is
-     * backfilled when the days it looks back on came before user_active_days was recorded, as they miss the days people
-     * only read, which makes regulars look back. Bots are left out.
+     * Each day of the range up to today, oldest first, with the people back that day, as they signed up and weren't seen
+     * in the GAP_DAYS before, and the people lost, as they were seen GAP_DAYS before and not since. So a return shows on
+     * the day it happens, whenever they signed up, and a loss on the day it's sure. Today is still counting, so it has no
+     * lost yet. A day is backfilled when the days it looks back on came before user_active_days was recorded, as they
+     * miss the days people only read, which makes regulars look back. Bots are left out.
      *
-     * @return list<LifecycleDay>
+     * @return list<BackAndLostDay>
      */
     public function get(CarbonImmutable $from, CarbonImmutable $to): array
     {
         $today = CarbonImmutable::today();
 
-        /** @var list<object{date: string, new: int, regular: int, back: int, lost: int}> $rows */
+        /** @var list<object{date: string, back: int, lost: int}> $rows */
         $rows = DB::select(<<<'SQL'
             with active as (
                 select a.seen_at, u.created_at::date as signed_up_at,
@@ -43,17 +42,14 @@ final readonly class ActiveUserLifecycleQuery
                 where u.github_id <> all(?::text[]) and a.seen_at >= ?::date - ?::int
                 window seen as (partition by a.user_id order by a.seen_at)
             )
-            select d.day::date as date, coalesce(s.new, 0) as new, coalesce(s.regular, 0) as regular,
-                coalesce(s.back, 0) as back, coalesce(l.lost, 0) as lost
+            select d.day::date as date, coalesce(b.back, 0) as back, coalesce(l.lost, 0) as lost
             from generate_series(?::date, ?::date, interval '1 day') as d(day)
             left join (
-                select seen_at,
-                    count(*) filter (where signed_up_at = seen_at) as new,
-                    count(*) filter (where signed_up_at < seen_at and (signed_up_at >= seen_at - ?::int or previous >= seen_at - ?::int)) as regular,
-                    count(*) filter (where signed_up_at < seen_at - ?::int and (previous is null or previous < seen_at - ?::int)) as back
+                select seen_at, count(*) as back
                 from active
+                where signed_up_at < seen_at - ?::int and (previous is null or previous < seen_at - ?::int)
                 group by seen_at
-            ) s on s.seen_at = d.day
+            ) b on b.seen_at = d.day
             left join (
                 select seen_at + ?::int as day, count(*) as lost
                 from active
@@ -67,13 +63,11 @@ final readonly class ActiveUserLifecycleQuery
             self::GAP_DAYS,
             $from->toDateString(),
             $to->min($today)->toDateString(),
-            ...array_fill(0, 6, self::GAP_DAYS),
+            ...array_fill(0, 4, self::GAP_DAYS),
         ]);
 
         return array_map(fn (object $row): array => [
             'date' => $row->date,
-            'new' => (int) $row->new,
-            'regular' => (int) $row->regular,
             'back' => (int) $row->back,
             'lost' => $row->date === $today->toDateString() ? null : (int) $row->lost,
             'backfilled' => CarbonImmutable::parse($row->date)->subDays(self::GAP_DAYS)->toDateString() < RetentionByDayQuery::RECORDED_SINCE,

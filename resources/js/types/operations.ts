@@ -168,19 +168,13 @@ export type RetentionCohorts = {
     curve: RetentionCell[];
 };
 
-export type LifecycleDay = {
+export type ActiveUserCount = {
     date: string;
-    new: number;
+    count: number;
     regular: number;
     back: number;
     lost: number | null;
     backfilled: boolean;
-};
-
-export type ActiveUserCount = {
-    date: string;
-    count: number;
-    returning: number;
     activated: number;
     not_activated: number;
     pending: number;
