@@ -36,6 +36,7 @@ import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
+import { useFreshRows } from '@/hooks/use-fresh-rows';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
@@ -151,6 +152,9 @@ export default function Index({
     const pollRequest = useRef<CancelToken | null>(null);
     const header = useRef<HTMLDivElement>(null);
     const pollAnchor = useRef<PollAnchor | null>(null);
+    const feed = useRef<HTMLDivElement>(null);
+    const freshIds = useRef<Set<string>>(new Set());
+    const litGroups = useRef<Set<string>>(new Set());
     const [arrivals, setArrivals] = useState(0);
     const { start, stop } = usePoll(
         30_000,
@@ -242,6 +246,23 @@ export default function Index({
         }
     }, [notifications.data]);
 
+    useLayoutEffect(() => {
+        notifications.data
+            .filter((group) => isNewSince(group, readAt))
+            .filter(
+                (group) =>
+                    !litGroups.current.has(
+                        `${group.group_id}:${group.event_count}`,
+                    ),
+            )
+            .forEach((group) => {
+                litGroups.current.add(`${group.group_id}:${group.event_count}`);
+                freshIds.current.add(group.group_id);
+            });
+    }, [notifications.data, readAt]);
+
+    useFreshRows(feed, 'notificationGroup', freshIds, notifications.data);
+
     useEffect(() => {
         if (arrivals === 0) {
             return;
@@ -328,82 +349,95 @@ export default function Index({
                     </EmptyFeed>
                 </div>
             ) : (
-                <GraphCanvas>
-                    <InfiniteScroll
-                        data="notifications"
-                        onlyNext
-                        preserveUrl
-                        loading={
-                            <div
-                                role="status"
-                                aria-label="Loading more notifications"
-                                className="animate-in opacity-0 delay-300 fill-mode-forwards fade-in"
-                            >
-                                <NotificationSkeleton hasPrevious />
-                                <NotificationSkeleton hasPrevious />
-                            </div>
-                        }
-                    >
-                        {notifications.data.map((notification, position) => {
-                            const previous = notifications.data[position - 1];
-                            const next = notifications.data[position + 1];
-                            const isNew = isNewSince(notification, readAt);
-                            const beforeLastVisit =
-                                isNew && next && !isNewSince(next, readAt);
-                            const startsDay =
-                                !previous ||
-                                localDayKey(previous.created_at) !==
-                                    localDayKey(notification.created_at);
-
-                            return (
-                                <Fragment key={notification.group_id}>
-                                    {previous &&
-                                        isNewSince(previous, readAt) &&
-                                        !isNew && <LastVisitMarker />}
-                                    {startsDay && (
-                                        <DayMarker
-                                            label={formatDayLabel(
+                <div ref={feed}>
+                    <GraphCanvas>
+                        <InfiniteScroll
+                            data="notifications"
+                            onlyNext
+                            preserveUrl
+                            loading={
+                                <div
+                                    role="status"
+                                    aria-label="Loading more notifications"
+                                    className="animate-in opacity-0 delay-300 fill-mode-forwards fade-in"
+                                >
+                                    <NotificationSkeleton hasPrevious />
+                                    <NotificationSkeleton hasPrevious />
+                                </div>
+                            }
+                        >
+                            {notifications.data.map(
+                                (notification, position) => {
+                                    const previous =
+                                        notifications.data[position - 1];
+                                    const next =
+                                        notifications.data[position + 1];
+                                    const isNew = isNewSince(
+                                        notification,
+                                        readAt,
+                                    );
+                                    const beforeLastVisit =
+                                        isNew &&
+                                        next &&
+                                        !isNewSince(next, readAt);
+                                    const startsDay =
+                                        !previous ||
+                                        localDayKey(previous.created_at) !==
+                                            localDayKey(
                                                 notification.created_at,
-                                                now,
+                                            );
+
+                                    return (
+                                        <Fragment key={notification.group_id}>
+                                            {previous &&
+                                                isNewSince(previous, readAt) &&
+                                                !isNew && <LastVisitMarker />}
+                                            {startsDay && (
+                                                <DayMarker
+                                                    label={formatDayLabel(
+                                                        notification.created_at,
+                                                        now,
+                                                    )}
+                                                />
                                             )}
-                                        />
+                                            <NotificationGroupItem
+                                                key={
+                                                    filters.type +
+                                                    '-' +
+                                                    notification.id +
+                                                    '-' +
+                                                    notification.event_count
+                                                }
+                                                notification={notification}
+                                                type={filters.type}
+                                                readAt={readAt}
+                                                isNew={isNew}
+                                                withoutBottomBorder={Boolean(
+                                                    beforeLastVisit,
+                                                )}
+                                            />
+                                        </Fragment>
+                                    );
+                                },
+                            )}
+                        </InfiniteScroll>
+                        {notifications.next_cursor === null && (
+                            <div className="flex">
+                                <GraphRail
+                                    lane={laneColor(
+                                        notifications.data.at(-1)!.actor.lane,
                                     )}
-                                    <NotificationGroupItem
-                                        key={
-                                            filters.type +
-                                            '-' +
-                                            notification.id +
-                                            '-' +
-                                            notification.event_count
-                                        }
-                                        notification={notification}
-                                        type={filters.type}
-                                        readAt={readAt}
-                                        isNew={isNew}
-                                        withoutBottomBorder={Boolean(
-                                            beforeLastVisit,
-                                        )}
-                                    />
-                                </Fragment>
-                            );
-                        })}
-                    </InfiniteScroll>
-                    {notifications.next_cursor === null && (
-                        <div className="flex">
-                            <GraphRail
-                                lane={laneColor(
-                                    notifications.data.at(-1)!.actor.lane,
-                                )}
-                                variant="root"
-                                hasTail={false}
-                            />
-                            <p className="pt-[1.3rem] pr-4 pb-10 text-sm text-muted-foreground">
-                                That's the oldest notification. There's nothing
-                                before it.
-                            </p>
-                        </div>
-                    )}
-                </GraphCanvas>
+                                    variant="root"
+                                    hasTail={false}
+                                />
+                                <p className="pt-[1.3rem] pr-4 pb-10 text-sm text-muted-foreground">
+                                    That's the oldest notification. There's
+                                    nothing before it.
+                                </p>
+                            </div>
+                        )}
+                    </GraphCanvas>
+                </div>
             )}
         </>
     );
