@@ -4,24 +4,37 @@ import { mentionPattern } from '@/lib/mentions';
 import { show } from '@/routes/user';
 
 const mentionClassName =
-    'inline-flex h-[1.55em] items-center gap-[0.3em] rounded-md border bg-muted pr-[0.55em] pl-[calc(0.2em-1px)] align-[-0.3em] text-[0.93em] font-medium whitespace-nowrap text-foreground transition-colors hover:border-primary/45 hover:bg-primary-soft hover:text-primary-hover';
+    'inline-flex h-[1.55em] max-w-full items-baseline gap-[0.2em] rounded-[0.3em] border bg-muted px-[calc(0.2em-1px)] align-baseline text-[0.93em] font-medium whitespace-nowrap text-inherit transition-colors hover:border-primary/45 hover:bg-primary-soft hover:text-primary-hover';
 
 // Like a shortened URL, the "@" stays in the text, so copying the bio keeps the mention.
 function MentionContent({ handle }: { handle: string }) {
     return (
         <>
-            {/* A handle GitHub doesn't know has no avatar, so the broken image leaves just this placeholder. */}
-            <span className="size-[1.15em] shrink-0 overflow-hidden rounded-[calc(var(--radius-md)-0.2em)] bg-border">
+            {/* A CSS symbol keeps the fallback out of copied bio text. */}
+            <span
+                aria-hidden="true"
+                className="relative flex size-[1.15em] shrink-0 items-center justify-center self-center overflow-hidden rounded-[0.1em] bg-border before:text-[0.75em] before:leading-none before:text-muted-foreground before:content-['@']"
+            >
                 <img
+                    key={handle}
+                    // An image that failed before hydration fires no error event React can see.
+                    ref={(element) => {
+                        if (element?.complete && element.naturalWidth === 0) {
+                            element.style.visibility = 'hidden';
+                        }
+                    }}
                     src={`https://github.com/${handle}.png?size=40`}
                     alt=""
                     width={20}
                     height={20}
                     loading="lazy"
-                    className="size-full"
+                    className="absolute inset-0 size-full bg-border object-cover"
+                    onError={(event) => {
+                        event.currentTarget.style.visibility = 'hidden';
+                    }}
                 />
             </span>
-            <span>
+            <span className="min-w-0 truncate py-[calc(0.275em-1px)] leading-none">
                 <span className="text-[0px]">@</span>
                 {handle}
             </span>
