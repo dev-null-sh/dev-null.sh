@@ -80,7 +80,7 @@ import {
     toggleReaction,
 } from '@/lib/chat';
 import type { ChatTarget, PendingMessage } from '@/lib/chat';
-import { isBehindLatest } from '@/lib/chat-scroll';
+import { glideToPresent, isBehindLatest } from '@/lib/chat-scroll';
 import { formatCount } from '@/lib/numbers';
 import { pullsOf, statusMessageOf } from '@/lib/pulls';
 import { doubleTapReaction } from '@/lib/reactions';
@@ -192,8 +192,11 @@ export function ConversationThread({
     const [isScrolledBack, setIsScrolledBack] = useState(false);
     const [isJumping, setIsJumping] = useState(false);
     const jumpRequest = useRef<AbortController | null>(null);
+    const glideCancel = useRef<(() => void) | null>(null);
+    const isGliding = useRef(false);
 
     const messages = thread?.messages ?? noMessages;
+    const messagesRef = useRef(messages);
     const pending = thread?.pending ?? noPending;
     const latestId = messages.at(-1)?.id ?? 0;
     const head = thread?.head ?? 0;
@@ -379,11 +382,20 @@ export function ConversationThread({
         [user, current, members, messages, pinnedAuthors],
     );
 
-    useEffect(() => () => jumpRequest.current?.abort(), []);
+    useEffect(
+        () => () => {
+            jumpRequest.current?.abort();
+            glideCancel.current?.();
+        },
+        [],
+    );
 
     const jumpTo = useCallback(
         async (id: number) => {
             jumpRequest.current?.abort();
+            glideCancel.current?.();
+            glideCancel.current = null;
+            isGliding.current = false;
             const request = new AbortController();
             jumpRequest.current = request;
             anchor.current = null;
@@ -488,6 +500,10 @@ export function ConversationThread({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isVisible, latestId, thread?.isLoaded, targetKey(target)]);
 
+    useEffect(() => {
+        messagesRef.current = messages;
+    }, [messages]);
+
     useLayoutEffect(() => {
         const element = scroller.current;
 
@@ -522,7 +538,11 @@ export function ConversationThread({
             // Confirming the same optimistic reply must not interrupt its scroll.
             seenLatest.current = latestId;
         } else if (isPinned.current) {
-            element.scrollTop = 0;
+            // A glide already owns the viewport; it still keeps the seen pointer current.
+            if (!isGliding.current) {
+                element.scrollTop = 0;
+            }
+
             seenLatest.current = latestId;
         } else {
             if (anchor.current !== null) {
@@ -547,14 +567,41 @@ export function ConversationThread({
     useLayoutEffect(releasePinClearance, [releasePinClearance]);
 
     const releaseScrollAnchor = useCallback(() => {
+        const element = scroller.current;
+        const wasGliding = isGliding.current;
+
         // Let deliberate input own the viewport until the fold settles, including delayed automatic scroll events.
         anchor.current = null;
         sentAnchor.current = null;
         isFollowingSend.current = false;
         jumpRequest.current?.abort();
         jumpRequest.current = null;
+        glideCancel.current?.();
+        glideCancel.current = null;
+        isGliding.current = false;
         setIsJumping(false);
-    }, []);
+
+        if (!wasGliding || element === null) {
+            return;
+        }
+
+        // A cancel can land before the first frame, so trust the scroller rather than the state the glide was started with.
+        isPinned.current = isAtLatest(element);
+
+        if (!isPinned.current) {
+            anchor.current = scrollAnchorOf(element);
+        }
+
+        // The pinned branch may have advanced the seen pointer mid-glide without clearing the count.
+        setUnseen(
+            messagesRef.current.filter(
+                (message) =>
+                    message.id > seenLatest.current &&
+                    message.user_id !== user.id &&
+                    !message.event,
+            ).length,
+        );
+    }, [user.id]);
 
     // A row below the visible ones can still change height, as reactions or a link card arrive, and the scroller itself
     // shrinks as the composer grows or the keyboard opens. Anchored at its bottom, either would move what is being read,
@@ -623,8 +670,11 @@ export function ConversationThread({
             return;
         }
 
-        updateScrollPosition();
-        releasePinClearance();
+        // A glide owns the viewport until it lands or the user takes over.
+        if (!isGliding.current) {
+            updateScrollPosition();
+            releasePinClearance();
+        }
 
         // A correction during the reply fold is not an intentional scroll, even while it is close to the bottom.
         if (
@@ -641,7 +691,11 @@ export function ConversationThread({
         if (element.scrollTop === 0) {
             isFollowingSend.current = false;
         }
-        if (!isReplyResizing.current || anchor.current !== null) {
+        if (
+            !isGliding.current &&
+            (!isReplyResizing.current || anchor.current !== null)
+        ) {
+            // An anchor captured mid-glide would be restored by a later resize and fight the glide.
             anchor.current = scrollAnchorOf(element);
         }
 
@@ -669,16 +723,35 @@ export function ConversationThread({
         jumpRequest.current?.abort();
         jumpRequest.current = null;
         setIsJumping(false);
-        setIsBrowsingHistory(false);
-        setIsScrolledBack(false);
         anchor.current = null;
         sentAnchor.current = null;
         isFollowingSend.current = false;
         restoredScrollTop.current = null;
         isPinned.current = true;
+        glideCancel.current?.();
+        glideCancel.current = null;
         const element = scroller.current;
 
-        element?.scrollTo({ top: 0, behavior: 'instant' });
+        if (element === null) {
+            isGliding.current = false;
+            setIsBrowsingHistory(false);
+            setIsScrolledBack(false);
+
+            return;
+        }
+
+        // Keeping the shortcut visible until the glide lands avoids a blink at the start.
+        isGliding.current = true;
+        glideCancel.current = glideToPresent(element, {
+            onDone: () => {
+                isGliding.current = false;
+                setUnseen(0);
+                setIsBrowsingHistory(false);
+                setIsScrolledBack(false);
+                updateScrollPosition();
+                releasePinClearance();
+            },
+        });
     };
 
     return (
@@ -743,7 +816,10 @@ export function ConversationThread({
                     }
                 }}
                 onPointerDown={(event) => {
-                    if (event.target === event.currentTarget) {
+                    if (
+                        isGliding.current ||
+                        event.target === event.currentTarget
+                    ) {
                         releaseScrollAnchor();
                     }
                 }}
