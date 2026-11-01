@@ -21,6 +21,7 @@ import type {
     AcquisitionDay,
     ActivationDay,
     ActiveUserCount,
+    LifecycleDay,
     ActiveUsers,
     CommitResponses,
     RetentionByDay as RetentionByDayData,
@@ -945,6 +946,292 @@ function ActiveUserCounts({
     );
 }
 
+/**
+ * Where a day's active users come from, from the axis up: back after a week or more away in aqua, as it is what a
+ * campaign to bring people back moves, then regulars in blue and the day's signups in amber, like the daily active
+ * users. Lost, the people who reached a week away that day, hangs below the axis. The colors are this chart's own, so
+ * they live on its wrapper, not in the theme.
+ */
+const LIFECYCLE_PARTS = [
+    { key: 'back', label: 'back after 7+ days away', className: 'bg-(--back)' },
+    { key: 'regular', label: 'regulars', className: 'bg-primary' },
+    { key: 'new', label: 'new', className: 'bg-(--new)' },
+] as const;
+
+type LifecycleView = 'flows' | 'everyone';
+
+const LIFECYCLE_VIEWS: { key: LifecycleView; label: string }[] = [
+    { key: 'flows', label: 'back vs lost' },
+    { key: 'everyone', label: 'everyone' },
+];
+
+function LifecycleViewPicker({
+    view,
+    onChange,
+}: {
+    view: LifecycleView;
+    onChange: (view: LifecycleView) => void;
+}) {
+    return (
+        <div role="group" aria-label="View" className="flex gap-1">
+            {LIFECYCLE_VIEWS.map((option) => (
+                <PresetButton
+                    key={option.key}
+                    isActive={view === option.key}
+                    onClick={() => onChange(option.key)}
+                >
+                    {option.label}
+                </PresetButton>
+            ))}
+        </div>
+    );
+}
+
+/**
+ * One slot per day of the range, like the daily bars, with the people who came up from the axis and the ones lost
+ * down from it, on one scale. Back vs lost leaves out regulars and signups, so a return after a break isn't lost
+ * under everyone who never left. A backfilled day is striped, as its regulars look back; today, still counting, is
+ * lighter and has no lost yet.
+ */
+function ActiveUserLifecycle({
+    range,
+    days,
+    view,
+    recordedSince,
+}: {
+    range: TrafficRange;
+    days: LifecycleDay[];
+    view: LifecycleView;
+    recordedSince: string;
+}) {
+    const parts = LIFECYCLE_PARTS.filter(
+        (part) => view === 'everyone' || part.key === 'back',
+    );
+    const up = (day: LifecycleDay) =>
+        parts.reduce((sum, part) => sum + day[part.key], 0);
+    const top = Math.max(0, ...days.map(up));
+    const bottom = Math.max(0, ...days.map((day) => day.lost ?? 0));
+    const scale = Math.max(Number.MIN_VALUE, top + bottom);
+    const byDate = new Map(days.map((day) => [day.date, day]));
+    const dates: string[] = [];
+
+    for (
+        let day = Date.parse(range.from);
+        day <= Date.parse(range.to);
+        day += 86_400_000
+    ) {
+        dates.push(new Date(day).toISOString().slice(0, 10));
+    }
+
+    return (
+        <div className="flex flex-1 flex-col gap-1 [--back:#1baf7a] [--new:#c96f12] dark:[--back:#2fbf8c] dark:[--new:#e0893a]">
+            <ul className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-xs text-muted-foreground">
+                {parts.map((part) => (
+                    <li key={part.key} className="flex items-center gap-1.5">
+                        <span
+                            aria-hidden
+                            className={cn(
+                                'size-2.5 rounded-sm',
+                                part.className,
+                            )}
+                        />
+                        {part.label}
+                    </li>
+                ))}
+                <li className="flex items-center gap-1.5">
+                    <span
+                        aria-hidden
+                        className="size-2.5 rounded-sm bg-muted-foreground/45"
+                    />
+                    lost, below: 7 days without a visit
+                </li>
+            </ul>
+            {days.some((day) => day.backfilled) && (
+                <BackfilledNote
+                    recordedSince={new Date(
+                        Date.parse(recordedSince) + 7 * 86_400_000,
+                    )
+                        .toISOString()
+                        .slice(0, 10)}
+                    marker={STRIPES_SWATCH}
+                />
+            )}
+            {days.length === 0 ? (
+                <div className="flex flex-1 flex-col pt-5">
+                    <div className="flex min-h-48 flex-1 items-center justify-center border-b border-rail px-4">
+                        <p className="max-w-sm text-center font-mono text-[13px] text-balance text-muted-foreground">
+                            nothing yet: days are counted up to today
+                        </p>
+                    </div>
+                    <DateAxis range={range} />
+                </div>
+            ) : (
+                <figure className="@container flex flex-1 flex-col pt-5">
+                    <div
+                        key={`${range.from}:${range.to}`}
+                        className="relative flex min-h-48 flex-1 gap-(--bar-gap) [--bar-gap:min(0.25rem,var(--fitting-gap))] sm:[--bar-gap:min(0.5rem,var(--fitting-gap))]"
+                        style={
+                            {
+                                '--fitting-gap': `${25 / dates.length}cqw`,
+                            } as CSSProperties
+                        }
+                    >
+                        <div
+                            aria-hidden
+                            className="pointer-events-none absolute inset-x-0 border-t border-rail"
+                            style={{ top: `${(top / scale) * 100}%` }}
+                        />
+                        {dates.map((date, index) => {
+                            const day = byDate.get(date);
+                            const isPartial = day?.lost === null;
+
+                            return (
+                                <div
+                                    key={date}
+                                    className="group relative flex h-full flex-1 flex-col"
+                                >
+                                    {day && (
+                                        <>
+                                            <div
+                                                className="flex items-end"
+                                                style={{
+                                                    height: `${(top / scale) * 100}%`,
+                                                }}
+                                            >
+                                                <div
+                                                    className={cn(
+                                                        'relative flex w-full flex-col-reverse gap-0.5 overflow-hidden rounded-t',
+                                                        isPartial &&
+                                                            'opacity-50',
+                                                    )}
+                                                    style={{
+                                                        height: `${(up(day) / Math.max(Number.MIN_VALUE, top)) * 100}%`,
+                                                    }}
+                                                >
+                                                    {parts
+                                                        .filter(
+                                                            (part) =>
+                                                                day[part.key] >
+                                                                0,
+                                                        )
+                                                        .map((part) => (
+                                                            <div
+                                                                key={part.key}
+                                                                className={cn(
+                                                                    part.className,
+                                                                    day.backfilled &&
+                                                                        BACKFILLED_STRIPES,
+                                                                )}
+                                                                style={{
+                                                                    flex: `${day[part.key]} 1 0`,
+                                                                }}
+                                                            />
+                                                        ))}
+                                                </div>
+                                            </div>
+                                            <div
+                                                className="w-full rounded-b bg-muted-foreground/45"
+                                                style={{
+                                                    height: `${((day.lost ?? 0) / scale) * 100}%`,
+                                                }}
+                                            />
+                                            <div
+                                                className={cn(
+                                                    'pointer-events-none absolute z-10 hidden rounded-md border bg-popover px-2.5 py-1.5 font-mono text-xs whitespace-nowrap shadow-sm group-hover:block',
+                                                    index < dates.length / 3
+                                                        ? 'left-0'
+                                                        : index >=
+                                                            (dates.length * 2) /
+                                                                3
+                                                          ? 'right-0'
+                                                          : 'left-1/2 -translate-x-1/2',
+                                                )}
+                                                style={{
+                                                    bottom: `calc(${100 - ((top - up(day)) / scale) * 100}% + 0.5rem)`,
+                                                }}
+                                            >
+                                                <LifecycleTip
+                                                    day={day}
+                                                    view={view}
+                                                />
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <DateAxis range={range} />
+                    <div className="sr-only">
+                        <table>
+                            <caption>
+                                Active users by where they come from
+                            </caption>
+                            <thead>
+                                <tr>
+                                    <th scope="col">Day</th>
+                                    <th scope="col">Back</th>
+                                    <th scope="col">Regulars</th>
+                                    <th scope="col">New</th>
+                                    <th scope="col">Lost</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {days.map((day) => (
+                                    <tr key={day.date}>
+                                        <th scope="row">{day.date}</th>
+                                        <td>{day.back}</td>
+                                        <td>{day.regular}</td>
+                                        <td>{day.new}</td>
+                                        <td>{day.lost ?? 'not yet'}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </figure>
+            )}
+        </div>
+    );
+}
+
+function LifecycleTip({
+    day,
+    view,
+}: {
+    day: LifecycleDay;
+    view: LifecycleView;
+}) {
+    const active = day.back + day.regular + day.new;
+    const lines = [
+        `${formatCount(day.back)} back after 7+ days away`,
+        `${formatCount(active)} active: ${formatCount(day.regular)} regulars, ${formatCount(day.new)} new, ${formatCount(day.back)} back`,
+    ];
+
+    return (
+        <>
+            <p className="text-muted-foreground">
+                {formatZonedDate(day.date, 'UTC')}
+                {day.lost === null && ', so far'}
+            </p>
+            <p className="font-medium tabular-nums">
+                {view === 'flows' ? lines[0] : lines[1]}
+            </p>
+            <p className="text-muted-foreground tabular-nums">
+                {day.lost === null
+                    ? 'lost: counted tomorrow'
+                    : `${formatCount(day.lost)} lost, net ${day.back - day.lost >= 0 ? '+' : '−'}${formatCount(Math.abs(day.back - day.lost))}`}
+            </p>
+            {view === 'flows' && (
+                <p className="text-muted-foreground tabular-nums">{lines[1]}</p>
+            )}
+            {day.backfilled && (
+                <p className="text-muted-foreground">approximate</p>
+            )}
+        </>
+    );
+}
+
 type RetentionDayNumber = keyof RetentionByDayData;
 
 const RETENTION_DAYS: { key: RetentionDayNumber; label: string }[] = [
@@ -1362,6 +1649,7 @@ export default function Show({
     responses,
     newcomerFollows,
     activeUserCounts,
+    activeUserLifecycle,
     retentionByDay,
     retentionCohorts,
     retentionRecordedSince,
@@ -1372,6 +1660,7 @@ export default function Show({
     responses: CommitResponses;
     newcomerFollows: NewcomerFollows;
     activeUserCounts: ActiveUserCount[];
+    activeUserLifecycle: LifecycleDay[];
     retentionByDay: RetentionByDayData;
     retentionCohorts: RetentionCohortsData;
     retentionRecordedSince: string;
@@ -1383,6 +1672,7 @@ export default function Show({
     const [measure, setMeasure] = useState<AcquisitionMeasure>('signups');
     const [retentionDay, setRetentionDay] =
         useState<RetentionDayNumber>('day_1');
+    const [lifecycleView, setLifecycleView] = useState<LifecycleView>('flows');
 
     return (
         <>
@@ -1411,6 +1701,25 @@ export default function Show({
 
                 <Panel title="Daily active users" meta="utc" fill>
                     <ActiveUserCounts range={range} counts={activeUserCounts} />
+                </Panel>
+
+                <Panel
+                    title="Back and lost"
+                    meta="utc"
+                    fill
+                    actions={
+                        <LifecycleViewPicker
+                            view={lifecycleView}
+                            onChange={setLifecycleView}
+                        />
+                    }
+                >
+                    <ActiveUserLifecycle
+                        range={range}
+                        days={activeUserLifecycle}
+                        view={lifecycleView}
+                        recordedSince={retentionRecordedSince}
+                    />
                 </Panel>
 
                 <Panel

@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ShowProductMetricsRequest;
 use App\Queries\ActiveUserCountsQuery;
+use App\Queries\ActiveUserLifecycleQuery;
 use App\Queries\ActiveUsersQuery;
 use App\Queries\CommitResponsesQuery;
 use App\Queries\NewcomerFollowsQuery;
@@ -27,6 +28,7 @@ final readonly class ProductMetricsController
         CommitResponsesQuery $responses,
         NewcomerFollowsQuery $newcomerFollows,
         ActiveUserCountsQuery $activeUserCounts,
+        ActiveUserLifecycleQuery $activeUserLifecycle,
         RetentionByDayQuery $retentionByDay,
         RetentionCohortsQuery $retentionCohorts,
     ): Response {
@@ -40,6 +42,7 @@ final readonly class ProductMetricsController
             'responses' => fn (): array => $responses->get($from, $to),
             'newcomerFollows' => fn (): array => $newcomerFollows->get($from, $to),
             'activeUserCounts' => fn (): array => $activeUserCounts->get($from, $to),
+            'activeUserLifecycle' => fn (): array => $activeUserLifecycle->get($from, $to),
             'retentionByDay' => fn (): array => [
                 'day_1' => $retentionByDay->get($from, $to, 1),
                 'day_7' => $retentionByDay->get($from, $to, 7),
