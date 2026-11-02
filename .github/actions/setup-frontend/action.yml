@@ -1,0 +1,30 @@
+name: Setup Frontend
+description: Installs Bun, Node and frontend dependencies, restoring them from cache when possible.
+
+runs:
+  using: composite
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+    - name: Setup Vite+
+      uses: voidzero-dev/setup-vp@68f39c78aaf39be468cabd2afb09c162574c84af # v1.21.2
+      with:
+        node-version: 26
+        # Dependencies are installed with Bun below, from cache when possible.
+        run-install: false
+
+    - name: Cache Bun Dependencies
+      id: bun-cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          node_modules
+          ~/.bun/install/cache
+        key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'package.json', 'bunfig.toml') }}
+        restore-keys: ${{ runner.os }}-bun-
+
+    - name: Install Bun Dependencies
+      if: steps.bun-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: bun install --frozen-lockfile

@@ -21,11 +21,14 @@ declare module '@inertiajs/core' {
             submitted?: string;
             localSignIn?: boolean;
             signedUp?: boolean;
+            claimFailed?: { message: string; githubUrl: string | null };
         };
         sharedPageProps: {
             name: string;
             repository: string;
             auth: Auth;
+            /** For guests: how many developers are here, rounded down (12,000). */
+            developersCount: number | null;
             hasUnmoderatedCommits: boolean;
             sidebarOpen: boolean;
             showsWhoToFollow: boolean;
@@ -36,6 +39,7 @@ declare module '@inertiajs/core' {
             now: number;
             suggestedUsers?: SuggestedUser[];
             liveFollowing?: User[];
+            hotTopics?: { id: string; name: string }[];
             [key: string]: unknown;
         };
     }

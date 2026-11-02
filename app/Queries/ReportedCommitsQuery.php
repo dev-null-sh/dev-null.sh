@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Queries;
 
 use App\Enums\CommitStatus;
+use App\Models\Commit;
 use App\Models\CommitReport;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\CursorPaginator;
@@ -16,16 +17,17 @@ final readonly class ReportedCommitsQuery
     public function paginate(User $viewer): CursorPaginator
     {
         return CommitReport::query()
-            ->select(['id', 'commit_id', 'reason', 'details', 'created_at'])
+            ->select(['id', 'commit_id', 'reason', 'details', 'images', 'created_at'])
             ->whereNull('dismissed_at')
             ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->approved()->visibleTo($viewer))
             ->with(['commit' => fn (BelongsTo $query): BelongsTo => $query
                 ->withCardDataFor($viewer)
-                ->with(['parent' => fn (BelongsTo $parent): BelongsTo => $parent
+                ->with(['user', 'parent' => fn (BelongsTo $parent): BelongsTo => $parent
                     ->where('status', CommitStatus::Approved)
                     ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
-                    ->with('user')])])
+                    ->with('author')])])
             ->oldest()->oldest('id')
-            ->cursorPaginate(20);
+            ->cursorPaginate(20)
+            ->through(fn (CommitReport $report): CommitReport => tap($report, fn (): ?Commit => $report->commit?->withPoster()));
     }
 }

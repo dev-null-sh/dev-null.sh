@@ -7,6 +7,7 @@ import {
     MobileHeader,
     MobileNav,
 } from '@/components/app-nav';
+import { CallBar, CallLeaveWarning } from '@/components/chat/call';
 import { ChatDock } from '@/components/chat/chat-dock';
 import {
     CommitComposerDialog,
@@ -21,6 +22,7 @@ import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog'
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
 import { SearchDialog } from '@/components/search-dialog';
+import { TermsDialog } from '@/components/terms-dialog';
 import { useChat, useRemoteAlerts, useUnreadMessages } from '@/hooks/use-chat';
 import { useIsComposerInView } from '@/hooks/use-composer-visibility';
 import { usePageDeletion } from '@/hooks/use-deleted-resources';
@@ -89,6 +91,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     useKeyboardShortcuts(
         auth.user,
         auth.log,
+        auth.remotes !== null,
         showShortcuts,
         openSearch,
         compose,
@@ -160,6 +163,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 {auth.user !== null && auth.remotes !== null && !isMessages && (
                     <ChatDock user={auth.user} />
                 )}
+                {auth.user !== null && auth.remotes !== null && (
+                    <>
+                        <CallBar user={auth.user} />
+                        <CallLeaveWarning />
+                    </>
+                )}
 
                 <SearchDialog
                     open={isSearching}
@@ -185,11 +194,14 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     open={isShowingShortcuts}
                     onOpenChange={setIsShowingShortcuts}
                     canModerate={auth.isAdmin}
+                    hasRemotes={auth.remotes !== null}
                 />
 
                 {isGuest && <LocalSignInDialog />}
 
                 {isGuest && <GuestJoinSheet />}
+
+                {auth.user !== null && <TermsDialog user={auth.user} />}
             </div>
             <NotificationTitle />
         </>
