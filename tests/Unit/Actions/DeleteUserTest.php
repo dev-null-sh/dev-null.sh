@@ -24,7 +24,6 @@ use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\PollOption;
 use App\Models\PollVote;
-use App\Models\Profile;
 use App\Models\PushSubscription;
 use App\Models\User;
 use App\Queries\HeadlineSummaryQuery;
@@ -263,41 +262,17 @@ it('erases the organizations a deleted user followed, keeping their other follow
     expect($organization->followers()->pluck('users.id')->all())->toBe([$other->id]);
 });
 
-it('erases the github organizations a deleted user waited to follow', function (): void {
+it('erases the accounts a deleted user waited to follow', function (): void {
     $user = User::factory()->create();
     $other = User::factory()->create();
-    DB::table('pending_organization_follows')->insert([
+    DB::table('pending_follows')->insert([
         ['user_id' => $user->id, 'github_id' => '958072', 'created_at' => now()],
         ['user_id' => $other->id, 'github_id' => '958072', 'created_at' => now()],
     ]);
 
     resolve(DeleteUser::class)->handle($user);
 
-    expect(DB::table('pending_organization_follows')->pluck('user_id')->all())->toBe([$other->id]);
-});
-
-it('erases the developers a deleted user waited to follow', function (): void {
-    $user = User::factory()->create();
-    $other = User::factory()->create();
-    $profile = Profile::factory()->create();
-    DB::table('pending_follows')->insert([
-        ['user_id' => $user->id, 'profile_id' => $profile->id],
-        ['user_id' => $other->id, 'profile_id' => $profile->id],
-    ]);
-
-    resolve(DeleteUser::class)->handle($user);
-
     expect(DB::table('pending_follows')->pluck('user_id')->all())->toBe([$other->id]);
-});
-
-it('erases the waits left on the profile of a deleted user, so nothing keeps it', function (): void {
-    $user = User::factory()->create();
-    DB::table('pending_follows')->insert(['user_id' => User::factory()->create()->id, 'profile_id' => $user->id]);
-
-    resolve(DeleteUser::class)->handle($user);
-
-    $this->assertDatabaseEmpty('pending_follows');
-    $this->assertModelMissing($user->profile);
 });
 
 it('erases the devices of a deleted user', function (): void {

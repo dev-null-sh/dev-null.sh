@@ -65,7 +65,7 @@ it('shows how many members wait to follow them, and members the ones they follow
     [$followed, $other] = User::factory()->count(2)->create();
     $stranger = User::factory()->create();
     $member->following()->attach([$followed->id, $other->id]);
-    DB::table('pending_follows')->insert(collect([$followed, $stranger, $member])->map(fn (User $user): array => ['user_id' => $user->id, 'profile_id' => $profile->id])->all());
+    DB::table('pending_follows')->insert(collect([$followed, $stranger, $member])->map(fn (User $user): array => ['user_id' => $user->id, 'github_id' => $profile->github_id, 'created_at' => now()])->all());
 
     $this->get('/@octocat')
         ->assertInertia(fn ($page) => $page

@@ -67,7 +67,7 @@ final readonly class CreateGitHubProfile
                 return;
             }
 
-            $unclaimed = Profile::query()->updateOrCreate(['github_id' => $githubId, 'type' => ProfileType::User], [
+            Profile::query()->updateOrCreate(['github_id' => $githubId, 'type' => ProfileType::User], [
                 'handle' => $profile->handle,
                 'name' => $profile->name,
                 'avatar_url' => $profile->avatarUrl,
@@ -75,9 +75,10 @@ final readonly class CreateGitHubProfile
                 'github_synced_at' => now(),
             ]);
 
-            DB::table('pending_follows')->insertUsing(
-                ['user_id', 'profile_id'],
-                User::query()->whereIn('github_id', $followerIds)->select('id')->selectRaw('?', [$unclaimed->id]),
+            // Those still waiting from before the profile last went are kept...
+            DB::table('pending_follows')->insertOrIgnoreUsing(
+                ['user_id', 'github_id', 'created_at'],
+                User::query()->whereIn('github_id', $followerIds)->select('id')->selectRaw('?, ?', [$githubId, now()]),
             );
         });
     }

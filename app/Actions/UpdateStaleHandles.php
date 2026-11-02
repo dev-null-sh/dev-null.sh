@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\Profile;
-use Illuminate\Support\Facades\DB;
 
 final readonly class UpdateStaleHandles
 {
@@ -14,7 +13,7 @@ final readonly class UpdateStaleHandles
      * placeholder starts with an underscore, which no GitHub handle can, and their next sync restores a real one.
      * Bots keep their identity under reserved handles so they can continue replying. An unclaimed profile, a developer
      * looked up from GitHub who never signed in, has nothing of its own, so it goes: looking its new handle up brings it
-     * back.
+     * back, with the members waiting for it, kept by its GitHub ID.
      */
     public function handle(string $handle, string $githubId): void
     {
@@ -23,9 +22,6 @@ final readonly class UpdateStaleHandles
             ->where('github_id', '!=', $githubId)
             ->each(function (Profile $profile): void {
                 if ($profile->isUnclaimed()) {
-                    // Locked, so no one starts waiting for it in between (CreatePendingFollow)...
-                    Profile::query()->lockForUpdate()->find($profile->id);
-                    DB::table('pending_follows')->where('profile_id', $profile->id)->delete();
                     $profile->delete();
 
                     return;

@@ -12,8 +12,8 @@ final readonly class CreatePendingFollow
 {
     /**
      * The user follows the developer once they sign up. Waiting twice is waiting once. The profile is locked, as signing
-     * up turns the waits into follows under its lock: a wait for someone who just signed up, or whose profile just went,
-     * is dropped rather than left behind.
+     * up turns the waits into follows under its lock: a wait for someone who just signed up is dropped rather than left
+     * behind.
      */
     public function handle(User $user, Profile $profile): void
     {
@@ -22,7 +22,7 @@ final readonly class CreatePendingFollow
                 return;
             }
 
-            DB::table('pending_follows')->insertOrIgnore(['user_id' => $user->id, 'profile_id' => $profile->id]);
+            DB::table('pending_follows')->insertOrIgnore(['user_id' => $user->id, 'github_id' => $profile->github_id, 'created_at' => now()]);
         });
     }
 }

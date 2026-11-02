@@ -14,7 +14,7 @@ it('lets a member wait to follow a developer who is not here yet, and stop waiti
     $this->actingAs($member)->from('/@'.$profile->handle)->post(route('pending-follow.store', $profile))->assertRedirect('/@'.$profile->handle);
     $this->actingAs($member)->post(route('pending-follow.store', $profile))->assertRedirect();
 
-    expect(DB::table('pending_follows')->where('profile_id', $profile->id)->pluck('user_id')->all())->toBe([$member->id]);
+    expect(DB::table('pending_follows')->where('github_id', $profile->github_id)->pluck('user_id')->all())->toBe([$member->id]);
 
     $this->actingAs($member)->delete(route('pending-follow.destroy', $profile))->assertRedirect();
 

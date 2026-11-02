@@ -15,6 +15,6 @@ final readonly class DeletePendingFollow
      */
     public function handle(User $user, Profile $profile): void
     {
-        DB::table('pending_follows')->where('user_id', $user->id)->where('profile_id', $profile->id)->delete();
+        DB::table('pending_follows')->where('user_id', $user->id)->where('github_id', $profile->github_id)->delete();
     }
 }

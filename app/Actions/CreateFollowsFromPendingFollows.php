@@ -20,7 +20,7 @@ final readonly class CreateFollowsFromPendingFollows
      */
     public function handle(User $user): void
     {
-        $pending = DB::table('pending_follows')->where('profile_id', $user->id);
+        $pending = DB::table('pending_follows')->where('github_id', $user->github_id);
         $followers = User::query()->whereIn('id', $pending->clone()->select('user_id'))->get();
 
         $user->followers()->attach($followers->modelKeys());

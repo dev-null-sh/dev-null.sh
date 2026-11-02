@@ -33,7 +33,7 @@ final readonly class UnclaimedProfileController
             return redirect(route('user.show', $profile->handle).($query === '' ? '' : "?{$query}"), 301, ['Cache-Control' => 'max-age=86400, private']);
         }
 
-        $waiting = DB::table('pending_follows')->where('profile_id', $profile->id);
+        $waiting = DB::table('pending_follows')->where('github_id', $profile->github_id);
 
         return Inertia::render('profile/unclaimed', [
             'profile' => $profile->only(['id', 'handle', 'name', 'avatar_url', 'bio']),
