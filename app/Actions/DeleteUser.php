@@ -9,6 +9,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Conversation;
+use App\Models\Headline;
 use App\Models\Message;
 use App\Models\MessageImage;
 use App\Models\MessageVoice;
@@ -58,6 +59,9 @@ final readonly class DeleteUser
             resolve(DeleteStoredFiles::class)->retain($imagePaths);
 
             DB::table('commit_topics')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
+            Headline::query()->whereIn('id', DB::table('commit_headline')->select('headline_id')
+                ->whereIn('commit_id', $this->touchedCommits($user)->select('id')))
+                ->update(['summary' => null, 'summary_created_at' => null]);
             DB::table('commit_headline')->whereIn('commit_id', $this->touchedCommits($user)->select('id'))->delete();
             $user->commits()->withTrashed()->topLevel()->forceDelete();
             CommitImage::query()->whereIn('commit_id', $this->replies($user)->select('id'))->delete();

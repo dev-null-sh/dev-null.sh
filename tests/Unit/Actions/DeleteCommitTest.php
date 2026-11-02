@@ -18,12 +18,14 @@ use Illuminate\Support\Facades\Storage;
 
 it('may delete a commit', function (): void {
     $commit = Commit::factory()->create();
+    $headline = $commit->headlines()->create(['name' => 'Vector databases', 'summary' => 'A recap of the deleted source.', 'summary_created_at' => now()]);
 
     $action = resolve(DeleteCommit::class);
 
     $action->handle($commit);
 
     $this->assertSoftDeleted($commit);
+    expect($headline->refresh()->summary)->toBeNull()->and($headline->summary_created_at)->toBeNull();
 });
 
 it('keeps the replies of a deleted commit', function (): void {
