@@ -395,7 +395,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('starred', [StarredCommitController::class, 'index'])->name('starred.index');
 
     // Every commit about a link, a prototype only reachable by its URL...
-    Route::get('links', [LinkController::class, 'index'])->name('link.index');
+    Route::match(['GET', 'QUERY'], 'links', [LinkController::class, 'index'])->name('link.index');
 
     // Commit...
     Route::get('scheduled-commits', [ScheduledCommitController::class, 'index'])->name('scheduled-commit.index');

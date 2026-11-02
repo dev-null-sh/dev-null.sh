@@ -42,13 +42,34 @@ function peopleCount(count: number) {
     return count === 1 ? '1 person' : `${count} people`;
 }
 
+function linkVisit(url: string) {
+    const destination = LinkController.index({
+        query: url === '' ? {} : { url },
+    }).url;
+
+    if (destination.length > 1_800) {
+        return {
+            href: LinkController.index().url,
+            method: 'query' as const,
+            data: { url },
+        };
+    }
+
+    return { href: destination, method: 'get' as const, data: {} };
+}
+
 export default function Index(props: Props) {
     const [draft, setDraft] = useState(props.url ?? '');
 
     const submit = (event: FormEvent) => {
         event.preventDefault();
-        const url = draft.trim();
-        router.get(LinkController.index({ query: url === '' ? {} : { url } }));
+        const visit = linkVisit(draft.trim());
+
+        if (visit.method === 'query') {
+            router.query(visit.href, visit.data);
+        } else {
+            router.get(visit.href);
+        }
     };
 
     return (
@@ -110,9 +131,7 @@ function TopLinks({ links }: { links: TopLink[] }) {
                         <li key={link.url} className="border-b">
                             <Link
                                 prefetch
-                                href={LinkController.index({
-                                    query: { url: link.url },
-                                })}
+                                {...linkVisit(link.url)}
                                 className="flex gap-3 px-4 py-3 transition-colors hover:bg-accent focus-visible:bg-accent sm:px-6"
                             >
                                 <span className="w-5 shrink-0 pt-0.5 text-right font-mono text-[13px] text-muted-foreground tabular-nums">
