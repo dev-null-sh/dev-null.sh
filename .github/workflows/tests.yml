@@ -132,8 +132,8 @@ jobs:
               -c 'CREATE EXTENSION IF NOT EXISTS vector; CREATE EXTENSION IF NOT EXISTS pg_trgm;'
           done
 
-      - name: Setup
-        uses: ./.github/actions/setup
+      - name: Setup PHP
+        uses: ./.github/actions/setup-php
         with:
           coverage: pcov
 
@@ -146,6 +146,10 @@ jobs:
         with:
           path: public/build
           key: ${{ runner.os }}-build-${{ hashFiles('bun.lock', 'package.json', 'vite.config.ts', 'tsconfig.json', 'resources/**', 'routes/**', 'app/**') }}
+
+      - name: Setup Frontend
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        uses: ./.github/actions/setup-frontend
 
       - name: Build Assets
         if: steps.build-cache.outputs.cache-hit != 'true'
