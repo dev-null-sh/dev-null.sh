@@ -13,6 +13,7 @@ import { trackCommitPhotoPage } from '@/lib/commit-photo';
 import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
 import { trackFollowRequests } from '@/lib/follow-requests';
+import { trackOrganizationMembersHistory } from '@/lib/organization-members-history';
 import { pageTitle } from '@/lib/page-title';
 import { trackPrefetchedPages } from '@/lib/prefetched-pages';
 import { registerServiceWorker } from '@/lib/service-worker';
@@ -22,6 +23,7 @@ import '../css/app.css';
 
 trackCurrentPage();
 trackCommitPhotoPage();
+trackOrganizationMembersHistory();
 trackVisualViewport();
 trackAnalyticsEvents();
 trackPrefetchedPages();
