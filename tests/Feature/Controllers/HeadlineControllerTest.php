@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\EmbeddingProvider;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
 use App\Models\Headline;
 use App\Models\User;
@@ -56,6 +58,46 @@ it('returns not found for an unknown headline', function (): void {
     $this->actingAs(User::factory()->create())->get('/headlines/00000000-0000-4000-8000-000000000000')->assertNotFound();
 });
 
+it('skips semantic search for unrelated and recap-only partial reloads', function (string $props): void {
+    $headline = Headline::factory()->create(['summary' => 'A fresh recap.', 'summary_created_at' => now()]);
+    $this->mock(EmbeddingProvider::class)->shouldNotReceive('embed');
+
+    $response = $this->actingAs(User::factory()->create())->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'headline/show',
+        'X-Inertia-Partial-Data' => $props,
+    ])->get(route('headline.show', $headline))->assertOk()
+        ->assertJsonMissingPath('props.commits');
+
+    if ($props === 'summary') {
+        $response->assertJsonPath('props.summary', 'A fresh recap.');
+    } else {
+        $response->assertJsonMissingPath('props.summary');
+    }
+})->with(['auth.unreadNotificationsCount,auth.unreadMessagesCount', 'whoToFollow', 'summary']);
+
+it('clears the displayed recap on the partial reload after deleting a linked source', function (): void {
+    $user = User::factory()->create();
+    $headline = Headline::factory()->create(['summary' => 'A recap of the source.', 'summary_created_at' => now()]);
+    $source = Commit::factory()->for($user)->hasAttached($headline)->create(['embedding' => embeddingVector(0)]);
+    $url = route('headline.show', $headline);
+
+    $this->actingAs($user)->get($url)->assertInertia(fn ($page) => $page->where('summary', 'A recap of the source.'));
+    $this->from($url)->delete(route('commit.destroy', $source))->assertRedirect($url);
+    $this->mock(EmbeddingProvider::class)->shouldNotReceive('embed');
+
+    $this->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'headline/show',
+        'X-Inertia-Partial-Data' => 'summary',
+    ])->get($url)->assertOk()->assertJsonPath('props.summary', null)->assertJsonMissingPath('props.commits');
+
+    expect($headline->refresh()->summary)->toBeNull();
+    $this->assertSoftDeleted($source);
+});
+
 it('rate limits headline semantic searches', function (): void {
     $headline = Headline::factory()->create();
     $this->actingAs(User::factory()->create());
@@ -65,4 +107,39 @@ it('rate limits headline semantic searches', function (): void {
     }
 
     $this->get(route('headline.show', $headline))->assertTooManyRequests();
+});
+
+it('allows only non-search headline partial reloads after exhausting the shared search budget', function (): void {
+    $headline = Headline::factory()->create(['summary' => 'A fresh recap.', 'summary_created_at' => now()]);
+    $this->actingAs(User::factory()->create());
+
+    for ($attempt = 0; $attempt < 15; $attempt++) {
+        $this->get(route('headline.show', $headline))->assertOk();
+    }
+
+    $this->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'headline/show',
+    ]);
+    $this->mock(EmbeddingProvider::class)->shouldNotReceive('embed');
+
+    foreach (['summary', 'whoToFollow', 'auth.unreadNotificationsCount'] as $props) {
+        $this->withHeader('X-Inertia-Partial-Data', $props)->get(route('headline.show', $headline))
+            ->assertOk()->assertJsonMissingPath('props.commits');
+    }
+
+    $this->withHeader('X-Inertia-Partial-Data', 'summary')->get(route('headline.show', $headline))
+        ->assertOk()->assertJsonPath('props.summary', 'A fresh recap.');
+    $this->withHeader('X-Inertia-Partial-Component', 'search/index')->get(route('headline.show', $headline))->assertTooManyRequests();
+    $this->withHeader('X-Inertia-Partial-Component', 'headline/show');
+
+    foreach (['', 'commits', 'summary,commits', 'commits.0'] as $props) {
+        $this->withHeader('X-Inertia-Partial-Data', $props)->get(route('headline.show', $headline))->assertTooManyRequests();
+    }
+
+    $this->withHeader('X-Inertia-Partial-Except', 'summary')->get(route('headline.show', $headline))->assertTooManyRequests();
+    $this->withHeader('X-Inertia-Partial-Data', '');
+    $this->withHeader('X-Inertia-Partial-Except', 'commits')->get(route('headline.show', $headline))
+        ->assertOk()->assertJsonPath('props.summary', 'A fresh recap.')->assertJsonMissingPath('props.commits');
 });
