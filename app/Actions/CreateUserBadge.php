@@ -42,6 +42,9 @@ final readonly class CreateUserBadge
         'lanes' => ['#ff8a4c', '#51cf66', '#da77f2', '#3bc9db', '#f06595', '#fcc419'],
     ];
 
+    /**
+     * Renders the compact SVG follow badge for the given user and theme.
+     */
     public function handle(
         User $user,
         ActivityGraphTheme $theme = ActivityGraphTheme::Light,
@@ -62,16 +65,25 @@ final readonly class CreateUserBadge
         ])->render();
     }
 
+    /**
+     * Formats the follow message with the user's handle.
+     */
     public function message(User $user): string
     {
         return "follow @{$user->handle}";
     }
 
+    /**
+     * Calculates the estimated pixel width for the monospace message text.
+     */
     public function textWidth(string $text): int
     {
         return (int) ceil(mb_strlen($text) * 6.6);
     }
 
+    /**
+     * Generates CSS stylesheet rules for the given theme and user lane color.
+     */
     private function styles(ActivityGraphTheme $theme, int|string $lane): string
     {
         return match ($theme) {
@@ -82,6 +94,8 @@ final readonly class CreateUserBadge
     }
 
     /**
+     * Compiles CSS rules mapping palette values to card, ink, muted, lane, and empty classes.
+     *
      * @param  Palette  $palette
      */
     private function palette(array $palette, int|string $lane): string

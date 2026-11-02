@@ -24,6 +24,9 @@ final class ShowUserBadgeRequest extends FormRequest
         return [];
     }
 
+    /**
+     * Resolves the requested theme from query parameters, defaulting to light mode.
+     */
     public function theme(): ActivityGraphTheme
     {
         $theme = $this->query('theme');

@@ -11,6 +11,9 @@ use Illuminate\Http\Response;
 
 final readonly class UserBadgeController
 {
+    /**
+     * Serves the SVG follow badge for the user.
+     */
     public function show(ShowUserBadgeRequest $request, User $user, CreateUserBadge $action): Response
     {
         return response($action->handle($user, $request->theme()), headers: [

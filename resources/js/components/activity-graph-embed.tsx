@@ -96,14 +96,13 @@ export default function ActivityGraphEmbed({
             />
 
             <div
-                role="tablist"
+                role="group"
                 aria-label="Embed type"
                 className="mb-5 inline-flex gap-1 rounded-lg border p-1"
             >
                 <button
                     type="button"
-                    role="tab"
-                    aria-selected={tab === 'graph'}
+                    aria-pressed={tab === 'graph'}
                     onClick={() => setTab('graph')}
                     className={cn(
                         'flex items-center gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
@@ -118,8 +117,7 @@ export default function ActivityGraphEmbed({
                 </button>
                 <button
                     type="button"
-                    role="tab"
-                    aria-selected={tab === 'badge'}
+                    aria-pressed={tab === 'badge'}
                     onClick={() => setTab('badge')}
                     className={cn(
                         'flex items-center gap-2 rounded-md px-3.5 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
