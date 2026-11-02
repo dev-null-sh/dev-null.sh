@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Enums\Log;
 use App\Models\Commit;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Pagination\Cursor;
+use Illuminate\Support\Arr;
 
 final class ShowLogRequest extends FormRequest
 {
@@ -45,6 +48,17 @@ final class ShowLogRequest extends FormRequest
         return $this->filled('since')
             ? Commit::query()->withTrashed()->find($this->string('since')->value())
             : null;
+    }
+
+    /**
+     * The cursor of the page to load, or none when it was taken from a log that pages on different columns.
+     */
+    public function cursor(Log $log): string
+    {
+        $cursor = Cursor::fromEncoded($this->string('cursor')->value());
+        $columns = $log->isRanked() ? ['trending_seed', 'trending_score', 'id'] : ['created_at', 'id'];
+
+        return $cursor instanceof Cursor && Arr::has($cursor->toArray(), $columns) ? $cursor->encode() : '';
     }
 
     /**

@@ -18,13 +18,16 @@ vi.doMock('react', () => ({
     ...React,
     useState: (initial: unknown) => [initial, () => {}],
 }));
+const router = {
+    visit: (_url: unknown, options: VisitOptions) => visits.push(options),
+    reload: (options: unknown) => reloads.push(options),
+    optimistic: () => router,
+};
+
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
     usePage: () => ({ component: 'moderation/reports', props: {} }),
-    router: {
-        visit: (_url: unknown, options: VisitOptions) => visits.push(options),
-        reload: (options: unknown) => reloads.push(options),
-    },
+    router,
 }));
 vi.doMock('sonner', () => ({
     toast: Object.assign((message: string) => toasts.push(message), {

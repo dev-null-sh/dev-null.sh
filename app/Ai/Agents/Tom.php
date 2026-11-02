@@ -54,7 +54,7 @@ final class Tom implements Agent, Conversational, HasMiddleware, HasProviderOpti
 
         return mb_trim(view('ai.agents.tom', [
             'botMention' => User::query()->firstWhere('github_id', CreateTomFriendship::GITHUB_ID)?->mention() ?? '@'.CreateTomFriendship::HANDLE,
-            'mention' => $this->commit->user?->mention() ?? '@',
+            'mention' => '@'.$this->commit->author?->handle,
             'nearlyFull' => $characters >= 9600 || $messages->count() >= 10,
             'hasTools' => collect($this->selectedTools)->isNotEmpty(),
         ])->render());
@@ -106,10 +106,10 @@ final class Tom implements Agent, Conversational, HasMiddleware, HasProviderOpti
         $remaining = 12000 - mb_strlen($this->commit->body);
 
         return resolve(CommitAncestorsQuery::class)->get($this->commit, null, limit: 12)
-            ->reject(fn (Commit $commit): bool => $commit->trashed() || $commit->user === null)
+            ->reject(fn (Commit $commit): bool => $commit->trashed() || $commit->author === null)
             ->map(fn (Commit $commit): Message => new Message(
-                $commit->user?->github_id === CreateTomFriendship::GITHUB_ID ? 'assistant' : 'user',
-                $commit->user?->mention().': '.$commit->body,
+                $commit->author?->github_id === CreateTomFriendship::GITHUB_ID ? 'assistant' : 'user',
+                '@'.$commit->author?->handle.': '.$commit->body,
             ))
             ->reverse()
             ->takeWhile(function (Message $message) use (&$remaining): bool {

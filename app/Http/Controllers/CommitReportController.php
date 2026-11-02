@@ -19,7 +19,7 @@ final readonly class CommitReportController
 {
     public function store(CreateCommitReportRequest $request, #[CurrentUser] User $user, Commit $commit, CreateCommitReport $action): RedirectResponse
     {
-        $action->handle($user, $commit, $request->string('reason')->value(), $request->filled('details') ? $request->string('details')->value() : null);
+        $action->handle($user, $commit, $request->string('reason')->value(), $request->filled('details') ? $request->string('details')->value() : null, $request->images(), $request->imageDescriptions());
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Report received. Moderators will review it privately.']);
 

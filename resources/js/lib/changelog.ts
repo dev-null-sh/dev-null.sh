@@ -1,17 +1,16 @@
-export type ChangelogPullRequest = {
-    number: number;
+export type ChangelogCommit = {
+    sha: string;
+    url: string;
+    pull_request: { number: number; url: string } | null;
     type: string | null;
     breaking: boolean;
     title: string;
-    url: string;
-    sha: string;
-    commit_url: string;
-    merged_at: string;
+    committed_at: string;
     author: ChangelogAuthor;
 };
 
 /**
- * Someone who merged a pull request. The handle, mention and lane are theirs on /dev/null, or null when they aren't
+ * Someone who made a commit. The handle, mention and lane are theirs on /dev/null, or null when they aren't
  * on it.
  */
 export type ChangelogAuthor = {
@@ -23,48 +22,45 @@ export type ChangelogAuthor = {
 };
 
 export type Changelog = {
-    pullRequests: ChangelogPullRequest[] | null;
+    commits: ChangelogCommit[] | null;
     olderBefore: string | null;
     commitsUrl: string;
 };
 
 export type ChangelogDay = {
     date: string;
-    pullRequests: ChangelogPullRequest[];
+    commits: ChangelogCommit[];
     authors: ChangelogAuthor[];
 };
 
 const laneCount = 6;
 
 /**
- * Groups the merges, already newest first, by the calendar day they happened on in the reader's time zone.
+ * Groups the commits, already newest first, by the calendar day they happened on in the reader's time zone.
  */
 export function changelogDays(
-    pullRequests: ChangelogPullRequest[],
+    commits: ChangelogCommit[],
     timeZone: string,
 ): ChangelogDay[] {
     const days: ChangelogDay[] = [];
 
-    for (const pullRequest of pullRequests) {
-        const date = new Date(pullRequest.merged_at).toLocaleDateString(
-            'en-CA',
-            { timeZone },
-        );
+    for (const commit of commits) {
+        const date = new Date(commit.committed_at).toLocaleDateString('en-CA', {
+            timeZone,
+        });
         let day = days.at(-1);
 
         if (day?.date !== date) {
-            day = { date, pullRequests: [], authors: [] };
+            day = { date, commits: [], authors: [] };
             days.push(day);
         }
 
-        day.pullRequests.push(pullRequest);
+        day.commits.push(commit);
 
         if (
-            !day.authors.some(
-                (author) => author.login === pullRequest.author.login,
-            )
+            !day.authors.some((author) => author.login === commit.author.login)
         ) {
-            day.authors.push(pullRequest.author);
+            day.authors.push(commit.author);
         }
     }
 

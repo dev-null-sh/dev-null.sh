@@ -21,7 +21,12 @@ import type { BodySegment } from '@/types';
 
 type Mentions = Record<string, string>;
 
-type Resolved = { body: string; segments: BodySegment[]; mentions: Mentions };
+type Resolved = {
+    body: string;
+    segments: BodySegment[];
+    mentions: Mentions;
+    organizationMentions: Mentions;
+};
 
 const isModifierEnter = (event: KeyboardEvent) =>
     event.key === 'Enter' && hasModKey(event);
@@ -50,7 +55,11 @@ export function useComposerPreview({
     const previewId = useId();
     const request = useHttp<
         { body: string },
-        { segments: BodySegment[]; mentions: Mentions | [] }
+        {
+            segments: BodySegment[];
+            mentions: Mentions | [];
+            organization_mentions: Mentions | [];
+        }
     >({
         body: '',
     });
@@ -77,6 +86,11 @@ export function useComposerPreview({
                 mentions: Array.isArray(response.mentions)
                     ? {}
                     : response.mentions,
+                organizationMentions: Array.isArray(
+                    response.organization_mentions,
+                )
+                    ? {}
+                    : response.organization_mentions,
             });
         } catch {
             // The preview keeps the code unhighlighted and the mentions as text.
@@ -105,6 +119,7 @@ export function useComposerPreview({
         draft,
         segments,
         mentions: isResolved ? resolved.mentions : null,
+        organizationMentions: isResolved ? resolved.organizationMentions : null,
         previewId,
         toggle: (moveFocus = false) => show(!isPreviewing, moveFocus),
         close: () => setIsPreviewing(false),
@@ -200,6 +215,7 @@ export function ComposerPreviewBody({
                 <CommitBody
                     segments={preview.segments}
                     mentions={preview.mentions}
+                    organizationMentions={preview.organizationMentions}
                     className="text-[15px]"
                 />
             ) : (
@@ -266,7 +282,7 @@ export function ComposerPollPreview({
     return (
         <div className={className} data-test="composer-poll-preview">
             <CommitPoll
-                commit={{ id: '', user_id: '', status: 'pending' }}
+                commit={{ id: '', author: { id: '' }, status: 'pending' }}
                 poll={{
                     id: '',
                     closes_at: auth.isAdmin

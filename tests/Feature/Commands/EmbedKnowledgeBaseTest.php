@@ -2,28 +2,30 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\EmbeddingProvider;
 use App\Models\KnowledgeBaseSection;
 use App\Queries\KnowledgeBaseSearchQuery;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Database\QueryException;
-use Illuminate\Http\Client\Request;
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 beforeEach(function (): void {
-    config(['ai.providers.openai.key' => 'sk-test']);
-
     $disk = Storage::fake('local');
     $this->source = Str::after($disk->path('knowledge.md'), base_path().'/');
 });
 
 it('stores sections and their vectors with heading context and can retrieve the nearest section', function (): void {
     Storage::disk('local')->put('knowledge.md', "# Knowledge base\n\n## Lore\n\n### Tom\nA fictional profile.\n\n### Pastéis\nPortuguese pastries.");
-    Http::fake(['api.openai.com/v1/embeddings' => Http::sequence()
-        ->push(embeddingsResponse([embeddingVector(2), embeddingVector(7)]))
-        ->push(embeddingsResponse([embeddingVector(7)]))]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embedMany')->once()->with([
+        "Knowledge base > Lore > Tom\n\nA fictional profile.",
+        "Knowledge base > Lore > Pastéis\n\nPortuguese pastries.",
+    ])->andReturn([embeddingVector(2), embeddingVector(7)]);
+    $embeddings->shouldReceive('embed')->once()->with('Portuguese pastry')->andReturn(embeddingVector(7));
 
     $this->artisan('knowledge-base:embed', ['source' => $this->source])
         ->expectsOutputToContain('Embedded 2 knowledge base sections')
@@ -43,19 +45,13 @@ it('stores sections and their vectors with heading context and can retrieve the 
 
     expect(resolve(KnowledgeBaseSearchQuery::class)->get('Portuguese pastry', limit: 1)->sole()->id)
         ->toBe($sections[1]->id);
-
-    Http::assertSent(fn (Request $request): bool => $request['input'] === [
-        "Knowledge base > Lore > Tom\n\nA fictional profile.",
-        "Knowledge base > Lore > Pastéis\n\nPortuguese pastries.",
-    ]);
 });
 
 it('replaces changed and removed sections without duplicating them or touching other sources', function (): void {
     $other = KnowledgeBaseSection::factory()->create();
     Storage::disk('local')->put('knowledge.md', "# Lore\nOld introduction.\n\n## Tom\nOld purpose.");
-    Http::fake(['api.openai.com/v1/embeddings' => Http::sequence()
-        ->push(embeddingsResponse([embeddingVector(0), embeddingVector(1)]))
-        ->push(embeddingsResponse([embeddingVector(3)]))]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embedMany')->twice()->andReturn([embeddingVector(0), embeddingVector(1)], [embeddingVector(3)]);
     $this->artisan('knowledge-base:embed', ['source' => $this->source])->assertSuccessful();
 
     Storage::disk('local')->put('knowledge.md', "# Lore\n## Tom\nDeepSeek is planned.");
@@ -71,28 +67,30 @@ it('replaces changed and removed sections without duplicating them or touching o
         ->content->toBe('DeepSeek is planned.')
         ->embedding->toBe(embeddingVector(3));
     expect($other->fresh()->getAttributes())->toEqual($other->getAttributes());
-    Http::assertSentCount(2);
 });
 
-it('preserves existing sections if embedding or storing a replacement fails', function (Closure $response, string $exception): void {
+it('preserves existing sections if embedding or storing a replacement fails', function (Closure $answer, string $exception): void {
     $existing = KnowledgeBaseSection::factory()->create(['source' => $this->source]);
     Storage::disk('local')->put('knowledge.md', "# Lore\n## Tom\nUpdated text.\n## Pastéis\nMore text.");
-    Http::fake(['api.openai.com/v1/embeddings' => $response()]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embedMany')->andReturnUsing($answer);
 
     expect(fn () => $this->artisan('knowledge-base:embed', ['source' => $this->source])->run())->toThrow($exception);
 
     $this->assertDatabaseCount('knowledge_base_sections', 1);
     expect($existing->fresh()->getAttributes())->toEqual($existing->getAttributes());
 })->with([
-    'provider failure' => [fn () => Http::response([], 503), RequestException::class],
-    'missing embedding' => [fn () => Http::response(embeddingsResponse([embeddingVector(0)])), UnexpectedValueException::class],
-    'invalid vector after a valid insert' => [fn () => Http::response(embeddingsResponse([embeddingVector(0), [0.5, 0.5]])), QueryException::class],
+    'provider failure' => [fn () => throw new RequestException(new Response(new Psr7Response(503))), RequestException::class],
+    'missing embedding' => [fn () => throw new UnexpectedValueException('OpenAI did not return an embedding for every input.'), UnexpectedValueException::class],
+    'invalid vector after a valid insert' => [fn (): array => [embeddingVector(0), [0.5, 0.5]], QueryException::class],
 ]);
 
 it('removes obsolete sections when the file has no content to embed', function (): void {
     KnowledgeBaseSection::factory()->create(['source' => $this->source]);
     $other = KnowledgeBaseSection::factory()->create();
     Storage::disk('local')->put('knowledge.md', "# Knowledge base\n## Lore\n");
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldNotReceive('embedMany');
 
     $this->artisan('knowledge-base:embed', ['source' => $this->source])
         ->expectsOutputToContain('Embedded 0 knowledge base sections')
@@ -100,16 +98,16 @@ it('removes obsolete sections when the file has no content to embed', function (
 
     $this->assertDatabaseCount('knowledge_base_sections', 1);
     $this->assertModelExists($other);
-    Http::assertNothingSent();
 });
 
 it('does not remove sections when the source file is missing', function (): void {
     $existing = KnowledgeBaseSection::factory()->create(['source' => $this->source]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldNotReceive('embedMany');
 
     expect(fn () => $this->artisan('knowledge-base:embed', ['source' => $this->source])->run())->toThrow(FileNotFoundException::class);
 
     $this->assertModelExists($existing);
-    Http::assertNothingSent();
 });
 
 it('keeps section positions and vectors aligned across embedding batches', function (): void {
@@ -117,9 +115,8 @@ it('keeps section positions and vectors aligned across embedding batches', funct
         fn (int $position): string => "# Section {$position}\nBody {$position}.",
         range(0, 100),
     )));
-    Http::fake(['api.openai.com/v1/embeddings' => Http::sequence()
-        ->push(embeddingsResponse(array_fill(0, 100, embeddingVector(1))))
-        ->push(embeddingsResponse([embeddingVector(2)]))]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embedMany')->twice()->andReturn(array_fill(0, 100, embeddingVector(1)), [embeddingVector(2)]);
 
     $this->artisan('knowledge-base:embed', ['source' => $this->source])
         ->expectsOutputToContain('Embedded 101 knowledge base sections')
@@ -147,7 +144,10 @@ it('only embeds edited and added sections while keeping reused vectors aligned',
         'content' => 'PostgreSQL.', 'embedding' => embeddingVector(3),
     ]);
     Storage::disk('local')->put('knowledge.md', "# Lore\n## Tom\nA fictional profile.\n## Pastéis\nFernando brought pastries.\n# Stack\nPostgreSQL.\n# Hosting\nLaravel Cloud.");
-    Http::fake(['api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(4), embeddingVector(5)]))]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embedMany')->once()->with([
+        "Lore > Pastéis\n\nFernando brought pastries.", "Hosting\n\nLaravel Cloud.",
+    ])->andReturn([embeddingVector(4), embeddingVector(5)]);
 
     $this->artisan('knowledge-base:embed', ['source' => $this->source])
         ->expectsOutputToContain('Embedded 2 knowledge base sections')
@@ -158,9 +158,6 @@ it('only embeds edited and added sections while keeping reused vectors aligned',
     expect($edited->refresh())->content->toBe('Fernando brought pastries.')->embedding->toBe(embeddingVector(4));
     expect(KnowledgeBaseSection::query()->orderBy('position')->get()->pluck('embedding')->all())
         ->toBe([embeddingVector(1), embeddingVector(4), embeddingVector(3), embeddingVector(5)]);
-    Http::assertSent(fn (Request $request): bool => $request['input'] === [
-        "Lore > Pastéis\n\nFernando brought pastries.", "Hosting\n\nLaravel Cloud.",
-    ]);
 });
 
 it('reuses moved sections but reembeds when their heading context changes', function (): void {
@@ -173,7 +170,8 @@ it('reuses moved sections but reembeds when their heading context changes', func
         'content' => 'PostgreSQL.', 'embedding' => embeddingVector(2),
     ]);
     Storage::disk('local')->put('knowledge.md', "# Stack\nPostgreSQL.\n# Characters\n## Tom\nA fictional profile.");
-    Http::fake(['api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(3)]))]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embedMany')->once()->with(["Characters > Tom\n\nA fictional profile."])->andReturn([embeddingVector(3)]);
 
     $this->artisan('knowledge-base:embed', ['source' => $this->source])
         ->expectsOutputToContain('Embedded 1 knowledge base sections')
@@ -181,5 +179,4 @@ it('reuses moved sections but reembeds when their heading context changes', func
 
     expect(KnowledgeBaseSection::query()->orderBy('position')->get()->pluck('embedding')->all())
         ->toBe([embeddingVector(2), embeddingVector(3)]);
-    Http::assertSent(fn (Request $request): bool => $request['input'] === ["Characters > Tom\n\nA fictional profile."]);
 });

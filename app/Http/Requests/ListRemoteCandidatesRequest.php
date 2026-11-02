@@ -33,8 +33,13 @@ final class ListRemoteCandidatesRequest extends FormRequest
         return [
             'q' => ['nullable', 'string', 'max:100'],
             'org' => ['nullable', 'uuid'],
-            'for' => ['nullable', 'in:remote,org'],
+            'for' => ['nullable', 'in:remote,org,share'],
         ];
+    }
+
+    public function isSharing(): bool
+    {
+        return $this->input('for') === 'share';
     }
 
     /**

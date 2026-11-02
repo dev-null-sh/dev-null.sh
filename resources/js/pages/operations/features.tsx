@@ -18,6 +18,11 @@ const FEATURES: Record<
         description:
             'The Translate control, cached translations, and background language detection. Off stops new detection jobs from being queued and skips any already waiting.',
     },
+    organization_commits: {
+        label: 'organization commits',
+        description:
+            "Members posting and replying as their organization, from the composer's Post as menu and the API. Off until the rest of organization commits ships; commits already posted as an organization stay up either way.",
+    },
 };
 
 /**

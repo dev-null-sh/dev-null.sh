@@ -6,6 +6,7 @@ use App\Enums\CommitStatus;
 use App\Enums\LivePlatform;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Models\Commit;
+use App\Models\Headline;
 use App\Models\Notification;
 use App\Models\User;
 use App\Queries\SuggestedUsersQuery;
@@ -33,7 +34,8 @@ it('shares null user when guest', function (): void {
 
     expect($shared)->toHaveKey('auth')
         ->and($shared['auth'])->toHaveKey('user')
-        ->and($shared['auth']['user']())->toBeNull();
+        ->and($shared['auth']['user']())->toBeNull()
+        ->and($shared)->not->toHaveKey('hotTopics');
 });
 
 it('shares authenticated user data', function (): void {
@@ -85,6 +87,19 @@ it('defers loading the authenticated user until the prop is resolved', function 
     $middleware->share($request);
 
     expect(DB::getQueryLog())->toBeEmpty();
+});
+
+it('shares how many developers are here with guests only', function (): void {
+    $user = User::factory()->create();
+    User::factory()->count(149)->create();
+
+    $request = Request::create('/', 'GET');
+
+    expect(new HandleInertiaRequests()->share($request)['developersCount']())->toBe(100);
+
+    $request->setUserResolver(fn (): User => $user);
+
+    expect(new HandleInertiaRequests()->share($request)['developersCount']())->toBeNull();
 });
 
 it('defaults sidebarOpen to true when no cookie', function (): void {
@@ -370,8 +385,78 @@ it('leaves who to follow and live following out of the operations console, which
     $shared = $middleware->share($request);
 
     expect($shared)->not->toHaveKey('suggestedUsers')
-        ->and($shared['liveFollowing']())->toBeEmpty();
+        ->and($shared)->not->toHaveKey('liveFollowing')
+        ->and($shared)->not->toHaveKey('hotTopics');
 })->with(['/operations', '/operations/events']);
+
+it('shares ranked visible hot topic links for a minute and refreshes on request', function (): void {
+    $this->freezeSecond();
+    $user = User::factory()->create();
+    $muted = User::factory()->create();
+    $user->muting()->attach($muted);
+    $topic = Headline::factory()->create(['name' => 'Database indexes']);
+    $hidden = Headline::factory()->create();
+    Commit::factory()->hasAttached($topic)->create();
+    Commit::factory()->for($muted)->hasAttached($hidden)->create();
+    $headers = [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+    ];
+
+    $this->actingAs($user)->withHeaders($headers)->get(route('starred.index'))
+        ->assertOk()
+        ->assertJsonPath('props.hotTopics', [['id' => $topic->id, 'name' => 'Database indexes']])
+        ->assertJsonPath('onceProps.hotTopics.expiresAt', now()->addMinute()->getTimestampMs());
+
+    $this->withHeaders([...$headers, 'X-Inertia-Except-Once-Props' => 'hotTopics'])->get(route('starred.index'))
+        ->assertOk()->assertJsonMissingPath('props.hotTopics');
+
+    $next = Headline::factory()->create(['name' => 'Accessible developer tools']);
+    Commit::factory()->hasAttached($next)->create();
+
+    $this->withHeaders([
+        ...$headers,
+        'X-Inertia-Except-Once-Props' => 'hotTopics',
+        'X-Inertia-Partial-Component' => 'starred/index',
+        'X-Inertia-Partial-Data' => 'hotTopics',
+    ])->get(route('starred.index'))->assertOk()->assertJsonPath('props.hotTopics', [
+        ['id' => $next->id, 'name' => 'Accessible developer tools'],
+        ['id' => $topic->id, 'name' => 'Database indexes'],
+    ]);
+});
+
+it('keeps the live following list of the aside for a minute, unless a partial reload asks for it', function (): void {
+    $this->freezeSecond();
+    $user = User::factory()->create();
+    $live = User::factory()->create([
+        'live_platform' => LivePlatform::YouTube,
+        'live_url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+        'live_ends_at' => now()->addHour(),
+    ]);
+    $user->following()->attach($live);
+    $headers = [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+    ];
+
+    $this->actingAs($user)->withHeaders($headers)->get(route('starred.index'))
+        ->assertOk()
+        ->assertJsonPath('props.liveFollowing.0.id', $live->id)
+        ->assertJsonPath('onceProps.liveFollowing.expiresAt', now()->addMinute()->getTimestampMs());
+
+    $this->withHeaders([...$headers, 'X-Inertia-Except-Once-Props' => 'liveFollowing'])->get(route('starred.index'))
+        ->assertOk()
+        ->assertJsonMissingPath('props.liveFollowing');
+
+    $this->withHeaders([
+        ...$headers,
+        'X-Inertia-Except-Once-Props' => 'liveFollowing',
+        'X-Inertia-Partial-Component' => 'starred/index',
+        'X-Inertia-Partial-Data' => 'liveFollowing',
+    ])->get(route('starred.index'))
+        ->assertOk()
+        ->assertJsonPath('props.liveFollowing.0.id', $live->id);
+});
 
 it('suggests the round of people the user refreshed to', function (string $cookie, int $round): void {
     $middleware = new HandleInertiaRequests();

@@ -231,7 +231,7 @@ export function LinkPreview({
         return (
             <Link
                 href={CommitController.show({
-                    user: commitLink.handle,
+                    profile: commitLink.handle,
                     commit: commitLink.commit,
                 })}
                 onClick={(event) => event.stopPropagation()}

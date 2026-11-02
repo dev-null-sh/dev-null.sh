@@ -1,11 +1,19 @@
 import type { CancelToken } from '@inertiajs/core';
-import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
+import {
+    Head,
+    InfiniteScroll,
+    Link,
+    router,
+    useHttp,
+    usePoll,
+} from '@inertiajs/react';
 import {
     ArrowUp,
     AtSign,
     Check,
     ChevronDown,
     ChevronsUp,
+    GitCommitVertical,
     MessageSquareReply,
     Quote,
     Star,
@@ -16,6 +24,7 @@ import type { ReactNode, RefObject } from 'react';
 import {
     Fragment,
     useEffect,
+    useEffectEvent,
     useId,
     useLayoutEffect,
     useRef,
@@ -24,6 +33,8 @@ import {
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
+import NotificationReadAtController from '@/actions/App/Http/Controllers/NotificationReadAtController';
+import { AuthorAvatar } from '@/components/author-avatar';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
 import { replaceFailedImage } from '@/components/commit-images';
@@ -33,7 +44,6 @@ import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { NotificationFilters } from '@/components/notification-filters';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
-import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
@@ -46,18 +56,18 @@ import {
     formatFullDateTime,
     formatRelativeTime,
     isDeleted,
-    laneColor,
+    authorLaneColor,
     localDayKey,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type {
+    Actor,
     BodySegment,
     Commit,
     CursorPaginated,
     DeletedCommit,
     Notification,
     NotificationGroup,
-    User,
 } from '@/types';
 
 type Filters = { type: string };
@@ -241,6 +251,28 @@ export default function Index({
         }
     }, [notifications.data]);
 
+    const markRead = useHttp<{ through: string }>({ through: '' });
+    const newestAt = notifications.data[0]?.created_at;
+    const hasUnread = notifications.data.some(
+        (group) => group.unread_count > 0,
+    );
+
+    const markReadThrough = useEffectEvent((through: string) => {
+        markRead.transform(() => ({ through }));
+        void markRead
+            .put(NotificationReadAtController.update.url())
+            .then(() => {
+                router.flushAll();
+                router.reload({ only: ['auth.unreadNotificationsCount'] });
+            });
+    });
+
+    useEffect(() => {
+        if (newestAt !== undefined && hasUnread) {
+            markReadThrough(newestAt);
+        }
+    }, [newestAt, hasUnread]);
+
     useEffect(() => {
         if (arrivals === 0) {
             return;
@@ -390,8 +422,8 @@ export default function Index({
                     {notifications.next_cursor === null && (
                         <div className="flex">
                             <GraphRail
-                                lane={laneColor(
-                                    notifications.data.at(-1)!.actor.lane,
+                                lane={authorLaneColor(
+                                    notifications.data.at(-1)!.actor,
                                 )}
                                 variant="root"
                                 hasTail={false}
@@ -657,8 +689,8 @@ function OwnCommitExcerpt({ segments }: { segments: BodySegment[] }) {
 }
 
 /**
- * A quote always quotes the recipient's own commit, so it shows like the other commits of theirs here, or as the usual
- * tombstone once deleted.
+ * A quote always quotes the recipient's own commit, or their organization's, so it shows like the other commits of
+ * theirs here, or as the usual tombstone once deleted.
  */
 function QuotedOwnCommit({
     commit,
@@ -678,12 +710,12 @@ export function ActorAvatar({
     className,
     linked = false,
 }: {
-    user: User;
+    user: Actor;
     anchor: RefObject<HTMLSpanElement | null>;
     className?: string;
     linked?: boolean;
 }) {
-    const avatar = <UserAvatar user={user} className={className} />;
+    const avatar = <AuthorAvatar author={user} className={className} />;
 
     return (
         <UserPreview
@@ -694,10 +726,16 @@ export function ActorAvatar({
             <span ref={anchor} className="flex">
                 {linked ? (
                     <Link
+                        prefetch
                         href={show(user)}
                         tabIndex={-1}
                         aria-hidden
-                        className="flex rounded-full"
+                        className={cn(
+                            'flex',
+                            user.type === 'organization'
+                                ? 'rounded-md'
+                                : 'rounded-full',
+                        )}
                     >
                         {avatar}
                     </Link>
@@ -739,6 +777,9 @@ export function NotificationContent({
         notification.type === 'followed' || notification.type === 'starred'
             ? actorsCount - 1
             : 0;
+    // Two people are both named; "and N others" is kept for three or more.
+    const secondActor =
+        otherActors === 1 && actors[1]?.id !== actor.id ? actors[1] : undefined;
     const grouped =
         summary &&
         (actorsCount > 1 ||
@@ -756,7 +797,8 @@ export function NotificationContent({
     const isActorsCommit =
         notification.type === 'replied' ||
         notification.type === 'quoted' ||
-        notification.type === 'mentioned';
+        notification.type === 'mentioned' ||
+        notification.type === 'first_commit';
     const level = notification.type === 'leveled_up' ? notification : null;
     const Icon = {
         followed: UserPlus,
@@ -765,6 +807,7 @@ export function NotificationContent({
         quoted: Quote,
         starred: Star,
         mentioned: AtSign,
+        first_commit: GitCommitVertical,
         approved: Check,
         rejected: X,
     }[notification.type];
@@ -774,7 +817,7 @@ export function NotificationContent({
                 'text-muted-foreground': moderation,
                 'fill-current': notification.type === 'starred',
             })}
-            style={moderation ? undefined : { color: laneColor(actor.lane) }}
+            style={moderation ? undefined : { color: authorLaneColor(actor) }}
             aria-hidden
         />
     );
@@ -784,7 +827,9 @@ export function NotificationContent({
         (!summary && notification.type === 'starred')
             ? show(actor)
             : CommitController.show({
-                  user: isOwnCommit ? user : actor,
+                  profile: isOwnCommit
+                      ? (notification.organization ?? user)
+                      : actor,
                   commit: notification.commit,
               });
     const time = (
@@ -796,16 +841,22 @@ export function NotificationContent({
             {formatRelativeTime(notification.created_at, now)}
         </time>
     );
+    // A member hears about the organization's commits and mentions as the organization's, not their own.
+    const organization = notification.organization;
+    const whose = organization ? `@${organization.handle}'s` : 'your';
     const action = {
         followed: 'followed you',
-        replied: 'replied to your commit',
-        quoted: 'quoted your commit',
+        replied: `replied to ${whose} commit`,
+        quoted: `quoted ${whose} commit`,
         starred: isImageOnly
-            ? `starred your ${starredImages.length === 1 ? 'image' : 'images'}`
-            : 'starred your commit',
-        mentioned: 'mentioned you',
-        approved: 'Your commit was approved',
-        rejected: 'Your commit was rejected',
+            ? `starred ${whose} ${starredImages.length === 1 ? 'image' : 'images'}`
+            : `starred ${whose} commit`,
+        mentioned: organization
+            ? `mentioned @${organization.handle}`
+            : 'mentioned you',
+        first_commit: 'made their first commit',
+        approved: `${organization ? whose : 'Your'} commit was approved`,
+        rejected: `${organization ? whose : 'Your'} commit was rejected`,
         leveled_up: level && `You reached level ${level.level}: ${level.rank}`,
     }[notification.type];
     const excerpt =
@@ -837,7 +888,9 @@ export function NotificationContent({
                 </p>
             )}
             <p className="mt-1">
-                Only you can see this update and your rejected commit.
+                {organization
+                    ? `Only @${organization.handle}'s members can see this update and its rejected commit.`
+                    : 'Only you can see this update and your rejected commit.'}
             </p>
         </div>
     );
@@ -859,6 +912,7 @@ export function NotificationContent({
                             className="relative z-10 flex min-w-0 items-center"
                         >
                             <Link
+                                prefetch
                                 href={show(actor)}
                                 className="flex min-w-0 items-center gap-1.5 rounded-md outline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
                             >
@@ -881,6 +935,7 @@ export function NotificationContent({
                             {action}
                         </span>
                         <Link
+                            prefetch
                             href={href}
                             className="ml-auto flex shrink-0 items-center gap-2 rounded-md pl-2 outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
                         >
@@ -888,7 +943,7 @@ export function NotificationContent({
                             {time}
                         </Link>
                     </div>
-                    <Link href={href} tabIndex={-1} className="block">
+                    <Link href={href} prefetch tabIndex={-1} className="block">
                         {excerpt}
                     </Link>
                 </div>
@@ -900,6 +955,7 @@ export function NotificationContent({
         return (
             <div className="flex items-start gap-3">
                 <Link
+                    prefetch
                     href={href}
                     className="flex min-w-0 flex-1 gap-2.5 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
                 >
@@ -940,7 +996,7 @@ export function NotificationContent({
                         {notification.type !== 'starred' && excerpt}
                     </div>
                 </Link>
-                {notification.type === 'followed' && (
+                {notification.type === 'followed' && actor.type === 'user' && (
                     <FollowIconButton
                         user={actor}
                         isFollowing={actor.is_followed}
@@ -954,6 +1010,7 @@ export function NotificationContent({
     const actorLinks = (
         <>
             <Link
+                prefetch
                 href={show(actor)}
                 className="relative z-10 truncate font-semibold hover:underline"
                 title={actor.name}
@@ -961,6 +1018,7 @@ export function NotificationContent({
                 {actor.name}
             </Link>
             <Link
+                prefetch
                 href={show(actor)}
                 tabIndex={-1}
                 className="relative z-10 shrink-4 truncate font-mono text-[13px] text-muted-foreground"
@@ -973,6 +1031,7 @@ export function NotificationContent({
 
     const rowLink = (
         <Link
+            prefetch
             href={href}
             data-notification-link
             className="after:absolute after:inset-0 after:z-[1] after:rounded-md after:outline-offset-4 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring"
@@ -984,17 +1043,31 @@ export function NotificationContent({
     return (
         <div className="flex">
             <GraphRail
-                lane={laneColor(actor.lane)}
+                lane={authorLaneColor(actor)}
                 endsWithDot
                 graph={graph}
                 nodePosition={isActorsCommit ? 'author' : 'top'}
                 node={
                     isActorsCommit ? (
-                        <span className="flex rounded-full bg-card">
-                            <span className="flex rounded-full border-2 border-(--lane) p-0.5 transition-colors">
+                        <span
+                            className={cn(
+                                'flex bg-card',
+                                actor.type === 'organization'
+                                    ? 'rounded-lg'
+                                    : 'rounded-full',
+                            )}
+                        >
+                            <span
+                                className={cn(
+                                    'flex border-2 border-(--lane) p-0.5 transition-colors',
+                                    actor.type === 'organization'
+                                        ? 'rounded-lg'
+                                        : 'rounded-full',
+                                )}
+                            >
                                 {grouped ? (
-                                    <UserAvatar
-                                        user={actor}
+                                    <AuthorAvatar
+                                        author={actor}
                                         className="size-10"
                                     />
                                 ) : (
@@ -1051,9 +1124,9 @@ export function NotificationContent({
                                         <span
                                             className="rounded-md border px-2 py-0.5 font-mono text-xs font-medium"
                                             style={{
-                                                borderColor: `${laneColor(actor.lane)}40`,
-                                                backgroundColor: `${laneColor(actor.lane)}15`,
-                                                color: laneColor(actor.lane),
+                                                borderColor: `${authorLaneColor(actor)}40`,
+                                                backgroundColor: `${authorLaneColor(actor)}15`,
+                                                color: authorLaneColor(actor),
                                             }}
                                             data-test="level-chip"
                                         >
@@ -1088,9 +1161,9 @@ export function NotificationContent({
                                             aria-hidden
                                         >
                                             {actors.map((stacked, position) => (
-                                                <UserAvatar
+                                                <AuthorAvatar
                                                     key={stacked.id}
-                                                    user={stacked}
+                                                    author={stacked}
                                                     className="relative size-8 ring-2 ring-card"
                                                     style={{
                                                         zIndex:
@@ -1130,20 +1203,41 @@ export function NotificationContent({
                                             (grouped ? (
                                                 <>
                                                     <Link
+                                                        prefetch
                                                         href={show(actor)}
                                                         className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
                                                         title={actor.name}
                                                     >
                                                         {actor.name}
                                                     </Link>{' '}
-                                                    {otherActors > 0 && (
-                                                        <span
-                                                            title={exactCountTitle(
-                                                                otherActors,
-                                                            )}
-                                                        >
-                                                            {`and ${formatCount(otherActors)} ${otherActors === 1 ? 'other' : 'others'} `}
-                                                        </span>
+                                                    {secondActor ? (
+                                                        <>
+                                                            and{' '}
+                                                            <Link
+                                                                prefetch
+                                                                href={show(
+                                                                    secondActor,
+                                                                )}
+                                                                className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
+                                                                title={
+                                                                    secondActor.name
+                                                                }
+                                                            >
+                                                                {
+                                                                    secondActor.name
+                                                                }
+                                                            </Link>{' '}
+                                                        </>
+                                                    ) : (
+                                                        otherActors > 0 && (
+                                                            <span
+                                                                title={exactCountTitle(
+                                                                    otherActors,
+                                                                )}
+                                                            >
+                                                                {`and ${formatCount(otherActors)} ${otherActors === 1 ? 'other' : 'others'} `}
+                                                            </span>
+                                                        )
                                                     )}
                                                 </>
                                             ) : (
@@ -1154,6 +1248,7 @@ export function NotificationContent({
                                                         className="relative z-10"
                                                     >
                                                         <Link
+                                                            prefetch
                                                             href={show(actor)}
                                                             className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
                                                             title={actor.name}
@@ -1161,6 +1256,7 @@ export function NotificationContent({
                                                             {actor.name}
                                                         </Link>{' '}
                                                         <Link
+                                                            prefetch
                                                             href={show(actor)}
                                                             tabIndex={-1}
                                                             className="relative z-10 inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
@@ -1194,15 +1290,17 @@ export function NotificationContent({
                         {quote}
                         {reason}
                     </div>
-                    {notification.type === 'followed' && actorsCount === 1 && (
-                        <span className="flex h-10 items-center">
-                            <FollowIconButton
-                                user={actor}
-                                isFollowing={actor.is_followed}
-                                followsYou
-                            />
-                        </span>
-                    )}
+                    {notification.type === 'followed' &&
+                        actorsCount === 1 &&
+                        actor.type === 'user' && (
+                            <span className="flex h-10 items-center">
+                                <FollowIconButton
+                                    user={actor}
+                                    isFollowing={actor.is_followed}
+                                    followsYou
+                                />
+                            </span>
+                        )}
                 </div>
                 {children}
             </div>
