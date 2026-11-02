@@ -77,9 +77,10 @@ it('keeps the images of a commit deleted again within its new undo window', func
 it('erases the content once the undo window has closed', function (): void {
     $commit = Commit::factory()->create(['body' => 'Hello @taylor and @laravel', 'mentions' => ['taylor'], 'link_preview_id' => LinkPreview::factory(), 'headlines_classified_at' => now()]);
     resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => Organization::factory()->create()->id]);
-    $commit->headlines()->create(['name' => 'Laravel adds a new feature']);
+    $headline = $commit->headlines()->create(['name' => 'Laravel adds a new feature']);
     $poll = Poll::factory()->withOptions('Yes', 'No')->create(['commit_id' => $commit->id]);
     resolve(DeleteCommit::class)->handle($commit);
+    $headline->update(['summary' => 'A recap awaiting final erasure.', 'summary_created_at' => now()]);
     $this->travel(30)->seconds();
 
     resolve(DeleteCommitContent::class)->handle($commit);
@@ -95,6 +96,7 @@ it('erases the content once the undo window has closed', function (): void {
     $this->assertModelMissing($poll);
     $this->assertDatabaseMissing('commit_topics', ['commit_id' => $commit->id]);
     $this->assertDatabaseMissing('commit_headline', ['commit_id' => $commit->id]);
+    expect($headline->refresh()->summary)->toBeNull()->and($headline->summary_created_at)->toBeNull();
 });
 
 it('erases the previews of links to the commit, which hold its body', function (): void {

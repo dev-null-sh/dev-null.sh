@@ -9,6 +9,7 @@ use App\Enums\CommitStatus;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
+use App\Models\Headline;
 use App\Models\User;
 use App\Services\TheAlgorithm;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,20 @@ it('may approve many commits', function (): void {
     }
 
     expect($other->refresh()->status)->toBe(CommitStatus::Pending);
+});
+
+it('clears recaps of rejected sources without clearing unrelated recaps', function (): void {
+    $headline = Headline::factory()->create(['summary' => 'A recap containing a rejected source.', 'summary_created_at' => now()]);
+    $unrelated = Headline::factory()->create(['summary' => 'An unrelated recap.', 'summary_created_at' => now()]);
+    $commit = Commit::factory()->hasAttached($headline)->create();
+
+    resolve(UpdateCommitStatuses::class)->handle([$commit->id], CommitStatus::Rejected);
+
+    expect($commit->refresh()->status)->toBe(CommitStatus::Rejected)
+        ->and($headline->refresh()->summary)->toBeNull()
+        ->and($headline->summary_created_at)->toBeNull()
+        ->and($unrelated->refresh()->summary)->toBe('An unrelated recap.')
+        ->and($unrelated->summary_created_at?->toDateTimeString())->toBe(now()->toDateTimeString());
 });
 
 it('queues direct replies to Tom in bulk without per-reply queries', function (): void {

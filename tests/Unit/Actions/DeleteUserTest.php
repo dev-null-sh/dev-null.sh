@@ -56,13 +56,15 @@ it('erases the commits of a deleted user along with the replies under them', fun
     resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => $organization->id]);
     resolve(CreateCommitTopics::class)->handle($unrelated, ['laravel' => $organization->id]);
 
-    $headline = $commit->headlines()->create(['name' => 'Laravel adds a new feature']);
+    $headline = $commit->headlines()->create(['name' => 'Laravel adds a new feature', 'summary' => 'A recap containing the deleted authors contribution.', 'summary_created_at' => now()]);
     $headline->commits()->attach([$reply->id, $unrelated->id]);
 
     resolve(DeleteUser::class)->handle($user);
 
     expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id])
         ->and($headline->commits->modelKeys())->toBe([$unrelated->id])
+        ->and($headline->refresh()->summary)->toBeNull()
+        ->and($headline->summary_created_at)->toBeNull()
         ->and(DB::table('commit_topics')->pluck('commit_id')->all())->toBe([$unrelated->id]);
 });
 

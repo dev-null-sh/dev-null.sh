@@ -35,4 +35,11 @@ interface HeadlineProvider
      * @return array<int, string>
      */
     public function deduplicate(array $headlines): array;
+
+    /**
+     * Return a grounded recap only when the supplied public posts have enough substance to summarize.
+     *
+     * @param  list<string>  $bodies
+     */
+    public function summarize(string $headline, array $bodies): ?string;
 }

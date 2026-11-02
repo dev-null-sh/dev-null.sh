@@ -11,6 +11,7 @@ use App\Jobs\LinkCommitTopics;
 use App\Jobs\ProcessCommitHeadlines;
 use App\Jobs\ReplyAsTom;
 use App\Models\Commit;
+use App\Models\Headline;
 use App\Models\Notification;
 use App\Models\Poll;
 use App\Models\User;
@@ -64,6 +65,9 @@ final readonly class UpdateCommitStatuses
                 ->delete();
 
             if ($status === CommitStatus::Rejected) {
+                Headline::query()->whereIn('id', DB::table('commit_headline')->select('headline_id')->whereIn('commit_id', $commits->modelKeys()))
+                    ->update(['summary' => null, 'summary_created_at' => null]);
+
                 // Every member hears about an organization's rejected commit, each as their own actor, so nothing
                 // tells them who posted it.
                 /** @var Collection<int, object{profile_id: string, user_id: string, organization_id: string|null}> $recipients */
