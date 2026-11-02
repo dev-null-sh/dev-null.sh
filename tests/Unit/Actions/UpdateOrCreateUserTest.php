@@ -6,6 +6,7 @@ use App\Actions\UpdateOrCreateUser;
 use App\Contracts\Services\GitHubProvider;
 use App\Models\Profile;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Laravel\Socialite\Two\User as GitHubUser;
 
 it('creates a user from github', function (): void {
@@ -269,3 +270,21 @@ it('moves an existing bot to its reserved handle when the github owner signs in'
     'tom' => ['tom', 'tom', 'devnull-tom'],
     'mixed-case tom' => ['tom', 'ToM', 'devnull-tom'],
 ]);
+
+it('makes the unclaimed profile of the account theirs, and forgets they once deleted their account', function (): void {
+    $this->mock(GitHubProvider::class)->shouldReceive('hasSponsorsListing')->andReturnFalse();
+    $unclaimed = Profile::factory()->create(['github_id' => '583231', 'handle' => 'octocat', 'location' => null]);
+    DB::table('deleted_github_accounts')->insert(['github_id' => '583231']);
+
+    $user = resolve(UpdateOrCreateUser::class)->handle(GitHubUser::fake([
+        'id' => 583231,
+        'nickname' => 'octocat',
+        'name' => 'The Octocat',
+        'location' => 'San Francisco',
+    ]));
+
+    expect($user->id)->toBe($unclaimed->id)
+        ->and($user->location)->toBe('San Francisco')
+        ->and(Profile::query()->count())->toBe(1);
+    $this->assertDatabaseEmpty('deleted_github_accounts');
+});

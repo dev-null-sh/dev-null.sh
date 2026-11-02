@@ -59,6 +59,16 @@ export default function Show() {
                             </>,
                             <>
                                 <strong>
+                                    From GitHub, before you sign up:
+                                </strong>{' '}
+                                when a member opens the page of your GitHub
+                                username, your GitHub ID, username, name,
+                                avatar, and bio, to show that page until you
+                                sign in and make it yours. Never your location
+                                or website.
+                            </>,
+                            <>
+                                <strong>
                                     From GitHub, when you claim an
                                     organization's page:
                                 </strong>{' '}
@@ -279,6 +289,11 @@ export default function Show() {
                         GitHub account id, the reason, and when it happened. It
                         stops a banned GitHub account from signing up again, and
                         keeps a timeout from ending early by signing up again.
+                    </p>
+                    <p>
+                        When you delete your account, we keep your GitHub ID
+                        until you sign in again, so that your page doesn't come
+                        back before you sign up.
                     </p>
                 </DocumentSection>
 

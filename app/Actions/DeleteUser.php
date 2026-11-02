@@ -35,7 +35,8 @@ final readonly class DeleteUser
      * What they posted for organizations stays, and only forgets who posted it.
      * The database cascades the image rows of erased commits and the user's scheduled commits, and the voice notes of their
      * messages, but the files are erased here. Orgs the user was the last one in go too, with everything sent in them,
-     * as they do when the last member leaves.
+     * as they do when the last member leaves. Only their GitHub ID is kept, so looking their handle up never brings their
+     * page back as an unclaimed one, until they sign in again.
      */
     public function handle(User $user): void
     {
@@ -85,6 +86,7 @@ final readonly class DeleteUser
 
             $user->delete();
             $user->profile->delete();
+            DB::table('deleted_github_accounts')->insertOrIgnore(['github_id' => $user->github_id]);
 
             foreach ($translationKeys as $key) {
                 Cache::forget($key);

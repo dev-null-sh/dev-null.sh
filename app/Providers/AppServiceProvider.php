@@ -179,6 +179,13 @@ final class AppServiceProvider extends ServiceProvider
             });
         });
 
+        // Every lookup spends GitHub's shared budget, so a member gets a few an hour. Their page says so...
+        RateLimiter::for('profile-lookups', fn (Request $request): Limit => Limit::perHour(30)->by($this->userId($request))->response(function (): RedirectResponse {
+            Inertia::flash('lookupThrottled', true);
+
+            return back();
+        }));
+
         // The mobile app's 429 comes with a code. The public API's stays as it is...
         $rateLimited = fn (Request $request, array $headers): JsonResponse => new ApiException(ApiErrorCode::RateLimited, 'Too Many Attempts.', $headers)->render();
 

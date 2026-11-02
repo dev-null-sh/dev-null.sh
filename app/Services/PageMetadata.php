@@ -23,6 +23,7 @@ use Illuminate\Support\Str;
  * @phpstan-type CommitMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, publishedAt: string, author: string, feed?: Feed, structuredData: array<string, mixed>}
  * @phpstan-type UserMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, feed: Feed, handle: string, structuredData: array<string, mixed>}
  * @phpstan-type OrganizationMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, handle: string, structuredData: array<string, mixed>}
+ * @phpstan-type UnclaimedProfileMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, handle: string}
  *
  * @phpstan-import-type MacAppRelease from MacAppReleaseQuery
  */
@@ -339,6 +340,32 @@ final readonly class PageMetadata
                     ],
                 ],
             ],
+        ];
+    }
+
+    /**
+     * The link preview of an unclaimed developer's page, which search engines leave out: they never chose to be here.
+     *
+     * @return UnclaimedProfileMetadata
+     */
+    public function unclaimedProfile(Profile $profile): array
+    {
+        $title = "{$profile->nameWithHandle()} on /dev/null";
+
+        return [
+            'type' => 'profile',
+            'title' => $title,
+            'description' => $profile->bio ?? "{$profile->mention()} isn't on /dev/null yet.",
+            'url' => route('user.show', $profile->handle),
+            'robots' => 'noindex',
+            'images' => [[
+                'url' => route('user-open-graph-image.show', ['profile' => $profile->handle, 'v' => $profile->openGraphImageVersion()]),
+                'width' => OpenGraphCanvas::WIDTH,
+                'height' => OpenGraphCanvas::HEIGHT,
+                'type' => 'image/png',
+                'alt' => $title,
+            ]],
+            'handle' => $profile->handle,
         ];
     }
 

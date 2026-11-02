@@ -6,6 +6,7 @@ use App\Enums\OrgEvent;
 use App\Enums\OrgRole;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Models\Profile;
 use App\Models\User;
 use App\Models\UserTimeout;
 
@@ -40,6 +41,9 @@ it('says why people cannot be added', function (): void {
         ->assertUnprocessable()
         ->assertJsonValidationErrors(['members.0' => "@stranger doesn't follow you."]);
     signedApiRequest($this->keyPair, 'POST', route('api-org-member.store', $org), ['members' => ['nobody-by-that-name'], 'share_history' => true])
+        ->assertUnprocessable()
+        ->assertJsonValidationErrors('members.0');
+    signedApiRequest($this->keyPair, 'POST', route('api-org-member.store', $org), ['members' => [Profile::factory()->create()->handle], 'share_history' => true])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('members.0');
     signedApiRequest($this->keyPair, 'POST', route('api-org-member.store', $org), ['members' => [$nuno->handle]])
