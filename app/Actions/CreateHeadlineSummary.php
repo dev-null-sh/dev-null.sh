@@ -22,12 +22,12 @@ final readonly class CreateHeadlineSummary
      * AI runs outside the database transaction. Publication and source invalidation serialize on the headline row;
      * rechecking the selected bodies under that lock prevents publishing a recap of content already removed.
      */
-    public function handle(string $headlineId): void
+    public function handle(string $headlineId, bool $refresh = false): void
     {
-        Cache::lock('headline-summary:'.$headlineId, 180)->get(function () use ($headlineId): void {
+        Cache::lock('headline-summary:'.$headlineId, 180)->get(function () use ($headlineId, $refresh): void {
             $headline = Headline::query()->find($headlineId);
 
-            if (! $headline instanceof Headline || $headline->summary_created_at?->gt(now()->subHours(Headline::SUMMARY_HOURS))) {
+            if (! $headline instanceof Headline || (! $refresh && $headline->summary_created_at?->gt(now()->subHours(Headline::SUMMARY_HOURS)))) {
                 return;
             }
 
@@ -48,10 +48,12 @@ final readonly class CreateHeadlineSummary
                 return;
             }
 
-            DB::transaction(function () use ($headlineId, $bodies, $summary, $until): void {
+            DB::transaction(function () use ($headlineId, $headline, $bodies, $summary, $until): void {
                 $current = Headline::query()->lockForUpdate()->find($headlineId);
 
-                if (! $current instanceof Headline || $current->summary_created_at?->gt(now()->subHours(Headline::SUMMARY_HOURS)) || $this->sources->get($current, $until) !== $bodies) {
+                if (! $current instanceof Headline
+                    || $current->getRawOriginal('summary_created_at') !== $headline->getRawOriginal('summary_created_at')
+                    || $this->sources->get($current, $until) !== $bodies) {
                     return;
                 }
 
