@@ -48,6 +48,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
                 'html_url' => route('user.show', $user),
                 'feed_url' => route('user-feed.show', $user),
                 'created_at' => now()->toIso8601ZuluString(),
+                'live' => null,
                 'commits_count' => 1,
                 'followers_count' => 3,
                 'following_count' => 2,

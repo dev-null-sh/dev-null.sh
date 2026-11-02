@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
+use App\Enums\RemoteStatus;
+use App\Models\ConversationParticipant;
 use App\Models\User;
 
 beforeEach(function (): void {
@@ -208,4 +211,21 @@ it('is not there while the user has Remotes off', function (): void {
 
 it('rejects requests that are not signed', function (): void {
     $this->getJson(route('api-conversation.index'))->assertUnauthorized();
+});
+
+it('omits deleted partners from API requests and their counts', function (): void {
+    $departed = User::factory()->withRemotes()->create();
+    $partner = User::factory()->withRemotes()->create();
+    sendChatMessage($departed, $this->user);
+    $visible = sendChatMessage($partner, $this->user);
+    ConversationParticipant::query()->where('user_id', $this->user->id)->update(['status' => RemoteStatus::Fetched]);
+    resolve(DeleteUser::class)->handle($departed);
+
+    signedApiRequest($this->keyPair, 'GET', route('api-conversation.index', ['tab' => 'fetched']))
+        ->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.id', $visible->conversation_id)
+        ->assertJsonPath('data.0.partner.id', $partner->id)
+        ->assertJsonPath('requests_count', 1)
+        ->assertJsonPath('unread_count', 1);
 });

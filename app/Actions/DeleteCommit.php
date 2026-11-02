@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\NotificationType;
 use App\Jobs\EraseDeletedCommit;
 use App\Models\Commit;
+use App\Models\Headline;
 use App\Models\Notification;
 use App\Services\CommitTranslations;
 use Illuminate\Support\Facades\Cache;
@@ -37,6 +38,9 @@ final readonly class DeleteCommit
             Notification::query()->where('commit_id', $commit->id)->delete();
             Notification::query()->where('type', NotificationType::Replied)->whereIn('commit_id', $commit->replies()->select('id'))->delete();
             Notification::query()->where('type', NotificationType::Quoted)->whereIn('commit_id', $commit->quotes()->select('id'))->delete();
+
+            Headline::query()->whereIn('id', DB::table('commit_headline')->select('headline_id')->where('commit_id', $commit->id))
+                ->update(['summary' => null, 'summary_created_at' => null]);
 
             $commit->delete();
 

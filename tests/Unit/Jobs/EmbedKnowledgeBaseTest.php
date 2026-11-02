@@ -2,26 +2,27 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\EmbeddingProvider;
 use App\Jobs\EmbedKnowledgeBase;
 use App\Models\KnowledgeBaseSection;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Console\Scheduling\CallbackEvent;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 beforeEach(function (): void {
-    config(['ai.providers.openai.key' => 'sk-test']);
-
     $disk = Storage::fake('local');
     $this->source = Str::after($disk->path('knowledge.md'), base_path().'/');
 });
 
 it('embeds the knowledge base sections of its source', function (): void {
     Storage::disk('local')->put('knowledge.md', "# Lore\n## Tom\nA fictional profile.");
-    Http::fake(['api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(1)]))]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embedMany')->once()->with(["Lore > Tom\n\nA fictional profile."])->andReturn([embeddingVector(1)]);
 
     dispatch_sync(new EmbedKnowledgeBase($this->source));
 
@@ -34,7 +35,8 @@ it('embeds the knowledge base sections of its source', function (): void {
 it('throws when openai is unavailable, so the job is retried, keeping the stored sections', function (): void {
     $existing = KnowledgeBaseSection::factory()->create(['source' => $this->source]);
     Storage::disk('local')->put('knowledge.md', "# Lore\nUpdated text.");
-    Http::fake(['api.openai.com/v1/embeddings' => Http::response([], 503)]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embedMany')->andThrow(new RequestException(new Response(new Psr7Response(503))));
 
     expect(fn () => dispatch_sync(new EmbedKnowledgeBase($this->source)))->toThrow(RequestException::class);
 

@@ -27,18 +27,18 @@ function Summary({
     changelog: Changelog;
     timeZone: string;
 }) {
-    const [day] = changelogDays(changelog.pullRequests ?? [], timeZone);
+    const [day] = changelogDays(changelog.commits ?? [], timeZone);
 
     if (day === undefined) {
         return (
             <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                Nothing has been merged yet.
+                Nothing has landed yet.
             </p>
         );
     }
 
     const heading = changelogDayHeading(day.date, timeZone);
-    const latest = (changelog.pullRequests ?? []).slice(0, latestCount);
+    const latest = (changelog.commits ?? []).slice(0, latestCount);
 
     return (
         <>
@@ -49,10 +49,10 @@ function Summary({
                     </p>
                     <p className="mt-0.5 flex items-baseline gap-1.5 tabular-nums">
                         <span className="text-2xl leading-none font-semibold">
-                            {day.pullRequests.length}
+                            {day.commits.length}
                         </span>
                         <span className="text-xs text-muted-foreground">
-                            merged by {day.authors.length}
+                            by {day.authors.length}
                         </span>
                     </p>
                 </div>
@@ -76,7 +76,7 @@ function Summary({
                 </ul>
             </div>
             <div className="px-4 pt-3 pb-0.5">
-                <ChangelogLane pullRequests={latest} isCompact />
+                <ChangelogLane commits={latest} isCompact />
             </div>
         </>
     );

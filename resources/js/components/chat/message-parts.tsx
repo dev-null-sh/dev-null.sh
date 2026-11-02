@@ -71,13 +71,6 @@ export function replyOf(message: Message): MessageReply {
     };
 }
 
-export function timeOf(date: string): string {
-    return new Date(date).toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-    });
-}
-
 /**
  * The message a long press lifts above the thread: its voice note, or its text.
  */

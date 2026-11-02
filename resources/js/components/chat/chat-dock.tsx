@@ -304,6 +304,7 @@ function DirectDockHeader({
             />
             <Link
                 href={show(partner)}
+                prefetch
                 className="group min-w-0 rounded-md"
                 title={partner.name}
             >
