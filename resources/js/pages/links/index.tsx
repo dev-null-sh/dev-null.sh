@@ -109,6 +109,7 @@ function TopLinks({ links }: { links: TopLink[] }) {
                     {links.map((link, index) => (
                         <li key={link.url} className="border-b">
                             <Link
+                                prefetch
                                 href={LinkController.index({
                                     query: { url: link.url },
                                 })}
@@ -158,6 +159,7 @@ function LinkCommits({
         <>
             <div className="border-b px-4 py-3 sm:px-6">
                 <Link
+                    prefetch
                     href={LinkController.index()}
                     className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
                 >

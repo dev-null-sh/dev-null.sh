@@ -23,6 +23,11 @@ import type {
     ActiveUserCount,
     ActiveUsers,
     CommitResponses,
+    RetentionByDay as RetentionByDayData,
+    RetentionCell,
+    RetentionCohort,
+    RetentionCohorts as RetentionCohortsData,
+    RetentionDay,
     Funnel,
     FunnelRate,
     MetricsRange,
@@ -335,6 +340,13 @@ function FunnelValue({ funnel }: { funnel?: Funnel }) {
     );
 }
 
+/**
+ * Stripes of the panel's color over a mark whose value was backfilled, and is a floor: the mark keeps its color, so its
+ * size still reads as its value.
+ */
+const BACKFILLED_STRIPES =
+    'bg-[image:repeating-linear-gradient(135deg,transparent_0_4px,color-mix(in_oklab,var(--card)_70%,transparent)_4px_6px)]';
+
 type DailySegment = {
     value: number;
     className: string;
@@ -344,6 +356,7 @@ type DailyBar = {
     date: string;
     value: number;
     isPartial: boolean;
+    isBackfilled?: boolean;
     label: string;
     details?: string[];
     segments?: DailySegment[];
@@ -382,9 +395,10 @@ function shadowPath(from: number, to: number): string {
  * One slot per day of the range, so charts of the same range line up, with a bar on the days that have one, as tall as
  * its value against the tallest, and a line at the average of the range, to tell the days above it from the days below.
  * A partial day, still counting, is lighter, unless the bar is stacked from segments, the first at the bottom, whose
- * own colors carry the meaning. A bar with a shadow is narrower, and the bar of the day before casts a shadow onto it,
- * curving from its top down to the shadow's value. Tooltips of the bars near an edge align with it, so they stay on
- * screen. The chart takes the height left in its panel, 12rem at least.
+ * own colors carry the meaning. A backfilled day is striped, as its value is a floor. A bar with a shadow is narrower,
+ * and the bar of the day before casts a shadow onto it, curving from its top down to the shadow's value. Tooltips of
+ * the bars near an edge align with it, so they stay on screen. The chart takes the height left in its panel, 12rem at
+ * least.
  */
 function DailyBars({
     range,
@@ -548,6 +562,8 @@ function DailyBars({
                                                     bar.isPartial
                                                         ? 'bg-primary/40'
                                                         : 'bg-primary',
+                                                    bar.isBackfilled &&
+                                                        BACKFILLED_STRIPES,
                                                 )}
                                                 style={{
                                                     height: `${(bar.value / top) * 100}%`,
@@ -929,6 +945,416 @@ function ActiveUserCounts({
     );
 }
 
+type RetentionDayNumber = keyof RetentionByDayData;
+
+const RETENTION_DAYS: { key: RetentionDayNumber; label: string }[] = [
+    { key: 'day_1', label: 'day 1' },
+    { key: 'day_7', label: 'day 7' },
+];
+
+function RetentionDayPicker({
+    day,
+    onChange,
+}: {
+    day: RetentionDayNumber;
+    onChange: (day: RetentionDayNumber) => void;
+}) {
+    return (
+        <div role="group" aria-label="Day" className="flex gap-1">
+            {RETENTION_DAYS.map((option) => (
+                <PresetButton
+                    key={option.key}
+                    isActive={day === option.key}
+                    onClick={() => onChange(option.key)}
+                >
+                    {option.label}
+                </PresetButton>
+            ))}
+        </div>
+    );
+}
+
+/**
+ * What marks a backfilled value, shown only when the chart has some.
+ */
+function BackfilledNote({
+    recordedSince,
+    marker,
+}: {
+    recordedSince: string;
+    marker: ReactNode;
+}) {
+    return (
+        <p className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+            {marker}
+            approximate before {formatZonedDate(recordedSince, 'UTC')}
+        </p>
+    );
+}
+
+const STRIPES_SWATCH = (
+    <span
+        aria-hidden
+        className={cn('size-3 rounded-sm bg-primary', BACKFILLED_STRIPES)}
+    />
+);
+
+/**
+ * The share of each signup day's sign-ups seen again exactly N days later, once that day is over, and the line at the
+ * share of the whole range. The note about backfilled bars depends on both days, so switching days doesn't move the
+ * chart.
+ */
+function RetentionByDay({
+    range,
+    days,
+    day,
+    recordedSince,
+    hasBackfilled,
+}: {
+    range: TrafficRange;
+    days: RetentionDay[];
+    day: RetentionDayNumber;
+    recordedSince: string;
+    hasBackfilled: boolean;
+}) {
+    const label = RETENTION_DAYS.find((option) => option.key === day)?.label;
+    const eligible = days.reduce((sum, item) => sum + item.eligible, 0);
+    const retained = days.reduce((sum, item) => sum + item.retained, 0);
+
+    return (
+        <div className="flex flex-1 flex-col">
+            {hasBackfilled && (
+                <BackfilledNote
+                    recordedSince={recordedSince}
+                    marker={STRIPES_SWATCH}
+                />
+            )}
+            <DailyBars
+                range={range}
+                average={ratio(retained, eligible)}
+                bars={days.map((item) => {
+                    const rate = item.retained / item.eligible;
+
+                    return {
+                        date: item.date,
+                        value: rate,
+                        isPartial: false,
+                        isBackfilled: item.backfilled,
+                        label: `${percent(rate)} of ${formatCount(item.eligible)} sign-ups`,
+                        details: [
+                            `active on ${label}`,
+                            ...(item.backfilled ? ['approximate'] : []),
+                        ],
+                    };
+                })}
+                caption={`Retention on ${label} by signup day`}
+                column={`Retention on ${label}`}
+                format={percent}
+                empty={`nothing yet: a signup day shows once its ${label} is over`}
+            />
+        </div>
+    );
+}
+
+/**
+ * The tooltip of a cell or a point: what it is, its rate, and how much of it is a floor.
+ */
+function RetentionTip({
+    title,
+    cell,
+    signups,
+    className,
+}: {
+    title: string;
+    cell: RetentionCell;
+    signups?: number;
+    className?: string;
+}) {
+    return (
+        <div
+            className={cn(
+                'pointer-events-none absolute bottom-full z-10 mb-2 hidden rounded-md border bg-popover px-2.5 py-1.5 text-left font-mono text-xs font-normal whitespace-nowrap text-popover-foreground shadow-sm group-hover:block',
+                className,
+            )}
+        >
+            <p className="text-muted-foreground">{title}</p>
+            <p className="font-medium tabular-nums">
+                {percent(cell.retained / cell.eligible)} of{' '}
+                {formatCount(cell.eligible)} sign-ups
+            </p>
+            {signups !== undefined && cell.eligible < signups && (
+                <p className="text-muted-foreground tabular-nums">
+                    {formatCount(signups - cell.eligible)} more not there yet
+                </p>
+            )}
+            {cell.backfilled > 0 && (
+                <p className="text-muted-foreground tabular-nums">
+                    {cell.backfilled === cell.eligible
+                        ? 'approximate'
+                        : `approximate for ${formatCount(cell.backfilled)} of them`}
+                </p>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Weekly cohorts down, days since signing up across: each cell is the share of the week's sign-ups seen again on that
+ * exact day, among the ones who reached it, darker when higher, against the highest of the table, in whole percents
+ * (the tooltip has the decimal). The color stops where the text on it would get hard to read, earlier in dark mode.
+ * Reading down a column tells whether newer cohorts stay better. A cell with backfilled days reads "≥", as it is a
+ * floor.
+ */
+function RetentionTable({ cohorts }: { cohorts: RetentionCohort[] }) {
+    const top = Math.max(
+        Number.MIN_VALUE,
+        ...cohorts.flatMap((cohort) =>
+            cohort.days
+                .filter((cell) => cell.eligible > 0)
+                .map((cell) => cell.retained / cell.eligible),
+        ),
+    );
+    const days = cohorts[0]?.days.map((cell) => cell.day) ?? [];
+
+    return (
+        <table className="w-full table-fixed border-separate border-spacing-0.5 font-mono text-xs tabular-nums [--heat-max:88%] dark:[--heat-max:56%]">
+            <caption className="sr-only">
+                Share of each week's sign-ups active on each day after signing
+                up
+            </caption>
+            <thead>
+                <tr className="text-muted-foreground">
+                    <th
+                        scope="col"
+                        className="w-24 pb-1 text-left font-normal sm:w-28"
+                    >
+                        signed up
+                    </th>
+                    {days.map((day) => (
+                        <th
+                            key={day}
+                            scope="col"
+                            className="pb-1 font-normal whitespace-nowrap"
+                        >
+                            <span className="sm:hidden">d</span>
+                            <span className="hidden sm:inline">day </span>
+                            {day}
+                        </th>
+                    ))}
+                </tr>
+            </thead>
+            <tbody>
+                {cohorts.map((cohort, row) => (
+                    <tr key={cohort.week}>
+                        <th
+                            scope="row"
+                            className="pr-2 text-left font-normal whitespace-nowrap"
+                        >
+                            <span>{formatZonedDate(cohort.week, 'UTC')}</span>
+                            <span className="ml-1.5 text-muted-foreground">
+                                {formatCount(cohort.signups)}
+                                <span className="sr-only"> sign-ups</span>
+                            </span>
+                        </th>
+                        {cohort.days.map((cell, column) => {
+                            if (cell.eligible === 0) {
+                                return (
+                                    <td
+                                        key={cell.day}
+                                        className="h-8 rounded-sm bg-muted/40 text-center text-muted-foreground"
+                                    >
+                                        <span aria-hidden>·</span>
+                                        <span className="sr-only">
+                                            not there yet
+                                        </span>
+                                    </td>
+                                );
+                            }
+
+                            const rate = cell.retained / cell.eligible;
+
+                            return (
+                                <td
+                                    key={cell.day}
+                                    className="group relative h-8 rounded-sm text-center whitespace-nowrap"
+                                    style={
+                                        {
+                                            '--heat': rate / top,
+                                            backgroundColor:
+                                                'color-mix(in oklab, var(--primary) calc(10% + var(--heat) * (var(--heat-max) - 10%)), var(--card))',
+                                        } as CSSProperties
+                                    }
+                                >
+                                    {cell.backfilled > 0 && '≥\u00a0'}
+                                    {Math.round(rate * 100)}%
+                                    <RetentionTip
+                                        title={`week of ${formatZonedDate(cohort.week, 'UTC')}, day ${cell.day}`}
+                                        cell={cell}
+                                        signups={cohort.signups}
+                                        className={cn(
+                                            column < days.length / 2
+                                                ? 'left-0'
+                                                : 'right-0',
+                                            row === 0 &&
+                                                'top-full bottom-auto mt-2 mb-0',
+                                        )}
+                                    />
+                                </td>
+                            );
+                        })}
+                    </tr>
+                ))}
+            </tbody>
+        </table>
+    );
+}
+
+/**
+ * The share of all the range's sign-ups seen again on each day after signing up, from everyone on the day they signed
+ * up. A point mostly backfilled is hollow, as it is a floor.
+ */
+function RetentionCurve({ curve }: { curve: RetentionCell[] }) {
+    const last = Math.max(30, ...curve.map((point) => point.day));
+    const points = [
+        { x: 0, y: 100 },
+        ...curve.map((point) => ({
+            x: (point.day / last) * 100,
+            y: (point.retained / point.eligible) * 100,
+        })),
+    ];
+
+    return (
+        <figure>
+            <figcaption className="mb-2 font-mono text-xs text-muted-foreground">
+                all cohorts, active on each day after signing up
+            </figcaption>
+            <div className="relative ml-9 h-40 border-b border-l border-rail">
+                {[25, 50, 75, 100].map((tick) => (
+                    <div
+                        key={tick}
+                        aria-hidden
+                        className="absolute inset-x-0 border-t border-rail/60"
+                        style={{ bottom: `${tick}%` }}
+                    >
+                        <span className="absolute top-0 right-full mr-1.5 -translate-y-1/2 font-mono text-xs text-muted-foreground tabular-nums">
+                            {tick}%
+                        </span>
+                    </div>
+                ))}
+                <svg
+                    aria-hidden
+                    viewBox="0 0 100 100"
+                    preserveAspectRatio="none"
+                    className="absolute inset-0 size-full overflow-visible text-primary"
+                >
+                    <polyline
+                        points={points
+                            .map((point) => `${point.x},${100 - point.y}`)
+                            .join(' ')}
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                        strokeLinejoin="round"
+                        vectorEffect="non-scaling-stroke"
+                    />
+                </svg>
+                {curve.map((point) => (
+                    <div
+                        key={point.day}
+                        className="group absolute flex size-4 -translate-x-1/2 translate-y-1/2 items-center justify-center"
+                        style={{
+                            left: `${(point.day / last) * 100}%`,
+                            bottom: `${(point.retained / point.eligible) * 100}%`,
+                        }}
+                    >
+                        <span
+                            className={cn(
+                                'size-2 rounded-full border-2 border-primary ring-2 ring-card',
+                                point.backfilled * 2 > point.eligible
+                                    ? 'bg-card'
+                                    : 'bg-primary',
+                            )}
+                        />
+                        <RetentionTip
+                            title={`day ${point.day}`}
+                            cell={point}
+                            className={
+                                point.day < last / 2 ? 'left-0' : 'right-0'
+                            }
+                        />
+                    </div>
+                ))}
+            </div>
+            <div className="mt-1.5 ml-9 flex justify-between font-mono text-xs text-muted-foreground tabular-nums">
+                <span>day 0</span>
+                <span>day {last}</span>
+            </div>
+            <div className="sr-only">
+                <table>
+                    <caption>Retention on each day after signing up</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Day</th>
+                            <th scope="col">Retention</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {curve.map((point) => (
+                            <tr key={point.day}>
+                                <th scope="row">{point.day}</th>
+                                <td>
+                                    {percent(point.retained / point.eligible)}{' '}
+                                    of {formatCount(point.eligible)} sign-ups
+                                    {point.backfilled > 0 &&
+                                        `, approximate for ${formatCount(point.backfilled)} of them`}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </figure>
+    );
+}
+
+function RetentionCohorts({
+    cohorts,
+    recordedSince,
+}: {
+    cohorts: RetentionCohortsData;
+    recordedSince: string;
+}) {
+    if (cohorts.curve.length === 0) {
+        return (
+            <div className="flex min-h-48 flex-1 items-center justify-center">
+                <p className="max-w-sm text-center font-mono text-[13px] text-balance text-muted-foreground">
+                    nothing yet: a cohort shows once its first sign-ups are a
+                    day old
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-5">
+            {cohorts.cohorts.some((cohort) =>
+                cohort.days.some((cell) => cell.backfilled > 0),
+            ) && (
+                <BackfilledNote
+                    recordedSince={recordedSince}
+                    marker={
+                        <span aria-hidden className="text-foreground">
+                            ≥
+                        </span>
+                    }
+                />
+            )}
+            <RetentionTable cohorts={cohorts.cohorts} />
+            <RetentionCurve curve={cohorts.curve} />
+        </div>
+    );
+}
+
 export default function Show({
     range,
     funnel,
@@ -936,6 +1362,9 @@ export default function Show({
     responses,
     newcomerFollows,
     activeUserCounts,
+    retentionByDay,
+    retentionCohorts,
+    retentionRecordedSince,
 }: {
     range: MetricsRange;
     funnel?: Funnel;
@@ -943,12 +1372,17 @@ export default function Show({
     responses: CommitResponses;
     newcomerFollows: NewcomerFollows;
     activeUserCounts: ActiveUserCount[];
+    retentionByDay: RetentionByDayData;
+    retentionCohorts: RetentionCohortsData;
+    retentionRecordedSince: string;
 }) {
     const days =
         Math.round(
             (Date.parse(range.to) - Date.parse(range.from)) / 86_400_000,
         ) + 1;
     const [measure, setMeasure] = useState<AcquisitionMeasure>('signups');
+    const [retentionDay, setRetentionDay] =
+        useState<RetentionDayNumber>('day_1');
 
     return (
         <>
@@ -1018,6 +1452,36 @@ export default function Show({
                             />
                         )}
                     </Deferred>
+                </Panel>
+
+                <Panel
+                    title="Retention by signup day"
+                    meta="utc"
+                    fill
+                    actions={
+                        <RetentionDayPicker
+                            day={retentionDay}
+                            onChange={setRetentionDay}
+                        />
+                    }
+                >
+                    <RetentionByDay
+                        range={range}
+                        days={retentionByDay[retentionDay]}
+                        day={retentionDay}
+                        recordedSince={retentionRecordedSince}
+                        hasBackfilled={[
+                            ...retentionByDay.day_1,
+                            ...retentionByDay.day_7,
+                        ].some((item) => item.backfilled)}
+                    />
+                </Panel>
+
+                <Panel title="Retention by cohort" meta="by week">
+                    <RetentionCohorts
+                        cohorts={retentionCohorts}
+                        recordedSince={retentionRecordedSince}
+                    />
                 </Panel>
 
                 <Panel

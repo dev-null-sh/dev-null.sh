@@ -6,12 +6,14 @@ export function PageTabs({
     label,
     tabs,
     preserveScroll = false,
+    preserveState = false,
     prefetch = true,
     only,
     reset,
 }: {
     label: string;
     preserveScroll?: boolean;
+    preserveState?: boolean;
     prefetch?: boolean;
     only?: InertiaLinkProps['only'];
     reset?: string[];
@@ -36,6 +38,7 @@ export function PageTabs({
                     prefetch={prefetch}
                     viewTransition
                     preserveScroll={preserveScroll}
+                    preserveState={preserveState}
                     only={only}
                     // Link exposes custom headers for both visits and prefetches, but no reset option.
                     headers={

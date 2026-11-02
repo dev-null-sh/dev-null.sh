@@ -19,7 +19,7 @@ it('loads the commit with what its page shows the viewer', function (): void {
     expect($loaded->replies_count)->toBe(1)
         ->and($loaded->stars_count)->toBe(2)
         ->and($loaded->starred)->toBeTrue()
-        ->and($loaded->relationLoaded('user'))->toBeTrue()
+        ->and($loaded->relationLoaded('author'))->toBeTrue()
         ->and($loaded->relationLoaded('linkPreview'))->toBeTrue()
         ->and($loaded->relationLoaded('images'))->toBeTrue();
 });

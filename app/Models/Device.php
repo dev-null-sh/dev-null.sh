@@ -20,6 +20,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property-read string $user_id
  * @property-read string $fingerprint
  * @property-read string $name
+ * @property-read string|null $app_id
+ * @property-read string|null $app_name
  * @property-read CarbonInterface $approved_at
  * @property-read CarbonInterface|null $last_used_at
  * @property-read CarbonInterface $created_at
@@ -29,6 +31,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Visible([
     'id',
     'name',
+    'app_name',
     'fingerprint',
     'approved_at',
     'last_used_at',
@@ -50,6 +53,8 @@ final class Device extends Model
             'user_id' => 'string',
             'fingerprint' => 'string',
             'name' => 'string',
+            'app_id' => 'string',
+            'app_name' => 'string',
             'approved_at' => 'datetime',
             'last_used_at' => 'datetime',
             'created_at' => 'datetime',
