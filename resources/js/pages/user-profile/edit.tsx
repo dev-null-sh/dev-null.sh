@@ -84,7 +84,9 @@ export default function Edit({
                         )}
                     </Form>
                     <Button variant="outline" asChild>
-                        <Link href={show(user)}>View profile</Link>
+                        <Link href={show(user)} prefetch>
+                            View profile
+                        </Link>
                     </Button>
                 </div>
 

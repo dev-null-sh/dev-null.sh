@@ -7,7 +7,6 @@ namespace App\Queries;
 use App\Models\Profile;
 use App\Models\User;
 use App\Services\Mentions;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final readonly class BioProfilesQuery
@@ -32,7 +31,7 @@ final readonly class BioProfilesQuery
         }
 
         return Profile::query()
-            ->whereIn(DB::raw('LOWER(handle)'), $handles)
+            ->whereIn('handle', $handles)
             ->get(['handle'])
             ->mapWithKeys(fn (Profile $profile): array => [Str::lower($profile->handle) => $profile->handle])
             ->all();

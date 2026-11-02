@@ -7,7 +7,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Requests\ListApiOrganizationMentionsRequest;
 use App\Http\Resources\CommitResource;
 use App\Models\Commit;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 use App\Queries\OrganizationMentionsQuery;
 use App\Queries\ReplyPreviewsQuery;
@@ -22,7 +22,7 @@ final readonly class OrganizationMentionController
     public function index(ListApiOrganizationMentionsRequest $request, #[CurrentUser] ?User $currentUser, OrganizationMentionsQuery $mentions, ReplyPreviewsQuery $replyPreviews): AnonymousResourceCollection
     {
         $organization = $request->organization();
-        assert($organization instanceof Profile);
+        assert($organization instanceof Organization);
 
         if ($currentUser instanceof User) {
             $signedCommits = $mentions->builder($organization, $currentUser)->cursorPaginate(20);

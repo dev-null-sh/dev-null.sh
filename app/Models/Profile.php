@@ -7,19 +7,22 @@ namespace App\Models;
 use App\Enums\ProfileType;
 use Carbon\CarbonInterface;
 use Database\Factories\ProfileFactory;
-use Illuminate\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Illuminate\Database\Eloquent\Attributes\Touches;
 use Illuminate\Database\Eloquent\Attributes\Visible;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Relations\Relation;
 
 /**
  * A GitHub account at its "@handle", mirrored from GitHub: what GitHub calls a profile owner. The handle is GitHub's
- * login, which can be renamed, so the account is matched by its GitHub ID.
+ * login, which can be renamed, so the account is matched by its GitHub ID. Users and organizations share the ID of
+ * their profile, so it names either, and what only they have lives on `User` or `Organization`.
+ *
+ * Like on GitHub, a handle is one whatever its case: the column is `citext`, so a plain `where('handle', ...)` matches
+ * any case and its unique index refuses the same handle in another case. Never lowercase it in a query to compare
+ * it. Only search filters lowercase it, as `LOWER(handle) LIKE ...`, which the trigram index serves.
  *
  * @property-read string $id
  * @property-read ProfileType $type
@@ -34,6 +37,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read User|null $user
+ * @property-read Organization|null $organization
  */
 #[Visible([
     'handle',
@@ -43,7 +47,7 @@ use Illuminate\Database\Eloquent\Relations\Relation;
     'location',
     'website',
 ])]
-#[Touches(['user'])]
+#[Touches(['user', 'organization'])]
 final class Profile extends Model
 {
     /** @use HasFactory<ProfileFactory> */
@@ -55,11 +59,6 @@ final class Profile extends Model
      * The GitHub identity a user shows, which lives on their profile.
      */
     public const array USER_ATTRIBUTES = ['handle', 'name', 'avatar_url', 'bio', 'location', 'website', 'github_synced_at'];
-
-    /**
-     * Organizations are refreshed from GitHub when a commit mentions them, at most this often.
-     */
-    public const int FRESH_FOR_HOURS = 24;
 
     /**
      * @return array<string, string>
@@ -83,44 +82,63 @@ final class Profile extends Model
     }
 
     /**
-     * Changes whenever anything drawn on the organization's link preview image may have changed.
-     */
-    public function openGraphImageVersion(): string
-    {
-        return hash('xxh3', (string) json_encode([$this->name, $this->handle, $this->avatar_url, $this->bio]));
-    }
-
-    /**
-     * Resolves "@handle" URLs whatever the handle's case, like GitHub. A stale profile may still hold the same handle
-     * in another case, so the exact case wins, then a user's, then always the same one, like users' pages.
+     * Shown, a profile is its user's or its organization's, with what is its type's alone, like a user's live stream.
      *
-     * @param  Model|BuilderContract|Relation<Model, Model, mixed>  $query
-     * @param  mixed  $value
-     * @param  string|null  $field
+     * @return array<mixed>
      */
-    public function resolveRouteBindingQuery($query, $value, $field = null): BuilderContract
+    public function toArray(): array
     {
-        return $field === 'handle'
-            ? $query->whereRaw('LOWER(handle) = LOWER(?)', [$value])->orderByRaw('handle = ? desc', [$value])->orderByRaw('type = ? desc', [ProfileType::User])->orderBy('handle')
-            : parent::resolveRouteBindingQuery($query, $value, $field);
+        return ['type' => $this->type, ...$this->owner()?->toArray() ?? []];
+    }
+
+    public function mention(): string
+    {
+        return '@'.$this->handle;
     }
 
     /**
+     * How link previews title the profile, without repeating a name that is just the handle.
+     */
+    public function nameWithHandle(): string
+    {
+        return $this->name === $this->handle ? $this->mention() : $this->name.' ('.$this->mention().')';
+    }
+
+    /**
+     * Loaded from its profile, the user reads their GitHub identity from it.
+     *
      * @return HasOne<User, $this>
      */
     public function user(): HasOne
     {
-        return $this->hasOne(User::class, 'github_id', 'github_id');
+        return $this->hasOne(User::class, 'id')->without('profile')->chaperone('profile');
     }
 
     /**
-     * The users who claimed the organization's page. GitHub only lets them in: leaving the organization there doesn't
-     * remove them here.
+     * Loaded from its profile, the organization reads its GitHub identity from it.
      *
-     * @return BelongsToMany<User, $this>
+     * @return HasOne<Organization, $this>
      */
-    public function admins(): BelongsToMany
+    public function organization(): HasOne
     {
-        return $this->belongsToMany(User::class, 'organization_admins', 'organization_id')->withTimestamps(updatedAt: false);
+        return $this->hasOne(Organization::class, 'id')->without('profile')->chaperone('profile');
+    }
+
+    /**
+     * The commits from the profile, a user's or an organization's.
+     *
+     * @return HasMany<Commit, $this>
+     */
+    public function commits(): HasMany
+    {
+        return $this->hasMany(Commit::class, 'author_id');
+    }
+
+    /**
+     * The user or the organization whose profile it is.
+     */
+    public function owner(): User|Organization|null
+    {
+        return $this->user ?? $this->organization;
     }
 }

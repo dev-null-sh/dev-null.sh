@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Queries;
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\User;
-use App\Services\GitHub;
 use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HtmlSanitizer\HtmlSanitizer;
@@ -26,7 +26,7 @@ final readonly class GitHubReadmeQuery
 
     private const int FailureTtl = 300;
 
-    public function __construct(private GitHub $github)
+    public function __construct(private GitHubProvider $github)
     {
         //
     }
@@ -95,11 +95,9 @@ final readonly class GitHubReadmeQuery
             return '';
         }
 
-        $response = $this->github->request()
-            ->replaceHeaders(['Accept' => 'application/vnd.github.html+json'])
-            ->get("repos/{$login}/{$login}/readme");
+        $html = $this->github->readme($login);
 
-        return $response->notFound() ? '' : $this->sanitize($response->throw()->body());
+        return $html === null ? '' : $this->sanitize($html);
     }
 
     /**

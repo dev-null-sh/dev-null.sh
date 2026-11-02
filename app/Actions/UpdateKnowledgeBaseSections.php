@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\EmbeddingProvider;
 use App\Models\KnowledgeBaseSection;
 use App\Services\MarkdownSections;
-use App\Services\OpenAI;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 
 final readonly class UpdateKnowledgeBaseSections
 {
-    public function __construct(private MarkdownSections $markdownSections, private OpenAI $openAI)
+    public function __construct(private MarkdownSections $markdownSections, private EmbeddingProvider $embeddings)
     {
         //
     }
@@ -31,7 +31,7 @@ final readonly class UpdateKnowledgeBaseSections
         $changed = $sections->filter(fn (array $section, int $position): bool => $embeddings[$position] === null);
 
         foreach ($changed->chunk(100) as $batch) {
-            $embeddings = $embeddings->replace($batch->keys()->combine($this->openAI->embedMany(
+            $embeddings = $embeddings->replace($batch->keys()->combine($this->embeddings->embedMany(
                 array_values($batch->map(fn (array $section): string => mb_trim(implode(' > ', $section['headings'])."\n\n".$section['content']))->all()),
             )));
         }

@@ -57,7 +57,7 @@ export function restoredCommitBelongsInFeed(
             : restored.parent_id === null;
     const matchesProfile =
         feed.profileUserId === null ||
-        (restored.user_id === feed.profileUserId &&
+        (restored.author.id === feed.profileUserId &&
             (feed.isProfileShipped || !restored.is_pinned));
 
     return (

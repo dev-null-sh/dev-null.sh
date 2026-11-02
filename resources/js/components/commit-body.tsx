@@ -193,11 +193,22 @@ function withFullBlocks(
     const blocks = segments.filter((segment) => segment.type === 'block');
     let index = 0;
 
-    return previewSegments.map((segment) =>
+    const preview = previewSegments.map((segment) =>
         segment.type === 'block'
             ? { ...segment, fullHtml: blocks[index++]?.html }
             : segment,
     );
+    const last = preview.at(-1);
+    const previous = preview.at(-2);
+
+    // A faded block already shows that it continues; keep the ellipsis for completed blocks and prose.
+    return last?.type === 'text' &&
+        last.text.trim() === '…' &&
+        previous?.type === 'block' &&
+        previous.fullHtml !== undefined &&
+        previous.fullHtml !== previous.html
+        ? preview.slice(0, -1)
+        : preview;
 }
 
 export function CommitBodyExcerpt({

@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import type { CSSProperties } from 'react';
 import UserBlockController from '@/actions/App/Http/Controllers/UserBlockController';
 import UserMuteController from '@/actions/App/Http/Controllers/UserMuteController';
@@ -12,11 +12,15 @@ import { laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type { User } from '@/types';
 
+type SafetyList = 'muted' | 'blocked';
+
 function PeopleList({
+    list,
     people,
     empty,
     undo,
 }: {
+    list: SafetyList;
     people: User[];
     empty: string;
     undo: (person: User) => {
@@ -43,6 +47,7 @@ function PeopleList({
                         className="flex items-center gap-3 px-4 py-3"
                     >
                         <Link
+                            prefetch
                             href={show(person)}
                             className="flex min-w-0 flex-1 items-center gap-3"
                         >
@@ -68,17 +73,25 @@ function PeopleList({
                             variant="outline"
                             size="sm"
                             className="shrink-0"
-                            asChild
+                            onClick={() =>
+                                router
+                                    .optimistic(
+                                        (
+                                            props: Record<SafetyList, User[]>,
+                                        ) => ({
+                                            [list]: props[list].filter(
+                                                ({ id }) => id !== person.id,
+                                            ),
+                                        }),
+                                    )
+                                    .visit(action.href, {
+                                        preserveScroll: true,
+                                        onSuccess: clearMentionSuggestionsCache,
+                                    })
+                            }
+                            aria-label={`${action.label} @${person.handle}`}
                         >
-                            <Link
-                                href={action.href}
-                                as="button"
-                                preserveScroll
-                                onSuccess={clearMentionSuggestionsCache}
-                                aria-label={`${action.label} @${person.handle}`}
-                            >
-                                {action.label}
-                            </Link>
+                            {action.label}
                         </Button>
                     </li>
                 );
@@ -104,6 +117,7 @@ export default function Edit({
                     description="Their commits and replies stay out of your logs, threads, search, and suggestions, and they can't notify you. They aren't told, and you can still visit their profile."
                 />
                 <PeopleList
+                    list="muted"
                     people={muted}
                     empty="You haven't muted anyone."
                     undo={(person) => ({
@@ -119,6 +133,7 @@ export default function Edit({
                     description="Neither of you can message, follow, reply to, or star the other, or see each other's commits. Unblocking doesn't bring back follows."
                 />
                 <PeopleList
+                    list="blocked"
                     people={blocked}
                     empty="You haven't blocked anyone."
                     undo={(person) => ({

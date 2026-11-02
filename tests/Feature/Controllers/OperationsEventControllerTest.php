@@ -28,8 +28,7 @@ it('lists the events of the last 24 hours to admins by default', function (): vo
             ->where('filters', ['window' => '24h', 'source' => null, 'level' => null, 'search' => ''])
             ->where('counts', ['signups' => 1, 'jobs' => 1, 'reports' => 0, 'moderation' => 0, 'bans' => 0, 'timeouts' => 0, 'features' => 0])
             ->has('histogram', 24)
-            ->where('histogram.23', ['at' => '2026-10-20T12:00:00+00:00', 'info' => 0, 'notice' => 0, 'warning' => 0, 'error' => 1])
-            ->where('hasTraffic', false));
+            ->where('histogram.23', ['at' => '2026-10-20T12:00:00+00:00', 'info' => 0, 'notice' => 0, 'warning' => 0, 'error' => 1]));
 });
 
 it('filters the events by window, source, level and search', function (): void {

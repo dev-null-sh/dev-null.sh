@@ -28,6 +28,8 @@ final class ShowMobileAuthorizationRequest extends FormRequest
         return [
             'fingerprint' => ['required', 'string', 'regex:/^SHA256:[A-Za-z0-9+\/]{43}$/'],
             'device_name' => ['required', 'string', 'max:100'],
+            'app_id' => ['nullable', 'string', 'max:100', 'regex:/^[a-z]+:[A-Za-z0-9._-]+$/'],
+            'app_name' => ['nullable', 'string', 'max:100'],
             'code_challenge' => ['required', 'string', 'regex:/^[A-Za-z0-9_-]{43}$/'],
             'code_challenge_method' => ['required', 'string', 'in:S256'],
             'state' => ['required', 'string', 'max:255'],
@@ -74,6 +76,8 @@ final class ShowMobileAuthorizationRequest extends FormRequest
             $this->string('code_challenge')->value(),
             $this->string('state')->value(),
             $this->string('redirect_uri')->value(),
+            $this->filled('app_name') ? $this->string('app_name')->value() : null,
+            $this->filled('app_id') ? $this->string('app_id')->value() : null,
         );
     }
 

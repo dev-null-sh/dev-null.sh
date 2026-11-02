@@ -24,6 +24,7 @@ final class DeviceResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'app_name' => $this->app_name,
             'fingerprint' => $this->fingerprint,
             'approved_at' => $this->approved_at->toIso8601ZuluString(),
             'last_used_at' => $this->last_used_at?->toIso8601ZuluString(),

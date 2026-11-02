@@ -12,7 +12,7 @@ import {
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
 import { isDeliberateHover } from '@/lib/feed-hover';
-import { cn, formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
+import { authorLaneColor, cn, formatDayLabel, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 const interludeAfter = 5;
@@ -205,7 +205,7 @@ export function CommitFeed({
     const isDimmed = (commit: Commit) =>
         dimsLanes &&
         (highlightedAuthor !== null
-            ? commit.user_id !== highlightedAuthor
+            ? commit.author.id !== highlightedAuthor
             : highlightedCommit !== null && commit.id !== highlightedCommit);
 
     const lastCommit = listed.at(-1) ?? pinnedCommit;
@@ -226,7 +226,7 @@ export function CommitFeed({
             threadActions={threadActions?.(commit)}
             isFolded={isFolded}
             onAuthorHover={(isHovering) =>
-                highlightAuthor(commit.user_id, isHovering)
+                highlightAuthor(commit.author.id, isHovering)
             }
             onHover={(isHovering, event) =>
                 highlightCommit(commit.id, isHovering, event)
@@ -302,7 +302,7 @@ export function CommitFeed({
                             {card(commit)}
                             {index === interludeIndex &&
                                 interlude?.(
-                                    laneColor(commit.user.lane),
+                                    authorLaneColor(commit.author),
                                     isDimmed(commit),
                                 )}
                         </Fragment>
@@ -313,7 +313,7 @@ export function CommitFeed({
             {commits.next_cursor === null && lastCommit && (
                 <div className="flex">
                     <GraphRail
-                        lane={laneColor(lastCommit.user.lane)}
+                        lane={authorLaneColor(lastCommit.author)}
                         variant="root"
                         hasTail={false}
                     />

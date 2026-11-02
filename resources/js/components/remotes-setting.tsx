@@ -6,6 +6,7 @@ import {
     useRemoteAlertsEnabled,
     useRemoteNotificationSupport,
 } from '@/hooks/use-chat';
+import { usePicked } from '@/hooks/use-picked';
 import type { RemoteAlertChannel } from '@/lib/remote-notifications';
 import { setRemoteAlerts } from '@/lib/remote-notifications';
 import { RemotePushValidationError } from '@/lib/remote-push';
@@ -16,8 +17,9 @@ import { cn } from '@/lib/utils';
  */
 export function RemotesSetting() {
     const { auth } = usePage().props;
-    const enabled = auth.remotes !== null;
-    const [processing, setProcessing] = useState(false);
+    const { picked, pick } = usePicked<boolean>();
+    const processing = picked !== null;
+    const enabled = picked ?? auth.remotes !== null;
     const alertsEnabled = useRemoteAlertsEnabled(auth.user?.id ?? null);
     const soundEnabled = useRemoteAlertsEnabled(auth.user?.id ?? null, 'sound');
     const supported = useRemoteNotificationSupport();
@@ -65,8 +67,7 @@ export function RemotesSetting() {
             {
                 preserveScroll: true,
                 only: ['auth'],
-                onStart: () => setProcessing(true),
-                onFinish: () => setProcessing(false),
+                onFinish: pick(!enabled),
                 onError: () =>
                     toast.error('Could not save remotes. Please try again.'),
                 onSuccess: () => router.flushAll(),

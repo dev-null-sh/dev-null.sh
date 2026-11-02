@@ -64,7 +64,7 @@ final readonly class UserAchievementsQuery
         $commitStats = (clone $visibleCommitsQuery)
             ->leftJoin('commits as parents', fn (JoinClause $join): JoinClause => $join
                 ->on('parents.id', '=', 'commits.parent_id')
-                ->where('parents.user_id', '!=', $user->id))
+                ->where('parents.author_id', '!=', $user->id))
             ->selectRaw("COUNT(*) as total_commits, MAX(CASE WHEN commits.body LIKE '%```%' THEN 1 ELSE 0 END) as has_syntax, COUNT(parents.id) as replies")
             ->first();
 
@@ -81,7 +81,7 @@ final readonly class UserAchievementsQuery
 
         // Stars given to visible commits by other developers, excluding self-stars
         $starsGivenCount = (int) $user->starredCommits()
-            ->where('commits.user_id', '!=', $user->id)
+            ->where('commits.author_id', '!=', $user->id)
             ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
             ->count();
 

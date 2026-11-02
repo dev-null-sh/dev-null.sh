@@ -109,7 +109,7 @@ void test('restores a latest row by creation time and a starred row by star time
 const restoredCommit = (overrides: Partial<Commit> = {}) =>
     ({
         id: 'restored',
-        user_id: 'author',
+        author: { id: 'author', type: 'user' } as Commit['author'],
         parent_id: null,
         starred: false,
         is_pinned: false,
@@ -145,7 +145,9 @@ void test('puts a restored commit back only on the feed it belongs to', () => {
     );
     assert.equal(
         restoredCommitBelongsInFeed(
-            restoredCommit({ user_id: 'someone' }),
+            restoredCommit({
+                author: { id: 'someone', type: 'user' } as Commit['author'],
+            }),
             commitsTab,
         ),
         false,
@@ -199,7 +201,10 @@ void test('puts a restored commit back only on the feed it belongs to', () => {
     );
     assert.equal(
         restoredCommitBelongsInFeed(
-            restoredCommit({ shipped: true, user_id: 'someone' }),
+            restoredCommit({
+                shipped: true,
+                author: { id: 'someone', type: 'user' } as Commit['author'],
+            }),
             shippedTab,
         ),
         false,

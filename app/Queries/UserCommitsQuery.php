@@ -18,7 +18,7 @@ final readonly class UserCommitsQuery
     public function builder(User $user, ?User $viewer, bool $replies = false, bool $shipped = false): CommitBuilder
     {
         return Commit::query()
-            ->whereBelongsTo($user)
+            ->where('author_id', $user->id)
             ->visibleTo($viewer)
             ->when(
                 $replies,
@@ -26,7 +26,7 @@ final readonly class UserCommitsQuery
                     ->whereNotNull('parent_id')
                     ->with(['parent' => fn (BelongsTo $query): BelongsTo => $query
                         ->where(fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
-                        ->with('user')]),
+                        ->with('author')]),
                 fn (CommitBuilder $query): CommitBuilder => $query->topLevel()
                     ->when($shipped, fn (CommitBuilder $query): CommitBuilder => $query->where('shipped', true))
                     ->when(

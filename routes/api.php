@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Exceptions\ApiException;
+use App\Http\Controllers\Api\CallController;
 use App\Http\Controllers\Api\CommitController as ApiCommitController;
 use App\Http\Controllers\Api\CommitPastelController;
 use App\Http\Controllers\Api\CommitPinController;
@@ -15,6 +16,8 @@ use App\Http\Controllers\Api\CommitSearchController;
 use App\Http\Controllers\Api\CommitStarController;
 use App\Http\Controllers\Api\CommitTranslationController;
 use App\Http\Controllers\Api\ConversationArchiveController;
+use App\Http\Controllers\Api\ConversationCallController;
+use App\Http\Controllers\Api\ConversationCallIceServerController;
 use App\Http\Controllers\Api\ConversationController;
 use App\Http\Controllers\Api\ConversationDropController;
 use App\Http\Controllers\Api\ConversationMergeController;
@@ -27,6 +30,7 @@ use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
 use App\Http\Controllers\Api\IssueSuggestionController;
+use App\Http\Controllers\Api\LiveFollowingController;
 use App\Http\Controllers\Api\LogController;
 use App\Http\Controllers\Api\MacAppController;
 use App\Http\Controllers\Api\MentionSuggestionController;
@@ -37,9 +41,13 @@ use App\Http\Controllers\Api\MessageReactionController;
 use App\Http\Controllers\Api\MessageVoiceController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
+use App\Http\Controllers\Api\OrganizationAdminController;
 use App\Http\Controllers\Api\OrganizationController;
+use App\Http\Controllers\Api\OrganizationFollowController;
 use App\Http\Controllers\Api\OrganizationMentionController;
 use App\Http\Controllers\Api\OrgArchiveController;
+use App\Http\Controllers\Api\OrgCallController;
+use App\Http\Controllers\Api\OrgCallIceServerController;
 use App\Http\Controllers\Api\OrgController;
 use App\Http\Controllers\Api\OrgMemberController;
 use App\Http\Controllers\Api\OrgMessageController;
@@ -48,6 +56,7 @@ use App\Http\Controllers\Api\OrgPinController;
 use App\Http\Controllers\Api\OrgPingController;
 use App\Http\Controllers\Api\OrgReadController;
 use App\Http\Controllers\Api\OrgTypingController;
+use App\Http\Controllers\Api\ProfileSearchController;
 use App\Http\Controllers\Api\RelatedCommitController;
 use App\Http\Controllers\Api\RemoteCandidateController;
 use App\Http\Controllers\Api\ScheduledCommitController;
@@ -60,9 +69,11 @@ use App\Http\Controllers\Api\UserBlockController;
 use App\Http\Controllers\Api\UserCommitController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserFollowController;
+use App\Http\Controllers\Api\UserFollowedOrganizationController;
 use App\Http\Controllers\Api\UserFollowersController;
 use App\Http\Controllers\Api\UserFollowingController;
 use App\Http\Controllers\Api\UserLaneController;
+use App\Http\Controllers\Api\UserLiveController;
 use App\Http\Controllers\Api\UserMuteController;
 use App\Http\Controllers\Api\UserPasteisModeController;
 use App\Http\Controllers\Api\UserProfileController;
@@ -99,10 +110,6 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-user.show');
         Route::get('users/{user:handle}/commits', [UserCommitController::class, 'index'])
             ->name('api-user-commit.index');
-        Route::get('users/{user:handle}/followers', [UserFollowersController::class, 'index'])
-            ->name('api-user-followers.index');
-        Route::get('users/{user:handle}/following', [UserFollowingController::class, 'index'])
-            ->name('api-user-following.index');
         Route::get('commits/{commit}', [ApiCommitController::class, 'show'])
             ->name('api-commit.show');
         Route::get('commits/{commit}/related', [RelatedCommitController::class, 'index'])
@@ -151,6 +158,13 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         // User Lane...
         Route::put('me/lane', [UserLaneController::class, 'update'])->name('api-user-lane.update');
 
+        // User Live: the stream the user is on, as Go live and End stream do on the web...
+        Route::put('me/live', [UserLiveController::class, 'update'])
+            ->middleware(PreventPostingInTimeout::class)
+            ->name('api-user-live.update');
+        Route::delete('me/live', [UserLiveController::class, 'destroy'])->name('api-user-live.destroy');
+        Route::get('me/live-following', [LiveFollowingController::class, 'index'])->name('api-live-following.index');
+
         // User Settings: what the web's settings show only the user...
         Route::get('me/settings', [UserSettingsController::class, 'show'])->name('api-user-settings.show');
 
@@ -165,7 +179,19 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->whereUuid('device')
             ->name('api-device.destroy');
 
-        // Search: people by name or handle, and commits by meaning, as the web's search finds them...
+        // Who follows whom, for members like on the web, so scrapers can't walk the graph...
+        Route::get('users/{user:handle}/followers', [UserFollowersController::class, 'index'])
+            ->name('api-user-followers.index');
+        Route::get('users/{user:handle}/following', [UserFollowingController::class, 'index'])
+            ->name('api-user-following.index');
+        Route::get('users/{user:handle}/following/organizations', [UserFollowedOrganizationController::class, 'index'])
+            ->name('api-user-followed-organization.index');
+
+        // Search: people and organizations by name or handle, and commits by meaning, as the web's search finds them...
+        Route::get('search/profiles', [ProfileSearchController::class, 'index'])
+            ->middleware('throttle:people')
+            ->name('api-profile-search.index');
+        // Deprecated for search/profiles, kept for the apps that still call it...
         Route::get('search/users', [UserSearchController::class, 'index'])
             ->middleware('throttle:people')
             ->name('api-user-search.index');
@@ -268,6 +294,19 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->middleware('throttle:follows')
             ->name('api-user-follow.destroy');
 
+        // Organization Follow...
+        Route::post('organizations/{handle}/follow', [OrganizationFollowController::class, 'store'])
+            ->middleware('throttle:follows')
+            ->name('api-organization-follow.store');
+        Route::delete('organizations/{handle}/follow', [OrganizationFollowController::class, 'destroy'])
+            ->middleware('throttle:follows')
+            ->name('api-organization-follow.destroy');
+
+        // Organization Admin: claiming an organization's page, which GitHub confirms the user belongs to...
+        Route::post('organizations/{handle}/claim', [OrganizationAdminController::class, 'store'])
+            ->middleware('throttle:10,1')
+            ->name('api-organization-admin.store');
+
         // Who to Follow...
         Route::get('me/suggested-users', [SuggestedUserController::class, 'index'])->name('api-suggested-user.index');
         Route::post('users/{user:handle}/dismiss', [SuggestionDismissalController::class, 'store'])->name('api-suggestion-dismissal.store');
@@ -354,6 +393,39 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->whereUuid('org')
             ->middleware([PreventPostingInTimeout::class, 'throttle:pings'])
             ->name('api-org-ping.store');
+
+        // Remote Calls: ringing, answering and ending a call, and checking in to an org's, polled as the web polls them...
+        Route::middleware('throttle:conversations')->group(function (): void {
+            Route::get('remotes/call', [CallController::class, 'show'])->name('api-call.show');
+            Route::get('remotes/@{partner:handle}/call', [ConversationCallController::class, 'show'])
+                ->name('api-conversation-call.show');
+            Route::put('remotes/@{partner:handle}/call', [ConversationCallController::class, 'update'])
+                ->name('api-conversation-call.update');
+            Route::delete('remotes/@{partner:handle}/call', [ConversationCallController::class, 'destroy'])
+                ->name('api-conversation-call.destroy');
+            Route::put('remotes/orgs/{org}/call', [OrgCallController::class, 'update'])
+                ->whereUuid('org')
+                ->name('api-org-call.update');
+            Route::delete('remotes/orgs/{org}/call', [OrgCallController::class, 'destroy'])
+                ->whereUuid('org')
+                ->name('api-org-call.destroy');
+        });
+
+        // Remote Calls: starting or joining one, and the relay it goes through, as often as the web's Call may...
+        Route::middleware('throttle:messages')->group(function (): void {
+            Route::get('remotes/@{partner:handle}/call/ice-servers', [ConversationCallIceServerController::class, 'index'])
+                ->name('api-conversation-call-ice-server.index');
+            Route::post('remotes/@{partner:handle}/call', [ConversationCallController::class, 'store'])
+                ->middleware(PreventPostingInTimeout::class)
+                ->name('api-conversation-call.store');
+            Route::get('remotes/orgs/{org}/call/ice-servers', [OrgCallIceServerController::class, 'index'])
+                ->whereUuid('org')
+                ->name('api-org-call-ice-server.index');
+            Route::post('remotes/orgs/{org}/call', [OrgCallController::class, 'store'])
+                ->whereUuid('org')
+                ->middleware(PreventPostingInTimeout::class)
+                ->name('api-org-call.store');
+        });
 
         // Remote Reactions...
         Route::middleware('throttle:conversations')->group(function (): void {

@@ -2,9 +2,12 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\Notification;
 use App\Models\User;
-use Illuminate\Support\Facades\Http;
+use GuzzleHttp\Psr7\Response as Psr7Response;
+use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 
 beforeEach(function (): void {
     $this->user = User::factory()->create(['github_id' => '583231', 'handle' => 'old-handle', 'bio' => 'Old bio']);
@@ -12,7 +15,20 @@ beforeEach(function (): void {
 });
 
 it('syncs the profile from github, and answers like me', function (): void {
-    fakeGitHubAccount($this->user, ['login' => 'octocat', 'bio' => 'New bio']);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with('583231')->andReturn([
+        'id' => 583231,
+        'login' => 'octocat',
+        'name' => 'The Octocat',
+        'email' => 'octocat@github.com',
+        'avatar_url' => 'https://avatars.githubusercontent.com/u/583231?v=4',
+        'bio' => 'New bio',
+        'company' => '@github',
+        'location' => 'San Francisco',
+        'blog' => 'https://github.blog',
+    ]);
+    $github->shouldReceive('login')->with('583231')->andReturn('octocat');
+    $github->shouldReceive('sshKeys')->with('octocat')->andReturn([]);
 
     Notification::factory()->for($this->user, 'recipient')->create();
 
@@ -38,9 +54,7 @@ it('syncs the profile from github, and answers like me', function (): void {
 });
 
 it('answers with a code when github could not be synced, as the web words it', function (): void {
-    Http::fake([
-        "api.github.com/user/{$this->user->github_id}" => Http::response(['message' => 'Server Error'], 500),
-    ]);
+    $this->mock(GitHubProvider::class)->shouldReceive('account')->with($this->user->github_id)->andThrow(new RequestException(new Response(new Psr7Response(500))));
 
     $response = signedApiRequest($this->keyPair, 'PUT', route('api-user-profile.update'));
 
@@ -56,7 +70,20 @@ it('answers with a code when github could not be synced, as the web words it', f
 });
 
 it('allows one sync a minute, shared with the web, with a code', function (): void {
-    fakeGitHubAccount($this->user);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('account')->with('583231')->andReturn([
+        'id' => 583231,
+        'login' => 'octocat',
+        'name' => 'The Octocat',
+        'email' => 'octocat@github.com',
+        'avatar_url' => 'https://avatars.githubusercontent.com/u/583231?v=4',
+        'bio' => 'I am the Octocat.',
+        'company' => '@github',
+        'location' => 'San Francisco',
+        'blog' => 'https://github.blog',
+    ]);
+    $github->shouldReceive('login')->with('583231')->andReturn('octocat');
+    $github->shouldReceive('sshKeys')->with('octocat')->andReturn([]);
 
     $this->actingAs($this->user)
         ->fromRoute('user-profile.edit')
@@ -72,7 +99,7 @@ it('allows one sync a minute, shared with the web, with a code', function (): vo
             'code' => 'rate_limited',
         ]);
 
-    Http::assertSentCount(4);
+    $github->shouldHaveReceived('account')->once();
 
     $this->travel(1)->minute();
 
@@ -80,7 +107,7 @@ it('allows one sync a minute, shared with the web, with a code', function (): vo
 });
 
 it('rejects requests that are not signed', function (): void {
-    $this->putJson(route('api-user-profile.update'))->assertUnauthorized();
+    $this->mock(GitHubProvider::class)->shouldNotReceive('account');
 
-    Http::assertNothingSent();
+    $this->putJson(route('api-user-profile.update'))->assertUnauthorized();
 });

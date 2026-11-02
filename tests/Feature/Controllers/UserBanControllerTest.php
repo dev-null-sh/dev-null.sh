@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\GitHubProvider;
 use App\Enums\ModerationReason;
 use App\Models\Ban;
 use App\Models\Commit;
@@ -184,7 +185,8 @@ it('signs in a banned user who still has an account, straight to the banned page
     $user = User::factory()->banned()->create(['github_id' => '583231']);
 
     Socialite::fake('github', GitHubUser::fake(['id' => '583231', 'nickname' => $user->handle]));
-    fakeGitHubSponsorsListing();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('hasSponsorsListing')->andReturnFalse();
 
     $this->get(route('login.store'))->assertRedirect();
 
