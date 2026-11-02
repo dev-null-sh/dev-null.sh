@@ -39,6 +39,7 @@ declare module '@inertiajs/core' {
             now: number;
             suggestedUsers?: SuggestedUser[];
             liveFollowing?: User[];
+            hotTopics?: { id: string; name: string }[];
             [key: string]: unknown;
         };
     }

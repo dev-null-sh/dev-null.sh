@@ -10,7 +10,7 @@ use App\Queries\HotHeadlinesQuery;
 use App\Services\TheAlgorithm;
 use Illuminate\Database\Eloquent\Factories\Sequence;
 
-it('aggregates shared headlines without returning unused headlines or internal identifiers', function (): void {
+it('aggregates shared headlines with their page identifiers without returning unused headlines', function (): void {
     $shared = Headline::factory()->create(['name' => 'Shared topic']);
     $other = Headline::factory()->create(['name' => 'Other topic']);
     Headline::factory()->create();
@@ -18,8 +18,8 @@ it('aggregates shared headlines without returning unused headlines or internal i
     Commit::factory()->create()->headlines()->attach($shared);
 
     expect(resolve(HotHeadlinesQuery::class)->get())->toBe([
-        ['name' => 'Shared topic', 'commits_count' => 2, 'score' => 2.0],
-        ['name' => 'Other topic', 'commits_count' => 1, 'score' => 1.0],
+        ['id' => $shared->id, 'name' => 'Shared topic', 'commits_count' => 2, 'score' => 2.0],
+        ['id' => $other->id, 'name' => 'Other topic', 'commits_count' => 1, 'score' => 1.0],
     ]);
 });
 
@@ -56,11 +56,11 @@ it('uses the rolling eight hours of posting time rather than headline link time'
     Commit::factory()->create(['created_at' => now()->addSecond()])->headlines()->attach($headline);
     $query = resolve(HotHeadlinesQuery::class);
 
-    expect($query->get())->toBe([['name' => $headline->name, 'commits_count' => 2, 'score' => 2.0]]);
+    expect($query->get())->toBe([['id' => $headline->id, 'name' => $headline->name, 'commits_count' => 2, 'score' => 2.0]]);
 
     $this->travel(1)->seconds();
 
-    expect($query->get())->toBe([['name' => $headline->name, 'commits_count' => 2, 'score' => 2.0]]);
+    expect($query->get())->toBe([['id' => $headline->id, 'name' => $headline->name, 'commits_count' => 2, 'score' => 2.0]]);
 
     $this->travelTo(now()->addHours(8)->addSecond());
 
@@ -80,7 +80,7 @@ it('counts only approved undeleted top-level commits even for their author', fun
     $deleted->delete();
 
     expect(resolve(HotHeadlinesQuery::class)->get($viewer))->toBe([
-        ['name' => $headline->name, 'commits_count' => 1, 'score' => 1.0],
+        ['id' => $headline->id, 'name' => $headline->name, 'commits_count' => 1, 'score' => 1.0],
     ]);
 });
 
@@ -101,7 +101,7 @@ it('excludes muted and blocked authors from both topic discovery and aggregation
     }
 
     expect(resolve(HotHeadlinesQuery::class)->get($viewer))->toBe([
-        ['name' => 'Shared topic', 'commits_count' => 1, 'score' => 1.0],
+        ['id' => $shared->id, 'name' => 'Shared topic', 'commits_count' => 1, 'score' => 1.0],
     ]);
 });
 

@@ -56,6 +56,7 @@ use App\Http\Controllers\FailedJobRetryController;
 use App\Http\Controllers\FailedJobsController;
 use App\Http\Controllers\FeatureController;
 use App\Http\Controllers\ForecastController;
+use App\Http\Controllers\HeadlineController;
 use App\Http\Controllers\InboxController;
 use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
@@ -326,6 +327,11 @@ Route::get('search/profiles', [ProfileSearchController::class, 'index'])
 Route::get('search/commits', [CommitSearchController::class, 'index'])
     ->middleware(['auth', 'throttle:search'])
     ->name('commit-search.index');
+
+Route::get('headlines/{headline}', [HeadlineController::class, 'show'])
+    ->whereUuid('headline')
+    ->middleware(['auth', 'throttle:search'])
+    ->name('headline.show');
 
 Route::middleware('auth')->group(function (): void {
     Route::post('issues', [IssueController::class, 'store'])
