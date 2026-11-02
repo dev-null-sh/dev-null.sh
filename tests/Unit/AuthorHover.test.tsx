@@ -8,7 +8,7 @@ import type {
     ReactNode,
 } from 'react';
 import { afterAll, afterEach, test, vi } from 'vite-plus/test';
-import type { SuggestedUser, User } from '../../resources/js/types';
+import type { Actor, SuggestedUser, User } from '../../resources/js/types';
 
 let showPreview = false;
 const stateChanges: unknown[] = [];
@@ -36,6 +36,8 @@ vi.doMock('react-dom', async () => ({
 const { GraphRail } = await import('../../resources/js/components/graph-rail');
 const { UserAvatar } =
     await import('../../resources/js/components/user-avatar');
+const { AuthorAvatar } =
+    await import('../../resources/js/components/author-avatar');
 const { ActorAvatar } =
     await import('../../resources/js/pages/notification/index');
 const { UserPreview, clearUserPreviews } =
@@ -186,7 +188,6 @@ function previewContent(user: User) {
         React.Children.toArray(preview.props.children)[1] as ReactElement<{
             children: ReactElement<{
                 data: { followsYou: boolean; isMuting: boolean } | null;
-                onChange: (data: object) => void;
             }>;
         }>
     ).props.children.props;
@@ -201,19 +202,7 @@ const mutedPreview = (user: User) => ({
     user,
 });
 
-test('profile preview opens without the cached relationship once previews are cleared', () => {
-    const user = { id: 'muted', handle: 'muted' } as User;
-
-    previewContent(user).onChange(mutedPreview(user));
-    assert.equal(previewContent(user).data?.isMuting, true);
-
-    clearUserPreviews();
-
-    assert.equal(previewContent(user).data, null);
-});
-
-test('profile preview drops a response that arrives after previews are cleared', async () => {
-    const user = { id: 'raced', handle: 'raced' } as User;
+async function hoverUntilLoaded(user: User, beforeResponse = () => {}) {
     let respond = (_response: Response) => {};
     vi.useFakeTimers();
     vi.stubGlobal('window', {
@@ -226,7 +215,7 @@ test('profile preview drops a response that arrives after previews are cleared',
         () => new Promise<Response>((resolve) => (respond = resolve)),
     );
     const trigger = React.Children.toArray(
-        UserPreview({ user, children: 'Raced' }).props.children,
+        UserPreview({ user, children: user.handle }).props.children,
     )[0] as ReactElement<
         HTMLAttributes<HTMLElement> & { ref: { current: unknown } }
     >;
@@ -238,11 +227,28 @@ test('profile preview drops a response that arrives after previews are cleared',
         pointerType: 'mouse',
     } as PointerEvent<HTMLElement>);
     vi.runAllTimers();
-    clearUserPreviews();
+    beforeResponse();
     respond(Response.json(mutedPreview(user)));
     vi.useRealTimers();
     await new Promise((resolve) => setTimeout(resolve));
     vi.stubGlobal('window', { matchMedia: () => ({ matches: false }) });
+}
+
+test('profile preview opens without the cached relationship once previews are cleared', async () => {
+    const user = { id: 'muted', handle: 'muted' } as User;
+
+    await hoverUntilLoaded(user);
+    assert.equal(previewContent(user).data?.isMuting, true);
+
+    clearUserPreviews();
+
+    assert.equal(previewContent(user).data, null);
+});
+
+test('profile preview drops a response that arrives after previews are cleared', async () => {
+    const user = { id: 'raced', handle: 'raced' } as User;
+
+    await hoverUntilLoaded(user, clearUserPreviews);
 
     assert.equal(previewContent(user).data, null);
     assert.ok(
@@ -290,19 +296,21 @@ test('suggested user row wraps the author in a user preview anchored to their av
 });
 
 const actor = {
+    type: 'user',
     id: 'actor',
     name: 'Actor',
     handle: 'actor',
     avatar_url: null,
     lane: 1,
-} as User;
+    is_followed: false,
+} as Actor;
 
 type ActorPreview = ReactElement<{
     user: User;
     anchor: React.RefObject<HTMLSpanElement | null>;
     children: ReactElement<{
         ref: React.RefObject<HTMLSpanElement | null>;
-        children: ReactElement<{ user: User }>;
+        children: ReactElement<{ author: Actor }>;
     }>;
 }>;
 
@@ -315,6 +323,6 @@ test('notification actor avatar previews the actor around the avatar it anchors'
     assert.equal(preview.props.user, actor);
     assert.equal(preview.props.anchor, anchor);
     assert.equal(avatar.props.ref, anchor);
-    assert.equal(avatar.props.children.type, UserAvatar);
-    assert.equal(avatar.props.children.props.user, actor);
+    assert.equal(avatar.props.children.type, AuthorAvatar);
+    assert.equal(avatar.props.children.props.author, actor);
 });

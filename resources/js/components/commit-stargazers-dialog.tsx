@@ -86,6 +86,7 @@ export function CommitStargazersDialog({
                     {stargazers.map((stargazer) => (
                         <li key={stargazer.id}>
                             <Link
+                                prefetch
                                 href={show(stargazer)}
                                 onClick={() => setOpen(false)}
                                 className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent"

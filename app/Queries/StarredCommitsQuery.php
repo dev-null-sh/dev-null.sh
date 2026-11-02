@@ -23,7 +23,7 @@ final readonly class StarredCommitsQuery
             ->withCardDataFor($user)
             ->with([
                 'parent' => function (BelongsTo $parent) use ($user): void {
-                    $parent->getQuery()->withTrashed()->visibleTo($user)->with('user');
+                    $parent->getQuery()->withTrashed()->visibleTo($user)->with('author');
                 },
             ])
             ->orderByDesc('starred_order')->orderByDesc('commits.id');

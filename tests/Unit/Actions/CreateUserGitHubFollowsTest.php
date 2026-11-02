@@ -3,18 +3,25 @@
 declare(strict_types=1);
 
 use App\Actions\CreateUserGitHubFollows;
+use App\Contracts\Services\GitHubProvider;
 use App\Enums\NotificationType;
 use App\Models\Notification;
+use App\Models\Organization;
 use App\Models\User;
+use GuzzleHttp\Psr7\Response as Psr7Response;
 use Illuminate\Http\Client\RequestException;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\DB;
 
 it('follows the users they follow on github', function (): void {
     $user = User::factory()->create();
     $followed = User::factory()->create();
     $notFollowed = User::factory()->create();
 
-    fakeGitHubFollows($user, following: [$followed]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn(['users' => [$followed->github_id], 'organizations' => []]);
+    $github->shouldReceive('followerIds')->with($user->handle, 10)->andReturn([]);
 
     resolve(CreateUserGitHubFollows::class)->handle($user);
 
@@ -27,7 +34,10 @@ it('has the users following them on github follow them', function (): void {
     $user = User::factory()->create();
     $follower = User::factory()->create();
 
-    fakeGitHubFollows($user, followers: [$follower]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn(['users' => [], 'organizations' => []]);
+    $github->shouldReceive('followerIds')->with($user->handle, 10)->andReturn([$follower->github_id]);
 
     resolve(CreateUserGitHubFollows::class)->handle($user);
 
@@ -39,7 +49,10 @@ it('ignores github accounts that are not on devnull', function (): void {
     $user = User::factory()->create();
     $stranger = User::factory()->make(['github_id' => '999']);
 
-    fakeGitHubFollows($user, following: [$stranger], followers: [$stranger]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn(['users' => [$stranger->github_id], 'organizations' => []]);
+    $github->shouldReceive('followerIds')->with($user->handle, 10)->andReturn([$stranger->github_id]);
 
     resolve(CreateUserGitHubFollows::class)->handle($user);
 
@@ -52,7 +65,10 @@ it('notifies about every new follow', function (): void {
     $followed = User::factory()->create();
     $follower = User::factory()->create();
 
-    fakeGitHubFollows($user, following: [$followed], followers: [$follower]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn(['users' => [$followed->github_id], 'organizations' => []]);
+    $github->shouldReceive('followerIds')->with($user->handle, 10)->andReturn([$follower->github_id]);
 
     resolve(CreateUserGitHubFollows::class)->handle($user);
 
@@ -69,7 +85,10 @@ it('notifies nobody when told not to', function (): void {
     $followed = User::factory()->create();
     $follower = User::factory()->create();
 
-    fakeGitHubFollows($user, following: [$followed], followers: [$follower]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn(['users' => [$followed->github_id], 'organizations' => []]);
+    $github->shouldReceive('followerIds')->with($user->handle, 10)->andReturn([$follower->github_id]);
 
     resolve(CreateUserGitHubFollows::class)->handle($user, notify: false);
 
@@ -85,7 +104,10 @@ it('never unfollows anyone, and does not notify about follows that already exist
 
     $user->following()->attach([$alreadyFollowed->id, $notOnGitHub->id]);
 
-    fakeGitHubFollows($user, following: [$alreadyFollowed]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn(['users' => [$alreadyFollowed->github_id], 'organizations' => []]);
+    $github->shouldReceive('followerIds')->with($user->handle, 10)->andReturn([]);
 
     resolve(CreateUserGitHubFollows::class)->handle($user);
 
@@ -94,53 +116,73 @@ it('never unfollows anyone, and does not notify about follows that already exist
         ->and(Notification::query()->count())->toBe(0);
 });
 
-it('reads every page of the follows', function (): void {
-    $user = User::factory()->create();
-    $followed = User::factory()->create();
-
-    $strangers = array_map(fn (int $id): array => ['id' => $id, 'login' => "stranger-{$id}"], range(1, 100));
-
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->handle]),
-        "api.github.com/users/{$user->handle}/following*" => Http::sequence()
-            ->push($strangers)
-            ->push([['id' => (int) $followed->github_id, 'login' => $followed->handle]]),
-        "api.github.com/users/{$user->handle}/followers*" => Http::response([]),
-    ]);
-
-    resolve(CreateUserGitHubFollows::class)->handle($user);
-
-    expect($user->isFollowing($followed))->toBeTrue();
-});
-
 it('imports the follows of a user only once', function (): void {
-    $user = User::factory()->create(['github_follows_imported_at' => now()]);
+    $user = User::factory()->create(['github_follows_imported_at' => now(), 'github_organization_follows_imported_at' => now()]);
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->never();
 
     resolve(CreateUserGitHubFollows::class)->handle($user);
-
-    Http::assertNothingSent();
 });
 
 it('marks the follows as imported when the github account no longer exists', function (): void {
     $user = User::factory()->create();
 
-    Http::fake(["api.github.com/user/{$user->github_id}" => Http::response(['message' => 'Not Found'], 404)]);
-
     resolve(CreateUserGitHubFollows::class)->handle($user);
 
-    expect($user->refresh()->github_follows_imported_at)->not->toBeNull();
+    expect($user->refresh())
+        ->github_follows_imported_at->not->toBeNull()
+        ->github_organization_follows_imported_at->not->toBeNull();
 });
 
 it('leaves the follows to import again when github fails', function (): void {
     $user = User::factory()->create();
 
-    Http::fake([
-        "api.github.com/user/{$user->github_id}" => Http::response(['login' => $user->handle]),
-        '*' => Http::response(['message' => 'Server Error'], 500),
-    ]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('followingIds')->andThrow(new RequestException(new Response(new Psr7Response(500))));
 
     expect(fn () => resolve(CreateUserGitHubFollows::class)->handle($user))->toThrow(RequestException::class)
-        ->and($user->refresh()->github_follows_imported_at)->toBeNull();
+        ->and($user->refresh()->github_follows_imported_at)->toBeNull()
+        ->and($user->github_organization_follows_imported_at)->toBeNull();
+});
+
+it('follows the organizations they follow on github, and keeps the ones not on devnull for when they are', function (): void {
+    $user = User::factory()->create();
+    $organization = Organization::factory()->create();
+    Organization::factory()->create();
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn(['users' => [], 'organizations' => [$organization->profile->github_id, '958072']]);
+    $github->shouldReceive('followerIds')->with($user->handle, 10)->andReturn([]);
+
+    resolve(CreateUserGitHubFollows::class)->handle($user);
+
+    expect($user->followedOrganizations()->pluck('organizations.id')->all())->toBe([$organization->id])
+        ->and(DB::table('pending_organization_follows')->get(['user_id', 'github_id'])->map(fn (object $row): array => (array) $row)->all())->toBe([['user_id' => $user->id, 'github_id' => '958072']])
+        ->and($user->refresh()->github_organization_follows_imported_at)->not->toBeNull()
+        ->and(Notification::query()->count())->toBe(0);
+});
+
+it('imports only the organizations of a user whose people were imported before, so unfollows stick', function (): void {
+    $importedAt = now()->subWeek()->startOfSecond();
+    $user = User::factory()->create(['github_follows_imported_at' => $importedAt]);
+    $unfollowed = User::factory()->create();
+    $organization = Organization::factory()->create();
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn(['users' => [$unfollowed->github_id], 'organizations' => [$organization->profile->github_id]]);
+
+    resolve(CreateUserGitHubFollows::class)->handle($user);
+
+    expect($user->isFollowing($unfollowed))->toBeFalse()
+        ->and($user->followedOrganizations()->pluck('organizations.id')->all())->toBe([$organization->id])
+        ->and($user->refresh()->github_follows_imported_at->toDateTimeString())->toBe($importedAt->toDateTimeString())
+        ->and($user->github_organization_follows_imported_at)->not->toBeNull();
+
+    $github->shouldNotHaveReceived('followerIds');
 });
 
 it('keeps github imports from following across a block in either direction', function (): void {
@@ -152,7 +194,10 @@ it('keeps github imports from following across a block in either direction', fun
     $user->blocking()->attach($blocked);
     $blocker->blocking()->attach($user);
 
-    fakeGitHubFollows($user, following: [$blocked, $blocker, $allowed], followers: [$blocked, $blocker, $allowed]);
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn(['users' => [$blocked->github_id, $blocker->github_id, $allowed->github_id], 'organizations' => []]);
+    $github->shouldReceive('followerIds')->with($user->handle, 10)->andReturn([$blocked->github_id, $blocker->github_id, $allowed->github_id]);
 
     resolve(CreateUserGitHubFollows::class)->handle($user);
 

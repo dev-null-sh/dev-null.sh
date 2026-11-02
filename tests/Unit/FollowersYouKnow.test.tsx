@@ -40,29 +40,29 @@ async function render(handles: string[], count: number): Promise<string> {
     return sentence.replace(/<!-- -->/g, '').replace(/<[^>]+>/g, '');
 }
 
-void test('nothing shows when the viewer knows none of the followers', async () => {
+ test('nothing shows when the viewer knows none of the followers', async () => {
     assert.equal(await render([], 0), '');
 });
 
-void test('one follower the viewer knows is named alone', async () => {
+ test('one follower the viewer knows is named alone', async () => {
     assert.equal(await render(['alice'], 1), 'Followed by @alice');
 });
 
-void test('two followers the viewer knows are joined with and', async () => {
+ test('two followers the viewer knows are joined with and', async () => {
     assert.equal(
         await render(['alice', 'bob'], 2),
         'Followed by @alice and @bob',
     );
 });
 
-void test('a third follower the viewer knows is counted in the singular', async () => {
+ test('a third follower the viewer knows is counted in the singular', async () => {
     assert.equal(
         await render(['alice', 'bob', 'carol'], 3),
         'Followed by @alice, @bob and 1 other you follow',
     );
 });
 
-void test('more followers the viewer knows are counted', async () => {
+ test('more followers the viewer knows are counted', async () => {
     assert.equal(
         await render(['alice', 'bob', 'carol'], 9),
         'Followed by @alice, @bob and 7 others you follow',
