@@ -384,7 +384,7 @@ test('links the mentions the server found in the preview', () => {
     assert.ok(markup.includes('@nobody-here'));
 });
 
-test('shows mentions as text until the server has found them', () => {
+test('links mentions by handle until the server has found them', () => {
     const preview = previewFor({
         body: 'Pairing with @alice',
         isSubmittable: true,
@@ -394,7 +394,7 @@ test('shows mentions as text until the server has found them', () => {
     );
 
     assert.equal(preview.mentions, null);
-    assert.ok(markup.includes('Pairing with @alice'));
+    assert.match(markup, /Pairing with <a[^>]*href="\/@alice"[^>]*>@alice<\/a>/);
     assert.ok(!markup.includes('data-test="mention"'));
 });
 
