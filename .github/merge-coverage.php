@@ -26,6 +26,7 @@ if ($summary->numberOfExecutableLines() > 0 && $summary->numberOfExecutedLines()
 
 foreach ($coverage['codeCoverage']->lineCoverage() as $file => $lines) {
     $uncovered = array_keys(array_filter($lines, fn (?array $tests): bool => $tests === []));
+    sort($uncovered, SORT_NUMERIC);
     $ranges = [];
 
     foreach ($uncovered as $line) {
