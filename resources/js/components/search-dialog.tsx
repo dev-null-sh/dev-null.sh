@@ -889,7 +889,7 @@ function CommitResult({ commit }: { commit: Commit }) {
                 className="size-9 shrink-0 self-start"
             />
             <span className="min-w-0 flex-1">
-                <span className="flex items-baseline gap-1.5 text-sm">
+                <span className="flex flex-wrap items-baseline gap-1.5 text-sm">
                     <Handle user={commit.author} />
                     <span aria-hidden className="text-muted-foreground">
                         ·

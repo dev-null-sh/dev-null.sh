@@ -241,6 +241,7 @@ final readonly class CreateExport
                 'parent_id' => $commit->parent_id,
                 'quoted_commit_id' => $commit->quoted_commit_id,
                 'body' => $commit->body,
+                'source' => $commit->source?->value,
                 'status' => $commit->status->value,
                 'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
                 'created_at' => $commit->created_at->toIso8601String(),

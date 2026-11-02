@@ -266,6 +266,19 @@ it('exports all the signed-in users commits including replies, deleted ones, and
         ->and($response->streamedContent())->not->toContain($parent->body, $otherReply->body);
 });
 
+it('exports the source of commits posted for organizations', function (): void {
+    $user = User::factory()->create();
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
+    Commit::factory()->for($user)->create(['author_id' => $organization->id, 'source' => CommitSource::Web]);
+    Commit::factory()->for($user)->create(['author_id' => $organization->id, 'source' => null]);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect(collect($data['organization_commits'])->pluck('source')->sort()->values()->all())
+        ->toBe([null, 'web']);
+});
+
 it('exports commit image urls in order', function (): void {
     $user = User::factory()->create();
     $commit = Commit::factory()->for($user)->create();
