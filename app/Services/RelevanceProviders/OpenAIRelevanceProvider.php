@@ -75,8 +75,8 @@ final readonly class OpenAIRelevanceProvider implements RelevanceProvider
 
         try {
             $response = $this->request()
-                ->connectTimeout(1)
-                ->timeout(2)
+                ->connectTimeout(2)
+                ->timeout(4)
                 ->post('decisions', [
                     'model' => self::DECISION_MODEL,
                     'input' => ($related ? self::RELATED_COMMIT_INSTRUCTIONS : self::RELEVANCE_INSTRUCTIONS)
@@ -87,7 +87,7 @@ final readonly class OpenAIRelevanceProvider implements RelevanceProvider
                 ->json();
         } catch (ConnectionException|RequestException $exception) {
             if ($exception instanceof ConnectionException && str_contains($exception->getMessage(), 'cURL error 28:')) {
-                Log::warning('Commit relevance classifier timed out.', ['related' => $related, 'timeout_seconds' => 2]);
+                Log::warning('Commit relevance classifier timed out.', ['related' => $related, 'timeout_seconds' => 4]);
             }
 
             return array_fill(0, count($bodies), true);
