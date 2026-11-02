@@ -14,18 +14,37 @@ const listeners = new Set<() => void>();
 let currentFrame: number | null = null;
 let interval: ReturnType<typeof setInterval> | undefined;
 
+const start = () => {
+    if (
+        interval !== undefined ||
+        document.visibilityState === 'hidden' ||
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) {
+        return;
+    }
+
+    currentFrame ??= 0;
+    interval = setInterval(() => {
+        currentFrame = (currentFrame ?? 0) + 1;
+        listeners.forEach((notify) => notify());
+    }, FRAME_MS);
+};
+
+const onVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+        clearInterval(interval);
+        interval = undefined;
+    } else if (listeners.size > 0) {
+        start();
+    }
+};
+
 const subscribe = (listener: () => void) => {
     listeners.add(listener);
 
-    if (
-        interval === undefined &&
-        !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    ) {
-        currentFrame = 0;
-        interval = setInterval(() => {
-            currentFrame = (currentFrame ?? 0) + 1;
-            listeners.forEach((notify) => notify());
-        }, FRAME_MS);
+    if (listeners.size === 1) {
+        document.addEventListener('visibilitychange', onVisibilityChange);
+        start();
     }
 
     return () => {
@@ -35,6 +54,10 @@ const subscribe = (listener: () => void) => {
             clearInterval(interval);
             interval = undefined;
             currentFrame = null;
+            document.removeEventListener(
+                'visibilitychange',
+                onVisibilityChange,
+            );
         }
     };
 };
