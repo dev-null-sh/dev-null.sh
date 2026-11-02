@@ -90,7 +90,10 @@ test('shows its own known source and omits an unknown one', async () => {
     const source = await render(false);
     const unknown = await render(false, { ...commit, source: null });
 
-    assert.match(source, /data-test="commit-source"[^>]*>tui</);
+    assert.match(
+        source,
+        /data-test="commit-source"[^>]*><span class="sr-only">Committed via <\/span>tui</,
+    );
     assert.doesNotMatch(unknown, /data-test="commit-source"/);
 });
 
