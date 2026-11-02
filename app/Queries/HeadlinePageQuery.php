@@ -7,6 +7,7 @@ namespace App\Queries;
 use App\Models\Commit;
 use App\Models\Headline;
 use App\Models\User;
+use Closure;
 use Illuminate\Support\Collection;
 
 final readonly class HeadlinePageQuery
@@ -17,27 +18,25 @@ final readonly class HeadlinePageQuery
     }
 
     /**
-     * @return array{name: string, summary: string|null, commits: Collection<int, Commit>}
+     * @return array{name: string, summary: Closure(): (string|null), commits: Closure(): Collection<int, Commit>}
      */
     public function get(Headline $headline, User $viewer): array
     {
-        $summary = null;
-
-        if ($headline->summary !== null && $headline->summary_created_at?->gt(now()->subHours(Headline::SUMMARY_HOURS))) {
-            // Without stored provenance, check all linked posts rather than risk repeating a hidden author's words.
-            $hasHiddenSources = $headline->commits()->topLevel()->approved()
-                ->whereNotIn('commits.id', $headline->commits()->select('commits.id')->visibleTo($viewer)->withoutMutedAuthorsFor($viewer))
-                ->exists();
-
-            if (! $hasHiddenSources) {
-                $summary = $headline->summary;
-            }
-        }
-
         return [
             'name' => $headline->name,
-            'summary' => $summary,
-            'commits' => $this->search->get($headline->name, $viewer, since: now()->subWeek()),
+            'summary' => function () use ($headline, $viewer): ?string {
+                if ($headline->summary === null || ! $headline->summary_created_at?->gt(now()->subHours(Headline::SUMMARY_HOURS))) {
+                    return null;
+                }
+
+                // Without stored provenance, check all linked posts rather than risk repeating a hidden author's words.
+                $hasHiddenSources = $headline->commits()->topLevel()->approved()
+                    ->whereNotIn('commits.id', $headline->commits()->select('commits.id')->visibleTo($viewer)->withoutMutedAuthorsFor($viewer))
+                    ->exists();
+
+                return $hasHiddenSources ? null : $headline->summary;
+            },
+            'commits' => fn (): Collection => $this->search->get($headline->name, $viewer, since: now()->subWeek()),
         ];
     }
 }
