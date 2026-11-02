@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup
-        uses: ./.github/actions/setup
+        uses: $/.github/actions/setup
 
       - name: Generate Wayfinder Types
         run: php artisan wayfinder:generate --with-form
@@ -55,7 +55,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup
-        uses: ./.github/actions/setup
+        uses: $/.github/actions/setup
 
       - name: Generate Wayfinder Types
         run: php artisan wayfinder:generate --with-form
@@ -82,7 +82,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup
-        uses: ./.github/actions/setup
+        uses: $/.github/actions/setup
 
       - name: Type Coverage
         run: composer test:type-coverage
@@ -133,7 +133,7 @@ jobs:
           done
 
       - name: Setup PHP
-        uses: ./.github/actions/setup-php
+        uses: $/.github/actions/setup-php
         with:
           coverage: pcov
 
@@ -149,7 +149,7 @@ jobs:
 
       - name: Setup Frontend
         if: steps.build-cache.outputs.cache-hit != 'true'
-        uses: ./.github/actions/setup-frontend
+        uses: $/.github/actions/setup-frontend
 
       - name: Build Assets
         if: steps.build-cache.outputs.cache-hit != 'true'
@@ -181,7 +181,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup
-        uses: ./.github/actions/setup
+        uses: $/.github/actions/setup
 
       - name: Frontend Tests
         run: bun run test:unit
@@ -207,7 +207,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup
-        uses: ./.github/actions/setup-php
+        uses: $/.github/actions/setup-php
 
       - name: Download Coverage
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2

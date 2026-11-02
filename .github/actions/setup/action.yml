@@ -11,9 +11,9 @@ runs:
   using: composite
   steps:
     - name: Setup PHP
-      uses: ./.github/actions/setup-php
+      uses: $/.github/actions/setup-php
       with:
         coverage: ${{ inputs.coverage }}
 
     - name: Setup Frontend
-      uses: ./.github/actions/setup-frontend
+      uses: $/.github/actions/setup-frontend
