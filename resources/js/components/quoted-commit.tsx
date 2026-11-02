@@ -1,12 +1,12 @@
 import { Link } from '@inertiajs/react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
+import { AuthorAvatar } from '@/components/author-avatar';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPoll } from '@/components/commit-poll';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
 import { LinkPreview } from '@/components/link-preview';
-import { UserAvatar } from '@/components/user-avatar';
 import { useNow } from '@/hooks/use-now';
 import {
     cn,
@@ -19,9 +19,11 @@ import type { DeletedCommit, QuotedCommit as QuotedCommitData } from '@/types';
 export function QuotedCommit({
     commit,
     isPreview = false,
+    label = 'Quoting',
 }: {
     commit: QuotedCommitData | DeletedCommit | null;
     isPreview?: boolean;
+    label?: string;
 }) {
     const now = useNow();
     if (commit === null || isDeleted(commit)) {
@@ -45,13 +47,13 @@ export function QuotedCommit({
     const content = (
         <>
             <span className="flex min-w-0 items-center gap-1.5 text-sm">
-                <span className="sr-only">Quoting</span>
-                <UserAvatar user={commit.user} className="size-5" />
+                <span className="sr-only">{label}</span>
+                <AuthorAvatar author={commit.author} className="size-5" />
                 <span className="truncate font-semibold">
-                    {commit.user.name}
+                    {commit.author.name}
                 </span>
                 <span className="truncate font-mono text-xs text-muted-foreground">
-                    @{commit.user.username}
+                    @{commit.author.handle}
                 </span>
                 <span aria-hidden className="text-muted-foreground">
                     ·
@@ -94,7 +96,8 @@ export function QuotedCommit({
 
     return (
         <Link
-            href={CommitController.show({ user: commit.user, commit })}
+            prefetch
+            href={CommitController.show({ profile: commit.author, commit })}
             className={cn(
                 className,
                 'transition-colors hover:bg-accent focus-visible:bg-accent',

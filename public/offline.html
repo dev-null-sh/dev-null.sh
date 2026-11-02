@@ -221,6 +221,17 @@
                     padding-bottom: 4rem;
                 }
             }
+            .wordmark {
+                font-family: 'Geist', ui-sans-serif, system-ui, sans-serif;
+                font-weight: 600;
+                letter-spacing: -0.025em;
+                white-space: nowrap;
+            }
+
+            .wordmark-slash {
+                color: transparent;
+                -webkit-text-stroke: max(1px, 0.035em) var(--accent);
+            }
         </style>
     </head>
     <body>
@@ -237,7 +248,7 @@
                                 <path class="ink" d="M2 42h10L26 6H16Z"/>
                                 <path class="accent" fill-rule="evenodd" clip-rule="evenodd" d="M17.81 43.5h13.22L46.19 4.5H32.97ZM22.19 40.5l12.84-33h6.78l-12.84 33Z"/>
                             </svg>
-                            <span>/dev/null</span>
+                            <span class="wordmark">/dev<span class="wordmark-slash">/</span>null</span>
                         </a>
                     </div>
                 </li>
@@ -248,7 +259,7 @@
                     <div class="content">
                         <p class="command">fatal: unable to access 'https://dev-null.sh/': Could not resolve host</p>
                         <h1>You're offline.</h1>
-                        <p class="description">/dev/null needs a connection to fetch the log. Unsent drafts are kept; this page reloads as soon as you're back online.</p>
+                        <p class="description"><span class="wordmark">/dev<span class="wordmark-slash">/</span>null</span> needs a connection to fetch the log. Unsent drafts are kept; this page reloads as soon as you're back online.</p>
                         <button type="button" onclick="location.reload()">Try again</button>
                     </div>
                 </li>

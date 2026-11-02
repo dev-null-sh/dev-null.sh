@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommitRestoration;
 use App\Actions\DeleteCommit;
-use App\Actions\DeleteCommitImages;
+use App\Actions\DeleteCommitContent;
 use App\Actions\UpdateCommitHotScores;
-use App\Jobs\EraseDeletedCommitImages;
+use App\Dto\ThreadEngagement;
+use App\Jobs\EraseDeletedCommit;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
@@ -17,12 +18,14 @@ use Illuminate\Support\Facades\Storage;
 
 it('may delete a commit', function (): void {
     $commit = Commit::factory()->create();
+    $headline = $commit->headlines()->create(['name' => 'Vector databases', 'summary' => 'A recap of the deleted source.', 'summary_created_at' => now()]);
 
     $action = resolve(DeleteCommit::class);
 
     $action->handle($commit);
 
     $this->assertSoftDeleted($commit);
+    expect($headline->refresh()->summary)->toBeNull()->and($headline->summary_created_at)->toBeNull();
 });
 
 it('keeps the replies of a deleted commit', function (): void {
@@ -57,8 +60,8 @@ it('keeps the images of a deleted commit until the undo window closes', function
     Storage::disk()->assertExists($image->path);
 
     Queue::assertPushed(
-        EraseDeletedCommitImages::class,
-        fn (EraseDeletedCommitImages $job): bool => $job->commit->is($commit)
+        EraseDeletedCommit::class,
+        fn (EraseDeletedCommit $job): bool => $job->commit->is($commit)
             && $job->delay instanceof DateTimeInterface
             && now()->addSeconds(30)->equalTo($job->delay),
     );
@@ -94,7 +97,7 @@ it('lowers the thread when a reply is deleted', function (): void {
     resolve(DeleteCommit::class)->handle($reply);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, ThreadEngagement::none()), 1e-9);
 });
 
 it('lowers the quoted thread when a quote is deleted', function (): void {
@@ -105,7 +108,7 @@ it('lowers the quoted thread when a quote is deleted', function (): void {
     resolve(DeleteCommit::class)->handle($quote);
 
     expect($commit->fresh()->hot_score)
-        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, 0, 0), 1e-9);
+        ->toEqualWithDelta(resolve(TheAlgorithm::class)->score($commit->created_at, ThreadEngagement::none()), 1e-9);
 });
 
 it('keeps reports while applying the undo window to images', function (bool $undo): void {
@@ -130,7 +133,7 @@ it('keeps reports while applying the undo window to images', function (bool $und
     }
 
     $this->travel(1)->seconds();
-    resolve(DeleteCommitImages::class)->handle($deleted);
+    resolve(DeleteCommitContent::class)->handle($deleted);
 
     $this->assertModelExists($report);
 

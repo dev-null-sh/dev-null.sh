@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-        <meta name="description" content="{{ $preview['description'] ?? 'A social network for developers. Sign in with GitHub, commit plain text to a shared log.' }}">
+        <meta name="description" content="{{ $preview['description'] ?? 'A social network for developers. Sign in with GitHub. Commit messages to the log. Talk with other devs.' }}">
         @if (($appearance ?? 'system') === 'system')
             <meta name="theme-color" content="#f6f7f8" media="(prefers-color-scheme: light)">
             <meta name="theme-color" content="#111112" media="(prefers-color-scheme: dark)">
@@ -30,8 +30,8 @@
                 <meta property="article:published_time" content="{{ $preview['publishedAt'] }}">
                 <meta property="article:author" content="{{ $preview['author'] }}">
             @endisset
-            @isset($preview['username'])
-                <meta property="profile:username" content="{{ $preview['username'] }}">
+            @isset($preview['handle'])
+                <meta property="profile:username" content="{{ $preview['handle'] }}">
             @endisset
             <meta name="twitter:card" content="summary_large_image">
             <meta name="twitter:title" content="{{ $preview['title'] }}">
@@ -45,10 +45,13 @@
                 <script type="application/ld+json">@json($preview['structuredData'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)</script>
             @endisset
         @else
+            @isset($robots)
+                <meta name="robots" content="{{ $robots }}">
+            @endisset
             <meta property="og:type" content="website">
             <meta property="og:site_name" content="/dev/null">
             <meta property="og:title" content="/dev/null">
-            <meta property="og:description" content="A social network for developers. Sign in with GitHub, commit plain text to a shared log.">
+            <meta property="og:description" content="A social network for developers. Sign in with GitHub. Commit messages to the log. Talk with other devs.">
             <meta property="og:image" content="{{ url('/og.png') }}">
             <meta property="og:image:width" content="1200">
             <meta property="og:image:height" content="630">
@@ -110,6 +113,7 @@
         </x-inertia::head>
     </head>
     <body class="font-sans antialiased">
+        <div class="pwa-status-bar" aria-hidden="true"></div>
         <x-inertia::app />
     </body>
 </html>

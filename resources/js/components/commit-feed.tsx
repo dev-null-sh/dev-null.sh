@@ -3,6 +3,7 @@ import { Pin } from 'lucide-react';
 import type { PointerEvent, ReactNode } from 'react';
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { CommitCard } from '@/components/commit-card';
+import { GraphCanvas } from '@/components/graph-canvas';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
 import { useNow } from '@/hooks/use-now';
 import {
@@ -10,7 +11,7 @@ import {
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
 import { isDeliberateHover } from '@/lib/feed-hover';
-import { cn, formatDayLabel, laneColor, localDayKey } from '@/lib/utils';
+import { authorLaneColor, cn, formatDayLabel, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 const interludeAfter = 5;
@@ -46,13 +47,18 @@ export function CommitFeed({
     const page = usePage();
     const { dimsLanes } = page.props;
     const isModeration = page.component === 'moderation/show';
-    const isSaved = page.component === 'bookmark/index';
+    const isStarred = page.component === 'starred/index';
     const profileUserId =
         page.component === 'user/show'
             ? (page.props.user as { id: string }).id
             : null;
     const isProfileReplies =
         profileUserId !== null && page.props.tab === 'replies';
+    // The organization's Mentions tab lists replies too, whatever handle they mention it with.
+    const mentionedOrganizationId =
+        page.component === 'organization/show'
+            ? (page.props.organization as { id: string }).id
+            : null;
     const [highlightedAuthor, setHighlightedAuthor] = useState<string | null>(
         null,
     );
@@ -141,13 +147,17 @@ export function CommitFeed({
                 }
                 if (restored) {
                     const belongsInFeed =
-                        (isSaved
-                            ? restored.is_saved === true
-                            : isProfileReplies
-                              ? restored.parent_id !== null
-                              : restored.parent_id === null) &&
+                        (isStarred
+                            ? restored.starred === true
+                            : mentionedOrganizationId !== null
+                              ? Object.values(
+                                    restored.organization_mentions ?? {},
+                                ).includes(mentionedOrganizationId)
+                              : isProfileReplies
+                                ? restored.parent_id !== null
+                                : restored.parent_id === null) &&
                         (profileUserId === null ||
-                            (restored.user_id === profileUserId &&
+                            (restored.author.id === profileUserId &&
                                 !restored.is_pinned));
 
                     router.replaceProp('commits.data', (rows: Commit[]) =>
@@ -155,8 +165,8 @@ export function CommitFeed({
                             ? restoreFeedCommit(
                                   rows,
                                   restored,
-                                  isSaved
-                                      ? 'saved'
+                                  isStarred
+                                      ? 'starred'
                                       : isRanked
                                         ? 'ranked'
                                         : 'latest',
@@ -165,7 +175,14 @@ export function CommitFeed({
                     );
                 }
             }),
-        [profileUserId, isModeration, isProfileReplies, isSaved, isRanked],
+        [
+            profileUserId,
+            isModeration,
+            isProfileReplies,
+            mentionedOrganizationId,
+            isStarred,
+            isRanked,
+        ],
     );
 
     // A ranked commit can move to a later page while the feed scrolls, so each one is only listed once.
@@ -187,7 +204,7 @@ export function CommitFeed({
     const isDimmed = (commit: Commit) =>
         dimsLanes &&
         (highlightedAuthor !== null
-            ? commit.user_id !== highlightedAuthor
+            ? commit.author.id !== highlightedAuthor
             : highlightedCommit !== null && commit.id !== highlightedCommit);
 
     const lastCommit = listed.at(-1) ?? pinnedCommit;
@@ -208,7 +225,7 @@ export function CommitFeed({
             threadActions={threadActions?.(commit)}
             isFolded={isFolded}
             onAuthorHover={(isHovering) =>
-                highlightAuthor(commit.user_id, isHovering)
+                highlightAuthor(commit.author.id, isHovering)
             }
             onHover={(isHovering, event) =>
                 highlightCommit(commit.id, isHovering, event)
@@ -217,7 +234,7 @@ export function CommitFeed({
     );
 
     return (
-        <>
+        <GraphCanvas>
             {pinnedCommit && (
                 <section aria-label="Pinned commit">
                     <div className="flex">
@@ -284,7 +301,7 @@ export function CommitFeed({
                             {card(commit)}
                             {index === interludeIndex &&
                                 interlude?.(
-                                    laneColor(commit.user.lane),
+                                    authorLaneColor(commit.author),
                                     isDimmed(commit),
                                 )}
                         </Fragment>
@@ -295,7 +312,7 @@ export function CommitFeed({
             {commits.next_cursor === null && lastCommit && (
                 <div className="flex">
                     <GraphRail
-                        lane={laneColor(lastCommit.user.lane)}
+                        lane={authorLaneColor(lastCommit.author)}
                         variant="root"
                         hasTail={false}
                     />
@@ -304,7 +321,7 @@ export function CommitFeed({
                     </p>
                 </div>
             )}
-        </>
+        </GraphCanvas>
     );
 }
 

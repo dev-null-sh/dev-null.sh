@@ -13,14 +13,14 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class DeleteOrgMember
 {
-    public function __construct(private CreateConversationEvent $createConversationEvent)
+    public function __construct(private CreateConversationEvent $createConversationEvent, private DeleteOrgs $deleteOrgs)
     {
         //
     }
 
     /**
      * Removes a member, or lets them leave. They lose access to the org. When the last maintainer goes, the
-     * longest-standing member takes over, and an org nobody is left in is deleted.
+     * longest-standing member takes over, and an org nobody is left in is deleted, with the files of its messages.
      */
     public function handle(User $actor, Conversation $org, User $member): void
     {
@@ -30,7 +30,7 @@ final readonly class DeleteOrgMember
             $remaining = $org->participants()->with('user')->oldest('id')->get();
 
             if ($remaining->isEmpty()) {
-                $org->delete();
+                $this->deleteOrgs->handle(Conversation::query()->whereKey($org->id));
 
                 return;
             }

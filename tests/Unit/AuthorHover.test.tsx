@@ -8,7 +8,7 @@ import type {
     ReactNode,
 } from 'react';
 import { afterAll, afterEach, test, vi } from 'vite-plus/test';
-import type { SuggestedUser, User } from '../../resources/js/types';
+import type { Actor, SuggestedUser, User } from '../../resources/js/types';
 
 let showPreview = false;
 const stateChanges: unknown[] = [];
@@ -36,6 +36,8 @@ vi.doMock('react-dom', async () => ({
 const { GraphRail } = await import('../../resources/js/components/graph-rail');
 const { UserAvatar } =
     await import('../../resources/js/components/user-avatar');
+const { AuthorAvatar } =
+    await import('../../resources/js/components/author-avatar');
 const { ActorAvatar } =
     await import('../../resources/js/pages/notification/index');
 const { UserPreview } =
@@ -56,7 +58,7 @@ const surfaces = {
         GraphRail({ lane: 'red', onHoverChange }).props,
     'profile preview trigger': (onHoverChange: (hovering: boolean) => void) => {
         const preview = UserPreview({
-            user: { username: 'author' },
+            user: { handle: 'author' },
             children: 'Author',
             onHoverChange,
         });
@@ -70,7 +72,7 @@ const surfaces = {
     'profile preview panel': (onHoverChange: (hovering: boolean) => void) => {
         showPreview = true;
         const preview = UserPreview({
-            user: { id: 'author', username: 'author' } as User,
+            user: { id: 'author', handle: 'author' } as User,
             children: 'Author',
             onHoverChange,
         });
@@ -120,7 +122,7 @@ for (const [name, render] of Object.entries(surfaces)) {
 function renderPreviewPanel() {
     showPreview = true;
     const preview = UserPreview({
-        user: { id: 'author', username: 'author' } as User,
+        user: { id: 'author', handle: 'author' } as User,
         children: 'Author',
     });
     showPreview = false;
@@ -181,10 +183,11 @@ test('suggested user row wraps the author in a user preview anchored to their av
     const user = {
         id: 'author',
         name: 'Author',
-        username: 'author',
+        handle: 'author',
         avatar_url: null,
         lane: 1,
         timezone: null,
+        show_local_time: false,
         followed_by_following_count: 15,
         followers_count: 20,
     } as SuggestedUser;
@@ -214,19 +217,21 @@ test('suggested user row wraps the author in a user preview anchored to their av
 });
 
 const actor = {
+    type: 'user',
     id: 'actor',
     name: 'Actor',
-    username: 'actor',
+    handle: 'actor',
     avatar_url: null,
     lane: 1,
-} as User;
+    is_followed: false,
+} as Actor;
 
 type ActorPreview = ReactElement<{
     user: User;
     anchor: React.RefObject<HTMLSpanElement | null>;
     children: ReactElement<{
         ref: React.RefObject<HTMLSpanElement | null>;
-        children: ReactElement<{ user: User }>;
+        children: ReactElement<{ author: Actor }>;
     }>;
 }>;
 
@@ -239,6 +244,6 @@ test('notification actor avatar previews the actor around the avatar it anchors'
     assert.equal(preview.props.user, actor);
     assert.equal(preview.props.anchor, anchor);
     assert.equal(avatar.props.ref, anchor);
-    assert.equal(avatar.props.children.type, UserAvatar);
-    assert.equal(avatar.props.children.props.user, actor);
+    assert.equal(avatar.props.children.type, AuthorAvatar);
+    assert.equal(avatar.props.children.props.author, actor);
 });

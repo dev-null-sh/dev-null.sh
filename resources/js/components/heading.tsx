@@ -1,9 +1,11 @@
+import type { ReactNode } from 'react';
+
 export default function Heading({
     title,
     description,
 }: {
     title: string;
-    description?: string;
+    description?: ReactNode;
 }) {
     return (
         <header className="mb-5">

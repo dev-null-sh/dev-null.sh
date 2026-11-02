@@ -1,15 +1,22 @@
 import type { CancelToken } from '@inertiajs/core';
-import { Head, InfiniteScroll, Link, router, usePoll } from '@inertiajs/react';
+import {
+    Head,
+    InfiniteScroll,
+    Link,
+    router,
+    useHttp,
+    usePoll,
+} from '@inertiajs/react';
 import {
     ArrowUp,
     AtSign,
     Check,
     ChevronDown,
     ChevronsUp,
+    GitCommitVertical,
     MessageSquareReply,
     Quote,
     Star,
-    UserCheck,
     UserPlus,
     X,
 } from 'lucide-react';
@@ -17,6 +24,7 @@ import type { ReactNode, RefObject } from 'react';
 import {
     Fragment,
     useEffect,
+    useEffectEvent,
     useId,
     useLayoutEffect,
     useRef,
@@ -25,46 +33,41 @@ import {
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import { index } from '@/actions/App/Http/Controllers/NotificationController';
 import { show as groupShow } from '@/actions/App/Http/Controllers/NotificationGroupController';
-import UserFollowController from '@/actions/App/Http/Controllers/UserFollowController';
+import NotificationReadAtController from '@/actions/App/Http/Controllers/NotificationReadAtController';
+import { AuthorAvatar } from '@/components/author-avatar';
 import { CommitBodyExcerpt } from '@/components/commit-body';
 import { EmptyFeed } from '@/components/commit-feed';
 import { replaceFailedImage } from '@/components/commit-images';
-import {
-    onFollowHttpException,
-    useIsFollowing,
-} from '@/components/follow-button';
+import { FollowIconButton } from '@/components/follow-button';
+import { GraphCanvas } from '@/components/graph-canvas';
 import { GraphRail, RailSegment } from '@/components/graph-rail';
+import { NotificationFilters } from '@/components/notification-filters';
 import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipTrigger,
-} from '@/components/ui/tooltip';
-import { UserAvatar } from '@/components/user-avatar';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import {
     cn,
     formatDayLabel,
     formatFullDateTime,
     formatRelativeTime,
     isDeleted,
-    laneColor,
+    authorLaneColor,
     localDayKey,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
 import type {
+    Actor,
     BodySegment,
     Commit,
     CursorPaginated,
     DeletedCommit,
     Notification,
     NotificationGroup,
-    User,
 } from '@/types';
 
 type Filters = { type: string };
@@ -110,8 +113,6 @@ const filterOptions: {
         empty: 'No moderation updates. Approved and rejected commits show up here.',
     },
 ];
-
-const rail = 'var(--rail)';
 
 const isNewSince = (
     notification: Notification | NotificationGroup,
@@ -250,6 +251,28 @@ export default function Index({
         }
     }, [notifications.data]);
 
+    const markRead = useHttp<{ through: string }>({ through: '' });
+    const newestAt = notifications.data[0]?.created_at;
+    const hasUnread = notifications.data.some(
+        (group) => group.unread_count > 0,
+    );
+
+    const markReadThrough = useEffectEvent((through: string) => {
+        markRead.transform(() => ({ through }));
+        void markRead
+            .put(NotificationReadAtController.update.url())
+            .then(() => {
+                router.flushAll();
+                router.reload({ only: ['auth.unreadNotificationsCount'] });
+            });
+    });
+
+    useEffect(() => {
+        if (newestAt !== undefined && hasUnread) {
+            markReadThrough(newestAt);
+        }
+    }, [newestAt, hasUnread]);
+
     useEffect(() => {
         if (arrivals === 0) {
             return;
@@ -273,43 +296,13 @@ export default function Index({
                 <div className="flex h-14 items-center px-4 sm:px-6">
                     <h1 className="font-semibold">Notifications</h1>
                 </div>
-                <div
-                    role="group"
-                    aria-label="Filter notifications"
-                    className="flex flex-wrap gap-2 px-4 pb-3 sm:px-6"
-                >
-                    {filterOptions
-                        .filter((option) => option.type !== 'all')
-                        .map((option) => {
-                            const isActive = enabled.includes(option.type);
-
-                            return (
-                                <button
-                                    key={option.type}
-                                    type="button"
-                                    aria-pressed={isActive}
-                                    onClick={() =>
-                                        changeFilters(
-                                            isActive
-                                                ? enabled.filter(
-                                                      (type) =>
-                                                          type !== option.type,
-                                                  )
-                                                : [...enabled, option.type],
-                                        )
-                                    }
-                                    className={cn(
-                                        'rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-                                        isActive
-                                            ? 'border-primary/30 bg-primary-soft text-primary hover:bg-primary/15'
-                                            : 'border-border text-muted-foreground hover:bg-accent hover:text-foreground',
-                                    )}
-                                >
-                                    {option.label}
-                                </button>
-                            );
-                        })}
-                </div>
+                <NotificationFilters
+                    options={filterOptions.filter(
+                        (option) => option.type !== 'all',
+                    )}
+                    enabled={enabled}
+                    onChange={changeFilters}
+                />
                 {arrivals > 0 && (
                     <div className="pointer-events-none absolute inset-x-0 top-full flex justify-center pt-3">
                         <button
@@ -318,7 +311,7 @@ export default function Index({
                                 setArrivals(0);
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                             }}
-                            className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
+                            className="pointer-events-auto flex items-center gap-1.5 rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-[0_4px_14px_-4px_rgb(0_0_0/0.35)] transition-colors hover:bg-primary-hover motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-2"
                         >
                             <ArrowUp aria-hidden className="size-4" />
                             <span className="tabular-nums">
@@ -366,7 +359,7 @@ export default function Index({
                     </EmptyFeed>
                 </div>
             ) : (
-                <>
+                <GraphCanvas>
                     <InfiniteScroll
                         data="notifications"
                         onlyNext
@@ -384,7 +377,10 @@ export default function Index({
                     >
                         {notifications.data.map((notification, position) => {
                             const previous = notifications.data[position - 1];
+                            const next = notifications.data[position + 1];
                             const isNew = isNewSince(notification, readAt);
+                            const beforeLastVisit =
+                                isNew && next && !isNewSince(next, readAt);
                             const startsDay =
                                 !previous ||
                                 localDayKey(previous.created_at) !==
@@ -401,7 +397,6 @@ export default function Index({
                                                 notification.created_at,
                                                 now,
                                             )}
-                                            hasPrevious={previous !== undefined}
                                         />
                                     )}
                                     <NotificationGroupItem
@@ -416,7 +411,9 @@ export default function Index({
                                         type={filters.type}
                                         readAt={readAt}
                                         isNew={isNew}
-                                        hasPrevious={previous !== undefined}
+                                        withoutBottomBorder={Boolean(
+                                            beforeLastVisit,
+                                        )}
                                     />
                                 </Fragment>
                             );
@@ -425,8 +422,9 @@ export default function Index({
                     {notifications.next_cursor === null && (
                         <div className="flex">
                             <GraphRail
-                                lane={rail}
-                                previousLane={rail}
+                                lane={authorLaneColor(
+                                    notifications.data.at(-1)!.actor,
+                                )}
                                 variant="root"
                                 hasTail={false}
                             />
@@ -436,22 +434,16 @@ export default function Index({
                             </p>
                         </div>
                     )}
-                </>
+                </GraphCanvas>
             )}
         </>
     );
 }
 
-function DayMarker({
-    label,
-    hasPrevious,
-}: {
-    label: string;
-    hasPrevious: boolean;
-}) {
+function DayMarker({ label }: { label: string }) {
     return (
         <div className="flex">
-            <RailSegment lane={hasPrevious ? rail : undefined} />
+            <RailSegment />
             <div className="flex flex-1 items-center border-b py-2 pr-4">
                 <h2 className="font-mono text-xs text-muted-foreground">
                     {label}
@@ -466,14 +458,13 @@ function LastVisitMarker() {
         <div
             role="separator"
             aria-label="Notifications above are new since your last visit"
-            className="flex"
+            className="my-3 flex bg-muted/40"
         >
-            <RailSegment lane={rail} />
-            <div className="flex flex-1 items-center gap-3 border-b py-2 pr-4">
-                <span className="font-mono text-xs text-muted-foreground">
+            <RailSegment />
+            <div className="flex flex-1 items-center py-4 pr-4">
+                <span className="font-mono text-xs font-semibold text-muted-foreground">
                     HEAD@{'{last visit}'}
                 </span>
-                <span className="flex-1 border-t border-dashed" />
             </div>
         </div>
     );
@@ -483,8 +474,8 @@ function NotificationSkeleton({ hasPrevious }: { hasPrevious: boolean }) {
     return (
         <div aria-hidden className="flex">
             <GraphRail
-                lane={rail}
-                previousLane={hasPrevious ? rail : undefined}
+                lane="var(--rail)"
+                previousLane={hasPrevious ? 'var(--rail)' : undefined}
                 node={
                     <span className="size-9 rounded-full border-4 border-card bg-muted motion-safe:animate-pulse" />
                 }
@@ -517,13 +508,13 @@ function NotificationGroupItem({
     type,
     readAt,
     isNew,
-    hasPrevious,
+    withoutBottomBorder,
 }: {
     notification: NotificationGroup;
     type: Filters['type'];
     readAt: string;
     isNew: boolean;
-    hasPrevious: boolean;
+    withoutBottomBorder: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [items, setItems] = useState<Notification[]>([]);
@@ -563,12 +554,16 @@ function NotificationGroupItem({
     return (
         <article
             data-notification-group={notification.group_id}
-            className="transition-colors has-[[data-notification-link]:focus-visible]:bg-accent/50 has-[[data-notification-link]:hover]:bg-accent/40"
+            className="isolate transition-colors has-[[data-notification-link]:focus-visible]:bg-accent/50 has-[[data-notification-link]:hover]:bg-accent/40"
         >
             <NotificationContent
                 notification={notification}
                 isNew={isNew}
-                hasPrevious={hasPrevious}
+                withoutBottomBorder={withoutBottomBorder}
+                graph={{
+                    id: notification.group_id,
+                    endId: `${notification.group_id}:end`,
+                }}
                 summary
             >
                 {grouped && (
@@ -595,8 +590,11 @@ function NotificationGroupItem({
                                     'col-start-1 row-start-1 tabular-nums',
                                     { invisible: open },
                                 )}
+                                title={exactCountTitle(
+                                    notification.event_count,
+                                )}
                             >
-                                {notification.event_count} {noun}
+                                {formatCount(notification.event_count)} {noun}
                             </span>
                             <span
                                 className={cn('col-start-1 row-start-1', {
@@ -682,59 +680,6 @@ function NotificationGroupItem({
     );
 }
 
-/**
- * An icon rather than a full button, since an expanded group of followers repeats it on every row. A group's summary
- * row leaves it out, as it could only follow one of several people back.
- */
-function FollowBackButton({ actor }: { actor: Notification['actor'] }) {
-    const [isFollowing, setIsFollowing] = useIsFollowing(
-        actor,
-        actor.is_followed,
-    );
-    const Icon = isFollowing ? UserCheck : UserPlus;
-
-    return (
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <Link
-                    href={
-                        isFollowing
-                            ? UserFollowController.destroy(actor)
-                            : UserFollowController.store(actor)
-                    }
-                    as="button"
-                    only={['auth']}
-                    preserveState
-                    preserveScroll
-                    onHttpException={(response) =>
-                        onFollowHttpException(actor, response)
-                    }
-                    onSuccess={() => {
-                        setIsFollowing(!isFollowing);
-                        router.flushAll();
-                    }}
-                    aria-label={
-                        isFollowing
-                            ? `Unfollow @${actor.username}`
-                            : `Follow @${actor.username}`
-                    }
-                    className={cn(
-                        'shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
-                        { 'text-primary hover:text-primary': isFollowing },
-                    )}
-                >
-                    <Icon aria-hidden className="size-4" />
-                </Link>
-            </TooltipTrigger>
-            <TooltipContent>
-                {isFollowing
-                    ? `Following @${actor.username}`
-                    : `Follow @${actor.username} back`}
-            </TooltipContent>
-        </Tooltip>
-    );
-}
-
 function OwnCommitExcerpt({ segments }: { segments: BodySegment[] }) {
     return (
         <div className="mt-2 rounded-lg border px-3 py-2 text-muted-foreground">
@@ -744,8 +689,8 @@ function OwnCommitExcerpt({ segments }: { segments: BodySegment[] }) {
 }
 
 /**
- * A quote always quotes the recipient's own commit, so it shows like the other commits of theirs here, or as the usual
- * tombstone once deleted.
+ * A quote always quotes the recipient's own commit, or their organization's, so it shows like the other commits of
+ * theirs here, or as the usual tombstone once deleted.
  */
 function QuotedOwnCommit({
     commit,
@@ -765,12 +710,12 @@ export function ActorAvatar({
     className,
     linked = false,
 }: {
-    user: User;
+    user: Actor;
     anchor: RefObject<HTMLSpanElement | null>;
     className?: string;
     linked?: boolean;
 }) {
-    const avatar = <UserAvatar user={user} className={className} />;
+    const avatar = <AuthorAvatar author={user} className={className} />;
 
     return (
         <UserPreview
@@ -781,10 +726,16 @@ export function ActorAvatar({
             <span ref={anchor} className="flex">
                 {linked ? (
                     <Link
+                        prefetch
                         href={show(user)}
                         tabIndex={-1}
                         aria-hidden
-                        className="flex rounded-full"
+                        className={cn(
+                            'flex',
+                            user.type === 'organization'
+                                ? 'rounded-md'
+                                : 'rounded-full',
+                        )}
                     >
                         {avatar}
                     </Link>
@@ -800,13 +751,16 @@ export function NotificationContent({
     notification,
     summary = false,
     isNew = false,
-    hasPrevious = false,
+    withoutBottomBorder = false,
+    graph,
     children,
 }: {
     notification: Notification | NotificationGroup;
     summary?: boolean;
     isNew?: boolean;
-    hasPrevious?: boolean;
+    withoutBottomBorder?: boolean;
+    /** The notification's node and end dot in a graph canvas. */
+    graph?: { id: string; endId: string };
     children?: ReactNode;
 }) {
     const now = useNow();
@@ -823,6 +777,9 @@ export function NotificationContent({
         notification.type === 'followed' || notification.type === 'starred'
             ? actorsCount - 1
             : 0;
+    // Two people are both named; "and N others" is kept for three or more.
+    const secondActor =
+        otherActors === 1 && actors[1]?.id !== actor.id ? actors[1] : undefined;
     const grouped =
         summary &&
         (actorsCount > 1 ||
@@ -840,7 +797,8 @@ export function NotificationContent({
     const isActorsCommit =
         notification.type === 'replied' ||
         notification.type === 'quoted' ||
-        notification.type === 'mentioned';
+        notification.type === 'mentioned' ||
+        notification.type === 'first_commit';
     const level = notification.type === 'leveled_up' ? notification : null;
     const Icon = {
         followed: UserPlus,
@@ -849,6 +807,7 @@ export function NotificationContent({
         quoted: Quote,
         starred: Star,
         mentioned: AtSign,
+        first_commit: GitCommitVertical,
         approved: Check,
         rejected: X,
     }[notification.type];
@@ -858,7 +817,7 @@ export function NotificationContent({
                 'text-muted-foreground': moderation,
                 'fill-current': notification.type === 'starred',
             })}
-            style={moderation ? undefined : { color: laneColor(actor.lane) }}
+            style={moderation ? undefined : { color: authorLaneColor(actor) }}
             aria-hidden
         />
     );
@@ -868,7 +827,9 @@ export function NotificationContent({
         (!summary && notification.type === 'starred')
             ? show(actor)
             : CommitController.show({
-                  user: isOwnCommit ? user : actor,
+                  profile: isOwnCommit
+                      ? (notification.organization ?? user)
+                      : actor,
                   commit: notification.commit,
               });
     const time = (
@@ -880,16 +841,22 @@ export function NotificationContent({
             {formatRelativeTime(notification.created_at, now)}
         </time>
     );
+    // A member hears about the organization's commits and mentions as the organization's, not their own.
+    const organization = notification.organization;
+    const whose = organization ? `@${organization.handle}'s` : 'your';
     const action = {
         followed: 'followed you',
-        replied: 'replied to your commit',
-        quoted: 'quoted your commit',
+        replied: `replied to ${whose} commit`,
+        quoted: `quoted ${whose} commit`,
         starred: isImageOnly
-            ? `starred your ${starredImages.length === 1 ? 'image' : 'images'}`
-            : 'starred your commit',
-        mentioned: 'mentioned you',
-        approved: 'Your commit was approved',
-        rejected: 'Your commit was rejected',
+            ? `starred ${whose} ${starredImages.length === 1 ? 'image' : 'images'}`
+            : `starred ${whose} commit`,
+        mentioned: organization
+            ? `mentioned @${organization.handle}`
+            : 'mentioned you',
+        first_commit: 'made their first commit',
+        approved: `${organization ? whose : 'Your'} commit was approved`,
+        rejected: `${organization ? whose : 'Your'} commit was rejected`,
         leveled_up: level && `You reached level ${level.level}: ${level.rank}`,
     }[notification.type];
     const excerpt =
@@ -921,7 +888,9 @@ export function NotificationContent({
                 </p>
             )}
             <p className="mt-1">
-                Only you can see this update and your rejected commit.
+                {organization
+                    ? `Only @${organization.handle}'s members can see this update and its rejected commit.`
+                    : 'Only you can see this update and your rejected commit.'}
             </p>
         </div>
     );
@@ -943,6 +912,7 @@ export function NotificationContent({
                             className="relative z-10 flex min-w-0 items-center"
                         >
                             <Link
+                                prefetch
                                 href={show(actor)}
                                 className="flex min-w-0 items-center gap-1.5 rounded-md outline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring"
                             >
@@ -954,9 +924,9 @@ export function NotificationContent({
                                 </span>
                                 <span
                                     className="hidden shrink-4 truncate font-mono text-[13px] text-muted-foreground sm:inline"
-                                    title={`@${actor.username}`}
+                                    title={`@${actor.handle}`}
                                 >
-                                    @{actor.username}
+                                    @{actor.handle}
                                 </span>
                             </Link>
                         </UserPreview>
@@ -965,6 +935,7 @@ export function NotificationContent({
                             {action}
                         </span>
                         <Link
+                            prefetch
                             href={href}
                             className="ml-auto flex shrink-0 items-center gap-2 rounded-md pl-2 outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
                         >
@@ -972,7 +943,7 @@ export function NotificationContent({
                             {time}
                         </Link>
                     </div>
-                    <Link href={href} tabIndex={-1} className="block">
+                    <Link href={href} prefetch tabIndex={-1} className="block">
                         {excerpt}
                     </Link>
                 </div>
@@ -984,6 +955,7 @@ export function NotificationContent({
         return (
             <div className="flex items-start gap-3">
                 <Link
+                    prefetch
                     href={href}
                     className="flex min-w-0 flex-1 gap-2.5 rounded-md outline-offset-4 focus-visible:outline-2 focus-visible:outline-ring"
                 >
@@ -1007,9 +979,9 @@ export function NotificationContent({
                                 </span>
                                 <span
                                     className="hidden shrink-4 truncate font-mono text-[13px] text-muted-foreground sm:inline"
-                                    title={`@${actor.username}`}
+                                    title={`@${actor.handle}`}
                                 >
-                                    @{actor.username}
+                                    @{actor.handle}
                                 </span>
                             </UserPreview>
                             <span className="sr-only">
@@ -1024,8 +996,12 @@ export function NotificationContent({
                         {notification.type !== 'starred' && excerpt}
                     </div>
                 </Link>
-                {notification.type === 'followed' && (
-                    <FollowBackButton actor={actor} />
+                {notification.type === 'followed' && actor.type === 'user' && (
+                    <FollowIconButton
+                        user={actor}
+                        isFollowing={actor.is_followed}
+                        followsYou
+                    />
                 )}
             </div>
         );
@@ -1034,6 +1010,7 @@ export function NotificationContent({
     const actorLinks = (
         <>
             <Link
+                prefetch
                 href={show(actor)}
                 className="relative z-10 truncate font-semibold hover:underline"
                 title={actor.name}
@@ -1041,21 +1018,23 @@ export function NotificationContent({
                 {actor.name}
             </Link>
             <Link
+                prefetch
                 href={show(actor)}
                 tabIndex={-1}
                 className="relative z-10 shrink-4 truncate font-mono text-[13px] text-muted-foreground"
-                title={`@${actor.username}`}
+                title={`@${actor.handle}`}
             >
-                @{actor.username}
+                @{actor.handle}
             </Link>
         </>
     );
 
     const rowLink = (
         <Link
+            prefetch
             href={href}
             data-notification-link
-            className="after:absolute after:inset-0 after:rounded-md after:outline-offset-4 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring"
+            className="after:absolute after:inset-0 after:z-[1] after:rounded-md after:outline-offset-4 focus-visible:outline-none focus-visible:after:outline-2 focus-visible:after:outline-ring"
         >
             {action}
         </Link>
@@ -1064,21 +1043,31 @@ export function NotificationContent({
     return (
         <div className="flex">
             <GraphRail
-                lane={rail}
-                previousLane={hasPrevious ? rail : undefined}
+                lane={authorLaneColor(actor)}
+                endsWithDot
+                graph={graph}
                 nodePosition={isActorsCommit ? 'author' : 'top'}
                 node={
                     isActorsCommit ? (
-                        <span className="flex rounded-full bg-card">
+                        <span
+                            className={cn(
+                                'flex bg-card',
+                                actor.type === 'organization'
+                                    ? 'rounded-lg'
+                                    : 'rounded-full',
+                            )}
+                        >
                             <span
                                 className={cn(
-                                    'flex rounded-full border-2 p-0.5 transition-colors',
-                                    isNew ? 'border-primary' : 'border-rail',
+                                    'flex border-2 border-(--lane) p-0.5 transition-colors',
+                                    actor.type === 'organization'
+                                        ? 'rounded-lg'
+                                        : 'rounded-full',
                                 )}
                             >
                                 {grouped ? (
-                                    <UserAvatar
-                                        user={actor}
+                                    <AuthorAvatar
+                                        author={actor}
                                         className="size-10"
                                     />
                                 ) : (
@@ -1092,18 +1081,17 @@ export function NotificationContent({
                             </span>
                         </span>
                     ) : (
-                        <span
-                            className={cn(
-                                'flex size-9 items-center justify-center rounded-full border-2 bg-card transition-colors',
-                                isNew ? 'border-primary' : 'border-rail',
-                            )}
-                        >
+                        <span className="flex size-9 items-center justify-center rounded-full border-2 border-(--lane) bg-card transition-colors">
                             {icon}
                         </span>
                     )
                 }
             />
-            <div className="min-w-0 flex-1 border-b py-3 pr-4">
+            <div
+                className={cn('min-w-0 flex-1 py-3 pr-4', {
+                    'border-b': !withoutBottomBorder,
+                })}
+            >
                 <div className="flex items-start gap-3">
                     <div className="relative isolate min-w-0 flex-1">
                         {isActorsCommit ? (
@@ -1134,11 +1122,11 @@ export function NotificationContent({
                                 <div className="flex h-10 items-center gap-2">
                                     {level ? (
                                         <span
-                                            className="rounded-full border px-2 py-0.5 font-mono text-xs font-medium"
+                                            className="rounded-md border px-2 py-0.5 font-mono text-xs font-medium"
                                             style={{
-                                                borderColor: `${laneColor(actor.lane)}40`,
-                                                backgroundColor: `${laneColor(actor.lane)}15`,
-                                                color: laneColor(actor.lane),
+                                                borderColor: `${authorLaneColor(actor)}40`,
+                                                backgroundColor: `${authorLaneColor(actor)}15`,
+                                                color: authorLaneColor(actor),
                                             }}
                                             data-test="level-chip"
                                         >
@@ -1147,7 +1135,7 @@ export function NotificationContent({
                                     ) : moderation ? (
                                         <span
                                             className={cn(
-                                                'rounded-full px-2 py-0.5 font-mono text-xs',
+                                                'rounded-sm px-2 py-0.5 font-mono text-xs',
                                                 notification.type === 'rejected'
                                                     ? 'bg-destructive/10 text-destructive'
                                                     : 'bg-muted text-muted-foreground',
@@ -1173,9 +1161,9 @@ export function NotificationContent({
                                             aria-hidden
                                         >
                                             {actors.map((stacked, position) => (
-                                                <UserAvatar
+                                                <AuthorAvatar
                                                     key={stacked.id}
-                                                    user={stacked}
+                                                    author={stacked}
                                                     className="relative size-8 ring-2 ring-card"
                                                     style={{
                                                         zIndex:
@@ -1185,10 +1173,18 @@ export function NotificationContent({
                                                 />
                                             ))}
                                             {actorsCount > actors.length && (
-                                                <span className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card">
+                                                <span
+                                                    className="relative flex h-8 min-w-8 items-center justify-center rounded-full bg-muted px-1.5 font-mono text-xs text-muted-foreground ring-2 ring-card"
+                                                    title={exactCountTitle(
+                                                        actorsCount -
+                                                            actors.length,
+                                                    )}
+                                                >
                                                     +
-                                                    {actorsCount -
-                                                        actors.length}
+                                                    {formatCount(
+                                                        actorsCount -
+                                                            actors.length,
+                                                    )}
                                                 </span>
                                             )}
                                         </span>
@@ -1207,14 +1203,42 @@ export function NotificationContent({
                                             (grouped ? (
                                                 <>
                                                     <Link
+                                                        prefetch
                                                         href={show(actor)}
                                                         className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
                                                         title={actor.name}
                                                     >
                                                         {actor.name}
                                                     </Link>{' '}
-                                                    {otherActors > 0 &&
-                                                        `and ${otherActors} ${otherActors === 1 ? 'other' : 'others'} `}
+                                                    {secondActor ? (
+                                                        <>
+                                                            and{' '}
+                                                            <Link
+                                                                prefetch
+                                                                href={show(
+                                                                    secondActor,
+                                                                )}
+                                                                className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
+                                                                title={
+                                                                    secondActor.name
+                                                                }
+                                                            >
+                                                                {
+                                                                    secondActor.name
+                                                                }
+                                                            </Link>{' '}
+                                                        </>
+                                                    ) : (
+                                                        otherActors > 0 && (
+                                                            <span
+                                                                title={exactCountTitle(
+                                                                    otherActors,
+                                                                )}
+                                                            >
+                                                                {`and ${formatCount(otherActors)} ${otherActors === 1 ? 'other' : 'others'} `}
+                                                            </span>
+                                                        )
+                                                    )}
                                                 </>
                                             ) : (
                                                 <>
@@ -1224,6 +1248,7 @@ export function NotificationContent({
                                                         className="relative z-10"
                                                     >
                                                         <Link
+                                                            prefetch
                                                             href={show(actor)}
                                                             className="relative z-10 inline-block max-w-full truncate align-bottom font-semibold hover:underline"
                                                             title={actor.name}
@@ -1231,12 +1256,13 @@ export function NotificationContent({
                                                             {actor.name}
                                                         </Link>{' '}
                                                         <Link
+                                                            prefetch
                                                             href={show(actor)}
                                                             tabIndex={-1}
                                                             className="relative z-10 inline-block max-w-full truncate align-bottom font-mono text-[13px] text-muted-foreground"
-                                                            title={`@${actor.username}`}
+                                                            title={`@${actor.handle}`}
                                                         >
-                                                            @{actor.username}
+                                                            @{actor.handle}
                                                         </Link>
                                                     </UserPreview>{' '}
                                                 </>
@@ -1264,11 +1290,17 @@ export function NotificationContent({
                         {quote}
                         {reason}
                     </div>
-                    {notification.type === 'followed' && actorsCount === 1 && (
-                        <span className="flex h-10 items-center">
-                            <FollowBackButton actor={actor} />
-                        </span>
-                    )}
+                    {notification.type === 'followed' &&
+                        actorsCount === 1 &&
+                        actor.type === 'user' && (
+                            <span className="flex h-10 items-center">
+                                <FollowIconButton
+                                    user={actor}
+                                    isFollowing={actor.is_followed}
+                                    followsYou
+                                />
+                            </span>
+                        )}
                 </div>
                 {children}
             </div>

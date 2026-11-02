@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 use App\Actions\CreateStarNotification;
 use App\Enums\NotificationType;
+use App\Enums\OrganizationRole;
 use App\Models\Commit;
+use App\Models\Notification;
+use App\Models\Organization;
 use App\Models\User;
 
 it('notifies the author of the starred commit', function (): void {
@@ -37,6 +40,20 @@ it('does not notify an author who muted the stargazer', function (): void {
     resolve(CreateStarNotification::class)->handle($user, $commit);
 
     expect($commit->user->notifications()->exists())->toBeFalse();
+});
+
+it('does not notify the members of an organization who muted the stargazer', function (): void {
+    $user = User::factory()->create();
+    $organization = Organization::factory()->create();
+    [$muter, $member] = User::factory()->count(2)->create()->all();
+    $organization->members()->attach([$muter->id, $member->id], ['role' => OrganizationRole::Member]);
+    $commit = Commit::factory()->for($member)->create(['author_id' => $organization->id]);
+
+    $muter->muting()->attach($user);
+
+    resolve(CreateStarNotification::class)->handle($user, $commit);
+
+    expect(Notification::query()->pluck('recipient_id')->all())->toBe([$member->id]);
 });
 
 it('is idempotent', function (): void {

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import { ActionTooltip } from '@/components/action-tooltip';
+import { AuthorSwitcher } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import {
     ImageDropOverlay,
@@ -12,12 +13,14 @@ import {
     ImagePickerPreviews,
     imageErrorFrom,
 } from '@/components/commit-image-picker';
+import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
 import {
     ComposerPollPreview,
     ComposerPreviewBody,
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { EmojiPickerButton } from '@/components/emoji-picker';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
 import type { UseIssueCommandReturn } from '@/components/issue-command';
@@ -35,13 +38,12 @@ import {
     isExistingLocalTime,
     SchedulePicker,
 } from '@/components/schedule-picker';
-import { SecretWarning } from '@/components/secret-warning';
 import { StashLabel } from '@/components/stash-label';
 import { Button } from '@/components/ui/button';
+import { useEmojiInsertion } from '@/hooks/use-emoji-insertion';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { useLinkCard } from '@/hooks/use-link-card';
 import type { UseLinkCardReturn } from '@/hooks/use-link-card';
-import { useSecretWarning } from '@/hooks/use-secret-warning';
 import type { UseStashReturn } from '@/hooks/use-stash';
 import {
     discardSeriesStash,
@@ -49,16 +51,24 @@ import {
     useStash,
 } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
-import { maxBodyLength, minBodyLength } from '@/lib/commit';
+import {
+    bodyCharacterCount,
+    isSavedAs,
+    maxBodyLength,
+    maxRawBodyLength,
+    minBodyLength,
+} from '@/lib/commit';
+import type { IssueKind } from '@/lib/issue-commands';
 import { hasModKey, useKeyLabels } from '@/lib/keyboard';
 import {
     characterCount,
     cn,
     isRejectedSubmission,
     laneColor,
+    organizationLaneColor,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { User } from '@/types';
+import type { OrganizationAuthor, User } from '@/types';
 
 // The ring moves quickly while a post starts and slows toward the limit, yet only closes at the limit.
 function bodyProgress(count: number): number {
@@ -88,13 +98,15 @@ function CommitComposerBody({
     id,
     isInDialog,
     user,
+    author,
+    onAuthorChange,
     stash,
     attachments,
     linkCard,
     schedule,
     poll,
     setPoll,
-    secrets,
+    commitRules,
     isSubmittable,
     processing,
     issue,
@@ -105,13 +117,15 @@ function CommitComposerBody({
     id: string;
     isInDialog: boolean;
     user: User;
+    author: OrganizationAuthor | null;
+    onAuthorChange: (author: OrganizationAuthor | null) => void;
     stash: UseStashReturn;
     attachments: ReturnType<typeof useImageAttachments>;
     linkCard: UseLinkCardReturn;
     schedule: ReturnType<typeof useCommitSchedule>;
     poll: PollDraft | null;
     setPoll: (poll: PollDraft | null) => void;
-    secrets: ReturnType<typeof useSecretWarning>;
+    commitRules: ReturnType<typeof useCommitRules>;
     isSubmittable: boolean;
     processing: boolean;
     issue: UseIssueCommandReturn;
@@ -131,7 +145,11 @@ function CommitComposerBody({
         setIsScheduling,
     } = schedule;
     const hasImages = attachments.images.length > 0;
-    const progress = bodyProgress(characterCount(body));
+    const progress = bodyProgress(
+        issue.command !== null
+            ? characterCount(body)
+            : bodyCharacterCount(body),
+    );
     const isFilled = hasImages || characterCount(body.trim()) >= minBodyLength;
     const error = errors.body ?? errors.link_preview_url;
     const scheduleError =
@@ -167,6 +185,26 @@ function CommitComposerBody({
         return () => observer.disconnect();
     }, [isInDialog]);
 
+    const ownNode = isInDialog ? (
+        <RailAvatar user={user} progress={progress} />
+    ) : (
+        <Link
+            prefetch
+            href={show(user)}
+            aria-label="View your profile"
+            className="flex rounded-full"
+        >
+            <RailAvatar user={user} progress={progress} />
+        </Link>
+    );
+
+    const insertEmoji = useEmojiInsertion({
+        body,
+        updateBody,
+        textareaRef,
+        maxLength: isIssue ? maxBodyLength : maxRawBodyLength,
+    });
+
     return (
         <div
             className={cn('relative flex', { 'min-h-0': isInDialog })}
@@ -176,22 +214,27 @@ function CommitComposerBody({
                 <ImageDropOverlay className="inset-2" />
             )}
             <GraphRail
-                lane={laneColor(user.lane)}
+                lane={
+                    author === null
+                        ? laneColor(user.lane)
+                        : organizationLaneColor(author.lane)
+                }
                 variant="staged"
                 isFilled={isFilled}
                 hasTail={!isInDialog}
                 node={
-                    isInDialog ? (
-                        <RailAvatar user={user} progress={progress} />
-                    ) : (
-                        <Link
-                            href={show(user)}
-                            aria-label="View your profile"
-                            className="flex rounded-full"
-                        >
+                    <AuthorSwitcher
+                        user={user}
+                        author={author}
+                        onChange={onAuthorChange}
+                        fallback={ownNode}
+                    >
+                        {author === null ? (
                             <RailAvatar user={user} progress={progress} />
-                        </Link>
-                    )
+                        ) : (
+                            <RailAvatar user={author} />
+                        )}
+                    </AuthorSwitcher>
                 }
             />
 
@@ -255,7 +298,9 @@ function CommitComposerBody({
                                 }
                             }}
                             onBlur={issue.blur}
-                            maxLength={maxBodyLength}
+                            maxLength={
+                                isIssue ? maxBodyLength : maxRawBodyLength
+                            }
                             placeholder={
                                 issue.command?.placeholder ??
                                 (poll ? 'Ask a question' : 'What did you ship?')
@@ -264,13 +309,22 @@ function CommitComposerBody({
                             aria-invalid={error ? true : undefined}
                             aria-describedby={`${id}-count`}
                             className={cn(
-                                'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
+                                'col-start-1 row-start-1 block field-sizing-content max-h-[60dvh] min-h-10 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent py-1.5 pr-9 text-[17px] leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none',
                                 {
                                     invisible: preview.isPreviewing,
                                     'max-h-none': isInDialog,
                                 },
                             )}
                         />
+                        {!preview.isPreviewing && (
+                            <div className="sticky bottom-0 col-start-1 row-start-1 self-end justify-self-end">
+                                <EmojiPickerButton
+                                    disabled={processing}
+                                    onPick={insertEmoji}
+                                    className="size-8"
+                                />
+                            </div>
+                        )}
                         {preview.isPreviewing && (
                             <ComposerPreviewBody
                                 preview={preview}
@@ -304,15 +358,9 @@ function CommitComposerBody({
                         />
                     )}
 
-                    <SecretWarning
-                        body={body}
-                        findings={secrets.findings}
+                    <CommitRulesDialog
+                        rules={commitRules}
                         textarea={textareaRef}
-                        onChange={updateBody}
-                        confirming={secrets.confirming}
-                        onConfirmingChange={secrets.setConfirming}
-                        onApprove={secrets.approve}
-                        onEdit={preview.close}
                     />
                     <InputError message={error} />
 
@@ -390,6 +438,7 @@ function CommitComposerBody({
                                 message={scheduleError}
                             />
                             <Link
+                                prefetch
                                 href={ScheduledCommitController.index()}
                                 className="text-xs font-medium text-primary hover:underline"
                             >
@@ -493,6 +542,7 @@ function CommitComposerBody({
                         <BodyCounter
                             id={`${id}-count`}
                             body={body}
+                            isIssue={isIssue}
                             className="text-[13px]"
                         />
                         {isIssue ? (
@@ -553,16 +603,19 @@ function CommitComposerBody({
 export function CommitComposer({
     id = 'body',
     isInDialog = false,
+    issue: initialIssue = null,
     onCommitted,
 }: {
     id?: string;
     isInDialog?: boolean;
+    issue?: IssueKind | null;
     onCommitted?: () => void;
 }) {
     const schedule = useCommitSchedule();
     const { isScheduling, scheduledAt, setScheduledAt, setIsScheduling } =
         schedule;
     const { user } = useUser();
+    const [author, setAuthor] = useState<OrganizationAuthor | null>(null);
     const stash = useStash(user.id, 'commit');
     const { body } = stash;
     const linkCard = useLinkCard(body);
@@ -579,21 +632,10 @@ export function CommitComposer({
         stash.key,
     );
     const [poll, setPoll] = useState<PollDraft | null>(null);
-    const secrets = useSecretWarning(body);
+    const commitRules = useCommitRules();
     const isPosting = useRef(false);
 
     const hasImages = attachments.images.length > 0;
-    const isCommittable =
-        !attachments.reading &&
-        (hasImages || characterCount(body.trim()) >= minBodyLength) &&
-        (poll === null ||
-            poll.options.every((option) => option.trim().length > 0));
-
-    const isSubmittable =
-        isCommittable &&
-        (!isScheduling ||
-            (scheduledAt !== '' && isExistingLocalTime(scheduledAt)));
-
     const issue = useIssueCommand({
         body,
         updateBody: stash.updateBody,
@@ -602,14 +644,38 @@ export function CommitComposer({
             !hasImages &&
             poll === null &&
             !isScheduling,
-        hasSecrets: secrets.findings.length > 0,
+        initialKind: initialIssue,
         onCreated: () => {
             drop();
             focusBody(id);
         },
     });
 
+    const isCommittable =
+        !attachments.reading &&
+        (hasImages || characterCount(body.trim()) >= minBodyLength) &&
+        (issue.command !== null
+            ? characterCount(body)
+            : bodyCharacterCount(body)) <= maxBodyLength &&
+        (poll === null ||
+            poll.options.every((option) => option.trim().length > 0));
+
+    const isSubmittable =
+        isCommittable &&
+        (!isScheduling ||
+            (scheduledAt !== '' && isExistingLocalTime(scheduledAt)));
+
     useEffect(() => discardSeriesStash(user.id), [user.id]);
+
+    const { committed } = usePage().flash;
+
+    // A deploy reloads the page before onSuccess can drop the draft, so the reloaded page names the commit it became.
+    useEffect(() => {
+        if (committed !== undefined && isSavedAs(body, committed.body)) {
+            drop();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
         if (
@@ -642,7 +708,7 @@ export function CommitComposer({
                 !isPosting.current &&
                 !attachments.isReading() &&
                 issue.command === null &&
-                secrets.beforeSubmit()
+                commitRules.beforeSubmit()
             }
             onStart={() => {
                 isPosting.current = true;
@@ -652,6 +718,8 @@ export function CommitComposer({
             }}
             transform={(data) => ({
                 ...data,
+                commit_rules_accepted: commitRules.hasAccepted(),
+                ...(author !== null && { author: author.handle }),
                 ...(hasImages && {
                     images: attachments.images,
                     image_descriptions: attachments.descriptions,
@@ -669,6 +737,7 @@ export function CommitComposer({
                 }
 
                 drop();
+                setAuthor(null);
                 setScheduledAt('');
                 setIsScheduling(false);
                 attachments.clear();
@@ -689,13 +758,15 @@ export function CommitComposer({
                         id={id}
                         isInDialog={isInDialog}
                         user={user}
+                        author={author}
+                        onAuthorChange={setAuthor}
                         stash={stash}
                         attachments={attachments}
                         linkCard={linkCard}
                         schedule={schedule}
                         poll={poll}
                         setPoll={setPoll}
-                        secrets={secrets}
+                        commitRules={commitRules}
                         isSubmittable={isSubmittable}
                         processing={processing}
                         issue={issue}

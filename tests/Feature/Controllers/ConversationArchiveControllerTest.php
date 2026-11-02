@@ -10,14 +10,14 @@ beforeEach(function (): void {
 
 it('moves a stashed conversation to the stashed tab, for you only', function (): void {
     $mark = User::factory()->withRemotes()->create();
-    $nuno = User::factory()->withRemotes()->create(['username' => 'nunomaduro']);
+    $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
     sendChatMessage($nuno, $mark, 'ship it');
 
     $this->actingAs($mark)->postJson(route('conversation-archive.store', $nuno))->assertNoContent();
 
     $this->getJson(route('inbox.index'))->assertJsonPath('conversations', [])->assertJsonPath('unread', 0);
     $this->getJson(route('inbox.index', ['tab' => 'stashed']))
-        ->assertJsonPath('conversations.0.partner.username', 'nunomaduro')
+        ->assertJsonPath('conversations.0.partner.handle', 'nunomaduro')
         ->assertJsonPath('conversations.0.is_archived', true);
     $this->getJson(route('conversation-message.index', $nuno))->assertJsonPath('is_archived', true);
 

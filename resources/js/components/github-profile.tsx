@@ -6,7 +6,7 @@ export function GitHubProfile() {
 
     const fields = [
         { label: 'name', value: user.name },
-        { label: 'username', value: `@${user.username}` },
+        { label: 'username', value: `@${user.handle}` },
         { label: 'bio', value: user.bio },
         { label: 'company', value: user.company },
         { label: 'location', value: user.location },
@@ -14,7 +14,7 @@ export function GitHubProfile() {
         {
             label: 'sponsors',
             value: user.has_sponsors_listing
-                ? `github.com/sponsors/${user.username}`
+                ? `github.com/sponsors/${user.handle}`
                 : null,
         },
     ];
@@ -26,7 +26,7 @@ export function GitHubProfile() {
                 <div className="min-w-0">
                     <p className="truncate font-semibold">{user.name}</p>
                     <p className="truncate font-mono text-sm text-muted-foreground">
-                        @{user.username}
+                        @{user.handle}
                     </p>
                 </div>
             </div>

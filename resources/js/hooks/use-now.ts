@@ -25,11 +25,21 @@ const subscribe = (listener: () => void) => {
     };
 };
 
+let renderedAt: number | null = null;
+
+/**
+ * The moment the server rendered the page, which relative times count from on the server and while the browser
+ * hydrates the page, so both show the same. The browser then counts from its own clock.
+ */
+export function setRenderedAt(timestamp: number | null): void {
+    renderedAt = timestamp;
+}
+
 export function useNow(): Date {
     const timestamp = useSyncExternalStore(
         subscribe,
         () => now,
-        () => now,
+        () => renderedAt ?? now,
     );
 
     return new Date(timestamp);

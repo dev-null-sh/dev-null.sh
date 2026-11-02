@@ -1,18 +1,22 @@
 import { Link, router, usePage } from '@inertiajs/react';
 import {
     Activity,
+    AppWindow,
     BookOpen,
-    Bookmark,
+    Star,
     FileText,
+    HeartHandshake,
     LogOut,
     Settings,
     Shield,
     UserRound,
 } from 'lucide-react';
 import AboutController from '@/actions/App/Http/Controllers/AboutController';
-import BookmarkController from '@/actions/App/Http/Controllers/BookmarkController';
+import AppController from '@/actions/App/Http/Controllers/AppController';
 import OperationsController from '@/actions/App/Http/Controllers/OperationsController';
+import PartnerController from '@/actions/App/Http/Controllers/PartnerController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
+import StarredCommitController from '@/actions/App/Http/Controllers/StarredCommitController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
 import { GitHubIcon } from '@/components/github-icon';
 import {
@@ -23,8 +27,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { UserInfo } from '@/components/user-info';
 import { useMobileNavigation } from '@/hooks/use-mobile-navigation';
+import { clearRecentSearches } from '@/hooks/use-recent-searches';
 import { clearStashes } from '@/hooks/use-stash';
-import { repositoryUrl } from '@/lib/about';
 import { logout } from '@/routes';
 import { show } from '@/routes/user';
 import { edit } from '@/routes/user-profile';
@@ -35,12 +39,13 @@ type Props = {
 };
 
 export function UserMenuContent({ user }: Props) {
-    const { auth } = usePage().props;
+    const { auth, repository } = usePage().props;
     const cleanup = useMobileNavigation();
 
     const handleLogout = () => {
         cleanup();
         clearStashes(user.id);
+        clearRecentSearches(user.id);
         router.flushAll();
     };
 
@@ -48,7 +53,7 @@ export function UserMenuContent({ user }: Props) {
         <>
             <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                    <UserInfo user={user} showUsername={true} />
+                    <UserInfo user={user} showHandle={true} />
                 </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -56,11 +61,11 @@ export function UserMenuContent({ user }: Props) {
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full cursor-pointer"
-                        href={BookmarkController.index()}
+                        href={StarredCommitController.index()}
                         onClick={cleanup}
                     >
-                        <Bookmark className="mr-2" />
-                        Saved
+                        <Star className="mr-2" />
+                        Starred
                     </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
@@ -90,6 +95,7 @@ export function UserMenuContent({ user }: Props) {
                         <Link
                             className="block w-full cursor-pointer"
                             href={OperationsController.show()}
+                            prefetch
                             onClick={cleanup}
                         >
                             <Activity className="mr-2" />
@@ -104,6 +110,7 @@ export function UserMenuContent({ user }: Props) {
                     <Link
                         className="block w-full cursor-pointer"
                         href={AboutController.show()}
+                        prefetch
                         onClick={cleanup}
                     >
                         <BookOpen className="mr-2" />
@@ -113,7 +120,30 @@ export function UserMenuContent({ user }: Props) {
                 <DropdownMenuItem asChild>
                     <Link
                         className="block w-full cursor-pointer"
+                        href={PartnerController.index()}
+                        prefetch
+                        onClick={cleanup}
+                    >
+                        <HeartHandshake className="mr-2" />
+                        Partners
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
+                        href={AppController.index()}
+                        prefetch
+                        onClick={cleanup}
+                    >
+                        <AppWindow className="mr-2" />
+                        Apps
+                    </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                    <Link
+                        className="block w-full cursor-pointer"
                         href={TermsController.show()}
+                        prefetch
                         onClick={cleanup}
                     >
                         <FileText className="mr-2" />
@@ -124,6 +154,7 @@ export function UserMenuContent({ user }: Props) {
                     <Link
                         className="block w-full cursor-pointer"
                         href={PrivacyController.show()}
+                        prefetch
                         onClick={cleanup}
                     >
                         <Shield className="mr-2" />
@@ -132,7 +163,7 @@ export function UserMenuContent({ user }: Props) {
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                     <a
-                        href={repositoryUrl}
+                        href={`https://github.com/${repository}`}
                         className="cursor-pointer"
                         target="_blank"
                         rel="noopener noreferrer"

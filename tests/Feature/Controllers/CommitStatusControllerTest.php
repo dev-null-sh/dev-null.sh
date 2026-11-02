@@ -6,10 +6,6 @@ use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 
-beforeEach(function (): void {
-    config(['services.openai.key' => 'sk-test']);
-});
-
 it('returns that the authors own pending commit is being checked', function (): void {
     $author = User::factory()->create();
     $commit = Commit::factory()->for($author)->pending()->create();
@@ -43,8 +39,8 @@ it('returns that a pending commit is no longer being checked once every attempt 
         ->assertExactJson(['status' => 'pending', 'is_checking' => false]);
 });
 
-it('returns that a pending commit is not being checked without moderation', function (): void {
-    config(['services.openai.key' => null]);
+it('keeps a pending commit checking during its retry window even when the provider is misconfigured', function (): void {
+    config(['ai.providers.openai.key' => null]);
 
     $author = User::factory()->create();
     $commit = Commit::factory()->for($author)->pending()->create();
@@ -52,7 +48,7 @@ it('returns that a pending commit is not being checked without moderation', func
     $this->actingAs($author)
         ->getJson(route('commit-status.show', $commit))
         ->assertOk()
-        ->assertExactJson(['status' => 'pending', 'is_checking' => false]);
+        ->assertExactJson(['status' => 'pending', 'is_checking' => true]);
 });
 
 it('returns the status of an approved commit', function (): void {

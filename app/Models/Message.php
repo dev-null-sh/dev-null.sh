@@ -9,11 +9,13 @@ use App\Services\CodeSpans;
 use Carbon\CarbonInterface;
 use Database\Factories\MessageFactory;
 use Illuminate\Database\Eloquent\Attributes\Visible;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Bodies, and the people they mention, are encrypted at rest with the app key, so database dumps and backups don't
@@ -30,17 +32,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property-read OrgEvent|null $event
  * @property-read string|null $subject_id
  * @property-read int $reactions_version
+ * @property-read CarbonInterface|null $pinned_at
  * @property-read User $user
  * @property-read User|null $subject
  * @property-read Message|null $replyTo
  * @property-read LinkPreview|null $linkPreview
  * @property-read Collection<int, MessageImage> $images
+ * @property-read MessageVoice|null $voice
  * @property-read Collection<int, MessageReaction> $reactions
  * @property-read Conversation $conversation
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  */
-#[Visible(['id', 'user_id', 'client_id', 'body', 'reply_to_id', 'mentions', 'event', 'subject_id', 'created_at', 'user', 'subject', 'linkPreview', 'images', 'reactions'])]
+#[Visible(['id', 'user_id', 'client_id', 'body', 'reply_to_id', 'mentions', 'event', 'subject_id', 'pinned_at', 'created_at', 'user', 'subject', 'linkPreview', 'images', 'voice', 'reactions'])]
 final class Message extends Model
 {
     /** @use HasFactory<MessageFactory> */
@@ -49,9 +53,10 @@ final class Message extends Model
     public const int MAX_LENGTH = 2000;
 
     /**
-     * What a message is shown with in a thread: its link card, its images, its reactions, and the message it replies to.
+     * What a message is shown with in a thread: its link card, its images, its voice note, its reactions, and the
+     * message it replies to.
      */
-    public const array SHOWN_WITH = ['linkPreview', 'images', 'reactions', 'replyTo.images'];
+    public const array SHOWN_WITH = ['linkPreview', 'images', 'voice', 'reactions', 'replyTo.images', 'replyTo.voice'];
 
     /**
      * @return array<string, string>
@@ -70,6 +75,7 @@ final class Message extends Model
             'event' => OrgEvent::class,
             'subject_id' => 'string',
             'reactions_version' => 'integer',
+            'pinned_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
         ];
@@ -126,6 +132,14 @@ final class Message extends Model
     }
 
     /**
+     * @return HasOne<MessageVoice, $this>
+     */
+    public function voice(): HasOne
+    {
+        return $this->hasOne(MessageVoice::class);
+    }
+
+    /**
      * In the order they were left, so a reaction's chip keeps its place.
      *
      * @return HasMany<MessageReaction, $this>
@@ -136,20 +150,21 @@ final class Message extends Model
     }
 
     /**
-     * Only the people in the conversation see a message, and in an org only from where their history starts.
+     * Only the people in the conversation see a message, and in an org only from where their history starts, unless
+     * the org pinned it for everyone.
      */
     public function isVisibleTo(User $user): bool
     {
         return ConversationParticipant::query()
             ->where('conversation_id', $this->conversation_id)
             ->where('user_id', $user->id)
-            ->where('visible_from_id', '<', $this->id)
+            ->when($this->pinned_at === null, fn (Builder $query): Builder => $query->where('visible_from_id', '<', $this->id))
             ->exists();
     }
 
     /**
      * The body also comes split into segments, for rendering, and the message it replies to only as much as its
-     * ghost shows: who wrote it, its body, and whether it carried images.
+     * ghost shows: who wrote it, its body, and whether it carried images or a voice note.
      *
      * @return array<mixed>
      */
@@ -163,6 +178,7 @@ final class Message extends Model
                 'user_id' => $this->replyTo->user_id,
                 'body' => $this->replyTo->body,
                 'images_count' => $this->replyTo->images->count(),
+                'has_voice' => $this->replyTo->voice instanceof MessageVoice,
             ] : null;
         }
 

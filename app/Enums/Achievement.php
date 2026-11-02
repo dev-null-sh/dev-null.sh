@@ -19,6 +19,8 @@ enum Achievement: string
     case AuthorizedKeys = 'authorized_keys';
     case SweetTooth = 'sweet_tooth';
     case Luddite = 'luddite';
+    case ShellShocked = 'shell_shocked';
+    case SuperSaiyan = 'super_saiyan';
 
     public function label(): string
     {
@@ -36,6 +38,8 @@ enum Achievement: string
             self::AuthorizedKeys => 'authorized_keys',
             self::SweetTooth => 'sweet tooth',
             self::Luddite => 'luddite',
+            self::ShellShocked => 'shell shocked',
+            self::SuperSaiyan => 'super-saiyan',
         };
     }
 
@@ -55,6 +59,8 @@ enum Achievement: string
             self::AuthorizedKeys => 'Provisioned a public SSH key from GitHub.',
             self::SweetTooth => 'Received 100 pastéis across your account.',
             self::Luddite => 'Unfollowed Tom. Costs 100 XP until you follow him again.',
+            self::ShellShocked => "Survived the php2shell downtime of Oct '26. Earns 100 XP.",
+            self::SuperSaiyan => 'Y—your follower count. It... it’s over 9000!!!1!',
         };
     }
 
@@ -74,6 +80,8 @@ enum Achievement: string
             self::AuthorizedKeys => 'key',
             self::SweetTooth => 'cookie',
             self::Luddite => 'bot-off',
+            self::ShellShocked => 'bomb',
+            self::SuperSaiyan => 'dragon-ball',
         };
     }
 
@@ -93,6 +101,8 @@ enum Achievement: string
             self::AuthorizedKeys => 1,
             self::SweetTooth => 100,
             self::Luddite => 1,
+            self::ShellShocked => 1,
+            self::SuperSaiyan => 9000,
         };
     }
 }

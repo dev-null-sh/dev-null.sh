@@ -11,7 +11,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
     $this->travelTo(now()->setDate(2026, 10, 17)->setTime(9, 15));
 
     $user = User::factory()->create([
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'name' => 'The Octocat',
         'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
         'bio' => 'I am the Octocat.',
@@ -37,7 +37,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
         ->assertExactJson([
             'data' => [
                 'id' => $user->id,
-                'username' => 'octocat',
+                'handle' => 'octocat',
                 'name' => 'The Octocat',
                 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
                 'bio' => 'I am the Octocat.',
@@ -48,6 +48,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
                 'html_url' => route('user.show', $user),
                 'feed_url' => route('user-feed.show', $user),
                 'created_at' => now()->toIso8601ZuluString(),
+                'live' => null,
                 'commits_count' => 1,
                 'followers_count' => 3,
                 'following_count' => 2,
@@ -60,6 +61,16 @@ it('returns the signed-in user with their unread notifications and their pastéi
                 'automatic_lane' => $user->automaticLane(),
                 'sponsors_url' => null,
                 'github_synced_at' => null,
+                'terms_version' => config('legal.terms_version'),
+                'terms_accepted_at' => null,
+                'terms_accepted' => false,
+                'remotes' => [
+                    'from' => 'following',
+                    'pull_receipts' => true,
+                    'requests' => false,
+                    'everyone' => false,
+                    'unread_count' => 0,
+                ],
             ],
             'unread_notifications_count' => 1,
         ]);
@@ -68,7 +79,7 @@ it('returns the signed-in user with their unread notifications and their pastéi
 it('returns what the web shows only the user on their profile settings', function (): void {
     $user = User::factory()->create([
         'id' => '3a788e93-4cf7-4819-9377-94be2f329563',
-        'username' => 'octocat',
+        'handle' => 'octocat',
         'preferred_lane' => 1,
         'has_sponsors_listing' => true,
         'github_synced_at' => '2026-10-01 09:30:00',
@@ -110,6 +121,34 @@ it('counts unread notifications in groups, like the web', function (): void {
 
     $response->assertOk()
         ->assertJsonPath('unread_notifications_count', 1);
+});
+
+it('counts unread conversations and requests the way the nav on the web does', function (): void {
+    config(['remotes.requests' => true]);
+
+    $user = User::factory()->create();
+    $keyPair = apiKeyPairFor($user);
+    $followed = User::factory()->create();
+    $stranger = User::factory()->create();
+
+    $user->following()->attach($followed);
+    sendChatMessage($followed, $user);
+    sendChatMessage($followed, $user, 'still there?');
+    sendChatMessage($stranger, $user);
+
+    signedApiRequest($keyPair, 'GET', route('api-current-user.show'))
+        ->assertOk()
+        ->assertJsonPath('data.remotes.requests', true)
+        ->assertJsonPath('data.remotes.unread_count', 2);
+});
+
+it('says nothing about Remotes while the user has them off', function (): void {
+    $user = User::factory()->create(['remotes_enabled' => false]);
+    $keyPair = apiKeyPairFor($user);
+
+    signedApiRequest($keyPair, 'GET', route('api-current-user.show'))
+        ->assertOk()
+        ->assertJsonPath('data.remotes', null);
 });
 
 it('rejects requests that are not signed', function (): void {

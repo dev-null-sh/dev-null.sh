@@ -5,13 +5,26 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\CommitStatus;
+use App\Enums\ProfileType;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\Organization;
+use App\Models\Profile;
 use App\Models\User;
+use App\Queries\MacAppReleaseQuery;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Number;
 use Illuminate\Support\Str;
 
 /**
  * @phpstan-type Image array{url: string, width: int, height: int, type: string, alt: string}
+ * @phpstan-type Feed array{url: string, title: string}
+ * @phpstan-type WebsiteMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
+ * @phpstan-type CommitMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, publishedAt: string, author: string, feed?: Feed, structuredData: array<string, mixed>}
+ * @phpstan-type UserMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, feed: Feed, handle: string, structuredData: array<string, mixed>}
+ * @phpstan-type OrganizationMetadata array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, handle: string, structuredData: array<string, mixed>}
+ *
+ * @phpstan-import-type MacAppRelease from MacAppReleaseQuery
  */
 final readonly class PageMetadata
 {
@@ -19,8 +32,6 @@ final readonly class PageMetadata
      * Lets search engines show large image previews and full snippets of public pages.
      */
     private const string INDEXABLE = 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
-
-    private const string NOT_INDEXABLE = 'noindex, follow';
 
     private const int TITLE_EXCERPT_LENGTH = 70;
 
@@ -36,12 +47,12 @@ final readonly class PageMetadata
     /**
      * The link preview and structured data of the landing page.
      *
-     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
+     * @return WebsiteMetadata
      */
     public function home(): array
     {
         $url = route('home');
-        $description = 'A social network for developers. Sign in with GitHub, follow people who write code, and commit plain text to a shared log.';
+        $description = 'A social network for developers. Sign in with GitHub. Commit messages to the log. Talk with other devs.';
 
         return [
             'type' => 'website',
@@ -75,7 +86,7 @@ final readonly class PageMetadata
                         'name' => '/dev/null',
                         'url' => $url,
                         'logo' => url('/icon-512.png'),
-                        'sameAs' => ['https://github.com/nunomaduro/dev-null.sh'],
+                        'sameAs' => ['https://github.com/'.config()->string('services.github.repository')],
                     ],
                 ],
             ],
@@ -85,7 +96,7 @@ final readonly class PageMetadata
     /**
      * The link preview and structured data of a static page, such as the terms of service or the privacy policy.
      *
-     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, structuredData: array<string, mixed>}
+     * @return WebsiteMetadata
      */
     public function page(string $title, string $description, string $url): array
     {
@@ -116,47 +127,94 @@ final readonly class PageMetadata
     }
 
     /**
+     * The link preview and structured data of the apps page, with the Mac app described as software once it is published.
+     *
+     * @param  MacAppRelease|null  $release
+     * @return WebsiteMetadata
+     */
+    public function apps(?array $release): array
+    {
+        $url = route('app.index');
+        $page = $this->page(
+            'Apps - /dev/null',
+            '/dev/null for Mac: your remotes and orgs in a native app, with pull receipts, voice notes, reactions, and banners that never show what a message says.',
+            $url,
+        );
+
+        return [
+            ...$page,
+            'images' => [[
+                'url' => url('/images/apps/og.png'),
+                'width' => OpenGraphCanvas::WIDTH,
+                'height' => OpenGraphCanvas::HEIGHT,
+                'type' => 'image/png',
+                'alt' => '/dev/null for Mac, showing an org of developers talking in remotes',
+            ]],
+            'structuredData' => [
+                '@context' => 'https://schema.org',
+                '@graph' => [
+                    Arr::except($page['structuredData'], '@context'),
+                    ...$release === null ? [] : [[
+                        '@type' => 'SoftwareApplication',
+                        'name' => '/dev/null for Mac',
+                        'url' => $url,
+                        'operatingSystem' => "macOS {$release['minimum_system_version']} or later",
+                        'applicationCategory' => 'SocialNetworkingApplication',
+                        'softwareVersion' => $release['version'],
+                        'datePublished' => $release['released_at'],
+                        'downloadUrl' => $release['download_url'],
+                        'fileSize' => Number::fileSize($release['size'], precision: 1),
+                        'image' => url('/images/apps/mac-icon-light.webp'),
+                        'screenshot' => url('/images/apps/mac.webp'),
+                        'offers' => ['@type' => 'Offer', 'price' => '0', 'priceCurrency' => 'USD'],
+                    ]],
+                ],
+            ],
+        ];
+    }
+
+    /**
      * The link preview and structured data of a commit, from its public preview, stars count, images, and the replies shown under it.
      * The commit's own images are previewed first, with its drawn card as a fallback.
      *
      * @param  array<int, Commit>  $replies
-     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, publishedAt: string, author: string, feed: array{url: string, title: string}, structuredData: array<string, mixed>}|null
+     * @return CommitMetadata|null
      */
     public function commit(Commit $commit, array $replies = []): ?array
     {
-        $user = $commit->user;
+        $profile = $commit->author;
 
-        if ($commit->trashed() || $commit->status !== CommitStatus::Approved || ! $user instanceof User) {
+        if ($commit->trashed() || $commit->status !== CommitStatus::Approved || ! $profile instanceof Profile) {
             return null;
         }
 
         $parent = $commit->parent;
-        $parentUser = $parent instanceof Commit && ! $parent->trashed() && $parent->status === CommitStatus::Approved
-            ? $parent->user
+        $parentProfile = $parent instanceof Commit && ! $parent->trashed() && $parent->status === CommitStatus::Approved
+            ? $parent->author
             : null;
-        $url = route('commit.show', [$user, $commit]);
+        $url = route('commit.show', [$profile, $commit]);
 
-        $author = $parentUser instanceof User
-            ? "{$user->nameWithHandle()} replying to @{$parentUser->username} on /dev/null"
-            : "{$user->nameWithHandle()} on /dev/null";
+        $author = $parentProfile instanceof Profile
+            ? "{$profile->nameWithHandle()} replying to {$parentProfile->mention()} on /dev/null"
+            : "{$profile->nameWithHandle()} on /dev/null";
 
         $body = Str::squish($this->urls->withShortenedUrls($commit->body));
         $title = $author.': “'.Str::limit($body, self::TITLE_EXCERPT_LENGTH, '…', preserveWords: true).'”';
         $description = Str::limit($body, self::DESCRIPTION_LENGTH, '…', preserveWords: true);
 
         $images = [
-            ...$this->commitImages($commit, $user),
+            ...$this->commitImages($commit, $profile),
             [
-                'url' => route('commit-open-graph-image.show', ['user' => $user, 'commit' => $commit, 'v' => $commit->openGraphImageVersion()]),
+                'url' => route('commit-open-graph-image.show', ['profile' => $profile, 'commit' => $commit, 'v' => $commit->openGraphImageVersion()]),
                 'width' => OpenGraphCanvas::WIDTH,
                 'height' => OpenGraphCanvas::HEIGHT,
                 'type' => 'image/png',
-                'alt' => "{$user->nameWithHandle()}: {$description}",
+                'alt' => "{$profile->nameWithHandle()}: {$description}",
             ],
         ];
 
         $comments = collect($replies)
-            ->filter(fn (Commit $reply): bool => ! $reply->trashed() && $reply->status === CommitStatus::Approved && $reply->user instanceof User)
+            ->filter(fn (Commit $reply): bool => ! $reply->trashed() && $reply->status === CommitStatus::Approved && $reply->author instanceof Profile)
             ->take(self::MAX_COMMENTS)
             ->map(fn (Commit $reply): array => $this->comment($reply))
             ->values()
@@ -172,8 +230,8 @@ final readonly class PageMetadata
             'robots' => self::INDEXABLE,
             'images' => $images,
             'publishedAt' => $commit->created_at->toIso8601String(),
-            'author' => route('user.show', $user),
-            'feed' => $this->feed($user),
+            'author' => route('user.show', $profile),
+            ...$profile->user instanceof User ? ['feed' => $this->feed($profile->user)] : [],
             'structuredData' => [
                 '@context' => 'https://schema.org',
                 '@type' => 'SocialMediaPosting',
@@ -183,15 +241,15 @@ final readonly class PageMetadata
                 'headline' => Str::limit($description, 110, '…', preserveWords: true),
                 'text' => $commit->body,
                 'datePublished' => $commit->created_at->toIso8601String(),
-                'author' => $this->person($user),
+                'author' => $this->person($profile),
                 'image' => array_column($images, 'url'),
                 'commentCount' => $commit->replies_count,
                 'interactionStatistic' => [
                     $this->interactionCounter('LikeAction', $commit->stars_count),
                     $this->interactionCounter('CommentAction', $commit->replies_count),
                 ],
-                ...$parent instanceof Commit && $parentUser instanceof User ? [
-                    'isPartOf' => route('commit.show', [$parentUser, $parent]),
+                ...$parent instanceof Commit && $parentProfile instanceof Profile ? [
+                    'isPartOf' => route('commit.show', [$parentProfile, $parent]),
                 ] : [],
                 ...$sharedContent !== null ? ['sharedContent' => $sharedContent] : [],
                 ...$comments !== [] ? ['comment' => $comments] : [],
@@ -202,7 +260,7 @@ final readonly class PageMetadata
     /**
      * The link preview and structured data of a profile, from its public counts.
      *
-     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, feed: array{url: string, title: string}, username: string, structuredData: array<string, mixed>}
+     * @return UserMetadata
      */
     public function user(User $user): array
     {
@@ -211,24 +269,24 @@ final readonly class PageMetadata
         return [
             'type' => 'profile',
             'title' => $title,
-            'description' => $user->bio ?? "Read @{$user->username}'s commits on /dev/null, a social network for developers.",
+            'description' => $user->bio ?? "Read {$user->mention()}'s commits on /dev/null, a social network for developers.",
             'url' => route('user.show', $user),
             'robots' => self::INDEXABLE,
             'images' => [$this->profileImage($user, $title)],
             'feed' => $this->feed($user),
-            'username' => $user->username,
+            'handle' => $user->handle,
             'structuredData' => [
                 '@context' => 'https://schema.org',
                 '@type' => 'ProfilePage',
                 'url' => route('user.show', $user),
                 'dateCreated' => $user->created_at->toIso8601String(),
                 'mainEntity' => [
-                    ...$this->person($user),
+                    ...$this->person($user->profile),
                     'identifier' => $user->id,
                     ...$user->bio !== null ? ['description' => $user->bio] : [],
                     ...$user->avatar_url !== null ? ['image' => $user->avatar_url] : [],
                     'sameAs' => [
-                        "https://github.com/{$user->username}",
+                        "https://github.com/{$user->handle}",
                         ...filled($user->website) ? [$user->website] : [],
                     ],
                     'interactionStatistic' => [
@@ -241,34 +299,53 @@ final readonly class PageMetadata
     }
 
     /**
-     * The link preview of who follows a profile, or who it follows. The lists are thin pages, so they are not indexed, though their links are followed.
+     * The link preview and structured data of an organization's page, from its GitHub profile.
      *
-     * @param  'followers'|'following'  $type
-     * @return array{type: string, title: string, description: string, url: string, robots: string, images: list<Image>, username: string}
+     * @return OrganizationMetadata
      */
-    public function connections(User $user, string $type): array
+    public function organization(Organization $organization): array
     {
-        $title = $type === 'followers'
-            ? "People following {$user->nameWithHandle()} on /dev/null"
-            : "People followed by {$user->nameWithHandle()} on /dev/null";
+        $title = "{$organization->profile->nameWithHandle()} on /dev/null";
+        $url = route('user.show', $organization->handle);
 
         return [
             'type' => 'profile',
             'title' => $title,
-            'description' => $type === 'followers'
-                ? "See who follows @{$user->username} on /dev/null, a social network for developers."
-                : "See who @{$user->username} follows on /dev/null, a social network for developers.",
-            'url' => route($type === 'followers' ? 'user-followers.index' : 'user-following.index', $user),
-            'robots' => self::NOT_INDEXABLE,
-            'images' => [$this->profileImage($user, $title)],
-            'username' => $user->username,
+            'description' => $organization->bio ?? "Read the commits that mention @{$organization->handle} on /dev/null, a social network for developers.",
+            'url' => $url,
+            'robots' => self::INDEXABLE,
+            'images' => [[
+                'url' => route('user-open-graph-image.show', ['profile' => $organization->handle, 'v' => $organization->openGraphImageVersion()]),
+                'width' => OpenGraphCanvas::WIDTH,
+                'height' => OpenGraphCanvas::HEIGHT,
+                'type' => 'image/png',
+                'alt' => $title,
+            ]],
+            'handle' => $organization->handle,
+            'structuredData' => [
+                '@context' => 'https://schema.org',
+                '@type' => 'ProfilePage',
+                'url' => $url,
+                'mainEntity' => [
+                    '@type' => 'Organization',
+                    'name' => $organization->name,
+                    'alternateName' => "@{$organization->handle}",
+                    'url' => $url,
+                    ...$organization->bio !== null ? ['description' => $organization->bio] : [],
+                    ...$organization->avatar_url !== null ? ['image' => $organization->avatar_url] : [],
+                    'sameAs' => [
+                        "https://github.com/{$organization->handle}",
+                        ...filled($organization->website) ? [$organization->website] : [],
+                    ],
+                ],
+            ],
         ];
     }
 
     /**
      * @return list<Image>
      */
-    private function commitImages(Commit $commit, User $user): array
+    private function commitImages(Commit $commit, Profile $profile): array
     {
         if (! $commit->relationLoaded('images') || ! $commit->imagesAreVisibleTo(null)) {
             return [];
@@ -284,8 +361,8 @@ final readonly class PageMetadata
                 'height' => $image->height,
                 'type' => 'image/webp',
                 'alt' => $count === 1
-                    ? "Image attached to the commit of {$user->nameWithHandle()}"
-                    : 'Image '.($index + 1)." of {$count} attached to the commit of {$user->nameWithHandle()}",
+                    ? "Image attached to the commit of {$profile->nameWithHandle()}"
+                    : 'Image '.($index + 1)." of {$count} attached to the commit of {$profile->nameWithHandle()}",
             ];
         }
 
@@ -295,7 +372,7 @@ final readonly class PageMetadata
     /**
      * The Atom feed of the user's commits.
      *
-     * @return array{url: string, title: string}
+     * @return Feed
      */
     private function feed(User $user): array
     {
@@ -311,7 +388,7 @@ final readonly class PageMetadata
     private function profileImage(User $user, string $alt): array
     {
         return [
-            'url' => route('user-open-graph-image.show', ['user' => $user, 'v' => $user->openGraphImageVersion()]),
+            'url' => route('user-open-graph-image.show', ['profile' => $user->handle, 'v' => $user->openGraphImageVersion()]),
             'width' => OpenGraphCanvas::WIDTH,
             'height' => OpenGraphCanvas::HEIGHT,
             'type' => 'image/png',
@@ -328,11 +405,11 @@ final readonly class PageMetadata
     {
         $quoted = $commit->relationLoaded('quotedCommit') ? $commit->quotedCommit : null;
 
-        if ($quoted instanceof Commit && ! $quoted->trashed() && $quoted->status === CommitStatus::Approved && $quoted->user instanceof User) {
+        if ($quoted instanceof Commit && ! $quoted->trashed() && $quoted->status === CommitStatus::Approved && $quoted->author instanceof Profile) {
             return [
                 '@type' => 'SocialMediaPosting',
-                'url' => route('commit.show', [$quoted->user, $quoted]),
-                'author' => $this->person($quoted->user),
+                'url' => route('commit.show', [$quoted->author, $quoted]),
+                'author' => $this->person($quoted->author),
             ];
         }
 
@@ -356,27 +433,28 @@ final readonly class PageMetadata
      */
     private function comment(Commit $reply): array
     {
-        assert($reply->user instanceof User);
+        $author = $reply->author;
+        assert($author instanceof Profile);
 
         return [
             '@type' => 'Comment',
-            'url' => route('commit.show', [$reply->user, $reply]),
+            'url' => route('commit.show', [$author, $reply]),
             'text' => $reply->body,
             'datePublished' => $reply->created_at->toIso8601String(),
-            'author' => $this->person($reply->user),
+            'author' => $this->person($author),
         ];
     }
 
     /**
      * @return array{'@type': string, name: string, alternateName: string, url: string}
      */
-    private function person(User $user): array
+    private function person(Profile $profile): array
     {
         return [
-            '@type' => 'Person',
-            'name' => $user->name,
-            'alternateName' => "@{$user->username}",
-            'url' => route('user.show', $user),
+            '@type' => $profile->type === ProfileType::Organization ? 'Organization' : 'Person',
+            'name' => $profile->name,
+            'alternateName' => $profile->mention(),
+            'url' => route('user.show', $profile),
         ];
     }
 

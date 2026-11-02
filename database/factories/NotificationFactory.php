@@ -42,11 +42,11 @@ final class NotificationFactory extends Factory
             ]))
             ->afterCreating(function (Notification $notification): void {
                 if ($notification->type === NotificationType::Followed) {
-                    $notification->actor()->firstOrFail()->following()->syncWithoutDetaching([$notification->recipient_id]);
+                    User::query()->whereKey($notification->actor_id)->sole()->following()->syncWithoutDetaching([$notification->recipient_id]);
                 }
 
                 if ($notification->type === NotificationType::Starred) {
-                    $notification->actor()->firstOrFail()->starredCommits()->syncWithoutDetaching([$notification->commit_id]);
+                    User::query()->whereKey($notification->actor_id)->sole()->starredCommits()->syncWithoutDetaching([$notification->commit_id]);
                 }
             });
     }
@@ -118,7 +118,7 @@ final class NotificationFactory extends Factory
             'type' => NotificationType::Mentioned,
             'commit_id' => fn (array $attributes): string => Commit::factory()
                 ->for(User::query()->whereKey($attributes['actor_id'])->sole())
-                ->create(['body' => 'Thanks @'.User::query()->whereKey($attributes['recipient_id'])->sole()->username])
+                ->create(['body' => 'Thanks @'.User::query()->whereKey($attributes['recipient_id'])->sole()->handle])
                 ->id,
         ]);
     }

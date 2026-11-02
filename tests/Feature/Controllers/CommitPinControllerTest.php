@@ -60,7 +60,7 @@ it('requires sign in to change a pin', function (string $method): void {
 
 it('forbids changing another author pin even for an admin', function (string $method): void {
     $commit = Commit::factory()->create();
-    $viewer = User::factory()->create(['username' => 'admin']);
+    $viewer = User::factory()->create(['handle' => 'admin']);
     config(['app.admins' => ['admin']]);
     $commit->user->update(['pinned_commit_id' => $commit->id]);
 

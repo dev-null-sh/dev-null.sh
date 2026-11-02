@@ -8,6 +8,9 @@ use App\Enums\ActivityScale;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 
+/**
+ * @phpstan-import-type ActivityBucket from ActivityBucketsQuery
+ */
 final readonly class UserActivityQuery
 {
     public function __construct(private ActivityBucketsQuery $buckets) {}
@@ -15,7 +18,7 @@ final readonly class UserActivityQuery
     /**
      * Without a scale, it is the smallest one that fits all of the visible activity.
      *
-     * @return array{scale: ActivityScale, buckets: list<array{date: string, count: int}>}
+     * @return array{scale: ActivityScale, buckets: list<ActivityBucket>}
      */
     public function get(User $user, ?User $viewer, ?ActivityScale $scale = null): array
     {

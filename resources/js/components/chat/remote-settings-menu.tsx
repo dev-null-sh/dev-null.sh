@@ -1,5 +1,6 @@
 import { Link, router, usePage } from '@inertiajs/react';
-import { Settings2 } from 'lucide-react';
+import { Info, Settings2 } from 'lucide-react';
+import { useId } from 'react';
 import { toast } from 'sonner';
 import { update } from '@/actions/App/Http/Controllers/UserRemotePreferencesController';
 import {
@@ -27,19 +28,28 @@ import type { RemotesFrom } from '@/types';
  */
 export function RemoteSettingsMenu() {
     const { auth } = usePage().props;
+    const remotes = auth.remotes;
+    const fromDescription = useId();
+    const pullsDescription = useId();
 
-    if (auth.remotes === null) {
+    if (remotes === null) {
         return null;
     }
 
-    const { pull_receipts: pullReceipts, requests, everyone } = auth.remotes;
-    const from: RemotesFrom = everyone ? auth.remotes.from : 'following';
+    const { pull_receipts: pullReceipts, requests, everyone } = remotes;
+    const from: RemotesFrom = everyone ? remotes.from : 'following';
 
     const save = (preferences: { from: RemotesFrom; pull_receipts: boolean }) =>
         router.put(update.url(), preferences, {
             preserveScroll: true,
             preserveState: true,
             only: ['auth'],
+            optimistic: (props) => ({
+                auth: {
+                    ...props.auth,
+                    remotes: { ...remotes, ...preferences },
+                },
+            }),
             onError: () =>
                 toast.error('Could not save your remote settings. Try again.'),
         });
@@ -50,7 +60,7 @@ export function RemoteSettingsMenu() {
                 <TooltipTrigger asChild>
                     <DropdownMenuTrigger
                         aria-label="Remote settings"
-                        className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+                        className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
                         data-test="remote-settings"
                     >
                         <Settings2 className="size-[18px]" />
@@ -58,13 +68,17 @@ export function RemoteSettingsMenu() {
                 </TooltipTrigger>
                 <TooltipContent>Remote settings</TooltipContent>
             </Tooltip>
-            <DropdownMenuContent align="end" className="w-72">
+            <DropdownMenuContent
+                align="end"
+                className="max-h-[var(--radix-dropdown-menu-content-available-height)] w-72 overflow-y-auto"
+            >
                 {everyone && (
                     <>
                         <DropdownMenuLabel className="font-mono text-xs font-normal text-muted-foreground">
                             who can push to you
                         </DropdownMenuLabel>
                         <DropdownMenuRadioGroup
+                            aria-describedby={fromDescription}
                             value={from}
                             onValueChange={(value) =>
                                 save({
@@ -80,15 +94,25 @@ export function RemoteSettingsMenu() {
                                 Everyone
                             </DropdownMenuRadioItem>
                         </DropdownMenuRadioGroup>
-                        <p className="px-2 pb-2 text-xs text-muted-foreground">
-                            {requests
-                                ? 'Anyone else lands in Fetched until you merge them. Requests already fetched stay there.'
-                                : 'Anyone else can push to you once you follow them.'}
-                        </p>
+                        <div className="mx-2 mt-2 mb-2 flex items-start gap-2 border-t pt-2 text-xs leading-relaxed text-muted-foreground">
+                            <Info
+                                className="mt-0.5 size-3.5 shrink-0"
+                                aria-hidden
+                            />
+                            <p
+                                id={fromDescription}
+                                className="cursor-text select-text"
+                            >
+                                {requests
+                                    ? 'Anyone else lands in Fetched until you merge them. Requests already fetched stay there.'
+                                    : 'Anyone else can push to you once you follow them.'}
+                            </p>
+                        </div>
                         <DropdownMenuSeparator />
                     </>
                 )}
                 <DropdownMenuCheckboxItem
+                    aria-describedby={pullsDescription}
                     checked={pullReceipts}
                     onCheckedChange={(checked) =>
                         save({ from, pull_receipts: checked === true })
@@ -98,10 +122,16 @@ export function RemoteSettingsMenu() {
                 >
                     Share pulls
                 </DropdownMenuCheckboxItem>
-                <p className="px-2 pb-2 text-xs text-muted-foreground">
-                    When off, nobody sees when you pull their messages, and you
-                    don&apos;t see when they pull yours.
-                </p>
+                <div className="mx-2 mt-2 mb-2 flex items-start gap-2 border-t pt-2 text-xs leading-relaxed text-muted-foreground">
+                    <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                    <p
+                        id={pullsDescription}
+                        className="cursor-text select-text"
+                    >
+                        When off, nobody sees when you pull their messages, and
+                        you don&apos;t see when they pull yours.
+                    </p>
+                </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                     <Link href={edit()}>Turn remotes off in settings</Link>

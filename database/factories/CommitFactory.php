@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Dto\ThreadEngagement;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
@@ -22,6 +23,8 @@ final class CommitFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
+            // Users share the ID of their profile, which they post as.
+            'author_id' => fn (array $attributes): mixed => $attributes['user_id'],
             'body' => fake()->realText(280),
             'status' => CommitStatus::Approved,
             'mentions' => [],
@@ -39,7 +42,7 @@ final class CommitFactory extends Factory
             }
 
             if ($commit->getAttribute('hot_score') === null) {
-                $commit->forceFill(['hot_score' => resolve(TheAlgorithm::class)->score($commit->created_at ?? now(), 0, 0)]);
+                $commit->forceFill(['hot_score' => resolve(TheAlgorithm::class)->score($commit->created_at ?? now(), ThreadEngagement::none())]);
             }
         });
     }

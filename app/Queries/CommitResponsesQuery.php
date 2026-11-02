@@ -22,39 +22,60 @@ final readonly class CommitResponsesQuery
     public function get(CarbonImmutable $from, CarbonImmutable $to): array
     {
         $approved = CommitStatus::Approved->value;
+        $from = $from->startOfDay();
+        $until = $to->addDay()->startOfDay();
+        $answeredUntil = $until->addDay();
 
         /** @var object{commits: int, answered: int, median_seconds: float|null, first_commits: int, first_answered: int} $row */
         $row = DB::selectOne(<<<SQL
-            with humans as not materialized (
+            with humans as materialized (
                 select id from users where github_id <> all(?::text[])
-            ), commits_in_range as (
-                select c.created_at,
-                    not exists (select 1 from commits e where e.user_id = c.user_id and e.created_at < c.created_at) as is_first,
-                    least(
-                        (
-                            select min(r.created_at) from commits r join humans h on h.id = r.user_id
-                            where (r.parent_id = c.id or r.quoted_commit_id = c.id) and r.user_id <> c.user_id and r.status = '{$approved}'
-                        ),
-                        (
-                            select min(s.created_at) from stars s join humans h on h.id = s.user_id
-                            where s.commit_id = c.id and s.user_id <> c.user_id
-                        )
-                    ) - c.created_at as waited
-                from commits c join humans a on a.id = c.user_id
+            ), commits_in_range as materialized (
+                select c.id, c.user_id, c.created_at from commits c join humans a on a.id = c.user_id
                 where c.parent_id is null and c.status = '{$approved}'
                 and c.created_at >= ? and c.created_at < ? and c.created_at <= ?
+            ), responses as (
+                select parent_id as commit_id, user_id, created_at from commits
+                where parent_id in (select id from commits_in_range) and status = '{$approved}' and created_at >= ? and created_at < ?
+                union all
+                select quoted_commit_id, user_id, created_at from commits
+                where quoted_commit_id in (select id from commits_in_range) and status = '{$approved}' and created_at >= ? and created_at < ?
+                union all
+                select commit_id, user_id, created_at from stars
+                where commit_id in (select id from commits_in_range) and created_at >= ? and created_at < ?
+            ), first_responses as (
+                select c.id, min(r.created_at) - c.created_at as waited
+                from commits_in_range c
+                join responses r on r.commit_id = c.id and r.user_id <> c.user_id and r.created_at <= c.created_at + interval '24 hours'
+                join humans h on h.id = r.user_id
+                group by c.id, c.created_at
+            ), first_commits as (
+                select user_id, min(created_at) as created_at from commits
+                where user_id in (select user_id from commits_in_range)
+                group by user_id
+            ), measured as (
+                select f.waited, c.created_at = fc.created_at as is_first
+                from commits_in_range c
+                join first_commits fc on fc.user_id = c.user_id
+                left join first_responses f on f.id = c.id
             )
             select count(*) as commits,
                 count(*) filter (where waited <= interval '24 hours') as answered,
                 percentile_cont(0.5) within group (order by extract(epoch from waited)) filter (where waited <= interval '24 hours') as median_seconds,
                 count(*) filter (where is_first) as first_commits,
                 count(*) filter (where is_first and waited <= interval '24 hours') as first_answered
-            from commits_in_range
+            from measured
             SQL, [
             User::botGitHubIdsArray(),
-            $from->startOfDay(),
-            $to->addDay()->startOfDay(),
+            $from,
+            $until,
             now()->subDay(),
+            $from,
+            $answeredUntil,
+            $from,
+            $answeredUntil,
+            $from,
+            $answeredUntil,
         ]);
 
         return [

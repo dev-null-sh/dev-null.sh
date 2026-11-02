@@ -1,13 +1,12 @@
-import { Head, router } from '@inertiajs/react';
-import { ArrowRight, Search, Sparkles, X } from 'lucide-react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { ArrowRight, History, Search, Sparkles, X } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
-import { CommitCard } from '@/components/commit-card';
-import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
+import { SearchResults } from '@/components/commit-search-results';
+import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
 import { searchCommits, suggestedQueries } from '@/lib/commit-search';
-import { laneColor } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 const skeletonDelay = 300;
@@ -15,16 +14,22 @@ const skeletonDelay = 300;
 type Results = { term: string; commits: Commit[] };
 
 export default function Index({ query }: { query: string }) {
+    const userId = usePage().props.auth.user?.id ?? null;
+    const recentSearches = useRecentSearches(userId);
     const [draft, setDraft] = useState(query);
     const inputRef = useRef<HTMLInputElement>(null);
     const { results, isWaiting } = useCommitSearch(query);
 
     const search = (term: string) => {
-        router.get(
-            SearchController.index({ query: term === '' ? {} : { q: term } }),
-            {},
-            { preserveState: true, preserveScroll: true, replace: true },
-        );
+        router.replace({
+            url: SearchController.index.url({
+                query: term === '' ? {} : { q: term },
+            }),
+            props: (props: { query: string }) => ({ ...props, query: term }),
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => rememberSearch(userId, term),
+        });
     };
 
     const submit = (event: FormEvent) => {
@@ -71,7 +76,7 @@ export default function Index({ query }: { query: string }) {
                         type="button"
                         onClick={clear}
                         aria-label="Clear search"
-                        className="absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full text-muted-foreground transition-[color,opacity] hover:text-foreground disabled:pointer-events-none disabled:opacity-0"
+                        className="absolute top-1/2 right-2 flex size-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground transition-[color,opacity] hover:text-foreground disabled:pointer-events-none disabled:opacity-0"
                         disabled={draft === ''}
                     >
                         <X className="size-4" />
@@ -79,14 +84,13 @@ export default function Index({ query }: { query: string }) {
                 </form>
             </header>
 
-            {query === '' ? (
-                <Suggestions onPick={pick} />
-            ) : (
-                <>
-                    <SearchResults results={results} isWaiting={isWaiting} />
-                    <Suggestions onPick={pick} exclude={query} />
-                </>
+            {query !== '' && (
+                <SearchResults results={results} isWaiting={isWaiting} />
             )}
+            {recentSearches.length > 0 && (
+                <Suggestions onPick={pick} recent={recentSearches} />
+            )}
+            <Suggestions onPick={pick} exclude={query} />
         </>
     );
 }
@@ -132,97 +136,34 @@ function useCommitSearch(query: string) {
     return { results, isWaiting };
 }
 
-function SearchResults({
-    results,
-    isWaiting,
-}: {
-    results: Results | null;
-    isWaiting: boolean;
-}) {
-    if (results === null) {
-        return <ResultsSkeleton isVisible={isWaiting} />;
-    }
-
-    return (
-        <section aria-labelledby="search-results" aria-busy={isWaiting}>
-            <div className="flex h-11 items-center justify-between border-b px-4 sm:px-6">
-                <h2 id="search-results" className="font-semibold">
-                    Most relevant commits
-                </h2>
-                <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                    {results.commits.length}{' '}
-                    {results.commits.length === 1 ? 'match' : 'matches'}
-                </span>
-            </div>
-
-            {results.commits.length === 0 ? (
-                <div className="px-6 py-16 text-center sm:px-12">
-                    <EmptyFeed
-                        command={`fatal: nothing close to '${results.term}'`}
-                    >
-                        Try describing the idea in other words, or pick one of
-                        the searches below.
-                    </EmptyFeed>
-                </div>
-            ) : (
-                results.commits.map((commit, index) => (
-                    <CommitCard
-                        key={commit.id}
-                        commit={commit}
-                        previousLane={
-                            index === 0
-                                ? undefined
-                                : laneColor(
-                                      results.commits[index - 1].user.lane,
-                                  )
-                        }
-                    />
-                ))
-            )}
-        </section>
-    );
-}
-
-/**
- * Takes the loaded header's height even before it shows, so the results land without pushing anything around.
- */
-function ResultsSkeleton({ isVisible }: { isVisible: boolean }) {
-    return (
-        <div
-            role="status"
-            aria-label="Searching commits"
-            className={isVisible ? 'opacity-100' : 'opacity-0'}
-        >
-            <div className="flex h-11 items-center border-b px-4 sm:px-6">
-                <span className="h-3 w-20 rounded bg-muted motion-safe:animate-pulse" />
-            </div>
-            <CommitSkeleton />
-            <CommitSkeleton />
-            <CommitSkeleton />
-        </div>
-    );
-}
-
 function Suggestions({
     onPick,
     exclude,
+    recent,
 }: {
     onPick: (term: string) => void;
     exclude?: string;
+    recent?: string[];
 }) {
-    const visible = suggestedQueries.filter((term) => term !== exclude);
+    const visible =
+        recent ?? suggestedQueries.filter((term) => term !== exclude);
+    const headingId = recent ? 'recent-searches' : 'search-suggestions';
 
     return (
-        <section
-            aria-labelledby="search-suggestions"
-            className="px-4 py-6 sm:px-6"
-        >
+        <section aria-labelledby={headingId} className="px-4 py-6 sm:px-6">
             <h2
-                id="search-suggestions"
+                id={headingId}
                 className="mb-3 flex items-center gap-2 font-semibold"
             >
-                <Sparkles aria-hidden className="size-4 text-primary" />
-                Try searching for…
+                {recent ? (
+                    <History
+                        aria-hidden
+                        className="size-4 text-muted-foreground"
+                    />
+                ) : (
+                    <Sparkles aria-hidden className="size-4 text-primary" />
+                )}
+                {recent ? 'Recent searches' : 'Try searching for…'}
             </h2>
             <ul className="space-y-2">
                 {visible.map((term) => (

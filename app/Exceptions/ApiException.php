@@ -71,6 +71,14 @@ final class ApiException extends HttpException
         return new self(ApiErrorCode::GitHubSyncFailed, __('Could not sync from GitHub. Try again in a minute.'));
     }
 
+    /**
+     * The user is banned, so the only thing left for them is deleting their account.
+     */
+    public static function banned(): self
+    {
+        return new self(ApiErrorCode::Banned, __('Your account is banned from /dev/null. All you can do is delete it.'));
+    }
+
     public function render(): JsonResponse
     {
         return response()->json([

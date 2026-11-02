@@ -17,7 +17,7 @@ export function ThreadPositionBadge({
 
     return (
         <span
-            className="shrink-0 self-center rounded-full bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground tabular-nums"
+            className="shrink-0 self-center rounded-sm bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground tabular-nums"
             title={`Commit ${position} of ${size}${isCapped ? ' or more' : ''} in this thread`}
             data-test="thread-position"
         >

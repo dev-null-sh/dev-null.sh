@@ -12,30 +12,28 @@ import type { Commit } from '../../resources/js/types';
 
 const original = {
     id: 'original',
-    user_id: 'author',
     parent_id: null,
     quoted_commit_id: null,
     created_at: new Date().toISOString(),
     status: 'approved',
     body: 'The original commit',
     body_segments: [{ type: 'text', text: 'The original commit' }],
-    user: { id: 'author', name: 'Author', username: 'author', lane: 1 },
+    author: { id: 'author', name: 'Author', handle: 'author', lane: 1 },
 } as Commit;
 
 const reply = (id: string, overrides: Partial<Commit>): Commit =>
     ({
         ...original,
         id,
-        user_id: id,
         body: `Body of ${id}`,
         body_segments: [{ type: 'text', text: `Body of ${id}` }],
         preview_segments: null,
         replies_count: 0,
-        user: { id, name: id, username: id, lane: 2 },
+        author: { id, name: id, handle: id, lane: 2 },
         ...overrides,
     }) as Commit;
 
-async function renderReplies(replies: Commit[]) {
+async function renderReplies(replies: Commit[], automaticTranslation = true) {
     const commit = {
         ...original,
         replies_count: replies.length,
@@ -59,7 +57,13 @@ async function renderReplies(replies: Commit[]) {
     const result = await createInertiaApp({
         page: {
             component: 'test',
-            props: { auth: { user: null }, errors: {} },
+            props: {
+                auth: { organizations: [],
+                    user: automaticTranslation ? null : original.author,
+                    automaticTranslation,
+                },
+                errors: {},
+            },
             url: '/',
             version: null,
             clearHistory: false,
@@ -116,4 +120,39 @@ test('shows cached translations to guests while leaving other replies in their o
     assert.match(html, /Show original/);
     assert.doesNotMatch(html, /Body of translated/);
     assert.match(html, /Body of untranslated/);
+});
+
+test('keeps cached translations hidden until requested when automatic translation is off', async () => {
+    const html = await renderReplies(
+        [
+            reply('chinese', {
+                parent_id: 'original',
+                body: '今天发布了新版本。',
+                body_segments: [{ type: 'text', text: '今天发布了新版本。' }],
+                translation: {
+                    language: 'en',
+                    source_language: 'zh',
+                    source_name: 'Chinese',
+                    available: true,
+                    translated: {
+                        body_segments: [
+                            {
+                                type: 'text',
+                                text: 'Released a new version today.',
+                            },
+                        ],
+                        preview_segments: null,
+                    },
+                },
+            }),
+        ],
+        false,
+    );
+
+    assert.match(html, /今天发布了新版本。/);
+    assert.doesNotMatch(html, /Released a new version today/);
+    assert.doesNotMatch(html, /Translated from Chinese/);
+    assert.doesNotMatch(html, /Show original/);
+    assert.match(html, /aria-label="Translate commit"/);
+    assert.doesNotMatch(html, /disabled=""[^>]*aria-label="Translate commit"/);
 });

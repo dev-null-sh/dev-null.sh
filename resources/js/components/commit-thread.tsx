@@ -7,12 +7,21 @@ import {
     Trash2,
 } from 'lucide-react';
 import type { CSSProperties, FormEvent, KeyboardEvent, ReactNode } from 'react';
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import {
+    useCallback,
+    useContext,
+    useEffect,
+    useEffectEvent,
+    useRef,
+    useState,
+} from 'react';
 import { toast } from 'sonner';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
 import CommitLinkPreviewController from '@/actions/App/Http/Controllers/CommitLinkPreviewController';
 import CommitReplyController from '@/actions/App/Http/Controllers/CommitReplyController';
 import { ActionTooltip } from '@/components/action-tooltip';
+import { AuthorAvatar } from '@/components/author-avatar';
+import { AuthorSwitcher } from '@/components/author-switcher';
 import { BodyCounter } from '@/components/body-counter';
 import { FoldedCommitBody } from '@/components/commit-body';
 import {
@@ -23,6 +32,7 @@ import {
 } from '@/components/commit-image-picker';
 import { CommitImages } from '@/components/commit-images';
 import { CommitPastelButton } from '@/components/commit-pastel-button';
+import { CommitRulesDialog, useCommitRules } from '@/components/commit-rules';
 import { CommitSecondaryActions } from '@/components/commit-secondary-actions';
 import { CommitStarButton } from '@/components/commit-star-button';
 import { CommitStatusBadge } from '@/components/commit-status-badge';
@@ -32,13 +42,25 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
-import { RailDot } from '@/components/graph-rail';
+import { EmojiPickerButton } from '@/components/emoji-picker';
+import {
+    graphDash,
+    graphStrokeWidth,
+    useGraphDimmed,
+    useGraphNode,
+    useGraphNodeId,
+    WithoutGraph,
+} from '@/components/graph-canvas';
+import { RailDot, railDotRing } from '@/components/graph-rail';
+import { HiddenLinkPreviewContext } from '@/components/hidden-link-preview-context';
 import InputError from '@/components/input-error';
 import { LinkCardPicker } from '@/components/link-card-picker';
 import { LinkPreview } from '@/components/link-preview';
 import { MentionTextarea } from '@/components/mention-textarea';
-import { SecretWarning } from '@/components/secret-warning';
+import { OrganizationAvatar } from '@/components/organization-avatar';
+import { ReplyRecipientPicker } from '@/components/reply-recipient-picker';
 import { StashLabel } from '@/components/stash-label';
+import { showTimeout, timeoutFrom } from '@/components/timeout-dialog';
 import { TimestampTooltip } from '@/components/timestamp-tooltip';
 import { Button } from '@/components/ui/button';
 import {
@@ -52,18 +74,25 @@ import {
     useCommitNotFound,
     useIsCommitDeleted,
 } from '@/hooks/use-deleted-resources';
+import { useEmojiInsertion } from '@/hooks/use-emoji-insertion';
 import { useImageAttachments } from '@/hooks/use-image-attachments';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { useLinkCard } from '@/hooks/use-link-card';
 import { useNow } from '@/hooks/use-now';
-import { useSecretWarning } from '@/hooks/use-secret-warning';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { useSharedState } from '@/hooks/use-shared-state';
 import { moveCaretToEnd, useHasStash, useStash } from '@/hooks/use-stash';
 import { useUser } from '@/hooks/use-user';
 import { signIn } from '@/lib/auth';
-import { maxBodyLength, minBodyLength } from '@/lib/commit';
+import {
+    bodyCharacterCount,
+    maxBodyLength,
+    maxRawBodyLength,
+    minBodyLength,
+} from '@/lib/commit';
 import { commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
+import { exactCountTitle, formatCount } from '@/lib/numbers';
 import {
     characterCount,
     cn,
@@ -79,6 +108,7 @@ import type {
     CursorPaginated,
     DeletedFlash,
     FlashToast,
+    OrganizationAuthor,
     ThreadCommit,
 } from '@/types';
 
@@ -283,14 +313,16 @@ export function useThread(
     const replyRequest = useRef(0);
     const [isReplying, setIsReplying] = useState(false);
 
-    const [previousPreview, setPreviousPreview] = useState(preview);
-    if (preview !== previousPreview) {
-        setPreviousPreview(preview);
-        if (preview !== undefined && (replies?.length ?? 0) <= repliesPerPage) {
+    const [previousInitial, setPreviousInitial] = useState(initial);
+    if (initial !== previousInitial) {
+        setPreviousInitial(initial);
+        if (initial !== undefined && (replies?.length ?? 0) <= repliesPerPage) {
+            ++replyRequest.current;
+            setIsLoading(false);
             setThread((current) => ({
                 ...current,
-                replies: preview.data,
-                nextCursor: preview.next_cursor,
+                replies: initial.data,
+                nextCursor: initial.next_cursor,
             }));
         }
     }
@@ -410,6 +442,25 @@ export function useThread(
         }
     });
 
+    const onInitialChanged = useEffectEvent(() => {
+        if (
+            replies !== null &&
+            (initial === undefined || replies.length > repliesPerPage)
+        ) {
+            reload();
+        }
+    });
+    const loadedInitial = useRef({ initial, count: commit.replies_count });
+    useEffect(() => {
+        if (
+            loadedInitial.current.initial !== initial ||
+            loadedInitial.current.count !== commit.replies_count
+        ) {
+            loadedInitial.current = { initial, count: commit.replies_count };
+            onInitialChanged();
+        }
+    }, [initial, commit.replies_count]);
+
     const loadedExcept = useRef(except);
     useEffect(() => {
         if (loadedExcept.current !== except) {
@@ -505,9 +556,10 @@ export function ShowThreadLink({ thread }: { thread: Thread }) {
 
     return (
         <Link
-            href={CommitController.show({ user: commit.user, commit })}
+            prefetch
+            href={CommitController.show({ profile: commit.author, commit })}
             className="mt-2 -ml-2 flex w-fit items-center gap-1 rounded-md px-2 py-0.5 text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-            aria-label={`Show thread by @${commit.user.username}`}
+            aria-label={`Show thread by @${commit.author.handle}`}
             data-test="show-thread-link"
         >
             <ListTree className="size-4" aria-hidden />
@@ -520,10 +572,15 @@ export function ThreadActions({
     thread,
     actions,
     hasKeyboardShortcuts = false,
+    hasComposer = true,
+    isReply = false,
 }: {
     thread: Thread;
     actions?: ReactNode;
     hasKeyboardShortcuts?: boolean;
+    /** False when the caller renders the reply composer itself, as ThreadReplyComposer. */
+    hasComposer?: boolean;
+    isReply?: boolean;
 }) {
     const { auth } = usePage().props;
     const { commit } = thread;
@@ -577,7 +634,12 @@ export function ThreadActions({
                     {thread.count > 0 && !thread.isPreview && (
                         <ActionTooltip
                             label={
-                                thread.isOpen ? 'Hide replies' : 'Show replies'
+                                thread.isOpen
+                                    ? 'Hide replies'
+                                    : exactCountTitle(thread.count) ===
+                                        undefined
+                                      ? 'Show replies'
+                                      : `Show ${exactCountTitle(thread.count)} replies`
                             }
                             shortcut={hasKeyboardShortcuts ? 'o' : undefined}
                         >
@@ -601,7 +663,7 @@ export function ThreadActions({
                                 />
                                 {thread.isOpen
                                     ? 'Hide replies'
-                                    : `${thread.count} ${thread.count === 1 ? 'reply' : 'replies'}`}
+                                    : `${formatCount(thread.count)} ${thread.count === 1 ? 'reply' : 'replies'}`}
                             </button>
                         </ActionTooltip>
                     )}
@@ -611,19 +673,27 @@ export function ThreadActions({
                     <CommitSecondaryActions
                         commit={commit}
                         keyShortcut={hasKeyboardShortcuts ? 'y' : undefined}
+                        isReply={isReply}
                     />
                 )}
             </div>
 
-            {thread.isReplying && !isDeleted(commit) && (
-                <ReplyComposer
-                    parent={commit}
-                    onCancel={thread.cancelReply}
-                    onReplied={thread.onReplied}
-                />
-            )}
+            {hasComposer && <ThreadReplyComposer thread={thread} />}
         </>
     );
+}
+
+export function ThreadReplyComposer({ thread }: { thread: Thread }) {
+    const { commit } = thread;
+
+    return thread.isReplying && !isDeleted(commit) ? (
+        <ReplyComposer
+            key={commit.id}
+            parent={commit}
+            onCancel={thread.cancelReply}
+            onReplied={thread.onReplied}
+        />
+    ) : null;
 }
 
 export function ThreadSpine({
@@ -638,60 +708,71 @@ export function ThreadSpine({
     }
 
     return (
+        <WithoutGraph>
+            <span
+                aria-hidden
+                className={cn(
+                    'absolute bottom-0 left-1/2 w-0.5 -translate-x-1/2',
+                    className,
+                )}
+                style={laneStrokeStyle(laneOf(thread.commit), {
+                    dash: graphDash,
+                })}
+                data-test="thread-spine"
+            />
+        </WithoutGraph>
+    );
+}
+
+/**
+ * A piece of the parent's column, in its lane, as the graph canvas draws it on from one reply's corner to the next.
+ */
+function ThreadColumn({ className }: { className: string }) {
+    return (
         <span
             aria-hidden
-            className={cn(
-                'absolute bottom-0 left-1/2 w-px -translate-x-1/2',
-                className,
-            )}
-            style={laneStrokeStyle(laneOf(thread.commit))}
-            data-test="thread-spine"
+            className={cn('absolute w-0.5 -translate-x-1/2', className)}
+            style={laneStrokeStyle('var(--lane)', { dash: graphDash })}
+            data-test="thread-column"
         />
     );
 }
 
-const replyLink =
-    'absolute left-[calc(var(--indent)+12px)] w-px sm:left-[calc(var(--indent)+14px)]';
-
-function ReplyLinks({
-    previousLane,
-    lane,
+/**
+ * A reply's branch off its parent: an elbow to the reply, and the column on below it when another reply follows. A
+ * trunk going on below the replies is their column already, so they only turn off it.
+ */
+function ReplyBranch({
+    isOnTrunk,
     hasNext,
 }: {
-    previousLane: string | null;
-    lane: string;
+    isOnTrunk: boolean;
     hasNext: boolean;
 }) {
     return (
         <span aria-hidden>
-            {previousLane === null ? (
-                <ThreadElbow />
-            ) : (
-                <span
-                    className={cn(replyLink, 'top-0 h-1.5')}
-                    style={laneStrokeStyle(previousLane)}
-                    data-test="reply-link"
-                />
-            )}
-            {hasNext && (
-                <span
-                    className={cn(
-                        replyLink,
-                        'top-[38px] bottom-0 sm:top-[42px]',
-                    )}
-                    style={laneStrokeStyle(lane)}
-                    data-test="reply-tail"
-                />
+            <ThreadElbow isOnTrunk={isOnTrunk} />
+            {hasNext && !isOnTrunk && (
+                <ThreadColumn className="top-2.5 bottom-0 left-(--spine) sm:top-3" />
             )}
         </span>
     );
 }
 
-function ThreadElbow() {
+function ThreadElbow({
+    isOnTrunk,
+    className,
+}: {
+    isOnTrunk: boolean;
+    className?: string;
+}) {
     return (
         <svg
             aria-hidden
-            className="pointer-events-none absolute top-0 left-(--spine) h-[22px] w-[calc(var(--indent)-var(--spine)-4px)] overflow-visible sm:h-6"
+            className={cn(
+                'pointer-events-none absolute top-0 left-(--spine) h-[22px] w-[calc(var(--indent)-var(--spine)-4px)] overflow-visible sm:h-6',
+                className,
+            )}
             viewBox="0 0 32 24"
             preserveAspectRatio="none"
             fill="none"
@@ -699,10 +780,10 @@ function ThreadElbow() {
         >
             {/* Quarter-circle corner matching rounded-bl-xl. */}
             <path
-                d="M 0 0 L 0 12 Q 0 23.5 12 23.5 L 32 23.5"
+                d={`${isOnTrunk ? 'M 0 12' : 'M 0 0 L 0 12'} Q 0 23.5 12 23.5 L 32 23.5`}
                 stroke="var(--lane)"
-                strokeWidth="1"
-                strokeDasharray="2 2"
+                strokeWidth={graphStrokeWidth}
+                strokeDasharray={`${graphDash} ${graphDash}`}
                 vectorEffect="non-scaling-stroke"
             />
         </svg>
@@ -712,13 +793,23 @@ function ThreadElbow() {
 export function ThreadReplies({
     thread,
     depth,
+    graphParent,
+    isOnTrunk = false,
 }: {
     thread: Thread;
     depth: number;
+    /** In a graph canvas, the node the replies branch off. */
+    graphParent?: string;
+    /** Whether the parent's trunk goes on below the replies, to the next commit of the thread. */
+    isOnTrunk?: boolean;
 }) {
+    const nodeId = useGraphNodeId();
+
     if (!thread.isOpen) {
         return null;
     }
+
+    const branchFrom = graphParent ?? nodeId(thread.commit.id);
 
     const isFlattened = depth >= maxIndentDepth;
     const layout =
@@ -744,46 +835,52 @@ export function ThreadReplies({
                             reply={reply}
                             parent={thread.commit}
                             depth={depth + 1}
+                            graph={isFlattened ? {} : { parent: branchFrom }}
                             links={
                                 isFlattened ? null : (
-                                    <ReplyLinks
-                                        previousLane={
-                                            index === 0
-                                                ? null
-                                                : laneOf(replies[index - 1])
-                                        }
-                                        lane={laneOf(reply)}
-                                        hasNext={
-                                            index < replies.length - 1 ||
-                                            thread.hasMore
-                                        }
-                                    />
+                                    <WithoutGraph>
+                                        <ReplyBranch
+                                            isOnTrunk={isOnTrunk}
+                                            hasNext={
+                                                index < replies.length - 1 ||
+                                                thread.hasMore
+                                            }
+                                        />
+                                    </WithoutGraph>
                                 )
                             }
                             onDeleted={thread.onDeleted}
                         />
                     ))}
                     {thread.hasMore && (
-                        <div className="relative pt-1.5 pl-(--indent)">
-                            {!isFlattened && thread.replies.length > 0 && (
-                                <span
-                                    aria-hidden
-                                    className={cn(
-                                        replyLink,
-                                        'top-0 h-5 sm:h-5.5',
+                        <div
+                            className={cn(
+                                'relative pt-1.5',
+                                isFlattened || isOnTrunk
+                                    ? 'pl-(--indent)'
+                                    : // Centres the dot on the parent's column.
+                                      'ml-[calc(var(--spine)-12px)] sm:ml-[calc(var(--spine)-14px)]',
+                            )}
+                            data-test="more-replies"
+                        >
+                            {!isFlattened && (
+                                <WithoutGraph>
+                                    {isOnTrunk ? (
+                                        <ThreadElbow
+                                            isOnTrunk
+                                            className="h-5 w-[calc(var(--indent)-var(--spine)+4px)] sm:h-5.5"
+                                        />
+                                    ) : (
+                                        <ThreadColumn className="top-0 left-3 h-5 sm:left-3.5 sm:h-5.5" />
                                     )}
-                                    style={laneStrokeStyle(
-                                        laneOf(
-                                            thread.replies[
-                                                thread.replies.length - 1
-                                            ],
-                                        ),
-                                    )}
-                                />
+                                </WithoutGraph>
                             )}
                             <MoreRepliesButton
                                 thread={thread}
                                 isFlattened={depth + 1 > maxIndentDepth}
+                                graph={
+                                    isFlattened ? {} : { parent: branchFrom }
+                                }
                             />
                         </div>
                     )}
@@ -798,13 +895,15 @@ function ReplySkeleton() {
         <div
             role="status"
             aria-label="Loading replies"
-            className="flex gap-2 pt-2.5 pl-(--indent) motion-safe:animate-pulse sm:gap-2.5"
+            className="pt-2.5 pl-(--indent) motion-safe:animate-in motion-safe:delay-300 motion-safe:fill-mode-backwards motion-safe:fade-in"
         >
-            <span className="size-6 shrink-0 rounded-full bg-muted sm:size-7" />
-            <span className="flex-1">
-                <span className="my-1 block h-3 w-1/3 rounded bg-muted" />
-                <span className="my-1.5 block h-3 w-3/4 rounded bg-muted" />
-                <span className="mt-2.5 block h-3 w-24 rounded bg-muted" />
+            <span className="flex gap-2 motion-safe:animate-pulse sm:gap-2.5">
+                <span className="size-6 shrink-0 rounded-full bg-muted sm:size-7" />
+                <span className="flex-1">
+                    <span className="my-1 block h-3 w-1/3 rounded bg-muted" />
+                    <span className="my-1.5 block h-3 w-3/4 rounded bg-muted" />
+                    <span className="mt-2.5 block h-3 w-24 rounded bg-muted" />
+                </span>
             </span>
         </div>
     );
@@ -820,17 +919,28 @@ function moreRepliesLabel(thread: Thread): string {
     }
 
     return thread.remaining > 1
-        ? `Show the last ${thread.remaining}`
+        ? `Show the last ${formatCount(thread.remaining)}`
         : 'Show more';
 }
 
 function MoreRepliesButton({
     thread,
     isFlattened,
+    graph,
 }: {
     thread: Thread;
     isFlattened: boolean;
+    graph: ReplyGraph;
 }) {
+    const dotRef = useGraphNode({
+        id: useGraphNodeId()(`${thread.commit.id}:more`),
+        lane: 'var(--muted-foreground)',
+        dashed: true,
+        dimmed: useGraphDimmed(),
+        ring: railDotRing,
+        ...graph,
+    });
+
     return (
         <div className="flex max-w-full items-center gap-0.5 text-[13px] text-muted-foreground">
             <button
@@ -844,7 +954,9 @@ function MoreRepliesButton({
                     aria-hidden
                     className="relative flex size-6 shrink-0 items-center justify-center [--lane:var(--muted-foreground)] sm:size-7"
                 >
-                    <RailDot />
+                    <span ref={dotRef} className="flex">
+                        <RailDot />
+                    </span>
                 </span>
                 {thread.isLoading ? (
                     <span role="status">Loading replies…</span>
@@ -855,7 +967,7 @@ function MoreRepliesButton({
                             <>
                                 {' to '}
                                 <span className="font-mono text-xs">
-                                    @{thread.commit.user.username}
+                                    @{thread.commit.author.handle}
                                 </span>
                             </>
                         )}
@@ -873,8 +985,9 @@ function MoreRepliesButton({
                         aria-disabled={thread.isLoading}
                         className="shrink-0 rounded-md px-2 py-0.5 tabular-nums transition-colors [overflow-anchor:none] hover:bg-accent hover:text-foreground aria-disabled:pointer-events-none"
                         data-test="all-replies-button"
+                        title={exactCountTitle(thread.remaining)}
                     >
-                        Show all {thread.remaining}
+                        Show all {formatCount(thread.remaining)}
                     </button>
                 </>
             )}
@@ -882,20 +995,35 @@ function MoreRepliesButton({
     );
 }
 
+type ReplyGraph = { parent?: string };
+
+/** A reply avatar's ring is a 2px ring, 2px away from the picture. */
+const replyRing = 4;
+
 function ReplyItem({
     reply,
     parent,
     depth,
     links,
+    graph,
     onDeleted,
 }: {
     reply: ThreadCommit;
     parent: ThreadCommit;
     depth: number;
     links: ReactNode;
+    graph: ReplyGraph;
     onDeleted: () => void;
 }) {
     const thread = useThread(reply);
+    const nodeRef = useGraphNode({
+        id: useGraphNodeId()(reply.id),
+        lane: laneOf(reply),
+        dashed: true,
+        dimmed: useGraphDimmed(),
+        ring: isDeleted(reply) ? 0 : replyRing,
+        ...graph,
+    });
 
     if (isDeleted(reply)) {
         return (
@@ -908,6 +1036,7 @@ function ReplyItem({
                 <div className="flex gap-2 sm:gap-2.5">
                     <div className="relative shrink-0">
                         <span
+                            ref={nodeRef}
                             aria-hidden
                             className="block size-6 rounded-full border-2 border-dashed border-rail sm:size-7"
                         />
@@ -939,6 +1068,7 @@ function ReplyItem({
             depth={depth}
             links={links}
             thread={thread}
+            nodeRef={nodeRef}
             onDeleted={onDeleted}
         />
     );
@@ -950,6 +1080,7 @@ function CommitReply({
     depth,
     links,
     thread,
+    nodeRef,
     onDeleted,
 }: {
     reply: Commit;
@@ -957,10 +1088,12 @@ function CommitReply({
     depth: number;
     links: ReactNode;
     thread: Thread;
+    nodeRef: (element: HTMLElement | null) => void;
     onDeleted: () => void;
 }) {
     const { auth } = usePage().props;
     const now = useNow();
+    const hiddenLinkPreviewUrl = useContext(HiddenLinkPreviewContext);
     const { bodyRef, ...translation } = useCommitTranslation(reply);
     const wasDeleted = useIsCommitDeleted(reply.id);
     const commitNotFound = useCommitNotFound();
@@ -971,12 +1104,20 @@ function CommitReply({
     const updateCommitsCount = useCommitsCountUpdate();
 
     const avatarRef = useRef<HTMLAnchorElement>(null);
+    // A stable ref, so the node stays registered across renders, like hover dimming its lane.
+    const avatarNodeRef = useCallback(
+        (element: HTMLAnchorElement | null) => {
+            avatarRef.current = element;
+            nodeRef(element);
+        },
+        [nodeRef],
+    );
 
-    const isOwn = reply.user_id === auth.user?.id;
+    const isOwn = useOwnsCommit()(reply);
     const isFlattened = depth > maxIndentDepth;
     const isQuote = reply.quoted_commit_id === parent.id;
     const permalink = CommitController.show({
-        user: reply.user,
+        profile: reply.author,
         commit: reply,
     });
 
@@ -1025,14 +1166,15 @@ function CommitReply({
                 )}
             >
                 <div className="relative shrink-0">
-                    <UserPreview user={reply.user} anchor={avatarRef}>
+                    <UserPreview user={reply.author} anchor={avatarRef}>
                         <Link
-                            ref={avatarRef}
-                            href={show(reply.user)}
+                            prefetch
+                            ref={avatarNodeRef}
+                            href={show(reply.author)}
                             className="block rounded-full"
                         >
-                            <UserAvatar
-                                user={reply.user}
+                            <AuthorAvatar
+                                author={reply.author}
                                 className="size-6 ring-2 ring-(--lane) ring-offset-2 ring-offset-card sm:size-7"
                                 style={
                                     {
@@ -1058,26 +1200,29 @@ function CommitReply({
                 >
                     <div className="flex items-baseline gap-1.5 text-sm">
                         <UserPreview
-                            user={reply.user}
+                            user={reply.author}
                             anchor={avatarRef}
                             className="flex min-w-0 items-baseline gap-1.5"
                         >
                             <Link
-                                href={show(reply.user)}
+                                prefetch
+                                href={show(reply.author)}
                                 className="truncate font-semibold hover:underline"
                             >
-                                {reply.user.name}
+                                {reply.author.name}
                             </Link>
                             <Link
-                                href={show(reply.user)}
+                                prefetch
+                                href={show(reply.author)}
                                 tabIndex={-1}
                                 className="hidden truncate font-mono text-xs text-muted-foreground sm:inline"
                             >
-                                @{reply.user.username}
+                                @{reply.author.handle}
                             </Link>
                         </UserPreview>
                         {isQuote && (
                             <Link
+                                prefetch
                                 href={permalink}
                                 className="shrink-0 font-mono text-xs text-primary hover:underline"
                                 data-test="quote-reply-label"
@@ -1090,9 +1235,14 @@ function CommitReply({
                         </span>
                         <TimestampTooltip
                             date={reply.created_at}
-                            author={reply.user}
+                            author={
+                                reply.author.type === 'user'
+                                    ? reply.author
+                                    : undefined
+                            }
                         >
                             <Link
+                                prefetch
                                 href={permalink}
                                 className="shrink-0 font-mono text-xs text-muted-foreground hover:underline"
                             >
@@ -1126,7 +1276,7 @@ function CommitReply({
                                 {isQuote ? 'quoting' : 'replying to'}{' '}
                                 {isDeleted(parent)
                                     ? '[deleted]'
-                                    : `@${parent.user.username}`}
+                                    : `@${parent.author.handle}`}
                             </span>
                         </p>
                     )}
@@ -1135,20 +1285,22 @@ function CommitReply({
                         <FoldedCommitBody
                             segments={translation.segments}
                             mentions={reply.mentions}
+                            organizationMentions={reply.organization_mentions}
                             previewSegments={translation.previewSegments}
                             className="text-[15px]"
                         />
                     </div>
                     {translation.notice}
                     <CommitImages commit={reply} />
-                    {reply.link_preview && (
-                        <LinkPreview
-                            refreshUrl={CommitLinkPreviewController.show.url(
-                                reply.id,
-                            )}
-                            preview={reply.link_preview}
-                        />
-                    )}
+                    {reply.link_preview &&
+                        reply.link_preview.url !== hiddenLinkPreviewUrl && (
+                            <LinkPreview
+                                refreshUrl={CommitLinkPreviewController.show.url(
+                                    reply.id,
+                                )}
+                                preview={reply.link_preview}
+                            />
+                        )}
                     <ShowThreadLink thread={thread} />
 
                     {isConfirming ? (
@@ -1176,10 +1328,12 @@ function CommitReply({
                     ) : (
                         <ThreadActions
                             thread={thread}
+                            isReply
                             actions={
                                 <>
                                     <CommitStarButton
                                         commit={reply}
+                                        keyShortcut="s"
                                         className="px-2 py-0.5"
                                     />
                                     <CommitPastelButton
@@ -1200,6 +1354,7 @@ function CommitReply({
     );
 }
 
+/** Composes a reply with optional recipients inherited from the parent, excluding the signed-in user. */
 function ReplyComposer({
     parent,
     onCancel,
@@ -1210,13 +1365,32 @@ function ReplyComposer({
     onReplied: (parent: RepliedParent) => void;
 }) {
     const { user } = useUser();
+    const [author, setAuthor] = useState<OrganizationAuthor | null>(null);
     const commitNotFound = useCommitNotFound();
+    const participants = Array.from(
+        new Map(
+            [
+                [parent.author.id, parent.author.handle],
+                ...Object.entries(parent.mentions ?? {}).map(([handle, id]) => [
+                    id,
+                    handle,
+                ]),
+            ]
+                .filter(([id]) => id !== user.id)
+                .map(([id, handle]) => [id, { id, handle }]),
+        ).values(),
+    );
+    const hasRecipientChoice = participants.some(
+        ({ id }) => id !== parent.author.id,
+    );
     const {
         body,
         images,
         descriptions,
         isRestored,
         key: stashKey,
+        excludedRecipientIds,
+        updateExcludedRecipientIds,
         updateBody,
         updateImages,
         drop,
@@ -1234,22 +1408,33 @@ function ReplyComposer({
             body: string;
             images: File[];
             image_descriptions: string[];
+            reply_recipients: string[];
             link_preview_url?: string;
+            commit_rules_accepted?: boolean;
         },
         CreatedReply
     >({
         body: '',
         images: [],
         image_descriptions: [],
+        reply_recipients: [],
     });
     const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const secrets = useSecretWarning(body);
+    const commitRules = useCommitRules();
     const isReplyable =
-        images.length > 0 || characterCount(body.trim()) >= minBodyLength;
+        (images.length > 0 || characterCount(body.trim()) >= minBodyLength) &&
+        bodyCharacterCount(body) <= maxBodyLength;
     const preview = useComposerPreview({
         body,
         textareaRef,
         isSubmittable: isReplyable,
+    });
+
+    const insertEmoji = useEmojiInsertion({
+        body,
+        updateBody,
+        textareaRef,
+        maxLength: maxRawBodyLength,
     });
 
     const returnFocusToCommit = () => {
@@ -1291,7 +1476,7 @@ function ReplyComposer({
         if (
             request.processing ||
             attachments.isReading() ||
-            !secrets.beforeSubmit()
+            !commitRules.beforeSubmit()
         ) {
             return;
         }
@@ -1300,9 +1485,18 @@ function ReplyComposer({
             body,
             images,
             image_descriptions: descriptions,
+            reply_recipients: participants
+                .filter(
+                    ({ id }) =>
+                        id !== parent.author.id &&
+                        !excludedRecipientIds.includes(id),
+                )
+                .map(({ id }) => id),
+            commit_rules_accepted: commitRules.hasAccepted(),
             ...(linkCard.isChosen
                 ? { link_preview_url: linkCard.link ?? '' }
                 : {}),
+            ...(author !== null && { author: author.handle }),
         }));
 
         request
@@ -1310,6 +1504,7 @@ function ReplyComposer({
                 onSuccess: (reply) => {
                     attachments.clear();
                     drop();
+                    setAuthor(null);
                     linkCard.reset();
                     returnFocusToCommit();
                     router.flash(() => reply);
@@ -1318,7 +1513,11 @@ function ReplyComposer({
                     onReplied(reply.parent);
                 },
                 onHttpException: (response) => {
-                    if (!commitNotFound(parent.id, response)) {
+                    const timeout = timeoutFrom(response.status, response.data);
+
+                    if (timeout) {
+                        showTimeout(timeout);
+                    } else if (!commitNotFound(parent.id, response)) {
                         toast.error(replyFailureMessage(response));
                     }
                 },
@@ -1342,8 +1541,16 @@ function ReplyComposer({
                 <ImageDropOverlay className="-inset-px" />
             )}
             <label htmlFor={`reply-${parent.id}`} className="sr-only">
-                Reply to @{parent.user.username}
+                Reply to @{parent.author.handle}
             </label>
+            {hasRecipientChoice && (
+                <ReplyRecipientPicker
+                    participants={participants}
+                    authorId={parent.author.id}
+                    excludedIds={excludedRecipientIds}
+                    onExcludedIdsChange={updateExcludedRecipientIds}
+                />
+            )}
             <div className="grid">
                 <MentionTextarea
                     ref={textareaRef}
@@ -1357,13 +1564,26 @@ function ReplyComposer({
                     onKeyDown={onKeyDown}
                     onPaste={attachments.onPaste}
                     onFocus={isRestored ? moveCaretToEnd : undefined}
-                    maxLength={maxBodyLength}
-                    placeholder={`Reply to @${parent.user.username}`}
+                    maxLength={maxRawBodyLength}
+                    placeholder={
+                        hasRecipientChoice
+                            ? 'Post your reply'
+                            : `Reply to @${parent.author.handle}`
+                    }
                     className={cn(
-                        'col-start-1 row-start-1 block field-sizing-content max-h-[50dvh] min-h-9 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent px-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
+                        'col-start-1 row-start-1 block field-sizing-content max-h-[50dvh] min-h-9 w-full resize-none overflow-x-hidden overflow-y-auto bg-transparent pr-9 pl-1 text-base leading-relaxed outline-none placeholder:text-muted-foreground focus-visible:outline-none md:text-[15px]',
                         { invisible: preview.isPreviewing },
                     )}
                 />
+                {!preview.isPreviewing && (
+                    <div className="col-start-1 row-start-1 self-end justify-self-end">
+                        <EmojiPickerButton
+                            disabled={processing}
+                            onPick={insertEmoji}
+                            className="size-8"
+                        />
+                    </div>
+                )}
                 {preview.isPreviewing && (
                     <ComposerPreviewBody
                         preview={preview}
@@ -1375,7 +1595,14 @@ function ReplyComposer({
                 )}
             </div>
             <InputError
-                message={errors.body ?? errors.link_preview_url}
+                message={
+                    errors.body ??
+                    errors.reply_recipients ??
+                    Object.entries(errors).find(([key]) =>
+                        key.startsWith('reply_recipients.'),
+                    )?.[1] ??
+                    errors.link_preview_url
+                }
                 className="px-1"
             />
             {!preview.isPreviewing && (
@@ -1386,22 +1613,28 @@ function ReplyComposer({
                     onRemove={attachments.remove}
                 />
             )}
-            <SecretWarning
-                body={body}
-                findings={secrets.findings}
-                textarea={textareaRef}
-                onChange={updateBody}
-                confirming={secrets.confirming}
-                onConfirmingChange={secrets.setConfirming}
-                onApprove={secrets.approve}
-                onEdit={preview.close}
-            />
+            <CommitRulesDialog rules={commitRules} textarea={textareaRef} />
             <InputError
                 message={attachments.error ?? imageErrorFrom(errors)}
                 className="mt-1 px-1"
             />
             <div className="mt-1.5 flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                 <div className="mr-auto flex min-w-0 items-center gap-2">
+                    <AuthorSwitcher
+                        user={user}
+                        author={author}
+                        onChange={setAuthor}
+                        fallback={null}
+                    >
+                        {author === null ? (
+                            <UserAvatar user={user} className="size-6" />
+                        ) : (
+                            <OrganizationAvatar
+                                organization={author}
+                                className="size-6"
+                            />
+                        )}
+                    </AuthorSwitcher>
                     <ImagePickerButton
                         count={images.length}
                         disabled={processing}

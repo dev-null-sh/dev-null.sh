@@ -22,10 +22,12 @@ Assume the database has already been leaked. Every column, row, cache entry, log
 - Never log or report a secret, a request body, a message body, an email address, or a full request. Log identifiers (user id, commit id, status code) and nothing else.
 - Never put a secret in a job payload, a queued notification, a flash message, a URL, a cookie, or an Inertia prop.
 
-## Encrypt what must be private
+## Encrypt sensitive content
 
-- Anything private to a user that we really have to store, such as direct and org message bodies and the mentions in them, uses the `encrypted` Eloquent cast so it is unreadable without the app key. A new private column without an `encrypted` cast is a bug.
-- Encrypted columns cannot be searched or indexed. Design the feature around that instead of storing a plaintext copy for search.
+- Use encrypted Eloquent casts for stored content that contains or can reasonably contain sensitive information: private message bodies, associated mentions, private free-text fields, and non-public personal or contact details.
+- Ordinary operational metadata—timestamps, booleans, counters, foreign keys, status enums, and routine preferences—uses normal column types and casts. A field being user-specific or hidden from other users does not by itself require encryption.
+- Judge sensitivity by the field's purpose and contents. Require encryption for metadata only when it directly records sensitive information; theoretical inferences alone do not make routine metadata sensitive.
+- Encrypted content must not have an unencrypted duplicate for searching or indexing.
 
 ## Expose nothing by default
 

@@ -2,7 +2,7 @@ import { router, usePage } from '@inertiajs/react';
 import { useState } from 'react';
 import { setCookie } from '@/hooks/use-appearance';
 
-function currentRound(): number {
+export function currentRound(): number {
     const match = document.cookie.match(/(?:^|; )who_to_follow_round=(\d+)/);
 
     return match ? Number(match[1]) : 0;
@@ -24,6 +24,7 @@ export function useWhoToFollow() {
         rememberShowsWhoToFollow(shows);
         router.reload({
             only: ['showsWhoToFollow', 'suggestedUsers'],
+            reset: ['suggestedUsers'],
             viewTransition: true,
         });
     };
@@ -39,6 +40,7 @@ export function useWhoToFollow() {
         setCookie('who_to_follow_round', String(currentRound() + 1), 1);
         router.reload({
             only: ['suggestedUsers'],
+            reset: ['suggestedUsers'],
             onStart: () => setIsRefreshing(true),
             onFinish: () => setIsRefreshing(false),
         });

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Models\Ban;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Arr;
@@ -15,6 +16,11 @@ final readonly class GitHubAccountScreening
     {
         if (User::query()->where('github_id', (string) $githubUser->getId())->exists()) {
             return null;
+        }
+
+        // A banned account that deleted itself can't sign up again...
+        if (Ban::query()->where('github_id', (string) $githubUser->getId())->exists()) {
+            return __('Sign up blocked. This GitHub account is banned from /dev/null.');
         }
 
         $minimumAge = config('signup.min_account_age_days', 0);

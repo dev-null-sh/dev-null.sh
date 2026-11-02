@@ -16,7 +16,6 @@ final class EmbedKnowledgeBaseCommand extends Command
     public function handle(UpdateKnowledgeBaseSections $action): int
     {
         $source = $this->argument('source');
-        assert(is_string($source));
 
         $embedded = $action->handle($source);
 

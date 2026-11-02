@@ -48,7 +48,7 @@ export function RangePicker({
                     </PresetButton>
                 );
             })}
-            <span className="flex items-center gap-1.5 sm:ml-auto">
+            <span className="flex w-full items-center gap-1.5 sm:ml-auto sm:w-auto">
                 <input
                     type="date"
                     aria-label="From"
@@ -58,7 +58,7 @@ export function RangePicker({
                         event.target.value &&
                         onSelect({ ...range, from: event.target.value })
                     }
-                    className="h-7 rounded-md border bg-transparent px-2 text-[13px]"
+                    className="h-9 min-w-0 flex-1 rounded-md border bg-transparent px-2 text-base tabular-nums sm:h-7 sm:flex-none sm:text-[13px]"
                 />
                 <span className="text-muted-foreground">→</span>
                 <input
@@ -71,7 +71,7 @@ export function RangePicker({
                         event.target.value &&
                         onSelect({ ...range, to: event.target.value })
                     }
-                    className="h-7 rounded-md border bg-transparent px-2 text-[13px]"
+                    className="h-9 min-w-0 flex-1 rounded-md border bg-transparent px-2 text-base tabular-nums sm:h-7 sm:flex-none sm:text-[13px]"
                 />
             </span>
         </div>

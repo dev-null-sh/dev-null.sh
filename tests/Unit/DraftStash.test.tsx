@@ -172,48 +172,51 @@ test('restores draft images, preserves them through body edits, and drops the co
     }
 });
 
-test('drafts keep sensitive text in the editor and images in storage without storing secrets', () => {
-        const token = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
-        const name = 'sensitive';
-        const key = `stash:author:${name}`;
-        bodies.set(key, token);
+test('restores and saves token-shaped drafts unchanged with their images', async () => {
+    vi.resetModules();
+    vi.doMock('react', mockReactHooks);
+    const hooks = await import('../../resources/js/hooks/use-stash');
+    const token = 'ghp_' + 'Ab3dEf6hIj9kLm2nOp5qRs8tUv1wXy4zABCD';
+    const name = 'token-shaped';
+    const key = `stash:author:${name}`;
+    const edited = `Updated draft ${token}`;
+    bodies.set(key, token);
+    state = [];
+    const render = () => {
+        cursor = 0;
+        return hooks.useStash('author', name);
+    };
+    vi.stubGlobal('window', { addEventListener() {} });
+    vi.useFakeTimers();
+    try {
+        let draft = render();
+        assert.equal(draft.body, token);
+        assert.equal(bodies.get(key), token);
+
+        draft.updateImages([image]);
+        draft = render();
+        draft.updateBody(edited);
+        vi.advanceTimersByTime(300);
+        assert.equal(bodies.get(key), edited);
+
         state = [];
-        const render = () => {
-            cursor = 0;
-            return useStash('author', name);
-        };
-        vi.stubGlobal('window', { addEventListener() {} });
-        try {
-            let draft = render();
-            assert.equal(draft.body, token);
-            assert.equal(bodies.has(key), false);
+        draft = render();
+        assert.equal(draft.body, edited);
+        assert.deepEqual(draft.images, [image]);
+        assert.equal(hooks.useHasStash('author', name), true);
 
-            draft.updateImages([image]);
-            draft = render();
-            draft.updateBody('Ordinary edited body');
-            draft = render();
-            draft.updateBody(token);
-            draft = render();
-
-            assert.equal(draft.body, token);
-            assert.deepEqual(draft.images, [image]);
-            assert.deepEqual(storedImages.get(key), {
-                images: [image],
-                descriptions: [''],
-            });
-            assert.equal(bodies.has(key), false);
-            assert.equal(useHasStash('author', name), true);
-
-            draft.drop();
-            draft = render();
-            assert.equal(draft.body, '');
-            assert.deepEqual(draft.images, []);
-            assert.equal(storedImages.has(key), false);
-            assert.equal(useHasStash('author', name), false);
-        } finally {
-            clearStashes('author');
-            vi.unstubAllGlobals();
-        }
+        draft.drop();
+        draft = render();
+        assert.equal(draft.body, '');
+        assert.equal(bodies.has(key), false);
+        assert.deepEqual(draft.images, []);
+        assert.equal(storedImages.has(key), false);
+        assert.equal(hooks.useHasStash('author', name), false);
+    } finally {
+        hooks.clearStashes('author');
+        vi.useRealTimers();
+        vi.unstubAllGlobals();
+    }
 });
 
 test('drafts keep descriptions paired with repeated files through filtering, removal, restoration and clearing', async () => {
@@ -338,4 +341,63 @@ test('drafts release image URLs on replacement, drop and logout while keeping re
             hooks.clearStashes('url-owner');
             revoke.mockRestore();
         }
+});
+
+test('reply recipient exclusions survive closing and reloading a draft and clear on drop or logout', async () => {
+    vi.resetModules();
+    vi.doMock('react', mockReactHooks);
+    let hooks = await import('../../resources/js/hooks/use-stash');
+    vi.stubGlobal('window', { addEventListener() {} });
+    vi.useFakeTimers();
+    state = [];
+    const render = (user = 'recipient-author', name = 'reply-parent') => {
+        cursor = 0;
+        return hooks.useStash(user, name);
+    };
+
+    try {
+        let draft = render();
+        assert.deepEqual(draft.excludedRecipientIds, []);
+        draft.updateExcludedRecipientIds(['excluded-developer']);
+        draft.updateBody('My unfinished reply');
+        state = [];
+        draft = render();
+        assert.equal(draft.body, 'My unfinished reply');
+        assert.deepEqual(draft.excludedRecipientIds, ['excluded-developer']);
+        vi.advanceTimersByTime(300);
+
+        vi.resetModules();
+        hooks = await import('../../resources/js/hooks/use-stash');
+        state = [];
+        draft = render();
+        assert.equal(draft.body, 'My unfinished reply');
+        assert.deepEqual(draft.excludedRecipientIds, ['excluded-developer']);
+        state = [];
+        assert.deepEqual(render('another-author').excludedRecipientIds, []);
+        state = [];
+        assert.deepEqual(
+            render('recipient-author', 'reply-other').excludedRecipientIds,
+            [],
+        );
+        state = [];
+        draft = render();
+        draft.drop();
+        state = [];
+        draft = render();
+        assert.equal(draft.body, '');
+        assert.deepEqual(draft.excludedRecipientIds, []);
+        draft.updateExcludedRecipientIds(['excluded-developer']);
+        draft.updateImages([image]);
+        state = [];
+        draft = render();
+        assert.deepEqual(draft.images, [image]);
+        assert.deepEqual(draft.excludedRecipientIds, ['excluded-developer']);
+        hooks.clearStashes('recipient-author');
+        state = [];
+        assert.deepEqual(render().excludedRecipientIds, []);
+    } finally {
+        hooks.clearStashes('recipient-author');
+        vi.useRealTimers();
+        vi.unstubAllGlobals();
+    }
 });

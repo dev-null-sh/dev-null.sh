@@ -7,7 +7,6 @@ const fields = [
     'stars_count',
     'pasteis_count',
     'pasteis_received',
-    'is_saved',
     'replies_count',
     'commits_count',
     'continuation_id',

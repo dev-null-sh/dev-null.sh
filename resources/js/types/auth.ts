@@ -1,3 +1,4 @@
+import type { OrganizationAuthor } from '@/types/commit';
 import type { RemotesFrom } from '@/types/conversation';
 import type { Log } from '@/types/log';
 
@@ -13,7 +14,7 @@ export type LiveStream = {
 
 export type User = {
     id: string;
-    username: string;
+    handle: string;
     name: string;
     avatar_url: string | null;
     bio: string | null;
@@ -24,6 +25,7 @@ export type User = {
     has_github_account: boolean;
     lane: Lane;
     timezone: string | null;
+    show_local_time: boolean;
     /**
      * Only set while the user is streaming.
      */
@@ -43,7 +45,17 @@ export type Profile = User & {
  */
 export type Auth = {
     user: Profile | null;
+    bioProfiles: Record<string, string>;
+    /**
+     * The organizations the user is a member of, whose commits are theirs too.
+     */
+    organizations: OrganizationAuthor[];
+    // Whether members may post as their organization yet, while it is being rolled out.
+    canPostAsOrganization: boolean;
     isAdmin: boolean;
+    automaticTranslation: boolean;
+    mustReadCommitRules: boolean;
+    termsToAccept: string | null;
     log: Log | null;
     unreadNotificationsCount: number;
     unreadMessagesCount: number;

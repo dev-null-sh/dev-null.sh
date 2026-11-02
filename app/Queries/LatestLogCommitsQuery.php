@@ -22,7 +22,25 @@ final readonly class LatestLogCommitsQuery
 
         return $log->query()->builder($user)
             ->newerThan($since)
-            ->when($user, fn (CommitBuilder $query, User $user): CommitBuilder => $query->where($query->qualifyColumn('user_id'), '!=', $user->id))
+            // The user's own commits aren't news to them, nor are their organizations', as the log's page tells them apart.
+            ->when($user, fn (CommitBuilder $query, User $user): CommitBuilder => $query
+                ->where($query->qualifyColumn('author_id'), '!=', $user->id)
+                ->whereNotIn($query->qualifyColumn('author_id'), $user->organizations()->select('organizations.id')))
             ->count();
+    }
+
+    /**
+     * @param  list<string>  $pending
+     * @return list<string>
+     */
+    public function missing(Log $log, ?User $user, array $pending): array
+    {
+        if ($pending === [] || $log->isRanked()) {
+            return [];
+        }
+
+        $visible = $log->query()->builder($user)->whereKey($pending)->toBase()->select('commits.id')->reorder()->pluck('commits.id');
+
+        return array_values(collect($pending)->reject(fn (string $id): bool => $visible->contains($id))->all());
     }
 }

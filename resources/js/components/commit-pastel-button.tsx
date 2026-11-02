@@ -7,6 +7,7 @@ import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { commitStateKey } from '@/lib/commit-state';
+import { formatCount, formatExactCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -46,14 +47,15 @@ export function CommitPastelButton({
     const busy = useRef(false);
     const emoji = useRef<HTMLImageElement>(null);
 
-    if (!auth.pasteis || !auth.user) {
+    // An organization's commits take no pastéis: they would go to whoever posted them.
+    if (!auth.pasteis || !auth.user || commit.author.type === 'organization') {
         return null;
     }
 
     const userId = auth.user.id;
-    const isOwn = commit.user_id === userId;
-    const readOnly = isOwn || commit.status !== 'approved' || !commit.user_id;
-    const label = `${count} ${count === 1 ? 'pastel' : 'pastéis'}`;
+    const isOwn = commit.author.id === userId;
+    const readOnly = isOwn || commit.status !== 'approved';
+    const label = `${formatExactCount(count)} ${count === 1 ? 'pastel' : 'pastéis'}`;
 
     const award = async () => {
         if (busy.current || awarding.has(userId)) {
@@ -156,7 +158,9 @@ export function CommitPastelButton({
                 height={20}
                 className="size-5 shrink-0 object-contain"
             />
-            <span className="min-w-[1ch] text-left tabular-nums">{count}</span>
+            <span className="min-w-[1ch] text-left tabular-nums">
+                {formatCount(count)}
+            </span>
         </>
     );
     const classes = cn(

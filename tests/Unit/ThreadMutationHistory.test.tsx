@@ -225,3 +225,201 @@ test('does not let a delayed history refresh overwrite a newer deletion refresh'
         ['one'],
     );
 });
+
+for (const isOpen of [true, false]) {
+    for (const hasReplies of [true, false]) {
+        test(`applies a posted quote to an ${isOpen ? 'expanded' : 'collapsed'} thread with ${hasReplies ? 'existing' : 'no'} replies`, () => {
+            const original = hasReplies ? [reply('existing')] : [];
+            saved = { replies: original, nextCursor: null, isOpen };
+            const initial = {
+                data: original,
+                next_cursor: null,
+                prev_cursor: null,
+            };
+            const refreshed = {
+                data: [...original, reply('posted-quote')],
+                next_cursor: null,
+                prev_cursor: null,
+            };
+            let thread: ReturnType<typeof useThread> | undefined;
+            function Probe() {
+                const [posted, setPosted] = React.useState(false);
+                thread = useThread(
+                    {
+                        ...reply(`quoted-${isOpen}-${hasReplies}`),
+                        replies_count: refreshed.data.length,
+                    },
+                    posted ? refreshed : initial,
+                );
+                if (!posted) {
+                    setPosted(true);
+                }
+                return null;
+            }
+            renderToString(<Probe />);
+            assert.ok(thread);
+            assert.deepEqual(
+                thread.replies?.map((row) => row.id),
+                refreshed.data.map((row) => row.id),
+            );
+            assert.equal(thread.isOpen, isOpen);
+            assert.equal(thread.hasMore, false);
+        });
+    }
+}
+
+test('refreshes all loaded reply pages after posting a quote without collapsing the thread', async () => {
+    const original = ['one', 'two', 'three', 'four'].map(reply);
+    const refreshed = [...original, reply('posted-quote')];
+    saved = { replies: original, nextCursor: null, isOpen: true };
+    const initial = {
+        data: original.slice(0, 3),
+        next_cursor: 'next',
+        prev_cursor: null,
+    };
+    const fetch = vi.fn().mockImplementation(async (url: string) => {
+        const last = new URL(url, 'http://localhost').searchParams.has(
+            'cursor',
+        );
+        return {
+            ok: true,
+            json: async () => ({
+                data: last ? refreshed.slice(3) : refreshed.slice(0, 3),
+                next_cursor: last ? null : 'next',
+                prev_cursor: null,
+            }),
+        };
+    });
+    vi.stubGlobal('fetch', fetch);
+    function Probe() {
+        const [posted, setPosted] = React.useState(false);
+        useThread(
+            { ...reply('quoted-paginated'), replies_count: posted ? 5 : 4 },
+            initial,
+        );
+        if (!posted) {
+            setPosted(true);
+        }
+        return null;
+    }
+    renderToString(<Probe />);
+    assert.deepEqual(saved.replies, original);
+    for (const effect of effects.splice(0)) effect();
+    await vi.waitFor(() =>
+        assert.deepEqual(
+            saved.replies?.map((row) => row.id),
+            refreshed.map((row) => row.id),
+        ),
+    );
+    assert.equal(saved.isOpen, true);
+    assert.equal(saved.nextCursor, null);
+    assert.equal(fetch.mock.calls.length, 2);
+});
+
+test('keeps the posted quote when an older pagination response finishes later', async () => {
+    saved = { replies: [reply('existing')], nextCursor: 'next', isOpen: true };
+    const initial = {
+        data: [reply('existing')],
+        next_cursor: 'next',
+        prev_cursor: null,
+    };
+    const refreshed = {
+        data: [reply('existing'), reply('posted-quote')],
+        next_cursor: null,
+        prev_cursor: null,
+    };
+    let finish!: (value: unknown) => void;
+    const fetch = vi.fn(
+        () =>
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    function Probe() {
+        const [posted, setPosted] = React.useState(false);
+        const thread = useThread(
+            { ...reply('quote-during-pagination'), replies_count: 2 },
+            posted ? refreshed : initial,
+        );
+        if (!posted) {
+            thread.loadMore();
+            setPosted(true);
+        }
+        return null;
+    }
+
+    renderToString(<Probe />);
+    finish({
+        ok: true,
+        json: async () => ({
+            data: [reply('stale')],
+            next_cursor: null,
+            prev_cursor: null,
+        }),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.deepEqual(
+        saved.replies?.map((row) => row.id),
+        ['existing', 'posted-quote'],
+    );
+    assert.equal(saved.nextCursor, null);
+});
+
+for (const isOpen of [true, false]) {
+    for (const size of [1, 4]) {
+        test(`refreshes ${size} loaded replies of an ${isOpen ? 'expanded' : 'collapsed'} continuation thread after a quote`, async () => {
+            const original = Array.from({ length: size }, (_, index) =>
+                reply(String(index)),
+            );
+            const refreshed = [...original, reply('posted-quote')];
+            saved = { replies: original, nextCursor: null, isOpen };
+            const fetch = vi.fn().mockImplementation(async (url: string) => {
+                const query = new URL(url, 'http://localhost').searchParams;
+                assert.equal(query.get('except'), 'author-continuation');
+                const last = query.has('cursor') || refreshed.length <= 3;
+                return {
+                    ok: true,
+                    json: async () => ({
+                        data: query.has('cursor')
+                            ? refreshed.slice(3)
+                            : refreshed.slice(0, 3),
+                        next_cursor: last ? null : 'next',
+                        prev_cursor: null,
+                    }),
+                };
+            });
+            vi.stubGlobal('fetch', fetch);
+            function Probe() {
+                const [posted, setPosted] = React.useState(false);
+                useThread(
+                    {
+                        ...reply(`continuation-quote-${isOpen}-${size}`),
+                        replies_count: size + (posted ? 2 : 1),
+                    },
+                    undefined,
+                    false,
+                    'author-continuation',
+                );
+                if (!posted) {
+                    setPosted(true);
+                }
+                return null;
+            }
+
+            renderToString(<Probe />);
+            for (const effect of effects.splice(0)) effect();
+            await vi.waitFor(() =>
+                assert.deepEqual(
+                    saved.replies?.map((row) => row.id),
+                    refreshed.map((row) => row.id),
+                ),
+            );
+
+            assert.equal(saved.isOpen, isOpen);
+            assert.equal(saved.nextCursor, null);
+            assert.equal(fetch.mock.calls.length, size > 3 ? 2 : 1);
+        });
+    }
+}

@@ -30,7 +30,19 @@ final class ListInboxRequest extends FormRequest
             'tab' => ['nullable', config('remotes.requests') ? Rule::enum(InboxTab::class) : Rule::enum(InboxTab::class)->except(InboxTab::Fetched)],
             'q' => ['nullable', 'string', 'max:100'],
             'before' => ['nullable', 'uuid'],
+            'notification_baseline' => ['sometimes', 'boolean'],
+            'notification_conversations' => ['sometimes', 'boolean'],
         ];
+    }
+
+    public function notificationConversations(): bool
+    {
+        return $this->boolean('notification_conversations');
+    }
+
+    public function notificationBaseline(): bool
+    {
+        return $this->boolean('notification_baseline');
     }
 
     public function tab(): InboxTab

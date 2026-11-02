@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateMessageReaction;
 use App\Enums\RemotesFrom;
 use App\Models\Message;
 use App\Models\MessageReaction;
@@ -67,6 +68,27 @@ it('caps how many reactions one person leaves on a message', function (): void {
     $this->actingAs($mark)->postJson(route('message-reaction.store', $message), ['emoji' => '💀'])->assertOk();
 });
 
+it('keeps the cap when reactions sent at the same moment all passed the check', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+    $message = sendChatMessage($mark, $nuno);
+    $emoji = ['😂', '✅', '❤️', '🚀', '👀', '🔥', '🎉', '👍', '💯', '🙏', '🤔', '👏'];
+
+    foreach ($emoji as $each) {
+        resolve(CreateMessageReaction::class)->handle($nuno, $message, $each);
+    }
+
+    // Sent at the same moment as the twelfth, so the check let them through.
+    resolve(CreateMessageReaction::class)->handle($nuno, $message, '💀');
+    resolve(CreateMessageReaction::class)->handle($nuno, $message, '😂');
+    resolve(CreateMessageReaction::class)->handle($mark, $message, '💀');
+
+    expect(MessageReaction::query()->where('message_id', $message->id)->where('user_id', $nuno->id)->pluck('emoji')->all())
+        ->toEqualCanonicalizing($emoji)
+        ->and(MessageReaction::query()->where('message_id', $message->id)->where('user_id', $mark->id)->pluck('emoji')->all())
+        ->toBe(['💀']);
+});
+
 it('keeps reactions to the people who can see the message', function (): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create();
@@ -98,7 +120,7 @@ it('lets org members react within the history they can see, but not to org event
     [$nuno, $taylor] = followersOf($mark, 2);
     $org = createOrg($mark, [$nuno]);
     $before = pushToOrg($nuno, $org, 'before taylor joined');
-    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->username], 'share_history' => false])->assertNoContent();
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
     $after = pushToOrg($nuno, $org, 'welcome taylor');
     $event = $after->newQuery()->whereNotNull('event')->latest('id')->firstOrFail();
 
@@ -109,6 +131,24 @@ it('lets org members react within the history they can see, but not to org event
     $messages = collect($this->actingAs($mark)->getJson(route('org-message.index', $org))->json('messages'));
 
     expect($messages->firstWhere('id', $after->id)['reactions'])->toBe([['user_id' => $taylor->id, 'emoji' => '👋']]);
+});
+
+it('lets org members react to a pinned message from before their history, until it is unpinned', function (): void {
+    $mark = User::factory()->create();
+    [$nuno, $taylor] = followersOf($mark, 2);
+    $org = createOrg($mark, [$nuno]);
+    $runbook = pushToOrg($nuno, $org, 'deploy runbook');
+    $this->actingAs($mark)->postJson(route('org-member.store', $org), ['members' => [$taylor->handle], 'share_history' => false])->assertNoContent();
+    $this->putJson(route('message-pin.update', $runbook))->assertOk();
+
+    $this->actingAs($taylor)->postJson(route('message-reaction.store', $runbook), ['emoji' => '🙏'])
+        ->assertOk()
+        ->assertJsonPath('reactions', [['user_id' => $taylor->id, 'emoji' => '🙏']]);
+    $this->getJson(route('org-message.index', $org))->assertJsonPath('pinned.0.reactions', [['user_id' => $taylor->id, 'emoji' => '🙏']]);
+
+    $this->actingAs($mark)->deleteJson(route('message-pin.destroy', $runbook))->assertOk();
+
+    $this->actingAs($taylor)->postJson(route('message-reaction.store', $runbook), ['emoji' => '👀'])->assertNotFound();
 });
 
 it('hands polls the reactions that changed since the last one, wherever the message is', function (): void {

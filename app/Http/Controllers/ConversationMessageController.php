@@ -34,6 +34,8 @@ final readonly class ConversationMessageController
             $request->images(),
             $request->imageDescriptions(),
             $request->linkPreview(),
+            $request->voice(),
+            $request->voiceWaveform(),
         );
 
         return response()->json(['message' => $message], 201);

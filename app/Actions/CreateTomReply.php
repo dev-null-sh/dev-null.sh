@@ -5,17 +5,20 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Ai\Agents\Tom;
+use App\Contracts\Services\ToolDecisionProvider;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\User;
 use App\Queries\TomQuery;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Laravel\Ai\Contracts\Tool;
+use Laravel\Ai\Messages\UserMessage;
 use RuntimeException;
 
 final readonly class CreateTomReply
 {
-    public function __construct(private CreateCommit $createCommit, private TomQuery $tomQuery)
+    public function __construct(private CreateCommit $createCommit, private TomQuery $tomQuery, private ToolDecisionProvider $toolDecision)
     {
         //
     }
@@ -34,7 +37,25 @@ final readonly class CreateTomReply
             return;
         }
 
-        $body = mb_trim(new Tom($commit)->prompt($commit->body)->text);
+        $history = new Tom($commit)->messages();
+        $tools = $this->toolDecision->tools($commit->body, $history);
+        $attempt = 0;
+        $messages = [];
+        $called = collect();
+
+        do {
+            $response = new Tom($commit, $tools, $messages)->prompt($commit->body);
+            $messages = [...$messages, new UserMessage($commit->body), ...$response->messages];
+            $called = $called->concat($response->toolResults->pluck('name'));
+            $missingTools = $tools->contains(fn (Tool $tool): bool => $called->doesntContain(class_basename($tool)));
+            $attempt++;
+        } while ($missingTools && $attempt < 3);
+
+        if ($missingTools) {
+            throw new RuntimeException('Tom skipped a selected tool after retries.');
+        }
+
+        $body = mb_trim($response->text);
 
         if ($body === '') {
             throw new RuntimeException('Tom returned an empty reply.');

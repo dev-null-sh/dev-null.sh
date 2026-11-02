@@ -6,12 +6,14 @@ import CommitStarController from '@/actions/App/Http/Controllers/CommitStarContr
 import { ActionTooltip } from '@/components/action-tooltip';
 import { CommitStarPollingContext } from '@/components/commit-star-polling';
 import { CommitStargazersDialog } from '@/components/commit-stargazers-dialog';
+import { StarredRemovalContext } from '@/components/starred-removal-context';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import { signIn } from '@/lib/auth';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
 import { commitStateKey } from '@/lib/commit-state';
-import { formatCount } from '@/lib/numbers';
+import { formatCount, formatExactCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
 import { cn } from '@/lib/utils';
 import type { Commit } from '@/types';
@@ -25,19 +27,21 @@ function starLabel(starred: boolean, count: number): string {
 
     const noun = count === 1 ? 'star' : 'stars';
 
-    return `${verb} commit, ${count} ${noun}`;
+    return `${verb} commit, ${formatExactCount(count)} ${noun}`;
 }
 
 export function CommitStarButton({
     commit,
+    keyShortcut,
     className,
 }: {
     commit: Commit;
+    keyShortcut?: string;
     className?: string;
 }) {
     const { auth } = usePage().props;
     const commitNotFound = useCommitNotFound();
-    const isOwn = commit.user_id === auth.user?.id;
+    const isOwn = useOwnsCommit()(commit);
     const [starred, setStarred] = useSharedState(
         commitStateKey('starred', commit.id),
         commit.starred,
@@ -53,6 +57,7 @@ export function CommitStarButton({
     const [isAnimating, setIsAnimating] = useState(false);
     const [localMutations] = useState(createCommitStarMutations);
     const polling = useContext(CommitStarPollingContext);
+    const onRemoved = useContext(StarredRemovalContext);
     const mutations = polling?.mutations ?? localMutations;
     const canPoll =
         (isOwn || commit.status === 'approved') && auth.user !== null;
@@ -144,6 +149,7 @@ export function CommitStarButton({
             setStarred(response.starred);
             setCount(response.stars_count);
             router.flushAll();
+            if (!response.starred) onRemoved?.(commit.id);
         } catch {
             setStarred(!next);
             setCount((current) => Math.max(0, current + (next ? -1 : 1)));
@@ -153,18 +159,21 @@ export function CommitStarButton({
     };
 
     return (
-        <ActionTooltip label={starred ? 'Unstar' : 'Star'}>
+        <ActionTooltip
+            label={starred ? 'Unstar' : 'Star'}
+            shortcut={keyShortcut}
+        >
             <button
                 ref={setElement}
                 aria-disabled={request.processing}
                 type="button"
                 onClick={toggle}
                 aria-pressed={starred}
+                aria-keyshortcuts={keyShortcut}
                 aria-label={starLabel(starred, count)}
                 className={cn(
                     'group/star inline-flex items-center gap-1 rounded-md px-1.5 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground',
                     starred && 'text-primary hover:text-primary',
-                    count === 0 && 'mr-[calc(0.25rem+1ch)]',
                     className,
                 )}
                 data-test="star-commit-button"
@@ -209,7 +218,7 @@ function StarCount({
     const label =
         count === 0
             ? 'No stars yet'
-            : `${count} ${count === 1 ? 'star' : 'stars'}, show who starred`;
+            : `${formatExactCount(count)} ${count === 1 ? 'star' : 'stars'}, show who starred`;
 
     return (
         <ActionTooltip label={label}>
@@ -226,12 +235,14 @@ function StarCount({
                     data-test="own-star-count"
                 >
                     <Star aria-hidden className="size-4" />
-                    <span
-                        data-test="star-count"
-                        className="min-w-[1ch] text-left"
-                    >
-                        {count > 0 ? formatCount(count) : ''}
-                    </span>
+                    {count > 0 && (
+                        <span
+                            data-test="star-count"
+                            className="min-w-[1ch] text-left tabular-nums"
+                        >
+                            {formatCount(count)}
+                        </span>
+                    )}
                 </button>
             </CommitStargazersDialog>
         </ActionTooltip>

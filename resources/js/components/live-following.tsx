@@ -12,7 +12,7 @@ export function LiveFollowing() {
     return (
         <section
             aria-labelledby="aside-live-following"
-            className="-mt-4 rounded-xl border bg-card p-3"
+            className="-mt-4 rounded-lg border bg-card p-3"
             data-test="live-following"
         >
             <h2
@@ -43,7 +43,7 @@ export function LiveFollowing() {
                                     {user.name}
                                 </span>
                                 <span className="block truncate font-mono text-xs text-muted-foreground">
-                                    @{user.username}
+                                    @{user.handle}
                                 </span>
                             </span>
                             <ArrowUpRight

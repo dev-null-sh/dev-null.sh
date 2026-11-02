@@ -1,6 +1,7 @@
 import { router } from '@inertiajs/react';
 import { useEffect } from 'react';
 import { toast } from 'sonner';
+import { WordmarkText } from '@/components/wordmark-text';
 
 export function useNewVersionToast(): void {
     useEffect(() => {
@@ -9,7 +10,7 @@ export function useNewVersionToast(): void {
                 return;
             }
 
-            toast('/dev/null was updated.', {
+            toast(<WordmarkText>/dev/null was updated.</WordmarkText>, {
                 id: 'new-version',
                 description: 'Reload to keep up. Unsent drafts are kept.',
                 duration: Infinity,

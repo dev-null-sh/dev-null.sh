@@ -111,7 +111,7 @@ it('has no closing time before it is opened', function (): void {
 });
 
 it('never exposes who voted', function (): void {
-    $voter = User::factory()->create(['username' => 'secret-voter']);
+    $voter = User::factory()->create(['handle' => 'secret-voter']);
     $poll = Poll::factory()->withOptions('Tabs', 'Spaces')->closed()->create();
     PollVote::factory()->for($poll->options[0], 'option')->for($voter)->create();
 

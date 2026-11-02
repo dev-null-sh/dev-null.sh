@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\URL;
 
 /**
  * @property-read string $id
@@ -77,5 +78,15 @@ final class CommitImage extends Model
     public function url(): string
     {
         return route('commit-image.show', $this);
+    }
+
+    /**
+     * Serves the image to anyone who has the URL, until it expires. The API hands it to the author of a pending commit,
+     * since the mobile app has no web session to load their own pending images with. It stays the same for an hour at
+     * a time, so the app can keep the image it loaded.
+     */
+    public function temporaryUrl(): string
+    {
+        return URL::temporarySignedRoute('commit-image.show', now()->startOfHour()->addHours(2), ['commitImage' => $this]);
     }
 }

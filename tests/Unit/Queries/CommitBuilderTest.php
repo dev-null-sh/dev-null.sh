@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -23,9 +24,9 @@ it('keeps id projections lightweight when poll eager loading is disabled', funct
     DB::disableQueryLog();
 });
 
-it('loads commits with every column but the embedding, which stays stored', function (): void {
+it('loads commits with every column but the embedding, which stays stored, and the organizations they mention', function (): void {
     $commit = Commit::factory()->create(['embedding' => embeddingVector(0)]);
-    $columns = array_values(array_diff(Schema::getColumnListing('commits'), ['embedding']));
+    $columns = [...array_values(array_diff(Schema::getColumnListing('commits'), ['embedding'])), 'organization_mentions'];
 
     expect(array_keys(Commit::query()->findOrFail($commit->id)->getAttributes()))->toBe($columns)
         ->and(array_keys(Commit::query()->withStarsFor(null)->findOrFail($commit->id)->getAttributes()))->toBe([...$columns, 'stars_count', 'starred'])
@@ -66,7 +67,7 @@ it('loads the star count and whether the viewer starred', function (): void {
 
     $commits = Commit::query()->withStarsFor($viewer)->with('user')->get()->keyBy('id');
 
-    expect(DB::getQueryLog())->toHaveCount(2)
+    expect(DB::getQueryLog())->toHaveCount(3)
         ->and($commits[$starred->id]->stars_count)->toBe(2)
         ->and($commits[$starred->id]->starred)->toBeTrue()
         ->and($commits[$plain->id]->stars_count)->toBe(0)
@@ -137,6 +138,25 @@ it('hides commits across a block in either direction', function (): void {
         ->toBe(collect([$own->id, $visible->id])->sort()->values()->all())
         ->and(Commit::query()->visibleTo($blocked)->whereBelongsTo($user)->exists())->toBeFalse()
         ->and(Commit::query()->visibleTo($blocker)->whereBelongsTo($user)->exists())->toBeFalse();
+});
+
+it('hides and mutes commits by the profile they are from, not by who posted them', function (): void {
+    $viewer = User::factory()->create();
+    $poster = User::factory()->create();
+    $viewer->blocking()->attach($poster);
+    $viewer->muting()->attach($poster);
+    $fromOrganization = Commit::factory()->for($poster)->create(['author_id' => Organization::factory()->create()->id]);
+    Commit::factory()->for($poster)->create();
+
+    expect(Commit::query()->visibleTo($viewer)->withoutMutedAuthorsFor($viewer)->pluck('id')->all())->toBe([$fromOrganization->id]);
+});
+
+it('shows the pending commits someone posted for another profile to them', function (): void {
+    $poster = User::factory()->create();
+    $pending = Commit::factory()->for($poster)->pending()->create(['author_id' => Organization::factory()->create()->id]);
+
+    expect(Commit::query()->visibleTo($poster)->pluck('id')->all())->toBe([$pending->id])
+        ->and(Commit::query()->visibleTo(User::factory()->create())->exists())->toBeFalse();
 });
 
 it('scopes commits to those by people the user has not muted', function (): void {

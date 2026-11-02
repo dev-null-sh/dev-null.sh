@@ -6,7 +6,7 @@ use App\Models\User;
 
 it('may block a user', function (): void {
     $user = User::factory()->create();
-    $blocked = User::factory()->create(['username' => 'octocat']);
+    $blocked = User::factory()->create(['handle' => 'octocat']);
 
     $user->following()->attach($blocked);
     $blocked->following()->attach($user);
@@ -39,7 +39,7 @@ it('may not block themselves', function (): void {
 
 it('may unblock a user', function (): void {
     $user = User::factory()->create();
-    $blocked = User::factory()->create(['username' => 'octocat']);
+    $blocked = User::factory()->create(['handle' => 'octocat']);
 
     $user->blocking()->attach($blocked);
 

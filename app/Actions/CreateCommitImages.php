@@ -20,7 +20,7 @@ final readonly class CreateCommitImages
      */
     public const int MAX_SOURCE_DIMENSION = 6000;
 
-    public function __construct(private CreateCommitImageFiles $createCommitImageFiles)
+    public function __construct(private CreateImageFiles $createImageFiles)
     {
         //
     }
@@ -31,6 +31,6 @@ final readonly class CreateCommitImages
      */
     public function handle(Commit $commit, array $images, array $descriptions = []): void
     {
-        $commit->images()->createMany($this->createCommitImageFiles->handle($images, $descriptions));
+        $commit->images()->createMany($this->createImageFiles->handle($images, $descriptions));
     }
 }

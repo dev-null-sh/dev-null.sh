@@ -7,6 +7,7 @@ import {
     DocumentPage,
     DocumentSection,
 } from '@/components/document-page';
+import { WordmarkText } from '@/components/wordmark-text';
 import { useClipboard } from '@/hooks/use-clipboard';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
@@ -302,11 +303,12 @@ export default function Show() {
             >
                 <section className="space-y-3 px-4 py-6 text-[15px] text-pretty sm:px-6">
                     <p>
-                        Writing about /dev/null, linking to it, or putting it on
-                        a slide? Everything you need is here: the logo, the
-                        colors, and a few backgrounds. Every logo comes as an
-                        SVG with the text outlined, so it looks the same without
-                        Geist installed, and as a PNG.
+                        Writing about <WordmarkText>/dev/null</WordmarkText>,
+                        linking to it, or putting it on a slide? Everything you
+                        need is here: the logo, the colors, and a few
+                        backgrounds. Every logo comes as an SVG with the text
+                        outlined, so it looks the same without Geist installed,
+                        and as a PNG.
                     </p>
                     <p>
                         <a

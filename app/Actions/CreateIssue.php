@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\GitHubProvider;
 use App\Models\User;
-use App\Services\GitHubApp;
 use Illuminate\Support\Str;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
@@ -16,13 +16,13 @@ use League\CommonMark\Parser\MarkdownParser;
 
 final readonly class CreateIssue
 {
-    public function __construct(private GitHubApp $github)
+    public function __construct(private GitHubProvider $github)
     {
         //
     }
 
     /**
-     * The issue is opened by the app, crediting the reporter, whose GitHub login is their username here.
+     * The issue is opened by the app, crediting the reporter, whose GitHub login is their handle here.
      *
      * @param  array<string, string>  $environment
      * @return array{number: int, url: string}
@@ -52,7 +52,7 @@ final readonly class CreateIssue
 
         return $this->github->createIssue(
             Str::limit($title, 256, '') ?: ucfirst($type).' report',
-            $body.$this->details($environment)."\n\n---\n\nReported by @{$user->username} via [/dev/null](".route('user.show', $user).').',
+            $body.$this->details($environment)."\n\n---\n\nReported by {$user->mention()} via [/dev/null](".route('user.show', $user).').',
             [$type === 'feature' ? 'enhancement' : 'bug'],
         );
     }

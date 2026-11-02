@@ -13,7 +13,7 @@ use Laravel\Socialite\Two\User as GitHubUser;
 final readonly class GitHubProfile
 {
     private function __construct(
-        public string $username,
+        public string $handle,
         public string $name,
         public ?string $avatarUrl,
         public ?string $bio,
@@ -31,12 +31,12 @@ final readonly class GitHubProfile
      */
     public static function fromAccount(array $account): self
     {
-        $username = Arr::get($account, 'login');
-        assert(is_string($username));
+        $handle = Arr::get($account, 'login');
+        assert(is_string($handle));
 
         return new self(
-            username: $username,
-            name: self::nullIfBlank(Arr::get($account, 'name')) ?? $username,
+            handle: $handle,
+            name: self::nullIfBlank(Arr::get($account, 'name')) ?? $handle,
             avatarUrl: self::nullIfBlank(Arr::get($account, 'avatar_url')),
             bio: self::nullIfBlank(Arr::get($account, 'bio')),
             location: self::nullIfBlank(Arr::get($account, 'location')),
@@ -56,18 +56,19 @@ final readonly class GitHubProfile
     }
 
     /**
-     * @return array{username: string, name: string, avatar_url: string|null, bio: string|null, location: string|null, website: string|null, company: string|null}
+     * The part that goes on the profile. The company only exists on GitHub users, so it stays on the user.
+     *
+     * @return array{handle: string, name: string, avatar_url: string|null, bio: string|null, location: string|null, website: string|null}
      */
     public function attributes(): array
     {
         return [
-            'username' => $this->username,
+            'handle' => $this->handle,
             'name' => $this->name,
             'avatar_url' => $this->avatarUrl,
             'bio' => $this->bio,
             'location' => $this->location,
             'website' => $this->website,
-            'company' => $this->company,
         ];
     }
 

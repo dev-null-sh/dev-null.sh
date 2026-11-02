@@ -7,9 +7,9 @@ use Illuminate\Support\Facades\DB;
 
 it('lists the people the user mutes and blocks, most recent first', function (): void {
     $user = User::factory()->create();
-    $olderMute = User::factory()->create(['username' => 'older_mute']);
-    $newerMute = User::factory()->create(['username' => 'newer_mute']);
-    $blocked = User::factory()->create(['username' => 'blocked']);
+    $olderMute = User::factory()->create(['handle' => 'older_mute']);
+    $newerMute = User::factory()->create(['handle' => 'newer_mute']);
+    $blocked = User::factory()->create(['handle' => 'blocked']);
     $blocker = User::factory()->create();
 
     $user->muting()->attach($olderMute, ['created_at' => now()->subDay()]);
@@ -24,11 +24,11 @@ it('lists the people the user mutes and blocks, most recent first', function ():
         ->assertInertia(fn ($page) => $page
             ->component('safety/edit')
             ->has('muted', 2)
-            ->where('muted.0.username', 'newer_mute')
-            ->where('muted.1.username', 'older_mute')
+            ->where('muted.0.handle', 'newer_mute')
+            ->where('muted.1.handle', 'older_mute')
             ->missing('muted.0.email')
             ->has('blocked', 1)
-            ->where('blocked.0.username', 'blocked')
+            ->where('blocked.0.handle', 'blocked')
             ->where('blocked.0.lane', $blocked->lane()));
 });
 

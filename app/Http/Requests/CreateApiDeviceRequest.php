@@ -12,6 +12,7 @@ use App\Services\SignedRequests;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 
 /**
@@ -51,15 +52,17 @@ final class CreateApiDeviceRequest extends FormRequest
     }
 
     /**
-     * The verifier is the one the app made its PKCE challenge from (RFC 7636).
+     * The verifier is the one the app made its PKCE challenge from (RFC 7636). An app that showed the terms and privacy
+     * policy before sending the person to sign in says which version, and it is recorded as accepted.
      *
-     * @return array<string, list<string>>
+     * @return array<string, list<mixed>>
      */
     public function rules(): array
     {
         return [
             'code' => ['required', 'string', 'max:255'],
             'code_verifier' => ['required', 'string', 'regex:/^[A-Za-z0-9._~-]{43,128}$/'],
+            'terms_version' => ['sometimes', 'string', Rule::in([config('legal.terms_version')])],
         ];
     }
 

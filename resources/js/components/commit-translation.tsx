@@ -16,7 +16,9 @@ export function useCommitTranslation(commit: Commit) {
         body: string;
         translation: CommitTranslation | null;
     } | null>(null);
-    const [showsOriginal, setShowsOriginal] = useState(false);
+    const [display, setDisplay] = useState<'original' | 'translated' | null>(
+        null,
+    );
     const translation =
         generated?.body === commit.body &&
         generated.translation?.language === commit.translation?.language
@@ -26,13 +28,16 @@ export function useCommitTranslation(commit: Commit) {
         { language: string },
         { translation: CommitTranslation | null }
     >({ language: translation?.language ?? 'en' });
-    const translated = !showsOriginal && translation?.translated;
+    const translated =
+        (display === 'translated' ||
+            (display === null && auth.automaticTranslation)) &&
+        translation?.translated;
 
     const translate = async () => {
         setBodyHeight(bodyRef.current?.getBoundingClientRect().height);
 
         if (translation?.translated) {
-            setShowsOriginal(false);
+            setDisplay('translated');
             return;
         }
 
@@ -71,7 +76,7 @@ export function useCommitTranslation(commit: Commit) {
                 body: commit.body,
                 translation: response.translation,
             });
-            setShowsOriginal(false);
+            setDisplay('translated');
         } catch {
             if (!isNotFound) {
                 toast.error(failureMessage);
@@ -104,7 +109,7 @@ export function useCommitTranslation(commit: Commit) {
                                     bodyRef.current?.getBoundingClientRect()
                                         .height,
                                 );
-                                setShowsOriginal(true);
+                                setDisplay('original');
                             }}
                             className="shrink-0 text-primary hover:underline"
                         >

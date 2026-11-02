@@ -20,11 +20,13 @@ final readonly class DeleteCommitStar
     public function handle(User $user, Commit $commit): void
     {
         DB::transaction(function () use ($user, $commit): void {
-            $user->starredCommits()->detach($commit->id);
+            $deleted = $user->starredCommits()->detach($commit->id);
 
             $this->deleteStarNotification->handle($user, $commit);
 
-            $this->updateCommitHotScores->handle([$commit->id]);
+            if ($deleted > 0) {
+                $this->updateCommitHotScores->handle([$commit->id]);
+            }
         });
     }
 }
