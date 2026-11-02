@@ -9,6 +9,7 @@ use App\Actions\DeleteUser;
 use App\Actions\UpdateCommitHotScores;
 use App\Contracts\Services\TranslationProvider;
 use App\Dto\ThreadEngagement;
+use App\Enums\CommitSource;
 use App\Enums\OrganizationRole;
 use App\Models\Commit;
 use App\Models\CommitImage;
@@ -52,6 +53,11 @@ it('erases the commits of a deleted user along with the replies under them', fun
     $reply = Commit::factory()->for($commit, 'parent')->create();
     $unrelated = Commit::factory()->create();
     $organization = Organization::factory()->create();
+    $organizationCommit = Commit::factory()->create([
+        'user_id' => $user->id,
+        'author_id' => $organization->id,
+        'source' => CommitSource::Android,
+    ]);
     resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => $organization->id]);
     resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => $organization->id]);
     resolve(CreateCommitTopics::class)->handle($unrelated, ['laravel' => $organization->id]);
@@ -61,7 +67,10 @@ it('erases the commits of a deleted user along with the replies under them', fun
 
     resolve(DeleteUser::class)->handle($user);
 
-    expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id])
+    expect(Commit::withTrashed()->pluck('id')->sort()->values()->all())->toBe(collect([$unrelated->id, $organizationCommit->id])->sort()->values()->all())
+        ->and($organizationCommit->refresh()->user_id)->toBeNull()
+        ->and($organizationCommit->author_id)->toBe($organization->id)
+        ->and($organizationCommit->source)->toBeNull()
         ->and($headline->commits->modelKeys())->toBe([$unrelated->id])
         ->and(DB::table('commit_topics')->pluck('commit_id')->all())->toBe([$unrelated->id]);
 });
@@ -105,6 +114,7 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
         'mentions' => [$mentioned->handle => $mentioned->id],
         'embedding' => embeddingVector(0),
         'headlines_classified_at' => now(),
+        'source' => CommitSource::Android,
     ]);
     resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => Organization::factory()->create()->id]);
     $reply->headlines()->create(['name' => 'Laravel adds a new feature']);
@@ -124,7 +134,8 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
         ->and($reply->headlines()->exists())->toBeFalse()
         ->and($tombstones->pluck('embedding')->all())->toBe([null, null])
         ->and($tombstones->pluck('headlines_classified_at')->all())->toBe([null, null])
-        ->and($tombstones->pluck('link_preview_id')->all())->toBe([null, null]);
+        ->and($tombstones->pluck('link_preview_id')->all())->toBe([null, null])
+        ->and($tombstones->pluck('source')->all())->toBe([null, null]);
 });
 
 it('erases what deleted accounts wrote from the tombstones they already left', function (): void {
@@ -331,7 +342,7 @@ it('erases however many commits a user has without listing them in its queries',
     Storage::fake();
 
     $user = User::factory()->create();
-    $commits = Commit::factory()->for($user)->count(10)->create();
+    $commits = Commit::factory()->for($user)->count(11)->create();
     $commits->each(fn (Commit $commit): Commit => Commit::factory()->for($commit, 'parent')->create());
 
     $repliedTo = Commit::factory()->create();
@@ -341,7 +352,7 @@ it('erases however many commits a user has without listing them in its queries',
 
     resolve(DeleteUser::class)->handle($user);
 
-    expect(collect(DB::getQueryLog())->max(fn (array $query): int => count($query['bindings'])))->toBeLessThan(10)
+    expect(collect(DB::getQueryLog())->max(fn (array $query): int => count($query['bindings'])))->toBeLessThan($commits->count())
         ->and(Commit::query()->pluck('id')->sort()->values()->all())->toBe(collect([$repliedTo->id, $otherReply->id])->sort()->values()->all());
 });
 

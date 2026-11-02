@@ -68,7 +68,21 @@ import {
     shortHash,
 } from '@/lib/utils';
 import { show } from '@/routes/user';
-import type { Commit, CursorPaginated, ThreadCommit } from '@/types';
+import type {
+    Commit,
+    CommitSource,
+    CursorPaginated,
+    ThreadCommit,
+} from '@/types';
+
+const sourceLabels: Record<CommitSource, string> = {
+    web: 'Web',
+    ios: 'iOS',
+    android: 'Android',
+    macos: 'macOS',
+    cli: 'CLI',
+    api: 'App',
+};
 
 export function CommitCard({
     commit,
@@ -398,6 +412,16 @@ export function CommitCard({
                                         </time>
                                     </Link>
                                 </TimestampTooltip>
+
+                                {commit.source && (
+                                    <span
+                                        data-test="commit-source"
+                                        className="shrink-0 font-mono text-[11px] text-muted-foreground"
+                                        title={`Posted via ${sourceLabels[commit.source]}`}
+                                    >
+                                        · via {sourceLabels[commit.source]}
+                                    </span>
+                                )}
 
                                 <ThreadPositionBadge
                                     threadPosition={threadPosition}

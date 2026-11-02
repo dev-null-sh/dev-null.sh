@@ -71,6 +71,7 @@ final readonly class AuthenticateSignedRequest
         throw_if($device->user->isBanned() && ! $request->routeIs('api-current-user.destroy'), ApiException::banned());
 
         Auth::setUser($device->user);
+        $request->attributes->set('authenticated_device', $device);
 
         return $next($request);
     }

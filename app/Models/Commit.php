@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Queries\CommitBuilder;
 use App\Services\CommitBodies;
@@ -33,6 +34,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read string $body
  * @property-read array<string, string>|null $mentions
  * @property-read array<string, string>|null $organization_mentions
+ * @property-read CommitSource|null $source
  * @property-read CommitStatus $status
  * @property-read string|null $link_preview_id
  * @property-read string|null $quoted_commit_id
@@ -127,6 +129,7 @@ final class Commit extends Model
             'mentions' => 'array',
             'organization_mentions' => 'array',
             'status' => CommitStatus::class,
+            'source' => CommitSource::class,
             'link_preview_id' => 'string',
             'quoted_commit_id' => 'string',
             'ai_decision' => CommitStatus::class,

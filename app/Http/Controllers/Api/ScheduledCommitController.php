@@ -6,9 +6,11 @@ namespace App\Http\Controllers\Api;
 
 use App\Actions\CreateScheduledCommit;
 use App\Actions\DeleteScheduledCommit;
+use App\Enums\CommitSource;
 use App\Http\Requests\CreateApiScheduledCommitRequest;
 use App\Http\Requests\DeleteApiScheduledCommitRequest;
 use App\Http\Resources\ScheduledCommitResource;
+use App\Models\Device;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use App\Queries\ScheduledCommitsQuery;
@@ -33,7 +35,10 @@ final readonly class ScheduledCommitController
      */
     public function store(CreateApiScheduledCommitRequest $request, #[CurrentUser] User $user, CreateScheduledCommit $action): JsonResponse
     {
-        $scheduled = $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images(), $request->imageDescriptions(), $request->poll(), $request->linkPreview(), $request->organization());
+        $device = $request->attributes->get('authenticated_device');
+        $source = CommitSource::fromAppId($device instanceof Device ? $device->app_id : null);
+
+        $scheduled = $action->handle($user, $request->string('body')->value(), CarbonImmutable::parse($request->string('scheduled_at')->value())->utc(), $request->images(), $request->imageDescriptions(), $request->poll(), $request->linkPreview(), $request->organization(), source: $source);
 
         return ScheduledCommitResource::make($scheduled)
             ->response()

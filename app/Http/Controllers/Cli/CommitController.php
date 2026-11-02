@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Cli;
 
 use App\Actions\CreateCommit;
+use App\Enums\CommitSource;
 use App\Enums\CommitStatus;
 use App\Http\Requests\CreateCliCommitRequest;
 use App\Models\User;
@@ -15,7 +16,7 @@ final readonly class CommitController
 {
     public function store(CreateCliCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action): Response
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), images: $request->images());
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), images: $request->images(), source: CommitSource::Cli);
 
         $url = route('commit.show', [$user, $commit]);
 

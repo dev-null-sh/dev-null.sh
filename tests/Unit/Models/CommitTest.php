@@ -21,6 +21,7 @@ test('to array', function (): void {
             'created_at',
             'updated_at',
             'status',
+            'source',
             'parent_id',
             'deleted_at',
             'link_preview_id',

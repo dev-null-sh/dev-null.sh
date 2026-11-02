@@ -6,11 +6,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Actions\CreateCommit;
 use App\Actions\DeleteCommit;
+use App\Enums\CommitSource;
 use App\Http\Requests\CreateApiCommitRequest;
 use App\Http\Requests\DeleteApiCommitRequest;
 use App\Http\Requests\ShowApiCommitRequest;
 use App\Http\Resources\CommitResource;
 use App\Models\Commit;
+use App\Models\Device;
 use App\Models\User;
 use App\Queries\CommitAncestorsQuery;
 use App\Queries\CommitPageQuery;
@@ -51,7 +53,10 @@ final readonly class CommitController
      */
     public function store(CreateApiCommitRequest $request, #[CurrentUser] User $user, CreateCommit $action, CommitPageQuery $page): JsonResponse
     {
-        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit(), $request->images(), $request->imageDescriptions(), poll: $request->poll(), replyRecipients: $request->replyRecipients(), organization: $request->organization());
+        $device = $request->attributes->get('authenticated_device');
+        $source = CommitSource::fromAppId($device instanceof Device ? $device->app_id : null);
+
+        $commit = $action->handle($user, $request->string('body')->value(), $request->parent(), $request->quotedCommit(), $request->images(), $request->imageDescriptions(), poll: $request->poll(), replyRecipients: $request->replyRecipients(), organization: $request->organization(), source: $source);
 
         return CommitResource::make($page->get($commit, $user))
             ->response()

@@ -3,6 +3,8 @@ import type { Organization } from '@/types/organization';
 
 export type CommitStatus = 'pending' | 'approved' | 'rejected';
 
+export type CommitSource = 'web' | 'ios' | 'android' | 'macos' | 'cli' | 'api';
+
 export type EmbedKind = 'video' | 'audio' | 'code';
 
 export type Embed = {
@@ -95,6 +97,7 @@ export type Commit = {
     preview_segments: BodySegment[] | null;
     translation?: CommitTranslation | null;
     status: CommitStatus;
+    source?: CommitSource | null;
     is_checking?: boolean;
     created_at: string;
     updated_at: string;
