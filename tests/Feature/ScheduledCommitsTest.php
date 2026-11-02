@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 beforeEach(function (): void {
     $this->travelTo(now()->setDate(2026, 10, 15)->setTime(12, 0));
@@ -86,7 +87,7 @@ it('erases the stored images when the scheduled commit fails to save', function 
     Storage::fake();
 
     expect(fn (): ScheduledCommit => resolve(CreateScheduledCommit::class)->handle(
-        User::factory()->make(['id' => 999_999]),
+        User::factory()->make(['id' => (string) Str::uuid7()]),
         'Shipped the new dashboard.',
         now()->addHour()->toImmutable(),
         [UploadedFile::fake()->image('wide.png', 300, 200)],

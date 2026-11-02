@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+    commitMutationOptions,
     restoreFeedCommit,
     updateQuotedCommits,
 } from '../../resources/js/lib/commit-mutation-options.ts';
@@ -23,6 +24,14 @@ const tombstone: DeletedCommit = {
     parent_id: target.parent_id,
     deleted_at: '2026-10-16T12:00:00Z',
 };
+
+void test('refreshes the recap after headline mutations without rerunning search or resetting loaded results', () => {
+    const options = commitMutationOptions('headline/show');
+    assert.ok(options.only.includes('summary'));
+    assert.ok(!options.only.includes('commits'));
+    assert.deepEqual(options.reset, []);
+    assert.ok(!commitMutationOptions('log/show').only.includes('summary'));
+});
 
 void test('replaces every loaded quote embed with a tombstone without changing row order or unrelated rows', () => {
     const rows = [...quotes, { ...quotes[1], id: 'second-quote' }];

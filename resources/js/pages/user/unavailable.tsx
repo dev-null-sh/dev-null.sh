@@ -53,7 +53,7 @@ export default function Unavailable({
                                     </Link>
                                 </Button>
                                 <Button variant="ghost" asChild>
-                                    <Link href={editSafety()}>
+                                    <Link href={editSafety()} prefetch>
                                         Muted and blocked people
                                     </Link>
                                 </Button>

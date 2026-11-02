@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Enums\ConnectionType;
 use App\Http\Requests\ListUserFollowersYouKnowRequest;
 use App\Models\User;
 use App\Queries\FollowersYouKnowQuery;
@@ -18,9 +19,12 @@ final readonly class UserFollowersYouKnowController
     {
         return Inertia::render('user/connections', [
             'user' => $user,
-            'type' => 'followers_you_know',
+            'type' => ConnectionType::FollowersYouKnow,
             'users' => Inertia::scroll(fn () => $followersYouKnow->builder($user, $currentUser)
-                ->withExists(['followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($currentUser->id)])
+                ->withExists([
+                    'followers as is_followed' => fn (Builder $query): Builder => $query->whereKey($currentUser->id),
+                    'following as follows_you' => fn (Builder $query): Builder => $query->whereKey($currentUser->id),
+                ])
                 ->cursorPaginate(30)),
         ]);
     }

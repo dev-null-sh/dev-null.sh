@@ -12,6 +12,12 @@ import {
 } from '../../resources/js/lib/chat';
 import type { ConversationSummary, Thread } from '../../resources/js/types';
 
+function orgTarget(summary: ConversationSummary) {
+    const target = targetOf(summary);
+    assert.ok(target);
+    return target;
+}
+
 const at = '2026-10-23T12:00:00Z';
 const summary = (
     id: string,
@@ -54,8 +60,8 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-test('pins and unpins only after persistence succeeds, updating the inbox order and thread', async () => {
-    const target = targetOf(older);
+test('pins and unpins straight away, then settles on the pin time the server saved', async () => {
+    const target = orgTarget(older);
     seedThread(target, {
         messages: [],
         has_older: false,
@@ -81,7 +87,7 @@ test('pins and unpins only after persistence succeeds, updating the inbox order 
     const saving = setConversationPinned(target, true);
     assert.deepEqual(
         chatSnapshot().conversations?.map(({ id }) => id),
-        ['recent', 'older'],
+        ['older', 'recent'],
     );
     finish(Response.json({ pinned_at: at }));
     await saving;
@@ -96,6 +102,10 @@ test('pins and unpins only after persistence succeeds, updating the inbox order 
         JSON.stringify({ pinned: true }),
     );
     const removing = setConversationPinned(target, false);
+    assert.deepEqual(
+        chatSnapshot().conversations?.map(({ id }) => id),
+        ['recent', 'older'],
+    );
     finish(Response.json({ pinned_at: null }));
     await removing;
     assert.deepEqual(
@@ -106,7 +116,7 @@ test('pins and unpins only after persistence succeeds, updating the inbox order 
 
 test('failed persistence keeps the previous pin state and list order', async () => {
     vi.stubGlobal('fetch', async () => Response.json({}, { status: 500 }));
-    await assert.rejects(setConversationPinned(targetOf(older), true));
+    await assert.rejects(setConversationPinned(orgTarget(older), true));
     assert.deepEqual(
         chatSnapshot().conversations?.map(({ id }) => id),
         ['recent', 'older'],
@@ -125,7 +135,7 @@ test('an inbox response started before a save cannot undo that pin', async () =>
     );
     const loading = loadTab('open');
     vi.stubGlobal('fetch', async () => Response.json({ pinned_at: at }));
-    await setConversationPinned(targetOf(older), true);
+    await setConversationPinned(orgTarget(older), true);
     finish(Response.json({ conversations: [recent, older], has_more: false }));
     await loading;
     assert.equal(chatSnapshot().conversations?.[0].id, 'older');
@@ -201,7 +211,7 @@ test.each(['open', 'fetched', 'stashed'] as const)(
         vi.stubGlobal('fetch', inbox.fetch);
         await loadTab(tab);
 
-        await setConversationPinned(targetOf(inbox.moved), false);
+        await setConversationPinned(orgTarget(inbox.moved), false);
         await loadMoreConversations(tab);
         await loadMoreConversations(tab);
 
@@ -224,7 +234,7 @@ test('pin reconciliation preserves the number of pages already loaded', async ()
     await loadTab('open');
     await loadMoreConversations('open');
 
-    await setConversationPinned(targetOf(inbox.moved), false);
+    await setConversationPinned(orgTarget(inbox.moved), false);
 
     assert.equal(chatSnapshot().conversations?.length, 60);
     assert.deepEqual(
@@ -255,7 +265,7 @@ test('scrolling retries a failed reconciliation without losing the saved pin or 
     await loadTab('open');
     fail = true;
 
-    await setConversationPinned(targetOf(inbox.moved), false);
+    await setConversationPinned(orgTarget(inbox.moved), false);
     assert.equal(
         chatSnapshot().pinPreferences[`org:${inbox.moved.id}`].at,
         null,
@@ -286,7 +296,7 @@ test('a page requested before unpinning cannot restore the obsolete continuation
     await loadTab('open');
     const loading = loadMoreConversations('open');
 
-    await setConversationPinned(targetOf(inbox.moved), false);
+    await setConversationPinned(orgTarget(inbox.moved), false);
     finish(
         Response.json({
             conversations: inbox.original.slice(30, 60),
@@ -390,7 +400,7 @@ test.each(['pin', 'unpin'] as const)(
         await loadTab('open');
         await loadMoreConversations('open');
 
-        await setConversationPinned(targetOf(inbox.original[0]), false);
+        await setConversationPinned(orgTarget(inbox.original[0]), false);
 
         assert.equal(chatSnapshot().conversations?.length, 60);
         assert.deepEqual(

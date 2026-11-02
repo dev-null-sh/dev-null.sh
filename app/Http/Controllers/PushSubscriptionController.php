@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\CreatePushSubscription;
 use App\Actions\DeletePushSubscription;
+use App\Contracts\Services\PushNotificationProvider;
 use App\Http\Requests\CreatePushSubscriptionRequest;
 use App\Http\Requests\DeletePushSubscriptionRequest;
 use App\Models\User;
@@ -15,10 +16,10 @@ use Illuminate\Http\Response;
 
 final readonly class PushSubscriptionController
 {
-    public function index(): JsonResponse
+    public function index(PushNotificationProvider $push): JsonResponse
     {
         return response()->json([
-            'public_key' => config('services.web_push.private_key') ? config('services.web_push.public_key') : null,
+            'public_key' => $push->publicKey(),
         ])->header('Cache-Control', 'private, no-store');
     }
 

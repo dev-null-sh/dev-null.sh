@@ -36,7 +36,7 @@ export type Connectivity = {
 };
 
 export type Feature = {
-    name: 'translations';
+    name: 'translations' | 'organization_commits';
     enabled: boolean;
 };
 
@@ -57,20 +57,24 @@ export type GitHubRateLimit = {
     resets_at: string;
 };
 
-export type TrafficRow = {
-    name: string;
+export type TrafficTotals = {
     visitors: number;
     pageviews: number;
+    avg_duration: number;
+    bounce_rate: number;
 };
+
+export type TrafficRow = TrafficTotals & { name: string };
+
+/**
+ * The totals of a UTC day (`2026-10-31`), or of a UTC hour (`2026-10-31T13:00:00Z`) when the range is a single day.
+ */
+export type TrafficPoint = TrafficTotals & { date: string };
 
 export type Traffic = {
     current: number;
-    totals: {
-        visitors: number;
-        pageviews: number;
-        avg_duration: number;
-        bounce_rate: number;
-    };
+    totals: TrafficTotals;
+    timeline: TrafficPoint[];
     breakdowns: Record<
         'pages' | 'referrers' | 'countries' | 'devices' | 'browsers',
         TrafficRow[]
@@ -81,6 +85,18 @@ export type TrafficRange = {
     from: string;
     to: string;
 };
+
+export type TrafficFilter =
+    | 'page'
+    | 'referrer'
+    | 'country'
+    | 'device'
+    | 'browser';
+
+/**
+ * The value each filtered field must have: an empty one is a direct visit or an unknown value.
+ */
+export type TrafficFilters = Partial<Record<TrafficFilter, string>>;
 
 export type MetricsRange = TrafficRange & { all_time: boolean };
 
@@ -97,6 +113,7 @@ export type AcquisitionDay = {
 export type DeviceConversion = {
     device: string;
     visitors: number;
+    tapped: number;
     converted: number;
 };
 
@@ -121,10 +138,44 @@ export type Funnel = {
     changes: Record<FunnelRate, number | null>;
 };
 
+export type RetentionDay = {
+    date: string;
+    eligible: number;
+    retained: number;
+    backfilled: boolean;
+};
+
+export type RetentionByDay = {
+    day_1: RetentionDay[];
+    day_7: RetentionDay[];
+};
+
+export type RetentionCell = {
+    day: number;
+    eligible: number;
+    retained: number;
+    backfilled: number;
+};
+
+export type RetentionCohort = {
+    week: string;
+    signups: number;
+    days: RetentionCell[];
+};
+
+export type RetentionCohorts = {
+    cohorts: RetentionCohort[];
+    curve: RetentionCell[];
+};
+
 export type ActiveUserCount = {
     date: string;
     count: number;
-    returning: number;
+    regular: number;
+    back: number;
+    lost: number | null;
+    lost_complete: boolean;
+    backfilled: boolean;
     activated: number;
     not_activated: number;
     pending: number;

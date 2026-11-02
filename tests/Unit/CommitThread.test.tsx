@@ -7,6 +7,7 @@ import { test } from 'vite-plus/test';
 import {
     ThreadActions,
     ThreadReplies,
+    ThreadReplyComposer,
     useThread,
 } from '../../resources/js/components/commit-thread';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
@@ -15,7 +16,6 @@ import type { Commit } from '../../resources/js/types';
 const reply = (id: string): Commit =>
     ({
         id,
-        user_id: 'author',
         parent_id: 'parent',
         quoted_commit_id: null,
         created_at: new Date().toISOString(),
@@ -24,7 +24,7 @@ const reply = (id: string): Commit =>
         body_segments: [{ type: 'text', text: `Visible reply ${id}` }],
         preview_segments: [{ type: 'text', text: `Visible reply ${id}` }],
         replies_count: 0,
-        user: {
+        author: {
             id: 'author',
             name: 'Author',
             handle: 'author',
@@ -67,7 +67,7 @@ async function renderThread(
     const result = await createInertiaApp({
         page: {
             component: 'test',
-            props: { auth: { user: null }, errors: {}, repliesPerPage },
+            props: { auth: { organizations: [], user: null }, errors: {}, repliesPerPage },
             url: '/',
             version: null,
             clearHistory: false,
@@ -90,6 +90,58 @@ const text = (html: string) =>
         .replace(/<!-- -->/g, '')
         .replace(/<[^>]+>/g, ' ')
         .replace(/\s+/g, ' ');
+
+async function renderReplyComposer(mentions: Record<string, string> | null) {
+    const commit = { ...reply('own-commit'), mentions };
+
+    function Preview() {
+        const thread = useThread(commit);
+        return (
+            <TooltipProvider>
+                <ThreadReplyComposer thread={{ ...thread, isReplying: true }} />
+            </TooltipProvider>
+        );
+    }
+
+    const result = await createInertiaApp({
+        page: {
+            component: 'test',
+            props: {
+                auth: { organizations: [], user: commit.author, log: {} },
+                errors: {},
+                repliesPerPage: 3,
+            },
+            url: '/',
+            version: null,
+            clearHistory: false,
+            encryptHistory: false,
+            rescuedProps: [],
+            rememberedState: {},
+            flash: {},
+        },
+        resolve: () => Preview,
+        render: renderToString,
+        setup: ({ App, props }) => <App {...props} />,
+    });
+
+    assert.ok(result);
+    return result.body;
+}
+
+test('keeps recipient choices available when replying to your own commit with one other participant', async () => {
+    const html = await renderReplyComposer({ participant: 'other-user' });
+
+    assert.match(text(html), /Replying to @participant/);
+    assert.match(html, /placeholder="Post your reply"/);
+    assert.doesNotMatch(text(html), /Replying to @author/);
+});
+
+test('keeps the normal placeholder when replying to your own commit without other participants', async () => {
+    const html = await renderReplyComposer(null);
+
+    assert.doesNotMatch(text(html), /Replying to/);
+    assert.match(html, /placeholder="Reply to @author"/);
+});
 
 for (const [count, repliesPerPage] of [
     [0, 3],

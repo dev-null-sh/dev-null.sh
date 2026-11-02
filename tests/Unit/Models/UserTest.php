@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Commit;
 use App\Models\Device;
+use App\Models\Organization;
 use App\Models\SshKey;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -110,12 +111,14 @@ it('loads public counts with approved commits only', function (): void {
     Commit::factory()->for($user)->pending()->create();
     Commit::factory()->for($user)->rejected()->create();
     $user->following()->attach(User::factory()->count(2)->create());
+    $user->followedOrganizations()->attach(Organization::factory()->create());
     User::factory()->create()->following()->attach($user);
+    User::factory()->create()->followedOrganizations()->attach(Organization::factory()->create());
 
     $user->loadPublicCounts();
 
     expect($user->commits_count)->toBe(1)
-        ->and($user->following_count)->toBe(2)
+        ->and($user->following_count)->toBe(3)
         ->and($user->followers_count)->toBe(1)
         ->and($user->isDirty())->toBeFalse();
 });
@@ -129,7 +132,7 @@ it('loads counts without joining users', function (): void {
 
     $queries = array_column(DB::getQueryLog(), 'query');
 
-    expect($queries)->toHaveCount(3)
+    expect($queries)->toHaveCount(4)
         ->each->not->toContain('join');
 });
 

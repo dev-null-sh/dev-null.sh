@@ -1,7 +1,11 @@
 import { usePage } from '@inertiajs/react';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import type { CSSProperties, ReactNode } from 'react';
-import { Tooltip, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+    Tooltip,
+    TooltipTrigger,
+    useTooltipArmed,
+} from '@/components/ui/tooltip';
 import {
     browserTimeZone,
     formatZonedDate,
@@ -17,26 +21,40 @@ export function TimestampTooltip({
     children,
 }: {
     date: string;
-    author: User;
+    /**
+     * Whose local time to show next to the reader's, when it's a person's.
+     */
+    author?: User;
     children: ReactNode;
 }) {
     return (
         <Tooltip>
             <TooltipTrigger asChild>{children}</TooltipTrigger>
-            <TooltipPrimitive.Portal>
-                <TooltipPrimitive.Content
-                    sideOffset={6}
-                    className="z-50 animate-in rounded-lg border bg-popover text-popover-foreground shadow-md fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
-                >
-                    <ZonedTimes date={date} author={author} />
-                    <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%-1px)] rotate-45 rounded-[2px] border-r border-b bg-popover fill-popover" />
-                </TooltipPrimitive.Content>
-            </TooltipPrimitive.Portal>
+            <ZonedTimesTooltip date={date} author={author} />
         </Tooltip>
     );
 }
 
-function ZonedTimes({ date, author }: { date: string; author: User }) {
+/** The tooltip itself, once the surrounding one has mounted: its parts need it. */
+function ZonedTimesTooltip({ date, author }: { date: string; author?: User }) {
+    if (!useTooltipArmed()) {
+        return null;
+    }
+
+    return (
+        <TooltipPrimitive.Portal>
+            <TooltipPrimitive.Content
+                sideOffset={6}
+                className="z-50 animate-in rounded-lg border bg-popover text-popover-foreground shadow-md fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95"
+            >
+                <ZonedTimes date={date} author={author} />
+                <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%-1px)] rotate-45 rounded-[2px] border-r border-b bg-popover fill-popover" />
+            </TooltipPrimitive.Content>
+        </TooltipPrimitive.Portal>
+    );
+}
+
+function ZonedTimes({ date, author }: { date: string; author?: User }) {
     const { auth } = usePage().props;
 
     const columns = [
@@ -45,7 +63,9 @@ function ZonedTimes({ date, author }: { date: string; author: User }) {
             lane: auth.user?.lane,
             timeZone: auth.user?.timezone ?? browserTimeZone(),
         },
-        ...(author.timezone !== null && author.id !== auth.user?.id
+        ...(author !== undefined &&
+        author.timezone !== null &&
+        author.id !== auth.user?.id
             ? [
                   {
                       who: author.name.split(' ')[0],

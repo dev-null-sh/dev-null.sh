@@ -19,7 +19,6 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useChat } from '@/hooks/use-chat';
 import {
@@ -112,8 +111,15 @@ function handleOf(person: User | null | undefined, user: User): string {
 /**
  * What a logged org change or ping says, from the reader's point of view.
  */
-export function eventText(message: Message, user: User): string {
-    const actor = handleOf(message.user, user);
+export function eventText(
+    message: Message,
+    user: User,
+    partner?: User | null,
+): string {
+    const actor =
+        message.user_id === user.id
+            ? 'you'
+            : handleOf(message.user ?? partner, user);
     const subject = handleOf(message.subject, user);
 
     switch (message.event) {
@@ -137,6 +143,20 @@ export function eventText(message: Message, user: User): string {
             return `${actor} made ${subject} a contributor`;
         case 'inherited':
             return `${actor} inherited maintainer`;
+        case 'call_started':
+            return `${actor} started a call`;
+        case 'call_answered':
+            return `${actor} answered the call`;
+        case 'call_cancelled':
+            return `${actor} cancelled the call`;
+        case 'call_declined':
+            return `${actor} declined the call`;
+        case 'call_failed':
+            return `${actor} couldn't answer the call`;
+        case 'call_missed':
+            return message.user_id === user.id
+                ? "your call wasn't answered"
+                : `missed call from ${actor}`;
         case 'ping':
             if (message.user_id === user.id) {
                 return 'you sent a ping';
@@ -149,8 +169,16 @@ export function eventText(message: Message, user: User): string {
     }
 }
 
-export function EventLine({ message, user }: { message: Message; user: User }) {
-    const text = eventText(message, user);
+export function EventLine({
+    message,
+    user,
+    partner,
+}: {
+    message: Message;
+    user: User;
+    partner?: User | null;
+}) {
+    const text = eventText(message, user, partner);
 
     return (
         <li className="my-2 flex justify-center">
@@ -470,23 +498,12 @@ function MemberRow({
     canManage: boolean;
     isLastMaintainer: boolean;
 }) {
-    const [isBusy, setIsBusy] = useState(false);
-
-    const run = async (change: () => Promise<void>) => {
-        setIsBusy(true);
-
-        try {
-            await change();
-        } catch (error) {
-            toast.error(errorOf(error));
-        } finally {
-            setIsBusy(false);
-        }
-    };
+    const run = (change: () => Promise<void>) =>
+        change().catch((error: unknown) => toast.error(errorOf(error)));
 
     return (
         <li className="flex items-center gap-3 px-5 py-2">
-            <Link href={show(member.user)} className="shrink-0">
+            <Link href={show(member.user)} prefetch className="shrink-0">
                 <UserAvatar
                     user={member.user}
                     className="size-9 ring-2 ring-(--lane)"
@@ -500,6 +517,7 @@ function MemberRow({
             <span className="min-w-0 flex-1">
                 <Link
                     href={show(member.user)}
+                    prefetch
                     className="block truncate text-sm font-semibold hover:underline"
                     title={member.user.name}
                 >
@@ -527,68 +545,65 @@ function MemberRow({
                 {member.role ?? 'contributor'}
             </span>
             <span className="grid size-8 shrink-0 place-items-center">
-                {canManage &&
-                    (isBusy ? (
-                        <Spinner className="size-4 text-muted-foreground" />
-                    ) : (
-                        <DropdownMenu modal={false}>
-                            <DropdownMenuTrigger
-                                aria-label={`Manage @${member.user.handle}`}
-                                className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent"
-                                data-test="org-member-actions"
-                            >
-                                <Ellipsis className="size-4" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-52">
-                                {member.role === 'maintainer' ? (
-                                    <DropdownMenuItem
-                                        disabled={isLastMaintainer}
-                                        onSelect={() =>
-                                            void run(() =>
-                                                setOrgMemberRole(
-                                                    org,
-                                                    member.user,
-                                                    'contributor',
-                                                ),
-                                            )
-                                        }
-                                    >
-                                        Make contributor
-                                    </DropdownMenuItem>
-                                ) : (
-                                    <DropdownMenuItem
-                                        onSelect={() =>
-                                            void run(() =>
-                                                setOrgMemberRole(
-                                                    org,
-                                                    member.user,
-                                                    'maintainer',
-                                                ),
-                                            )
-                                        }
-                                    >
-                                        Make maintainer
-                                    </DropdownMenuItem>
-                                )}
-                                <DropdownMenuSeparator />
+                {canManage && (
+                    <DropdownMenu modal={false}>
+                        <DropdownMenuTrigger
+                            aria-label={`Manage @${member.user.handle}`}
+                            className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[state=open]:bg-accent"
+                            data-test="org-member-actions"
+                        >
+                            <Ellipsis className="size-4" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                            {member.role === 'maintainer' ? (
                                 <DropdownMenuItem
-                                    variant="destructive"
+                                    disabled={isLastMaintainer}
                                     onSelect={() =>
                                         void run(() =>
-                                            removeOrgMember(
+                                            setOrgMemberRole(
                                                 org,
                                                 member.user,
-                                                false,
+                                                'contributor',
                                             ),
                                         )
                                     }
-                                    data-test="org-member-remove"
                                 >
-                                    Remove from org
+                                    Make contributor
                                 </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                    ))}
+                            ) : (
+                                <DropdownMenuItem
+                                    onSelect={() =>
+                                        void run(() =>
+                                            setOrgMemberRole(
+                                                org,
+                                                member.user,
+                                                'maintainer',
+                                            ),
+                                        )
+                                    }
+                                >
+                                    Make maintainer
+                                </DropdownMenuItem>
+                            )}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                                variant="destructive"
+                                onSelect={() =>
+                                    void run(() =>
+                                        removeOrgMember(
+                                            org,
+                                            member.user,
+                                            false,
+                                        ),
+                                    )
+                                }
+                                data-test="org-member-remove"
+                            >
+                                Remove from org
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
             </span>
         </li>
     );

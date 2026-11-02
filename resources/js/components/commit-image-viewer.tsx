@@ -9,6 +9,7 @@ import { useCallback, useState } from 'react';
 import { show as showCommitImage } from '@/actions/App/Http/Controllers/CommitImageController';
 import { CommitCard } from '@/components/commit-card';
 import type { ShownImage } from '@/components/commit-images';
+import { GraphCanvas } from '@/components/graph-canvas';
 import { ImageViewer } from '@/components/image-viewer';
 import { isTyping } from '@/hooks/use-keyboard-shortcuts';
 import { closeCommitPhoto, showCommitPhoto } from '@/lib/commit-photo';
@@ -107,14 +108,15 @@ export function CommitImageViewer() {
                             }
                         }}
                     >
-                        <CommitCard
-                            key={photo.commit.id}
-                            commit={photo.commit}
-                            isFocused
-                            showImages={false}
-                            loadsReplies
-                            endsWithDot
-                        />
+                        <GraphCanvas key={photo.commit.id}>
+                            <CommitCard
+                                commit={photo.commit}
+                                isFocused
+                                showImages={false}
+                                loadsReplies
+                                endsWithDot
+                            />
+                        </GraphCanvas>
                     </aside>
                 )
             }
