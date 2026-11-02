@@ -20,6 +20,7 @@ use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\PollVote;
+use App\Models\Profile;
 use App\Models\SshKey;
 use App\Models\User;
 use App\Models\UserTimeout;
@@ -140,6 +141,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'organizations' => [],
         'followed_organizations' => [],
         'pending_organization_follows' => [],
+        'waiting_to_follow' => [],
         'messages' => [],
         'reports' => [],
         'remote_mutes' => [],
@@ -527,6 +529,22 @@ it('exports the github organizations the user waits to follow', function (): voi
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data['pending_organization_follows'])->toBe(['1', '958072']);
+});
+
+it('exports the developers not on /dev/null yet the user waits to follow', function (): void {
+    $user = User::factory()->create();
+    $octocat = Profile::factory()->create(['handle' => 'octocat']);
+    $hubot = Profile::factory()->create(['handle' => 'hubot']);
+    DB::table('pending_follows')->insert([
+        ['user_id' => $user->id, 'profile_id' => $octocat->id],
+        ['user_id' => $user->id, 'profile_id' => $hubot->id],
+        ['user_id' => User::factory()->create()->id, 'profile_id' => Profile::factory()->create()->id],
+    ]);
+
+    $response = $this->actingAs($user)->get(route('export'));
+    $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
+
+    expect($data['waiting_to_follow'])->toBe(['hubot', 'octocat']);
 });
 
 it('exports the devices approved for the app, oldest first', function (): void {

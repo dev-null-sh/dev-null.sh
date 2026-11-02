@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Models\Profile;
+use Illuminate\Support\Facades\DB;
 
 final readonly class UpdateStaleHandles
 {
@@ -22,6 +23,9 @@ final readonly class UpdateStaleHandles
             ->where('github_id', '!=', $githubId)
             ->each(function (Profile $profile): void {
                 if ($profile->isUnclaimed()) {
+                    // Locked, so no one starts waiting for it in between (CreatePendingFollow)...
+                    Profile::query()->lockForUpdate()->find($profile->id);
+                    DB::table('pending_follows')->where('profile_id', $profile->id)->delete();
                     $profile->delete();
 
                     return;

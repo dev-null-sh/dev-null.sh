@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Models\Profile;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 it('shows an unclaimed developer to anyone with the link, but never where they are', function (): void {
     Profile::factory()->create([
@@ -20,6 +21,7 @@ it('shows an unclaimed developer to anyone with the link, but never where they a
         ->assertInertia(fn ($page) => $page
             ->component('profile/unclaimed')
             ->where('profile', [
+                'id' => Profile::query()->where('handle', 'octocat')->sole()->id,
                 'handle' => 'octocat',
                 'name' => 'The Octocat',
                 'avatar_url' => 'https://avatars.githubusercontent.com/u/583231',
@@ -55,4 +57,26 @@ it('shows a member their own page, not the unclaimed one, once they signed in', 
     $this->get('/@octocat')
         ->assertOk()
         ->assertInertia(fn ($page) => $page->component('user/show')->where('user.id', $user->id));
+});
+
+it('shows how many members wait to follow them, and members the ones they follow among them', function (): void {
+    $profile = Profile::factory()->create(['handle' => 'octocat']);
+    $member = User::factory()->create();
+    [$followed, $other] = User::factory()->count(2)->create();
+    $stranger = User::factory()->create();
+    $member->following()->attach([$followed->id, $other->id]);
+    DB::table('pending_follows')->insert(collect([$followed, $stranger, $member])->map(fn (User $user): array => ['user_id' => $user->id, 'profile_id' => $profile->id])->all());
+
+    $this->get('/@octocat')
+        ->assertInertia(fn ($page) => $page
+            ->where('waitingCount', 3)
+            ->where('isWaiting', false)
+            ->where('waitingYouFollow', []));
+
+    $this->actingAs($member)
+        ->get('/@octocat')
+        ->assertInertia(fn ($page) => $page
+            ->where('waitingCount', 3)
+            ->where('isWaiting', true)
+            ->where('waitingYouFollow', [$followed->only(['id', 'handle', 'name', 'avatar_url'])]));
 });

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use App\Actions\UpdateOrCreateUser;
 use App\Contracts\Services\GitHubProvider;
+use App\Enums\NotificationType;
+use App\Models\Notification;
 use App\Models\Profile;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -287,4 +289,26 @@ it('makes the unclaimed profile of the account theirs, and forgets they once del
         ->and($user->location)->toBe('San Francisco')
         ->and(Profile::query()->count())->toBe(1);
     $this->assertDatabaseEmpty('deleted_github_accounts');
+});
+
+it('makes the members who waited for a new user follow them, each heard from once', function (): void {
+    $this->mock(GitHubProvider::class)->shouldReceive('hasSponsorsListing')->andReturnFalse();
+    $unclaimed = Profile::factory()->create(['github_id' => '583231', 'handle' => 'octocat']);
+    [$first, $second] = User::factory()->count(2)->create();
+    $other = Profile::factory()->create();
+    DB::table('pending_follows')->insert([
+        ['user_id' => $first->id, 'profile_id' => $unclaimed->id],
+        ['user_id' => $second->id, 'profile_id' => $unclaimed->id],
+        ['user_id' => $first->id, 'profile_id' => $other->id],
+    ]);
+
+    $user = resolve(UpdateOrCreateUser::class)->handle(GitHubUser::fake(['id' => 583231, 'nickname' => 'octocat']));
+
+    expect($user->followers()->pluck('users.id')->sort()->values()->all())->toBe(collect([$first->id, $second->id])->sort()->values()->all())
+        ->and(Notification::query()->where('recipient_id', $user->id)->where('type', NotificationType::Followed)->count())->toBe(2)
+        ->and(DB::table('pending_follows')->pluck('profile_id')->all())->toBe([$other->id]);
+
+    resolve(UpdateOrCreateUser::class)->handle(GitHubUser::fake(['id' => 583231, 'nickname' => 'octocat']));
+
+    expect(Notification::query()->where('recipient_id', $user->id)->count())->toBe(2);
 });

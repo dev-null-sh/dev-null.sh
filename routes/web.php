@@ -101,6 +101,7 @@ use App\Http\Controllers\OrgPingController;
 use App\Http\Controllers\OrgReadController;
 use App\Http\Controllers\OrgTypingController;
 use App\Http\Controllers\PartnerController;
+use App\Http\Controllers\PendingFollowController;
 use App\Http\Controllers\PrivacyController;
 use App\Http\Controllers\ProductMetricsController;
 use App\Http\Controllers\ProfileLookupController;
@@ -674,6 +675,16 @@ Route::middleware('auth')->group(function (): void {
     Route::delete('@{user:handle}/follow', [UserFollowController::class, 'destroy'])
         ->middleware('throttle:follows')
         ->name('user-follow.destroy');
+
+    // Waiting to follow a developer who isn't on /dev/null yet...
+    Route::post('profiles/{profile}/pending-follow', [PendingFollowController::class, 'store'])
+        ->whereUuid('profile')
+        ->middleware('throttle:follows')
+        ->name('pending-follow.store');
+    Route::delete('profiles/{profile}/pending-follow', [PendingFollowController::class, 'destroy'])
+        ->whereUuid('profile')
+        ->middleware('throttle:follows')
+        ->name('pending-follow.destroy');
 
     // Organization Follow...
     Route::post('organizations/{organization}/follow', [OrganizationFollowController::class, 'store'])

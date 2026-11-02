@@ -25,9 +25,9 @@ final readonly class CreateGitHubProfile
 
     /**
      * Gives the handle a page from its GitHub account: an organization's, or an unclaimed developer's, which keeps only
-     * what the page shows. A user here who renamed on GitHub moves to the handle. A handle that is no GitHub account,
-     * or the account of someone who deleted theirs here, is remembered for a day, so the page says so without asking
-     * GitHub again.
+     * what the page shows, with the members following them on GitHub waiting to follow them here. A user here who
+     * renamed on GitHub moves to the handle. A handle that is no GitHub account, or the account of someone who deleted
+     * theirs here, is remembered for a day, so the page says so without asking GitHub again.
      */
     public function handle(string $handle): void
     {
@@ -50,7 +50,12 @@ final readonly class CreateGitHubProfile
 
         $profile = GitHubProfile::fromAccount($account);
 
-        DB::transaction(function () use ($profile, $githubId): void {
+        // Asked before the profile exists, so a sign-in can't come between them and miss the members waiting...
+        $followerIds = Profile::query()->where('github_id', $githubId)->exists()
+            ? []
+            : $this->github->followerIds($profile->handle, CreateUserGitHubFollows::MaxPages);
+
+        DB::transaction(function () use ($profile, $githubId, $followerIds): void {
             $this->updateStaleHandles->handle($profile->handle, $githubId);
 
             $existing = Profile::query()->where('type', ProfileType::User)->firstWhere('github_id', $githubId);
@@ -62,13 +67,18 @@ final readonly class CreateGitHubProfile
                 return;
             }
 
-            Profile::query()->updateOrCreate(['github_id' => $githubId, 'type' => ProfileType::User], [
+            $unclaimed = Profile::query()->updateOrCreate(['github_id' => $githubId, 'type' => ProfileType::User], [
                 'handle' => $profile->handle,
                 'name' => $profile->name,
                 'avatar_url' => $profile->avatarUrl,
                 'bio' => $profile->bio,
                 'github_synced_at' => now(),
             ]);
+
+            DB::table('pending_follows')->insertUsing(
+                ['user_id', 'profile_id'],
+                User::query()->whereIn('github_id', $followerIds)->select('id')->selectRaw('?', [$unclaimed->id]),
+            );
         });
     }
 }
