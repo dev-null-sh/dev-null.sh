@@ -20,4 +20,36 @@ printf(
     $summary->lineCoverageAsPercentage(),
 );
 
-exit($summary->numberOfExecutableLines() > 0 && $summary->numberOfExecutedLines() === $summary->numberOfExecutableLines() ? 0 : 1);
+if ($summary->numberOfExecutableLines() > 0 && $summary->numberOfExecutedLines() === $summary->numberOfExecutableLines()) {
+    exit(0);
+}
+
+foreach ($coverage['codeCoverage']->lineCoverage() as $file => $lines) {
+    $uncovered = array_keys(array_filter($lines, fn (?array $tests): bool => $tests === []));
+    $ranges = [];
+
+    foreach ($uncovered as $line) {
+        $last = array_key_last($ranges);
+
+        if ($last !== null && $ranges[$last][1] + 1 === $line) {
+            $ranges[$last][1] = $line;
+        } else {
+            $ranges[] = [$line, $line];
+        }
+    }
+
+    if ($ranges === []) {
+        continue;
+    }
+
+    printf(
+        "%s: %s\n",
+        str_replace(dirname(__DIR__).'/', '', $coverage['basePath'].'/'.$file),
+        implode(', ', array_map(
+            fn (array $range): string => $range[0] === $range[1] ? (string) $range[0] : $range[0].'-'.$range[1],
+            $ranges,
+        )),
+    );
+}
+
+exit(1);
