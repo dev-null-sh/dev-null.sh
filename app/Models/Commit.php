@@ -11,6 +11,7 @@ use App\Services\CommitBodies;
 use App\Services\Mentions;
 use Carbon\CarbonInterface;
 use Database\Factories\CommitFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Illuminate\Database\Eloquent\Casts\AsVector;
@@ -71,6 +72,20 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'ai_categories',
     'embedding',
     'headlines_classified_at',
+])]
+#[Fillable([
+    'user_id',
+    'author_id',
+    'body',
+    'source',
+    'mentions',
+    'parent_id',
+    'root_id',
+    'status',
+    'link_preview_id',
+    'quoted_commit_id',
+    'hot_score',
+    'created_at',
 ])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
