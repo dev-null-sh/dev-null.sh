@@ -6,22 +6,15 @@ import ChangelogController from '@/actions/App/Http/Controllers/ChangelogControl
 import PartnerController from '@/actions/App/Http/Controllers/PartnerController';
 import PrivacyController from '@/actions/App/Http/Controllers/PrivacyController';
 import TermsController from '@/actions/App/Http/Controllers/TermsController';
-import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
-import UserFollowingController from '@/actions/App/Http/Controllers/UserFollowingController';
-import { BioText } from '@/components/bio-text';
 import { GitHubIcon } from '@/components/github-icon';
+import { HotTopics } from '@/components/hot-topics';
 import { LiveFollowing } from '@/components/live-following';
 import { Button } from '@/components/ui/button';
-import { UserAvatar } from '@/components/user-avatar';
 import { WhoToFollow } from '@/components/who-to-follow';
 import { WordmarkText } from '@/components/wordmark-text';
-import { useSharedState } from '@/hooks/use-shared-state';
-import { commitStateKey } from '@/lib/commit-state';
 import { useKeyLabels } from '@/lib/keyboard';
-import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
-import { laneColor } from '@/lib/utils';
+import { formatExactCount } from '@/lib/numbers';
 import { login } from '@/routes';
-import { show } from '@/routes/user';
 
 export function AppAside({
     onShowShortcuts,
@@ -30,13 +23,9 @@ export function AppAside({
     onShowShortcuts: () => void;
     onSearch: () => void;
 }) {
-    const { user, bioProfiles } = usePage().props.auth;
+    const { user } = usePage().props.auth;
     const { developersCount } = usePage().props;
     const keys = useKeyLabels();
-    const [commitsCount] = useSharedState(
-        commitStateKey('commits_count', user?.id ?? ''),
-        user?.commits_count ?? 0,
-    );
 
     return (
         <aside className="sticky top-0 hidden h-svh w-80 shrink-0 scrollbar-none flex-col gap-8 overflow-y-auto p-6 xl:flex">
@@ -53,7 +42,7 @@ export function AppAside({
                 </kbd>
             </button>
 
-            {user === null ? (
+            {user === null && (
                 <section
                     aria-labelledby="aside-sign-in"
                     className="rounded-lg border bg-card p-4"
@@ -93,90 +82,10 @@ export function AppAside({
                         .
                     </p>
                 </section>
-            ) : (
-                <section aria-labelledby="aside-you">
-                    <h2 id="aside-you" className="sr-only">
-                        You
-                    </h2>
-                    <Link
-                        href={show(user)}
-                        prefetch
-                        className="group flex items-center gap-3"
-                    >
-                        <UserAvatar user={user} className="size-12" />
-                        <span className="min-w-0">
-                            <span className="block truncate font-semibold group-hover:underline">
-                                {user.name}
-                            </span>
-                            <span className="flex items-center gap-1.5 font-mono text-sm text-muted-foreground">
-                                <span
-                                    aria-hidden
-                                    className="size-2 rounded-full"
-                                    style={{
-                                        background: laneColor(user.lane),
-                                    }}
-                                />
-                                @{user.handle}
-                            </span>
-                        </span>
-                    </Link>
-                    <dl className="mt-4 grid grid-cols-3 gap-4 text-center text-sm">
-                        {[
-                            {
-                                count: commitsCount,
-                                label:
-                                    commitsCount === 1 ? 'commit' : 'commits',
-                                href: show(user),
-                            },
-                            {
-                                count: user.following_count,
-                                label: 'following',
-                                href: UserFollowingController.index(user),
-                            },
-                            {
-                                count: user.followers_count,
-                                label:
-                                    user.followers_count === 1
-                                        ? 'follower'
-                                        : 'followers',
-                                href: UserFollowersController.index(user),
-                            },
-                        ].map((stat) => (
-                            <div
-                                key={stat.label}
-                                className="group flex min-w-0 flex-col-reverse"
-                            >
-                                <dt className="text-muted-foreground">
-                                    <Link
-                                        href={stat.href}
-                                        prefetch
-                                        className="group-hover:underline"
-                                    >
-                                        {stat.label}
-                                    </Link>
-                                </dt>
-                                <dd className="font-mono font-medium tabular-nums">
-                                    <Link
-                                        href={stat.href}
-                                        prefetch
-                                        className="group-hover:underline"
-                                        title={exactCountTitle(stat.count)}
-                                    >
-                                        {formatCount(stat.count)}
-                                    </Link>
-                                </dd>
-                            </div>
-                        ))}
-                    </dl>
-                    {user.bio && (
-                        <p className="mt-3 text-sm text-pretty text-muted-foreground">
-                            <BioText bio={user.bio} profiles={bioProfiles} />
-                        </p>
-                    )}
-                </section>
             )}
 
             <LiveFollowing />
+            <HotTopics />
             <WhoToFollow />
 
             <div className="-mt-4 flex flex-col gap-2 border-t pt-4 text-sm text-muted-foreground">

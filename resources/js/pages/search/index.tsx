@@ -3,13 +3,10 @@ import { ArrowRight, History, Search, Sparkles, X } from 'lucide-react';
 import type { FormEvent } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import SearchController from '@/actions/App/Http/Controllers/SearchController';
-import { CommitCard } from '@/components/commit-card';
-import { CommitSkeleton, EmptyFeed } from '@/components/commit-feed';
-import { GraphCanvas } from '@/components/graph-canvas';
+import { SearchResults } from '@/components/commit-search-results';
 import { rememberSearch, useRecentSearches } from '@/hooks/use-recent-searches';
 import AppLayout from '@/layouts/app-layout';
 import { searchCommits, suggestedQueries } from '@/lib/commit-search';
-import { authorLaneColor } from '@/lib/utils';
 import type { Commit } from '@/types';
 
 const skeletonDelay = 300;
@@ -137,83 +134,6 @@ function useCommitSearch(query: string) {
     }, [query]);
 
     return { results, isWaiting };
-}
-
-export function SearchResults({
-    results,
-    isWaiting,
-}: {
-    results: Results | null;
-    isWaiting: boolean;
-}) {
-    if (results === null) {
-        return <ResultsSkeleton isVisible={isWaiting} />;
-    }
-
-    return (
-        <section aria-labelledby="search-results" aria-busy={isWaiting}>
-            <div className="flex h-11 items-center justify-between border-b px-4 sm:px-6">
-                <h2 id="search-results" className="font-semibold">
-                    Most relevant commits
-                </h2>
-                <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                    {results.commits.length}{' '}
-                    {results.commits.length === 1 ? 'match' : 'matches'}
-                </span>
-            </div>
-
-            {results.commits.length === 0 ? (
-                <div className="px-6 py-16 text-center sm:px-12">
-                    <EmptyFeed
-                        command={`fatal: nothing close to '${results.term}'`}
-                    >
-                        Try describing the idea in other words, or pick one of
-                        the searches below.
-                    </EmptyFeed>
-                </div>
-            ) : (
-                <GraphCanvas>
-                    {results.commits.map((commit, index) => {
-                        const previous = results.commits[index - 1];
-
-                        return (
-                            <CommitCard
-                                key={commit.id}
-                                commit={commit}
-                                previousLane={
-                                    previous && authorLaneColor(previous.author)
-                                }
-                                graphAfter={previous?.id}
-                                endsWithDot={
-                                    index === results.commits.length - 1
-                                }
-                            />
-                        );
-                    })}
-                </GraphCanvas>
-            )}
-        </section>
-    );
-}
-
-/**
- * Takes the loaded header's height even before it shows, so the results land without pushing anything around.
- */
-function ResultsSkeleton({ isVisible }: { isVisible: boolean }) {
-    return (
-        <div
-            role="status"
-            aria-label="Searching commits"
-            className={isVisible ? 'opacity-100' : 'opacity-0'}
-        >
-            <div className="flex h-11 items-center border-b px-4 sm:px-6">
-                <span className="h-3 w-20 rounded bg-muted motion-safe:animate-pulse" />
-            </div>
-            <CommitSkeleton />
-            <CommitSkeleton />
-            <CommitSkeleton />
-        </div>
-    );
 }
 
 function Suggestions({

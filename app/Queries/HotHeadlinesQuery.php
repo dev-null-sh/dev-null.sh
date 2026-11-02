@@ -25,7 +25,7 @@ final readonly class HotHeadlinesQuery
      * Ties use author breadth and name, never post count or recency, so repeated weaker posts cannot lift a headline.
      * Rankings are deterministic, without the Trending log's random draw or network adjustments.
      *
-     * @return list<array{name: string, commits_count: int, score: float}>
+     * @return list<array{id: string, name: string, commits_count: int, score: float}>
      */
     public function get(?User $viewer = null): array
     {
@@ -44,11 +44,11 @@ final readonly class HotHeadlinesQuery
             ->selectRaw('max(commits.hot_score) as hot_score, count(*) as commits_count')
             ->groupBy('commit_headline.headline_id', 'commits.author_id');
 
-        /** @var list<object{name: string, commits_count: int, score: float}> $rows */
+        /** @var list<object{id: string, name: string, commits_count: int, score: float}> $rows */
         $rows = DB::query()
             ->fromSub($contributions, 'contributions')
             ->join('headlines', 'headlines.id', '=', 'contributions.headline_id')
-            ->select('headlines.name')
+            ->select('headlines.id', 'headlines.name')
             ->selectRaw('sum(contributions.commits_count)::bigint as commits_count, count(*) as authors_count, sum(1 + greatest(0::float8, contributions.hot_score - ?::float8)) as score', [$baseline])
             ->groupBy('headlines.id', 'headlines.name')
             ->orderByDesc('score')
@@ -58,6 +58,7 @@ final readonly class HotHeadlinesQuery
             ->get()->all();
 
         return array_map(fn (object $row): array => [
+            'id' => $row->id,
             'name' => $row->name,
             'commits_count' => $row->commits_count,
             'score' => $row->score,

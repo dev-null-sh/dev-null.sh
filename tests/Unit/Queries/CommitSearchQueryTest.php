@@ -47,6 +47,15 @@ it('limits the number of results', function (): void {
     expect(resolve(CommitSearchQuery::class)->get('a query', null, limit: 2))->toHaveCount(2);
 });
 
+it('filters posting time before limiting nearest candidates without restricting ordinary search', function (): void {
+    $old = Commit::factory()->count(5)->create(['embedding' => embeddingVector(0), 'created_at' => now()->subWeek()->subSecond()]);
+    $recent = Commit::factory()->create(['embedding' => embeddingVector(1), 'created_at' => now()->subWeek()]);
+    $query = resolve(CommitSearchQuery::class);
+
+    expect($query->get('a query', null, limit: 2, since: now()->subWeek())->pluck('id')->all())->toBe([$recent->id])
+        ->and($query->get('a query', null, limit: 10)->pluck('id')->all())->toEqualCanonicalizing([...$old->modelKeys(), $recent->id]);
+});
+
 it('returns nothing, and asks for nothing, for a term shorter than three characters', function (string $term): void {
     $embeddings = $this->mock(EmbeddingProvider::class);
     $embeddings->shouldNotReceive('embed');
