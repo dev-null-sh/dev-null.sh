@@ -18,7 +18,7 @@ final class CreateKeyLookupRequest extends FormRequest
     {
         return $this->publicKey() instanceof SshPublicKey
             ? Response::allow()
-            : Response::denyAsNotFound('None of your SSH keys are on the GitHub account of a /dev/null user. Add your key on GitHub (Settings → SSH and GPG keys), then open '.route('terminal.show').' while signed in to sync it.');
+            : Response::denyAsNotFound('None of your SSH keys are on the GitHub account of a /dev/null user. Add your key on GitHub (Settings → SSH and GPG keys), then click Sync from GitHub on '.route('user-profile.edit').'.');
     }
 
     /**

@@ -121,7 +121,6 @@ use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\StarredCommitController;
 use App\Http\Controllers\SuggestionDismissalController;
 use App\Http\Controllers\SystemHealthController;
-use App\Http\Controllers\TerminalController;
 use App\Http\Controllers\TermsController;
 use App\Http\Controllers\TestEmailController;
 use App\Http\Controllers\TrafficController;
@@ -651,7 +650,7 @@ Route::middleware('auth')->group(function (): void {
     Route::get('settings/appearance', fn () => Inertia::render('appearance/update'))->name('appearance.edit');
 
     // Terminal...
-    Route::get('settings/terminal', [TerminalController::class, 'show'])->name('terminal.show');
+    Route::get('settings/terminal', fn () => Inertia::render('terminal/show', ['url' => url('/')]))->name('terminal.show');
 
     // Safety...
     Route::get('settings/safety', [SafetyController::class, 'edit'])->name('safety.edit');
