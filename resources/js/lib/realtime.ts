@@ -244,6 +244,13 @@ function mayHaveMissed(
 }
 
 /**
+ * When what the page shows was read, or null when nobody knows, as for a page brought back from history.
+ */
+export function pageReadTime(): number | null {
+    return pageRead;
+}
+
+/**
  * Called when a page arrives from a visit that started at the given time: what it shows was read since.
  */
 export function pageReadAt(at: number): void {

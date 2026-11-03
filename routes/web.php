@@ -65,6 +65,7 @@ use App\Http\Controllers\IssueController;
 use App\Http\Controllers\IssueSuggestionController;
 use App\Http\Controllers\JoinLinkController;
 use App\Http\Controllers\LinkController;
+use App\Http\Controllers\LiveStreamController;
 use App\Http\Controllers\LocalSessionController;
 use App\Http\Controllers\LogController;
 use App\Http\Controllers\MentionController;
@@ -303,6 +304,9 @@ Route::get('@{profile:handle}/commits/{commit}/og.png', [CommitOpenGraphImageCon
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('live-streams', [LiveStreamController::class, 'index'])
+    ->middleware('throttle:live-streams')
+    ->name('live-stream.index');
 Route::get('commits/changes', [CommitChangeController::class, 'index'])
     ->middleware('throttle:commit-changes')
     ->name('commit-change.index');

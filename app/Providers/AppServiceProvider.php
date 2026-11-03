@@ -204,6 +204,7 @@ final class AppServiceProvider extends ServiceProvider
         // Live updates: joining a channel and catching up after missing updates have budgets of their own, so pages
         // listening never spend the one for reading and giving...
         RateLimiter::for('broadcast-authorizations', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
+        RateLimiter::for('live-streams', fn (Request $request): Limit => Limit::perMinute(120)->by($request->user()->id ?? (string) $request->ip()));
         RateLimiter::for('commit-changes', fn (Request $request): Limit => Limit::perMinute(120)->by($request->user()->id ?? (string) $request->ip()));
 
         // Commit actions: rapid j/k with a star on most commits stays well under these...
