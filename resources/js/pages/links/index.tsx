@@ -52,6 +52,7 @@ function linkVisit(url: string) {
             href: LinkController.index().url,
             method: 'query' as const,
             data: { url },
+            preserveState: false,
         };
     }
 
@@ -66,7 +67,7 @@ export default function Index(props: Props) {
         const visit = linkVisit(draft.trim());
 
         if (visit.method === 'query') {
-            router.query(visit.href, visit.data);
+            router.query(visit.href, visit.data, { preserveState: false });
         } else {
             router.get(visit.href);
         }
