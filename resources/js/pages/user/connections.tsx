@@ -120,11 +120,15 @@ export default function Connections({
                             href: UserFollowingController.index(user),
                             isActive: type === 'following',
                         },
-                        {
-                            title: 'Mutuals',
-                            href: UserMutualsController.index(user),
-                            isActive: type === 'mutuals',
-                        },
+                        ...(auth.user?.id !== user.id
+                            ? [
+                                  {
+                                      title: 'Mutuals',
+                                      href: UserMutualsController.index(user),
+                                      isActive: type === 'mutuals',
+                                  },
+                              ]
+                            : []),
                     ]}
                 />
             </div>
