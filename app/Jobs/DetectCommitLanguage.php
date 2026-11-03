@@ -6,6 +6,7 @@ namespace App\Jobs;
 
 use App\Actions\CreateCommitTranslation;
 use App\Enums\CommitStatus;
+use App\Exceptions\CommitProcessingFailed;
 use App\Models\Commit;
 use App\Services\CommitTranslations;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -47,10 +48,16 @@ final class DetectCommitLanguage implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * Every try failed, so views stop queueing detection for this post until the mark expires.
+     * Every try failed at the provider (an error or an answer it can't use), so views stop queueing detection for this
+     * post until the mark expires. Anything else, like the post changing while it was detected or a timeout, says
+     * nothing about the post, so it's left to be detected again on the next view.
      */
     public function failed(?Throwable $exception): void
     {
+        if (! $exception instanceof CommitProcessingFailed) {
+            return;
+        }
+
         $commit = Commit::withTrashed()->find($this->commitId);
 
         if ($commit instanceof Commit) {

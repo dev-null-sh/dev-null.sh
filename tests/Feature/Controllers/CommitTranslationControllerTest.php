@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\CommitTranslations;
 use App\Services\Features;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Queue\MaxAttemptsExceededException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Exceptions;
@@ -271,6 +272,19 @@ it('stops queueing detection for a post once every try failed, until the mark ex
     $this->get($url)->assertOk();
     $this->assertDatabaseCount('jobs', 1);
 });
+
+it('only marks a post undetectable when the provider failed it, not when something after or around it did', function (Throwable $exception, bool $marked): void {
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+
+    new DetectCommitLanguage($commit->id)->failed($exception);
+
+    expect(Cache::get(resolve(CommitTranslations::class)->undetectableKey($commit)))->toBe($marked ? true : null);
+})->with([
+    'provider error' => [fn (): CommitProcessingFailed => new CommitProcessingFailed('Translation', 'id', new RuntimeException('Provider unavailable'), 'provider_request'), true],
+    'unusable answer' => [fn (): CommitProcessingFailed => new CommitProcessingFailed('Translation', 'id', new RuntimeException('Invalid translation response.'), 'unsupported_source_language'), true],
+    'post changed meanwhile' => [fn (): RuntimeException => new RuntimeException('Commit changed during translation.'), false],
+    'timeout' => [fn (): MaxAttemptsExceededException => new MaxAttemptsExceededException('Timed out.'), false],
+]);
 
 it('requires sign in to generate translations', function (): void {
     $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
