@@ -225,7 +225,7 @@ final readonly class SuggestedUsersQuery
     /**
      * One from each in turn, starting with the people whose repositories the user starred, so a page holding a single
      * person from the network still has one of them and a large network doesn't push them past the first pages.
-     * Someone in both stays where the network has them.
+     * Someone in both keeps their place among the starred, with how many the user follows who follow them.
      *
      * @param  Collection<int, User>  $network
      * @param  Collection<int, User>  $starred
@@ -233,8 +233,9 @@ final readonly class SuggestedUsersQuery
      */
     private function alternate(Collection $network, Collection $starred): Collection
     {
-        $starred = array_values($starred->whereNotIn('id', $network->pluck('id'))->all());
-        $network = array_values($network->all());
+        $networkById = $network->keyBy('id');
+        $network = array_values($network->whereNotIn('id', $starred->pluck('id'))->all());
+        $starred = array_values($starred->map(fn (User $user): User => $networkById->get($user->id, $user))->all());
         $alternated = [];
 
         for ($index = 0; $index < max(count($network), count($starred)); $index++) {

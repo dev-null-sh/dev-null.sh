@@ -525,6 +525,31 @@ it('keeps the people whose repositories the user starred among the first suggest
     }
 });
 
+it('keeps someone the user starred among the first suggestions when their network has them far down', function (): void {
+    $user = User::factory()->create();
+    $vouched = vouchedFor($user, 29);
+    $friend = User::factory()->create();
+    $user->following()->attach($friend);
+    $friend->following()->attach($vouched);
+    popularUsers(5);
+    $starred = User::factory()->has(Commit::factory())->create();
+    $friend->following()->attach($starred);
+
+    starGitHubRepositoriesOf($user, [$starred, 1]);
+
+    $this->travelTo(today());
+
+    foreach (range(1, 7) as $day) {
+        $suggestions = resolve(SuggestedUsersQuery::class)->get($user)->where('id', $starred->id);
+
+        expect($suggestions)->toHaveCount(1)
+            ->and($suggestions->first()->followed_by_following_count)->toBe(1)
+            ->and($suggestions->first()->starred_repositories_count)->toBe(1);
+
+        $this->travel(1)->day();
+    }
+});
+
 it('says how many repositories the user starred of the people suggested for other reasons', function (): void {
     $user = User::factory()->create();
     [$vouched] = vouchedFor($user, 1);
