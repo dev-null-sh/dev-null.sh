@@ -67,7 +67,7 @@ final readonly class UserController
         return Inertia::render('user/show', [
             'user' => Inertia::live($getCountedUser, 'profile', $profile),
             'bioProfiles' => fn (): array => $bioProfiles->get($user),
-            'pasteisReceived' => $currentUser?->pasteis_mode ? $user->pasteis_received : null,
+            'pasteisReceived' => Inertia::live(fn (): ?int => $currentUser?->pasteis_mode ? $user->pasteis_received : null, 'profile', $profile),
             'isFollowing' => $relationship(fn (): bool => $currentUser?->isFollowing($user) ?? false),
             'followsYou' => $relationship(fn (): bool => $currentUser instanceof User && $user->isFollowing($currentUser)),
             'isMuting' => $relationship(fn (): bool => $currentUser?->isMuting($user) ?? false),

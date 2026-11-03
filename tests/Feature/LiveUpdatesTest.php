@@ -417,6 +417,26 @@ it('shares the language the reader reads translations in, live on their own chan
     expect($this->get('/settings/appearance', [...$headers, 'Accept-Language' => 'pt-BR'])->json('props.auth.translationLanguage'))->toBe('de');
 });
 
+it("tells the recipient's profile a pastel arrived, without its total, which each reader reads again as they may", function (): void {
+    $sender = User::factory()->create(['pasteis_mode' => true]);
+    $recipient = User::factory()->create();
+    $commit = Commit::factory()->for($recipient)->create();
+
+    $this->actingAs($sender)->postJson(route('commit-pastel.store', $commit))->assertOk();
+
+    Event::assertDispatched(ProfilesUpdated::class, fn (ProfilesUpdated $event): bool => $event->profileIds === [$recipient->id]
+        && $event->broadcastWith() === []);
+
+    $headers = ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request())];
+    $page = $this->get(route('user.show', $recipient), $headers)->json();
+
+    expect($page['props']['pasteisReceived'])->toBe(1)
+        ->and($page['liveProps']['pasteisReceived']['listeners'][0])->toBe([
+            'channel' => ['name' => 'profiles.'.$recipient->id, 'type' => 'public'],
+            'events' => ['profile'],
+        ]);
+});
+
 /**
  * Listens for real, so what each update makes a page read again is what it finds.
  *

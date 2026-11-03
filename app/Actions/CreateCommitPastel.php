@@ -8,6 +8,7 @@ use App\Enums\CommitStatus;
 use App\Enums\CommitUpdate;
 use App\Enums\UserUpdate;
 use App\Events\CommitsUpdated;
+use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
 use App\Models\Commit;
 use App\Models\User;
@@ -45,6 +46,8 @@ final readonly class CreateCommitPastel
             }
 
             event(new UsersUpdated([$sender->id], UserUpdate::Account));
+            // Who received it shows it on their profile, to whoever may see the total: each reads it again themselves.
+            event(new ProfilesUpdated([$commit->user_id]));
 
             return true;
         }, 3);
