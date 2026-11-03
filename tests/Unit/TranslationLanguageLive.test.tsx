@@ -140,29 +140,31 @@ test('joining asks once what was translated among the commits shown, and reads a
               })
             : Response.json({ translation: translation('en', 'Hello') });
     });
-    let finishedShown: ReturnType<typeof useCommitTranslation> | undefined;
     function Both() {
         useCommitTranslation(quiet);
-        finishedShown = useCommitTranslation(finished);
 
-        return null;
+        return { finished: useCommitTranslation(finished) };
     }
+    const both = Both as unknown as () => null;
 
-    void harness.render(Both, {});
+    void harness.render(both, {});
     fake.setStatus('connected');
     fake.joined.get('commits.quiet')?.join();
     fake.joined.get('commits.finished')?.join();
+    let rendered = harness.render(both, {});
     for (let i = 0; i < 3; i++) {
         await vi.advanceTimersByTimeAsync(600);
-        void harness.render(Both, {});
+        rendered = harness.render(both, {});
     }
+    const shownFinished = (rendered as unknown as ReturnType<typeof Both>)
+        .finished;
 
     assert.deepEqual(asked, [
         '/commits/changes',
         '/commits/finished/translation',
     ]);
     assert.equal(
-        (finishedShown?.segments as { text?: string }[])[0]?.text,
+        (shownFinished.segments as { text?: string }[])[0]?.text,
         'Hello',
     );
     connectRealtime(null);

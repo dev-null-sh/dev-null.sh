@@ -178,7 +178,8 @@ test('a closed group whose members changed reads them afresh when opened again',
             harness.render(Item, shown),
             (props) => 'aria-expanded' in props,
         );
-        (expand?.props.onClick as () => void)();
+        assert.ok(expand);
+        (expand.props.onClick as () => void)();
     };
 
     toggle(props);
@@ -216,7 +217,7 @@ const named = (id: string, minute: number, actor = 'a', earlier: string[] = []) 
         created_at: `2026-11-03T10:${String(minute).padStart(2, '0')}:00.000000Z`,
     }) as Group;
 
-const shownOrder = (tree: ReturnType<typeof Index>) => {
+const shownOrder = (tree: Parameters<typeof find>[0]) => {
     const order: string[] = [];
     find(tree, (props) => {
         if ('withoutBottomBorder' in props) {
@@ -233,7 +234,8 @@ test('an open group stays where the reader has it when someone joins it, and clo
     const before = page([named('mention', 30), named('open', 20), named('closed', 10)]);
     const tree = harness.render(Index, before);
     const open = find(tree, (props) => (props.notification as Group | undefined)?.group_id === 'open' && 'withoutBottomBorder' in props);
-    (open?.props.onOpenChange as (isOpen: boolean) => void)(true);
+    assert.ok(open);
+    (open.props.onOpenChange as (isOpen: boolean) => void)(true);
     void harness.render(Index, before);
 
     const joined = page([named('open', 40, 'alice'), named('closed', 35, 'bob'), named('mention', 30)]);
@@ -242,10 +244,12 @@ test('an open group stays where the reader has it when someone joins it, and clo
 
     assert.deepEqual(shownOrder(shown), ['closed', 'mention', 'open']);
     const kept = find(shown, (props) => (props.notification as Group | undefined)?.group_id === 'open' && 'withoutBottomBorder' in props);
-    assert.equal((kept?.props.notification as Group).actor.id, 'alice', 'the group shown is the one read now');
+    assert.ok(kept);
+    assert.equal((kept.props.notification as Group).actor.id, 'alice', 'the group shown is the one read now');
 
     const closed = find(shown, (props) => (props.notification as Group | undefined)?.group_id === 'open' && 'withoutBottomBorder' in props);
-    (closed?.props.onOpenChange as (isOpen: boolean) => void)(false);
+    assert.ok(closed);
+    (closed.props.onOpenChange as (isOpen: boolean) => void)(false);
     void harness.render(Index, joined);
     const again = page([named('open', 40, 'alice'), named('closed', 35, 'bob'), named('mention', 30)]);
     void harness.render(Index, again);
@@ -262,7 +266,8 @@ test('an open group keeps naming who it named when opened, while its counts and 
     harness.unmount();
     const props = { ...item.props, onOpenChange: undefined };
     const expand = find(harness.render(Item, props), (props) => 'aria-expanded' in props);
-    (expand?.props.onClick as () => void)();
+    assert.ok(expand);
+    (expand.props.onClick as () => void)();
     void harness.render(Item, props);
 
     const joined = { ...props, notification: { ...named('open', 40, 'alice', ['a']), actors_count: 4, event_count: 4 } };
@@ -274,8 +279,10 @@ test('an open group keeps naming who it named when opened, while its counts and 
     assert.equal(shown.actors_count, 4);
 
     const collapse = find(harness.render(Item, joined), (props) => 'aria-expanded' in props);
-    (collapse?.props.onClick as () => void)();
+    assert.ok(collapse);
+    (collapse.props.onClick as () => void)();
     void harness.render(Item, joined);
     const closed = find(harness.render(Item, joined), (props) => props.summary === true);
-    assert.equal((closed?.props.notification as Group).actor.id, 'alice');
+    assert.ok(closed);
+    assert.equal((closed.props.notification as Group).actor.id, 'alice');
 });
