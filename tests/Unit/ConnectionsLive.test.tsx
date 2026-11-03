@@ -45,6 +45,24 @@ const props = {
 } as unknown as Props;
 
 let fake: ReturnType<typeof fakeConnection>;
+// Hashing finishes on the thread pool, whenever it does: every digest asked for is waited for until it has, so a late
+// one can't land in the next test.
+const hashing = new Set<Promise<ArrayBuffer>>();
+const digest = globalThis.crypto.subtle.digest.bind(globalThis.crypto.subtle);
+vi.spyOn(globalThis.crypto.subtle, 'digest').mockImplementation((...args: Parameters<SubtleCrypto['digest']>) => {
+    const hashed = digest(...args);
+    hashing.add(hashed);
+    void hashed.finally(() => hashing.delete(hashed));
+
+    return hashed;
+});
+
+async function hashed() {
+    while (hashing.size > 0) {
+        await Promise.allSettled(hashing);
+        await new Promise((resolve) => setImmediate(resolve));
+    }
+}
 
 beforeEach(() => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
@@ -53,18 +71,16 @@ beforeEach(() => {
     connectRealtime(fake.connection);
 });
 
-afterEach(() => {
+afterEach(async () => {
+    await hashed();
     harness.unmount();
     connectRealtime(null);
     vi.useRealTimers();
 });
 
-// Hashing runs off the event loop's timers, so it is waited for for real.
 async function settle() {
     await vi.advanceTimersByTimeAsync(50);
-    for (let i = 0; i < 5; i++) {
-        await new Promise((resolve) => setImmediate(resolve));
-    }
+    await hashed();
 }
 
 const offered = () => {
