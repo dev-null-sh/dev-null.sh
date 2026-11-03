@@ -242,7 +242,7 @@ Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController
 
 ### Code, emoji, and mentions
 
-Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. A title after the language, as in ```` ```php title="app/Models/User.php" ````, labels the block in place of the language. Text outside code supports emoji shortcodes, clickable URLs, and `@username` mentions. This is developer-oriented text formatting, not a full rich-text editor.
+Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. A title after the language, as in ```` ```php title="app/Models/User.php" ````, labels the block in place of the language. Text outside code supports emoji shortcodes, clickable URLs, `@username` mentions, and `#hashtags`, which open commit search for signed-in members and stay plain text for guests. This is developer-oriented text formatting, not a full rich-text editor.
 
 The smiley button in the commit and reply composers opens the same searchable emoji picker as reactions in remotes. Picking an emoji inserts it where the caret was, or over the selected text, and puts the caret right after it.
 
