@@ -3,9 +3,9 @@ import { Check, GitMerge } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import MergeConflictVoteController from '@/actions/App/Http/Controllers/MergeConflictVoteController';
+import { AuthorAvatar } from '@/components/author-avatar';
 import { timeLeft } from '@/components/commit-poll';
 import { Button } from '@/components/ui/button';
-import { UserAvatar } from '@/components/user-avatar';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
 import { formatExactCount } from '@/lib/numbers';
@@ -22,7 +22,7 @@ type Side = 'ours' | 'theirs';
 const failedVoteMessage = 'Could not record your pick. Try again.';
 
 function handleOf(side: MergeConflictSide): string {
-    return side.user === null ? 'someone' : `@${side.user.handle}`;
+    return side.author === null ? 'someone' : `@${side.author.handle}`;
 }
 
 function winnerOf(mergeConflict: MergeConflictData): Side | null {
@@ -65,13 +65,13 @@ function ConflictSide({
                 )}
             >
                 <span aria-hidden>{marker}</span>
-                {side.user !== null && (
+                {side.author !== null && (
                     <Link
-                        href={show(side.user)}
+                        href={show(side.author)}
                         className="flex min-w-0 items-center gap-1.5 hover:underline"
                     >
-                        <UserAvatar
-                            user={side.user}
+                        <AuthorAvatar
+                            author={side.author}
                             className="size-4"
                             pixels={32}
                         />

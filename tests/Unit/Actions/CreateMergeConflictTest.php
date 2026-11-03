@@ -8,6 +8,7 @@ use App\Ai\Agents\ConflictSpotter;
 use App\Enums\Feature;
 use App\Models\Commit;
 use App\Models\MergeConflict;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\Features;
 use Laravel\Ai\Prompts\AgentPrompt;
@@ -39,6 +40,17 @@ it('opens a merge conflict between two replies that disagree', function (): void
     ConflictSpotter::assertPrompted(fn (AgentPrompt $prompt): bool => str_contains($prompt->prompt, '"post":"Tabs or spaces?"')
         && str_contains($prompt->prompt, '"number":3')
         && str_contains($prompt->prompt, '"body":"Spaces, tabs are wrong."'));
+});
+
+it('names a reply posted as an organization by the organization when asking Tom', function (): void {
+    ConflictSpotter::fake([['conflict' => false, 'ours' => 0, 'theirs' => 0]])->preventStrayPrompts();
+    $commit = Commit::factory()->create();
+    [, $reply] = repliesTo($commit, 'Tabs, always.', 'Spaces, tabs are wrong.');
+    $reply->update(['author_id' => Organization::factory()->create(['handle' => 'laravel'])->id]);
+
+    resolve(CreateMergeConflict::class)->handle($commit);
+
+    ConflictSpotter::assertPrompted(fn (AgentPrompt $prompt): bool => str_contains($prompt->prompt, '"author":"@laravel"'));
 });
 
 it('puts the earlier reply on our side whichever way Tom names them', function (): void {

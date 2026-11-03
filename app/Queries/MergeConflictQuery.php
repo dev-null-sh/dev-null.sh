@@ -8,6 +8,7 @@ use App\Enums\Feature;
 use App\Enums\MergeConflictSide;
 use App\Models\Commit;
 use App\Models\MergeConflict;
+use App\Models\Profile;
 use App\Models\User;
 use App\Services\Features;
 use Illuminate\Support\Str;
@@ -25,7 +26,7 @@ final readonly class MergeConflictQuery
      * The merge conflict in the replies to a commit, as long as the reader can see both sides. Like a poll, the votes
      * are only counted for those who picked a side, the two authors, and everyone once voting has closed.
      *
-     * @return array{id: string, closes_at: string, is_closed: bool, side: string|null, can_vote: bool, ours: array{id: string, body: string, user: User|null, votes: int|null}, theirs: array{id: string, body: string, user: User|null, votes: int|null}}|null
+     * @return array{id: string, closes_at: string, is_closed: bool, side: string|null, can_vote: bool, ours: array{id: string, body: string, author: Profile|null, votes: int|null}, theirs: array{id: string, body: string, author: Profile|null, votes: int|null}}|null
      */
     public function get(Commit $commit, ?User $viewer): ?array
     {
@@ -39,7 +40,7 @@ final readonly class MergeConflictQuery
             ->visibleTo($viewer)
             ->withoutMutedAuthorsFor($viewer)
             ->whereKey([$mergeConflict->ours_id, $mergeConflict->theirs_id])
-            ->with('user')
+            ->with('author')
             ->get()
             ->keyBy('id');
 
@@ -70,14 +71,16 @@ final readonly class MergeConflictQuery
     }
 
     /**
-     * @return array{id: string, body: string, user: User|null, votes: int|null}
+     * Who each side is from, as readers see it: an organization's reply shows the organization, not who posted it.
+     *
+     * @return array{id: string, body: string, author: Profile|null, votes: int|null}
      */
     private function side(Commit $reply, mixed $votes): array
     {
         return [
             'id' => $reply->id,
             'body' => Str::limit($reply->body, self::ExcerptLength),
-            'user' => $reply->user,
+            'author' => $reply->author,
             'votes' => is_numeric($votes) ? (int) $votes : null,
         ];
     }

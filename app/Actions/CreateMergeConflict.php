@@ -61,7 +61,7 @@ final readonly class CreateMergeConflict
                 'post' => mb_substr($commit->body, 0, self::MaxReplyLength),
                 'replies' => $replies->values()->map(fn (Commit $reply, int $index): array => [
                     'number' => $index + 1,
-                    'author' => '@'.$reply->user?->handle,
+                    'author' => '@'.$reply->author?->handle,
                     'body' => mb_substr($reply->body, 0, self::MaxReplyLength),
                 ]),
             ])->toJson());
@@ -113,7 +113,7 @@ final readonly class CreateMergeConflict
             ->whereNotNull('user_id')
             ->where('body', '!=', '')
             ->when($tom instanceof User, fn ($query) => $query->where('user_id', '!=', $tom?->id))
-            ->with('user')
+            ->with('author')
             ->oldest()
             ->oldest('id')
             ->limit(self::MaxReplies)

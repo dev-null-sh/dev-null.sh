@@ -7,20 +7,21 @@ import { test } from 'vite-plus/test';
 import { MergeConflict } from '../../resources/js/components/merge-conflict';
 import { TooltipProvider } from '../../resources/js/components/ui/tooltip';
 import type {
+    CommitAuthor,
     MergeConflict as MergeConflictData,
-    User,
 } from '../../resources/js/types';
 
 const commit = { id: '019a2b3c-0000-7000-8000-000000000001' };
 
-function author(handle: string): User {
+function author(handle: string): CommitAuthor {
     return {
+        type: 'user',
         id: handle,
         handle,
         name: handle,
         avatar_url: null,
         lane: 0,
-    } as User;
+    } as CommitAuthor;
 }
 
 function conflict(
@@ -35,13 +36,13 @@ function conflict(
         ours: {
             id: 'ours',
             body: 'Tabs, always.',
-            user: author('alice'),
+            author: author('alice'),
             votes: null,
         },
         theirs: {
             id: 'theirs',
             body: 'Spaces. Tabs are wrong.',
-            user: author('bob'),
+            author: author('bob'),
             votes: null,
         },
         ...overrides,
@@ -137,4 +138,28 @@ test('offers guests no buttons', () => {
         render(conflict({ can_vote: false }), false),
         /Accept @/,
     );
+});
+
+test('shows a side posted as an organization as the organization, square and linked to its page', () => {
+    const html = render(
+        conflict({
+            theirs: {
+                id: 'theirs',
+                body: 'Spaces. Tabs are wrong.',
+                author: {
+                    type: 'organization',
+                    id: 'laravel',
+                    handle: 'laravel',
+                    name: 'Laravel',
+                    avatar_url:
+                        'https://avatars.githubusercontent.com/u/958072',
+                    lane: null,
+                } as CommitAuthor,
+                votes: null,
+            },
+        }),
+    );
+
+    assert.match(html, /href="\/@laravel"[^>]*>.*rounded-md.*@laravel/s);
+    assert.match(html, /Accept @laravel/);
 });

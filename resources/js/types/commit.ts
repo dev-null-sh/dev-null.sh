@@ -43,7 +43,7 @@ export type Poll = {
 export type MergeConflictSide = {
     id: string;
     body: string;
-    user: User | null;
+    author: CommitAuthor | null;
     votes: number | null;
 };
 

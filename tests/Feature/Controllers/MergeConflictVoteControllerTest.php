@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Enums\Feature;
 use App\Models\MergeConflict;
 use App\Models\MergeConflictVote;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\Features;
 
@@ -94,12 +95,26 @@ it('shows the merge conflict on the commit, hiding the count until the reader pi
         ->assertInertia(fn ($page) => $page
             ->where('mergeConflict.ours.id', $mergeConflict->ours_id)
             ->where('mergeConflict.ours.body', $mergeConflict->ours->body)
-            ->where('mergeConflict.ours.user.handle', $mergeConflict->ours->user->handle)
+            ->where('mergeConflict.ours.author.type', 'user')
+            ->where('mergeConflict.ours.author.handle', $mergeConflict->ours->user->handle)
             ->where('mergeConflict.theirs.id', $mergeConflict->theirs_id)
             ->where('mergeConflict.ours.votes', null)
             ->where('mergeConflict.side', null)
             ->where('mergeConflict.can_vote', true)
             ->where('mergeConflict.is_closed', false));
+});
+
+it('shows a side posted as an organization as the organization, not who posted it', function (): void {
+    $organization = Organization::factory()->create(['handle' => 'laravel']);
+    $mergeConflict = MergeConflict::factory()->create();
+    $mergeConflict->theirs->update(['author_id' => $organization->id]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('commit.show', ['profile' => $mergeConflict->commit->user, 'commit' => $mergeConflict->commit]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('mergeConflict.theirs.author.type', 'organization')
+            ->where('mergeConflict.theirs.author.handle', 'laravel'));
 });
 
 it('shows everyone the final count once the conflict closed', function (): void {
