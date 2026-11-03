@@ -71,6 +71,27 @@ final readonly class HttpGitHubProvider implements GitHubProvider
         return ! $response->notFound() && $response->throw()->noContent();
     }
 
+    public function publicOrganizationMemberIds(string $login): ?array
+    {
+        $ids = collect();
+
+        for ($page = 1; $page <= 10; $page++) {
+            $response = $this->request()->get('orgs/'.rawurlencode($login).'/public_members', ['per_page' => self::PerPage, 'page' => $page]);
+
+            if ($response->notFound()) {
+                return null;
+            }
+
+            $ids = $ids->concat($response->throw()->collect()->mapInto(Fluent::class)->map(fn (Fluent $member): string => $member->string('id')->value()));
+
+            if (! str_contains($response->header('Link'), 'rel="next"')) {
+                return array_values($ids->unique()->all());
+            }
+        }
+
+        return null;
+    }
+
     /**
      * The REST API doesn't say, so this asks GraphQL with the user's own token. Everything inside the listing, even
      * whether it's public, needs a read:user or read:org token, and sign-in only asks for user:email.
