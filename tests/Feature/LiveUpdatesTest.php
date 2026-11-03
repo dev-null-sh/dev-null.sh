@@ -400,6 +400,23 @@ it("refreshes the shared counts from the signed-in user's private channel, and g
         ->and($live['auth.unreadMessagesCount']['listeners'][0]['events'])->toBe(['remotes.messages', 'remotes.inbox']);
 });
 
+it('shares the language the reader reads translations in, live on their own channel, so a saved change shows everywhere', function (): void {
+    $user = User::factory()->create();
+    $headers = ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request())];
+
+    $page = $this->actingAs($user)->get('/settings/appearance', [...$headers, 'Accept-Language' => 'pt-BR,pt;q=0.9'])->json();
+
+    expect($page['props']['auth']['translationLanguage'])->toBe('pt')
+        ->and($page['liveProps']['auth.translationLanguage']['listeners'][0])->toBe([
+            'channel' => ['name' => 'users.'.$user->id, 'type' => 'private'],
+            'events' => ['account'],
+        ]);
+
+    resolve(App\Actions\UpdateUserTranslationLanguage::class)->handle($user, 'de');
+
+    expect($this->get('/settings/appearance', [...$headers, 'Accept-Language' => 'pt-BR'])->json('props.auth.translationLanguage'))->toBe('de');
+});
+
 /**
  * Listens for real, so what each update makes a page read again is what it finds.
  *

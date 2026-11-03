@@ -20,22 +20,28 @@ export function useCommitTranslation(commit: Commit) {
     const [display, setDisplay] = useState<'original' | 'translated' | null>(
         null,
     );
+    // The reader's language, saved or from the browser, which a change saved elsewhere replaces on every page.
+    const language =
+        auth.translationLanguage ?? commit.translation?.language ?? null;
     const translation =
         generated?.body === commit.body &&
-        generated.translation?.language === commit.translation?.language
+        generated.translation?.language === language
             ? generated.translation
             : commit.translation;
     const request = useHttp<
         { language: string },
         { translation: CommitTranslation | null }
-    >({ language: translation?.language ?? 'en' });
+    >({ language: language ?? 'en' });
     const translated =
         (display === 'translated' ||
             (display === null && auth.automaticTranslation)) &&
         translation?.translated;
-    const language = translation?.language ?? null;
     const isApproved = commit.status === 'approved';
     const isTranslated = Boolean(translation?.translated);
+    const isOtherLanguage =
+        translation !== null &&
+        translation !== undefined &&
+        translation.language !== language;
 
     // A translation finished for someone else is read again in this reader's language; showing the original stays.
     useEffect(() => {
@@ -73,12 +79,24 @@ export function useCommitTranslation(commit: Commit) {
             isTranslated ? undefined : read.request,
         );
 
+        // Shown in another language than the reader's: read again in theirs, keeping Show original if chosen.
+        if (isOtherLanguage) {
+            read.request();
+        }
+
         return () => {
             stop();
             read.cancel();
             controller.abort();
         };
-    }, [commit.id, commit.body, isApproved, language, isTranslated]);
+    }, [
+        commit.id,
+        commit.body,
+        isApproved,
+        language,
+        isTranslated,
+        isOtherLanguage,
+    ]);
 
     const translate = async () => {
         setBodyHeight(bodyRef.current?.getBoundingClientRect().height);
@@ -93,7 +111,7 @@ export function useCommitTranslation(commit: Commit) {
             return;
         }
 
-        request.transform(() => ({ language: translation?.language ?? 'en' }));
+        request.transform(() => ({ language: language ?? 'en' }));
 
         let isNotFound = false;
         let failureMessage = 'Could not translate this commit. Try again.';

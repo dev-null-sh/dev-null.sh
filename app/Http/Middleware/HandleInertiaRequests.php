@@ -20,6 +20,7 @@ use App\Queries\HotHeadlinesQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
+use App\Services\CommitTranslations;
 use App\Services\Features;
 use Closure;
 use Illuminate\Broadcasting\Channel;
@@ -119,6 +120,9 @@ final class HandleInertiaRequests extends Middleware
                     : false,
                 'isAdmin' => $isAdmin,
                 'automaticTranslation' => $live(fn (): bool => $user->automatic_translation ?? true, UserUpdate::Account),
+                // The language translations are read in, saved or from the browser, so a change saved elsewhere reaches
+                // the translations already shown.
+                'translationLanguage' => $live(fn (): string => resolve(CommitTranslations::class)->language(), UserUpdate::Account),
                 'mustReadCommitRules' => $live(fn (): bool => $user instanceof User && $user->commit_rules_accepted_at === null, UserUpdate::Account),
                 'termsToAccept' => $live(fn (): ?string => $user instanceof User && ! $user->hasAcceptedCurrentTerms() ? config()->string('legal.terms_version') : null, UserUpdate::Account),
                 'log' => $live(fn (): ?Log => $request->user()?->log, UserUpdate::Account),
