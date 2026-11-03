@@ -258,6 +258,40 @@ async function fetchRepliesUntil(
     );
 }
 
+/**
+ * Reads a thread again from its first reply as far as the last one it showed, and at most twice as many as it showed,
+ * so recovering what changed keeps the loaded range without loading everything that arrived after it.
+ */
+async function fetchRepliesThrough(
+    commit: Pick<ThreadCommit, 'id'>,
+    lastId: string | undefined,
+    depth: number,
+    perPage: number,
+    except?: string,
+): Promise<Pick<CursorPaginated<ThreadCommit>, 'data' | 'next_cursor'>> {
+    const first = await fetchReplies(commit, null, false, perPage, except);
+    let data = first.data;
+    let cursor = first.next_cursor;
+
+    while (
+        cursor !== null &&
+        data.length < depth * 2 &&
+        (data.length < depth || !data.some((reply) => reply.id === lastId))
+    ) {
+        const next = await fetchReplies(
+            commit,
+            cursor,
+            false,
+            Math.min(maxRepliesPerRequest, depth * 2 - data.length),
+            except,
+        );
+        data = [...data, ...next.data];
+        cursor = next.next_cursor;
+    }
+
+    return { data, next_cursor: cursor };
+}
+
 export function useThread(
     commit: ThreadCommit,
     initialReplies?: CursorPaginated<ThreadCommit>,
@@ -345,6 +379,45 @@ export function useThread(
         if (cursor === null) {
             setCount(loaded.length);
         }
+    };
+
+    /**
+     * What the viewer may see among the loaded replies changed in a way no single reply's update tells, as when they
+     * mute, block or unmute someone, or more changed than could be named: what was loaded is read again, keeping its
+     * range, and anything after it waits for Load more.
+     */
+    const recover = () => {
+        if (replies === null) {
+            return;
+        }
+
+        if (isPreview) {
+            reload();
+
+            return;
+        }
+
+        const request = ++replyRequest.current;
+        setIsLoading(true);
+
+        fetchRepliesThrough(
+            commit,
+            replies.at(-1)?.id,
+            Math.max(replies.length, repliesPerPage),
+            repliesPerPage,
+            except,
+        )
+            .then((page) => {
+                if (request === replyRequest.current) {
+                    applyPage(page.data, page.next_cursor);
+                }
+            })
+            .catch(() => undefined)
+            .finally(() => {
+                if (request === replyRequest.current) {
+                    setIsLoading(false);
+                }
+            });
     };
 
     const reload = (extra = 0) => {
@@ -564,10 +637,8 @@ export function useThread(
         const change = await changesSince(commit.id, since);
 
         if (change === null || change.truncated) {
-            if (replies !== null) {
-                readSince.current = startedAt;
-                reload();
-            }
+            readSince.current = startedAt;
+            recover();
 
             return [];
         }
@@ -576,11 +647,9 @@ export function useThread(
 
         return change.replies;
     });
+    const recoverLoaded = useEffectEvent(() => recover());
     const isLoaded = replies !== null;
     const viewerId = usePage().props.auth.user?.id ?? null;
-    const loadedReplyIds = useEffectEvent(() =>
-        (replies ?? []).map((reply) => reply.id),
-    );
 
     useEffect(() => {
         if (!isLoaded) {
@@ -624,24 +693,24 @@ export function useThread(
                 }),
         );
 
-        // Muting or blocking someone, or being blocked, changes which replies the viewer sees: every reply loaded is
-        // read again, a request at a time.
+        // Muting, blocking or unmuting someone, or being blocked, changes which replies the viewer sees, including ones
+        // never loaded: the loaded range is read again. A full thread also does once it listens again, as a change
+        // missed meanwhile leaves no trace on its replies.
         const stopRelationships =
             viewerId === null
                 ? () => {}
-                : listen(userChannel(viewerId), {
-                      relationships: () => {
-                          loadedReplyIds().forEach((id) => changed.add(id));
-                          refresh.request();
-                      },
-                  });
+                : listen(
+                      userChannel(viewerId),
+                      { relationships: () => recoverLoaded() },
+                      isPreview ? undefined : () => recoverLoaded(),
+                  );
 
         return () => {
             stop();
             stopRelationships();
             refresh.cancel();
         };
-    }, [commitId, isLoaded, viewerId]);
+    }, [commitId, isLoaded, viewerId, isPreview]);
 
     useEffect(
         () =>
