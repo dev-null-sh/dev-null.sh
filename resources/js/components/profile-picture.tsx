@@ -28,7 +28,7 @@ export function ProfilePicture({
                 type="button"
                 aria-label={`View ${user.name}'s profile picture`}
                 aria-haspopup="dialog"
-                className="cursor-zoom-in rounded-full focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-ring"
+                className="cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-ring"
                 onClick={() => setIndex(0)}
             >
                 {avatar}
