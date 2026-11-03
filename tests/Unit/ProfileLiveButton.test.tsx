@@ -16,7 +16,13 @@ test('offers going live straight from your own profile instead of a menu with on
 test('offers ending the stream while you are live', () => {
     const html = renderToStaticMarkup(
         <ProfileLiveButton
-            user={{ live: { url: 'https://twitch.tv/me', thumbnail_url: '' } }}
+            user={{
+                live: {
+                    url: 'https://twitch.tv/me',
+                    thumbnail_url: '',
+                    embed_url: null,
+                },
+            }}
         />,
     );
 

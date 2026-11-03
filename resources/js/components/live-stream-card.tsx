@@ -21,7 +21,8 @@ const openDelay = 300;
 const closeDelay = 200;
 
 /**
- * The stream itself plays on the provider: the card shows what is on and sends the viewer there in a new tab.
+ * A stream shared from YouTube or Twitch is shown with its thumbnail and sends the viewer there in a new tab, while
+ * one streamed on /dev/null itself plays right in the card.
  */
 export function LiveStreamCard({
     user,
@@ -32,38 +33,80 @@ export function LiveStreamCard({
 }) {
     return (
         <div data-test="live-stream-card">
-            <a
-                href={stream.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                tabIndex={-1}
-                className="relative block aspect-video overflow-hidden rounded-lg bg-muted"
-            >
-                <img
-                    src={stream.thumbnail_url}
-                    alt=""
-                    loading="lazy"
-                    className="size-full object-cover"
+            {stream.embed_url ? (
+                <LiveStreamEmbed
+                    user={user}
+                    src={stream.embed_url}
+                    className="rounded-lg"
                 />
-                <LiveBadge className="absolute top-2 left-2" />
-            </a>
-            <p className="mt-3 line-clamp-2 font-semibold text-pretty">
-                {user.name} is live
-            </p>
-            <p className="font-mono text-[13px] text-muted-foreground">
-                {hostname(stream.url)}
-            </p>
-            <Button asChild className="mt-3 w-full">
+            ) : (
                 <a
                     href={stream.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    data-test="live-stream-watch"
+                    tabIndex={-1}
+                    className="relative block aspect-video overflow-hidden rounded-lg bg-muted"
                 >
-                    Watch now
-                    <ArrowUpRight />
+                    <img
+                        src={stream.thumbnail_url}
+                        alt=""
+                        loading="lazy"
+                        className="size-full object-cover"
+                    />
+                    <LiveBadge className="absolute top-2 left-2" />
                 </a>
-            </Button>
+            )}
+            <p className="mt-3 line-clamp-2 font-semibold text-pretty">
+                {user.name} is live
+            </p>
+            <p className="font-mono text-[13px] text-muted-foreground">
+                {stream.embed_url ? 'on /dev/null' : hostname(stream.url)}
+            </p>
+            {!stream.embed_url && (
+                <Button asChild className="mt-3 w-full">
+                    <a
+                        href={stream.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        data-test="live-stream-watch"
+                    >
+                        Watch now
+                        <ArrowUpRight />
+                    </a>
+                </Button>
+            )}
+        </div>
+    );
+}
+
+/**
+ * The Cloudflare Stream player, which says the stream has not started yet until the streaming software connects.
+ */
+export function LiveStreamEmbed({
+    user,
+    src,
+    className,
+}: {
+    user: Pick<User, 'name'>;
+    src: string;
+    className?: string;
+}) {
+    return (
+        <div
+            className={cn(
+                'relative aspect-video overflow-hidden bg-black',
+                className,
+            )}
+        >
+            <iframe
+                src={src}
+                title={`${user.name} live on /dev/null`}
+                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                allowFullScreen
+                className="size-full border-0"
+                data-test="live-stream-embed"
+            />
+            <LiveBadge className="pointer-events-none absolute top-2 left-2" />
         </div>
     );
 }
