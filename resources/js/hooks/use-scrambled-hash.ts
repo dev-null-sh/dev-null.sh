@@ -63,7 +63,9 @@ const subscribe = (listener: () => void) => {
     listeners.add(listener);
 
     if (listeners.size === 1) {
-        reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+        reducedMotionQuery = window.matchMedia(
+            '(prefers-reduced-motion: reduce)',
+        );
         reducedMotionQuery.addEventListener('change', onReducedMotionChange);
         document.addEventListener('visibilitychange', onVisibilityChange);
         start();
@@ -76,7 +78,10 @@ const subscribe = (listener: () => void) => {
             clearInterval(interval);
             interval = undefined;
             currentFrame = null;
-            reducedMotionQuery?.removeEventListener('change', onReducedMotionChange);
+            reducedMotionQuery?.removeEventListener(
+                'change',
+                onReducedMotionChange,
+            );
             reducedMotionQuery = undefined;
             document.removeEventListener(
                 'visibilitychange',
