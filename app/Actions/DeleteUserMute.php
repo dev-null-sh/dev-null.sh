@@ -16,5 +16,6 @@ final readonly class DeleteUserMute
 
         event(new UsersUpdated([$user->id], UserUpdate::Notifications));
         event(new UsersUpdated([$user->id], UserUpdate::Account));
+        event(new UsersUpdated([$user->id], UserUpdate::Relationships));
     }
 }

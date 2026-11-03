@@ -14,6 +14,7 @@ use App\Http\Controllers\CallController;
 use App\Http\Controllers\ChangelogController;
 use App\Http\Controllers\Cli\ScriptController;
 use App\Http\Controllers\CommitApprovalController;
+use App\Http\Controllers\CommitChangeController;
 use App\Http\Controllers\CommitContinuationController;
 use App\Http\Controllers\CommitController;
 use App\Http\Controllers\CommitImageController;
@@ -302,6 +303,9 @@ Route::get('@{profile:handle}/commits/{commit}/og.png', [CommitOpenGraphImageCon
 Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show'])
     ->whereUuid('commitImage')
     ->name('commit-image.show');
+Route::get('commits/changes', [CommitChangeController::class, 'index'])
+    ->middleware('throttle:60,1')
+    ->name('commit-change.index');
 Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
     ->name('commit-link-preview.show');
 Route::get('commits/{commit}/status', [CommitStatusController::class, 'show'])

@@ -9,10 +9,10 @@ import {
 import type { ReactNode } from 'react';
 import { index } from '@/actions/App/Http/Controllers/CommitStarCountController';
 import { idsOf } from '@/hooks/use-realtime';
-import { refreshSharedState } from '@/hooks/use-shared-state';
+import { refreshSharedState, sharedValue } from '@/hooks/use-shared-state';
 import type { SharedValue } from '@/hooks/use-shared-state';
 import { createCommitStarMutations } from '@/lib/commit-star-mutations';
-import { commitStateKey } from '@/lib/commit-state';
+import { commitStateKey, localCountVersion } from '@/lib/commit-state';
 import { deletedResources } from '@/lib/deleted-resources';
 import { coalesce, commitChannel, isListening, listen } from '@/lib/realtime';
 import type { Commit } from '@/types';
@@ -60,6 +60,11 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
     const subscriptions = useRef(new Set<Subscription>());
     const [observer, setObserver] = useState<IntersectionObserver | null>(null);
     const [visible, setVisible] = useState<ReadonlySet<string>>(new Set());
+    // Kept across the cards coming and going, so what was heard isn't forgotten when the cards on screen change.
+    const dirty = useRef({
+        changed: new Set<string>(),
+        hidden: new Set<string>(),
+    });
     const subscribe = useCallback(
         (subscription: Subscription) => {
             subscriptions.current.add(subscription);
@@ -128,6 +133,11 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
                 }
             }
 
+            // Counts this page changed itself while the read was out stay as they are.
+            const versions = new Map(
+                ids.map((id) => [id, localCountVersion('replies_count', id)]),
+            );
+
             for (let offset = 0; offset < ids.length; offset += 100) {
                 const batch = ids.slice(offset, offset + 100);
                 const response = await fetch(
@@ -167,15 +177,29 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
 
                 const counts = new Map<string, SharedValue>();
 
+                // Pastéis are only ever given, so an older read can never lower what an award just raised.
                 states.forEach((state) => {
                     counts.set(
                         commitStateKey('pasteis_count', state.id),
-                        state.pasteis_count,
+                        Math.max(
+                            state.pasteis_count,
+                            Number(
+                                sharedValue(
+                                    commitStateKey('pasteis_count', state.id),
+                                ) ?? 0,
+                            ),
+                        ),
                     );
-                    counts.set(
-                        commitStateKey('replies_count', state.id),
-                        state.replies_count,
-                    );
+
+                    if (
+                        versions.get(state.id) ===
+                        localCountVersion('replies_count', state.id)
+                    ) {
+                        counts.set(
+                            commitStateKey('replies_count', state.id),
+                            state.replies_count,
+                        );
+                    }
                 });
                 refreshSharedState(counts);
 
@@ -193,20 +217,37 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         const controller = new AbortController();
-        const changed = new Set<string>();
-        const hidden = new Set<string>();
+        const changed = dirty.current.changed;
+        const hidden = dirty.current.hidden;
+        // What a hidden tab hears waits until it is shown, rather than being read for nobody or forgotten.
         const refresh = coalesce(async () => {
+            if (document.hidden) {
+                return;
+            }
+
             const ids = [...changed].filter((id) => visible.has(id));
             const disappearing = new Set(
                 [...hidden].filter((id) => ids.includes(id)),
             );
-            changed.clear();
-            hidden.clear();
+            ids.forEach((id) => {
+                changed.delete(id);
+                hidden.delete(id);
+            });
 
-            if (ids.length > 0 && !document.hidden) {
-                await read(ids, disappearing, controller.signal);
+            if (ids.length > 0) {
+                await read(ids, disappearing, controller.signal).catch(() => {
+                    ids.forEach((id) => changed.add(id));
+                    disappearing.forEach((id) => hidden.add(id));
+                });
             }
         }, 300);
+        const onVisible = () => {
+            if (!document.hidden && changed.size > 0) {
+                refresh.request();
+            }
+        };
+        document.addEventListener('visibilitychange', onVisible);
+        onVisible();
         const hear = (id: string) => () => {
             changed.add(id);
             refresh.request();
@@ -252,6 +293,7 @@ export function CommitStarPolling({ children }: { children: ReactNode }) {
             stops.forEach((stop) => stop());
             refresh.cancel();
             window.clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisible);
             controller.abort();
         };
     }, [visible, read]);

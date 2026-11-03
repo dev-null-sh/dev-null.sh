@@ -239,6 +239,11 @@ let muteVersion = 0;
 let pinVersion = 0;
 let inboxRevision = 0;
 let remotesUserId: string | null = null;
+let remotesOwner: string | null = null;
+/**
+ * Moves on whenever the remotes stop being watched for someone, so a read still on its way for them is dropped.
+ */
+let remotesGeneration = 0;
 const threadRefreshes = new Map<string, ReturnType<typeof coalesce>>();
 const typingRechecks = new Map<string, number>();
 const invalidatedInboxTabs = new Set<InboxTab>();
@@ -1323,6 +1328,13 @@ function watchedTargets(payload: unknown): ChatTarget[] {
  * stops listening.
  */
 export function watchRemoteUpdates(userId: string): () => void {
+    // Another account's remotes, kept from before signing in as someone else, are never shown to this one.
+    if (remotesOwner !== null && remotesOwner !== userId) {
+        state = emptyChat;
+        listeners.forEach((listener) => listener());
+    }
+
+    remotesOwner = userId;
     remotesUserId = userId;
 
     const refreshWatched = (payload: unknown) =>
@@ -1335,7 +1347,18 @@ export function watchRemoteUpdates(userId: string): () => void {
                 refreshInbox();
                 refreshWatched(payload);
             },
-            'remotes.conversation': refreshWatched,
+            'remotes.conversation': (payload) => {
+                // A partner's read also shows in the inbox, as how far they pulled.
+                if (
+                    typeof payload === 'object' &&
+                    payload !== null &&
+                    'read' in payload
+                ) {
+                    refreshInbox();
+                }
+
+                refreshWatched(payload);
+            },
             'remotes.inbox': (payload) => {
                 // Requests and the stash can change without their counts changing, so their loaded pages are read again.
                 for (const tab of ['fetched', 'stashed'] as const) {
@@ -1344,6 +1367,7 @@ export function watchRemoteUpdates(userId: string): () => void {
                     }
                 }
 
+                forgetUnwatched(payload);
                 refreshInbox();
                 refreshWatched(payload);
             },
@@ -1358,11 +1382,55 @@ export function watchRemoteUpdates(userId: string): () => void {
     return () => {
         stopListening();
         stopPacing();
+        remotesGeneration++;
+        threadRefreshes.forEach((refresh) => refresh.cancel());
+        threadRefreshes.clear();
+        typingRechecks.forEach((timer) => window.clearTimeout(timer));
+        typingRechecks.clear();
 
         if (remotesUserId === userId) {
             remotesUserId = null;
         }
     };
+}
+
+/**
+ * Access to a conversation changed, as when it was blocked or someone left an org: the ones kept from earlier but not
+ * shown right now are forgotten, so opening them again reads them, and finds out whether they still can be.
+ */
+function forgetUnwatched(payload: unknown): void {
+    const id =
+        typeof payload === 'object' &&
+        payload !== null &&
+        'conversation' in payload &&
+        typeof payload.conversation === 'string'
+            ? payload.conversation
+            : null;
+    const summary = [
+        ...(state.conversations ?? []),
+        ...(state.fetched ?? []),
+        ...(state.archived ?? []),
+    ].find((conversation) => conversation.id === id);
+    const forgotten = Object.keys(state.threads).filter(
+        (key) =>
+            !isWatching(key) &&
+            state.threads[key].pending.length === 0 &&
+            (id === null ||
+                key === `org:${id}` ||
+                (summary === undefined
+                    ? !key.startsWith('org:')
+                    : summaryKey(summary) === key)),
+    );
+
+    if (forgotten.length > 0) {
+        update({
+            threads: Object.fromEntries(
+                Object.entries(state.threads).filter(
+                    ([key]) => !forgotten.includes(key),
+                ),
+            ),
+        });
+    }
 }
 
 function isWatching(key: string): boolean {
@@ -1418,6 +1486,7 @@ async function pollThread(target: ChatTarget): Promise<void> {
     const polledAt = performance.now();
     const version = ++muteVersion;
     const pinsVersion = ++pinVersion;
+    const generation = remotesGeneration;
 
     let fresh: (Thread & { partner: User }) | (OrgThread & { org: OrgRef });
 
@@ -1436,10 +1505,10 @@ async function pollThread(target: ChatTarget): Promise<void> {
         );
     } catch (error) {
         if (
-            target.kind === 'org' &&
             error instanceof ChatRequestError &&
             [403, 404].includes(error.status) &&
-            threadPollVersions.get(key) === pollVersion
+            threadPollVersions.get(key) === pollVersion &&
+            generation === remotesGeneration
         ) {
             revokeThread(target);
         }
@@ -1447,7 +1516,10 @@ async function pollThread(target: ChatTarget): Promise<void> {
         throw error;
     }
 
-    if (threadPollVersions.get(key) !== pollVersion) {
+    if (
+        threadPollVersions.get(key) !== pollVersion ||
+        generation !== remotesGeneration
+    ) {
         return;
     }
 
@@ -1535,7 +1607,9 @@ async function pollThread(target: ChatTarget): Promise<void> {
 }
 
 /**
- * Someone removed from an org no longer sees what it showed them: the messages go, and nothing can be sent.
+ * A conversation the user can no longer read, as after being removed from an org or blocked, no longer shows what
+ * it showed them: the messages go, and nothing can be sent. Messages already delivered to the browser can't be
+ * recalled, only no longer shown.
  */
 function revokeThread(target: ChatTarget): void {
     const key = targetKey(target);

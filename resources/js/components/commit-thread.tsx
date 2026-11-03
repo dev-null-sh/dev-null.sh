@@ -91,10 +91,11 @@ import {
     maxRawBodyLength,
     minBodyLength,
 } from '@/lib/commit';
-import { commitStateKey } from '@/lib/commit-state';
+import { changesSince, readAt } from '@/lib/commit-changes';
+import { changeCountLocally, commitStateKey } from '@/lib/commit-state';
 import { hasModKey } from '@/lib/keyboard';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
-import { coalesce, commitChannel, isListening, listen } from '@/lib/realtime';
+import { coalesce, commitChannel, listen, userChannel } from '@/lib/realtime';
 import { reconcileReplies } from '@/lib/thread-replies';
 import {
     characterCount,
@@ -273,7 +274,7 @@ export function useThread(
         (isDeleted(commit) ? undefined : (continuationId ?? undefined));
     const isPreview = preview !== undefined;
     const initial = preview ?? initialReplies;
-    const { repliesPerPage, continuation } = usePage().props;
+    const { repliesPerPage, continuation, now: serverNow } = usePage().props;
     const historyKey = `thread:${commit.id}:${except ?? ''}`;
     const remembered = router.restore<{
         replies: ThreadCommit[] | null;
@@ -314,6 +315,8 @@ export function useThread(
     );
     const [isLoading, setIsLoading] = useState(shouldLoadReplies);
     const replyRequest = useRef(0);
+    // When the replies shown were read, on the server's clock, to ask what changed since after missing updates.
+    const readSince = useRef(Math.min(serverNow - 5_000, readAt()));
     const [isReplying, setIsReplying] = useState(false);
 
     const [previousInitial, setPreviousInitial] = useState(initial);
@@ -331,6 +334,8 @@ export function useThread(
     }
 
     const applyPage = (loaded: ThreadCommit[], cursor: string | null) => {
+        // Read over however many requests, so dated from before the first of them could have started.
+        readSince.current = readAt() - 10_000;
         setThread((current) => ({
             ...current,
             replies: loaded,
@@ -548,12 +553,34 @@ export function useThread(
             return true;
         },
     );
-    const onReconnected = useEffectEvent(() => {
-        if (replies !== null) {
-            reload();
+    /**
+     * Whatever may have been missed while not listening, as when the thread was read before it started listening,
+     * came back from history or lost its connection: the replies changed since it read them, or everything it
+     * loaded when that can't be told.
+     */
+    const missedReplies = useEffectEvent(async (): Promise<string[] | null> => {
+        const since = readSince.current;
+        const startedAt = readAt();
+        const change = await changesSince(commit.id, since);
+
+        if (change === null || change.truncated) {
+            if (replies !== null) {
+                readSince.current = startedAt;
+                reload();
+            }
+
+            return [];
         }
+
+        readSince.current = startedAt;
+
+        return change.replies;
     });
     const isLoaded = replies !== null;
+    const viewerId = usePage().props.auth.user?.id ?? null;
+    const loadedReplyIds = useEffectEvent(() =>
+        (replies ?? []).map((reply) => reply.id),
+    );
 
     useEffect(() => {
         if (!isLoaded) {
@@ -562,7 +589,6 @@ export function useThread(
 
         const channel = commitChannel(commitId);
         const changed = new Set<string>();
-        let hasJoined = isListening(channel);
         const refresh = coalesce(async () => {
             const ids = [...changed].slice(0, maxRepliesPerRequest);
             ids.forEach((id) => changed.delete(id));
@@ -588,20 +614,34 @@ export function useThread(
                     }
                 },
             },
-            () => {
-                if (hasJoined) {
-                    onReconnected();
-                }
+            () =>
+                void missedReplies().then((ids) => {
+                    ids?.forEach((id) => changed.add(id));
 
-                hasJoined = true;
-            },
+                    if (changed.size > 0) {
+                        refresh.request();
+                    }
+                }),
         );
+
+        // Muting or blocking someone, or being blocked, changes which replies the viewer sees: every reply loaded is
+        // read again, a request at a time.
+        const stopRelationships =
+            viewerId === null
+                ? () => {}
+                : listen(userChannel(viewerId), {
+                      relationships: () => {
+                          loadedReplyIds().forEach((id) => changed.add(id));
+                          refresh.request();
+                      },
+                  });
 
         return () => {
             stop();
+            stopRelationships();
             refresh.cancel();
         };
-    }, [commitId, isLoaded]);
+    }, [commitId, isLoaded, viewerId]);
 
     useEffect(
         () =>
@@ -643,6 +683,7 @@ export function useThread(
         cancelReply: () => setIsReplying(false),
         onReplied: (parent) => {
             changedThreadIds.add(commit.id);
+            changeCountLocally('replies_count', commit.id);
             setIsReplying(false);
             setCount(parent.replies_count);
 
@@ -661,6 +702,7 @@ export function useThread(
         },
         onDeleted: () => {
             changedThreadIds.add(commit.id);
+            changeCountLocally('replies_count', commit.id);
             setCount((current) => Math.max(current - 1, 0));
             reload();
         },

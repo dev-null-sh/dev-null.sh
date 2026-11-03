@@ -11,6 +11,7 @@ import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { useNow } from '@/hooks/use-now';
 import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import { bodySegments } from '@/lib/code';
+import { changesSince, readAt } from '@/lib/commit-changes';
 import { exactCountTitle, formatCount, formatExactCount } from '@/lib/numbers';
 import { coalesce, commitChannel, listen } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
@@ -72,7 +73,7 @@ export function CommitPoll({
     poll: Poll;
     isStatic?: boolean;
 }) {
-    const { auth } = usePage().props;
+    const { auth, now: serverNow } = usePage().props;
     const ownsCommit = useOwnsCommit();
     const commitNotFound = useCommitNotFound();
     const now = useNow();
@@ -84,6 +85,8 @@ export function CommitPoll({
     const choice = request.data.option;
     // A read started before a vote went out may come back without it, so only the latest of either one counts.
     const latest = useRef(0);
+    // When the poll shown was read, on the server's clock, to ask whether votes came in since after missing updates.
+    const readSince = useRef(Math.min(serverNow - 5_000, readAt()));
 
     const read = useEffectEvent(async (signal: AbortSignal) => {
         if (request.processing) {
@@ -91,6 +94,7 @@ export function CommitPoll({
         }
 
         const started = ++latest.current;
+        const startedAt = readAt();
         const response = await fetch(CommitPollController.show.url(commit), {
             headers: { Accept: 'application/json' },
             cache: 'no-store',
@@ -98,6 +102,7 @@ export function CommitPoll({
         });
 
         if (response.ok && started === latest.current && !request.processing) {
+            readSince.current = startedAt;
             setPoll(((await response.json()) as { poll: Poll }).poll);
         }
     });
@@ -113,9 +118,16 @@ export function CommitPoll({
 
         const controller = new AbortController();
         const refresh = coalesce(() => read(controller.signal), 500);
-        const stop = listen(commitChannel(commit.id), {
-            poll: refresh.request,
-        });
+        const stop = listen(
+            commitChannel(commit.id),
+            { poll: refresh.request },
+            () =>
+                void changesSince(commit.id, readSince.current).then(
+                    (change) =>
+                        (change === null || change.changed) &&
+                        refresh.request(),
+                ),
+        );
         const closing =
             closesAt === null
                 ? undefined

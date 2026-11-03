@@ -35,6 +35,7 @@ import { usePageDeletion } from '@/hooks/use-deleted-resources';
 import { useFaviconDot } from '@/hooks/use-favicon-dot';
 import { useFixedPage } from '@/hooks/use-fixed-page';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
+import { useLiveStream } from '@/hooks/use-live-stream';
 import { useNavOpen } from '@/hooks/use-nav-open';
 import { useIsListening } from '@/hooks/use-realtime';
 import { useTabSlide } from '@/hooks/use-tab-slide';
@@ -110,6 +111,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     useRemoteAlerts(auth.remotes !== null ? (auth.user?.id ?? null) : null);
     useRemoteUpdates(auth.remotes !== null ? (auth.user?.id ?? null) : null);
     useFaviconDot(auth.unreadNotificationsCount + unreadMessages > 0);
+    const isOwnStreamLive = useLiveStream(auth.user) !== null;
     const isHearingCounts = useIsListening(
         auth.user === null ? null : userChannel(auth.user.id),
     );
@@ -191,7 +193,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     open={isSearching}
                     onOpenChange={setIsSearching}
                     onAction={isGuest ? undefined : runSearchAction}
-                    isLive={!!auth.user?.live}
+                    isLive={isOwnStreamLive}
                 />
 
                 <CommitComposerDialog

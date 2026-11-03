@@ -2,14 +2,20 @@ import { usePage } from '@inertiajs/react';
 import { ArrowUpRight } from 'lucide-react';
 import { LiveAvatarMarker } from '@/components/live-stream-card';
 import { UserAvatar } from '@/components/user-avatar';
+import { useLiveStreamsVersion } from '@/hooks/use-live-stream';
 import { useNow } from '@/hooks/use-now';
-import { isStreaming } from '@/lib/utils';
+import { currentLiveStream } from '@/lib/live-streams';
 
 export function LiveFollowing() {
     const { liveFollowing = [] } = usePage().props;
     const now = useNow();
-    // A stream that ran out leaves while the page stays open, without asking again.
-    const users = liveFollowing.filter((user) => isStreaming(user, now));
+    useLiveStreamsVersion();
+    // A stream that ended or ran out leaves while the page stays open, without asking again.
+    const users = liveFollowing.flatMap((user) => {
+        const live = currentLiveStream(user.id, user.live, now);
+
+        return live ? [{ ...user, live }] : [];
+    });
 
     if (users.length === 0) return null;
 

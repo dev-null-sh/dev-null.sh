@@ -258,19 +258,6 @@ export function isRejectedSubmission(flash: {
     return flash.toast?.type === 'error' || flash.timeout !== undefined;
 }
 
-/**
- * Whether the user is still streaming: a stream stops counting once it runs out, even on a page left open.
- */
-export function isStreaming(
-    user: { live?: { ends_at?: string | null } | null },
-    now: Date,
-): boolean {
-    return (
-        user.live != null &&
-        (user.live.ends_at == null || new Date(user.live.ends_at) > now)
-    );
-}
-
 export function laneOf(commit: ThreadCommit): string {
     return isDeleted(commit) ? 'var(--rail)' : authorLaneColor(commit.author);
 }

@@ -25,6 +25,7 @@ export function fakeConnection() {
 
         const listeners = new Map<string, Set<RealtimeHandler>>();
         const subscribed: (() => void)[] = [];
+        const everything: ((event: string, payload: unknown) => void)[] = [];
         const errors: ((status: unknown) => void)[] = [];
         const channel: FakeChannel = {
             listeners,
@@ -39,10 +40,13 @@ export function fakeConnection() {
             },
             subscribed: (callback) => subscribed.push(callback),
             error: (callback) => errors.push(callback),
-            emit: (event, payload = {}) =>
+            listenToAll: (callback) => everything.push(callback),
+            emit: (event, payload = {}) => {
+                everything.forEach((callback) => callback(`.${event}`, payload));
                 listeners.get(`.${event}`)?.forEach((listener) => {
                     listener(payload);
-                }),
+                });
+            },
             join: () => subscribed.forEach((callback) => callback()),
             reject: () => errors.forEach((callback) => callback(403)),
         };

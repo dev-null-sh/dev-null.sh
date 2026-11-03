@@ -1,5 +1,6 @@
 import { Head, InfiniteScroll, Link, router, usePage } from '@inertiajs/react';
 import { ArrowLeft } from 'lucide-react';
+import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import UserFollowersController from '@/actions/App/Http/Controllers/UserFollowersController';
 import UserFollowersYouKnowController from '@/actions/App/Http/Controllers/UserFollowersYouKnowController';
@@ -13,6 +14,7 @@ import { PageTabs } from '@/components/page-tabs';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
+import { useRealtime } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
 import { laneColor } from '@/lib/utils';
 import { show } from '@/routes/user';
@@ -66,6 +68,34 @@ export default function Connections({
 }) {
     const { auth } = usePage().props;
     const title = titles[type];
+    // Follows changing while the list is open are offered as a refresh, keeping the pages loaded until then.
+    const [hasChanged, setHasChanged] = useState(false);
+
+    useRealtime(
+        { name: `profiles.${user.id}`, type: 'public' },
+        ['profile'],
+        (_event, payload) => {
+            if (
+                typeof payload === 'object' &&
+                payload !== null &&
+                'connections' in payload
+            ) {
+                setHasChanged(true);
+            }
+        },
+        (isFirst) => {
+            if (!isFirst) {
+                setHasChanged(true);
+            }
+        },
+    );
+
+    const refresh = () =>
+        router.reload({
+            only: ['users', 'organizations'],
+            reset: ['users', 'organizations'],
+            onSuccess: () => setHasChanged(false),
+        });
     const knowsFollowers = auth.user !== null && auth.user.id !== user.id;
     const emptyMessages: Record<ConnectionType, string> = {
         followers: `Nobody is following @${user.handle} yet.`,
@@ -94,6 +124,15 @@ export default function Connections({
                     <p className="shrink-0 font-mono text-[13px] text-muted-foreground">
                         @{user.handle}
                     </p>
+                    {hasChanged && (
+                        <button
+                            type="button"
+                            onClick={refresh}
+                            className="ml-auto shrink-0 text-sm font-medium text-primary hover:underline focus-visible:underline"
+                        >
+                            Refresh the list
+                        </button>
+                    )}
                 </div>
                 <PageTabs
                     label="Connections"

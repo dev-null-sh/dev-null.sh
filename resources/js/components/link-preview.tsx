@@ -78,12 +78,15 @@ function useFetchedLinkPreview(
                 setFetched(link_preview);
             }
         }, 300);
+        // Joining a channel, which can come after the link was read, also reads the preview again: it is still
+        // pending, so a read is all it takes.
         const stops = listened.split(' ').map((key) => {
             const [type, name, event] = key.split(':');
 
             return listen(
                 { name, type: type === 'private' ? 'private' : 'public' },
                 { [event]: read.request },
+                read.request,
             );
         });
 

@@ -21,6 +21,7 @@ import { MembersLink } from '@/components/members-link';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { useIsMuting, UserSafetyMenu } from '@/components/user-safety-menu';
+import { useLiveStream } from '@/hooks/use-live-stream';
 import { signIn } from '@/lib/auth';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
@@ -347,6 +348,7 @@ function UserPreviewContent({
     } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
+    const stream = useLiveStream(user);
 
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
     const { isFollowing, callbacks } = useFollow(
@@ -395,10 +397,10 @@ function UserPreviewContent({
                         user={user}
                         className={cn(
                             'size-14 text-lg ring-2 ring-(--lane) ring-offset-2 ring-offset-popover',
-                            { 'ring-red-600': user.live },
+                            { 'ring-red-600': stream },
                         )}
                     />
-                    {user.live && <LiveAvatarMarker className="ring-popover" />}
+                    {stream && <LiveAvatarMarker className="ring-popover" />}
                 </Link>
 
                 {!isCurrentUser &&
@@ -548,9 +550,9 @@ function UserPreviewContent({
                 )}
             </div>
 
-            {user.live && !data?.isUnavailable && (
+            {stream && !data?.isUnavailable && (
                 <div className="mt-4 border-t pt-4">
-                    <LiveStreamCard user={user} stream={user.live} />
+                    <LiveStreamCard user={user} stream={stream} />
                 </div>
             )}
         </div>

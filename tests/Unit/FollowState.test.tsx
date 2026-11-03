@@ -37,6 +37,7 @@ const toasts: string[] = [];
 vi.doMock('react', () => ({
     ...React,
     useEffect: () => {},
+    useEffectEvent: (callback: unknown) => callback,
     useLayoutEffect: () => {},
     useRef: (initial: unknown) => ({ current: initial }),
     useState: (initial: unknown) => [

@@ -50,7 +50,10 @@ import { useNow } from '@/hooks/use-now';
 import { useIsListening } from '@/hooks/use-realtime';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
-import { backgroundPollOptions } from '@/lib/background-poll';
+import {
+    backgroundPollOptions,
+    reloadInBackground,
+} from '@/lib/background-poll';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { coalesce, isListening, listen, userChannel } from '@/lib/realtime';
 import {
@@ -209,7 +212,9 @@ export default function Index({
     // groups are read again down to the oldest one shown, like a poll, and a hidden tab waits until it is shown, so
     // nothing arrives where it would be marked read unseen.
     const hasMissed = useRef(false);
-    const reloadGroups = useEffectEvent(() => {
+    // Settles once the reload does, so the next one waits for it rather than racing it. Changing the filter cancels
+    // it, and reads the groups afresh anyway.
+    const reloadGroups = useEffectEvent(async (signal: AbortSignal) => {
         if (document.visibilityState !== 'visible' || pendingTypes !== null) {
             hasMissed.current = true;
 
@@ -217,7 +222,7 @@ export default function Index({
         }
 
         hasMissed.current = false;
-        router.reload(reloadOptions());
+        await reloadInBackground(reloadOptions(), signal);
     });
     const channelName = channel?.name ?? null;
 
@@ -226,7 +231,8 @@ export default function Index({
             return;
         }
 
-        const refresh = coalesce(async () => reloadGroups(), 500);
+        const controller = new AbortController();
+        const refresh = coalesce(() => reloadGroups(controller.signal), 500);
         const onVisible = () => {
             if (hasMissed.current) {
                 refresh.request();
@@ -243,6 +249,7 @@ export default function Index({
         return () => {
             stopListening();
             refresh.cancel();
+            controller.abort();
             document.removeEventListener('visibilitychange', onVisible);
         };
     }, [channelName]);
@@ -603,13 +610,26 @@ function NotificationGroupItem({
     const grouped = notification.event_count > 1;
     const noun = groupNoun(notification);
 
-    // The group changing while it is open, as when something in it is no longer relevant, reads again what it showed:
-    // as many as were loaded, from the start.
+    // Only the latest read of the group's members counts, so an older one coming back late never replaces it.
+    const generation = useRef(0);
+    // A change heard while the members load waits for that load, which may have been read before it.
+    const isDirty = useRef(false);
+
+    // The groups being read again while this one is open, as when something in it is no longer relevant, reads again
+    // what it showed: as many as were loaded, from the start, even when its counts stayed the same.
     const reloadOpen = useEffectEvent(async () => {
-        if (!open || items.length === 0 || loading) {
+        if (!open || items.length === 0) {
             return;
         }
 
+        if (loading) {
+            isDirty.current = true;
+
+            return;
+        }
+
+        isDirty.current = false;
+        const current = ++generation.current;
         let loaded: Notification[] = [];
         let next: string | null = null;
 
@@ -634,20 +654,28 @@ function NotificationGroupItem({
             return;
         }
 
-        setItems(loaded);
-        setCursor(next);
+        if (current === generation.current) {
+            setItems(loaded);
+            setCursor(next);
+        }
     });
-    const version = `${notification.id}:${notification.event_count}:${notification.actors_count}`;
-    const shownVersion = useRef(version);
+    const shown = useRef(notification);
 
     useEffect(() => {
-        if (shownVersion.current !== version) {
-            shownVersion.current = version;
+        if (shown.current !== notification) {
+            shown.current = notification;
             void reloadOpen();
         }
-    }, [version]);
+    }, [notification]);
+
+    useEffect(() => {
+        if (!loading && isDirty.current) {
+            void reloadOpen();
+        }
+    }, [loading]);
 
     const load = async (next: string | null = null) => {
+        const current = ++generation.current;
         setLoading(true);
         setFailed(false);
         const slow = window.setTimeout(() => setIsSlow(true), 300);
@@ -659,6 +687,7 @@ function NotificationGroupItem({
             if (!response.ok) throw new Error('Unable to load activity');
             const data =
                 (await response.json()) as CursorPaginated<Notification>;
+            if (current !== generation.current) return;
             setItems((previous) =>
                 next ? [...previous, ...data.data] : data.data,
             );

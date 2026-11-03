@@ -15,6 +15,7 @@ import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { idsOf, useRealtime } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
+import { changesSince, readAt } from '@/lib/commit-changes';
 import { userChannel } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
@@ -171,8 +172,9 @@ export default function Show({
     commits: CursorPaginated<Commit>;
 }) {
     const commitNotFound = useCommitNotFound();
-    const { auth } = usePage().props;
+    const { auth, now } = usePage().props;
     const [hasArrivals, setHasArrivals] = useState(false);
+    const [readSince] = useState(() => Math.min(now - 5_000, readAt()));
 
     // Another moderator's decision, or the author deleting a commit, takes it off the queue where it is, keeping the
     // pages loaded. New commits join the end of the queue, so they wait for a deliberate refresh instead.
@@ -200,7 +202,26 @@ export default function Show({
                 setHasArrivals(true);
             }
         },
-        () => setHasArrivals(true),
+        (isFirst) => {
+            // Read before listening, the queue only offers a refresh when something it shows was decided since.
+            if (!isFirst) {
+                setHasArrivals(true);
+
+                return;
+            }
+
+            void Promise.all(
+                commits.data.map((commit) =>
+                    changesSince(commit.id, readSince),
+                ),
+            ).then((changes) => {
+                if (
+                    changes.some((change) => change === null || change.changed)
+                ) {
+                    setHasArrivals(true);
+                }
+            });
+        },
     );
 
     const refreshQueue = () =>

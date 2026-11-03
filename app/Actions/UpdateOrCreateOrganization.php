@@ -6,6 +6,7 @@ namespace App\Actions;
 
 use App\Dto\GitHubProfile;
 use App\Enums\ProfileType;
+use App\Events\ProfilesUpdated;
 use App\Models\Organization;
 use App\Models\Profile;
 use Illuminate\Support\Arr;
@@ -60,6 +61,8 @@ final readonly class UpdateOrCreateOrganization
                 );
                 $pending->delete();
             }
+
+            event(new ProfilesUpdated([$organization->id]));
 
             return $organization;
         });

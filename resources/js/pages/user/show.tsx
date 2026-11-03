@@ -43,18 +43,14 @@ import {
     UserModerationStatus,
 } from '@/components/user-moderation-menu';
 import { useIsMuting, UserSafetyMenu } from '@/components/user-safety-menu';
-import { useNow } from '@/hooks/use-now';
+import { useLiveStream } from '@/hooks/use-live-stream';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
+import { withPinChanges } from '@/lib/pinned-commit';
 import { profileAvatarPosition } from '@/lib/profile-avatar';
-import {
-    formatClockMonth,
-    isStreaming,
-    laneColor,
-    laneTint,
-} from '@/lib/utils';
+import { formatClockMonth, laneColor, laneTint } from '@/lib/utils';
 import type {
     Achievements,
     Activity,
@@ -106,7 +102,7 @@ export default function Show({
     const { auth } = usePage().props;
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
-    const now = useNow();
+    const stream = useLiveStream(user);
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,
     );
@@ -117,6 +113,23 @@ export default function Show({
     const [isHeaderVisible, setIsHeaderVisible] = useState(false);
     const [isFollowingNow] = useIsFollowing(user, isFollowing);
     const [isMutingNow] = useIsMuting(user, isMuting);
+    // The list was read without the commit pinned then, so a commit unpinned since, from anywhere, goes back in it.
+    const [previousPin, setPreviousPin] = useState(pinnedCommit);
+    const [unpinned, setUnpinned] = useState<Commit[]>([]);
+
+    if (pinnedCommit?.id !== previousPin?.id) {
+        setPreviousPin(pinnedCommit);
+        setUnpinned((current) => [
+            ...current.filter(
+                (commit) =>
+                    commit.id !== pinnedCommit?.id &&
+                    commit.id !== previousPin?.id,
+            ),
+            ...(previousPin ? [previousPin] : []),
+        ]);
+    }
+
+    const shownCommits = withPinChanges(commits, pinnedCommit, unpinned);
     const followersCount =
         user.followers_count + Number(isFollowingNow) - Number(isFollowing);
     const [pasteisCount] = useSharedState(
@@ -230,17 +243,17 @@ export default function Show({
                     }
                     data-test="profile-avatar"
                 >
-                    {isStreaming(user, now) && user.live ? (
+                    {stream ? (
                         <LiveStreamTrigger
                             user={user}
                             showProfile={false}
                             className="flex"
                         >
                             <a
-                                href={user.live.url}
+                                href={stream.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                aria-label={`Watch ${user.name} live on ${user.live.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`}
+                                aria-label={`Watch ${user.name} live on ${stream.url.includes('twitch.tv') ? 'Twitch' : 'YouTube'}`}
                                 className="relative flex rounded-full"
                                 data-test="profile-live-avatar"
                             >
@@ -596,18 +609,7 @@ export default function Show({
                 ) : (
                     <CommitFeed
                         key={`${user.id}:${tab}`}
-                        commits={
-                            // A commit pinned elsewhere since the list loaded shows above it, and not in it too.
-                            tab === 'commits' && pinnedCommit
-                                ? {
-                                      ...commits,
-                                      data: commits.data.filter(
-                                          (commit) =>
-                                              commit.id !== pinnedCommit.id,
-                                      ),
-                                  }
-                                : commits
-                        }
+                        commits={tab === 'commits' ? shownCommits : commits}
                         pinnedCommit={tab === 'commits' ? pinnedCommit : null}
                         threadActions={
                             isCurrentUser && tab === 'commits'

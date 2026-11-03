@@ -35,6 +35,7 @@ export function useCommitTranslation(commit: Commit) {
         translation?.translated;
     const language = translation?.language ?? null;
     const isApproved = commit.status === 'approved';
+    const isTranslated = Boolean(translation?.translated);
 
     // A translation finished for someone else is read again in this reader's language; showing the original stays.
     useEffect(() => {
@@ -64,16 +65,20 @@ export function useCommitTranslation(commit: Commit) {
                 setGenerated({ body, translation: fresh.translation });
             }
         }, 500);
-        const stop = listen(commitChannel(commit.id), {
-            translation: read.request,
-        });
+        // A translation finished while not listening is only learnt by reading again, which joining does while
+        // none is shown yet.
+        const stop = listen(
+            commitChannel(commit.id),
+            { translation: read.request },
+            isTranslated ? undefined : read.request,
+        );
 
         return () => {
             stop();
             read.cancel();
             controller.abort();
         };
-    }, [commit.id, commit.body, isApproved, language]);
+    }, [commit.id, commit.body, isApproved, language, isTranslated]);
 
     const translate = async () => {
         setBodyHeight(bodyRef.current?.getBoundingClientRect().height);

@@ -11,7 +11,8 @@ use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
 
 /**
  * Sent once the transaction commits, on each public profile's channel, when what its page shows about it changed:
- * its counts, its pinned commit, or its live stream. Only the ids are sent.
+ * its counts, its pinned commit, or its live stream. Nothing is sent but a stream that started or ended, which its
+ * profile shows everyone anyway, so every card showing the person can mark them live or not without asking.
  */
 final class ProfilesUpdated implements ShouldBroadcast, ShouldDispatchAfterCommit, ShouldRescue
 {
@@ -22,8 +23,9 @@ final class ProfilesUpdated implements ShouldBroadcast, ShouldDispatchAfterCommi
 
     /**
      * @param  iterable<array-key, mixed>  $profileIds
+     * @param  array{url: string, thumbnail_url: string, ends_at: string|null}|null  $live
      */
-    public function __construct(iterable $profileIds)
+    public function __construct(iterable $profileIds, public bool $changesLive = false, public ?array $live = null, public bool $changesConnections = false)
     {
         $this->profileIds = array_values(array_unique(array_filter(collect($profileIds)->all(), is_string(...))));
     }
@@ -51,11 +53,16 @@ final class ProfilesUpdated implements ShouldBroadcast, ShouldDispatchAfterCommi
     }
 
     /**
-     * @return array{}
+     * Who follows whom stays for members, so only that it changed is said.
+     *
+     * @return array{live?: array{url: string, thumbnail_url: string, ends_at: string|null}|null, connections?: true}
      */
     public function broadcastWith(): array
     {
-        return [];
+        return [
+            ...$this->changesLive ? ['live' => $this->live] : [],
+            ...$this->changesConnections ? ['connections' => true] : [],
+        ];
     }
 
     public function broadcastWhen(): bool

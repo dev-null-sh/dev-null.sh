@@ -114,9 +114,18 @@ export function useCommitStatus(
                 setIsJustApproved(result.status === 'approved');
             }
         }, 300);
+        // Joining either channel, after the page read the status or a dropped connection, reads it again too.
         const stops = [
-            listen(userChannel(userId), { commits: read.request }),
-            listen(commitChannel(commit.id), { visibility: read.request }),
+            listen(
+                userChannel(userId),
+                { commits: read.request },
+                read.request,
+            ),
+            listen(
+                commitChannel(commit.id),
+                { visibility: read.request },
+                read.request,
+            ),
         ];
 
         return () => {

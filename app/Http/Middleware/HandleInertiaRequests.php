@@ -105,19 +105,23 @@ final class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'repository' => config('services.github.repository'),
             'auth' => [
-                'user' => fn (): ?User => $request->user()?->loadCounts(),
-                'bioProfiles' => fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [],
+                // What the user saved anywhere, from their profile to their preferences, shows on every page they have open.
+                'user' => $live(fn (): ?User => $request->user()?->loadCounts(), UserUpdate::Account),
+                'bioProfiles' => $live(fn (): array => $user instanceof User ? resolve(BioProfilesQuery::class)->get($user) : [], UserUpdate::Account),
                 // The organizations the user is a member of, shown like the commits they author: theirs too, and who they
                 // can post as once the feature is on.
                 'organizations' => $live(fn (): array => $user instanceof User ? $user->organizations()->get()
                     ->map(fn (Organization $organization): array => ['type' => 'organization', ...$organization->toArray()])
                     ->all() : [], UserUpdate::Account),
-                'canPostAsOrganization' => fn (): bool => resolve(Features::class)->enabled(Feature::OrganizationCommits),
+                // Guests post nothing, so only members follow the feature being switched.
+                'canPostAsOrganization' => $user instanceof User
+                    ? Inertia::live(fn (): bool => resolve(Features::class)->enabled(Feature::OrganizationCommits), 'features', new Channel('features'))
+                    : false,
                 'isAdmin' => $isAdmin,
-                'automaticTranslation' => $user->automatic_translation ?? true,
-                'mustReadCommitRules' => $user instanceof User && $user->commit_rules_accepted_at === null,
-                'termsToAccept' => $user instanceof User && ! $user->hasAcceptedCurrentTerms() ? config()->string('legal.terms_version') : null,
-                'log' => fn (): ?Log => $request->user()?->log,
+                'automaticTranslation' => $live(fn (): bool => $user->automatic_translation ?? true, UserUpdate::Account),
+                'mustReadCommitRules' => $live(fn (): bool => $user instanceof User && $user->commit_rules_accepted_at === null, UserUpdate::Account),
+                'termsToAccept' => $live(fn (): ?string => $user instanceof User && ! $user->hasAcceptedCurrentTerms() ? config()->string('legal.terms_version') : null, UserUpdate::Account),
+                'log' => $live(fn (): ?Log => $request->user()?->log, UserUpdate::Account),
                 // Each browser filters notifications its own way, and reloading the count goes through its cookie.
                 'unreadNotificationsCount' => $live(fn (): int => $user instanceof User ? resolve(NotificationGroupsQuery::class)->unreadCount($user, ListNotificationsRequest::rememberedType($request, $user)) : 0, UserUpdate::Notifications),
                 'unreadMessagesCount' => $live(fn (): int => $user?->remotes_enabled ? resolve(ConversationsQuery::class)->unreadCount($user) : 0, UserUpdate::Messages, UserUpdate::Inbox),

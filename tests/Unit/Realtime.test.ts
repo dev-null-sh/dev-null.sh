@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, mock, test } from 'node:test';
 import {
+    catchUpAfterRestore,
     coalesce,
     connectRealtime,
     isListening,
@@ -168,4 +169,59 @@ void test('a cancelled refresh never runs', () => {
     mock.timers.tick(1_000);
 
     assert.equal(runs, 0);
+});
+
+void test('a listener joining a channel joined a moment ago catches up, as its data may predate the join', async () => {
+    mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    listen(userChannel('a'), { notifications: () => {} });
+    fake.setStatus('connected');
+    fake.joined.get('private-users.a')?.join();
+    let syncs = 0;
+
+    listen(userChannel('a'), { account: () => {} }, () => syncs++);
+    await Promise.resolve();
+
+    assert.equal(syncs, 1);
+});
+
+void test('a listener joining a channel listened to for long with nothing heard needs no catching up, unless it heard its event lately', async () => {
+    mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    listen(userChannel('a'), { notifications: () => {} });
+    fake.setStatus('connected');
+    fake.joined.get('private-users.a')?.join();
+    mock.timers.tick(60_000);
+    let quiet = 0;
+    let busy = 0;
+
+    listen(userChannel('a'), { account: () => {} }, () => quiet++);
+    fake.joined.get('private-users.a')?.emit('notifications');
+    listen(userChannel('a'), { notifications: () => {} }, () => busy++);
+    await Promise.resolve();
+
+    assert.equal(quiet, 0);
+    assert.equal(busy, 1);
+});
+
+void test('a page coming back from history makes every listener joining meanwhile catch up, and reads live props again', async () => {
+    mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    const live: unknown[] = [];
+    liveTransport.subscribe({ name: 'users.a', type: 'private' }, 'notifications', (payload) => live.push(payload));
+    fake.setStatus('connected');
+    fake.joined.get('private-users.a')?.join();
+    mock.timers.tick(60_000);
+    live.length = 0;
+    let syncs = 0;
+
+    catchUpAfterRestore();
+    listen(userChannel('a'), { account: () => {} }, () => syncs++);
+    await Promise.resolve();
+
+    assert.equal(syncs, 1);
+    assert.deepEqual(live, [{}]);
 });

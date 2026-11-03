@@ -15,6 +15,7 @@ export interface RealtimeChannelHandle {
     stopListening(event: string, callback: RealtimeHandler): unknown;
     subscribed(callback: () => void): unknown;
     error(callback: (status: unknown) => void): unknown;
+    listenToAll(callback: (event: string, payload: unknown) => void): unknown;
 }
 
 export interface RealtimeConnection {
@@ -35,6 +36,8 @@ type ChannelEntry = {
     >;
     syncs: Set<() => void>;
     isSubscribed: boolean;
+    subscribedAt: number | null;
+    heardAt: Map<string, number>;
     leaveTimer: ReturnType<typeof setTimeout> | undefined;
 };
 
@@ -42,6 +45,21 @@ type ChannelEntry = {
  * A channel nobody listens to any more is left a moment later, so a page swapping listeners does not rejoin it.
  */
 const leaveDelay = 1_000;
+
+/**
+ * A listener joining a channel someone already listens on catches up when its data may be older than what the
+ * channel heard: the channel was joined, or heard the listener's events, this recently. Data read longer ago that
+ * nothing changed since is current.
+ */
+const lateWindow = 15_000;
+
+/**
+ * Pages brought back from history or a prefetch show what was read back then, so every listener joining meanwhile
+ * catches up, and live props are read again.
+ */
+const restoreWindow = 3_000;
+let restoredUntil = 0;
+const liveRefreshers = new Set<() => void>();
 
 let connection: RealtimeConnection | null = null;
 let isConnected = false;
@@ -72,6 +90,7 @@ export function connectRealtime(next: RealtimeConnection | null): void {
             if (!connected) {
                 channels.forEach((entry) => {
                     entry.isSubscribed = false;
+                    entry.subscribedAt = null;
                 });
             }
 
@@ -103,12 +122,19 @@ function entryFor(channel: RealtimeChannel, socket: RealtimeConnection) {
         events: new Map(),
         syncs: new Set(),
         isSubscribed: false,
+        subscribedAt: null,
+        heardAt: new Map(),
         leaveTimer: undefined,
     };
+
+    handle.listenToAll((event) =>
+        entry.heardAt.set(event.replace(/^\./, ''), Date.now()),
+    );
 
     // Joining again after a dropped connection is when updates may have been missed, so each listener catches up.
     handle.subscribed(() => {
         entry.isSubscribed = true;
+        entry.subscribedAt = Date.now();
         entry.syncs.forEach((sync) => sync());
         notifyChange();
     });
@@ -158,6 +184,10 @@ export function listen(
 
     if (onSync) {
         entry.syncs.add(onSync);
+
+        if (entry.isSubscribed && mayHaveMissed(entry, Object.keys(events))) {
+            queueMicrotask(onSync);
+        }
     }
 
     let isListening = true;
@@ -194,6 +224,28 @@ export function listen(
     };
 }
 
+function mayHaveMissed(entry: ChannelEntry, events: string[]): boolean {
+    const now = Date.now();
+
+    return (
+        now < restoredUntil ||
+        entry.subscribedAt === null ||
+        now - entry.subscribedAt < lateWindow ||
+        (events.length === 0
+            ? [...entry.heardAt.values()]
+            : events.map((event) => entry.heardAt.get(event) ?? -Infinity)
+        ).some((heardAt) => now - heardAt < lateWindow)
+    );
+}
+
+/**
+ * Called when a page comes back from history or a prefetch: what it shows was read back then.
+ */
+export function catchUpAfterRestore(): void {
+    restoredUntil = Date.now() + restoreWindow;
+    liveRefreshers.forEach((refresh) => refresh());
+}
+
 /**
  * Whether updates on the channel are being heard right now, so whoever relies on them can stop polling.
  */
@@ -217,15 +269,24 @@ export function onRealtimeChange(listener: () => void): () => void {
  * subscription. Joining a channel counts as an update, so props read before the page was listening catch up.
  */
 export const liveTransport: LiveTransport = {
-    subscribe: (channel, event, handler) =>
-        listen(
+    subscribe: (channel, event, handler) => {
+        const refresh = () => handler({});
+        const stop = listen(
             {
                 name: channel.name,
                 type: channel.type === 'private' ? 'private' : 'public',
             },
             { [event]: handler },
-            () => handler({}),
-        ),
+            refresh,
+        );
+
+        liveRefreshers.add(refresh);
+
+        return () => {
+            liveRefreshers.delete(refresh);
+            stop();
+        };
+    },
     socketId: () => connection?.socketId() ?? null,
 };
 

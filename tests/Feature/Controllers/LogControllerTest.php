@@ -883,3 +883,22 @@ it('tells the trending log which loaded commits are gone without ranking it agai
     probeLog(Log::Trending, 'removedCommitIds', ['pending' => [$stays->id, $deleted->id]])
         ->assertJsonPath('props.removedCommitIds', [$deleted->id]);
 });
+
+it('counts the commits between the oldest and newest loaded, so a page can tell its window changed', function (): void {
+    $this->actingAs(User::factory()->create());
+    $oldest = Commit::factory()->create(['created_at' => now()->subHours(3)]);
+    $middle = Commit::factory()->create(['created_at' => now()->subHours(2)]);
+    $newest = Commit::factory()->create(['created_at' => now()->subHour()]);
+    Commit::factory()->create();
+    $older = Commit::factory()->pending()->create(['created_at' => now()->subMinutes(150)]);
+    $window = fn (): mixed => probeLog(Log::Latest, 'windowCount', ['since' => $newest->id], ['X-Log-Through' => $oldest->id])->json('props.windowCount');
+
+    expect($window())->toBe(3);
+
+    $middle->delete();
+    expect($window())->toBe(2);
+
+    $older->update(['status' => CommitStatus::Approved]);
+    expect($window())->toBe(3)
+        ->and(probeLog(Log::Trending, 'windowCount', ['since' => $newest->id], ['X-Log-Through' => $oldest->id])->json('props.windowCount'))->toBeNull();
+});

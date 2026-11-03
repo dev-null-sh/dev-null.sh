@@ -14,18 +14,18 @@ export function useIsListening(channel: RealtimeChannel | null): boolean {
 }
 
 /**
- * Listens for the given events while the channel is set. `onSync` runs whenever the channel is joined again after
- * a dropped connection, when updates may have been missed; the first join is left out, since what the page shows was
- * just read.
+ * Listens for the given events while the channel is set. `onSync` runs whenever updates may have been missed: when
+ * the channel is first joined, since what the page shows was read before, when it joins a channel heard on recently
+ * or after the page came back from history, and after every dropped connection. `isFirst` tells the first apart.
  */
 export function useRealtime(
     channel: RealtimeChannel | null,
     events: string[],
     onEvent: (event: string, payload: unknown) => void,
-    onSync?: () => void,
+    onSync?: (isFirst: boolean) => void,
 ): void {
     const handle = useEffectEvent(onEvent);
-    const sync = useEffectEvent(() => onSync?.());
+    const sync = useEffectEvent((isFirst: boolean) => onSync?.(isFirst));
     const name = channel?.name;
     const type = channel?.type;
     const listened = events.join(' ');
@@ -35,8 +35,7 @@ export function useRealtime(
             return;
         }
 
-        // Already joined by someone else, the next join is after a dropped connection.
-        let hasJoined = isListening({ name, type });
+        let isFirst = true;
 
         return listen(
             { name, type },
@@ -49,11 +48,8 @@ export function useRealtime(
                     ]),
             ),
             () => {
-                if (hasJoined) {
-                    sync();
-                }
-
-                hasJoined = true;
+                sync(isFirst);
+                isFirst = false;
             },
         );
     }, [name, type, listened]);

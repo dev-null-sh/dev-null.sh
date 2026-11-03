@@ -19,6 +19,7 @@ enum UserUpdate: string
     case Onboarding = 'onboarding';
     case ScheduledCommits = 'scheduled-commits';
     case Account = 'account';
+    case Relationships = 'relationships';
     case Commits = 'commits';
     case Moderation = 'moderation';
     case Live = 'live';

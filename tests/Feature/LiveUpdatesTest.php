@@ -7,14 +7,22 @@ use App\Actions\CreateCommitStar;
 use App\Actions\CreateConversationCall;
 use App\Actions\CreateDevice;
 use App\Actions\CreateMessage;
+use App\Actions\CreateOrganizationFollow;
+use App\Actions\CreateOrganizationMember;
 use App\Actions\CreateScheduledCommit;
 use App\Actions\CreateUserBlock;
+use App\Actions\CreateUserFollow;
 use App\Actions\CreateUserTimeout;
+use App\Actions\DeleteOrganization;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateConversationReadThrough;
+use App\Actions\UpdateFeature;
 use App\Actions\UpdateLinkPreview;
+use App\Actions\UpdateOrganizationLane;
 use App\Actions\UpdateOrgCall;
 use App\Actions\UpdateScheduledCommitSubmittedAt;
+use App\Actions\UpdateUserLog;
+use App\Actions\UpdateUserTermsAcceptance;
 use App\Contracts\Services\LinkPreviewProvider;
 use App\Dto\AuthorizationCode;
 use App\Enums\CommitStatus;
@@ -24,6 +32,7 @@ use App\Enums\RemoteStatus;
 use App\Enums\TimeoutDuration;
 use App\Enums\UserUpdate;
 use App\Events\CommitsUpdated;
+use App\Events\FeaturesUpdated;
 use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
 use App\Http\Middleware\HandleInertiaRequests;
@@ -33,6 +42,7 @@ use App\Models\Conversation;
 use App\Models\ConversationParticipant;
 use App\Models\LinkPreview;
 use App\Models\Message;
+use App\Models\Organization;
 use App\Models\ScheduledCommit;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
@@ -415,4 +425,67 @@ it('announces nothing when storing a scheduled commit fails', function (): void 
 
     Event::assertNotDispatched(UsersUpdated::class);
     expect(ScheduledCommit::query()->count())->toBe(0);
+});
+
+it('tells both people about a follow, the follower that their log changed, and their profiles that connections changed', function (): void {
+    $follower = User::factory()->create();
+    $followed = User::factory()->create();
+
+    resolve(CreateUserFollow::class)->handle($follower, $followed);
+
+    expect(recipientsOf(usersUpdated(UserUpdate::Account)))->toEqualCanonicalizing([$follower->id, $followed->id])
+        ->and(recipientsOf(usersUpdated(UserUpdate::Relationships)))->toBe([$follower->id]);
+    Event::assertDispatched(ProfilesUpdated::class, fn (ProfilesUpdated $event): bool => $event->profileIds === [$follower->id, $followed->id]
+        && $event->broadcastWith() === ['connections' => true]);
+});
+
+it('tells whoever shows the person that their stream started or ended, with the stream their profile shows', function (): void {
+    $user = User::factory()->create();
+
+    $this->actingAs($user)->put(route('user-live.update'), ['url' => 'https://www.twitch.tv/octocat', 'hours' => 2]);
+    $this->actingAs($user)->delete(route('user-live.destroy'));
+
+    $live = Event::dispatched(ProfilesUpdated::class)->map(fn (array $event): array => $event[0]->broadcastWith())->values()->all();
+    expect($live)->toBe([
+        ['live' => ['url' => 'https://www.twitch.tv/octocat', 'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_octocat-1280x720.jpg', 'ends_at' => now()->addHours(2)->startOfSecond()->toJSON()]],
+        ['live' => null],
+    ]);
+});
+
+it('tells everyone showing an organization when its color, followers or admins change, and its members when it goes', function (): void {
+    $organization = Organization::factory()->create();
+    $member = User::factory()->create();
+    $follower = User::factory()->create();
+
+    resolve(UpdateOrganizationLane::class)->handle($organization, 3, null);
+    resolve(CreateOrganizationFollow::class)->handle($follower, $organization);
+    resolve(CreateOrganizationMember::class)->handle($organization, $member);
+    resolve(DeleteOrganization::class)->handle($organization);
+
+    expect(Event::dispatched(ProfilesUpdated::class, fn (ProfilesUpdated $event): bool => in_array($organization->id, $event->profileIds, true)))->toHaveCount(4)
+        ->and(recipientsOf(usersUpdated(UserUpdate::Relationships)))->toBe([$follower->id]);
+});
+
+it('tells the user\'s other pages when the log they read, the terms they accepted or a feature changes', function (): void {
+    Event::fake([UsersUpdated::class, FeaturesUpdated::class]);
+    $user = User::factory()->create();
+
+    resolve(UpdateUserLog::class)->handle($user, App\Enums\Log::Latest);
+    resolve(UpdateUserTermsAcceptance::class)->handle($user);
+    resolve(UpdateFeature::class)->handle(App\Enums\Feature::OrganizationCommits, true);
+
+    expect(usersUpdated(UserUpdate::Account))->toHaveCount(2);
+    Event::assertDispatched(FeaturesUpdated::class);
+});
+
+it('refreshes an organization page from its public channel and the viewer\'s relationship to it from theirs', function (): void {
+    $viewer = User::factory()->create();
+    $organization = Organization::factory()->create();
+    $headers = ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request())];
+
+    $live = $this->actingAs($viewer)->get(route('user.show', $organization->handle), $headers)->json('liveProps');
+
+    expect($live['followersCount']['listeners'][0]['channel'])->toBe(['name' => 'profiles.'.$organization->id, 'type' => 'public'])
+        ->and($live['isFollowing']['listeners'][0]['channel'])->toBe(['name' => 'users.'.$viewer->id, 'type' => 'private'])
+        ->and($live['auth.user']['listeners'][0]['events'])->toBe(['account']);
 });

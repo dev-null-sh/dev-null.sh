@@ -1,9 +1,21 @@
-import { Link, usePage } from '@inertiajs/react';
+import { Link, usePage, usePoll } from '@inertiajs/react';
 import { Flame } from 'lucide-react';
 import { show } from '@/actions/App/Http/Controllers/HeadlineController';
+import { backgroundPollOptions } from '@/lib/background-poll';
+
+/**
+ * Hot topics cover the last hours, so they age out without anything being posted: they are read again every few
+ * minutes while shown, besides whenever headlines change. Their ranking is deterministic, so reading them again
+ * never reshuffles them for nothing.
+ */
+const ageOut = 5 * 60_000;
 
 export function HotTopics() {
     const { hotTopics = [] } = usePage().props;
+
+    usePoll(ageOut, backgroundPollOptions({ only: ['hotTopics'] }), {
+        background: 'pause',
+    });
 
     if (hotTopics.length === 0) {
         return null;

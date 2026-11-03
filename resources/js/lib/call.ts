@@ -403,8 +403,8 @@ export function watchIncomingCalls(userId: string): () => void {
                     org_calls: OrgCall[];
                 }>(CallController.show.url());
 
-                // Unless the user started or joined a call while it checked.
-                if (isFree()) {
+                // Unless the user started or joined a call while it checked, or stopped watching, as on signing out.
+                if (isFree() && !isStopped) {
                     takeIncomingCall(call, userId);
                     receiveOrgCalls(orgCalls, userId);
                 }

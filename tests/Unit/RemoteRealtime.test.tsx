@@ -339,3 +339,98 @@ test('a request replaced by another reloads the loaded requests even though thei
 
     assert.deepEqual(chatSnapshot().fetched?.map(({ id }) => id), ['second-request']);
 });
+
+test('a direct conversation blocked elsewhere stops showing its messages too', async () => {
+    const partner = { id: 'blocker', handle: 'blocker', name: 'Blocker' };
+    const target: ChatTarget = { kind: 'direct', partner: partner as never };
+    let isAllowed = true;
+    respond((url) => {
+        if (url.pathname === '/remotes/@blocker/messages') {
+            return isAllowed
+                ? { ...orgThread('x', [message(1)]), org: undefined, partner, partner_typing: false, partner_read_through_id: 0, partner_read_at: null }
+                : Response.json({ message: 'Not Found' }, { status: 404 });
+        }
+
+        return undefined;
+    });
+    stops.push(watchRemoteUpdates('me'), watchThread(target));
+    await vi.advanceTimersByTimeAsync(0);
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(500);
+    assert.equal(chatSnapshot().threads[targetKey(target)].messages.length, 1);
+
+    isAllowed = false;
+    channel()?.emit('remotes.inbox', { conversation: 'direct-blocked' });
+    await vi.advanceTimersByTimeAsync(500);
+
+    assert.deepEqual(chatSnapshot().threads[targetKey(target)].messages, []);
+    assert.equal(chatSnapshot().threads[targetKey(target)].access, 'closed');
+});
+
+test('a read still on its way when the remotes stop being watched, as on signing out, is dropped', async () => {
+    const target: ChatTarget = { kind: 'org', org: { id: 'held', name: 'Team' } };
+    let release = () => {};
+    let held = false;
+    vi.stubGlobal('fetch', async (input: string) => {
+        const url = new URL(input, 'http://localhost');
+        requests.push({ url, method: 'GET' });
+
+        if (url.pathname === '/remotes/orgs/held/messages') {
+            if (held) {
+                await new Promise<void>((resolve) => (release = resolve));
+
+                return Response.json(orgThread('held', [message(1), message(2)]));
+            }
+
+            return Response.json(orgThread('held', [message(1)]));
+        }
+
+        return Response.json({ conversations: [], has_more: false, unread: 0, requests: 0 });
+    });
+    const stopUpdates = watchRemoteUpdates('me');
+    const stopThread = watchThread(target);
+    await vi.advanceTimersByTimeAsync(0);
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(500);
+
+    held = true;
+    channel()?.emit('remotes.messages', { conversation: 'held' });
+    await vi.advanceTimersByTimeAsync(200);
+    stopUpdates();
+    stopThread();
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+
+    assert.deepEqual(chatSnapshot().threads[targetKey(target)].messages.map(({ id }) => id), [1]);
+});
+
+test('signing in as someone else forgets the remotes kept for the previous account', async () => {
+    const target: ChatTarget = { kind: 'org', org: { id: 'previous', name: 'Team' } };
+    respond((url) => (url.pathname === '/remotes/orgs/previous/messages' ? orgThread('previous', [message(1)]) : undefined));
+    const stopUpdates = watchRemoteUpdates('first');
+    const stopThread = watchThread(target);
+    await vi.advanceTimersByTimeAsync(500);
+    stopThread();
+    stopUpdates();
+    assert.ok(chatSnapshot().threads[targetKey(target)]);
+
+    stops.push(watchRemoteUpdates('second'));
+
+    assert.equal(chatSnapshot().threads[targetKey(target)], undefined);
+});
+
+test('a partner reading the conversation refreshes the inbox too, where how far they pulled shows', async () => {
+    respond(() => undefined);
+    stops.push(watchRemoteUpdates('me'), watchInbox());
+    await vi.advanceTimersByTimeAsync(0);
+    joinAll(fake);
+    await vi.advanceTimersByTimeAsync(500);
+    const before = inboxReads().length;
+
+    channel()?.emit('remotes.conversation', { conversation: 'read', read: 1 });
+    await vi.advanceTimersByTimeAsync(500);
+    channel()?.emit('remotes.conversation', { conversation: 'typing' });
+    await vi.advanceTimersByTimeAsync(500);
+
+    assert.equal(inboxReads().length, before + 1);
+});

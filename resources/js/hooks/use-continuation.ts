@@ -1,13 +1,15 @@
-import { router, useRemember } from '@inertiajs/react';
+import { usePage, useRemember } from '@inertiajs/react';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitContinuationController from '@/actions/App/Http/Controllers/CommitContinuationController';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { idsOf } from '@/hooks/use-realtime';
+import { changesSince, readAt } from '@/lib/commit-changes';
 import { coalesce, commitChannel, listen } from '@/lib/realtime';
 import type { Commit, ThreadContinuation } from '@/types';
 
 export function useContinuation(continuation: ThreadContinuation) {
+    const serverNow = usePage().props.now;
     const [loaded, setLoaded] = useState(continuation);
     const [{ shown, nextId, size, isCapped }, setThread] = useRemember(
         {
@@ -48,24 +50,27 @@ export function useContinuation(continuation: ThreadContinuation) {
     useEffect(() => () => request.current?.abort(), [continuation]);
 
     /**
-     * Another client changing the thread reaches every part shown. A part deleted or brought back reads the thread
-     * again as an undo does, keeping the pages loaded when it still starts the same, and a reply continuing the last
-     * part shown is appended, without reading the rest again.
+     * Reads the chain again from just before a part another client changed, as many parts as were loaded below it,
+     * and puts them in place of the ones shown: a part deleted, rejected or brought back changes the chain without
+     * losing the pages loaded or the reader's place. A reply continuing the last part shown is the same, from it.
+     * Parts above stay as they are, and a read that no longer fits what is shown is dropped.
      */
-    const onPartChanged = useEffectEvent(
-        async (partId: string, ids: string[]) => {
-            if (ids.includes(partId)) {
-                router.reload({ only: ['continuation'] });
+    const reconcileFrom = useEffectEvent(async (index: number) => {
+        const anchor = index === 0 ? shown[0]?.parent_id : shown[index - 1]?.id;
 
-                return;
-            }
+        if (anchor === undefined || anchor === null) {
+            return;
+        }
 
-            if (partId !== shown.at(-1)?.id || nextId !== null || isLoading) {
-                return;
-            }
+        const wanted = Math.max(shown.length - index, 1);
+        const parts: Commit[] = [];
+        let from = anchor;
+        let first: ThreadContinuation | null = null;
+        let last: ThreadContinuation | null = null;
 
+        do {
             const response = await fetch(
-                CommitContinuationController.index(partId).url,
+                CommitContinuationController.index(from).url,
                 {
                     headers: {
                         Accept: 'application/json',
@@ -78,32 +83,80 @@ export function useContinuation(continuation: ThreadContinuation) {
                 return;
             }
 
-            const page = (await response.json()) as ThreadContinuation;
-            const lastPosition = continuation.position + shown.length;
+            last = (await response.json()) as ThreadContinuation;
+            first ??= last;
+            parts.push(...last.data);
+            from = last.data.at(-1)?.id ?? from;
+        } while (
+            parts.length < wanted &&
+            last.next_id !== null &&
+            last.data.length > 0
+        );
 
-            setThread((current) =>
-                current.shown.at(-1)?.id === partId
-                    ? {
-                          shown: [
-                              ...current.shown,
-                              ...page.data.filter(
-                                  (part) =>
-                                      !current.shown.some(
-                                          ({ id }) => id === part.id,
-                                      ),
-                              ),
-                          ],
-                          nextId: page.next_id,
-                          size: lastPosition + page.length,
-                          isCapped: page.is_capped,
-                      }
-                    : current,
-            );
+        const base = continuation.position + index;
+        const size = base + first.length;
+        const nextId = last.next_id;
+
+        setThread((current) =>
+            current.shown
+                .slice(0, index)
+                .every((part, at) => part.id === shown[at]?.id) &&
+            (index === 0 || current.shown[index - 1]?.id === anchor)
+                ? {
+                      shown: [...current.shown.slice(0, index), ...parts],
+                      nextId,
+                      size,
+                      isCapped: last?.is_capped ?? current.isCapped,
+                  }
+                : current,
+        );
+    });
+
+    const onPartChanged = useEffectEvent(
+        async (partId: string, ids: string[]) => {
+            const index = shown.findIndex((part) => part.id === partId);
+
+            if (index === -1 || isLoading) {
+                return;
+            }
+
+            if (ids.includes(partId)) {
+                await reconcileFrom(index);
+            } else if (index === shown.length - 1 && nextId === null) {
+                await reconcileFrom(shown.length);
+            }
         },
     );
+
+    /**
+     * After reading the chain before listening, coming back from history or losing the connection, asks what changed
+     * about the parts shown since, and reconciles from the first that did.
+     */
+    const catchUp = useEffectEvent(async () => {
+        const since = readSince.current;
+        readSince.current = readAt();
+        const changes = await Promise.all(
+            shown.map((part) => changesSince(part.id, since)),
+        );
+        const index = changes.findIndex(
+            (change, at) =>
+                change === null ||
+                change.changed ||
+                (at === shown.length - 1 && change.replies.length > 0),
+        );
+
+        if (index !== -1) {
+            const change = changes[index];
+            await reconcileFrom(
+                change !== null && !change.changed ? index + 1 : index,
+            );
+        }
+    });
+    const readSince = useRef(Math.min(serverNow - 5_000, readAt()));
     const shownIds = shown.map((part) => part.id).join(' ');
 
     useEffect(() => {
+        const catchUps = coalesce(catchUp, 300);
         const stops = shownIds
             .split(' ')
             .filter(Boolean)
@@ -114,12 +167,16 @@ export function useContinuation(continuation: ThreadContinuation) {
                     heard.clear();
                     await onPartChanged(partId, ids);
                 }, 300);
-                const stop = listen(commitChannel(partId), {
-                    visibility: (payload) => {
-                        idsOf(payload).forEach((id) => heard.add(id));
-                        refresh.request();
+                const stop = listen(
+                    commitChannel(partId),
+                    {
+                        visibility: (payload) => {
+                            idsOf(payload).forEach((id) => heard.add(id));
+                            refresh.request();
+                        },
                     },
-                });
+                    catchUps.request,
+                );
 
                 return () => {
                     stop();
@@ -127,7 +184,10 @@ export function useContinuation(continuation: ThreadContinuation) {
                 };
             });
 
-        return () => stops.forEach((stop) => stop());
+        return () => {
+            stops.forEach((stop) => stop());
+            catchUps.cancel();
+        };
     }, [shownIds]);
 
     useEffect(() => {

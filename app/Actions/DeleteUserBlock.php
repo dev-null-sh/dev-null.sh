@@ -14,7 +14,7 @@ final readonly class DeleteUserBlock
     {
         $user->blocking()->detach($blocked->id);
 
-        foreach ([UserUpdate::Notifications, UserUpdate::Account, UserUpdate::Inbox] as $update) {
+        foreach ([UserUpdate::Notifications, UserUpdate::Account, UserUpdate::Relationships, UserUpdate::Inbox] as $update) {
             event(new UsersUpdated([$user->id, $blocked->id], $update));
         }
     }

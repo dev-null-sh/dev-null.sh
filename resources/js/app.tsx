@@ -1,4 +1,4 @@
-import { createInertiaApp } from '@inertiajs/react';
+import { createInertiaApp, router } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { ComponentType } from 'react';
 import { StrictMode } from 'react';
@@ -9,6 +9,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { initializeTheme, setCookie } from '@/hooks/use-appearance';
 import { setRenderedAt } from '@/hooks/use-now';
 import { trackAnalyticsEvents } from '@/lib/analytics';
+import { setServerTime } from '@/lib/commit-changes';
 import { trackCommitPhotoPage } from '@/lib/commit-photo';
 import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
@@ -16,7 +17,11 @@ import { createEcho } from '@/lib/echo';
 import { trackFollowRequests } from '@/lib/follow-requests';
 import { pageTitle } from '@/lib/page-title';
 import { trackPrefetchedPages } from '@/lib/prefetched-pages';
-import { connectRealtime, liveTransport } from '@/lib/realtime';
+import {
+    catchUpAfterRestore,
+    connectRealtime,
+    liveTransport,
+} from '@/lib/realtime';
 import { registerServiceWorker } from '@/lib/service-worker';
 import { browserClock, clockOf, setReaderClock } from '@/lib/utils';
 import { trackVisualViewport } from '@/lib/visual-viewport';
@@ -28,6 +33,17 @@ trackVisualViewport();
 trackAnalyticsEvents();
 trackPrefetchedPages();
 connectRealtime(createEcho());
+// A page brought back from history or a prefetch shows what was read back then, and catches up.
+router.on('navigate', (event) => {
+    if (event.detail.type === 'history' || event.detail.cached === true) {
+        catchUpAfterRestore();
+    }
+});
+window.addEventListener('pageshow', (event) => {
+    if (event.persisted) {
+        catchUpAfterRestore();
+    }
+});
 
 void createInertiaApp({
     title: pageTitle,
@@ -38,6 +54,7 @@ void createInertiaApp({
             import.meta.glob<ComponentType>('./pages/**/*.tsx'),
         ),
     setup({ el, App, props }) {
+        setServerTime(props.initialPage.props.now);
         trackFollowRequests(props.initialPage);
         registerServiceWorker(props.initialPage.version);
 

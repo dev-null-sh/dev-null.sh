@@ -16,8 +16,9 @@ final readonly class DeleteUserFollow
         $follower->following()->detach($followed->id);
 
         event(new UsersUpdated([$followed->id], UserUpdate::Notifications));
-        event(new UsersUpdated([$follower->id], UserUpdate::Account));
+        event(new UsersUpdated([$follower->id, $followed->id], UserUpdate::Account));
+        event(new UsersUpdated([$follower->id], UserUpdate::Relationships));
         event(new UsersUpdated([$follower->id], UserUpdate::Live));
-        event(new ProfilesUpdated([$follower->id, $followed->id]));
+        event(new ProfilesUpdated([$follower->id, $followed->id], changesConnections: true));
     }
 }
