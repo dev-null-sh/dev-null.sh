@@ -127,12 +127,27 @@ export default function Connections({
         },
     );
 
-    const refresh = () =>
+    // The refreshed list takes the place of the one shown, rather than moving the people already there: it is
+    // drawn anew in the same render that brings it.
+    const [refreshedFrom, setRefreshedFrom] = useState<typeof users | null>(
+        null,
+    );
+    const [listed, setListed] = useState(0);
+
+    if (refreshedFrom !== null && users !== refreshedFrom) {
+        setRefreshedFrom(null);
+        setListed(listed + 1);
+    }
+
+    const refresh = () => {
+        setRefreshedFrom(users);
         router.reload({
             only: ['users', 'organizations'],
             reset: ['users', 'organizations'],
             onSuccess: () => setHasChanged(false),
+            onError: () => setRefreshedFrom(null),
         });
+    };
     const knowsFollowers = auth.user !== null && auth.user.id !== user.id;
     const emptyMessages: Record<ConnectionType, string> = {
         followers: `Nobody is following @${user.handle} yet.`,
@@ -238,7 +253,7 @@ export default function Connections({
                             )
                         }
                     >
-                        <ul className="divide-y">
+                        <ul key={listed} className="divide-y">
                             {organizations.data.map((organization) => (
                                 <li
                                     key={organization.id}
@@ -308,7 +323,7 @@ export default function Connections({
                             People
                         </h2>
                     )}
-                    <ul className="divide-y">
+                    <ul key={listed} className="divide-y">
                         {users.data.map((person) => (
                             <li
                                 key={person.id}

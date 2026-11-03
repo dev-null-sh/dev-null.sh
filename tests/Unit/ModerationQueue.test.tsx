@@ -20,6 +20,7 @@ type Reload = {
 
 const reloads: Reload[] = [];
 let arrived: string[] = [];
+let holdsReloads = false;
 let decided: string[] = [];
 const takenOff: string[][] = [];
 const offers: unknown[] = [];
@@ -39,14 +40,25 @@ const kept = (initial: () => unknown) => {
 
 vi.doMock('react', () => ({
     ...React,
-    useState: (initial: unknown) => [
-        kept(() =>
+    useState: (initial: unknown) => {
+        const at = slot;
+        const value = kept(() =>
             typeof initial === 'function'
                 ? (initial as () => unknown)()
                 : initial,
-        ),
-        (value: unknown) => offers.push(value),
-    ],
+        );
+
+        return [
+            value,
+            (next: unknown) => {
+                offers.push(next);
+                slots[at] =
+                    typeof next === 'function'
+                        ? (next as (current: unknown) => unknown)(slots[at])
+                        : next;
+            },
+        ];
+    },
     useEffect: (effect: () => void) => effect(),
     useRef: (current: unknown) => kept(() => ({ current })),
     useEffectEvent: (callback: unknown) => callback,
@@ -79,7 +91,9 @@ vi.doMock('@inertiajs/react', async () => ({
                 });
             }
 
-            options.onFinish?.();
+            if (!holdsReloads) {
+                options.onFinish?.();
+            }
         },
         replaceProp: (
             _prop: string,
@@ -139,6 +153,7 @@ beforeEach(() => {
     reloads.length = 0;
     offers.length = 0;
     arrived = [];
+    holdsReloads = false;
     decided = [];
     takenOff.length = 0;
 });
@@ -305,4 +320,24 @@ test('a queue that started listening late takes off what was decided before, whe
 
     assert.deepEqual(takenOff, [['commit-0', 'commit-2']]);
     assert.deepEqual(offers, []);
+});
+
+test('the end of the queue steps aside while the queue is read again, so nothing shown moves under the commits joining it', () => {
+    open(3, 'next').onEvent('moderation', { commits: ['new'] });
+    open(3, 'next');
+    let feed = find(page, (props) => typeof props.actions === 'function');
+    assert.equal(feed?.props.end, "That's every pending commit.");
+
+    const refresh = find(page, (props) => props.children === 'Refresh the queue');
+    assert.ok(refresh);
+    holdsReloads = true;
+    (refresh.props.onClick as () => void)();
+    open(3, 'next');
+    feed = find(page, (props) => typeof props.actions === 'function');
+    assert.equal(feed?.props.end, undefined);
+
+    reloads.at(-1)?.onFinish?.();
+    open(3, 'next');
+    feed = find(page, (props) => typeof props.actions === 'function');
+    assert.equal(feed?.props.end, "That's every pending commit.");
 });

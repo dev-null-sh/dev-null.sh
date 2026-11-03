@@ -306,12 +306,18 @@ export default function Show({
         },
     );
 
-    const refreshQueue = () =>
+    // While the queue is read again its end isn't known, so the end marker steps aside rather than move under the
+    // commits joining it.
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const refreshQueue = () => {
+        setIsRefreshing(true);
         router.reload({
             only: ['commits', 'hasUnmoderatedCommits'],
             reset: ['commits'],
             onSuccess: () => setHasArrivals(false),
+            onFinish: () => setIsRefreshing(false),
         });
+    };
 
     const moderate = (
         commit: Commit,
@@ -461,7 +467,7 @@ export default function Show({
 
             <CommitFeed
                 commits={commits}
-                end="That's every pending commit."
+                end={isRefreshing ? undefined : "That's every pending commit."}
                 isFolded={false}
                 actions={(commit) => (
                     <>
