@@ -31,12 +31,12 @@ function starLabel(starred: boolean, count: number): string {
 }
 
 /**
- * Only what starring reads, so a commit loaded without its author, like a notification's, can be starred too.
+ * Only what starring reads, so a commit loaded without its full author, like a notification's, can be starred too.
  */
 type StarrableCommit = Pick<
     Commit,
-    'id' | 'user_id' | 'status' | 'starred' | 'stars_count'
->;
+    'id' | 'status' | 'starred' | 'stars_count'
+> & { author: { id: string } };
 
 export function CommitStarButton({
     commit,
