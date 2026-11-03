@@ -6,7 +6,9 @@ namespace App\Actions;
 
 use App\Dto\GitHubProfile;
 use App\Enums\ProfileType;
+use App\Enums\UserUpdate;
 use App\Events\ProfilesUpdated;
+use App\Events\UsersUpdated;
 use App\Models\Organization;
 use App\Models\Profile;
 use Illuminate\Support\Arr;
@@ -54,12 +56,21 @@ final readonly class UpdateOrCreateOrganization
 
             if ($organization->wasRecentlyCreated) {
                 $pending = DB::table('pending_follows')->where('github_id', (string) $githubId);
+                /** @var list<string> $followerIds */
+                $followerIds = $pending->clone()->pluck('user_id')->all();
 
                 DB::table('organization_follows')->insertUsing(
                     ['user_id', 'organization_id', 'created_at'],
                     $pending->clone()->select('user_id')->selectRaw('?, ?', [$organization->id, now()]),
                 );
                 $pending->delete();
+
+                // Those who waited follow it now, and are told so, as following it one by one would.
+                if ($followerIds !== []) {
+                    event(new UsersUpdated($followerIds, UserUpdate::Account));
+                    event(new UsersUpdated($followerIds, UserUpdate::Relationships));
+                    event(new ProfilesUpdated([...$followerIds, $organization->id], changesConnections: true));
+                }
             }
 
             event(new ProfilesUpdated([$organization->id]));
