@@ -1,6 +1,6 @@
 import { Head, router, usePage } from '@inertiajs/react';
 import { Bot, Check, X } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitApprovalController from '@/actions/App/Http/Controllers/CommitApprovalController';
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
@@ -15,8 +15,9 @@ import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { idsOf, useRealtime } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
+import { reloadInBackground } from '@/lib/background-poll';
 import { changesSince, readAt } from '@/lib/commit-changes';
-import { userChannel } from '@/lib/realtime';
+import { coalesce, userChannel } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
@@ -154,6 +155,12 @@ function ModerationActions({
     );
 }
 
+/**
+ * As many commits as the queue loads at a time. A queue with fewer and nothing after them is all there is, so
+ * reading it again loses nothing the moderator had loaded.
+ */
+const pageSize = 20;
+
 function withoutCommits(
     props: { commits: CursorPaginated<Commit> },
     ids: ReadonlySet<string>,
@@ -175,9 +182,35 @@ export default function Show({
     const { auth, now } = usePage().props;
     const [hasArrivals, setHasArrivals] = useState(false);
     const [readSince] = useState(() => Math.min(now - 5_000, readAt()));
+    const queueLoader = useRef<{ request: () => void } | null>(null);
+    const isWholeQueue =
+        commits.next_cursor === null && commits.data.length < pageSize;
+
+    useEffect(() => {
+        const controller = new AbortController();
+        const loader = coalesce(
+            () =>
+                reloadInBackground(
+                    {
+                        only: ['commits', 'hasUnmoderatedCommits'],
+                        reset: ['commits'],
+                    },
+                    controller.signal,
+                ),
+            300,
+        );
+        queueLoader.current = loader;
+
+        return () => {
+            loader.cancel();
+            controller.abort();
+            queueLoader.current = null;
+        };
+    }, []);
 
     // Another moderator's decision, or the author deleting a commit, takes it off the queue where it is, keeping the
-    // pages loaded. New commits join the end of the queue, so they wait for a deliberate refresh instead.
+    // pages loaded. New commits join the end of the queue: a queue that is all there is takes them in, and a longer
+    // one waits for a deliberate refresh instead, so the pages read stay.
     useRealtime(
         auth.user === null ? null : userChannel(auth.user.id),
         ['moderation'],
@@ -199,10 +232,20 @@ export default function Show({
             }
 
             if (ids.some((id) => !loaded.has(id))) {
-                setHasArrivals(true);
+                if (isWholeQueue) {
+                    queueLoader.current?.request();
+                } else {
+                    setHasArrivals(true);
+                }
             }
         },
         (isFirst) => {
+            if (isWholeQueue) {
+                queueLoader.current?.request();
+
+                return;
+            }
+
             // Read before listening, the queue only offers a refresh when something it shows was decided since.
             if (!isFirst) {
                 setHasArrivals(true);
