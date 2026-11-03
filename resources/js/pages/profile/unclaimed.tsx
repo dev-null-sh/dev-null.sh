@@ -172,7 +172,7 @@ UnclaimedProfile.layout = AppLayout;
 
 /**
  * Following a developer who isn't here yet waits for them to sign up. It shows at once, and comes back if the server
- * refuses it. Right after a click, it never turns into cancelling under the pointer.
+ * refuses it or the visit is cancelled. Right after a click, it never turns into cancelling under the pointer.
  */
 function WaitButton({
     profile,
@@ -206,6 +206,7 @@ function WaitButton({
                 preserveScroll: true,
                 async: true,
                 onStart: () => setIsPending(true),
+                onCancel: () => onToggle(!waits),
                 onFinish: () => setIsPending(false),
                 onHttpException: (response) => {
                     onToggle(!waits);
