@@ -47,9 +47,12 @@ final readonly class CommitTranslations
         return 'commit-translations:v1:undetectable:'.hash('sha256', $commit->body);
     }
 
-    public function markUndetectable(Commit $commit): void
+    /**
+     * Marks the body with this SHA-256, the one detection failed on, even if the post has been edited since.
+     */
+    public function markUndetectable(string $bodyHash): void
     {
-        Cache::memo()->put($this->undetectableKey($commit), true, self::UNDETECTABLE_TTL_SECONDS);
+        Cache::memo()->put('commit-translations:v1:undetectable:'.$bodyHash, true, self::UNDETECTABLE_TTL_SECONDS);
     }
 
     /** @return list<string> */

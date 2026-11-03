@@ -273,18 +273,34 @@ it('stops queueing detection for a post once every try failed, until the mark ex
     $this->assertDatabaseCount('jobs', 1);
 });
 
-it('only marks a post undetectable when the provider failed it, not when something after or around it did', function (Throwable $exception, bool $marked): void {
+it('only marks a post undetectable when the provider failed it, not when something after or around it did', function (Closure $exception, bool $marked): void {
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);
 
-    new DetectCommitLanguage($commit->id)->failed($exception);
+    new DetectCommitLanguage($commit->id)->failed($exception(hash('sha256', 'Guten morgen')));
 
     expect(Cache::get(resolve(CommitTranslations::class)->undetectableKey($commit)))->toBe($marked ? true : null);
 })->with([
-    'provider error' => [fn (): CommitProcessingFailed => new CommitProcessingFailed('Translation', 'id', new RuntimeException('Provider unavailable'), 'provider_request'), true],
-    'unusable answer' => [fn (): CommitProcessingFailed => new CommitProcessingFailed('Translation', 'id', new RuntimeException('Invalid translation response.'), 'unsupported_source_language'), true],
+    'provider error' => [fn (string $hash): CommitProcessingFailed => new CommitProcessingFailed('Translation', 'id', new RuntimeException('Provider unavailable'), 'provider_request', $hash), true],
+    'unusable answer' => [fn (string $hash): CommitProcessingFailed => new CommitProcessingFailed('Translation', 'id', new RuntimeException('Invalid translation response.'), 'unsupported_source_language', $hash), true],
     'post changed meanwhile' => [fn (): RuntimeException => new RuntimeException('Commit changed during translation.'), false],
     'timeout' => [fn (): MaxAttemptsExceededException => new MaxAttemptsExceededException('Timed out.'), false],
 ]);
+
+it('marks the body detection failed on, not the one the post was edited to meanwhile', function (): void {
+    Exceptions::fake();
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->andReturnUsing(function () use ($commit): never {
+        $commit->forceFill(['body' => 'Guten abend'])->save();
+
+        throw new RuntimeException('Provider unavailable');
+    });
+
+    expect(fn () => dispatch_sync(new DetectCommitLanguage($commit->id)))->toThrow(CommitProcessingFailed::class);
+
+    $translations = resolve(CommitTranslations::class);
+    expect(Cache::get($translations->undetectableKey(new Commit(['body' => 'Guten morgen']))))->toBeTrue()
+        ->and(Cache::get($translations->undetectableKey($commit->refresh())))->toBeNull();
+});
 
 it('requires sign in to generate translations', function (): void {
     $this->mock(TranslationProvider::class)->shouldNotReceive('translate');

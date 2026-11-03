@@ -54,14 +54,8 @@ final class DetectCommitLanguage implements ShouldBeUnique, ShouldQueue
      */
     public function failed(?Throwable $exception): void
     {
-        if (! $exception instanceof CommitProcessingFailed) {
-            return;
-        }
-
-        $commit = Commit::withTrashed()->find($this->commitId);
-
-        if ($commit instanceof Commit) {
-            resolve(CommitTranslations::class)->markUndetectable($commit);
+        if ($exception instanceof CommitProcessingFailed && $exception->bodyHash !== null) {
+            resolve(CommitTranslations::class)->markUndetectable($exception->bodyHash);
         }
     }
 }

@@ -49,9 +49,9 @@ final readonly class CreateCommitTranslation
                     throw new RuntimeException('Invalid translation response.');
                 }
             } catch (InvalidTranslation $invalid) {
-                throw new CommitProcessingFailed('Translation', $commit->id, new RuntimeException($invalid->getMessage()), $invalid->reason);
+                throw new CommitProcessingFailed('Translation', $commit->id, new RuntimeException($invalid->getMessage()), $invalid->reason, hash('sha256', $commit->body));
             } catch (Throwable $throwable) {
-                throw new CommitProcessingFailed('Translation', $commit->id, $throwable, $reason);
+                throw new CommitProcessingFailed('Translation', $commit->id, $throwable, $reason, hash('sha256', $commit->body));
             }
 
             DB::transaction(function () use ($commit, $language, $key, $cached, $source, $body): void {
