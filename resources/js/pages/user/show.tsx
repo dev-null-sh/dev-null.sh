@@ -33,6 +33,7 @@ import { MembersLink } from '@/components/members-link';
 import { PageTabs } from '@/components/page-tabs';
 import { PinCommitButton } from '@/components/pin-commit-button';
 import { ProfileLiveButton } from '@/components/profile-live-button';
+import { ProfilePicture } from '@/components/profile-picture';
 import { ProfileReadme } from '@/components/profile-readme';
 import { ProfileShareButton } from '@/components/profile-share-button';
 import { Button } from '@/components/ui/button';
@@ -246,10 +247,9 @@ export default function Show({
                             </a>
                         </LiveStreamTrigger>
                     ) : (
-                        <UserAvatar
+                        <ProfilePicture
+                            key={`${user.id}:${user.avatar_url}`}
                             user={user}
-                            className="size-20 text-2xl ring-[calc(2px/var(--profile-avatar-scale,1))] ring-(--lane) ring-offset-4 ring-offset-card"
-                            pixels={160}
                         />
                     )}
                 </div>
