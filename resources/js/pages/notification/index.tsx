@@ -127,30 +127,69 @@ const isNewSince = (
     notification.read_at === null ||
     Date.parse(notification.read_at) >= Date.parse(readAt);
 
-type PollAnchor = { id: string; top: number; position: number };
+type PollAnchor = {
+    id: string;
+    top: number;
+    position: number;
+    member: string | null;
+};
 
+/**
+ * The first member of an open group shown below the given line, which is where the reader is reading in it.
+ */
+function firstVisibleMember(
+    group: HTMLElement,
+    below: number,
+): { id: string; top: number } | null {
+    for (const element of group.querySelectorAll<HTMLElement>(
+        '[data-notification-member]',
+    )) {
+        const { top } = element.getBoundingClientRect();
+
+        if (top >= below) {
+            return { id: element.dataset.notificationMember ?? '', top };
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Where the reader is reading: the first member shown of an open group, or else the first group that starts below the
+ * header. A group only its end is still shown of isn't, so it moving doesn't move the reader.
+ */
 function firstVisibleGroup(
     header: HTMLElement | null,
     groups: NotificationGroup[],
 ): PollAnchor | null {
     const headerBottom = header?.getBoundingClientRect().bottom ?? 0;
+    let partial: PollAnchor | null = null;
 
     for (const element of document.querySelectorAll<HTMLElement>(
         '[data-notification-group]',
     )) {
         const { top, bottom } = element.getBoundingClientRect();
         const id = element.dataset.notificationGroup ?? '';
+        const position = groups.findIndex((group) => group.group_id === id);
 
-        if (bottom > headerBottom) {
-            return {
-                id,
-                top,
-                position: groups.findIndex((group) => group.group_id === id),
-            };
+        if (bottom <= headerBottom) {
+            continue;
         }
+
+        const member = firstVisibleMember(element, headerBottom);
+
+        if (member !== null && member.top < window.innerHeight) {
+            return { id, top: member.top, position, member: member.id };
+        }
+
+        if (top >= headerBottom) {
+            return { id, top, position, member: null };
+        }
+
+        partial ??= { id, top, position, member: null };
     }
 
-    return null;
+    return partial;
 }
 
 export default function Index({
@@ -305,15 +344,27 @@ export default function Index({
     useLayoutEffect(() => {
         const anchor = pollAnchor.current;
         pollAnchor.current = null;
-        const element =
+        const group =
             anchor &&
             document.querySelector(`[data-notification-group="${anchor.id}"]`);
 
-        if (!anchor || !element) {
+        if (!anchor || !group) {
             return;
         }
 
-        window.scrollBy(0, element.getBoundingClientRect().top - anchor.top);
+        const member =
+            anchor.member === null
+                ? null
+                : group.querySelector(
+                      `[data-notification-member="${anchor.member}"]`,
+                  );
+
+        if (anchor.member === null || member !== null) {
+            window.scrollBy(
+                0,
+                (member ?? group).getBoundingClientRect().top - anchor.top,
+            );
+        }
 
         const arrived =
             notifications.data.findIndex(
@@ -495,9 +546,7 @@ export default function Index({
                                         key={
                                             filters.type +
                                             '-' +
-                                            notification.id +
-                                            '-' +
-                                            notification.event_count
+                                            notification.group_id
                                         }
                                         notification={notification}
                                         type={filters.type}
@@ -626,7 +675,13 @@ function NotificationGroupItem({
     // The groups being read again while this one is open, as when something in it is no longer relevant, reads again
     // what it showed: as many as were loaded, from the start, even when its counts stayed the same.
     const reloadOpen = useEffectEvent(async () => {
+        // Closed, the members loaded are let go, and opening again reads them afresh.
         if (!open) {
+            generation.current++;
+            isDirty.current = false;
+            setItems([]);
+            setCursor(null);
+
             return;
         }
 
@@ -668,10 +723,30 @@ function NotificationGroupItem({
         }
 
         if (current === generation.current) {
+            const list = listRef.current;
+            membersAnchor.current =
+                list === null ? null : firstVisibleMember(list, 0);
             setItems(loaded);
             setCursor(next);
         }
     });
+    // Members read again are put in place without moving the one the reader is at.
+    const listRef = useRef<HTMLUListElement>(null);
+    const membersAnchor = useRef<{ id: string; top: number } | null>(null);
+
+    useLayoutEffect(() => {
+        const anchor = membersAnchor.current;
+        membersAnchor.current = null;
+        const member =
+            anchor &&
+            listRef.current?.querySelector(
+                `[data-notification-member="${anchor.id}"]`,
+            );
+
+        if (anchor && member) {
+            window.scrollBy(0, member.getBoundingClientRect().top - anchor.top);
+        }
+    }, [items]);
     const shown = useRef(notification);
 
     useEffect(() => {
@@ -775,9 +850,13 @@ function NotificationGroupItem({
                             aria-hidden
                             className="absolute top-0 bottom-2 left-3.5 border-l border-rail"
                         />
-                        <ul>
+                        <ul ref={listRef}>
                             {items.map((item) => (
-                                <li key={item.id} className="py-2 pl-8">
+                                <li
+                                    key={item.id}
+                                    data-notification-member={item.id}
+                                    className="py-2 pl-8"
+                                >
                                     <NotificationContent
                                         notification={item}
                                         isNew={isNewSince(item, readAt)}
@@ -1325,7 +1404,7 @@ export function NotificationContent({
                                         >
                                             {actors.map((stacked, position) => (
                                                 <AuthorAvatar
-                                                    key={stacked.id}
+                                                    key={position}
                                                     author={stacked}
                                                     className="relative size-8 ring-2 ring-card"
                                                     style={{

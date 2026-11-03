@@ -136,3 +136,71 @@ test('a group changed while its first members load reads them again once they ha
 
     assert.ok(find(shown, (props) => (props.notification as { id?: string } | undefined)?.id === 'new-1'));
 });
+
+test('a group gaining a member while open stays the same item, so it stays open where the reader is', () => {
+    const item = (shown: Group) =>
+        find(
+            harness.render(Index, page([shown])),
+            (props) => 'withoutBottomBorder' in props,
+        );
+    const before = item(group(2));
+    const after = item({ ...group(3), id: 'newest' });
+
+    assert.ok(before && after);
+    assert.equal(after.key, before.key);
+});
+
+test('a closed group whose members changed reads them afresh when opened again', async () => {
+    const members = (names: string[]) =>
+        Response.json({
+            data: names.map((id) => ({ ...group(1), id, group_id: id })),
+            next_cursor: null,
+            prev_cursor: null,
+        });
+    const responses: ((response: Response) => void)[] = [];
+    vi.stubGlobal(
+        'fetch',
+        () => new Promise<Response>((resolve) => responses.push(resolve)),
+    );
+    vi.stubGlobal('window', { ...globalThis, setTimeout, clearTimeout });
+    const item = find(
+        harness.render(Index, page([group(2)])),
+        (props) => 'withoutBottomBorder' in props,
+    );
+    assert.ok(item);
+    const Item = item.type as (
+        props: Record<string, unknown>,
+    ) => ReturnType<typeof Index>;
+    harness.unmount();
+    const props = item.props;
+    const toggle = (shown: Record<string, unknown>) => {
+        const expand = find(
+            harness.render(Item, shown),
+            (props) => 'aria-expanded' in props,
+        );
+        (expand?.props.onClick as () => void)();
+    };
+
+    toggle(props);
+    responses.shift()?.(members(['old-1', 'old-2']));
+    await vi.advanceTimersByTimeAsync(0);
+    toggle(props);
+    const changed = { ...props, notification: { ...group(3), id: 'newest' } };
+    void harness.render(Item, changed);
+    await vi.advanceTimersByTimeAsync(0);
+    toggle(changed);
+    await vi.advanceTimersByTimeAsync(0);
+
+    assert.equal(responses.length, 1, 'opening again reads the members');
+    responses.shift()?.(members(['newest', 'old-1', 'old-2']));
+    await vi.advanceTimersByTimeAsync(0);
+    const shown = harness.render(Item, changed);
+    assert.ok(
+        find(
+            shown,
+            (props) =>
+                (props.notification as { id?: string } | undefined)?.id ===
+                'newest',
+        ),
+    );
+});
