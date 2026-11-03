@@ -22,14 +22,31 @@ const reloads: Reload[] = [];
 let arrived: string[] = [];
 const offers: unknown[] = [];
 
+// Hook state kept across renders by call order, as React does, so a page rendered again keeps what it held.
+let slots: unknown[] = [];
+let slot = 0;
+const kept = (initial: () => unknown) => {
+    const at = slot++;
+
+    if (!(at in slots)) {
+        slots[at] = initial();
+    }
+
+    return slots[at];
+};
+
 vi.doMock('react', () => ({
     ...React,
     useState: (initial: unknown) => [
-        typeof initial === 'function' ? (initial as () => unknown)() : initial,
+        kept(() =>
+            typeof initial === 'function'
+                ? (initial as () => unknown)()
+                : initial,
+        ),
         (value: unknown) => offers.push(value),
     ],
     useEffect: (effect: () => void) => effect(),
-    useRef: (current: unknown) => ({ current }),
+    useRef: (current: unknown) => kept(() => ({ current })),
     useEffectEvent: (callback: unknown) => callback,
     useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
 }));
@@ -61,19 +78,27 @@ vi.doMock('@inertiajs/react', async () => ({
             options.onFinish?.();
         },
         replaceProp: () => {},
+        optimistic: () => ({ visit: () => {} }),
     },
 }));
 
 const { default: Show } =
     await import('../../resources/js/pages/moderation/show');
 
-function open(count: number, nextCursor: string | null): Handlers {
-    Show({
+let page: ReturnType<typeof Show> | null = null;
+
+function open(
+    count: number,
+    nextCursor: string | null,
+    without: string[] = [],
+): Handlers {
+    slot = 0;
+    page = Show({
         commits: {
             data: Array.from(
                 { length: count },
                 (_, index) => ({ id: `commit-${index}` }) as Commit,
-            ),
+            ).filter((commit) => !without.includes(commit.id)),
             next_cursor: nextCursor,
             prev_cursor: null,
         },
@@ -98,6 +123,8 @@ beforeEach(() => {
         }),
     );
     handlers = null;
+    slots = [];
+    vi.stubGlobal('requestAnimationFrame', () => 0);
     reloads.length = 0;
     offers.length = 0;
     arrived = [];
@@ -168,5 +195,60 @@ test('a queue longer than a page offers a refresh, keeping the pages read', () =
     vi.runAllTimers();
 
     assert.equal(reloads.length, 0);
+    assert.deepEqual(offers, [true]);
+});
+
+function find(
+    node: React.ReactNode,
+    matches: (props: Record<string, unknown>) => boolean,
+): React.ReactElement<Record<string, unknown>> | null {
+    if (Array.isArray(node)) {
+        for (const child of node) {
+            const found = find(child, matches);
+
+            if (found) {
+                return found;
+            }
+        }
+
+        return null;
+    }
+
+    if (!React.isValidElement<Record<string, unknown>>(node)) {
+        return null;
+    }
+
+    if (matches(node.props)) {
+        return node;
+    }
+
+    return find(node.props.children as React.ReactNode, matches);
+}
+
+test('a commit approved here is not offered back as new when its approval is heard', () => {
+    open(3, 'next');
+    const feed = find(page, (props) => typeof props.actions === 'function');
+    assert.ok(feed);
+    const actions = (feed.props.actions as (commit: Commit) => React.ReactNode)(
+        { id: 'commit-0' } as Commit,
+    );
+    const moderation = find(
+        actions,
+        (props) => typeof props.onModerate === 'function',
+    );
+    assert.ok(moderation);
+    (
+        moderation.props.onModerate as (
+            route: (commit: Commit) => unknown,
+            reason: string,
+        ) => void
+    )(() => '/moderation/commit-0/approval', '');
+
+    open(3, 'next', ['commit-0']).onEvent('moderation', {
+        commits: ['commit-0'],
+    });
+    assert.deepEqual(offers, []);
+
+    open(3, 'next', ['commit-0']).onEvent('moderation', { commits: ['new'] });
     assert.deepEqual(offers, [true]);
 });

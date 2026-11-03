@@ -181,6 +181,8 @@ export default function Show({
         arrivedSince: (since: number) => Promise<string[]>;
     } | null>(null);
     const isEmpty = commits.data.length === 0 && commits.next_cursor === null;
+    // Commits this queue took off, here or as another moderator decided them, are never offered back as new.
+    const decided = useRef(new Set<string>());
 
     useEffect(() => {
         const controller = new AbortController();
@@ -245,6 +247,7 @@ export default function Show({
             const ids = idsOf(payload, 'commits');
             const loaded = new Set(commits.data.map((commit) => commit.id));
             const gone = new Set(ids.filter((id) => loaded.has(id)));
+            gone.forEach((id) => decided.current.add(id));
 
             if (gone.size > 0) {
                 router.replaceProp(
@@ -258,7 +261,7 @@ export default function Show({
                 );
             }
 
-            if (ids.some((id) => !loaded.has(id))) {
+            if (ids.some((id) => !loaded.has(id) && !decided.current.has(id))) {
                 offerArrivals();
             }
         },
@@ -307,6 +310,7 @@ export default function Show({
     ) => {
         const index = commits.data.findIndex(({ id }) => id === commit.id);
         const neighbour = commits.data[index + 1] ?? commits.data[index - 1];
+        decided.current.add(commit.id);
 
         router
             .optimistic((props: { commits: CursorPaginated<Commit> }) =>
@@ -366,7 +370,8 @@ export default function Show({
             new Set(isSelected ? commits.data.map((commit) => commit.id) : []),
         );
 
-    const approveSelected = () =>
+    const approveSelected = () => {
+        selectedIds.forEach((id) => decided.current.add(id));
         router
             .optimistic((props: { commits: CursorPaginated<Commit> }) =>
                 withoutCommits(props, new Set(selectedIds)),
@@ -378,6 +383,7 @@ export default function Show({
                 reset: ['commits'],
                 onSuccess: () => setSelected(new Set()),
             });
+    };
 
     return (
         <>
