@@ -56,7 +56,7 @@ final readonly class LogController
             }),
             'removedCommitIds' => Inertia::optional(fn (): array => $latest->missing($log, $user, $request->pending())),
             'arrivedCommitIds' => Inertia::optional(fn (): array => $latest->arrived($log, $user, $request->arrived(), $request->through())),
-            'windowCount' => Inertia::optional(fn (): ?int => $latest->window($log, $user, $request->through(), $request->since())),
+            'windowDigest' => Inertia::optional(fn (): ?string => $latest->window($log, $user, $request->through(), $request->since())),
             'suggestions' => fn (): Collection => $user instanceof User && $log === Log::Following && ! $user->following()->exists()
                 ? $suggested->get($user)
                 : new Collection(),

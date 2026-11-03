@@ -32,6 +32,7 @@ import {
 import { emojify } from '@/lib/emoji';
 import { coalesce, listen, logChannel, userChannel } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
+import { windowDigest } from '@/lib/window-digest';
 import type { Commit, CursorPaginated, Log } from '@/types';
 
 export default function Show({
@@ -426,7 +427,7 @@ export default function Show({
                 'newCommitsCount',
                 'removedCommitIds',
                 ...(arrived.length > 0 ? ['arrivedCommitIds'] : []),
-                ...(checksWindow && !isRanked ? ['windowCount'] : []),
+                ...(checksWindow && !isRanked ? ['windowDigest'] : []),
             ],
             data: {
                 since: newestId,
@@ -472,24 +473,31 @@ export default function Show({
                         },
                     );
                 }
-                const windowCount = page.props.windowCount as
-                    | number
+                const expected = page.props.windowDigest as
+                    | string
                     | null
                     | undefined;
-                const isWindowStale =
-                    typeof windowCount === 'number' &&
-                    windowCount !== commits.data.length - removed.size;
-                followUp = loadNewest(
-                    isWindowStale
-                        ? commits.data.length + 1
-                        : Math.max(
-                              page.props.newCommitsCount as number,
-                              (
-                                  (page.props.arrivedCommitIds as
-                                      | string[]
-                                      | undefined) ?? []
-                              ).length,
-                          ),
+                const shown = commits.data
+                    .map((commit) => commit.id)
+                    .filter((id) => !removed.has(id));
+                const newest = Math.max(
+                    page.props.newCommitsCount as number,
+                    (
+                        (page.props.arrivedCommitIds as string[] | undefined) ??
+                        []
+                    ).length,
+                );
+                // The loaded window is read again, as deep as it was, when it no longer holds what it shows.
+                followUp = (
+                    typeof expected === 'string' && shown.length > 0
+                        ? windowDigest(shown).then(
+                              (digest) => digest !== expected,
+                          )
+                        : Promise.resolve(false)
+                ).then((isWindowStale) =>
+                    loadNewest(
+                        isWindowStale ? commits.data.length + 1 : newest,
+                    ),
                 );
             },
         };

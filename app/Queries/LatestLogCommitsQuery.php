@@ -33,20 +33,28 @@ final readonly class LatestLogCommitsQuery
     }
 
     /**
-     * How many commits the log holds from the oldest it loaded to the newest, both included, so a page that may have
-     * missed updates can tell whether what it shows still matches: a different number means commits were removed or
-     * placed in between. A ranked log isn't counted, as it is never reshaped while read.
+     * Which commits the log holds from the oldest it loaded to the newest, both included, as a digest of their sorted
+     * ids, so a page that may have missed updates can tell whether what it shows still matches: a different digest
+     * means commits were removed or placed in between, even when as many left as arrived. A ranked log has none, as
+     * it is never reshaped while read.
      */
-    public function window(Log $log, ?User $user, ?Commit $oldest, ?Commit $newest): ?int
+    public function window(Log $log, ?User $user, ?Commit $oldest, ?Commit $newest): ?string
     {
         if ($log->isRanked() || ! $oldest instanceof Commit || ! $newest instanceof Commit) {
             return null;
         }
 
-        return $log->query()->builder($user)
+        /** @var list<string> $ids */
+        $ids = $log->query()->builder($user)
             ->where(fn (CommitBuilder $query): CommitBuilder => $query->newerThan($oldest)->orWhere('commits.id', $oldest->id))
             ->whereNot(fn (CommitBuilder $query): CommitBuilder => $query->newerThan($newest))
-            ->count();
+            ->toBase()
+            ->reorder()
+            ->pluck('commits.id')
+            ->all();
+        sort($ids, SORT_STRING);
+
+        return hash('sha256', implode(',', $ids));
     }
 
     /**
