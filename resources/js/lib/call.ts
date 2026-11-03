@@ -2,8 +2,15 @@ import CallController from '@/actions/App/Http/Controllers/CallController';
 import ConversationCallController from '@/actions/App/Http/Controllers/ConversationCallController';
 import ConversationCallIceServerController from '@/actions/App/Http/Controllers/ConversationCallIceServerController';
 import { ChatRequestError, request } from '@/lib/chat';
-import { declineOrgCall, isInOrgCall, receiveOrgCalls } from '@/lib/org-call';
+import {
+    checkInNow,
+    declineOrgCall,
+    isInOrgCall,
+    ongoingOrgCallsSnapshot,
+    receiveOrgCalls,
+} from '@/lib/org-call';
 import type { OrgCall } from '@/lib/org-call';
+import { isListening, listen, userChannel } from '@/lib/realtime';
 import { remoteAlertsEnabled } from '@/lib/remote-notifications';
 import type { User } from '@/types';
 
@@ -35,6 +42,12 @@ export type CallState =
 
 const answerPoll = 1_500;
 const incomingPoll = 3_000;
+/**
+ * While calls are heard about live, checking only backs that up, and catches what ends without telling anyone: a
+ * call left ringing by a closed tab, or an org call whose last member stopped checking in.
+ */
+const listeningAnswerPoll = 5_000;
+const listeningIncomingPoll = 30_000;
 const ringFor = 45_000;
 const connectFor = 20_000;
 
@@ -55,6 +68,8 @@ let endTimer: number | undefined;
  * The offer the user declined, so it doesn't ring again while it is still in the cache.
  */
 let seenOffer: string | null = null;
+let callerId: string | null = null;
+let checkForAnswer: (() => void) | null = null;
 /**
  * The partners whose conversation shows the call in its composer right now, so the bar on top of the page steps
  * aside for them.
@@ -156,18 +171,38 @@ export async function startCall(partner: User): Promise<void> {
     }
 
     const ringsUntil = Date.now() + ringFor;
+    let isChecking = false;
+    let isCheckDue = false;
 
     const poll = async () => {
+        window.clearTimeout(timer);
+
         if (state.status !== 'calling' || connection === null) {
             return;
         }
+
+        if (isChecking) {
+            isCheckDue = true;
+
+            return;
+        }
+
+        const peer = connection;
+        isChecking = true;
+        isCheckDue = false;
 
         try {
             const { call } = await request<{
                 call: { answer: string | null } | null;
             }>(ConversationCallController.show.url(url(partner)));
 
+            // Unless the call was given up, or replaced by another one, while it checked.
+            if (state.status !== 'calling' || connection !== peer) {
+                return;
+            }
+
             if (call?.answer) {
+                checkForAnswer = null;
                 update({ status: 'connecting', partner });
                 await connection.setRemoteDescription({
                     type: 'answer',
@@ -180,6 +215,7 @@ export async function startCall(partner: User): Promise<void> {
             }
 
             if (call === null || Date.now() > ringsUntil) {
+                checkForAnswer = null;
                 void forget(partner);
                 end(partner, 'No answer.');
 
@@ -187,11 +223,25 @@ export async function startCall(partner: User): Promise<void> {
             }
         } catch {
             // Try again on the next poll.
+        } finally {
+            isChecking = false;
         }
 
-        timer = window.setTimeout(() => void poll(), answerPoll);
+        timer = window.setTimeout(
+            () => void poll(),
+            isCheckDue
+                ? 0
+                : Math.min(
+                      callerId !== null && isListening(userChannel(callerId))
+                          ? listeningAnswerPoll
+                          : answerPoll,
+                      Math.max(ringsUntil - Date.now(), 0),
+                  ),
+        );
     };
 
+    // The answer is checked for as soon as the partner's browser says it is there.
+    checkForAnswer = () => void poll();
     timer = window.setTimeout(() => void poll(), answerPoll);
 }
 
@@ -324,9 +374,22 @@ export function dismissCall(): void {
 export function watchIncomingCalls(userId: string): () => void {
     let pollTimer: number | undefined;
     let isStopped = false;
+    let isPolling = false;
+    let isPollDue = false;
+
+    callerId = userId;
 
     const poll = async () => {
         window.clearTimeout(pollTimer);
+
+        if (isPolling) {
+            isPollDue = true;
+
+            return;
+        }
+
+        isPolling = true;
+        isPollDue = false;
 
         // On a call, nothing else can ring, and there's no other call to join, so there is nothing to check.
         if (!document.hidden && isFree()) {
@@ -350,16 +413,56 @@ export function watchIncomingCalls(userId: string): () => void {
             }
         }
 
+        isPolling = false;
+
         if (!isStopped) {
-            pollTimer = window.setTimeout(() => void poll(), incomingPoll);
+            // A call shown ringing, or going on in an org, can end without anyone saying so, so it is checked often.
+            const isShowingCall =
+                state.status === 'ringing' ||
+                ongoingOrgCallsSnapshot().length > 0;
+
+            pollTimer = window.setTimeout(
+                () => void poll(),
+                isPollDue
+                    ? 0
+                    : isListening(userChannel(userId)) && !isShowingCall
+                      ? listeningIncomingPoll
+                      : incomingPoll,
+            );
         }
     };
+
+    const stopListening = listen(
+        userChannel(userId),
+        {
+            calls: () => {
+                checkForAnswer?.();
+                void poll();
+            },
+            'calls.signals': (payload) => {
+                if (
+                    typeof payload === 'object' &&
+                    payload !== null &&
+                    'conversation' in payload &&
+                    typeof payload.conversation === 'string'
+                ) {
+                    checkInNow(payload.conversation);
+                }
+            },
+        },
+        () => void poll(),
+    );
 
     void poll();
 
     return () => {
         isStopped = true;
         window.clearTimeout(pollTimer);
+        stopListening();
+
+        if (callerId === userId) {
+            callerId = null;
+        }
     };
 }
 

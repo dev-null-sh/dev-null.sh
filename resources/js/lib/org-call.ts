@@ -105,6 +105,12 @@ let session = 0;
  */
 let joinedKey: string | null = null;
 let timer: number | undefined;
+/**
+ * A check-in asked for while one is on its way runs right after it instead of overlapping it, so signals are never
+ * handed over twice nor taken out of order.
+ */
+let isCheckingIn = false;
+let isCheckInDue = false;
 let endTimer: number | undefined;
 const listeners = new Set<() => void>();
 
@@ -315,7 +321,43 @@ async function poll(current: number): Promise<void> {
         return;
     }
 
-    const { org } = state;
+    isCheckingIn = true;
+    isCheckInDue = false;
+
+    try {
+        await checkInWith(current, state.org);
+    } finally {
+        isCheckingIn = false;
+    }
+
+    if (current === session && state.status === 'joined') {
+        timer = window.setTimeout(
+            () => void poll(current),
+            isCheckInDue ? 0 : checkIn,
+        );
+    }
+}
+
+/**
+ * Checks in now instead of at the next regular check-in: when this browser has a signal to hand over, or another
+ * member left one for it. The regular check-ins go on, as they are what keeps the user in the call.
+ */
+export function checkInNow(orgId: string): void {
+    if (state.status !== 'joined' || state.org.id !== orgId) {
+        return;
+    }
+
+    if (isCheckingIn) {
+        isCheckInDue = true;
+
+        return;
+    }
+
+    window.clearTimeout(timer);
+    void poll(session);
+}
+
+async function checkInWith(current: number, org: OrgRef): Promise<void> {
     const signals = outbox;
     outbox = {};
 
@@ -353,10 +395,6 @@ async function poll(current: number): Promise<void> {
         }
 
         outbox = { ...signals, ...outbox };
-    }
-
-    if (current === session) {
-        timer = window.setTimeout(() => void poll(current), checkIn);
     }
 }
 
@@ -442,8 +480,9 @@ async function offer(user: User): Promise<void> {
     const sdp = await gathered(peer.connection);
 
     // Unless they left, or the user did, while the browser gathered its addresses.
-    if (peers.get(user.id) === peer) {
+    if (peers.get(user.id) === peer && state.status === 'joined') {
         outbox[user.id] = { id: peer.offerId, type: 'offer', sdp };
+        checkInNow(state.org.id);
     }
 }
 
@@ -466,8 +505,9 @@ async function answer(user: User, signal: Signal): Promise<void> {
     );
     const sdp = await gathered(peer.connection);
 
-    if (peers.get(user.id) === peer) {
+    if (peers.get(user.id) === peer && state.status === 'joined') {
         outbox[user.id] = { id: signal.id, type: 'answer', sdp };
+        checkInNow(state.org.id);
     }
 }
 
