@@ -11,13 +11,19 @@ export function trackOrganizationMembersHistory(): VoidFunction {
     };
 
     const stop = router.on('navigate', ({ detail: { type, page } }) => {
-        if (type === 'history' && page.component === 'organization-member/index') {
+        if (
+            type === 'history' &&
+            page.component === 'organization-member/index'
+        ) {
             refresh();
         }
     });
 
     const onPageShow = (event: PageTransitionEvent): void => {
-        if (event.persisted && currentPageComponent() === 'organization-member/index') {
+        if (
+            event.persisted &&
+            currentPageComponent() === 'organization-member/index'
+        ) {
             refresh();
         }
     };
