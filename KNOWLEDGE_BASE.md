@@ -106,6 +106,8 @@ Every developer has a profile at `/@{handle}`, with their GitHub identity, bio a
 
 Change your name, avatar, bio, company, location, or website on GitHub, not on /dev/null. Settings → Profile and the **Edit profile** menu on your own profile offer **Edit on GitHub** and **Sync from GitHub**. Profile details also refresh on sign-in. Manual sync is limited to once a minute. The GitHub Sponsors link is refreshed on sign-in only. A GitHub username rename is picked up on sign-in or sync; if a stale account still holds the new username because its owner also renamed, that account moves to a `_renamed-<github id>` placeholder until its owner signs in or syncs again. Accounts are matched by GitHub id and never merged.
 
+Click a profile picture to view a larger circular image in the center of the existing dark photo overlay, with a close button at the top right. Press Escape or click the backdrop to close it. When the developer is live, the avatar keeps its stream action instead of opening the picture.
+
 As you scroll a profile, its avatar moves into a sticky header with the developer's name and handle. Switching between Commits, Replies, and README keeps your scroll position. Reduced motion uses an instant avatar handoff.
 
 Profiles also show [achievement badges and an XP-based Unix rank](#achievement-badges-and-xp). Click a badge or rank to inspect unlock requirements and progress.
@@ -242,7 +244,7 @@ Sources: [translation endpoint](app/Http/Controllers/CommitTranslationController
 
 ### Code, emoji, and mentions
 
-Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. A title after the language, as in ```` ```php title="app/Models/User.php" ````, labels the block in place of the language. Text outside code supports emoji shortcodes, clickable URLs, and `@username` mentions. This is developer-oriented text formatting, not a full rich-text editor.
+Commit and reply text supports inline code in backticks and fenced code blocks with syntax highlighting, a **Wrap lines** toggle, and a copy control. A title after the language, as in ```` ```php title="app/Models/User.php" ````, labels the block in place of the language. Text outside code supports emoji shortcodes, clickable URLs, `@username` mentions, and `#hashtags`, which open commit search for signed-in members and stay plain text for guests. This is developer-oriented text formatting, not a full rich-text editor.
 
 The smiley button in the commit and reply composers opens the same searchable emoji picker as reactions in remotes. Picking an emoji inserts it where the caret was, or over the selected text, and puts the caret right after it.
 
