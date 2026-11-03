@@ -10,6 +10,7 @@ use App\Enums\CommitStatus;
 use App\Enums\CommitUpdate;
 use App\Enums\UserUpdate;
 use App\Events\CommitsUpdated;
+use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\EmbedCommit;
@@ -144,6 +145,7 @@ final readonly class CreateCommit
                 ? CommitsUpdated::dispatch([$commit], CommitUpdate::Visibility)
                 : UsersUpdated::dispatch($this->admins->ids(), UserUpdate::Moderation, ['commits' => [$commit->id]]);
             UsersUpdated::dispatch([$user->id], UserUpdate::Commits);
+            ProfilesUpdated::dispatch([$commit->author_id]);
 
             return $commit;
         });

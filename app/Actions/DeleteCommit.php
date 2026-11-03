@@ -9,6 +9,7 @@ use App\Enums\CommitUpdate;
 use App\Enums\NotificationType;
 use App\Enums\UserUpdate;
 use App\Events\CommitsUpdated;
+use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
 use App\Jobs\EraseDeletedCommit;
 use App\Models\Commit;
@@ -66,6 +67,7 @@ final readonly class DeleteCommit
             // The author's other devices show it too, the queue of scheduled commits included.
             UsersUpdated::dispatch(array_filter([$commit->user_id]), UserUpdate::Commits);
             UsersUpdated::dispatch(array_filter([$commit->user_id]), UserUpdate::ScheduledCommits);
+            ProfilesUpdated::dispatch([$commit->author_id]);
 
             dispatch(new EraseDeletedCommit($commit))
                 ->delay(now()->addSeconds(Commit::RESTORABLE_SECONDS))

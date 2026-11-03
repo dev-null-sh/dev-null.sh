@@ -1,8 +1,10 @@
-import { useRemember } from '@inertiajs/react';
-import { useEffect, useRef, useState } from 'react';
+import { router, useRemember } from '@inertiajs/react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitContinuationController from '@/actions/App/Http/Controllers/CommitContinuationController';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
+import { idsOf } from '@/hooks/use-realtime';
+import { coalesce, commitChannel, listen } from '@/lib/realtime';
 import type { Commit, ThreadContinuation } from '@/types';
 
 export function useContinuation(continuation: ThreadContinuation) {
@@ -44,6 +46,89 @@ export function useContinuation(continuation: ThreadContinuation) {
     }
 
     useEffect(() => () => request.current?.abort(), [continuation]);
+
+    /**
+     * Another client changing the thread reaches every part shown. A part deleted or brought back reads the thread
+     * again as an undo does, keeping the pages loaded when it still starts the same, and a reply continuing the last
+     * part shown is appended, without reading the rest again.
+     */
+    const onPartChanged = useEffectEvent(
+        async (partId: string, ids: string[]) => {
+            if (ids.includes(partId)) {
+                router.reload({ only: ['continuation'] });
+
+                return;
+            }
+
+            if (partId !== shown.at(-1)?.id || nextId !== null || isLoading) {
+                return;
+            }
+
+            const response = await fetch(
+                CommitContinuationController.index(partId).url,
+                {
+                    headers: {
+                        Accept: 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
+                    },
+                },
+            );
+
+            if (!response.ok) {
+                return;
+            }
+
+            const page = (await response.json()) as ThreadContinuation;
+            const lastPosition = continuation.position + shown.length;
+
+            setThread((current) =>
+                current.shown.at(-1)?.id === partId
+                    ? {
+                          shown: [
+                              ...current.shown,
+                              ...page.data.filter(
+                                  (part) =>
+                                      !current.shown.some(
+                                          ({ id }) => id === part.id,
+                                      ),
+                              ),
+                          ],
+                          nextId: page.next_id,
+                          size: lastPosition + page.length,
+                          isCapped: page.is_capped,
+                      }
+                    : current,
+            );
+        },
+    );
+    const shownIds = shown.map((part) => part.id).join(' ');
+
+    useEffect(() => {
+        const stops = shownIds
+            .split(' ')
+            .filter(Boolean)
+            .map((partId) => {
+                const heard = new Set<string>();
+                const refresh = coalesce(async () => {
+                    const ids = [...heard];
+                    heard.clear();
+                    await onPartChanged(partId, ids);
+                }, 300);
+                const stop = listen(commitChannel(partId), {
+                    visibility: (payload) => {
+                        idsOf(payload).forEach((id) => heard.add(id));
+                        refresh.request();
+                    },
+                });
+
+                return () => {
+                    stop();
+                    refresh.cancel();
+                };
+            });
+
+        return () => stops.forEach((stop) => stop());
+    }, [shownIds]);
 
     useEffect(() => {
         const card =

@@ -326,8 +326,10 @@ it('sends a wide audience through the queue instead of holding up the request', 
 
 it('refreshes the shared counts from the signed-in user\'s private channel, and gives guests none', function (): void {
     $user = User::factory()->withRemotes()->create();
-
     $headers = ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request())];
+
+    expect($this->get('/terms', $headers)->json('liveProps'))->toBeNull();
+
     $live = $this->actingAs($user)->get('/settings/appearance', $headers)->json('liveProps');
 
     expect($live['auth.unreadNotificationsCount']['listeners'])->toBe([[
@@ -335,8 +337,4 @@ it('refreshes the shared counts from the signed-in user\'s private channel, and 
         'events' => ['notifications'],
     ]])
         ->and($live['auth.unreadMessagesCount']['listeners'][0]['events'])->toBe(['remotes.messages', 'remotes.inbox']);
-
-    auth()->logout();
-
-    expect($this->get('/terms', $headers)->json('liveProps'))->toBeNull();
 });

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\CommitStatus;
+use App\Events\HeadlinesUpdated;
 use App\Models\Commit;
 use App\Models\Headline;
 use Illuminate\Support\Facades\DB;
@@ -39,6 +40,10 @@ final readonly class UpdateCommitHeadlines
             }
 
             $current->update(['headlines_classified_at' => now()]);
+
+            if ($names !== []) {
+                HeadlinesUpdated::dispatch();
+            }
 
             return $created;
         });

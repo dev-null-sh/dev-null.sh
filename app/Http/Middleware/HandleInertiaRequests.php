@@ -22,6 +22,7 @@ use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
 use App\Services\Features;
 use Closure;
+use Illuminate\Broadcasting\Channel;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -137,14 +138,18 @@ final class HandleInertiaRequests extends Middleware
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
             ...$user instanceof User && $hasAside ? [
-                'liveFollowing' => Inertia::once(fn (): Collection => resolve(LiveFollowingQuery::class)->get($user))->until(60),
+                // Drawn again when someone followed goes live or stops, never on its own, so it doesn't reshuffle.
+                'liveFollowing' => Inertia::once(fn (): Collection => resolve(LiveFollowingQuery::class)->get($user))->until(60)
+                    ->live(UserUpdate::Live->value, new PrivateChannel($user)),
                 'hotTopics' => Inertia::once(fn (): array => array_map(
                     fn (array $headline): array => [
                         'id' => $headline['id'],
                         'name' => $headline['name'],
                     ],
                     resolve(HotHeadlinesQuery::class)->get($user),
-                ))->until(60),
+                ))->until(60)
+                    // Read again at most once a minute however busy the headlines get, since everyone listens.
+                    ->live('headlines', new Channel('headlines'), throttle: 60_000),
             ] : [],
             'dimsLanes' => $request->cookie('lane_dimming') !== 'false',
             'repliesPerPage' => RepliesPerPage::of($request)->value,

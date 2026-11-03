@@ -9,6 +9,7 @@ use App\Enums\CommitUpdate;
 use App\Enums\NotificationType;
 use App\Enums\UserUpdate;
 use App\Events\CommitsUpdated;
+use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
 use App\Jobs\CheckUserLevel;
 use App\Jobs\LinkCommitTopics;
@@ -143,6 +144,7 @@ final readonly class UpdateCommitStatuses
             UsersUpdated::dispatch($authors, UserUpdate::Commits);
             UsersUpdated::dispatch($authors, UserUpdate::ScheduledCommits);
             UsersUpdated::dispatch(Notification::query()->whereIn('commit_id', $commits->modelKeys())->distinct()->pluck('recipient_id')->all(), UserUpdate::Notifications);
+            ProfilesUpdated::dispatch($commits->pluck('author_id'));
             UsersUpdated::dispatch($this->admins->ids(), UserUpdate::Moderation, ['commits' => array_values($commits->map(fn (Commit $commit): string => $commit->id)->all())]);
         });
     }

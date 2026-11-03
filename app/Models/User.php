@@ -638,7 +638,8 @@ final class User extends Authenticatable
             ...parent::toArray(),
             'lane' => $this->lane(),
             'has_github_account' => $this->hasGitHubAccount(),
-            'live' => $this->liveStream()?->toArray(),
+            // With when it runs out, so a page left open stops showing it then without asking again.
+            'live' => ($stream = $this->liveStream()) instanceof LiveStream ? [...$stream->toArray(), 'ends_at' => $this->live_ends_at?->toJSON()] : null,
         ];
     }
 

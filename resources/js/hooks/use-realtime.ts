@@ -60,13 +60,15 @@ export function useRealtime(
 }
 
 /**
- * The ids an update about commits names.
+ * The ids an update names, under the given key.
  */
-export function idsOf(payload: unknown): string[] {
-    return typeof payload === 'object' &&
-        payload !== null &&
-        'ids' in payload &&
-        Array.isArray(payload.ids)
-        ? payload.ids.filter((id): id is string => typeof id === 'string')
+export function idsOf(payload: unknown, key = 'ids'): string[] {
+    const ids =
+        typeof payload === 'object' && payload !== null
+            ? (payload as Record<string, unknown>)[key]
+            : undefined;
+
+    return Array.isArray(ids)
+        ? ids.filter((id): id is string => typeof id === 'string')
         : [];
 }

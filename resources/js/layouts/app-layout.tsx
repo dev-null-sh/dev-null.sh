@@ -36,10 +36,12 @@ import { useFaviconDot } from '@/hooks/use-favicon-dot';
 import { useFixedPage } from '@/hooks/use-fixed-page';
 import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { useNavOpen } from '@/hooks/use-nav-open';
+import { useIsListening } from '@/hooks/use-realtime';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import type { IssueKind } from '@/lib/issue-commands';
+import { userChannel } from '@/lib/realtime';
 import type { SearchAction } from '@/lib/search-actions';
 import { cn } from '@/lib/utils';
 import type { AppLayoutProps } from '@/types';
@@ -108,6 +110,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
     useRemoteAlerts(auth.remotes !== null ? (auth.user?.id ?? null) : null);
     useRemoteUpdates(auth.remotes !== null ? (auth.user?.id ?? null) : null);
     useFaviconDot(auth.unreadNotificationsCount + unreadMessages > 0);
+    const isHearingCounts = useIsListening(
+        auth.user === null ? null : userChannel(auth.user.id),
+    );
 
     return (
         <>
@@ -118,6 +123,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
             >
                 {deletedPage === null && (
                     <NotificationCountPolling
+                        key={isHearingCounts ? 'heard' : 'polled'}
+                        interval={isHearingCounts ? 300_000 : 30_000}
                         isInbox={component === 'notification/index'}
                         onNotFound={markPageDeleted}
                     />
@@ -237,17 +244,20 @@ function NotificationTitle() {
 
 /**
  * The counts reload with the page's own URL, so they are also what first finds out that the page's commit is gone: the
- * page then stays as it was, instead of turning into a 404, and the polling stops until another page is visited.
+ * page then stays as it was, instead of turning into a 404, and the polling stops until another page is visited. While
+ * the counts are refreshed live, this only backs them up.
  */
 function NotificationCountPolling({
+    interval,
     isInbox,
     onNotFound,
 }: {
+    interval: number;
     isInbox: boolean;
     onNotFound: () => void;
 }) {
     const { start, stop } = usePoll(
-        30_000,
+        interval,
         backgroundPollOptions({
             only: ['auth.unreadNotificationsCount', 'auth.unreadMessagesCount'],
             onHttpException: (response) => {

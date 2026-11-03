@@ -2,10 +2,14 @@ import { usePage } from '@inertiajs/react';
 import { ArrowUpRight } from 'lucide-react';
 import { LiveAvatarMarker } from '@/components/live-stream-card';
 import { UserAvatar } from '@/components/user-avatar';
+import { useNow } from '@/hooks/use-now';
+import { isStreaming } from '@/lib/utils';
 
 export function LiveFollowing() {
     const { liveFollowing = [] } = usePage().props;
-    const users = liveFollowing.filter((user) => user.live);
+    const now = useNow();
+    // A stream that ran out leaves while the page stays open, without asking again.
+    const users = liveFollowing.filter((user) => isStreaming(user, now));
 
     if (users.length === 0) return null;
 

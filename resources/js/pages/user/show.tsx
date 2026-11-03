@@ -43,12 +43,18 @@ import {
     UserModerationStatus,
 } from '@/components/user-moderation-menu';
 import { useIsMuting, UserSafetyMenu } from '@/components/user-safety-menu';
+import { useNow } from '@/hooks/use-now';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { profileAvatarPosition } from '@/lib/profile-avatar';
-import { formatClockMonth, laneColor, laneTint } from '@/lib/utils';
+import {
+    formatClockMonth,
+    isStreaming,
+    laneColor,
+    laneTint,
+} from '@/lib/utils';
 import type {
     Achievements,
     Activity,
@@ -100,6 +106,7 @@ export default function Show({
     const { auth } = usePage().props;
     const isCurrentUser = auth.user?.id === user.id;
     const lane = laneColor(user.lane);
+    const now = useNow();
     const [highlightedPeriod, setHighlightedPeriod] = useState<string | null>(
         null,
     );
@@ -223,7 +230,7 @@ export default function Show({
                     }
                     data-test="profile-avatar"
                 >
-                    {user.live ? (
+                    {isStreaming(user, now) && user.live ? (
                         <LiveStreamTrigger
                             user={user}
                             showProfile={false}
@@ -589,7 +596,18 @@ export default function Show({
                 ) : (
                     <CommitFeed
                         key={`${user.id}:${tab}`}
-                        commits={commits}
+                        commits={
+                            // A commit pinned elsewhere since the list loaded shows above it, and not in it too.
+                            tab === 'commits' && pinnedCommit
+                                ? {
+                                      ...commits,
+                                      data: commits.data.filter(
+                                          (commit) =>
+                                              commit.id !== pinnedCommit.id,
+                                      ),
+                                  }
+                                : commits
+                        }
                         pinnedCommit={tab === 'commits' ? pinnedCommit : null}
                         threadActions={
                             isCurrentUser && tab === 'commits'

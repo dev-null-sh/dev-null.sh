@@ -10,6 +10,7 @@ export type Lane = number | string;
 export type LiveStream = {
     url: string;
     thumbnail_url: string;
+    ends_at?: string | null;
 };
 
 export type User = {

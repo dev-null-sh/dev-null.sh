@@ -5,6 +5,7 @@ import {
     Link,
     router,
     useHttp,
+    usePage,
     usePoll,
 } from '@inertiajs/react';
 import {
@@ -46,10 +47,12 @@ import { QuotedCommit } from '@/components/quoted-commit';
 import { Button } from '@/components/ui/button';
 import { UserPreview } from '@/components/user-preview';
 import { useNow } from '@/hooks/use-now';
+import { useIsListening } from '@/hooks/use-realtime';
 import { useUser } from '@/hooks/use-user';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
+import { coalesce, isListening, listen, userChannel } from '@/lib/realtime';
 import {
     cn,
     formatDayLabel,
@@ -161,32 +164,88 @@ export default function Index({
     const header = useRef<HTMLDivElement>(null);
     const pollAnchor = useRef<PollAnchor | null>(null);
     const [arrivals, setArrivals] = useState(0);
-    const { start, stop } = usePoll(
-        30_000,
-        backgroundPollOptions(() => ({
-            only: ['notifications', 'auth.unreadNotificationsCount'],
-            reset: ['notifications'],
-            data: {
-                cursor: '',
-                through: notifications.data.at(-1)?.created_at,
-            },
-            preserveUrl: true,
-            preserveErrors: true,
-            onStart: () => {
-                pollAnchor.current = firstVisibleGroup(
-                    header.current,
-                    notifications.data,
-                );
-            },
-            onCancelToken: (token) => {
-                pollRequest.current = token;
-            },
-            onFinish: () => {
-                pollRequest.current = null;
-            },
-        })),
-        { mode: 'rest', background: 'pause' },
-    );
+    const { auth } = usePage().props;
+    const channel = auth.user === null ? null : userChannel(auth.user.id);
+    const reloadOptions = backgroundPollOptions(() => ({
+        only: ['notifications', 'auth.unreadNotificationsCount'],
+        reset: ['notifications'],
+        data: {
+            cursor: '',
+            through: notifications.data.at(-1)?.created_at,
+        },
+        preserveUrl: true,
+        preserveErrors: true,
+        onStart: () => {
+            pollAnchor.current = firstVisibleGroup(
+                header.current,
+                notifications.data,
+            );
+        },
+        onCancelToken: (token) => {
+            pollRequest.current = token;
+        },
+        onFinish: () => {
+            pollRequest.current = null;
+        },
+    }));
+    const { start, stop } = usePoll(30_000, reloadOptions, {
+        mode: 'rest',
+        background: 'pause',
+        autoStart: false,
+    });
+    const isHearing = useIsListening(channel);
+    const pollUnlessHearing = () =>
+        channel !== null && isListening(channel) ? stop() : start();
+
+    useEffect(() => {
+        if (isHearing) {
+            stop();
+        } else {
+            start();
+        }
+    }, [isHearing, start, stop]);
+
+    // What the user is notified about changes as it happens, also when something stops being relevant. The loaded
+    // groups are read again down to the oldest one shown, like a poll, and a hidden tab waits until it is shown, so
+    // nothing arrives where it would be marked read unseen.
+    const hasMissed = useRef(false);
+    const reloadGroups = useEffectEvent(() => {
+        if (document.visibilityState !== 'visible' || pendingTypes !== null) {
+            hasMissed.current = true;
+
+            return;
+        }
+
+        hasMissed.current = false;
+        router.reload(reloadOptions());
+    });
+    const channelName = channel?.name ?? null;
+
+    useEffect(() => {
+        if (channelName === null) {
+            return;
+        }
+
+        const refresh = coalesce(async () => reloadGroups(), 500);
+        const onVisible = () => {
+            if (hasMissed.current) {
+                refresh.request();
+            }
+        };
+        const stopListening = listen(
+            { name: channelName, type: 'private' },
+            { notifications: refresh.request },
+            refresh.request,
+        );
+
+        document.addEventListener('visibilitychange', onVisible);
+
+        return () => {
+            stopListening();
+            refresh.cancel();
+            document.removeEventListener('visibilitychange', onVisible);
+        };
+    }, [channelName]);
     const filterVisit = useRef(0);
     const selected = filterOptions
         .filter((option) => option.type !== 'all')
@@ -217,7 +276,7 @@ export default function Index({
             onFinish: () => {
                 if (visit === filterVisit.current) {
                     setPendingTypes(null);
-                    start();
+                    pollUnlessHearing();
                 }
             },
         });
@@ -267,10 +326,28 @@ export default function Index({
             });
     });
 
+    // Only a reader looking at the page acknowledges what it shows: arrivals in a hidden or unfocused tab wait for them.
     useEffect(() => {
-        if (newestAt !== undefined && hasUnread) {
-            markReadThrough(newestAt);
+        if (newestAt === undefined || !hasUnread) {
+            return;
         }
+
+        const acknowledge = () => {
+            if (document.visibilityState === 'visible' && document.hasFocus()) {
+                stopWaiting();
+                markReadThrough(newestAt);
+            }
+        };
+        const stopWaiting = () => {
+            window.removeEventListener('focus', acknowledge);
+            document.removeEventListener('visibilitychange', acknowledge);
+        };
+
+        window.addEventListener('focus', acknowledge);
+        document.addEventListener('visibilitychange', acknowledge);
+        acknowledge();
+
+        return stopWaiting;
     }, [newestAt, hasUnread]);
 
     useEffect(() => {
@@ -525,6 +602,50 @@ function NotificationGroupItem({
     const id = useId();
     const grouped = notification.event_count > 1;
     const noun = groupNoun(notification);
+
+    // The group changing while it is open, as when something in it is no longer relevant, reads again what it showed:
+    // as many as were loaded, from the start.
+    const reloadOpen = useEffectEvent(async () => {
+        if (!open || items.length === 0 || loading) {
+            return;
+        }
+
+        let loaded: Notification[] = [];
+        let next: string | null = null;
+
+        try {
+            do {
+                const response = await fetch(
+                    groupShow(notification, { query: { type, cursor: next } })
+                        .url,
+                    { headers: { Accept: 'application/json' } },
+                );
+
+                if (!response.ok) {
+                    return;
+                }
+
+                const page =
+                    (await response.json()) as CursorPaginated<Notification>;
+                loaded = [...loaded, ...page.data];
+                next = page.next_cursor;
+            } while (next !== null && loaded.length < items.length);
+        } catch {
+            return;
+        }
+
+        setItems(loaded);
+        setCursor(next);
+    });
+    const version = `${notification.id}:${notification.event_count}:${notification.actors_count}`;
+    const shownVersion = useRef(version);
+
+    useEffect(() => {
+        if (shownVersion.current !== version) {
+            shownVersion.current = version;
+            void reloadOpen();
+        }
+    }, [version]);
 
     const load = async (next: string | null = null) => {
         setLoading(true);

@@ -1,4 +1,4 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { Bot, Check, X } from 'lucide-react';
 import { useId, useState } from 'react';
 import { toast } from 'sonner';
@@ -13,7 +13,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useCommitNotFound } from '@/hooks/use-deleted-resources';
 import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
+import { idsOf, useRealtime } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
+import { userChannel } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
@@ -169,6 +171,44 @@ export default function Show({
     commits: CursorPaginated<Commit>;
 }) {
     const commitNotFound = useCommitNotFound();
+    const { auth } = usePage().props;
+    const [hasArrivals, setHasArrivals] = useState(false);
+
+    // Another moderator's decision, or the author deleting a commit, takes it off the queue where it is, keeping the
+    // pages loaded. New commits join the end of the queue, so they wait for a deliberate refresh instead.
+    useRealtime(
+        auth.user === null ? null : userChannel(auth.user.id),
+        ['moderation'],
+        (_event, payload) => {
+            const ids = idsOf(payload, 'commits');
+            const loaded = new Set(commits.data.map((commit) => commit.id));
+            const gone = new Set(ids.filter((id) => loaded.has(id)));
+
+            if (gone.size > 0) {
+                router.replaceProp(
+                    'commits',
+                    (value: CursorPaginated<Commit>) => ({
+                        ...value,
+                        data: value.data.filter(
+                            (commit) => !gone.has(commit.id),
+                        ),
+                    }),
+                );
+            }
+
+            if (ids.some((id) => !loaded.has(id))) {
+                setHasArrivals(true);
+            }
+        },
+        () => setHasArrivals(true),
+    );
+
+    const refreshQueue = () =>
+        router.reload({
+            only: ['commits', 'hasUnmoderatedCommits'],
+            reset: ['commits'],
+            onSuccess: () => setHasArrivals(false),
+        });
 
     const moderate = (
         commit: Commit,
@@ -256,9 +296,19 @@ export default function Show({
             <div className="sticky top-0 z-10 bg-card">
                 <div className="flex h-14 items-center border-b px-4">
                     <h1 className="font-semibold">Moderation</h1>
-                    <p className="ml-auto text-sm text-muted-foreground">
-                        Oldest first
-                    </p>
+                    {hasArrivals ? (
+                        <button
+                            type="button"
+                            onClick={refreshQueue}
+                            className="ml-auto text-sm font-medium text-primary hover:underline focus-visible:underline"
+                        >
+                            Refresh the queue
+                        </button>
+                    ) : (
+                        <p className="ml-auto text-sm text-muted-foreground">
+                            Oldest first
+                        </p>
+                    )}
                 </div>
 
                 <ModerationTabs active="pending" />
