@@ -278,7 +278,12 @@ export function CommitCard({
             }
             onPointerLeave={onHover && ((event) => onHover(false, event))}
         >
-            <CommitAuthorFollowButton user={commit.user} keyShortcut="f" />
+            {commit.author.type === 'user' && (
+                <CommitAuthorFollowButton
+                    user={commit.author}
+                    keyShortcut="f"
+                />
+            )}
             <div
                 className="grid min-h-0 grid-cols-[4rem_minmax(0,1fr)] overflow-hidden sm:grid-cols-[4.5rem_minmax(0,1fr)]"
                 data-graph-leaving={deletion === 'deleting' || undefined}
