@@ -3,10 +3,12 @@ import { afterEach, mock, test } from 'node:test';
 import {
     catchUpAfterRestore,
     coalesce,
+    commitChannel,
     connectRealtime,
     isListening,
     listen,
     liveTransport,
+    pageReadAt,
     userChannel,
 } from '../../resources/js/lib/realtime.ts';
 import { fakeConnection } from './FakeRealtime.ts';
@@ -171,13 +173,61 @@ void test('a cancelled refresh never runs', () => {
     assert.equal(runs, 0);
 });
 
-void test('a listener joining a channel joined a moment ago catches up, as its data may predate the join', async () => {
+void test('a listener joining a channel heard on since the page read catches up, however long ago that was', async () => {
+    mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    listen(userChannel('review'), { notifications: () => {} });
+    fake.setStatus('connected');
+    fake.joined.get('private-users.review')?.join();
+    pageReadAt(Date.now());
+    mock.timers.tick(60_000);
+    fake.joined.get('private-users.review')?.emit('account');
+    mock.timers.tick(16_000);
+    let reconciliations = 0;
+
+    listen(
+        userChannel('review'),
+        { account: () => {} },
+        () => reconciliations++,
+    );
+    await Promise.resolve();
+
+    assert.equal(reconciliations, 1);
+});
+
+void test('a listener mounted long after an event that came after the page was read catches up', async () => {
+    mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    listen(commitChannel('c'), { replies: () => {} });
+    fake.setStatus('connected');
+    fake.joined.get('commits.c')?.join();
+    pageReadAt(Date.now());
+    mock.timers.tick(1_000);
+    fake.joined.get('commits.c')?.emit('visibility');
+    mock.timers.tick(30_000);
+    let syncs = 0;
+
+    listen(commitChannel('c'), { visibility: () => {} }, () => syncs++);
+    await Promise.resolve();
+
+    assert.equal(syncs, 1);
+});
+
+void test('a listener joining a channel that rejoined since the page was read catches up', async () => {
     mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
     const fake = fakeConnection();
     connectRealtime(fake.connection);
     listen(userChannel('a'), { notifications: () => {} });
     fake.setStatus('connected');
     fake.joined.get('private-users.a')?.join();
+    pageReadAt(Date.now());
+    mock.timers.tick(10_000);
+    fake.setStatus('connecting');
+    fake.setStatus('connected');
+    fake.joined.get('private-users.a')?.join();
+    mock.timers.tick(30_000);
     let syncs = 0;
 
     listen(userChannel('a'), { account: () => {} }, () => syncs++);
@@ -186,13 +236,16 @@ void test('a listener joining a channel joined a moment ago catches up, as its d
     assert.equal(syncs, 1);
 });
 
-void test('a listener joining a channel listened to for long with nothing heard needs no catching up, unless it heard its event lately', async () => {
+void test('a listener joining a channel listened to since before the page was read, with nothing heard since, needs no catching up', async () => {
     mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
     const fake = fakeConnection();
     connectRealtime(fake.connection);
     listen(userChannel('a'), { notifications: () => {} });
     fake.setStatus('connected');
     fake.joined.get('private-users.a')?.join();
+    fake.joined.get('private-users.a')?.emit('account');
+    mock.timers.tick(1_000);
+    pageReadAt(Date.now());
     mock.timers.tick(60_000);
     let quiet = 0;
     let busy = 0;
@@ -206,22 +259,33 @@ void test('a listener joining a channel listened to for long with nothing heard 
     assert.equal(busy, 1);
 });
 
-void test('a page coming back from history makes every listener joining meanwhile catch up, and reads live props again', async () => {
+void test('a page coming back from history makes every listener joining it catch up, however late, and reads live props again', async () => {
     mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
     const fake = fakeConnection();
     connectRealtime(fake.connection);
     const live: unknown[] = [];
-    liveTransport.subscribe({ name: 'users.a', type: 'private' }, 'notifications', (payload) => live.push(payload));
+    liveTransport.subscribe(
+        { name: 'users.a', type: 'private' },
+        'notifications',
+        (payload) => live.push(payload),
+    );
     fake.setStatus('connected');
     fake.joined.get('private-users.a')?.join();
+    pageReadAt(Date.now());
     mock.timers.tick(60_000);
     live.length = 0;
-    let syncs = 0;
+    let restored = 0;
+    let fresh = 0;
 
     catchUpAfterRestore();
-    listen(userChannel('a'), { account: () => {} }, () => syncs++);
+    mock.timers.tick(30_000);
+    listen(userChannel('a'), { account: () => {} }, () => restored++);
+    await Promise.resolve();
+    pageReadAt(Date.now());
+    listen(userChannel('a'), { account: () => {} }, () => fresh++);
     await Promise.resolve();
 
-    assert.equal(syncs, 1);
+    assert.equal(restored, 1);
+    assert.equal(fresh, 0);
     assert.deepEqual(live, [{}]);
 });

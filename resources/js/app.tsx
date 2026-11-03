@@ -21,6 +21,7 @@ import {
     catchUpAfterRestore,
     connectRealtime,
     liveTransport,
+    pageReadAt,
 } from '@/lib/realtime';
 import { registerServiceWorker } from '@/lib/service-worker';
 import { browserClock, clockOf, setReaderClock } from '@/lib/utils';
@@ -33,11 +34,23 @@ trackVisualViewport();
 trackAnalyticsEvents();
 trackPrefetchedPages();
 connectRealtime(createEcho());
-// A page brought back from history or a prefetch shows what was read back then, and catches up.
+// What a page shows was read once the visit bringing all of it started, and the first one once the browser asked for
+// it. A page brought back from history or a prefetch shows what was read back then, and catches up.
+pageReadAt(Date.now() - performance.now());
+let visitStartedAt: number | null = null;
+router.on('start', (event) => {
+    const { only, except } = event.detail.visit;
+    visitStartedAt =
+        only.length === 0 && except.length === 0 ? Date.now() : null;
+});
 router.on('navigate', (event) => {
     if (event.detail.type === 'history' || event.detail.cached === true) {
         catchUpAfterRestore();
+    } else if (visitStartedAt !== null) {
+        pageReadAt(visitStartedAt);
     }
+
+    visitStartedAt = null;
 });
 window.addEventListener('pageshow', (event) => {
     if (event.persisted) {

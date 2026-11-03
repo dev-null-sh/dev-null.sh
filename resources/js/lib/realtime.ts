@@ -47,18 +47,11 @@ type ChannelEntry = {
 const leaveDelay = 1_000;
 
 /**
- * A listener joining a channel someone already listens on catches up when its data may be older than what the
- * channel heard: the channel was joined, or heard the listener's events, this recently. Data read longer ago that
- * nothing changed since is current.
+ * When what the page shows was read, by the browser's clock: when the visit that brought it started, which is no later
+ * than the server read it. Null while the page shows what was read at a time nobody knows, like a page brought back
+ * from history, so everything listening on it catches up.
  */
-const lateWindow = 15_000;
-
-/**
- * Pages brought back from history or a prefetch show what was read back then, so every listener joining meanwhile
- * catches up, and live props are read again.
- */
-const restoreWindow = 3_000;
-let restoredUntil = 0;
+let pageRead: number | null = null;
 const liveRefreshers = new Set<() => void>();
 
 let connection: RealtimeConnection | null = null;
@@ -185,7 +178,10 @@ export function listen(
     if (onSync) {
         entry.syncs.add(onSync);
 
-        if (entry.isSubscribed && mayHaveMissed(entry, Object.keys(events))) {
+        if (
+            entry.isSubscribed &&
+            mayHaveMissed(entry, Object.keys(events), pageRead)
+        ) {
             queueMicrotask(onSync);
         }
     }
@@ -224,25 +220,42 @@ export function listen(
     };
 }
 
-function mayHaveMissed(entry: ChannelEntry, events: string[]): boolean {
-    const now = Date.now();
+/**
+ * A listener joining a channel someone already listens on missed what the channel heard since its data was read: it
+ * catches up when the channel was joined again since, or heard one of its events since, or when nobody knows when its
+ * data was read. However long ago that was, as a page can be read slowly or a part of it mount late.
+ */
+function mayHaveMissed(
+    entry: ChannelEntry,
+    events: string[],
+    readAt: number | null,
+): boolean {
+    if (readAt === null || entry.subscribedAt === null) {
+        return true;
+    }
 
     return (
-        now < restoredUntil ||
-        entry.subscribedAt === null ||
-        now - entry.subscribedAt < lateWindow ||
+        entry.subscribedAt >= readAt ||
         (events.length === 0
             ? [...entry.heardAt.values()]
             : events.map((event) => entry.heardAt.get(event) ?? -Infinity)
-        ).some((heardAt) => now - heardAt < lateWindow)
+        ).some((heardAt) => heardAt >= readAt)
     );
 }
 
 /**
- * Called when a page comes back from history or a prefetch: what it shows was read back then.
+ * Called when a page arrives from a visit that started at the given time: what it shows was read since.
+ */
+export function pageReadAt(at: number): void {
+    pageRead = at;
+}
+
+/**
+ * Called when a page comes back from history or a prefetch: what it shows was read at a time nobody knows, so
+ * everything listening on it catches up until the next visit, and live props are read again.
  */
 export function catchUpAfterRestore(): void {
-    restoredUntil = Date.now() + restoreWindow;
+    pageRead = null;
     liveRefreshers.forEach((refresh) => refresh());
 }
 
