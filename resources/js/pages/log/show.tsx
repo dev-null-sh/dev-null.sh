@@ -488,17 +488,16 @@ export default function Show({
                     ).length,
                 );
                 // The loaded window is read again, as deep as it was, when it no longer holds what it shows.
-                followUp = (
+                followUp =
                     typeof expected === 'string' && shown.length > 0
-                        ? windowDigest(shown).then(
-                              (digest) => digest !== expected,
+                        ? windowDigest(shown).then((digest) =>
+                              loadNewest(
+                                  digest === expected
+                                      ? newest
+                                      : commits.data.length + 1,
+                              ),
                           )
-                        : Promise.resolve(false)
-                ).then((isWindowStale) =>
-                    loadNewest(
-                        isWindowStale ? commits.data.length + 1 : newest,
-                    ),
-                );
+                        : loadNewest(newest);
             },
         };
 
