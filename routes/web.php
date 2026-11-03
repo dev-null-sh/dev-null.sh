@@ -87,6 +87,7 @@ use App\Http\Controllers\OrganizationFollowController;
 use App\Http\Controllers\OrganizationLaneController;
 use App\Http\Controllers\OrganizationMemberController;
 use App\Http\Controllers\OrganizationMentionController;
+use App\Http\Controllers\OrganizationPreviewController;
 use App\Http\Controllers\OrganizationProfileController;
 use App\Http\Controllers\OrganizationSitemapController;
 use App\Http\Controllers\OrgArchiveController;
@@ -285,6 +286,10 @@ Route::get('mentions/{user}', [MentionController::class, 'show'])
 Route::get('mentions/organizations/{organization}', [OrganizationMentionController::class, 'show'])
     ->whereUuid('organization')
     ->name('organization-mention.show');
+Route::get('mentions/organizations/{organization}/preview', [OrganizationPreviewController::class, 'show'])
+    ->middleware('throttle:people')
+    ->whereUuid('organization')
+    ->name('organization-preview.show');
 Route::get('mentions/{user}/preview', [UserPreviewController::class, 'show'])
     ->middleware('throttle:people')
     ->whereUuid('user')
