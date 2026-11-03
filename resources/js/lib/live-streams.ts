@@ -79,9 +79,18 @@ async function read(ids: string[]): Promise<void> {
 }
 
 /**
- * Listens to the person's profile while something shows them. Returns the function that stops listening.
+ * Listens to the person's profile while something shows them. Returns the function that stops listening. A stream
+ * the page was handed without when it runs out, as pages show people, is read once, with the others asked about
+ * meanwhile, so it stops showing then even on a page left open without hearing anything.
  */
-export function watchLiveStream(userId: string): () => void {
+export function watchLiveStream(
+    userId: string,
+    isHandedUndated = false,
+): () => void {
+    if (isHandedUndated) {
+        readLater(userId);
+    }
+
     const current = watched.get(userId);
 
     if (current) {

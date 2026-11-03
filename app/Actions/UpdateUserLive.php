@@ -8,6 +8,7 @@ use App\Enums\LivePlatform;
 use App\Enums\UserUpdate;
 use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
+use App\Http\Resources\LiveStreamResource;
 use App\Models\User;
 
 final readonly class UpdateUserLive
@@ -20,7 +21,7 @@ final readonly class UpdateUserLive
             'live_ends_at' => now()->addHours($hours),
         ]);
 
-        event(new ProfilesUpdated([$user->id], changesLive: true, live: $user->live()));
+        event(new ProfilesUpdated([$user->id], changesLive: true, live: LiveStreamResource::of($user)));
         event(new UsersUpdated([$user->id], UserUpdate::Account));
         event(new UsersUpdated($user->followers()->pluck('users.id'), UserUpdate::Live));
     }

@@ -32,7 +32,6 @@ it('goes live with a YouTube stream for a few hours', function (string $url): vo
             ->where('user.live', [
                 'url' => 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
                 'thumbnail_url' => 'https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault_live.jpg',
-                'ends_at' => now()->addHours(3)->startOfSecond()->toJSON(),
             ]));
 })->with([
     'live link' => 'https://www.youtube.com/live/dQw4w9WgXcQ?si=share',
@@ -57,7 +56,6 @@ it('goes live with a Twitch stream for a few hours', function (string $url): voi
             ->where('user.live', [
                 'url' => 'https://www.twitch.tv/octocat',
                 'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_octocat-1280x720.jpg',
-                'ends_at' => now()->addHours(3)->startOfSecond()->toJSON(),
             ]));
 })->with([
     'channel link' => 'https://www.twitch.tv/octocat',

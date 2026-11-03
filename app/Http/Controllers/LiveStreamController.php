@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ListLiveStreamRequest;
+use App\Http\Resources\LiveStreamResource;
 use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Database\Eloquent\Builder;
@@ -23,7 +24,7 @@ final readonly class LiveStreamController
         $streams = User::query()->whereKey($ids)
             ->when($viewer, fn (Builder $query, User $viewer): Builder => $query->whereNotIn('users.id', $viewer->idsAcrossBlocks()))
             ->get()
-            ->mapWithKeys(fn (User $user): array => [$user->id => $user->live()]);
+            ->mapWithKeys(fn (User $user): array => [$user->id => LiveStreamResource::of($user)]);
 
         return response()->json(['streams' => collect($ids)->mapWithKeys(fn (string $id): array => [$id => $streams->get($id)])])
             ->header('Cache-Control', 'no-store, private');

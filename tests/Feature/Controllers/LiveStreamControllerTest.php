@@ -27,7 +27,11 @@ it('says which of the people a page shows are live right now, for anyone', funct
         ->assertOk()
         ->assertHeader('Cache-Control', 'no-store, private');
 
-    expect($response->json("streams.{$live->id}.url"))->toBe('https://www.twitch.tv/streamer')
+    expect($response->json("streams.{$live->id}"))->toBe([
+        'url' => 'https://www.twitch.tv/streamer',
+        'thumbnail_url' => 'https://static-cdn.jtvnw.net/previews-ttv/live_user_streamer-1280x720.jpg',
+        'ends_at' => $live->live_ends_at?->toJSON(),
+    ])
         ->and($response->json('streams'))->toHaveKeys([$live->id, $ended->id, $quiet->id, $missing])
         ->and($response->json("streams.{$ended->id}"))->toBeNull()
         ->and($response->json("streams.{$quiet->id}"))->toBeNull()

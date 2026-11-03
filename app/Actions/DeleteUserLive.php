@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Enums\UserUpdate;
 use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
+use App\Http\Resources\LiveStreamResource;
 use App\Models\User;
 
 final readonly class DeleteUserLive
@@ -15,7 +16,7 @@ final readonly class DeleteUserLive
     {
         $user->update(['live_platform' => null, 'live_url' => null, 'live_ends_at' => null]);
 
-        event(new ProfilesUpdated([$user->id], changesLive: true, live: $user->live()));
+        event(new ProfilesUpdated([$user->id], changesLive: true, live: LiveStreamResource::of($user)));
         event(new UsersUpdated([$user->id], UserUpdate::Account));
         event(new UsersUpdated($user->followers()->pluck('users.id'), UserUpdate::Live));
     }
