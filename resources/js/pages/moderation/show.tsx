@@ -155,6 +155,12 @@ function ModerationActions({
     );
 }
 
+/**
+ * Commits this queue took off, here or as another moderator decided them, which are never offered back as new: kept
+ * apart from the page, as moderating one reads the queue afresh.
+ */
+const decided = new Set<string>();
+
 function withoutCommits(
     props: { commits: CursorPaginated<Commit> },
     ids: ReadonlySet<string>,
@@ -181,8 +187,6 @@ export default function Show({
         arrivedSince: (since: number) => Promise<string[]>;
     } | null>(null);
     const isEmpty = commits.data.length === 0 && commits.next_cursor === null;
-    // Commits this queue took off, here or as another moderator decided them, are never offered back as new.
-    const decided = useRef(new Set<string>());
 
     useEffect(() => {
         const controller = new AbortController();
@@ -247,7 +251,7 @@ export default function Show({
             const ids = idsOf(payload, 'commits');
             const loaded = new Set(commits.data.map((commit) => commit.id));
             const gone = new Set(ids.filter((id) => loaded.has(id)));
-            gone.forEach((id) => decided.current.add(id));
+            gone.forEach((id) => decided.add(id));
 
             if (gone.size > 0) {
                 router.replaceProp(
@@ -261,7 +265,7 @@ export default function Show({
                 );
             }
 
-            if (ids.some((id) => !loaded.has(id) && !decided.current.has(id))) {
+            if (ids.some((id) => !loaded.has(id) && !decided.has(id))) {
                 offerArrivals();
             }
         },
@@ -310,7 +314,7 @@ export default function Show({
     ) => {
         const index = commits.data.findIndex(({ id }) => id === commit.id);
         const neighbour = commits.data[index + 1] ?? commits.data[index - 1];
-        decided.current.add(commit.id);
+        decided.add(commit.id);
 
         router
             .optimistic((props: { commits: CursorPaginated<Commit> }) =>
@@ -371,7 +375,7 @@ export default function Show({
         );
 
     const approveSelected = () => {
-        selectedIds.forEach((id) => decided.current.add(id));
+        selectedIds.forEach((id) => decided.add(id));
         router
             .optimistic((props: { commits: CursorPaginated<Commit> }) =>
                 withoutCommits(props, new Set(selectedIds)),

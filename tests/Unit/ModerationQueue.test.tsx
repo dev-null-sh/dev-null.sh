@@ -252,3 +252,31 @@ test('a commit approved here is not offered back as new when its approval is hea
     open(3, 'next', ['commit-0']).onEvent('moderation', { commits: ['new'] });
     assert.deepEqual(offers, [true]);
 });
+
+test('a commit approved here stays decided after approving reloads the queue afresh', () => {
+    open(3, 'next');
+    const feed = find(page, (props) => typeof props.actions === 'function');
+    assert.ok(feed);
+    const actions = (feed.props.actions as (commit: Commit) => React.ReactNode)(
+        { id: 'commit-1' } as Commit,
+    );
+    const moderation = find(
+        actions,
+        (props) => typeof props.onModerate === 'function',
+    );
+    assert.ok(moderation);
+    (
+        moderation.props.onModerate as (
+            route: (commit: Commit) => unknown,
+            reason: string,
+        ) => void
+    )(() => '/moderation/commit-1/approval', '');
+
+    // The approval's visit mounts the page again, with nothing kept from before.
+    slots = [];
+    open(3, 'next', ['commit-1']).onEvent('moderation', {
+        commits: ['commit-1'],
+    });
+
+    assert.deepEqual(offers, []);
+});
