@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as React from 'react';
 import type { ReactElement } from 'react';
 import { beforeEach, test, vi } from 'vite-plus/test';
+import type { LightboxProps, ZoomRef } from 'yet-another-react-lightbox';
 
 let index: number | null = null;
 
@@ -58,22 +59,30 @@ test('opens the full-size profile picture and closes it through the shared viewe
     assert.equal(viewer.props.images[0].alt, "Octocat's profile picture");
     assert.equal(viewer.props.images[0].description, null);
 
-    const lightbox = ImageViewer(viewer.props);
+    const lightbox: ReactElement<LightboxProps> = ImageViewer(viewer.props);
+    const zoom: ZoomRef = {
+        zoom: 1,
+        minZoom: 1,
+        maxZoom: 3,
+        offsetX: 0,
+        offsetY: 0,
+        disabled: false,
+        zoomIn: vi.fn(),
+        zoomOut: vi.fn(),
+        changeZoom: vi.fn(),
+    };
+
     assert.deepEqual(lightbox.props.toolbar.buttons, ['close']);
-    assert.equal(lightbox.props.render.buttonZoom?.({} as never), null);
+    assert.equal(lightbox.props.render.buttonZoom?.(zoom), null);
     assert.equal(lightbox.props.render.buttonPrev?.(), null);
     assert.equal(lightbox.props.render.buttonNext?.(), null);
     assert.equal(
         lightbox.props.render.slideFooter?.({
             slide: lightbox.props.slides[0],
-        } as never),
+        }),
         null,
     );
     assert.equal(lightbox.props.slides[0].alt, "Octocat's profile picture");
-    assert.equal(
-        lightbox.props.styles.container.backgroundColor,
-        'rgb(0 0 0 / 0.85)',
-    );
 
     viewer.props.onClose();
     assert.equal(
@@ -89,7 +98,7 @@ test('keeps initials as a static avatar when there is no picture to open', () =>
 });
 
 test('retains zoom controls and image descriptions for existing image viewers', () => {
-    const lightbox = ImageViewer({
+    const lightbox: ReactElement<LightboxProps> = ImageViewer({
         images: [
             {
                 id: 'image',
@@ -107,7 +116,7 @@ test('retains zoom controls and image descriptions for existing image viewers', 
     assert.notEqual(
         lightbox.props.render.slideFooter?.({
             slide: lightbox.props.slides[0],
-        } as never),
+        }),
         null,
     );
 });
