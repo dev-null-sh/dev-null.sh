@@ -2,7 +2,9 @@ import CallController from '@/actions/App/Http/Controllers/CallController';
 import ConversationCallController from '@/actions/App/Http/Controllers/ConversationCallController';
 import ConversationCallIceServerController from '@/actions/App/Http/Controllers/ConversationCallIceServerController';
 import { ChatRequestError, request } from '@/lib/chat';
-import { playPing } from '@/lib/remote-notifications';
+import { declineOrgCall, isInOrgCall, receiveOrgCalls } from '@/lib/org-call';
+import type { OrgCall } from '@/lib/org-call';
+import { remoteAlertsEnabled } from '@/lib/remote-notifications';
 import type { User } from '@/types';
 
 /**
@@ -43,6 +45,10 @@ let microphone: MediaStream | null = null;
 let camera: MediaStream | null = null;
 let partnerCamera: MediaStream | null = null;
 let speaker: HTMLAudioElement | null = null;
+/**
+ * MSN's ring while a call rings: the incoming one for the callee, the outgoing one for the caller.
+ */
+let ringing: HTMLAudioElement | null = null;
 let timer: number | undefined;
 let endTimer: number | undefined;
 /**
@@ -85,8 +91,32 @@ export function showCallConsole(handle: string): () => void {
 }
 
 function update(next: CallState): void {
+    // Picking up or placing a call stops an org's call from ringing, as the poll no longer checks while on one.
+    if (
+        next.status === 'calling' ||
+        next.status === 'connecting' ||
+        next.status === 'connected'
+    ) {
+        declineOrgCall();
+    }
+
+    if (next.status !== state.status) {
+        ringing?.pause();
+        ringing = null;
+
+        if (next.status === 'calling') {
+            ring('/sounds/ringback.mp3');
+        }
+    }
+
     state = next;
     notify();
+}
+
+function ring(sound: string): void {
+    ringing = new Audio(sound);
+    ringing.loop = true;
+    void ringing.play().catch(() => undefined);
 }
 
 function notify(): void {
@@ -101,7 +131,10 @@ function url(partner: User) {
  * Rings the partner. The offer carries the caller's IP addresses, so it is only sent once they confirmed.
  */
 export async function startCall(partner: User): Promise<void> {
-    if (state.status !== 'idle' && state.status !== 'ended') {
+    if (
+        (state.status !== 'idle' && state.status !== 'ended') ||
+        isInOrgCall()
+    ) {
         return;
     }
 
@@ -188,7 +221,7 @@ export async function acceptCall(): Promise<void> {
             { sdp: await gathered(peer) },
         );
     } catch (error) {
-        void forget(partner);
+        void forget(partner, { failed: true });
         end(partner, failure(error, 'Could not answer the call.'));
 
         return;
@@ -285,7 +318,8 @@ export function dismissCall(): void {
 
 /**
  * Checks for a call ringing the user while nothing else is going on, and rings along with it unless the remote is
- * muted. Returns the function that stops watching.
+ * muted. It also picks up the calls going on in the user's orgs, which anyone in them can join. Returns the function
+ * that stops watching.
  */
 export function watchIncomingCalls(userId: string): () => void {
     let pollTimer: number | undefined;
@@ -294,46 +328,22 @@ export function watchIncomingCalls(userId: string): () => void {
     const poll = async () => {
         window.clearTimeout(pollTimer);
 
-        if (
-            !document.hidden &&
-            (state.status === 'idle' ||
-                state.status === 'ended' ||
-                state.status === 'ringing')
-        ) {
+        // On a call, nothing else can ring, and there's no other call to join, so there is nothing to check.
+        if (!document.hidden && isFree()) {
             try {
-                const { call } = await request<{
+                const { call, org_calls: orgCalls } = await request<{
                     call: {
                         partner: User;
                         sdp: string;
                         is_muted: boolean;
                     } | null;
+                    org_calls: OrgCall[];
                 }>(CallController.show.url());
 
-                if (call === null || call.sdp === seenOffer) {
-                    if (state.status === 'ringing') {
-                        end(
-                            state.partner,
-                            `Missed call from @${state.partner.handle}.`,
-                        );
-                    }
-                } else if (
-                    state.status !== 'ringing' ||
-                    state.sdp !== call.sdp
-                ) {
-                    window.clearTimeout(endTimer);
-                    update({
-                        status: 'ringing',
-                        partner: call.partner,
-                        sdp: call.sdp,
-                    });
-                }
-
-                if (
-                    call !== null &&
-                    !call.is_muted &&
-                    state.status === 'ringing'
-                ) {
-                    playPing(userId);
+                // Unless the user started or joined a call while it checked.
+                if (isFree()) {
+                    takeIncomingCall(call, userId);
+                    receiveOrgCalls(orgCalls, userId);
                 }
             } catch {
                 // Try again on the next poll.
@@ -351,6 +361,37 @@ export function watchIncomingCalls(userId: string): () => void {
         isStopped = true;
         window.clearTimeout(pollTimer);
     };
+}
+
+function isFree(): boolean {
+    return (
+        !isInOrgCall() &&
+        (state.status === 'idle' ||
+            state.status === 'ended' ||
+            state.status === 'ringing')
+    );
+}
+
+function takeIncomingCall(
+    call: { partner: User; sdp: string; is_muted: boolean } | null,
+    userId: string,
+): void {
+    if (call === null || call.sdp === seenOffer) {
+        if (state.status === 'ringing') {
+            end(state.partner, `Missed call from @${state.partner.handle}.`);
+        }
+    } else if (state.status !== 'ringing' || state.sdp !== call.sdp) {
+        window.clearTimeout(endTimer);
+        update({
+            status: 'ringing',
+            partner: call.partner,
+            sdp: call.sdp,
+        });
+
+        if (!call.is_muted && remoteAlertsEnabled(userId, 'sound')) {
+            ring('/sounds/ring.mp3');
+        }
+    }
 }
 
 async function connect(
@@ -459,7 +500,7 @@ async function connect(
  * Waits until the browser knows every way to reach it, so one offer or answer holds everything and the server only
  * passes on two messages.
  */
-async function gathered(peer: RTCPeerConnection): Promise<string> {
+export async function gathered(peer: RTCPeerConnection): Promise<string> {
     if (peer.iceGatheringState !== 'complete') {
         await new Promise<void>((resolve) => {
             const done = window.setTimeout(resolve, 3_000);
@@ -478,7 +519,9 @@ async function gathered(peer: RTCPeerConnection): Promise<string> {
 /**
  * Eight hex digits from both fingerprints, read like a short hash: `3f9a c217`.
  */
-async function verificationCode(peer: RTCPeerConnection): Promise<string> {
+export async function verificationCode(
+    peer: RTCPeerConnection,
+): Promise<string> {
     const fingerprints = [
         peer.localDescription?.sdp,
         peer.remoteDescription?.sdp,
@@ -510,10 +553,17 @@ function giveUpConnecting(partner: User): void {
     }, connectFor);
 }
 
-async function forget(partner: User): Promise<void> {
+/**
+ * Forgets the call with the partner. Failing to answer it says so, so the remote doesn't log it as declined.
+ */
+async function forget(
+    partner: User,
+    body: { failed: boolean } = { failed: false },
+): Promise<void> {
     await request(
         ConversationCallController.destroy.url(url(partner)),
         'DELETE',
+        body,
     ).catch(() => undefined);
 }
 
@@ -539,6 +589,11 @@ function end(partner: User, reason: string): void {
 
     if (speaker !== null) {
         speaker.srcObject = null;
+    }
+
+    // A call that never rang through on this side, a missed one, ends quietly.
+    if (state.status !== 'ringing') {
+        void new Audio('/sounds/hangup.mp3').play().catch(() => undefined);
     }
 
     update({ status: 'ended', partner, reason });

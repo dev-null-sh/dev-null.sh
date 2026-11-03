@@ -12,11 +12,6 @@ use App\Contracts\Services\TurnProvider;
  */
 final readonly class LocalTurnProvider implements TurnProvider
 {
-    public function isAvailable(): bool
-    {
-        return true;
-    }
-
     public function isRelayOnly(): bool
     {
         return false;

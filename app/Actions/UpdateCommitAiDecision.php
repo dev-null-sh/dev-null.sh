@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\ModerationProvider;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\PollOption;
-use App\Services\OpenAI;
 use Illuminate\Support\Facades\Storage;
 
 final readonly class UpdateCommitAiDecision
@@ -19,7 +19,7 @@ final readonly class UpdateCommitAiDecision
     private const float AUTO_REJECT_THRESHOLD = 0.95;
 
     public function __construct(
-        private OpenAI $openAI,
+        private ModerationProvider $moderation,
         private UpdateCommitStatuses $updateCommitStatuses,
     ) {
         //
@@ -38,11 +38,11 @@ final readonly class UpdateCommitAiDecision
 
         $text = $this->text($commit);
 
-        $scores = $this->openAI->moderate($text, $images);
+        $scores = $this->moderation->moderate($text, $images);
 
         $categories = array_keys($scores);
 
-        if ($text !== '' && $this->openAI->isHarmful($text)) {
+        if ($text !== '' && $this->moderation->isHarmful($text)) {
             $categories[] = 'harmful-text';
         }
 

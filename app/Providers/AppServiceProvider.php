@@ -4,16 +4,48 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
-use App\Contracts\Services\DnsResolver;
+use App\Contracts\Services\AnalyticsProvider;
+use App\Contracts\Services\EmailDraftProvider;
+use App\Contracts\Services\EmbeddingProvider;
+use App\Contracts\Services\GitHubProvider;
+use App\Contracts\Services\HeadlineProvider;
+use App\Contracts\Services\LinkPreviewProvider;
+use App\Contracts\Services\ModerationProvider;
+use App\Contracts\Services\PushNotificationProvider;
+use App\Contracts\Services\RelevanceProvider;
+use App\Contracts\Services\ToolDecisionProvider;
+use App\Contracts\Services\TranslationProvider;
 use App\Contracts\Services\TurnProvider;
 use App\Enums\ApiErrorCode;
 use App\Exceptions\ApiException;
 use App\Models\User;
+use App\Services\AnalyticsProviders\FathomAnalyticsProvider;
+use App\Services\AnalyticsProviders\NullAnalyticsProvider;
 use App\Services\CodeTheme;
-use App\Services\DnsResolvers\SystemDnsResolver;
+use App\Services\EmailDraftProviders\NullEmailDraftProvider;
+use App\Services\EmailDraftProviders\OpenCodeEmailDraftProvider;
+use App\Services\EmbeddingProviders\NullEmbeddingProvider;
+use App\Services\EmbeddingProviders\OpenAIEmbeddingProvider;
+use App\Services\GitHubProviders\HttpGitHubProvider;
+use App\Services\GitHubProviders\NullGitHubProvider;
+use App\Services\HeadlineProviders\NullHeadlineProvider;
+use App\Services\HeadlineProviders\OpenAIHeadlineProvider;
+use App\Services\LinkPreviewProviders\HttpLinkPreviewProvider;
+use App\Services\LinkPreviewProviders\NullLinkPreviewProvider;
+use App\Services\ModerationProviders\NullModerationProvider;
+use App\Services\ModerationProviders\OpenAIModerationProvider;
+use App\Services\PushNotificationProviders\NullPushNotificationProvider;
+use App\Services\PushNotificationProviders\WebPushNotificationProvider;
+use App\Services\RelevanceProviders\NullRelevanceProvider;
+use App\Services\RelevanceProviders\OpenAIRelevanceProvider;
+use App\Services\ToolDecisionProviders\NullToolDecisionProvider;
+use App\Services\ToolDecisionProviders\OpenAIToolDecisionProvider;
+use App\Services\TranslationProviders\NullTranslationProvider;
+use App\Services\TranslationProviders\OpenCodeTranslationProvider;
 use App\Services\TurnProviders\CloudflareTurnProvider;
 use App\Services\TurnProviders\LocalTurnProvider;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Foundation\DevCommands;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,30 +58,50 @@ use Tempest\Highlight\Highlighter;
 final class AppServiceProvider extends ServiceProvider
 {
     /**
-     * The services bound in every environment but local.
+     * The services bound in every environment but local and testing.
      *
      * @var array<class-string, class-string>
      */
     private const array PRODUCTION_SERVICES = [
+        AnalyticsProvider::class => FathomAnalyticsProvider::class,
+        EmailDraftProvider::class => OpenCodeEmailDraftProvider::class,
+        EmbeddingProvider::class => OpenAIEmbeddingProvider::class,
+        GitHubProvider::class => HttpGitHubProvider::class,
+        HeadlineProvider::class => OpenAIHeadlineProvider::class,
+        LinkPreviewProvider::class => HttpLinkPreviewProvider::class,
+        ModerationProvider::class => OpenAIModerationProvider::class,
+        PushNotificationProvider::class => WebPushNotificationProvider::class,
+        RelevanceProvider::class => OpenAIRelevanceProvider::class,
+        ToolDecisionProvider::class => OpenAIToolDecisionProvider::class,
+        TranslationProvider::class => OpenCodeTranslationProvider::class,
         TurnProvider::class => CloudflareTurnProvider::class,
     ];
 
     /**
-     * The services bound in the local environment instead, so nothing there needs a third party.
+     * The services bound in the local and testing environments instead, so nothing there needs a third party.
      *
      * @var array<class-string, class-string>
      */
     private const array LOCAL_SERVICES = [
+        AnalyticsProvider::class => NullAnalyticsProvider::class,
+        EmailDraftProvider::class => NullEmailDraftProvider::class,
+        EmbeddingProvider::class => NullEmbeddingProvider::class,
+        GitHubProvider::class => NullGitHubProvider::class,
+        HeadlineProvider::class => NullHeadlineProvider::class,
+        LinkPreviewProvider::class => NullLinkPreviewProvider::class,
+        ModerationProvider::class => NullModerationProvider::class,
+        PushNotificationProvider::class => NullPushNotificationProvider::class,
+        RelevanceProvider::class => NullRelevanceProvider::class,
+        ToolDecisionProvider::class => NullToolDecisionProvider::class,
+        TranslationProvider::class => NullTranslationProvider::class,
         TurnProvider::class => LocalTurnProvider::class,
     ];
 
     public function register(): void
     {
-        $this->app->bind(DnsResolver::class, SystemDnsResolver::class);
-
-        $services = $this->app->isLocal()
+        $services = $this->app->environment('local', 'testing')
             ? self::LOCAL_SERVICES
-            : self::PRODUCTION_SERVICES;
+            : self::PRODUCTION_SERVICES; // @codeCoverageIgnore
 
         foreach ($services as $contract => $implementation) {
             $this->app->bind($contract, $implementation);
@@ -60,6 +112,8 @@ final class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        DevCommands::artisan('serve', 'server');
+
         $this->bootRateLimitingDefaults();
 
         $this->bootExceptionHandling();
@@ -125,6 +179,13 @@ final class AppServiceProvider extends ServiceProvider
             });
         });
 
+        // Every lookup spends GitHub's shared budget, so a member gets a few an hour. Their page says so...
+        RateLimiter::for('profile-lookups', fn (Request $request): Limit => Limit::perHour(30)->by($this->userId($request))->response(function (): RedirectResponse {
+            Inertia::flash('lookupThrottled', true);
+
+            return back();
+        }));
+
         // The mobile app's 429 comes with a code. The public API's stays as it is...
         $rateLimited = fn (Request $request, array $headers): JsonResponse => new ApiException(ApiErrorCode::RateLimited, 'Too Many Attempts.', $headers)->render();
 
@@ -180,15 +241,27 @@ final class AppServiceProvider extends ServiceProvider
         ]);
 
         // Every commit search pays for an embedding and a relevance verdict, so it gets a budget of its own...
-        RateLimiter::for('search', fn (Request $request): Limit => Limit::perMinute(15)
-            ->by($request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip())
-            ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
-                ['message' => 'Slow down: too many searches. Give it a few seconds.'],
-                429,
-                $headers,
-            )));
+        RateLimiter::for('search', function (Request $request): Limit {
+            if ($request->routeIs('headline.show') && $request->header('X-Inertia-Partial-Component') === 'headline/show') {
+                $only = collect(explode(',', $request->header('X-Inertia-Partial-Data', '')))->filter();
+                $except = explode(',', $request->header('X-Inertia-Partial-Except', ''));
 
-        // Every commit page asks for its related commits, a vector index scan with no outside call...
+                if (($only->isNotEmpty() && $only->doesntContain(fn (string $prop): bool => $prop === 'commits' || str_starts_with($prop, 'commits.')))
+                    || in_array('commits', $except, true)) {
+                    return Limit::none();
+                }
+            }
+
+            return Limit::perMinute(15)
+                ->by($this->userId($request))
+                ->response(fn (Request $request, array $headers): JsonResponse => response()->json(
+                    ['message' => 'Slow down: too many searches. Give it a few seconds.'],
+                    429,
+                    $headers,
+                ));
+        });
+
+        // Every commit page asks for its related commits, using the stored vector and a relevance verdict...
         RateLimiter::for('related-commits', fn (Request $request): Limit => Limit::perMinute(60)->by(
             $request->user() instanceof User ? $this->userId($request) : 'ip:'.$request->ip(),
         ));

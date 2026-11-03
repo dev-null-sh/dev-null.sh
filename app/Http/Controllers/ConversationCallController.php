@@ -33,14 +33,14 @@ final readonly class ConversationCallController
 
     public function update(UpdateConversationCallRequest $request, #[CurrentUser] User $user, User $partner, UpdateConversationCall $action): Response
     {
-        $action->handle($user, $partner, $request->call()['offer'], $request->string('sdp')->value());
+        $action->handle($user, $partner, $request->call(), $request->string('sdp')->value());
 
         return response()->noContent();
     }
 
     public function destroy(DeleteConversationCallRequest $request, #[CurrentUser] User $user, User $partner, DeleteConversationCall $action): Response
     {
-        $action->handle($user, $partner);
+        $action->handle($user, $partner, $request->unanswered());
 
         return response()->noContent();
     }

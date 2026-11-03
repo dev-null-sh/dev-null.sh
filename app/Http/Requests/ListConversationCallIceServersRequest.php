@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
-use App\Contracts\Services\TurnProvider;
 use App\Models\Conversation;
 use App\Models\User;
 use Illuminate\Auth\Access\Response;
@@ -15,7 +14,7 @@ final class ListConversationCallIceServersRequest extends FormRequest
     /**
      * Relay credentials cost money, so they only go to someone about to call, or answer, this partner.
      */
-    public function authorize(TurnProvider $turn): Response
+    public function authorize(): Response
     {
         $user = $this->user();
         assert($user instanceof User);
@@ -23,11 +22,9 @@ final class ListConversationCallIceServersRequest extends FormRequest
         $partner = $this->route('partner');
         assert($partner instanceof User);
 
-        if (! $user->canMessage($partner) || ! Conversation::between($user, $partner) instanceof Conversation) {
-            return Response::denyAsNotFound();
-        }
-
-        return $turn->isAvailable() ? Response::allow() : Response::deny("Calls aren't available right now.");
+        return $user->canMessage($partner) && Conversation::between($user, $partner) instanceof Conversation
+            ? Response::allow()
+            : Response::denyAsNotFound();
     }
 
     /**

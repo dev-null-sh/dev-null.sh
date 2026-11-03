@@ -4,14 +4,13 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\GitHubProvider;
 use App\Dto\GitHubProfile;
 use App\Jobs\LookUpUserOrganizations;
 use App\Models\User;
 use App\Queries\GitHubReadmeQuery;
-use App\Services\GitHub;
 use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\HttpClientException;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -21,7 +20,7 @@ use Illuminate\Support\Facades\DB;
 final readonly class UpdateUserProfile
 {
     public function __construct(
-        private GitHub $github,
+        private GitHubProvider $github,
         private UpdateUserSshKeys $updateUserSshKeys,
         private UpdateStaleHandles $updateStaleHandles,
         private GitHubReadmeQuery $readme,
@@ -32,9 +31,11 @@ final readonly class UpdateUserProfile
     public function handle(User $user): bool
     {
         try {
-            // Look the account up by its immutable ID: a handle can be renamed and then claimed by someone else.
-            /** @var array<array-key, mixed> $account */
-            $account = $this->github->request()->get("user/{$user->github_id}")->throw()->json();
+            $account = $this->github->account($user->github_id);
+
+            if ($account === null) {
+                return false;
+            }
 
             $this->updateUserSshKeys->handle($user);
 
@@ -55,7 +56,7 @@ final readonly class UpdateUserProfile
             LookUpUserOrganizations::dispatchFor($user);
 
             $this->readme->forget($user);
-        } catch (ConnectionException|RequestException|UniqueConstraintViolationException $exception) {
+        } catch (HttpClientException|UniqueConstraintViolationException $exception) {
             report($exception);
 
             return false;

@@ -2,20 +2,17 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\EmbeddingProvider;
+use App\Contracts\Services\RelevanceProvider;
 use App\Models\Commit;
 use App\Models\User;
-use Illuminate\Support\Facades\Http;
 
 beforeEach(function (): void {
-    config(['ai.providers.openai.key' => 'sk-test']);
-
     $this->user = User::factory()->create();
     $this->keyPair = apiKeyPairFor($this->user);
 });
 
 it('returns the commits nearest the term, closest first, as the commit endpoint shows them', function (): void {
-    fakeSearch();
-
     $closest = Commit::factory()->create(['body' => 'Shipped a new feature', 'embedding' => embeddingVector(0)]);
     $closest->stars()->attach($this->user);
     $other = Commit::factory()->create(['body' => 'Something else', 'embedding' => embeddingVector(1)]);
@@ -30,10 +27,11 @@ it('returns the commits nearest the term, closest first, as the commit endpoint 
 });
 
 it('drops the candidates the decision model calls irrelevant', function (): void {
-    fakeSearch([true, false]);
+    $relevant = Commit::factory()->create(['body' => 'About indexing', 'embedding' => embeddingVector(0)]);
+    Commit::factory()->create(['body' => 'About something else', 'embedding' => embeddingVector(1)]);
 
-    $relevant = Commit::factory()->create(['embedding' => embeddingVector(0)]);
-    Commit::factory()->create(['embedding' => embeddingVector(1)]);
+    $relevance = $this->mock(RelevanceProvider::class);
+    $relevance->shouldReceive('decideRelevance')->with('indexing', ['About indexing', 'About something else'], false)->once()->andReturn([true, false]);
 
     signedApiRequest($this->keyPair, 'GET', route('api-commit-search.index', ['q' => 'indexing']))
         ->assertOk()
@@ -41,8 +39,6 @@ it('drops the candidates the decision model calls irrelevant', function (): void
 });
 
 it('returns no more than the limit asked for, and 20 by default', function (?int $limit, int $count): void {
-    fakeSearch();
-
     Commit::factory()->count(21)->create(['embedding' => embeddingVector(0)]);
 
     signedApiRequest($this->keyPair, 'GET', route('api-commit-search.index', array_filter(['q' => 'feature', 'limit' => $limit])))
@@ -54,8 +50,6 @@ it('returns no more than the limit asked for, and 20 by default', function (?int
 ]);
 
 it('leaves out the commits of people the user blocked', function (): void {
-    fakeSearch();
-
     $visible = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $blocked = Commit::factory()->create(['embedding' => embeddingVector(0)]);
     $this->user->blocking()->attach($blocked->user);
@@ -65,14 +59,13 @@ it('leaves out the commits of people the user blocked', function (): void {
         ->assertJsonPath('data.*.id', [$visible->id]);
 });
 
-it('rejects short or long terms and out-of-range limits without asking openai', function (array $query, string $field): void {
-    Http::fake();
+it('rejects short or long terms and out-of-range limits without embedding anything', function (array $query, string $field): void {
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldNotReceive('embed');
 
     signedApiRequest($this->keyPair, 'GET', route('api-commit-search.index', $query))
         ->assertUnprocessable()
         ->assertJsonValidationErrors($field);
-
-    Http::assertNothingSent();
 })->with([
     'no term' => [[], 'q'],
     'a term under 3 characters' => [['q' => 'ab'], 'q'],
@@ -82,9 +75,8 @@ it('rejects short or long terms and out-of-range limits without asking openai', 
 ]);
 
 it('requires a signed request', function (): void {
-    Http::fake();
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldNotReceive('embed');
 
     $this->getJson(route('api-commit-search.index', ['q' => 'feature']))->assertUnauthorized();
-
-    Http::assertNothingSent();
 });

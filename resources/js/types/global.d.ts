@@ -21,7 +21,8 @@ declare module '@inertiajs/core' {
             submitted?: string;
             localSignIn?: boolean;
             signedUp?: boolean;
-            claimFailed?: { message: string; approvalUrl: string | null };
+            claimFailed?: { message: string; githubUrl: string | null };
+            lookupThrottled?: true;
         };
         sharedPageProps: {
             name: string;
@@ -39,6 +40,7 @@ declare module '@inertiajs/core' {
             now: number;
             suggestedUsers?: SuggestedUser[];
             liveFollowing?: User[];
+            hotTopics?: { id: string; name: string; summary: string | null }[];
             [key: string]: unknown;
         };
     }

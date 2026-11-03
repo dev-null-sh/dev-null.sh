@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Queries;
 
 use App\Actions\CreateConversationCall;
+use App\Dto\Call;
 use App\Models\Conversation;
 use App\Models\User;
 use Illuminate\Support\Facades\Cache;
@@ -13,22 +14,21 @@ use Illuminate\Support\Facades\Crypt;
 /**
  * Calls only ever live in the cache, for as long as one rings. The browsers hand each other their offer and answer
  * through it, then talk directly, so nothing of the call itself reaches the server.
- *
- * @phpstan-type Call array{caller_id: string, offer: string, answer: string|null}
  */
 final readonly class CallQuery
 {
-    /**
-     * @return Call|null
-     */
-    public function get(User $callee): ?array
+    public function get(User $callee): ?Call
     {
         $encrypted = Cache::get(CreateConversationCall::key($callee));
 
-        /** @var Call|null $call */
-        $call = is_string($encrypted) ? json_decode(Crypt::decryptString($encrypted), true, flags: JSON_THROW_ON_ERROR) : null;
+        if (! is_string($encrypted)) {
+            return null;
+        }
 
-        return $call;
+        /** @var array<mixed> $attributes */
+        $attributes = json_decode(Crypt::decryptString($encrypted), true, flags: JSON_THROW_ON_ERROR);
+
+        return Call::fromArray($attributes);
     }
 
     /**
@@ -39,7 +39,7 @@ final readonly class CallQuery
     public function incoming(User $user): ?array
     {
         $call = $this->get($user);
-        $caller = $call === null || $call['answer'] !== null ? null : User::query()->find($call['caller_id']);
+        $caller = ! $call instanceof Call || $call->isAnswered() ? null : User::query()->find($call->callerId);
 
         if (! $caller instanceof User || ! $user->canMessage($caller)) {
             return null;
@@ -49,7 +49,7 @@ final readonly class CallQuery
 
         return [
             'partner' => $caller,
-            'sdp' => $call['offer'],
+            'sdp' => $call->offer,
             'is_muted' => $mutedUntil !== null && now()->lessThan($mutedUntil),
         ];
     }
@@ -63,6 +63,6 @@ final readonly class CallQuery
     {
         $call = $this->get($partner);
 
-        return $call !== null && $call['caller_id'] === $user->id ? ['answer' => $call['answer']] : null;
+        return $call?->isFrom($user) === true ? ['answer' => $call->answer] : null;
     }
 }

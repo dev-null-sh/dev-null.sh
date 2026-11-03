@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 use App\Actions\CreateCommitTopics;
 use App\Models\Commit;
-use App\Models\Profile;
+use App\Models\Organization;
 use App\Models\User;
 
 it('lists the public commits and replies that mention an organization, newest first', function (): void {
-    $laravel = Profile::factory()->organization()->create(['handle' => 'laravel']);
-    $symfony = Profile::factory()->organization()->create(['handle' => 'symfony']);
-    $mention = fn (Commit $commit, ?Profile $organization = null): Commit => tap($commit, fn () => resolve(CreateCommitTopics::class)->handle($commit, [($organization ?? $laravel)->handle => ($organization ?? $laravel)->id]));
+    $laravel = Organization::factory()->create(['handle' => 'laravel']);
+    $symfony = Organization::factory()->create(['handle' => 'symfony']);
+    $mention = fn (Commit $commit, ?Organization $organization = null): Commit => tap($commit, fn () => resolve(CreateCommitTopics::class)->handle($commit, [($organization ?? $laravel)->handle => ($organization ?? $laravel)->id]));
 
     $older = $mention(Commit::factory()->create(['body' => 'Thanks @laravel', 'created_at' => now()->subHour()]));
     $parent = Commit::factory()->create(['created_at' => now()->subMinutes(30)]);
@@ -31,7 +31,7 @@ it('lists for a signed request the mentions of an organization as the web shows 
     $keyPair = apiKeyPairFor($viewer);
     $muted = User::factory()->create();
     $viewer->muting()->attach($muted);
-    $laravel = Profile::factory()->organization()->create(['handle' => 'laravel']);
+    $laravel = Organization::factory()->create(['handle' => 'laravel']);
     $mention = fn (Commit $commit): Commit => tap($commit, fn () => resolve(CreateCommitTopics::class)->handle($commit, ['laravel' => $laravel->id]));
 
     $pending = $mention(Commit::factory()->for($viewer)->pending()->create(['body' => 'Pending @laravel']));

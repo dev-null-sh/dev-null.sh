@@ -42,7 +42,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Before the strings are trimmed, so a value that was only NUL bytes ends up empty like any other blank one.
         $middleware->prepend(StripNullBytes::class);
         // A call's offer and answer must end in a line break, which Firefox refuses to parse without.
-        $middleware->trimStrings(except: ['sdp']);
+        $middleware->trimStrings(except: ['sdp', 'signals.*.sdp']);
         $middleware->append(PreventFraming::class);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow', 'who_to_follow_round', 'lane_dimming', 'replies_per_page', 'time_zone', 'hour_cycle']);

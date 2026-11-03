@@ -1,3 +1,5 @@
+import type { HttpExceptionResponse } from '@inertiajs/core';
+
 /**
  * What was deleted, or hidden from the viewer, while they were still looking at it: those commits and pages stay on
  * screen as they were last seen, with every action off, instead of turning into a 404 before they reload.
@@ -32,3 +34,18 @@ export function createDeletedResources() {
 }
 
 export const deletedResources = createDeletedResources();
+
+/**
+ * Whether a 404 says the open page is gone. Most pages answer the error page then, but some are 404s from the start, like
+ * the sign-in prompt guests get for a handle nobody looked up: reloading one answers the same page, which is still there.
+ */
+export function isPageGone(
+    response: HttpExceptionResponse,
+    component: string,
+): boolean {
+    return (
+        response.status === 404 &&
+        (typeof response.data !== 'object' ||
+            response.data.component !== component)
+    );
+}

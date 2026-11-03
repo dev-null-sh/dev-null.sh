@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Requests;
 
+use App\Dto\Call;
 use App\Models\User;
 use App\Queries\CallQuery;
 use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
 
-/**
- * @phpstan-import-type Call from CallQuery
- */
 final class UpdateConversationCallRequest extends FormRequest
 {
     /**
@@ -46,10 +44,8 @@ final class UpdateConversationCallRequest extends FormRequest
 
     /**
      * The call being answered.
-     *
-     * @return Call
      */
-    public function call(): array
+    public function call(): Call
     {
         $user = $this->user();
         assert($user instanceof User);

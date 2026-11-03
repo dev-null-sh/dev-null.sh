@@ -24,7 +24,7 @@ it('leaves the bots out', function (): void {
 });
 
 it('rounds down to the thousand from a thousand', function (): void {
-    User::query()->insert(User::factory()->count(1250)->make()->map(fn (User $user): array => [...$user->getAttributes(), 'id' => $user->newUniqueId()])->all());
+    User::query()->insert(User::factory()->count(1250)->make()->map(fn (User $user): array => $user->getAttributes())->all());
 
     expect(resolve(DevelopersCountQuery::class)->get())->toBe(1000);
 });

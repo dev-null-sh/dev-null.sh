@@ -1,4 +1,4 @@
-import type { VisitOptions } from '@inertiajs/core';
+import type { VisitCallbacks, VisitOptions } from '@inertiajs/core';
 import { Link, router, usePage } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
 import { UserCheck, UserPlus } from 'lucide-react';
@@ -233,6 +233,51 @@ export function toggleFollow(
     );
 }
 
+export function useFollow(
+    user: Pick<User, 'id' | 'handle'>,
+    initialIsFollowing: boolean,
+): {
+    isFollowing: boolean;
+    callbacks: Pick<
+        VisitCallbacks,
+        | 'onBefore'
+        | 'onStart'
+        | 'onCancel'
+        | 'onNetworkError'
+        | 'onHttpException'
+        | 'onFinish'
+    >;
+} {
+    const [isFollowing, setIsFollowing] = useIsFollowing(
+        user,
+        initialIsFollowing,
+    );
+    const [isPending, setIsPending] = useSharedState<boolean>(
+        isPendingKey(user),
+        false,
+    );
+    const rollBack = () => setIsFollowing(isFollowing);
+
+    return {
+        isFollowing,
+        callbacks: {
+            onBefore: () => !isPending,
+            onStart: () => {
+                setIsPending(true);
+                setIsFollowing(!isFollowing);
+            },
+            onCancel: rollBack,
+            onNetworkError: rollBack,
+            onHttpException: (response) => {
+                rollBack();
+
+                return onFollowHttpException(user, response);
+            },
+            onFinish: () => setIsPending(false),
+        },
+    };
+}
+
 export function FollowLabel({
     isFollowing,
     isJustToggled,
@@ -283,14 +328,7 @@ export function FollowButton({
         component,
         props: { auth, log, commits },
     } = usePage<{ commits?: CursorPaginated<Commit> }>();
-    const [isFollowing, setIsFollowing] = useIsFollowing(
-        user,
-        initialIsFollowing,
-    );
-    const [isPending, setIsPending] = useSharedState<boolean>(
-        isPendingKey(user),
-        false,
-    );
+    const { isFollowing, callbacks } = useFollow(user, initialIsFollowing);
     const { isJustToggled, markToggled, onMouseLeave } = useFollowHover();
 
     if (auth.user === null) {
@@ -323,13 +361,7 @@ export function FollowButton({
                 as="button"
                 preserveScroll
                 async
-                onBefore={() => !isPending}
-                onStart={() => setIsPending(true)}
-                onFinish={() => setIsPending(false)}
-                disabled={isPending}
-                onHttpException={(response) =>
-                    onFollowHttpException(user, response)
-                }
+                {...callbacks}
                 aria-label={
                     isFollowing
                         ? `Unfollow @${user.handle}`
@@ -341,7 +373,6 @@ export function FollowButton({
                     onClick?.(event);
                 }}
                 onSuccess={(page) => {
-                    setIsFollowing(!isFollowing);
                     router.flushAll();
                     onSuccess?.(page);
                 }}
@@ -380,10 +411,7 @@ export function FollowIconButton({
         component,
         props: { log, commits },
     } = usePage<{ commits?: CursorPaginated<Commit> }>();
-    const [isFollowing, setIsFollowing] = useIsFollowing(
-        user,
-        initialIsFollowing,
-    );
+    const { isFollowing, callbacks } = useFollow(user, initialIsFollowing);
     const Icon = isFollowing ? UserCheck : UserPlus;
 
     return (
@@ -400,13 +428,8 @@ export function FollowIconButton({
                     preserveState
                     preserveScroll
                     async
-                    onHttpException={(response) =>
-                        onFollowHttpException(user, response)
-                    }
-                    onSuccess={() => {
-                        setIsFollowing(!isFollowing);
-                        router.flushAll();
-                    }}
+                    {...callbacks}
+                    onSuccess={() => router.flushAll()}
                     aria-label={
                         isFollowing
                             ? `Unfollow @${user.handle}`
