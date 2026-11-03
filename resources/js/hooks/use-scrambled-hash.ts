@@ -15,11 +15,16 @@ let currentFrame: number | null = null;
 let interval: ReturnType<typeof setInterval> | undefined;
 
 const start = () => {
-    if (
-        interval !== undefined ||
-        document.visibilityState === 'hidden' ||
-        window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    ) {
+    if (interval !== undefined || document.visibilityState === 'hidden') {
+        return;
+    }
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        if (currentFrame !== null) {
+            currentFrame = null;
+            listeners.forEach((notify) => notify());
+        }
+
         return;
     }
 

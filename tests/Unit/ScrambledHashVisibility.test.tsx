@@ -24,8 +24,9 @@ afterEach(() => {
 
 test('pauses the image loading animation offscreen and resumes on return', async () => {
     vi.useFakeTimers();
+    let reducedMotion = false;
     vi.stubGlobal('window', {
-        matchMedia: () => ({ matches: false }),
+        matchMedia: () => ({ matches: reducedMotion }),
     });
     const events = new Map<string, () => void>();
     const document = {
@@ -51,6 +52,16 @@ test('pauses the image loading animation offscreen and resumes on return', async
     events.get('visibilitychange')?.();
     vi.advanceTimersByTime(70);
     assert.equal(notify.mock.calls.length, 3);
+
+    document.visibilityState = 'hidden';
+    events.get('visibilitychange')?.();
+    reducedMotion = true;
+    document.visibilityState = 'visible';
+    events.get('visibilitychange')?.();
+    assert.equal(notify.mock.calls.length, 4);
+    assert.ok(useScrambledHash('abcd').every(({ isLocked }) => isLocked));
+    vi.advanceTimersByTime(700);
+    assert.equal(notify.mock.calls.length, 4);
 
     unsubscribe();
     assert.equal(events.has('visibilitychange'), false);
