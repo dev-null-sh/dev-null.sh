@@ -143,7 +143,7 @@ it('keeps the commits someone posted for an organization when they delete their 
         ->and($tombstone->author_id)->toBeNull();
 });
 
-it('notifies no one about the commits of an organization whose poster deleted their account', function (): void {
+it('notifies no one about the commits of an organization whose only member, its poster, deleted their account', function (): void {
     $commit = Commit::factory()->for($this->member)->create(['author_id' => $this->organization->id]);
     resolve(DeleteUser::class)->handle($this->member);
     $reply = Commit::factory()->for($commit, 'parent')->pending()->create();

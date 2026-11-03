@@ -85,8 +85,8 @@ export default function Index() {
 
                 <DocumentSection id="past" title="Past partners">
                     <p className="text-muted-foreground">
-                        When a sponsorship ends, the partner moves here and
-                        stays for good. Nobody yet.
+                        When a sponsorship ends, the partner moves here. Nobody
+                        yet.
                     </p>
                     <PastSpots />
                 </DocumentSection>
@@ -107,8 +107,7 @@ export default function Index() {
                 <DocumentSection id="perks" title="What partners get">
                     <p>
                         A spot on this page. You're at the top while you
-                        sponsor, and in the list of past partners for good after
-                        that.
+                        sponsor, and in the list of past partners after that.
                     </p>
                     <p>
                         That's it. Sponsoring doesn't buy promoted commits, a

@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\MessageVoiceController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\NotificationGroupController;
 use App\Http\Controllers\Api\OrganizationAdminController;
+use App\Http\Controllers\Api\OrganizationCommitController;
 use App\Http\Controllers\Api\OrganizationController;
 use App\Http\Controllers\Api\OrganizationFollowController;
 use App\Http\Controllers\Api\OrganizationMentionController;
@@ -116,6 +117,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
             ->name('api-related-commit.index');
         Route::get('organizations/{handle}', [OrganizationController::class, 'show'])
             ->name('api-organization.show');
+        Route::get('organizations/{handle}/commits', [OrganizationCommitController::class, 'index'])
+            ->name('api-organization-commit.index');
         Route::get('organizations/{handle}/mentions', [OrganizationMentionController::class, 'index'])
             ->name('api-organization-mention.index');
     });
@@ -279,6 +282,8 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('starred', [StarredCommitController::class, 'index'])->name('api-starred.index');
 
         // Commit Star...
+        Route::get('commits/{commit}/stars', [CommitStarController::class, 'index'])
+            ->name('api-commit-star.index');
         Route::post('commits/{commit}/star', [CommitStarController::class, 'store'])
             ->middleware('throttle:stars')
             ->name('api-commit-star.store');

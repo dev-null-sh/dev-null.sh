@@ -538,7 +538,7 @@ it('excludes silenced actors from groups, history and read acknowledgements', fu
     $root = Commit::factory()->for($user)->create();
     $visible = Notification::factory()->for($user, 'recipient')->replied($root)->create();
     $hidden = Notification::factory()->for($user, 'recipient')->replied($root)->create();
-    [$actor, $subject] = $recipientActs ? [$user, $hidden->actor] : [$hidden->actor, $user];
+    [$actor, $subject] = $recipientActs ? [$user, $hidden->actor->user] : [$hidden->actor->user, $user];
     $actor->{$relation}()->attach($subject);
 
     expect(resolve(NotificationGroupsQuery::class)->unreadCount($user))->toBe(1);

@@ -75,9 +75,14 @@ function DockedChat({ user }: { user: User }) {
 
     const leave = () => updateChatDock({ conversation: null });
 
+    const blocked = () =>
+        router.reload({
+            onSuccess: () => router.reload({ only: ['hotTopics'] }),
+        });
+
     const leaveBlocked = () => {
         leave();
-        router.reload();
+        blocked();
     };
 
     const toggle = () => updateChatDock({ isExpanded: !dock.isExpanded });
@@ -246,7 +251,7 @@ function DockedChat({ user }: { user: User }) {
                             <InboxPanel
                                 user={user}
                                 onOpen={open}
-                                onBlocked={() => router.reload()}
+                                onBlocked={blocked}
                                 isCompact
                                 empty={
                                     <p className="px-4 py-10 text-center font-mono text-[13px] text-muted-foreground">

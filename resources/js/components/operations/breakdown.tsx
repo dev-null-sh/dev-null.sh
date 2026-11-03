@@ -7,9 +7,10 @@ import type { BreakdownRow } from '@/types';
 const PLACEHOLDER_WIDTHS = ['w-3/5', 'w-1/2', 'w-2/3', 'w-2/5', 'w-1/3'];
 
 /**
- * A ranked list with a bar behind each name, sized from the largest row. Empty names print the given word, muted;
- * the others print as formatted, or as rendered when a row needs more than text, a link say. Without rows yet, it
- * holds the room of the rows it expects. With `onSelect`, each name is a button, and the selected one is highlighted.
+ * A ranked list with a bar behind each name, sized from `max`, or from the largest row without it. Counts print with
+ * `format`, as whole numbers by default. Empty names print the given word, muted; the others print as formatted, or as
+ * rendered when a row needs more than text, a link say. Without rows yet, it holds the room of the rows it expects.
+ * With `onSelect`, each name is a button, and the selected one is highlighted.
  */
 export function Breakdown({
     title,
@@ -17,6 +18,8 @@ export function Breakdown({
     empty,
     rows,
     expectedRows = 10,
+    max,
+    format = formatCount,
     formatName = (name) => name,
     renderName,
     selected,
@@ -28,13 +31,15 @@ export function Breakdown({
     empty: string;
     rows?: BreakdownRow[];
     expectedRows?: number;
+    max?: number;
+    format?: (count: number) => string;
     formatName?: (name: string) => string;
     renderName?: (name: string) => ReactNode;
     selected?: string;
     onSelect?: (name: string) => void;
     className?: string;
 }) {
-    const top = Math.max(0, ...(rows ?? []).map((row) => row.count));
+    const top = max ?? Math.max(0, ...(rows ?? []).map((row) => row.count));
 
     return (
         <div className={cn('rounded-lg border px-4', className)}>
@@ -49,7 +54,7 @@ export function Breakdown({
                         </th>
                         <th
                             scope="col"
-                            className="w-20 py-2.5 text-right font-normal"
+                            className="w-24 py-2.5 text-right font-normal"
                         >
                             {unit}
                         </th>
@@ -141,7 +146,7 @@ export function Breakdown({
                                     )}
                                 </th>
                                 <td className="py-2.5 text-right font-mono text-[13px] font-medium tabular-nums">
-                                    {formatCount(row.count)}
+                                    {format(row.count)}
                                 </td>
                             </tr>
                         );

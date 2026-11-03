@@ -2,6 +2,7 @@ import { Link } from '@inertiajs/react';
 import { Fragment } from 'react';
 import type { ReactNode, SVGAttributes } from 'react';
 import CommitController from '@/actions/App/Http/Controllers/CommitController';
+import { show as showProfile } from '@/actions/App/Http/Controllers/UserController';
 import AppLogoIcon from '@/components/app-logo-icon';
 import AppWordmark from '@/components/app-wordmark';
 import { CertificateText } from '@/components/certificate-text';
@@ -680,6 +681,7 @@ function withMentions(
     colors: Color[],
     pasteisMode: boolean,
     isStatic: boolean,
+    linksEveryMention: boolean,
 ): ReactNode[] {
     const parts: ReactNode[] = [];
     let position = 0;
@@ -729,8 +731,20 @@ function withMentions(
                 >
                     {match[0]}
                 </Link>
-            ) : (
+            ) : !linksEveryMention ? (
                 match[0]
+            ) : (
+                // Anyone else may be on GitHub: their page looks them up for members. Guests and crawlers get a
+                // missing page, so it isn't followed, nor prefetched, which would ask for it on every hover of a feed...
+                <Link
+                    key={`mention-${offset + match.index}`}
+                    href={showProfile(match[1])}
+                    rel="nofollow"
+                    className="font-medium text-primary hover:underline"
+                    data-test="handle-mention"
+                >
+                    {match[0]}
+                </Link>
             ),
         );
 
@@ -755,6 +769,7 @@ export function LinkifiedText({
     organizationMentions = null,
     pasteisMode = false,
     isStatic = false,
+    linksEveryMention = true,
     startsText = false,
 }: {
     text: string;
@@ -762,6 +777,7 @@ export function LinkifiedText({
     organizationMentions?: Commit['organization_mentions'];
     pasteisMode?: boolean;
     isStatic?: boolean;
+    linksEveryMention?: boolean;
     // Whether the text is a whole body, so its start is the start of a line.
     startsText?: boolean;
 }) {
@@ -790,6 +806,7 @@ export function LinkifiedText({
                 colors,
                 pasteisMode,
                 isStatic,
+                linksEveryMention,
             ),
             commitLink ? (
                 <CommitLink
@@ -835,6 +852,7 @@ export function LinkifiedText({
             colors,
             pasteisMode,
             isStatic,
+            linksEveryMention,
         ),
     );
 

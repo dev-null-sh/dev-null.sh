@@ -81,16 +81,19 @@ function percent(value: number): string {
 }
 
 /**
- * Each total, as its tile prints it and as the chart draws it: the bounce rate in percent, so its axis counts whole
- * ones.
+ * Each total, as its tile prints it and as the chart and the breakdowns draw it: the bounce rate in percent, so its
+ * axis counts whole ones and its bars fill up to 100.
  */
-const METRICS: {
+type Metric = {
     key: keyof TrafficTotals;
     label: string;
     value: (totals: TrafficTotals) => number;
     format: (value: number) => string;
     formatTick: (value: number) => string;
-}[] = [
+    max?: number;
+};
+
+const METRICS: Metric[] = [
     {
         key: 'visitors',
         label: 'visitors',
@@ -118,6 +121,7 @@ const METRICS: {
         value: (totals) => totals.bounce_rate * 100,
         format: percent,
         formatTick: percent,
+        max: 100,
     },
 ];
 
@@ -238,12 +242,14 @@ function FilterBar({
 function TrafficChart({
     timeline,
     isHourly,
+    metric,
+    onMetric,
 }: {
     timeline?: TrafficPoint[];
     isHourly: boolean;
+    metric: Metric;
+    onMetric: (metric: Metric) => void;
 }) {
-    const [key, setKey] = useState<keyof TrafficTotals>('visitors');
-    const metric = METRICS.find((item) => item.key === key) ?? METRICS[0];
     const period = isHourly ? 'hour' : 'day';
 
     return (
@@ -256,8 +262,8 @@ function TrafficChart({
                     {METRICS.map((item) => (
                         <PresetButton
                             key={item.key}
-                            isActive={item.key === key}
-                            onClick={() => setKey(item.key)}
+                            isActive={item.key === metric.key}
+                            onClick={() => onMetric(item)}
                         >
                             {item.label}
                         </PresetButton>
@@ -287,7 +293,8 @@ function TrafficChart({
 }
 
 /**
- * Fathom's report, its placeholders while it loads, or a line saying it didn't answer.
+ * Fathom's report, its placeholders while it loads, or a line saying it didn't answer. The breakdowns show the total
+ * the chart draws, on the rows with the most visitors.
  */
 function TrafficValue({
     traffic,
@@ -300,6 +307,8 @@ function TrafficValue({
     isHourly: boolean;
     onFilter: (filter: TrafficFilter, value: string) => void;
 }) {
+    const [metric, setMetric] = useState(METRICS[0]);
+
     if (traffic === null) {
         return (
             <div className="rounded-lg border px-4 py-2.5 text-sm">
@@ -322,22 +331,29 @@ function TrafficValue({
                         traffic && metric.format(metric.value(traffic.totals)),
                 }))}
             />
-            <TrafficChart timeline={traffic?.timeline} isHourly={isHourly} />
+            <TrafficChart
+                timeline={traffic?.timeline}
+                isHourly={isHourly}
+                metric={metric}
+                onMetric={setMetric}
+            />
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
                 {BREAKDOWNS.map((breakdown) => (
                     <Breakdown
                         key={breakdown.key}
                         className={breakdown.className}
                         title={breakdown.title}
-                        unit="visitors"
+                        unit={metric.label}
                         empty={breakdown.empty}
                         expectedRows={breakdown.expected}
                         rows={traffic?.breakdowns[breakdown.key].map(
                             (row: TrafficRow) => ({
                                 name: row.name,
-                                count: row.visitors,
+                                count: metric.value(row),
                             }),
                         )}
+                        max={metric.max}
+                        format={metric.format}
                         formatName={
                             breakdown.key === 'countries'
                                 ? countryName

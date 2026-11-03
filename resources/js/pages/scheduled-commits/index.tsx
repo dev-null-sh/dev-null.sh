@@ -11,6 +11,7 @@ import LogController from '@/actions/App/Http/Controllers/LogController';
 import ScheduledCommitController from '@/actions/App/Http/Controllers/ScheduledCommitController';
 import ScheduledCommitSubmissionController from '@/actions/App/Http/Controllers/ScheduledCommitSubmissionController';
 import { FoldedCommitBody } from '@/components/commit-body';
+import { OrganizationAvatar } from '@/components/organization-avatar';
 import { StableLabel } from '@/components/stable-label';
 import { Button } from '@/components/ui/button';
 import {
@@ -23,10 +24,12 @@ import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
 import { formatClockDateTime, readerClock } from '@/lib/utils';
-import type { BodySegment } from '@/types';
+import type { BodySegment, OrganizationAuthor } from '@/types';
 
 type ScheduledCommit = {
     id: string;
+    // The organization it goes out as, or null when it goes out as you.
+    author: OrganizationAuthor | null;
     body: string | null;
     body_segments: BodySegment[];
     preview_segments: BodySegment[] | null;
@@ -214,6 +217,24 @@ export default function Index({
                                         >
                                             {when}
                                         </time>
+                                        {scheduled.author && (
+                                            <p className="mt-2 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                                                <OrganizationAvatar
+                                                    organization={
+                                                        scheduled.author
+                                                    }
+                                                    className="size-4 rounded-sm"
+                                                    pixels={32}
+                                                />
+                                                <span
+                                                    className="truncate"
+                                                    title={`As @${scheduled.author.handle}`}
+                                                >
+                                                    As @
+                                                    {scheduled.author.handle}
+                                                </span>
+                                            </p>
+                                        )}
                                     </div>
                                     {scheduled.status === 'scheduled' && (
                                         <div className="flex shrink-0 gap-2">

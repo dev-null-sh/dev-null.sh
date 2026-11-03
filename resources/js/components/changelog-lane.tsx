@@ -2,7 +2,7 @@ import { Link } from '@inertiajs/react';
 import { ArrowUpRight } from 'lucide-react';
 import type { ReactNode, Ref } from 'react';
 import { UserPreview } from '@/components/user-preview';
-import type { ChangelogAuthor, ChangelogPullRequest } from '@/lib/changelog';
+import type { ChangelogAuthor, ChangelogCommit } from '@/lib/changelog';
 import { authorLane } from '@/lib/changelog';
 import {
     cn,
@@ -99,34 +99,44 @@ export function BreakingBadge() {
     );
 }
 
-function PullRequestLink({
-    pullRequest,
+/**
+ * The pull request a commit came from, or the commit itself when it was pushed straight to production.
+ */
+function CommitLink({
+    commit,
     ref,
 }: {
-    pullRequest: ChangelogPullRequest;
+    commit: ChangelogCommit;
     ref?: Ref<HTMLAnchorElement>;
 }) {
     return (
         <a
             ref={ref}
-            href={pullRequest.url}
+            data-commit-link
+            href={commit.pull_request?.url ?? commit.url}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label={`Pull request #${pullRequest.number} on GitHub (opens in a new tab)`}
+            aria-label={
+                commit.pull_request === null
+                    ? `Commit ${commit.sha.slice(0, 7)} on GitHub (opens in a new tab)`
+                    : `Pull request #${commit.pull_request.number} on GitHub (opens in a new tab)`
+            }
             className="inline-flex shrink-0 items-center gap-0.5 rounded-sm font-mono text-xs text-muted-foreground tabular-nums transition-colors hover:text-primary"
         >
-            #{pullRequest.number}
+            {commit.pull_request === null
+                ? commit.sha.slice(0, 7)
+                : `#${commit.pull_request.number}`}
             <ArrowUpRight aria-hidden className="size-3" />
         </a>
     );
 }
 
 /**
- * The merges on one lane, each dot and segment in the color of whoever merged it. A lane can carry on from the merge
+ * The commits on one lane, each dot and segment in the color of whoever made it. A lane can carry on from the commit
  * before it (previousAuthor) and into what comes after it (continues), so a split list still reads as one line.
  */
 export function ChangelogLane({
-    pullRequests,
+    commits,
     isCompact = false,
     previousAuthor,
     continues = false,
@@ -134,7 +144,7 @@ export function ChangelogLane({
     timeZone,
     onNavigate,
 }: {
-    pullRequests: ChangelogPullRequest[];
+    commits: ChangelogCommit[];
     isCompact?: boolean;
     previousAuthor?: ChangelogAuthor;
     continues?: boolean;
@@ -144,17 +154,15 @@ export function ChangelogLane({
 }) {
     return (
         <ol>
-            {pullRequests.map((pullRequest, index) => {
-                const color = changelogLaneColor(pullRequest.author);
+            {commits.map((commit, index) => {
+                const color = changelogLaneColor(commit.author);
                 const before =
-                    index === 0
-                        ? previousAuthor
-                        : pullRequests[index - 1].author;
-                const hasTail = continues || index < pullRequests.length - 1;
+                    index === 0 ? previousAuthor : commits[index - 1].author;
+                const hasTail = continues || index < commits.length - 1;
 
                 return (
                     <li
-                        key={pullRequest.number}
+                        key={commit.sha}
                         className={cn('flex', isCompact ? 'gap-2' : 'gap-2.5')}
                     >
                         <span
@@ -194,69 +202,73 @@ export function ChangelogLane({
                         >
                             <div className="flex items-center gap-2.5 text-sm leading-5">
                                 <span
-                                    title={pullRequest.title}
+                                    title={commit.title}
                                     className={cn(
                                         'min-w-0 flex-1 truncate',
                                         !isCompact && 'font-medium',
                                     )}
                                 >
-                                    {pullRequest.title}
+                                    {commit.title}
                                 </span>
-                                {isCompact && pullRequest.breaking && (
+                                {isCompact && commit.breaking && (
                                     <BreakingBadge />
                                 )}
-                                <PullRequestLink
-                                    pullRequest={pullRequest}
+                                <CommitLink
+                                    commit={commit}
                                     ref={index === 0 ? firstLinkRef : undefined}
                                 />
                             </div>
                             {!isCompact && (
                                 <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground tabular-nums">
                                     <ChangelogAuthorLink
-                                        author={pullRequest.author}
+                                        author={commit.author}
                                         onClick={onNavigate}
                                         className="flex min-w-0 items-center gap-1.5 rounded-sm"
                                     >
                                         <ChangelogAvatar
-                                            avatar={pullRequest.author.avatar}
+                                            avatar={commit.author.avatar}
                                             size={16}
                                         />
                                         <span className="max-w-36 truncate">
-                                            @{pullRequest.author.login}
+                                            @{commit.author.login}
                                         </span>
                                     </ChangelogAuthorLink>
                                     <span aria-hidden>·</span>
                                     <time
-                                        dateTime={pullRequest.merged_at}
+                                        dateTime={commit.committed_at}
                                         title={formatFullDateTime(
-                                            pullRequest.merged_at,
+                                            commit.committed_at,
                                             timeZone,
                                         )}
                                         className="shrink-0"
                                     >
                                         {formatRelativeTime(
-                                            pullRequest.merged_at,
+                                            commit.committed_at,
                                         )}
                                     </time>
-                                    <span aria-hidden>·</span>
-                                    <a
-                                        href={pullRequest.commit_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        aria-label={`Commit ${pullRequest.sha.slice(0, 7)} on GitHub (opens in a new tab)`}
-                                        className="shrink-0 rounded-sm font-mono transition-colors hover:text-foreground"
-                                    >
-                                        {pullRequest.sha.slice(0, 7)}
-                                    </a>
-                                    {pullRequest.type !== null && (
+                                    {commit.pull_request !== null && (
+                                        <>
+                                            <span aria-hidden>·</span>
+                                            <a
+                                                href={commit.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                aria-label={`Commit ${commit.sha.slice(0, 7)} on GitHub (opens in a new tab)`}
+                                                className="shrink-0 rounded-sm font-mono transition-colors hover:text-foreground"
+                                            >
+                                                {commit.sha.slice(0, 7)}
+                                            </a>
+                                        </>
+                                    )}
+                                    {commit.type !== null && (
                                         <>
                                             <span aria-hidden>·</span>
                                             <span className="shrink-0 font-mono">
-                                                {pullRequest.type}
+                                                {commit.type}
                                             </span>
                                         </>
                                     )}
-                                    {pullRequest.breaking && <BreakingBadge />}
+                                    {commit.breaking && <BreakingBadge />}
                                 </div>
                             )}
                         </div>

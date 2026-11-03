@@ -51,7 +51,7 @@ use Traversable;
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     organizations: array<int, array{handle: string, role: string, joined_at: string}>,
  *     followed_organizations: array<int, array{handle: string, followed_at: string}>,
- *     pending_organization_follows: list<string>,
+ *     pending_follows: list<string>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
@@ -74,7 +74,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 5,
+            'schema_version' => 6,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -123,7 +123,7 @@ final readonly class CreateExport
             'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
             'organizations' => $this->organizations($user),
             'followed_organizations' => $this->followedOrganizations($user),
-            'pending_organization_follows' => $this->pendingOrganizationFollows($user),
+            'pending_follows' => $this->pendingFollows($user),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
                 'commit_id' => $report->commit_id,
@@ -397,28 +397,30 @@ final readonly class CreateExport
     }
 
     /**
-     * The GitHub IDs of the organizations the user follows on GitHub, to follow here once they are on /dev/null.
+     * The GitHub IDs of the accounts the user waits to follow until they are on /dev/null: organizations and developers.
      *
      * @return list<string>
      */
-    private function pendingOrganizationFollows(User $user): array
+    private function pendingFollows(User $user): array
     {
         /** @var list<string> */
-        return DB::table('pending_organization_follows')->where('user_id', $user->id)->orderBy('github_id')->pluck('github_id')->all();
+        return DB::table('pending_follows')->where('user_id', $user->id)->orderBy('github_id')->pluck('github_id')->all();
     }
 
     /**
-     * Moderators stay anonymous, as they are on the notifications page, and level-ups are the user's own doing.
+     * Moderators stay anonymous, as they are on the notifications page, and level-ups are the user's own doing. An
+     * organization's notifications name the organization the user heard about it for.
      *
      * @return Generator<int, array<string, int|string|null>>
      */
     private function notifications(User $user): Generator
     {
-        /** @var LazyCollection<int, object{type: string, actor: string, commit_id: string|null, reason: string|null, level: int|string|null, read_at: string|null, created_at: string}> $notifications */
+        /** @var LazyCollection<int, object{type: string, actor: string, organization: string|null, commit_id: string|null, reason: string|null, level: int|string|null, read_at: string|null, created_at: string}> $notifications */
         $notifications = $user->notifications()
             ->join('profiles as actor_profiles', 'actor_profiles.id', '=', 'notifications.actor_id')
+            ->leftJoin('profiles as organization_profiles', 'organization_profiles.id', '=', 'notifications.organization_id')
             ->toBase()
-            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actor_profiles.handle as actor'])
+            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actor_profiles.handle as actor', 'organization_profiles.handle as organization'])
             ->lazyById(500, 'notifications.id', 'id');
 
         foreach ($notifications as $notification) {
@@ -427,6 +429,7 @@ final readonly class CreateExport
             yield [
                 'type' => $notification->type,
                 'actor' => $isModeration ? null : $notification->actor,
+                'organization' => $notification->organization,
                 'commit_id' => $notification->commit_id,
                 'reason' => $notification->reason,
                 'level' => $notification->level === null ? null : (int) $notification->level,

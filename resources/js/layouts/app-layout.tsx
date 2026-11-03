@@ -20,6 +20,7 @@ import { endStream, GoLiveDialog } from '@/components/go-live-dialog';
 import { GuestJoinSheet } from '@/components/guest-join-sheet';
 import { KeyboardShortcutsDialog } from '@/components/keyboard-shortcuts-dialog';
 import { LocalSignInDialog } from '@/components/local-sign-in-dialog';
+import { MobileAppSuggestion } from '@/components/mobile-app-suggestion';
 import { ProductHuntBanner } from '@/components/product-hunt-banner';
 import { SearchDialog } from '@/components/search-dialog';
 import { TermsDialog } from '@/components/terms-dialog';
@@ -33,6 +34,7 @@ import { useNavOpen } from '@/hooks/use-nav-open';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
 import { backgroundPollOptions } from '@/lib/background-poll';
+import { isPageGone } from '@/lib/deleted-resources';
 import type { IssueKind } from '@/lib/issue-commands';
 import type { SearchAction } from '@/lib/search-actions';
 import { cn } from '@/lib/utils';
@@ -111,6 +113,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
             >
                 {deletedPage === null && (
                     <NotificationCountPolling
+                        component={component}
                         isInbox={component === 'notification/index'}
                         onNotFound={markPageDeleted}
                     />
@@ -151,6 +154,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
                             isHidden={hasComposer && isComposerInView}
                             onCompose={compose}
                         />
+                    )}
+                    {!isMessages && component !== 'app/index' && (
+                        <MobileAppSuggestion />
                     )}
                 </MobileNav>
 
@@ -230,9 +236,11 @@ function NotificationTitle() {
  * page then stays as it was, instead of turning into a 404, and the polling stops until another page is visited.
  */
 function NotificationCountPolling({
+    component,
     isInbox,
     onNotFound,
 }: {
+    component: string;
     isInbox: boolean;
     onNotFound: () => void;
 }) {
@@ -245,7 +253,9 @@ function NotificationCountPolling({
                     return;
                 }
 
-                onNotFound();
+                if (isPageGone(response, component)) {
+                    onNotFound();
+                }
 
                 return false;
             },

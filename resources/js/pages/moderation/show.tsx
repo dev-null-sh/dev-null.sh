@@ -6,6 +6,7 @@ import CommitApprovalController from '@/actions/App/Http/Controllers/CommitAppro
 import CommitRejectionController from '@/actions/App/Http/Controllers/CommitRejectionController';
 import ModerationController from '@/actions/App/Http/Controllers/ModerationController';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
+import { CommitPoster } from '@/components/commit-poster';
 import { ModerationTabs } from '@/components/moderation-tabs';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -309,6 +310,7 @@ export default function Show({
                 actions={(commit) => (
                     <>
                         <AiDecision commit={commit} />
+                        <CommitPoster commit={commit} className="mt-1" />
                         <ModerationActions
                             isSelected={selected.has(commit.id)}
                             onSelectedChange={(isSelected) =>

@@ -192,8 +192,6 @@ function CommitComposerBody({
         return () => observer.disconnect();
     }, [isInDialog]);
 
-    // Scheduled commits are always one's own, for now.
-    const postingAs = isScheduling ? null : author;
     const ownNode = isInDialog ? (
         <RailAvatar user={user} progress={progress} />
     ) : (
@@ -224,30 +222,26 @@ function CommitComposerBody({
             )}
             <GraphRail
                 lane={
-                    postingAs === null
+                    author === null
                         ? laneColor(user.lane)
-                        : organizationLaneColor(postingAs.lane)
+                        : organizationLaneColor(author.lane)
                 }
                 variant="staged"
                 isFilled={isFilled}
                 hasTail={!isInDialog}
                 node={
-                    isScheduling ? (
-                        ownNode
-                    ) : (
-                        <AuthorSwitcher
-                            user={user}
-                            author={author}
-                            onChange={onAuthorChange}
-                            fallback={ownNode}
-                        >
-                            {author === null ? (
-                                <RailAvatar user={user} progress={progress} />
-                            ) : (
-                                <RailAvatar user={author} />
-                            )}
-                        </AuthorSwitcher>
-                    )
+                    <AuthorSwitcher
+                        user={user}
+                        author={author}
+                        onChange={onAuthorChange}
+                        fallback={ownNode}
+                    >
+                        {author === null ? (
+                            <RailAvatar user={user} progress={progress} />
+                        ) : (
+                            <RailAvatar user={author} />
+                        )}
+                    </AuthorSwitcher>
                 }
             />
 
@@ -720,8 +714,7 @@ export function CommitComposer({
             transform={(data) => ({
                 ...data,
                 commit_rules_accepted: commitRules.hasAccepted(),
-                ...(author !== null &&
-                    !isScheduling && { author: author.handle }),
+                ...(author !== null && { author: author.handle }),
                 ...(hasImages && {
                     images: attachments.images,
                     image_descriptions: attachments.descriptions,
