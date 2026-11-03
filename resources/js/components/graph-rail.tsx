@@ -9,10 +9,11 @@ import {
 } from '@/components/graph-canvas';
 import type { GraphNodeSpec } from '@/components/graph-canvas';
 import { LiveAvatarMarker } from '@/components/live-stream-card';
+import { OrganizationAvatar } from '@/components/organization-avatar';
 import { UserAvatar } from '@/components/user-avatar';
 import { bridgeDuration } from '@/lib/graph';
 import { cn, laneStrokeStyle } from '@/lib/utils';
-import type { User } from '@/types';
+import type { OrganizationAuthor, User } from '@/types';
 
 type Props = {
     lane: string;
@@ -23,6 +24,8 @@ type Props = {
     hasTail?: boolean;
     hasReplyTail?: boolean;
     endsWithDot?: boolean;
+    /** The commit's actions row is the last thing next to the rail, so its end dot lands on that row. */
+    endsOnActions?: boolean;
     isDimmed?: boolean;
     isPreviousDimmed?: boolean;
     node?: ReactNode;
@@ -64,6 +67,7 @@ export function GraphRail({
     hasTail = true,
     hasReplyTail = false,
     endsWithDot = false,
+    endsOnActions = false,
     isDimmed = false,
     isPreviousDimmed = false,
     node,
@@ -74,12 +78,19 @@ export function GraphRail({
     // A fresh commit going on below another one, like a reply chained under the last commit of a thread, scales in once
     // the trunk has reached it.
     const waitsForTrunk = isFresh && previousLane !== undefined;
+    // The actions row is 24px tall, or 28px below md, where the secondary actions fold into a menu button. It ends the
+    // rail's row: what opens below it, like the reply composer, has a row of its own.
+    const endDotBottom = endsOnActions ? 'bottom-3.5 md:bottom-3' : 'bottom-5';
 
     return (
         <div
             aria-hidden
             className={cn('relative min-h-16 w-16 shrink-0 sm:w-18', {
-                'min-h-24': endsWithDot || nodePosition === 'bottom',
+                'min-h-24':
+                    (endsWithDot && !endsOnActions) ||
+                    nodePosition === 'bottom',
+                // The commit's bottom padding and border sit in the row below.
+                'min-h-[calc(6rem-13px)]': endsWithDot && endsOnActions,
             })}
             style={{ '--lane': lane } as CSSProperties}
             onPointerEnter={
@@ -134,7 +145,7 @@ export function GraphRail({
                                 dimmable,
                                 {
                                     'opacity-60': isDimmed,
-                                    'bottom-5': endsWithDot,
+                                    [endDotBottom]: endsWithDot,
                                     'top-[calc(50%-1px)]':
                                         nodePosition === 'center',
                                     'top-[22px]': nodePosition === 'author',
@@ -154,7 +165,10 @@ export function GraphRail({
                                 'top-[23px]': nodePosition === 'author',
                                 'top-1/2': nodePosition === 'center',
                                 'top-auto h-5':
-                                    endsWithDot || nodePosition === 'bottom',
+                                    (endsWithDot && !endsOnActions) ||
+                                    nodePosition === 'bottom',
+                                'top-auto h-3.5 md:h-3':
+                                    endsWithDot && endsOnActions,
                             },
                         )}
                         style={laneStrokeStyle('var(--lane)', {
@@ -180,6 +194,7 @@ export function GraphRail({
                 }
                 isFresh={isFresh}
                 isDimmed={isDimmed}
+                bottom={endDotBottom}
                 delay={endDotDelay + (waitsForTrunk ? bridgeDuration : 0)}
             />
 
@@ -237,13 +252,13 @@ function RailEnd({
     ComponentProps<typeof RailEndDot>,
     'isLeaving' | 'onLeft'
 >) {
-    const isDrawing = useGraphOverlay();
+    const isInCanvas = useGraphOverlay();
     const [wasShown, setWasShown] = useState(isShown);
     const [isLeaving, setIsLeaving] = useState(false);
 
     if (wasShown !== isShown) {
         setWasShown(isShown);
-        setIsLeaving(!isShown && isDrawing && !prefersStillness());
+        setIsLeaving(!isShown && isInCanvas && !prefersStillness());
     }
 
     return isShown || isLeaving ? (
@@ -266,11 +281,14 @@ export function RailEndDot({
     isDimmed = false,
     delay = endDotDelay,
     isLeaving = false,
+    bottom = 'bottom-5',
     onLeft,
 }: {
     spec?: GraphNodeSpec | null;
     isFresh?: boolean;
     isDimmed?: boolean;
+    /** How far up the dot sits, as a class. */
+    bottom?: string;
     delay?: number;
     isLeaving?: boolean;
     onLeft?: () => void;
@@ -290,7 +308,9 @@ export function RailEndDot({
             data-dimmed={isDimmed || undefined}
             isFresh={isFresh && !isLeaving}
             className={cn(
-                'group/rail-node absolute bottom-5 left-1/2 flex -translate-x-1/2 translate-y-1/2 rounded-full',
+                'group/rail-node absolute',
+                bottom,
+                'left-1/2 flex -translate-x-1/2 translate-y-1/2 rounded-full',
                 { 'motion-safe:animate-node-out': isLeaving },
             )}
             style={
@@ -373,17 +393,24 @@ export function RailAvatar({
     user,
     progress,
 }: {
-    user: Pick<User, 'name' | 'avatar_url' | 'live'>;
+    user: Pick<User, 'name' | 'avatar_url' | 'live'> | OrganizationAuthor;
     // Fills the ring clockwise from 0 to 1, as a post grows toward its limit. At 0 the ring stays dashed.
     progress?: number;
 }) {
-    const isLive = Boolean(user.live);
+    const isOrganization = 'type' in user && user.type === 'organization';
+    const isLive = 'live' in user && Boolean(user.live);
 
     return (
-        <span className="relative flex rounded-full bg-card">
+        <span
+            className={cn(
+                'relative flex bg-card',
+                isOrganization ? 'rounded-lg' : 'rounded-full',
+            )}
+        >
             <span
                 className={cn(
-                    'relative flex rounded-full border-2 border-(--lane) p-0.5 transition-opacity duration-200',
+                    'relative flex border-2 border-(--lane) p-0.5 transition-opacity duration-200',
+                    isOrganization ? 'rounded-lg' : 'rounded-full',
                     dimmedNode,
                     {
                         'border-red-600': isLive,
@@ -438,7 +465,14 @@ export function RailAvatar({
                         </svg>
                     </>
                 )}
-                <UserAvatar user={user} className="size-10" />
+                {isOrganization ? (
+                    <OrganizationAvatar
+                        organization={user}
+                        className="size-10"
+                    />
+                ) : (
+                    <UserAvatar user={user} className="size-10" />
+                )}
             </span>
             {isLive && (
                 <LiveAvatarMarker className="px-1 text-[9px] leading-3.5" />

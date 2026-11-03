@@ -29,6 +29,7 @@ import type {
     GraphNode,
     LeavingRow,
     NodeAnimation,
+    Overhang,
     Point,
 } from '@/lib/graph';
 import { cn } from '@/lib/utils';
@@ -46,15 +47,11 @@ type Registry = {
     unregister: (id: string) => void;
     /** Dims a node's lines or brings them back, without measuring anything again. */
     dim: (id: string, isDimmed: boolean) => void;
+    /** Whether the canvas has drawn already, read without rendering anything again when it first does. */
+    hasDrawn: () => boolean;
 };
 
 const GraphContext = createContext<Registry | null>(null);
-
-/**
- * True once the canvas has measured its nodes. Until then, as on the server, the rail pieces stay, so the first paint
- * matches the server's and a page without JavaScript keeps its rail.
- */
-const GraphDrawingContext = createContext(false);
 
 /** The width of every line, which the rail pieces share so the canvas takes over from them unseen. */
 export const graphStrokeWidth = 2;
@@ -67,10 +64,11 @@ const strokeWidth = graphStrokeWidth;
 const dash = `${graphDash} ${graphDash}`;
 
 /**
- * Whether the lines around a node are drawn by a graph canvas, in which case the node's own rail pieces stay out.
+ * Whether the lines around a node are drawn by a graph canvas, in which case the node's own rail pieces stay out, even
+ * on the server and before the canvas first measures: its lines show once it has.
  */
 export function useGraphOverlay(): boolean {
-    return useContext(GraphDrawingContext);
+    return useContext(GraphContext) !== null;
 }
 
 /**
@@ -166,10 +164,15 @@ export function useGraphNodeId(): (id: string) => string {
 }
 
 /**
- * Draws its children, which are rail lines, only when no graph canvas draws the lines instead.
+ * Draws its children, which are rail lines. In a graph canvas they stand in for its lines, from the server's HTML on,
+ * until it draws them: it then marks itself drawn and they hide in CSS, without rendering anything again.
  */
 export function WithoutGraph({ children }: { children: ReactNode }) {
-    return useGraphOverlay() ? null : children;
+    return useGraphOverlay() ? (
+        <span data-graph-rail>{children}</span>
+    ) : (
+        children
+    );
 }
 
 /**
@@ -177,9 +180,10 @@ export function WithoutGraph({ children }: { children: ReactNode }) {
  * being there when the page opens. Only then do fresh nodes and commits animate in, as their lines do.
  */
 export function useShowsUpLive(): boolean {
-    const isInCanvas = useContext(GraphContext) !== null;
-    const isDrawing = useGraphOverlay();
-    const [showsUpLive] = useState(!isInCanvas || isDrawing);
+    const registry = useContext(GraphContext);
+    const [showsUpLive] = useState(
+        () => registry === null || registry.hasDrawn(),
+    );
 
     return showsUpLive;
 }
@@ -335,6 +339,38 @@ function snap(value: number): number {
 }
 
 /**
+ * What a node marks `data-graph-overhang` as hanging off it, like a LIVE badge over the bottom of an avatar's ring, grown
+ * by the ring the attribute gives, in px.
+ */
+function overhangsOf(element: HTMLElement, box: DOMRect): Overhang[] {
+    return [
+        ...element.querySelectorAll<HTMLElement>('[data-graph-overhang]'),
+    ].map((overhang) => {
+        const rect = overhang.getBoundingClientRect();
+        const ring = Number(overhang.dataset.graphOverhang) || 0;
+
+        return {
+            x: snap(rect.left - box.left - ring),
+            y: snap(rect.top - box.top - ring),
+            width: snap(rect.width + 2 * ring),
+            height: snap(rect.height + 2 * ring),
+            radius:
+                (Number.parseFloat(
+                    getComputedStyle(overhang).borderTopLeftRadius,
+                ) || 0) + ring,
+        };
+    });
+}
+
+function isOverhang(node: Node): boolean {
+    return (
+        node instanceof HTMLElement &&
+        (node.dataset.graphOverhang !== undefined ||
+            node.querySelector('[data-graph-overhang]') !== null)
+    );
+}
+
+/**
  * The CSS animations running on a node and on the elements around it, up to the canvas, with the time they have left.
  */
 function runningAnimations(
@@ -386,7 +422,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
     const [nodes, setNodes] = useState<GraphNode[]>([]);
     const [size, setSize] = useState<Size>({ width: 0, height: 0 });
     const [leaving, setLeaving] = useState(noLeaving);
-    const [isDrawing, setIsDrawing] = useState(false);
+    const hasDrawn = useRef(false);
 
     const clip = useCallback(() => {
         const box = containerRef.current?.getBoundingClientRect();
@@ -417,11 +453,13 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             .filter(({ element }) => element.isConnected)
             .map(({ element, spec }) => {
                 const centre = layoutCentre(element, container);
+                const overhangs = overhangsOf(element, box);
                 rows.find((row) => row.element.contains(element))?.row.ids.add(
                     spec.id,
                 );
 
                 return {
+                    ...(overhangs.length > 0 && { overhangs }),
                     id: spec.id,
                     lane: spec.lane,
                     after: spec.after,
@@ -441,7 +479,11 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                 ? current
                 : { width: box.width, height: box.height },
         );
-        setIsDrawing(true);
+        if (!hasDrawn.current) {
+            hasDrawn.current = true;
+            // Set on the element itself: the rail pieces hide in CSS as the lines show, in the same frame.
+            container.setAttribute('data-graph-drawn', '');
+        }
         setLeaving((current) =>
             rows.length === 0 && current.length === 0
                 ? current
@@ -497,6 +539,7 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
                         : current,
                 );
             },
+            hasDrawn: () => hasDrawn.current,
         }),
         [measure],
     );
@@ -537,7 +580,8 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
 
         // Nodes also move without anything resizing, like cards trading places when the feed reorders. Other changes
         // inside a card, like an image done loading, move no node unless they resize the container, which the resize
-        // observer reports.
+        // observer reports. An overhang, like the LIVE badge as its user goes live, comes and goes out of the layout,
+        // so nothing resizes either.
         const mutations = new MutationObserver((records) => {
             const elements = [
                 ...[...entries.current.values()].map(({ element }) => element),
@@ -546,11 +590,15 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
             departed.current.clear();
 
             if (
-                records.some((record) =>
-                    [...record.addedNodes, ...record.removedNodes].some(
-                        (node) =>
+                records.some(
+                    ({ target, addedNodes, removedNodes }) =>
+                        [...addedNodes, ...removedNodes].some((node) =>
                             elements.some((element) => node.contains(element)),
-                    ),
+                        ) ||
+                        ([...addedNodes, ...removedNodes].some(isOverhang) &&
+                            elements.some((element) =>
+                                element.contains(target),
+                            )),
                 )
             ) {
                 measureNow();
@@ -633,133 +681,146 @@ export function GraphCanvas({ children }: { children: ReactNode }) {
 
     return (
         <GraphContext.Provider value={registry}>
-            <GraphDrawingContext.Provider value={isDrawing}>
-                <div ref={containerRef} className="relative">
-                    {children}
-                    <svg
-                        ref={canvasRef}
-                        aria-hidden
-                        className="pointer-events-none absolute inset-0 z-[5] overflow-visible"
-                        width={size.width}
-                        height={size.height}
-                        fill="none"
-                        data-test="graph-canvas"
-                    >
-                        <defs>
-                            <mask
-                                id={`${id}-nodes`}
-                                maskUnits="userSpaceOnUse"
-                                x={0}
-                                y={0}
+            <div ref={containerRef} className="relative">
+                {children}
+                <svg
+                    ref={canvasRef}
+                    aria-hidden
+                    className="pointer-events-none absolute inset-0 z-[5] overflow-visible"
+                    width={size.width}
+                    height={size.height}
+                    fill="none"
+                    data-test="graph-canvas"
+                >
+                    <defs>
+                        <mask
+                            id={`${id}-nodes`}
+                            maskUnits="userSpaceOnUse"
+                            x={0}
+                            y={0}
+                            width={size.width}
+                            height={size.height}
+                        >
+                            <rect
                                 width={size.width}
                                 height={size.height}
-                            >
+                                fill="white"
+                            />
+                            {nodes.map((node) => (
+                                <circle
+                                    key={node.id}
+                                    cx={node.x}
+                                    cy={node.y}
+                                    r={node.radius}
+                                    fill="black"
+                                    // A node on its way out scales out, and so does its cut-out, so the line
+                                    // running on through it shows as it goes.
+                                    className={
+                                        node.isLeaving
+                                            ? 'motion-safe:animate-node-out'
+                                            : undefined
+                                    }
+                                    style={
+                                        node.isLeaving
+                                            ? {
+                                                  transformBox: 'fill-box',
+                                                  transformOrigin: 'center',
+                                                  animationDuration: `${bridgeDuration}ms`,
+                                              }
+                                            : undefined
+                                    }
+                                    clipPath={clipOf(
+                                        leaving.findIndex((row) =>
+                                            row.ids.has(node.id),
+                                        ),
+                                    )}
+                                />
+                            ))}
+                            {nodes.flatMap((node) =>
+                                (node.overhangs ?? []).map(
+                                    (overhang, index) => (
+                                        <rect
+                                            key={`${node.id}-${index}`}
+                                            x={overhang.x}
+                                            y={overhang.y}
+                                            width={overhang.width}
+                                            height={overhang.height}
+                                            rx={overhang.radius}
+                                            fill="black"
+                                            clipPath={clipOf(
+                                                leaving.findIndex((row) =>
+                                                    row.ids.has(node.id),
+                                                ),
+                                            )}
+                                        />
+                                    ),
+                                ),
+                            )}
+                        </mask>
+                        {leaving.map((row, index) => (
+                            <clipPath key={index} id={`${id}-leaving-${index}`}>
                                 <rect
-                                    width={size.width}
-                                    height={size.height}
-                                    fill="white"
+                                    x={row.x}
+                                    y={row.y}
+                                    width={row.width}
+                                    height={row.height}
                                 />
-                                {nodes.map((node) => (
-                                    <circle
-                                        key={node.id}
-                                        cx={node.x}
-                                        cy={node.y}
-                                        r={node.radius}
-                                        fill="black"
-                                        // A node on its way out scales out, and so does its cut-out, so the line
-                                        // running on through it shows as it goes.
-                                        className={
-                                            node.isLeaving
-                                                ? 'motion-safe:animate-node-out'
-                                                : undefined
-                                        }
-                                        style={
-                                            node.isLeaving
-                                                ? {
-                                                      transformBox: 'fill-box',
-                                                      transformOrigin: 'center',
-                                                      animationDuration: `${bridgeDuration}ms`,
-                                                  }
-                                                : undefined
-                                        }
-                                        clipPath={clipOf(
-                                            leaving.findIndex((row) =>
-                                                row.ids.has(node.id),
-                                            ),
-                                        )}
-                                    />
-                                ))}
-                            </mask>
-                            {leaving.map((row, index) => (
-                                <clipPath
-                                    key={index}
-                                    id={`${id}-leaving-${index}`}
-                                >
-                                    <rect
-                                        x={row.x}
-                                        y={row.y}
-                                        width={row.width}
-                                        height={row.height}
-                                    />
-                                </clipPath>
-                            ))}
-                            {drawn.map((edge, index) => (
-                                <EdgeDefs
-                                    key={edge.id}
-                                    id={`${id}-${index}`}
-                                    edge={edge}
-                                    draw={entering.get(edge.id)}
-                                    onDrawn={onDrawn}
-                                />
-                            ))}
-                        </defs>
-                        <g mask={`url(#${id}-nodes)`}>
-                            {drawn.map((edge, index) => {
-                                const left = leavingOf(edge, leaving);
+                            </clipPath>
+                        ))}
+                        {drawn.map((edge, index) => (
+                            <EdgeDefs
+                                key={edge.id}
+                                id={`${id}-${index}`}
+                                edge={edge}
+                                draw={entering.get(edge.id)}
+                                onDrawn={onDrawn}
+                            />
+                        ))}
+                    </defs>
+                    <g mask={`url(#${id}-nodes)`}>
+                        {drawn.map((edge, index) => {
+                            const left = leavingOf(edge, leaving);
 
-                                return (
-                                    <path
-                                        key={edge.id}
-                                        d={edge.d}
-                                        style={{
-                                            stroke: edge.lane,
-                                            // Measured as the row collapses, which fades along: the line follows as is.
-                                            transition: left
-                                                ? 'none'
-                                                : undefined,
-                                        }}
-                                        opacity={
-                                            (edge.dimmed ? 0.6 : 1) *
-                                            (left?.opacity ?? 1)
-                                        }
-                                        clipPath={clipOf(left?.clip ?? -1)}
-                                        className="transition-opacity duration-200"
-                                        strokeWidth={strokeWidth}
-                                        strokeDasharray={
-                                            edge.dashed ? dash : undefined
-                                        }
-                                        strokeDashoffset={
-                                            edge.dashed && edge.dashOffset !== 0
-                                                ? edge.dashOffset
-                                                : undefined
-                                        }
-                                        mask={
-                                            entering.has(edge.id)
-                                                ? `url(#${id}-${index}-draw)`
-                                                : undefined
-                                        }
-                                        data-test={
-                                            edge.dashed
-                                                ? 'graph-edge-dashed'
-                                                : 'graph-edge'
-                                        }
-                                    />
-                                );
-                            })}
-                        </g>
-                    </svg>
-                </div>
-            </GraphDrawingContext.Provider>
+                            return (
+                                <path
+                                    key={edge.id}
+                                    d={edge.d}
+                                    style={{
+                                        stroke: edge.lane,
+                                        // Measured as the row collapses, which fades along: the line follows as is.
+                                        transition: left ? 'none' : undefined,
+                                    }}
+                                    opacity={
+                                        (edge.dimmed ? 0.6 : 1) *
+                                        (left?.opacity ?? 1)
+                                    }
+                                    clipPath={clipOf(left?.clip ?? -1)}
+                                    className="transition-opacity duration-200"
+                                    strokeWidth={strokeWidth}
+                                    strokeDasharray={
+                                        edge.dashed ? dash : undefined
+                                    }
+                                    strokeDashoffset={
+                                        edge.dashed && edge.dashOffset !== 0
+                                            ? edge.dashOffset
+                                            : undefined
+                                    }
+                                    mask={
+                                        entering.has(edge.id)
+                                            ? `url(#${id}-${index}-draw)`
+                                            : undefined
+                                    }
+                                    data-test={
+                                        edge.dashed
+                                            ? 'graph-edge-dashed'
+                                            : 'graph-edge'
+                                    }
+                                />
+                            );
+                        })}
+                    </g>
+                </svg>
+            </div>
         </GraphContext.Provider>
     );
 }

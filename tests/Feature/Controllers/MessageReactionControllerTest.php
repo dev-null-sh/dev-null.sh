@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\CreateMessageReaction;
 use App\Enums\RemotesFrom;
 use App\Models\Message;
 use App\Models\MessageReaction;
@@ -65,6 +66,27 @@ it('caps how many reactions one person leaves on a message', function (): void {
     $this->postJson(route('message-reaction.store', $message), ['emoji' => '💀'])->assertJsonValidationErrors('emoji');
     $this->postJson(route('message-reaction.store', $message), ['emoji' => '😂'])->assertOk();
     $this->actingAs($mark)->postJson(route('message-reaction.store', $message), ['emoji' => '💀'])->assertOk();
+});
+
+it('keeps the cap when reactions sent at the same moment all passed the check', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+    $message = sendChatMessage($mark, $nuno);
+    $emoji = ['😂', '✅', '❤️', '🚀', '👀', '🔥', '🎉', '👍', '💯', '🙏', '🤔', '👏'];
+
+    foreach ($emoji as $each) {
+        resolve(CreateMessageReaction::class)->handle($nuno, $message, $each);
+    }
+
+    // Sent at the same moment as the twelfth, so the check let them through.
+    resolve(CreateMessageReaction::class)->handle($nuno, $message, '💀');
+    resolve(CreateMessageReaction::class)->handle($nuno, $message, '😂');
+    resolve(CreateMessageReaction::class)->handle($mark, $message, '💀');
+
+    expect(MessageReaction::query()->where('message_id', $message->id)->where('user_id', $nuno->id)->pluck('emoji')->all())
+        ->toEqualCanonicalizing($emoji)
+        ->and(MessageReaction::query()->where('message_id', $message->id)->where('user_id', $mark->id)->pluck('emoji')->all())
+        ->toBe(['💀']);
 });
 
 it('keeps reactions to the people who can see the message', function (): void {

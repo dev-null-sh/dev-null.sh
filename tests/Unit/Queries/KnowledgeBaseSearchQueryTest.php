@@ -2,20 +2,14 @@
 
 declare(strict_types=1);
 
+use App\Contracts\Services\EmbeddingProvider;
 use App\Models\KnowledgeBaseSection;
 use App\Queries\CommitSearchQuery;
 use App\Queries\KnowledgeBaseSearchQuery;
-use Illuminate\Support\Facades\Http;
-use Laravel\Ai\Embeddings;
-use Laravel\Ai\Exceptions\ProviderOverloadedException;
-use Laravel\Ai\Prompts\EmbeddingsPrompt;
-
-beforeEach(function (): void {
-    config(['ai.providers.openai.key' => 'sk-test']);
-});
 
 it('returns sections across sources by cosine distance with their citation context', function (): void {
-    Embeddings::fake([[embeddingVector(0)]])->preventStrayEmbeddings();
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embed')->with('Who is Tom?')->once()->andReturn(embeddingVector(0));
 
     $far = KnowledgeBaseSection::factory()->create(['source' => 'a.md', 'embedding' => embeddingVector(1)]);
     $near = KnowledgeBaseSection::factory()->create([
@@ -39,17 +33,9 @@ it('returns sections across sources by cosine distance with their citation conte
         'content' => 'A **fictional** profile inspired by MySpace Tom.',
         'distance' => 0.0,
     ]);
-
-    Embeddings::assertGenerated(fn (EmbeddingsPrompt $prompt): bool => $prompt->inputs === ['Who is Tom?']
-        && $prompt->provider->name() === 'openai'
-        && $prompt->model === 'text-embedding-3-small'
-        && $prompt->dimensions === 1536);
-    Http::assertNothingSent();
 });
 
 it('defaults to five sections and orders tied distances by source and position', function (): void {
-    Http::fake(['api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(0)]))]);
-
     KnowledgeBaseSection::factory()->create(['source' => 'z.md']);
     $sections = KnowledgeBaseSection::factory()->count(5)->sequence(
         ['position' => 4],
@@ -67,9 +53,10 @@ it('defaults to five sections and orders tied distances by source and position',
 });
 
 it('returns nothing without embedding for an empty term or a nonpositive limit', function (string $term, int $limit): void {
-    expect(resolve(KnowledgeBaseSearchQuery::class)->get($term, $limit))->toBeEmpty();
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldNotReceive('embed');
 
-    Http::assertNothingSent();
+    expect(resolve(KnowledgeBaseSearchQuery::class)->get($term, $limit))->toBeEmpty();
 })->with([
     'empty' => ['', 5],
     'whitespace' => [" \t\n\u{2003}", 5],
@@ -78,34 +65,33 @@ it('returns nothing without embedding for an empty term or a nonpositive limit',
 ]);
 
 it('returns no sections when the knowledge base has not been imported', function (): void {
-    Http::fake(['api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(0)]))]);
-
     expect(resolve(KnowledgeBaseSearchQuery::class)->get('Tom'))->toBeEmpty();
 });
 
 it('reuses the trimmed query embedding for an hour but always reads current sections', function (): void {
-    Http::fake(['api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(0)]))]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embed')->with('Tom')->andReturn(embeddingVector(0));
     $section = KnowledgeBaseSection::factory()->create(['content' => 'Original lore.']);
     $query = resolve(KnowledgeBaseSearchQuery::class);
 
     expect($query->get(' Tom ')->sole()->content)->toBe('Original lore.');
     $section->update(['content' => 'Updated lore.']);
     expect($query->get('Tom')->sole()->content)->toBe('Updated lore.');
-    Http::assertSentCount(1);
+    $embeddings->shouldHaveReceived('embed')->once();
 
     $section->delete();
     expect($query->get('Tom'))->toBeEmpty();
-    Http::assertSentCount(1);
+    $embeddings->shouldHaveReceived('embed')->once();
 
     $this->travel(1)->hours();
     $query->get('Tom');
-    Http::assertSentCount(2);
+    $embeddings->shouldHaveReceived('embed')->twice();
 });
 
 it('embeds different questions independently', function (): void {
-    Http::fake(['api.openai.com/v1/embeddings' => Http::sequence()
-        ->push(embeddingsResponse([embeddingVector(0)]))
-        ->push(embeddingsResponse([embeddingVector(1)]))]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embed')->with('Who is Tom?')->once()->andReturn(embeddingVector(0));
+    $embeddings->shouldReceive('embed')->with('What are pastéis?')->once()->andReturn(embeddingVector(1));
     $tom = KnowledgeBaseSection::factory()->create(['embedding' => embeddingVector(0)]);
     $pastries = KnowledgeBaseSection::factory()->create(['embedding' => embeddingVector(1)]);
     $query = resolve(KnowledgeBaseSearchQuery::class);
@@ -115,22 +101,23 @@ it('embeds different questions independently', function (): void {
 });
 
 it('propagates embedding failures and retries instead of caching them as empty results', function (): void {
-    Http::fake(['api.openai.com/v1/embeddings' => Http::sequence()
-        ->push([], 503)
-        ->push(embeddingsResponse([embeddingVector(0)]))]);
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embed')->with('Tom')->andReturnUsing(
+        fn (): array => throw new RuntimeException('OpenAI is overloaded.'),
+        fn (): array => embeddingVector(0),
+    );
     $section = KnowledgeBaseSection::factory()->create();
     $query = resolve(KnowledgeBaseSearchQuery::class);
 
-    expect(fn () => $query->get('Tom'))->toThrow(ProviderOverloadedException::class);
+    expect(fn () => $query->get('Tom'))->toThrow(RuntimeException::class);
     expect($query->get('Tom')->sole()->id)->toBe($section->id);
 });
 
-it('shares compatible cached query embeddings with commit search', function (): void {
-    Http::fake(['api.openai.com/v1/embeddings' => Http::response(embeddingsResponse([embeddingVector(0)]))]);
+it('shares cached query embeddings with commit search', function (): void {
+    $embeddings = $this->mock(EmbeddingProvider::class);
+    $embeddings->shouldReceive('embed')->with('Tom')->once()->andReturn(embeddingVector(0));
     $section = KnowledgeBaseSection::factory()->create();
 
     expect(resolve(CommitSearchQuery::class)->get('Tom', null))->toBeEmpty();
     expect(resolve(KnowledgeBaseSearchQuery::class)->get(' Tom ')->sole()->id)->toBe($section->id);
-
-    Http::assertSentCount(1);
 });

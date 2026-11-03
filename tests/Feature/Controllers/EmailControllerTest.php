@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\CreateTomFriendship;
 use App\Mail\AdminEmail;
 use App\Models\User;
+use Illuminate\Contracts\Mail\Factory as MailFactory;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\URL;
 
@@ -111,4 +112,33 @@ it('queues only the user id, and reads their address and unsubscribe link when i
         ->and($mail->hasTo('dev@example.com'))->toBeTrue()
         ->and($mail->headers()->text)->toBe(['List-Unsubscribe' => "<{$url}>", 'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click'])
         ->and($mail->render())->toContain(e($url));
+});
+
+it('skips a queued email for someone who unsubscribed or was banned after it was queued', function (array $since): void {
+    config(['mail.default' => 'array']);
+    $user = User::factory()->create(['email' => 'dev@example.com']);
+    $queued = serialize(new AdminEmail($user, 'What shipped', 'Emails.'));
+    $user->forceFill($since)->save();
+
+    unserialize($queued)->send(resolve(MailFactory::class));
+
+    expect(resolve(MailFactory::class)->mailer('array')->getSymfonyTransport()->messages())->toHaveCount(0);
+})->with([
+    'unsubscribed' => [['emails_unsubscribed_at' => now()]],
+    'banned' => [['banned_at' => now()]],
+]);
+
+it('still sends a queued email to someone who is subscribed, and a test email to the address the admin chose', function (): void {
+    config(['mail.default' => 'array']);
+    $user = User::factory()->create(['email' => 'dev@example.com']);
+    $admin = User::factory()->create(['email' => 'admin@example.com', 'emails_unsubscribed_at' => now()]);
+
+    unserialize(serialize(new AdminEmail($user, 'What shipped', 'Emails.')))->send(resolve(MailFactory::class));
+    new AdminEmail($admin, '[Test] What shipped', 'Emails.')->to('test@example.com')->send(resolve(MailFactory::class));
+
+    $sent = resolve(MailFactory::class)->mailer('array')->getSymfonyTransport()->messages();
+
+    expect($sent)->toHaveCount(2)
+        ->and($sent[0]->getEnvelope()->getRecipients()[0]->getAddress())->toBe('dev@example.com')
+        ->and($sent[1]->getEnvelope()->getRecipients()[0]->getAddress())->toBe('test@example.com');
 });

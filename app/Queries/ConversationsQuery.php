@@ -76,7 +76,9 @@ final readonly class ConversationsQuery
             ->whereNotNull('mine.last_message_at')
             ->where(fn (Builder $query): Builder => $query
                 ->where('conversations.kind', ConversationKind::Org)
-                ->orWhereNotIn('theirs.user_id', $user->idsAcrossBlocks()))
+                ->orWhere(fn (Builder $query): Builder => $query
+                    ->whereNotNull('theirs.user_id')
+                    ->whereNotIn('theirs.user_id', $user->idsAcrossBlocks())))
             ->when($term !== '', fn (Builder $query): Builder => $query->where(fn (Builder $query): Builder => $query
                 ->whereIn('theirs.user_id', $this->matching($escaped))
                 ->orWhereRaw("LOWER(conversations.name) LIKE ? ESCAPE '!'", ["%{$escaped}%"])
@@ -152,7 +154,9 @@ final readonly class ConversationsQuery
             ->whereIn('mine.status', config('remotes.requests') ? [RemoteStatus::Open, RemoteStatus::Fetched] : [RemoteStatus::Open])
             ->where(fn (Builder $query): Builder => $query
                 ->where('conversations.kind', ConversationKind::Org)
-                ->orWhereNotIn('theirs.user_id', $user->idsAcrossBlocks()))
+                ->orWhere(fn (Builder $query): Builder => $query
+                    ->whereNotNull('theirs.user_id')
+                    ->whereNotIn('theirs.user_id', $user->idsAcrossBlocks())))
             ->select('conversations.id')
             ->selectRaw('CASE WHEN conversations.last_message_id > mine.visible_from_id THEN conversations.last_message_id ELSE 0 END AS last_message_id')
             ->get()
@@ -161,7 +165,7 @@ final readonly class ConversationsQuery
     }
 
     /**
-     * Unread messages in open conversations plus fetched requests, for the nav badge.
+     * Open conversations with unread messages plus fetched requests, for the nav badge.
      */
     public function unreadCount(User $user): int
     {
@@ -175,7 +179,8 @@ final readonly class ConversationsQuery
             ->where('messages.user_id', '!=', $user->id)
             ->where(fn (Builder $query): Builder => $query->whereNull('messages.event')->orWhere('messages.event', OrgEvent::Ping))
             ->whereNotIn('messages.user_id', $user->idsAcrossBlocks())
-            ->count();
+            ->distinct()
+            ->count('messages.conversation_id');
 
         return $unread + $this->requestCount($user);
     }
@@ -192,6 +197,9 @@ final readonly class ConversationsQuery
         return ConversationParticipant::query()
             ->where('user_id', $user->id)
             ->where('status', RemoteStatus::Fetched)
+            ->whereIn('conversation_id', ConversationParticipant::query()
+                ->select('conversation_id')
+                ->where('user_id', '!=', $user->id))
             ->whereNotIn('conversation_id', ConversationParticipant::query()
                 ->select('conversation_id')
                 ->whereIn('user_id', $user->idsAcrossBlocks()))

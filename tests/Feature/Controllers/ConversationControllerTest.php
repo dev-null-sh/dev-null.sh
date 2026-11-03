@@ -25,6 +25,20 @@ it('shows the inbox', function (): void {
             ->where('auth.unreadMessagesCount', 1));
 });
 
+it('counts conversations with unread messages in the nav, not the messages', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    $nuno = User::factory()->withRemotes()->create();
+    $taylor = User::factory()->withRemotes()->create();
+    sendChatMessage($nuno, $mark, 'did you see the PR?');
+    sendChatMessage($nuno, $mark, 'ship it');
+    sendChatMessage($nuno, $mark, 'what do the dots mean?');
+    sendChatMessage($taylor, $mark, 'thanks!');
+    sendChatMessage($taylor, $mark, 'see you at Laracon');
+
+    $this->actingAs($mark)->get(route('conversation.index'))
+        ->assertInertia(fn (AssertableInertia $page): AssertableInertia => $page->where('auth.unreadMessagesCount', 2));
+});
+
 it('opens a conversation, remembering where you were and marking it read', function (): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);

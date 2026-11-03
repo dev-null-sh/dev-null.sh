@@ -20,7 +20,11 @@ function Mail() {
 }
 
 function Terms() {
-    return <Link href={TermsController.show()}>terms of service</Link>;
+    return (
+        <Link href={TermsController.show()} prefetch>
+            terms of service
+        </Link>
+    );
 }
 
 export default function Show() {
@@ -34,11 +38,10 @@ export default function Show() {
             >
                 <DocumentSection id="who" title="Who we are">
                     <p>
-                        {COMPANY_NAME}, a company registered in Portugal ("we",
-                        "us"), operates <WordmarkText>/dev/null</WordmarkText>{' '}
-                        and everything we offer under that name or any other,
-                        now or in the future (the "service"), and is the
-                        controller of the personal data processed in it.
+                        <WordmarkText>/dev/null</WordmarkText> ("we", "us") is a
+                        social network for developers at dev-null.sh. This
+                        policy covers it and everything we offer under that name
+                        or any other, now or in the future (the "service").
                         Contact: <Mail />.
                     </p>
                 </DocumentSection>
@@ -53,6 +56,34 @@ export default function Show() {
                                 GitHub shares, whether you have a Sponsors
                                 listing, your public SSH key fingerprints, and
                                 who you follow and who follows you.
+                            </>,
+                            <>
+                                <strong>
+                                    From GitHub, when you claim an
+                                    organization's page:
+                                </strong>{' '}
+                                whether you belong to that organization, asked
+                                once with your permission to read your
+                                organizations. Nothing else about them is kept,
+                                and your claim shows on the organization's page.
+                            </>,
+                            <>
+                                <strong>
+                                    From an organization's admins, when they add
+                                    you:
+                                </strong>{' '}
+                                that you are a member or an admin of that
+                                organization, which its members see. Admins are
+                                also listed on the organization's page.
+                            </>,
+                            <>
+                                <strong>
+                                    From Apple, when you sign in with Apple in
+                                    the iOS app:
+                                </strong>{' '}
+                                your Apple account identifier, and the name and
+                                email address you choose to share, which may be
+                                Apple's private relay address.
                             </>,
                             <>
                                 <strong>
@@ -87,7 +118,7 @@ export default function Show() {
                             <>
                                 <strong>From our apps:</strong> when you approve
                                 a device, such as{' '}
-                                <Link href={AppController.index()}>
+                                <Link href={AppController.index()} prefetch>
                                     the Mac app
                                 </Link>
                                 , its key's fingerprint, its name (for a Mac,
@@ -110,10 +141,30 @@ export default function Show() {
                                 quotes, and mentions.
                             </>,
                             <>
+                                <strong>
+                                    From the join link, if you ask for one:
+                                </strong>{' '}
+                                the email address you enter on your phone, used
+                                only to send you one email with a link back to
+                                the page you were reading. We keep a keyed hash
+                                of it for 30 days, so the same address doesn't
+                                get it twice, and don't keep the address once
+                                the email is sent, except, encrypted, in our
+                                error logs if it can't be sent.
+                            </>,
+                            <>
                                 <strong>Technical data:</strong> IP address,
                                 browser and device information, logs, and how
-                                you use the service, such as the last day you
-                                used it.
+                                you use the service, such as the days you used
+                                it.
+                            </>,
+                            <>
+                                <strong>From the iOS app:</strong> a key the app
+                                makes on your phone to sign its requests, which
+                                never leaves it, and the name of your phone. The
+                                app asks for your photos or camera only when you
+                                attach an image, and for your microphone only
+                                when you record a voice note.
                             </>,
                             <>
                                 <strong>Cookies and browser storage</strong>{' '}
@@ -127,8 +178,8 @@ export default function Show() {
                         others give us about you, or that is generated when you
                         use the service. New features may involve other data,
                         which this policy covers once it is updated to describe
-                        it. Signing in with GitHub is required to use the
-                        service.
+                        it. Signing in with GitHub, or with Apple in the iOS
+                        app, is required to use the service.
                     </p>
                 </DocumentSection>
 
@@ -234,10 +285,11 @@ export default function Show() {
                 <DocumentSection id="rights" title="Your rights">
                     <p>
                         You can export your data or delete your account from{' '}
-                        <Link href={profileSettings()}>settings</Link>. Under
-                        the GDPR, you may also have the right to access,
-                        correct, erase, restrict, or port your data, to object
-                        to its processing, and to lodge a complaint with a data
+                        <Link href={profileSettings()}>settings</Link>, or
+                        delete it in the iOS app under Settings. Under the GDPR,
+                        you may also have the right to access, correct, erase,
+                        restrict, or port your data, to object to its
+                        processing, and to lodge a complaint with a data
                         protection authority, such as Portugal's CNPD. You may
                         object at any time to processing based on our legitimate
                         interests. To exercise these rights, write to <Mail />.
@@ -273,7 +325,11 @@ export default function Show() {
 
                 <DocumentSection id="contact" title="Contact">
                     <p>
-                        {COMPANY_NAME}, <Mail />. See also our <Terms />.
+                        <WordmarkText>/dev/null</WordmarkText> is property of{' '}
+                        {COMPANY_NAME}, a company registered in Portugal, which
+                        is "we" and "us" in this policy and the controller of
+                        the personal data processed in the service. Contact:{' '}
+                        <Mail />. See also our <Terms />.
                     </p>
                 </DocumentSection>
             </DocumentPage>

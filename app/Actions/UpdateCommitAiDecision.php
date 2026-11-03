@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Contracts\Services\ModerationProvider;
 use App\Enums\CommitStatus;
 use App\Models\Commit;
 use App\Models\CommitImage;
-use App\Services\OpenAI;
+use App\Models\PollOption;
 use Illuminate\Support\Facades\Storage;
 
 final readonly class UpdateCommitAiDecision
@@ -18,7 +19,7 @@ final readonly class UpdateCommitAiDecision
     private const float AUTO_REJECT_THRESHOLD = 0.95;
 
     public function __construct(
-        private OpenAI $openAI,
+        private ModerationProvider $moderation,
         private UpdateCommitStatuses $updateCommitStatuses,
     ) {
         //
@@ -35,11 +36,13 @@ final readonly class UpdateCommitAiDecision
             fn (CommitImage $image): string => 'data:image/webp;base64,'.base64_encode((string) Storage::get($image->path)),
         )->all());
 
-        $scores = $this->openAI->moderate($commit->body, $images);
+        $text = $this->text($commit);
+
+        $scores = $this->moderation->moderate($text, $images);
 
         $categories = array_keys($scores);
 
-        if ($commit->body !== '' && $this->openAI->isHarmful($commit->body)) {
+        if ($text !== '' && $this->moderation->isHarmful($text)) {
             $categories[] = 'harmful-text';
         }
 
@@ -55,5 +58,18 @@ final readonly class UpdateCommitAiDecision
         if ($categories === [] && $commit->user !== null) {
             $this->updateCommitStatuses->handle([$commit->id], CommitStatus::Approved, onlyPending: true);
         }
+    }
+
+    /**
+     * All the text that goes public with the commit: the body, the image descriptions, and the poll options. A clean
+     * commit is approved, so nothing the author wrote may be left unchecked.
+     */
+    private function text(Commit $commit): string
+    {
+        return collect([$commit->body])
+            ->merge($commit->images->map(fn (CommitImage $image): ?string => $image->description))
+            ->merge($commit->poll?->options->map(fn (PollOption $option): string => $option->label) ?? [])
+            ->filter(fn (?string $part): bool => $part !== null && $part !== '')
+            ->implode("\n\n");
     }
 }

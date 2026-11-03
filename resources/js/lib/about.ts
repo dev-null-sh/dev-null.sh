@@ -35,9 +35,13 @@ export type StoryPerson = {
     name: string;
 };
 
+/**
+ * Someone with a commit on production. The handle is theirs on /dev/null, or null when they aren't on it.
+ */
 export type StoryContributor = {
     login: string;
     commits: number;
+    handle: string | null;
 };
 
 export const storyBefore: StoryEvent[] = [

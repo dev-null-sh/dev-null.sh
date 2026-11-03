@@ -64,7 +64,7 @@ export function AchievementsShelf({
 }) {
     const unlockedBadges = achievements.badges.filter((b) => b.unlocked);
     const unlockedCount = unlockedBadges.length;
-    const [visibleCount, setVisibleCount] = useState(0);
+    const [visibleCount, setVisibleCount] = useState(unlockedCount);
     const [open, setOpen] = useState(false);
     const rowRef = useRef<HTMLButtonElement>(null);
     const moreRef = useRef<HTMLSpanElement>(null);

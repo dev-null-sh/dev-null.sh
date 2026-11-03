@@ -29,7 +29,6 @@ it('finds people to push to, as the api shows people elsewhere', function (): vo
             'user' => [
                 'id' => $nuno->id,
                 'handle' => 'nunomaduro',
-                'username' => 'nunomaduro',
                 'name' => $nuno->name,
                 'avatar_url' => $nuno->avatar_url,
                 'bio' => 'Pest and Pint.',
@@ -40,6 +39,7 @@ it('finds people to push to, as the api shows people elsewhere', function (): vo
                 'html_url' => route('user.show', $nuno),
                 'feed_url' => route('user-feed.show', $nuno),
                 'created_at' => $nuno->created_at->toIso8601ZuluString(),
+                'live' => null,
                 'lane' => $nuno->lane(),
             ],
             'reason' => null,

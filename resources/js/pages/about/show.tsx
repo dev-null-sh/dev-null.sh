@@ -13,6 +13,7 @@ import {
     DocumentPage,
     DocumentSection,
 } from '@/components/document-page';
+import { UserPreview } from '@/components/user-preview';
 import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
 import type {
@@ -30,6 +31,7 @@ import {
     storyStreams,
 } from '@/lib/about';
 import { cn, laneColor } from '@/lib/utils';
+import { show } from '@/routes/user';
 import type { Lane } from '@/types';
 
 const kindIcons: Record<StoryEventKind, typeof User> = {
@@ -62,7 +64,11 @@ function EventTitle({ event }: { event: StoryEvent }) {
     const face = event.commit?.author ?? event.person;
 
     if (face) {
-        return <Link href={`/@${face.login}`}>{event.title}</Link>;
+        return (
+            <Link href={`/@${face.login}`} prefetch>
+                {event.title}
+            </Link>
+        );
     }
 
     if (event.href === undefined) {
@@ -90,6 +96,7 @@ function JoinCommit({ commit }: { commit: StoryCommit }) {
 
     return (
         <Link
+            prefetch
             href={`/@${author.login}/commits/${commit.id}`}
             className="mt-2 block rounded-lg border bg-background px-3.5 py-3 no-underline! transition-colors hover:bg-muted"
         >
@@ -223,6 +230,7 @@ function Founders() {
             {storyFounders.map((founder) => (
                 <li key={founder.login}>
                     <Link
+                        prefetch
                         href={`/@${founder.login}`}
                         className="flex flex-col items-center gap-2 rounded-md border px-3 py-4 text-center no-underline! transition-colors hover:bg-muted"
                     >
@@ -265,37 +273,65 @@ function Stream({ stream }: { stream: StoryStream }) {
     );
 }
 
+function ContributorCard({ contributor }: { contributor: StoryContributor }) {
+    return (
+        <>
+            <img
+                src={`https://github.com/${contributor.login}.png?size=64`}
+                alt=""
+                width={28}
+                height={28}
+                loading="lazy"
+                className="size-7 shrink-0 rounded-full bg-muted"
+            />
+            <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">
+                    @{contributor.login}
+                </span>
+                <span className="block font-mono text-xs text-muted-foreground tabular-nums">
+                    {contributor.commits}{' '}
+                    {contributor.commits === 1 ? 'commit' : 'commits'}
+                </span>
+            </span>
+        </>
+    );
+}
+
+/**
+ * Contributors on /dev/null link to their profile, with their profile card on hover. Everyone else links to GitHub.
+ */
 function Contributors({ contributors }: { contributors: StoryContributor[] }) {
+    const className =
+        'flex items-center gap-2.5 rounded-md border px-2.5 py-2 no-underline! transition-colors hover:bg-muted';
+
     return (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-2">
             {contributors.map((contributor) => (
                 <li key={contributor.login}>
-                    <a
-                        href={`https://github.com/${contributor.login}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2.5 rounded-md border px-2.5 py-2 no-underline! transition-colors hover:bg-muted"
-                    >
-                        <img
-                            src={`https://github.com/${contributor.login}.png?size=64`}
-                            alt=""
-                            width={28}
-                            height={28}
-                            loading="lazy"
-                            className="size-7 shrink-0 rounded-full bg-muted"
-                        />
-                        <span className="min-w-0">
-                            <span className="block truncate text-sm font-medium">
-                                @{contributor.login}
-                            </span>
-                            <span className="block font-mono text-xs text-muted-foreground tabular-nums">
-                                {contributor.commits}{' '}
-                                {contributor.commits === 1
-                                    ? 'commit'
-                                    : 'commits'}
-                            </span>
-                        </span>
-                    </a>
+                    {contributor.handle === null ? (
+                        <a
+                            href={`https://github.com/${contributor.login}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={className}
+                        >
+                            <ContributorCard contributor={contributor} />
+                        </a>
+                    ) : (
+                        <UserPreview
+                            user={{ handle: contributor.handle }}
+                            className="block"
+                        >
+                            <Link
+                                prefetch
+                                href={show({ handle: contributor.handle })}
+                                aria-label={`@${contributor.handle} on /dev/null`}
+                                className={className}
+                            >
+                                <ContributorCard contributor={contributor} />
+                            </Link>
+                        </UserPreview>
+                    )}
                 </li>
             ))}
         </ul>

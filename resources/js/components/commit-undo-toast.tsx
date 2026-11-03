@@ -3,6 +3,7 @@ import { Undo2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import CommitRestorationController from '@/actions/App/Http/Controllers/CommitRestorationController';
+import { StableLabel } from '@/components/stable-label';
 import { Button } from '@/components/ui/button';
 import { commitMutationOptions } from '@/lib/commit-mutation-options';
 import { currentPageComponent } from '@/lib/current-page';
@@ -76,7 +77,9 @@ export function CommitUndoToast({
                 <p className="text-sm font-medium">Commit deleted.</p>
                 <p className="mt-0.5 font-mono text-xs text-muted-foreground">
                     {shortHash(deleted.id)} ·{' '}
-                    <span aria-hidden>{remaining}s to undo</span>
+                    <span aria-hidden className="tabular-nums">
+                        {remaining}s to undo
+                    </span>
                     <span className="sr-only">
                         Undo is available for 30 seconds after deletion.
                     </span>
@@ -89,7 +92,11 @@ export function CommitUndoToast({
                 disabled={processing || remaining === 0}
             >
                 <Undo2 className="size-3.5" />
-                {processing ? 'Restoring…' : 'Undo'}
+                <StableLabel
+                    label="Undo"
+                    pendingLabel="Restoring…"
+                    isPending={processing}
+                />
             </Button>
         </div>
     );

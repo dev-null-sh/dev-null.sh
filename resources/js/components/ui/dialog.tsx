@@ -80,6 +80,41 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+function DialogFloatingContent({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Content>) {
+  return (
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Content
+        data-slot="dialog-content"
+        className={cn(
+          "fixed top-[calc(var(--visual-viewport-top,0px)+var(--visual-viewport-height,100svh)/2+1.5rem)] left-1/2 z-50 max-h-[calc(var(--visual-viewport-height,100svh)-6rem)] w-full max-w-[calc(100%-2rem)] -translate-1/2 outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 duration-200 sm:max-w-lg",
+          className
+        )}
+        {...props}
+      >
+        <div
+          data-slot="dialog-panel"
+          className="grid max-h-[inherit] gap-4 overflow-y-auto rounded-lg border bg-background p-6 shadow-lg"
+        >
+          {children}
+        </div>
+        {/* Keep the floating close button inside the focus trap, outside the scrolling panel. */}
+        <DialogPrimitive.Close
+          data-slot="dialog-close"
+          className="absolute right-0 bottom-[calc(100%+0.75rem)] flex size-10 items-center justify-center rounded-full bg-neutral-900 text-white transition-colors hover:bg-neutral-800 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900 focus-visible:outline-none disabled:pointer-events-none [&_svg]:pointer-events-none"
+        >
+          <XIcon className="size-5" strokeWidth={1.5} />
+          <span className="sr-only">Close</span>
+        </DialogPrimitive.Close>
+      </DialogPrimitive.Content>
+    </DialogPortal>
+  )
+}
+
 function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -130,4 +165,5 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  DialogFloatingContent,
 }

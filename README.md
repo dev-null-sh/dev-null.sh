@@ -31,6 +31,16 @@ composer dev
 
 Run `composer test` before opening a pull request.
 
+Commits are attributed to people only: never add Amp, Claude Code, or any other AI tool as a co-author, and keep their names out of commit attribution (author, committer, and trailers).
+
+### Amp orbs
+
+Amp runs `.agents/setup` to prepare a reusable snapshot with PHP 8.5, Composer, Node 26, the Bun version from `package.json`, locked dependencies, generated routes, and built assets. Setup also prepares isolated PostgreSQL 18 development and test databases with `vector` and `pg_trgm`, including extensions inherited by parallel test databases. It is safe to rerun and preserves an existing `.env` and application key.
+
+Run `amp orb services ensure` to start the supervised database and app and print the app's portal URL. The app uses the existing local sign-in flow (any handle, no GitHub credentials required). Frontend assets are prebuilt; rerun `bun run build` after frontend edits. No resume hook is needed: Amp supervises the services, and dependency installation belongs only in setup.
+
+The database is loopback-only and uses trust authentication and relaxed durability for disposable development data. Do not use this configuration for production.
+
 ## License
 
 /dev/null is open-sourced software licensed under the **[MIT license](composer.json)**.

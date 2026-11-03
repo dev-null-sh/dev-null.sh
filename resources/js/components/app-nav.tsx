@@ -76,14 +76,12 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             title: 'Log',
             href: log === null ? home() : LogController.show(log),
             icon: GitCommitVertical,
-            prefetch: false,
         },
         {
             title: 'Notifications',
             href: hrefFor(() => NotificationController.index()),
             icon: Bell,
             badge: auth.unreadNotificationsCount,
-            prefetch: false,
         },
         ...(auth.remotes !== null
             ? [
@@ -93,7 +91,6 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                       href: ConversationController.index(),
                       icon: MessagesSquare,
                       badge: unreadMessages,
-                      prefetch: false,
                   },
               ]
             : []),
@@ -106,7 +103,6 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
             title: 'Starred',
             href: hrefFor(() => StarredCommitController.index()),
             icon: Star,
-            prefetch: false,
         },
         ...(auth.isAdmin
             ? [
@@ -120,7 +116,6 @@ function useNavItems(): (NavItem & { isActive: boolean })[] {
                       title: 'Operations',
                       href: OperationsController.show(),
                       icon: Activity,
-                      prefetch: false,
                   },
               ]
             : []),
@@ -178,7 +173,8 @@ function NavLink({
         <NavTooltip label={iconsOnly ? item.title : null}>
             <Link
                 href={item.href}
-                prefetch={item.prefetch ?? true}
+                prefetch
+                cacheFor="10s"
                 viewTransition
                 aria-current={item.isActive ? 'page' : undefined}
                 title={title}
@@ -651,7 +647,8 @@ export function MobileNav({ children }: { children?: ReactNode }) {
                             ) : (
                                 <Link
                                     href={item.href}
-                                    prefetch={item.prefetch ?? true}
+                                    prefetch
+                                    cacheFor="10s"
                                     viewTransition
                                     aria-current={
                                         item.isActive ? 'page' : undefined

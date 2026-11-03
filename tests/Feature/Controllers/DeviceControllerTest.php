@@ -13,7 +13,7 @@ it('lists the approved devices of the user, last approved first', function (): v
         'approved_at' => now()->subWeek(),
         'last_used_at' => now()->subDay(),
     ]);
-    $newer = Device::factory()->for($user)->create(['name' => 'devnull on iPhone']);
+    $newer = Device::factory()->for($user)->create(['name' => 'iPhone', 'app_name' => '/dev/null for iOS']);
 
     Device::factory()->create();
 
@@ -26,11 +26,13 @@ it('lists the approved devices of the user, last approved first', function (): v
             ->where('devices.0', [
                 'id' => $newer->id,
                 'fingerprint' => $newer->fingerprint,
-                'name' => 'devnull on iPhone',
+                'name' => 'iPhone',
+                'app_name' => '/dev/null for iOS',
                 'approved_at' => now()->startOfSecond()->toJSON(),
                 'last_used_at' => null,
             ])
             ->where('devices.1.id', $older->id)
+            ->where('devices.1.app_name', null)
             ->where('devices.1.last_used_at', now()->subDay()->startOfSecond()->toJSON()));
 });
 

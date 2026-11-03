@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Actions\DeleteUser;
 use App\Models\Commit;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -32,6 +33,16 @@ it('returns a summary of the user for the user preview', function (): void {
         ->assertJsonMissingPath('user.email')
         ->assertJsonMissingPath('user.github_id');
 });
+
+it('says which accounts the bio mentions are on dev/null', function (bool $guest): void {
+    Organization::factory()->create(['handle' => 'Laravel']);
+    User::factory()->create(['handle' => 'octocat', 'bio' => 'Building @laravel, previously @nobody']);
+
+    ($guest ? $this : $this->actingAs(User::factory()->create()))
+        ->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('bioProfiles', ['laravel' => 'Laravel']);
+})->with(['guest' => true, 'member' => false]);
 
 it('does not count deleted commits in the user preview', function (): void {
     $user = User::factory()->create(['handle' => 'octocat']);
@@ -172,4 +183,19 @@ it('preserves block privacy for captured mention previews', function (): void {
         ->assertJsonPath('isUnavailable', true)
         ->assertJsonMissingPath('user.commits_count')
         ->assertJsonMissingPath('user.followers_count');
+});
+
+it('includes the shared local time in the user preview', function (): void {
+    User::factory()->create(['handle' => 'octocat', 'timezone' => 'Europe/Berlin', 'show_local_time' => true]);
+
+    $this->actingAs(User::factory()->create())
+        ->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('user.timezone', 'Europe/Berlin')
+        ->assertJsonPath('user.show_local_time', true);
+
+    $this->getJson('/@octocat/preview')
+        ->assertOk()
+        ->assertJsonPath('user.timezone', 'Europe/Berlin')
+        ->assertJsonPath('user.show_local_time', true);
 });

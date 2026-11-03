@@ -80,7 +80,13 @@ export type OrgEvent =
     | 'promoted'
     | 'demoted'
     | 'inherited'
-    | 'ping';
+    | 'ping'
+    | 'call_started'
+    | 'call_answered'
+    | 'call_cancelled'
+    | 'call_declined'
+    | 'call_missed'
+    | 'call_failed';
 
 export type OrgRef = { id: string; name: string | null };
 

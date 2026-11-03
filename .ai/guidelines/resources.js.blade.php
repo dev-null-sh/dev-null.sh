@@ -13,8 +13,29 @@ Every UI change keeps the layout still. Nothing may flash, jump, clip or reflow 
 
 - A skeleton occupies exactly the loaded content's box: same height, line count and wrapping at every breakpoint, including the narrow aside. It is visible in light and dark mode, popovers included.
 - Delay skeletons by about 300ms so fast responses show nothing. Show one only while data is genuinely missing, never while refetching data you already have.
-- Shared props that persist across pages (aside, nav counts) use `Inertia::defer(...)->once()`, so client visits don't refetch them and flash.
-- Polling and refresh buttons use partial reloads (`only: [...]`) of the page's own props. Never reload the whole page, and keep showing the old data until the new data arrives.
+
+## Navigation and requests
+
+- Every Inertia `<Link>` to a GET page prefetches on hover (`prefetch`). A GET page never writes; the only exceptions are `log/{log}` (remembers the log), `notifications` (marks read, remembers the filter), `remotes/@{partner}` and `remotes/orgs/{org}` (mark read), and every link to them keeps `prefetch={false}`. `starred` also keeps it, because starring changes the list. A new GET page that must write joins this list.
+- Never prefetch a non-GET link, an external URL, a guest's sign-in link, or a URL that is not an Inertia page (images, feeds, downloads, JSON).
+- A click target that is not a link (the commit card surface) prefetches on `mousedown`, never on hover: scrolling a feed hovers every card.
+- After an action that changes what a prefetched page shows, flush that page (`router.flush(url)`, `router.flushAll()`, or `invalidateCacheTags`), so the next click does not show the old state.
+- One user intent is one request. When the server would only echo the URL back (a search query, a filter), change it on the client with `router.replace({ url, props })`. Data the first paint needs comes with the page as a prop or a deferred prop, never from a fetch in a mount effect.
+- Shared props never recompute per visit what changes slowly: use `Inertia::once()`, with `->until()` when it must refresh, and `Inertia::defer(...)->once()` for the aside. Leave the key out on pages that do not show it, so no page caches an empty value. A partial reload that names the prop still refreshes it.
+- Polling, refresh buttons and filters use partial reloads (`only: [...]`) of the page's own props. Never reload the whole page, and keep showing the old data until the new data arrives.
+
+## Actions
+
+- Every action updates the UI at once and rolls back on failure: `router.optimistic(...)`, `useHttp().optimistic(...)`, `<Form optimistic>`, `usePicked` for switches, `useSharedState` for commit counters, and `resources/js/lib/chat.ts` for remotes.
+- Wait for the server only when the UI needs a value that only the server has (the id of a new commit or message), or when a validation error must show inline in a form that the optimistic change would unmount.
+
+## Rendering
+
+- The React Compiler is on: write no `useMemo`, `useCallback` or `memo` for performance, and never write a ref or module state during render.
+- Derive values from props during render, or reset a subtree with a `key`. Never copy props into state with an effect.
+- Values that differ between the server and the browser (`window`, `matchMedia`, `localStorage`, the time) come from `useSyncExternalStore` with a server snapshot (`useMediaQuery`, `useNow`). Never read them during render, and never set them in a mount effect: each one makes hydration render twice.
+- The SSR process renders pages for many users. A module store that a page seeds during render resets on the server first, so no render starts with another user's data.
+- Declare no component inside another component, and use no `key={index}` on a list that inserts, removes or reorders rows.
 
 ## Changing content
 

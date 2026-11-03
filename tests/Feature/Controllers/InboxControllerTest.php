@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Actions\DeleteUser;
 use App\Enums\RemoteStatus;
 use App\Models\Conversation;
 use App\Models\ConversationParticipant;
@@ -12,7 +13,7 @@ beforeEach(function (): void {
     config(['remotes.requests' => true, 'remotes.everyone' => true]);
 });
 
-it('lists conversations by latest message with what is unread', function (array $query): void {
+it('lists conversations by latest message with how many of them are unread', function (array $query): void {
     $mark = User::factory()->withRemotes()->create();
     $nuno = User::factory()->withRemotes()->create(['handle' => 'nunomaduro']);
     $taylor = User::factory()->withRemotes()->create(['handle' => 'taylorotwell']);
@@ -24,7 +25,7 @@ it('lists conversations by latest message with what is unread', function (array 
         ->assertOk()
         ->assertHeader('Cache-Control', 'no-store, private')
         ->assertJsonMissingPath('notification_baseline')
-        ->assertJsonPath('unread', 2);
+        ->assertJsonPath('unread', 1);
 
     expect($response->json('conversations'))->toHaveCount(2)
         ->and($response->json('conversations.0.partner.handle'))->toBe('nunomaduro')
@@ -309,4 +310,52 @@ it('pages through conversations, newest first', function (): void {
         ->assertOk()
         ->assertJsonCount(ConversationsQuery::PAGE + 2, 'notification_baseline')
         ->assertJsonPath('notification_baseline.'.$second->json('conversations.1.id'), $second->json('conversations.1.last_message.id'));
+});
+
+it('leaves deleted partners out of every inbox tab and its notification counts', function (string $tab): void {
+    $mark = User::factory()->withRemotes()->create();
+    $departed = User::factory()->withRemotes()->create();
+    $partner = User::factory()->withRemotes()->create();
+    $orphan = sendChatMessage($departed, $mark);
+    $visible = sendChatMessage($partner, $mark);
+
+    ConversationParticipant::query()->where('user_id', $mark->id)->update([
+        'status' => $tab === 'fetched' ? RemoteStatus::Fetched : RemoteStatus::Open,
+        'archived_at' => $tab === 'stashed' ? now() : null,
+    ]);
+    resolve(DeleteUser::class)->handle($departed);
+
+    $this->actingAs($mark)->getJson(route('inbox.index', ['tab' => $tab, 'notification_baseline' => 1, 'notification_conversations' => 1]))
+        ->assertOk()
+        ->assertJsonCount(1, 'conversations')
+        ->assertJsonPath('conversations.0.id', $visible->conversation_id)
+        ->assertJsonPath('conversations.0.kind', 'direct')
+        ->assertJsonPath('conversations.0.partner.id', $partner->id)
+        ->assertJsonPath('notification_baseline', [$visible->conversation_id => $visible->id])
+        ->assertJsonCount($tab === 'open' ? 1 : 0, 'notification_conversations')
+        ->assertJsonPath('requests', $tab === 'fetched' ? 1 : 0)
+        ->assertJsonPath('unread', $tab === 'stashed' ? 0 : 1);
+
+    $this->assertDatabaseHas('conversations', ['id' => $orphan->conversation_id]);
+})->with(['open', 'fetched', 'stashed']);
+
+it('keeps an unnamed org visible when only its maintainer remains', function (): void {
+    $mark = User::factory()->withRemotes()->create();
+    [$departed] = followersOf($mark, 1);
+    $org = createOrg($mark, [$departed], name: null);
+
+    resolve(DeleteUser::class)->handle($departed);
+
+    $this->actingAs($mark)->getJson(route('inbox.index', ['notification_baseline' => 1]))
+        ->assertOk()
+        ->assertJsonCount(1, 'conversations')
+        ->assertJsonPath('conversations.0.id', $org)
+        ->assertJsonPath('conversations.0.kind', 'org')
+        ->assertJsonPath('conversations.0.name', null)
+        ->assertJsonPath('conversations.0.partner', null)
+        ->assertJsonCount(1, 'conversations.0.members')
+        ->assertJsonPath('conversations.0.members.0.user.id', $mark->id)
+        ->assertJsonCount(1, 'notification_baseline');
+
+    $this->get(route('org.show', $org))->assertOk();
 });

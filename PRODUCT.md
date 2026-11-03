@@ -22,8 +22,8 @@ Developers who left X or Bluesky, or are thinking about it, and want a feed with
 
 ## Operating Context
 
-- Surfaces: the web app (also installable as a PWA), the mobile app and the Mac app (Remotes, downloadable from /apps) through a signed JSON API, the terminal script and GitHub Action, a public read-only API, Atom feeds, and an activity graph SVG for GitHub READMEs.
-- Guests can read the Latest and Trending logs, profiles, approved commits and their threads, and search. Everything that writes or is personal (Following log, notifications, Saved, Remotes, Settings) needs sign-in.
+- Surfaces: the web app (also installable as a PWA), the mobile app and the Mac app (the whole product as a native workspace, downloadable from /apps) through a signed JSON API, the terminal script and GitHub Action, a public read-only API, Atom feeds, and an activity graph SVG for GitHub READMEs.
+- Guests can read the Latest and Trending logs, profiles, approved commits and their threads, and search developers. Who follows whom and commit search (which pays for AI) need sign-in, so bots can't walk the graph or run up the bill, like everything that writes or is personal (Following log, notifications, Saved, Remotes, Settings).
 - Site admins (`ADMINS`) moderate (`/moderation`) and run the site (`/operations`).
 - Exact behavior, limits, and edge cases for every feature live in [KNOWLEDGE_BASE.md](KNOWLEDGE_BASE.md) and in the code; this file only records what must stay true.
 
@@ -35,7 +35,8 @@ What exists, one line each (details in the knowledge base):
 - **Logs:** Following, Latest, and Trending.
 - **Engagement:** follows, stars, saved commits, pins, mentions, and pastéis (an opt-in daily allowance of pastries).
 - **Profiles:** mirrored from GitHub, with an activity graph, streaks, achievements, a Unix rank, and a live marker while you stream on YouTube.
-- **Remotes:** private one-to-one and group messages (orgs).
+- **Organization pages:** GitHub organizations get a page mirrored from GitHub once an approved commit mentions them, and `@organization` mentions link to it. Their members post commits as the organization, which readers see from the organization alone.
+- **Remotes:** private one-to-one and group messages (orgs), and calls, one-to-one or in an org.
 - **Notifications:** in-app activity and on-site Remotes alerts by default; off-site browser and PWA notifications require a separate opt-in. Sound is controlled independently and plays while the site is open.
 - **Search:** developers by name, commits by meaning.
 - **Emails:** an occasional update the admins write to everyone, or to a filtered audience, with one-click unsubscribe. Never per-activity notifications.
@@ -59,7 +60,7 @@ Deliberately excluded: sign-up or identity outside GitHub, editing commits, and 
 - Voice: dry, terminal-literate humor. Understated wit; copy may wink at Unix and `/dev/null`, but stays clear and never obscures what an action does.
 - Lore is part of the product: Tom (everyone's first friend, after MySpace Tom), pastéis (a tribute to the pastéis de nata brought to the livestream), @world, the Unix-named achievements. Extend it with restraint, never at the expense of clarity. The stories behind it are in the knowledge base.
 - Current tagline in use: "A social network for developers."
-- Vocabulary: a post is a **commit** and a timeline is a **log**, in the UI and in code (`Commit` model, `LogController`, `/log/{log}`). A GitHub account mirrored at its `/@handle` is a **profile** (`Profile` model, as GitHub's `ProfileOwner`), and the unique name GitHub calls its login is its **handle** in code; the API also sends it as `username` for older clients. The git metaphor stops at those two nouns, except inside Remotes, which carries its own small vocabulary: a conversation is a **remote**, sending is a **push**, a read receipt is **pulled**, a request is **fetched** until **merged** or **dropped**, archiving is **stash** and **pop**, a group is an **org** of **maintainers** and **contributors**, and **HEAD** marks where you left off. No branches, forks, diffs, or PRs. **Star** is the engagement verb, not a git ref.
+- Vocabulary: a post is a **commit** and a timeline is a **log**, in the UI and in code (`Commit` model, `LogController`, `/log/{log}`). A GitHub account mirrored at its `/@handle` is a **profile** (`Profile` model, as GitHub's `ProfileOwner`), a developer's or a GitHub **organization**'s, and the unique name GitHub calls its login is its **handle** in code and in the API. A GitHub organization is never called an org, so it is not mistaken for a Remotes group. The git metaphor stops at those two nouns, except inside Remotes, which carries its own small vocabulary: a conversation is a **remote**, sending is a **push**, a read receipt is **pulled**, a request is **fetched** until **merged** or **dropped**, archiving is **stash** and **pop**, a group is an **org** of **maintainers** and **contributors**, and **HEAD** marks where you left off. No branches, forks, diffs, or PRs. **Star** is the engagement verb, not a git ref.
 
 ## Evidence on Hand
 

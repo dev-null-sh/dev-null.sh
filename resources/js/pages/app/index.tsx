@@ -91,7 +91,16 @@ export default function Index({
                         Your remotes and orgs in a native Mac app. Push, pull,
                         and react with everyone on{' '}
                         <WordmarkText>/dev/null</WordmarkText> without keeping a
-                        tab open.
+                        tab open. Want to help build?{' '}
+                        <a
+                            href="https://github.com/dev-null-sh/mac-os-app"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline decoration-muted-foreground/50 underline-offset-4 hover:decoration-foreground"
+                        >
+                            Open a pull request
+                        </a>
+                        .
                     </p>
 
                     {release === null ? (
