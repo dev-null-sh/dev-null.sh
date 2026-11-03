@@ -1,3 +1,4 @@
+import type { VisitOptions } from '@inertiajs/core';
 import { router, usePage } from '@inertiajs/react';
 import {
     Ban,
@@ -56,7 +57,11 @@ import {
     forgetPreview,
     usePreviewRelationship,
 } from '@/components/user-preview';
-import { BlockUserDialog, visitSafety } from '@/components/user-safety-menu';
+import {
+    BlockUserDialog,
+    useIsMuting,
+    visitSafety,
+} from '@/components/user-safety-menu';
 import { signIn } from '@/lib/auth';
 import { sendMessage } from '@/lib/chat';
 import { cn } from '@/lib/utils';
@@ -386,6 +391,10 @@ function CommitAuthorItems({
         author,
         relationship?.isFollowing ?? false,
     );
+    const [isMuting, setIsMuting] = useIsMuting(
+        author,
+        relationship?.isMuting ?? false,
+    );
 
     const toggleFollow = () => {
         if (!isSignedIn) {
@@ -413,8 +422,33 @@ function CommitAuthorItems({
         );
     };
 
-    const visit = (action: Parameters<typeof router.visit>[0]) =>
-        visitSafety(action, { onSuccess: () => forgetPreview(author) });
+    const visit = (
+        action: Parameters<typeof router.visit>[0],
+        options: Pick<
+            VisitOptions,
+            'onStart' | 'onCancel' | 'onNetworkError' | 'onHttpException'
+        > = {},
+    ) =>
+        visitSafety(action, {
+            ...options,
+            onSuccess: () => forgetPreview(author),
+        });
+
+    const toggleMute = () => {
+        const rollBack = () => setIsMuting(isMuting);
+
+        visit(
+            isMuting
+                ? UserMuteController.destroy(author)
+                : UserMuteController.store(author),
+            {
+                onStart: () => setIsMuting(!isMuting),
+                onCancel: rollBack,
+                onNetworkError: rollBack,
+                onHttpException: rollBack,
+            },
+        );
+    };
 
     return (
         <>
@@ -437,22 +471,15 @@ function CommitAuthorItems({
                 <>
                     <DropdownMenuItem
                         disabled={isLoading}
-                        onSelect={() =>
-                            visit(
-                                relationship?.isMuting
-                                    ? UserMuteController.destroy(author)
-                                    : UserMuteController.store(author),
-                            )
-                        }
+                        onSelect={toggleMute}
                         data-test="mute-commit-author"
                     >
-                        {relationship?.isMuting ? <Volume2 /> : <VolumeX />}
+                        {isMuting ? <Volume2 /> : <VolumeX />}
                         <span
                             className="min-w-0 truncate"
                             title={`@${author.handle}`}
                         >
-                            {relationship?.isMuting ? 'Unmute' : 'Mute'} @
-                            {author.handle}
+                            {isMuting ? 'Unmute' : 'Mute'} @{author.handle}
                         </span>
                     </DropdownMenuItem>
                     <DropdownMenuItem

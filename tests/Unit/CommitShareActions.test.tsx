@@ -24,6 +24,7 @@ const signIn = vi.fn();
 const visitSafety = vi.fn();
 const forgetPreview = vi.fn();
 const setIsFollowing = vi.fn();
+const setIsMuting = vi.fn();
 
 vi.doMock('react', () => ({
     ...React,
@@ -69,6 +70,7 @@ vi.doMock('../../resources/js/components/user-preview', () => ({
 }));
 vi.doMock('../../resources/js/components/user-safety-menu', () => ({
     BlockUserDialog: () => null,
+    useIsMuting: (_user: unknown, isMuting: boolean) => [isMuting, setIsMuting],
     visitSafety,
 }));
 vi.doMock('../../resources/js/components/follow-button', () => ({
@@ -176,13 +178,11 @@ function closeShareMenu(
     )!;
     let prevented = false;
 
-    (menu.props.onCloseAutoFocus as (event: Event) => void)(
-        {
-            preventDefault: () => {
-                prevented = true;
-            },
-        } as Event,
-    );
+    (menu.props.onCloseAutoFocus as (event: Event) => void)({
+        preventDefault: () => {
+            prevented = true;
+        },
+    } as Event);
 
     return prevented;
 }
@@ -203,9 +203,9 @@ function confirm(value: Commit = commit): Element[] {
     const picker = selected.find(
         (element) => element.props.pickerScope === 'share',
     )!;
-    (picker.props.onCloseAutoFocus as (event: Event) => void)(
-        { preventDefault() {} } as Event,
-    );
+    (picker.props.onCloseAutoFocus as (event: Event) => void)({
+        preventDefault() {},
+    } as Event);
     return render(value);
 }
 
@@ -226,8 +226,9 @@ test('only offers sharing for signed-in developers with Remotes and approved com
             false,
         );
         assert.equal(
-            tree.find((element) => typeof element.props.onPending === 'function')!
-                .props.canSend,
+            tree.find(
+                (element) => typeof element.props.onPending === 'function',
+            )!.props.canSend,
             false,
         );
     }
@@ -403,9 +404,8 @@ test('cancelling the recipient picker restores focus to Share', () => {
     (picker.props.onOpenChange as (open: boolean) => void)(false);
     const preventDefault = vi.fn();
     (
-        render().find(
-            (element) => element.props.pickerScope === 'share',
-        )!.props.onCloseAutoFocus as (event: Event) => void
+        render().find((element) => element.props.pickerScope === 'share')!.props
+            .onCloseAutoFocus as (event: Event) => void
     )({ preventDefault } as unknown as Event);
 
     assert.equal(preventDefault.mock.calls.length, 1);
@@ -425,20 +425,20 @@ test('closing the confirmation returns focus to Share', () => {
     const focus = vi.fn();
     (menu.props.triggerRef as { current: unknown }).current = { focus };
 
-    const cancel = tree.find(
-        (element) => element.props.variant === 'outline',
-    )!;
+    const cancel = tree.find((element) => element.props.variant === 'outline')!;
     (cancel.props.onClick as () => void)();
 
     const preventDefault = vi.fn();
     const content = render().find(
         (element) =>
             typeof element.props.className === 'string' &&
-            element.props.className.includes('grid-rows-[auto_minmax(0,1fr)_auto]'),
+            element.props.className.includes(
+                'grid-rows-[auto_minmax(0,1fr)_auto]',
+            ),
     )!;
-    (content.props.onCloseAutoFocus as (event: Event) => void)(
-        { preventDefault } as unknown as Event,
-    );
+    (content.props.onCloseAutoFocus as (event: Event) => void)({
+        preventDefault,
+    } as unknown as Event);
 
     assert.equal(preventDefault.mock.calls.length, 1);
     assert.equal(focus.mock.calls.length, 1);
@@ -567,7 +567,7 @@ test('only offers deleting when the card can delete the commit', () => {
     );
 });
 
-test('offers following, muting and blocking the author of other people\'s commits only', () => {
+test("offers following, muting and blocking the author of other people's commits only", () => {
     const author = userCommit.author;
 
     assert.ok(component(render(userCommit), 'CommitAuthorItems'));
@@ -593,7 +593,7 @@ test('offers following, muting and blocking the author of other people\'s commit
     );
 });
 
-test('waits for the author\'s preview before offering follow, mute or block', () => {
+test("waits for the author's preview before offering follow, mute or block", () => {
     for (const dataTest of [
         'follow-commit-author',
         'mute-commit-author',
@@ -652,16 +652,14 @@ test('guests are only offered following, which signs them in', () => {
     assert.equal(visit.mock.calls.length, 0);
 });
 
-test('muting and unmuting forget the author\'s stale preview', () => {
+test("muting and unmuting flip right away, roll back on failure, and forget the author's stale preview", () => {
     for (const isMuting of [false, true]) {
         visitSafety.mockClear();
         forgetPreview.mockClear();
+        setIsMuting.mockClear();
         relationship = { isFollowing: false, isMuting, isBlocking: false };
         const mute = authorItem('mute-commit-author');
-        assert.equal(
-            text(mute),
-            `${isMuting ? 'Unmute' : 'Mute'} @author`,
-        );
+        assert.equal(text(mute), `${isMuting ? 'Unmute' : 'Mute'} @author`);
 
         (mute.props.onSelect as () => void)();
 
@@ -671,7 +669,25 @@ test('muting and unmuting forget the author\'s stale preview', () => {
                 ? UserMuteController.destroy(userCommit.author)
                 : UserMuteController.store(userCommit.author),
         );
-        (visitSafety.mock.calls[0][1] as { onSuccess: () => void }).onSuccess();
+        const options = visitSafety.mock.calls[0][1] as Record<
+            | 'onStart'
+            | 'onSuccess'
+            | 'onCancel'
+            | 'onNetworkError'
+            | 'onHttpException',
+            () => void
+        >;
+        options.onStart();
+        assert.deepEqual(setIsMuting.mock.calls, [[!isMuting]]);
+        options.onCancel();
+        options.onNetworkError();
+        options.onHttpException();
+        assert.deepEqual(setIsMuting.mock.calls.slice(1), [
+            [isMuting],
+            [isMuting],
+            [isMuting],
+        ]);
+        options.onSuccess();
         assert.deepEqual(forgetPreview.mock.calls, [[userCommit.author]]);
     }
 });
