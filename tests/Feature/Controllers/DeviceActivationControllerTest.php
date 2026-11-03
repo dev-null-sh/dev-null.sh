@@ -8,7 +8,9 @@ use App\Dto\DeviceAuthorization;
 use App\Enums\DeviceAuthorizationStatus;
 use App\Models\Device;
 use App\Models\User;
+use Illuminate\Cache\Events\CacheHit;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -220,6 +222,25 @@ it('decides nothing for a code that expired while the page was open', function (
 
 it('decides a code only once', function (): void {
     $this->actingAs($this->user)->post(route('device-activation.store'), ['user_code' => $this->authorization->userCode, 'decision' => 'denied'])->assertOk();
+
+    $this->actingAs($this->user)->post(route('device-activation.store'), ['user_code' => $this->authorization->userCode, 'decision' => 'approved'])
+        ->assertBadRequest()
+        ->assertInertia(fn (Assert $page): Assert => $page->where('error', 'This code is unknown or has expired. Check your terminal, and start the sign-in again if you need to.'));
+
+    expect(Device::query()->exists())->toBeFalse()
+        ->and(Cache::get($this->authorization->key))->toMatchArray(['status' => 'denied']);
+});
+
+it('decides nothing for a code that another request decided in the meantime', function (): void {
+    // The code is checked, then denied by another request before this one approves its device...
+    $decided = false;
+
+    Event::listen(function (CacheHit $event) use (&$decided): void {
+        if (! $decided && $event->key === $this->authorization->key) {
+            $decided = true;
+            resolve(CreateDeviceActivation::class)->handle($this->user, $this->authorization, DeviceAuthorizationStatus::Denied);
+        }
+    });
 
     $this->actingAs($this->user)->post(route('device-activation.store'), ['user_code' => $this->authorization->userCode, 'decision' => 'approved'])
         ->assertBadRequest()

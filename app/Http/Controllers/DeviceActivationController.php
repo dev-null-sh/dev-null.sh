@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Container\Attributes\CurrentUser;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 final readonly class DeviceActivationController
 {
@@ -35,14 +36,17 @@ final readonly class DeviceActivationController
     }
 
     /**
-     * Approves the key as one of the user's devices, or denies it, and tells the user what their terminal will find.
+     * Approves the key as one of the user's devices, or denies it, and tells the user what their terminal will find. A
+     * code decided by another request in the meantime gets the same answer as an unknown one.
      */
-    public function store(CreateDeviceActivationRequest $request, #[CurrentUser] User $user, CreateDeviceActivation $action): Response
+    public function store(CreateDeviceActivationRequest $request, #[CurrentUser] User $user, CreateDeviceActivation $action): Response|SymfonyResponse
     {
         $authorization = $request->authorization();
         $decision = $request->decision();
 
-        $action->handle($user, $authorization, $decision);
+        if (! $action->handle($user, $authorization, $decision)) {
+            return ShowDeviceActivationRequest::invalid($request, ShowDeviceActivationRequest::unknownCode())->getResponse();
+        }
 
         return Inertia::render('device-activation/show', [
             'done' => [

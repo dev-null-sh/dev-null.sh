@@ -60,9 +60,31 @@ it('denies without approving anything, and takes the code back', function (): vo
     $user = User::factory()->create();
     $authorization = pendingDeviceAuthorization()['authorization'];
 
-    resolve(CreateDeviceActivation::class)->handle($user, $authorization, DeviceAuthorizationStatus::Denied);
+    expect(resolve(CreateDeviceActivation::class)->handle($user, $authorization, DeviceAuthorizationStatus::Denied))->toBeTrue();
 
     expect(Device::query()->exists())->toBeFalse()
         ->and(Cache::get($authorization->key))->toBe([...$authorization->toArray(), 'status' => 'denied', 'user_id' => null])
         ->and(Cache::has(DeviceAuthorization::userCodeKeyFor($authorization->userCode)))->toBeFalse();
+});
+
+it('approves nothing for a sign-in that was denied since it was checked', function (): void {
+    $user = User::factory()->create();
+    $authorization = pendingDeviceAuthorization()['authorization'];
+
+    resolve(CreateDeviceActivation::class)->handle($user, $authorization, DeviceAuthorizationStatus::Denied);
+
+    expect(resolve(CreateDeviceActivation::class)->handle($user, $authorization, DeviceAuthorizationStatus::Approved))->toBeFalse()
+        ->and(Device::query()->exists())->toBeFalse()
+        ->and(Cache::get($authorization->key)['status'])->toBe('denied');
+});
+
+it('keeps the approval of a sign-in that is denied since it was checked', function (): void {
+    $user = User::factory()->create();
+    $authorization = pendingDeviceAuthorization()['authorization'];
+
+    resolve(CreateDeviceActivation::class)->handle($user, $authorization, DeviceAuthorizationStatus::Approved);
+
+    expect(resolve(CreateDeviceActivation::class)->handle($user, $authorization, DeviceAuthorizationStatus::Denied))->toBeFalse()
+        ->and(Device::query()->count())->toBe(1)
+        ->and(Cache::get($authorization->key)['status'])->toBe('approved');
 });
