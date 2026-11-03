@@ -13,7 +13,7 @@ final readonly class UpdateStaleHandles
      * placeholder starts with an underscore, which no GitHub handle can, and their next sync restores a real one.
      * Bots keep their identity under reserved handles so they can continue replying. An unclaimed profile, a developer
      * looked up from GitHub who never signed in, has nothing of its own, so it goes: looking its new handle up brings it
-     * back.
+     * back, with the members waiting for it, kept by its GitHub ID.
      */
     public function handle(string $handle, string $githubId): void
     {

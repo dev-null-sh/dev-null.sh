@@ -64,8 +64,10 @@ export default function Show() {
                                 when a member opens the page of your GitHub
                                 username, your GitHub ID, username, name,
                                 avatar, and bio, to show that page until you
-                                sign in and make it yours. Never your location
-                                or website.
+                                sign in and make it yours, and which members
+                                follow you on GitHub, who then follow you here
+                                once you sign up. Never your location or
+                                website.
                             </>,
                             <>
                                 <strong>

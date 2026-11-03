@@ -34,6 +34,7 @@ it('gives a GitHub developer an unclaimed profile, with only what their page sho
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('rateLimit')->andReturnNull();
     $github->shouldReceive('accountByLogin')->once()->with('octocat')->andReturn(octocatAccount());
+    $github->shouldReceive('followerIds')->once()->with('octocat', 10)->andReturn([]);
     Cache::put('github-profiles:looking-up:octocat', true, 30);
 
     dispatch_sync(new LookUpGitHubProfile('octocat'));
@@ -54,12 +55,26 @@ it('gives a GitHub developer an unclaimed profile, with only what their page sho
         ->and(Cache::has('github-profiles:looking-up:octocat'))->toBeFalse();
 });
 
+it('makes the members following a developer on GitHub wait to follow them here', function (): void {
+    $follower = User::factory()->create();
+    User::factory()->create();
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('rateLimit')->andReturnNull();
+    $github->shouldReceive('accountByLogin')->once()->andReturn(octocatAccount());
+    $github->shouldReceive('followerIds')->once()->with('octocat', 10)->andReturn([$follower->github_id, '424242']);
+
+    dispatch_sync(new LookUpGitHubProfile('octocat'));
+
+    expect(DB::table('pending_follows')->get(['user_id', 'github_id'])->map(fn (object $row): array => (array) $row)->all())
+        ->toBe([['user_id' => $follower->id, 'github_id' => '583231']]);
+});
+
 it('gives a GitHub organization its page, followed by those waiting for it', function (): void {
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('rateLimit')->andReturnNull();
     $github->shouldReceive('accountByLogin')->once()->with('laravel')->andReturn(['login' => 'laravel', 'id' => 958072, 'type' => 'Organization', 'name' => 'Laravel', 'avatar_url' => null, 'bio' => null, 'location' => null, 'blog' => '', 'company' => null]);
     $follower = User::factory()->create();
-    DB::table('pending_organization_follows')->insert(['user_id' => $follower->id, 'github_id' => '958072', 'created_at' => now()]);
+    DB::table('pending_follows')->insert(['user_id' => $follower->id, 'github_id' => '958072', 'created_at' => now()]);
 
     dispatch_sync(new LookUpGitHubProfile('laravel'));
 
@@ -103,15 +118,19 @@ it('moves the unclaimed profile of a developer who renamed, and drops the one wh
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('rateLimit')->andReturnNull();
     $github->shouldReceive('accountByLogin')->once()->with('octocat')->andReturn(octocatAccount());
+    $github->shouldNotReceive('followerIds');
     $renamed = Profile::factory()->create(['github_id' => '583231', 'handle' => 'octo-old']);
     $previous = Profile::factory()->create(['github_id' => '1', 'handle' => 'octocat']);
     $member = User::factory()->create(['handle' => 'octocat-member']);
+    DB::table('pending_follows')->insert(['user_id' => $member->id, 'github_id' => '1', 'created_at' => now()]);
 
     dispatch_sync(new LookUpGitHubProfile('octocat'));
 
     expect($renamed->refresh()->handle)->toBe('octocat')
         ->and($member->profile->refresh()->handle)->toBe('octocat-member');
     $this->assertModelMissing($previous);
+
+    expect(DB::table('pending_follows')->pluck('github_id')->all())->toBe(['1']);
 });
 
 it('only moves a user who renamed on GitHub to their new handle, leaving the rest to their next sign-in', function (): void {
@@ -134,6 +153,7 @@ it('leaves the profile of a user who renamed away under a placeholder, as it was
     $github = $this->mock(GitHubProvider::class);
     $github->shouldReceive('rateLimit')->andReturnNull();
     $github->shouldReceive('accountByLogin')->once()->with('octocat')->andReturn(octocatAccount());
+    $github->shouldReceive('followerIds')->once()->andReturn([]);
     $member = User::factory()->create(['github_id' => '1', 'handle' => 'octocat']);
 
     dispatch_sync(new LookUpGitHubProfile('octocat'));

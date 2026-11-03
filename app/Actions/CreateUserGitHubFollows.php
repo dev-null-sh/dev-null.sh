@@ -69,7 +69,7 @@ final readonly class CreateUserGitHubFollows
 
                 $user->followedOrganizations()->syncWithoutDetaching($organizations->modelKeys());
 
-                DB::table('pending_organization_follows')->insertOrIgnore($organizationIds
+                DB::table('pending_follows')->insertOrIgnore($organizationIds
                     ->reject(fn (string $id): bool => $organizations->contains('github_id', $id))
                     ->map(fn (string $id): array => ['user_id' => $user->id, 'github_id' => $id, 'created_at' => now()])
                     ->all());
