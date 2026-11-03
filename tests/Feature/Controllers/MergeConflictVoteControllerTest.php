@@ -89,7 +89,7 @@ it('shows the merge conflict on the commit, hiding the count until the reader pi
     MergeConflictVote::factory()->for($mergeConflict)->count(2)->create();
 
     $this->actingAs(User::factory()->create())
-        ->get(route('commit.show', ['user' => $mergeConflict->commit->user, 'commit' => $mergeConflict->commit]))
+        ->get(route('commit.show', ['profile' => $mergeConflict->commit->user, 'commit' => $mergeConflict->commit]))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('mergeConflict.ours.id', $mergeConflict->ours_id)
@@ -106,7 +106,7 @@ it('shows everyone the final count once the conflict closed', function (): void 
     $mergeConflict = MergeConflict::factory()->closed()->create();
     MergeConflictVote::factory()->for($mergeConflict)->count(2)->create(['side' => 'theirs']);
 
-    $this->get(route('commit.show', ['user' => $mergeConflict->commit->user, 'commit' => $mergeConflict->commit]))
+    $this->get(route('commit.show', ['profile' => $mergeConflict->commit->user, 'commit' => $mergeConflict->commit]))
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->where('mergeConflict.is_closed', true)
@@ -120,7 +120,7 @@ it('hides the merge conflict when the reader cannot see one side', function (): 
     $reader->blocking()->attach($mergeConflict->theirs->user);
 
     $this->actingAs($reader)
-        ->get(route('commit.show', ['user' => $mergeConflict->commit->user, 'commit' => $mergeConflict->commit]))
+        ->get(route('commit.show', ['profile' => $mergeConflict->commit->user, 'commit' => $mergeConflict->commit]))
         ->assertInertia(fn ($page) => $page->where('mergeConflict', null));
 });
 
@@ -128,6 +128,6 @@ it('hides merge conflicts while they are switched off', function (): void {
     $mergeConflict = MergeConflict::factory()->create();
     resolve(Features::class)->update(Feature::MergeConflicts, false);
 
-    $this->get(route('commit.show', ['user' => $mergeConflict->commit->user, 'commit' => $mergeConflict->commit]))
+    $this->get(route('commit.show', ['profile' => $mergeConflict->commit->user, 'commit' => $mergeConflict->commit]))
         ->assertInertia(fn ($page) => $page->where('mergeConflict', null));
 });
