@@ -20,6 +20,7 @@ import {
     PreviewToggle,
     useComposerPreview,
 } from '@/components/composer-preview';
+import { DictationButton } from '@/components/dictation-button';
 import { EmojiPickerButton } from '@/components/emoji-picker';
 import { GraphRail, RailAvatar } from '@/components/graph-rail';
 import InputError from '@/components/input-error';
@@ -521,6 +522,13 @@ function CommitComposerBody({
                                             <Clock3 className="size-5" />
                                         </Button>
                                     </ActionTooltip>
+                                    <DictationButton
+                                        body={body}
+                                        updateBody={updateBody}
+                                        textareaRef={textareaRef}
+                                        maxLength={maxRawBodyLength}
+                                        disabled={processing}
+                                    />
                                     <LinkCardPicker
                                         linkCard={linkCard}
                                         disabled={processing}
