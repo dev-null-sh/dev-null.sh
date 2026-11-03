@@ -50,7 +50,7 @@ function linkVisit(url: string) {
     if (destination.length > 1_800) {
         return {
             href: LinkController.index().url,
-            method: 'query' as const,
+            method: 'post' as const,
             data: { url },
             preserveState: false,
         };
@@ -66,8 +66,8 @@ export default function Index(props: Props) {
         event.preventDefault();
         const visit = linkVisit(draft.trim());
 
-        if (visit.method === 'query') {
-            router.query(visit.href, visit.data, { preserveState: false });
+        if (visit.method === 'post') {
+            router.post(visit.href, visit.data, { preserveState: false });
         } else {
             router.get(visit.href);
         }

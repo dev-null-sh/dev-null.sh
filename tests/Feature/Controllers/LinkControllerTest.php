@@ -93,13 +93,13 @@ it('shows no commits for a link nobody used as their card', function (): void {
         ->where('commits', null));
 });
 
-it('accepts a long link lookup in a QUERY request body', function (): void {
+it('accepts a long link lookup in a POST request body', function (): void {
     $url = 'https://example.com/'.str_repeat('a', 1900);
     $link = LinkPreview::factory()->fetched()->create(['url' => $url]);
     $first = Commit::factory()->create(['link_preview_id' => $link->id]);
 
     $this->actingAs(User::factory()->create())
-        ->json('QUERY', route('link.index'), ['url' => $url])
+        ->post(route('link.index'), ['url' => $url])
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('links/index')
