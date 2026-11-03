@@ -13,13 +13,14 @@ export type ScrambledCharacter = {
 const listeners = new Set<() => void>();
 let currentFrame: number | null = null;
 let interval: ReturnType<typeof setInterval> | undefined;
+let reducedMotionQuery: MediaQueryList | undefined;
 
 const start = () => {
     if (interval !== undefined || document.visibilityState === 'hidden') {
         return;
     }
 
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    if (reducedMotionQuery?.matches) {
         if (currentFrame !== null) {
             currentFrame = null;
             listeners.forEach((notify) => notify());
@@ -35,6 +36,20 @@ const start = () => {
     }, FRAME_MS);
 };
 
+const onReducedMotionChange = () => {
+    if (reducedMotionQuery?.matches) {
+        clearInterval(interval);
+        interval = undefined;
+
+        if (currentFrame !== null) {
+            currentFrame = null;
+            listeners.forEach((notify) => notify());
+        }
+    } else if (listeners.size > 0) {
+        start();
+    }
+};
+
 const onVisibilityChange = () => {
     if (document.visibilityState === 'hidden') {
         clearInterval(interval);
@@ -48,6 +63,8 @@ const subscribe = (listener: () => void) => {
     listeners.add(listener);
 
     if (listeners.size === 1) {
+        reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+        reducedMotionQuery.addEventListener('change', onReducedMotionChange);
         document.addEventListener('visibilitychange', onVisibilityChange);
         start();
     }
@@ -59,6 +76,8 @@ const subscribe = (listener: () => void) => {
             clearInterval(interval);
             interval = undefined;
             currentFrame = null;
+            reducedMotionQuery?.removeEventListener('change', onReducedMotionChange);
+            reducedMotionQuery = undefined;
             document.removeEventListener(
                 'visibilitychange',
                 onVisibilityChange,

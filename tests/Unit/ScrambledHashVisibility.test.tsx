@@ -25,8 +25,19 @@ afterEach(() => {
 test('pauses the image loading animation offscreen and resumes on return', async () => {
     vi.useFakeTimers();
     let reducedMotion = false;
+    let onMotionChange: (() => void) | undefined;
     vi.stubGlobal('window', {
-        matchMedia: () => ({ matches: reducedMotion }),
+        matchMedia: () => ({
+            get matches() {
+                return reducedMotion;
+            },
+            addEventListener: (name: string, callback: () => void) => {
+                if (name === 'change') onMotionChange = callback;
+            },
+            removeEventListener: () => {
+                onMotionChange = undefined;
+            },
+        }),
     });
     const events = new Map<string, () => void>();
     const document = {
@@ -53,16 +64,29 @@ test('pauses the image loading animation offscreen and resumes on return', async
     vi.advanceTimersByTime(70);
     assert.equal(notify.mock.calls.length, 3);
 
-    document.visibilityState = 'hidden';
-    events.get('visibilitychange')?.();
     reducedMotion = true;
-    document.visibilityState = 'visible';
-    events.get('visibilitychange')?.();
+    onMotionChange?.();
     assert.equal(notify.mock.calls.length, 4);
     assert.ok(useScrambledHash('abcd').every(({ isLocked }) => isLocked));
     vi.advanceTimersByTime(700);
     assert.equal(notify.mock.calls.length, 4);
 
+    reducedMotion = false;
+    onMotionChange?.();
+    vi.advanceTimersByTime(70);
+    assert.equal(notify.mock.calls.length, 5);
+
+    document.visibilityState = 'hidden';
+    events.get('visibilitychange')?.();
+    reducedMotion = true;
+    document.visibilityState = 'visible';
+    events.get('visibilitychange')?.();
+    assert.equal(notify.mock.calls.length, 6);
+    assert.ok(useScrambledHash('abcd').every(({ isLocked }) => isLocked));
+    vi.advanceTimersByTime(700);
+    assert.equal(notify.mock.calls.length, 6);
+
     unsubscribe();
+    assert.equal(onMotionChange, undefined);
     assert.equal(events.has('visibilitychange'), false);
 });
