@@ -151,7 +151,7 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
 
         // Live updates, on the user's own private channel...
         Route::post('broadcasting/auth', [BroadcastAuthorizationController::class, 'store'])
-            ->middleware('throttle:60,1')
+            ->middleware('throttle:broadcast-authorizations')
             ->name('api-broadcast-authorization.store');
         Route::delete('me', [CurrentUserController::class, 'destroy'])->name('api-current-user.destroy');
 

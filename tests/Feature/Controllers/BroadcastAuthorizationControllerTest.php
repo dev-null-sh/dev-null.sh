@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Models\Commit;
 use App\Models\User;
 use Illuminate\Support\Facades\Broadcast;
 
@@ -68,4 +69,18 @@ it("signs an approved device into its user's private channel through the API", f
 
     signedApiRequest($key, 'POST', route('api-broadcast-authorization.store'), ['socket_id' => '7.8', 'channel_name' => 'private-users.'.$other->id])
         ->assertForbidden();
+});
+
+it('leaves the budget for reading and giving to the user when pages join and catch up on live updates', function (): void {
+    $user = User::factory()->create();
+    $commit = Commit::factory()->create();
+    $this->actingAs($user);
+
+    foreach (range(1, 60) as $ignored) {
+        $this->postJson(route('broadcast-authorization.store'), ['socket_id' => '123.456', 'channel_name' => 'private-users.'.$user->id])->assertOk();
+        $this->getJson(route('commit-change.index', ['ids' => [$commit->id], 'since' => now()->getTimestampMs()]))->assertOk();
+    }
+
+    $this->getJson(route('commit-poll.show', $commit))->assertNotFound();
+    $this->postJson(route('broadcast-authorization.store'), ['socket_id' => '123.456', 'channel_name' => 'private-users.'.$user->id])->assertTooManyRequests();
 });

@@ -201,6 +201,11 @@ final class AppServiceProvider extends ServiceProvider
         // GitHub fetches every README image through a few proxy addresses, so each graph gets its own budget...
         RateLimiter::for('activity-graph', fn (Request $request): Limit => Limit::perMinute(60)->by("{$request->ip()}|{$request->path()}"));
 
+        // Live updates: joining a channel and catching up after missing updates have budgets of their own, so pages
+        // listening never spend the one for reading and giving...
+        RateLimiter::for('broadcast-authorizations', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
+        RateLimiter::for('commit-changes', fn (Request $request): Limit => Limit::perMinute(120)->by($request->user()?->id ?? (string) $request->ip()));
+
         // Commit actions: rapid j/k with a star on most commits stays well under these...
         RateLimiter::for('stars', fn (Request $request): Limit => Limit::perMinute(60)->by($this->userId($request)));
         RateLimiter::for('pins', fn (Request $request): Limit => Limit::perMinute(20)->by($this->userId($request)));

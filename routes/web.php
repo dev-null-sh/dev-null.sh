@@ -304,7 +304,7 @@ Route::get('commit-images/{commitImage}', [CommitImageController::class, 'show']
     ->whereUuid('commitImage')
     ->name('commit-image.show');
 Route::get('commits/changes', [CommitChangeController::class, 'index'])
-    ->middleware('throttle:60,1')
+    ->middleware('throttle:commit-changes')
     ->name('commit-change.index');
 Route::get('commits/{commit}/link-preview', [CommitLinkPreviewController::class, 'show'])
     ->name('commit-link-preview.show');
@@ -357,7 +357,7 @@ Route::middleware('auth')->group(function (): void {
 
     // Live updates, on the user's own private channel...
     Route::post('broadcasting/auth', [BroadcastAuthorizationController::class, 'store'])
-        ->middleware('throttle:60,1')
+        ->middleware('throttle:broadcast-authorizations')
         ->name('broadcast-authorization.store');
 
     Route::post('logout', [SessionController::class, 'destroy'])
