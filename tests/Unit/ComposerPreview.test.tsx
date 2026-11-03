@@ -316,21 +316,25 @@ for (const [body, expected] of [
 for (const fence of [
     '``` php\ttitle="app/Models/User.php" \t',
     '```php filename="app/Models/User.php"',
+    '``` title="app/Models/User.php"',
 ]) {
-    test(`labels the code block of "${fence}" with its filename`, () => {
-        const markup = renderPage(
-            <CommitBody
-                segments={bodySegments(`${fence}\n$name;\n\`\`\``)}
-                mentions={null}
-            />,
-        );
+    for (const isStatic of [false, true]) {
+        test(`labels the code block of "${fence}" with its filename in ${isStatic ? 'excerpts' : 'commits'}`, () => {
+            const markup = renderPage(
+                <CommitBody
+                    segments={bodySegments(`${fence}\n$name;\n\`\`\``)}
+                    mentions={null}
+                    isStatic={isStatic}
+                />,
+            );
 
-        assert.match(
-            markup,
-            /<span[^>]*title="app\/Models\/User\.php"[^>]*>app\/Models\/User\.php<\/span>/,
-        );
-        assert.ok(!markup.includes('>php<'));
-    });
+            assert.match(
+                markup,
+                /<span[^>]*title="app\/Models\/User\.php"[^>]*>app\/Models\/User\.php<\/span>/,
+            );
+            assert.ok(!markup.includes('>php<'));
+        });
+    }
 }
 
 for (const [fence, language, filename] of [
@@ -352,6 +356,19 @@ for (const [fence, language, filename] of [
     ['```php title="app.php', 'php', null],
     ['```php caption="see title="app.php"', 'php', null],
     ['```php {1 title="app.php"}', 'php', null],
+    ['```php{1,3} title="app.php"', 'php', 'app.php'],
+    ["```php title='app.php'", 'php', 'app.php'],
+    ["```php filename='app.php'", 'php', 'app.php'],
+    ['```php title="it\'s.php"', 'php', "it's.php"],
+    ['```php title=\'"a".php\'', 'php', '"a".php'],
+    ["```php title=''", 'php', null],
+    ["```php title='app.php", 'php', null],
+    ["``` title='app.php'", null, 'app.php'],
+    ['```php{1,3}', 'php', null],
+    ['``` title="app.php"', null, 'app.php'],
+    ['```title="app.php"', null, 'app.php'],
+    ['```{1,3}', null, null],
+    ['``` {1,3} title="app.php"', null, 'app.php'],
     ['```php\u00a0title="app.php"', 'php\u00a0title="app.php"', null],
     ['```php', 'php', null],
     ['```', null, null],
