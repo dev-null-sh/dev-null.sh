@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { useMediaQuery } from '@/hooks/use-media-query';
 
 export type Leaving = {
     /** Whether to render it: shown, or still on its way out. */
@@ -9,24 +10,18 @@ export type Leaving = {
     onLeft: () => void;
 };
 
-function prefersStillness(): boolean {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 /**
  * Keeps what gets hidden around while it leaves, like replies folding away. Without motion, nothing would end its
  * leaving, so it goes right away.
  */
-export function useLeaving(
-    isShown: boolean,
-    isStill: () => boolean = prefersStillness,
-): Leaving {
+export function useLeaving(isShown: boolean): Leaving {
+    const isStill = useMediaQuery('(prefers-reduced-motion: reduce)');
     const [wasShown, setWasShown] = useState(isShown);
     const [isLeaving, setIsLeaving] = useState(false);
 
-    if (wasShown !== isShown) {
+    if (wasShown !== isShown || (isLeaving && isStill)) {
         setWasShown(isShown);
-        setIsLeaving(!isShown && !isStill());
+        setIsLeaving(!isShown && !isStill);
     }
 
     const onLeft = useCallback(() => setIsLeaving(false), []);
