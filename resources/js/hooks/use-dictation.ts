@@ -70,6 +70,7 @@ export function useDictation({
     isListening: boolean;
     start: () => void;
     stop: () => void;
+    abort: () => void;
 } {
     // Unknown while rendering on the server, so the button only appears once the page runs in the browser.
     const isSupported = useSyncExternalStore(
@@ -98,20 +99,30 @@ export function useDictation({
 
     useEffect(() => () => recognition.current?.abort(), []);
 
+    // Phrases can arrive before React has written the previous one, so each insertion moves the body and caret on
+    // right away for the next, instead of waiting for the render.
     const insert = (transcript: string) => {
         const { body, updateBody, maxLength } = latest.current;
-        const element = textareaRef.current;
+        const selection =
+            caret.current === null
+                ? textareaRef.current
+                : {
+                      selectionStart: caret.current,
+                      selectionEnd: caret.current,
+                  };
         const text = dictatedText(
-            body.slice(0, element?.selectionStart ?? body.length),
+            body.slice(0, selection?.selectionStart ?? body.length),
             transcript,
+            body.slice(selection?.selectionEnd ?? body.length),
         );
         const inserted =
             text === ''
                 ? null
-                : insertAtSelection(body, element, text, maxLength);
+                : insertAtSelection(body, selection, text, maxLength);
 
         if (inserted !== null) {
             caret.current = inserted.caret;
+            latest.current = { ...latest.current, body: inserted.value };
             updateBody(inserted.value);
         }
     };
@@ -163,7 +174,10 @@ export function useDictation({
         setIsListening(true);
     };
 
+    // Keeps what was already heard, for a stop the user asked for.
     const stop = () => recognition.current?.stop();
+    // Drops what wasn't written yet, for when the commit is sent and the composer is about to be cleared.
+    const abort = () => recognition.current?.abort();
 
-    return { isSupported, isListening, start, stop };
+    return { isSupported, isListening, start, stop, abort };
 }

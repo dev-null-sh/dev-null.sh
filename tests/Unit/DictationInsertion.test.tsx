@@ -26,6 +26,7 @@ type Listener = {
     lang: string;
     continuous: boolean;
     start: () => void;
+    abort: () => void;
     onresult: (event: {
         resultIndex: number;
         results: ({ transcript: string }[] & { isFinal: boolean })[];
@@ -104,6 +105,49 @@ test('listens in the page language and inserts each finished phrase at the caret
     assert.deepEqual(updateBody.mock.calls, [['Shipped the dark mode today']]);
     assert.equal(focus.mock.calls.length, 1);
     assert.deepEqual(setSelectionRange.mock.calls, [[21, 21]]);
+});
+
+test('keeps every phrase heard before React writes the body, in the order they were said', () => {
+    const { textarea, setSelectionRange } = textareaAt(7);
+    const dictation = useDictation({
+        body: 'Shipped today',
+        updateBody,
+        textareaRef: { current: textarea },
+        maxLength: 280,
+    });
+
+    dictation.start();
+    listener.onresult({
+        resultIndex: 0,
+        results: [said('the dark mode'), said('for everyone')],
+    });
+    listener.onresult({
+        resultIndex: 2,
+        results: [said('x'), said('x'), said('at last')],
+    });
+    layoutEffect();
+
+    assert.deepEqual(updateBody.mock.calls.at(-1), [
+        'Shipped the dark mode for everyone at last today',
+    ]);
+    assert.deepEqual(setSelectionRange.mock.calls, [[42, 42]]);
+});
+
+test('aborts without writing what was still being heard, for when the commit is sent', () => {
+    const dictation = useDictation({
+        body: '',
+        updateBody,
+        textareaRef: { current: null },
+        maxLength: 280,
+    });
+
+    dictation.start();
+    dictation.abort();
+
+    assert.equal(
+        (listener.abort as ReturnType<typeof vi.fn>).mock.calls.length,
+        1,
+    );
 });
 
 test('ignores silence and phrases that would overflow the commit', () => {

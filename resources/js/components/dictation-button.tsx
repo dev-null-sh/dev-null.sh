@@ -7,8 +7,8 @@ import { useDictation } from '@/hooks/use-dictation';
 import { cn } from '@/lib/utils';
 
 /**
- * Writes the commit by voice where the caret is. Hidden in browsers without speech recognition, and stops listening
- * once the commit is being sent, so nothing said after lands in the next one.
+ * Writes the commit by voice where the caret is. Hidden in browsers without speech recognition, and drops whatever
+ * wasn't written yet once the commit is being sent, so nothing lands in the next one.
  */
 export function DictationButton({
     body,
@@ -29,13 +29,13 @@ export function DictationButton({
         textareaRef,
         maxLength,
     });
-    const { isListening, stop } = dictation;
+    const { isListening, stop, abort } = dictation;
 
     useEffect(() => {
         if (disabled && isListening) {
-            stop();
+            abort();
         }
-    }, [disabled, isListening, stop]);
+    }, [disabled, isListening, abort]);
 
     if (!dictation.isSupported) {
         return null;
