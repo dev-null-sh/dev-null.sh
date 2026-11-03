@@ -54,8 +54,9 @@ export default function Show() {
                                 your GitHub ID, username, name, avatar, bio,
                                 company, location, website, the email address
                                 GitHub shares, whether you have a Sponsors
-                                listing, your public SSH key fingerprints, and
-                                who you follow and who follows you.
+                                listing, your public SSH key fingerprints, who
+                                you follow and who follows you, and whose
+                                repositories you starred, to suggest them.
                             </>,
                             <>
                                 <strong>

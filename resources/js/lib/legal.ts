@@ -1,4 +1,4 @@
-export const PRIVACY_EFFECTIVE_DATE = '30 October 2026';
+export const PRIVACY_EFFECTIVE_DATE = '2 November 2026';
 
 export const TERMS_EFFECTIVE_DATE = '1 November 2026';
 
