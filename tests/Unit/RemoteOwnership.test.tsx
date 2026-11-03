@@ -128,6 +128,7 @@ test('a pin, a mute or a search the previous account started writes nothing for 
         () => chat.searchConversations('private', 'open', new AbortController().signal),
         () => chat.sendPing(target),
         () => chat.addOrgMembers(target.org, ['someone'], false),
+        () => chat.removeOrgMember(target.org, { id: 'me', handle: 'me' } as never, true),
     ]) {
         const settled = await acrossSignIn(start, Response.json({ conversations: [privateOrg], pinned_at: '2026-11-03T10:00:00Z', muted_until_at: '2026-11-04T00:00:00Z' }));
 

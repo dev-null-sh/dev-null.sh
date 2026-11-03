@@ -234,7 +234,10 @@ let remoteAlerts: ReturnType<typeof createRemoteAlerts> | null = null;
  * Whether this tab is the one of the user's tabs that keeps polling for alerts while hidden.
  */
 let isAlertingTab = false;
-let isFetchingInbox = false;
+/**
+ * The inbox poll on its way, so one that comes back for remotes no longer watched never ends a newer one.
+ */
+let fetchingInbox: object | null = null;
 let pendingInboxPush: ReturnType<typeof createRemoteAlerts> | null = null;
 let muteVersion = 0;
 let pinVersion = 0;
@@ -1009,13 +1012,17 @@ async function pollInbox(fromPush = false): Promise<void> {
         return;
     }
 
-    if (isFetchingInbox) {
+    if (fetchingInbox !== null) {
         if (fromPush) pendingInboxPush = remoteAlerts;
         return;
     }
 
-    isFetchingInbox = true;
-    const revision = inboxRevision;
+    const fetching = {};
+    fetchingInbox = fetching;
+    const isCurrent = ownership();
+    let revision = inboxRevision;
+    // Every step after a wait, as much as the first, is for whoever asked and the inbox as it was then.
+    const isStillCurrent = () => revision === inboxRevision && isCurrent();
 
     try {
         const alerts = remoteAlerts;
@@ -1032,7 +1039,7 @@ async function pollInbox(fromPush = false): Promise<void> {
             alerts?.needsBaseline(),
             alerts !== null,
         );
-        if (revision !== inboxRevision) {
+        if (!isStillCurrent()) {
             return;
         }
         const notifications = notification_conversations ?? conversations;
@@ -1060,6 +1067,7 @@ async function pollInbox(fromPush = false): Promise<void> {
         }
         if (pinsChanged) {
             invalidateConversationPages();
+            revision = inboxRevision;
         }
         const reconcileOpen = invalidatedInboxTabs.has('open');
         await Promise.all(
@@ -1067,6 +1075,11 @@ async function pollInbox(fromPush = false): Promise<void> {
                 refreshConversationPages(tab),
             ),
         );
+
+        if (!isStillCurrent()) {
+            return;
+        }
+
         const requestsChanged =
             state.requests !== null && requests !== state.requests;
         const watched = conversations.filter(isReading);
@@ -1094,7 +1107,10 @@ async function pollInbox(fromPush = false): Promise<void> {
     } catch {
         // Keep the last known inbox until the next poll.
     } finally {
-        isFetchingInbox = false;
+        if (fetchingInbox === fetching) {
+            fetchingInbox = null;
+        }
+
         const pending = pendingInboxPush;
         pendingInboxPush = null;
         if (pending !== null && pending === remoteAlerts) {
@@ -1385,9 +1401,21 @@ export function watchRemoteUpdates(userId: string): () => void {
         state = emptyChat;
         invalidatedInboxTabs.clear();
         listeners.forEach((listener) => listener());
-    } else if (Object.values(state.isLoadingMore).some(Boolean)) {
-        // A page still loading when the remotes stopped being watched was dropped, so it isn't loading any more.
-        update({ isLoadingMore: emptyChat.isLoadingMore });
+    } else {
+        // What was still loading when the remotes stopped being watched was dropped, so it isn't loading any more,
+        // and loads again from here.
+        olderLoads.clear();
+        fetchingInbox = null;
+        const threads = Object.fromEntries(
+            Object.entries(state.threads).map(([key, thread]) => [
+                key,
+                thread.isLoadingOlder
+                    ? { ...thread, isLoadingOlder: false }
+                    : thread,
+            ]),
+        );
+
+        update({ isLoadingMore: emptyChat.isLoadingMore, threads });
     }
 
     remotesOwner = userId;
@@ -2313,7 +2341,9 @@ export async function loadOlderMessages(target: ChatTarget): Promise<void> {
     try {
         await load;
     } finally {
-        olderLoads.delete(key);
+        if (olderLoads.get(key) === load) {
+            olderLoads.delete(key);
+        }
     }
 }
 
@@ -2869,7 +2899,20 @@ export async function removeOrgMember(
         return;
     }
 
-    await remove();
+    const isRemoved = await remove().then(
+        () => true,
+        (error: unknown) => {
+            if (isStaleRemotes(error)) {
+                return false;
+            }
+
+            throw error;
+        },
+    );
+
+    if (!isRemoved) {
+        return;
+    }
 
     const key = targetKey({ kind: 'org', org });
     const threads = { ...state.threads };
