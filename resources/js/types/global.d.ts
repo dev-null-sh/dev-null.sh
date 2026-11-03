@@ -22,6 +22,7 @@ declare module '@inertiajs/core' {
             localSignIn?: boolean;
             signedUp?: boolean;
             claimFailed?: { message: string; githubUrl: string | null };
+            lookupThrottled?: true;
         };
         sharedPageProps: {
             name: string;
@@ -39,7 +40,7 @@ declare module '@inertiajs/core' {
             now: number;
             suggestedUsers?: SuggestedUser[];
             liveFollowing?: User[];
-            hotTopics?: { id: string; name: string }[];
+            hotTopics?: { id: string; name: string; summary: string | null }[];
             [key: string]: unknown;
         };
     }

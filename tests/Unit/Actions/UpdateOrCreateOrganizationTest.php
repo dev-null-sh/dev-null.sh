@@ -65,7 +65,7 @@ it("fails rather than turn a user's profile into an organization, which GitHub a
 
 it('is followed, once created, by the users following it on GitHub whose follows were imported before', function (): void {
     [$follower, $other] = User::factory()->count(2)->create();
-    DB::table('pending_organization_follows')->insert([
+    DB::table('pending_follows')->insert([
         ['user_id' => $follower->id, 'github_id' => '958072', 'created_at' => now()],
         ['user_id' => $other->id, 'github_id' => '1', 'created_at' => now()],
     ]);
@@ -73,5 +73,5 @@ it('is followed, once created, by the users following it on GitHub whose follows
     $organization = resolve(UpdateOrCreateOrganization::class)->handle(['login' => 'laravel', 'id' => 958072]);
 
     expect($organization->followers()->pluck('users.id')->all())->toBe([$follower->id])
-        ->and(DB::table('pending_organization_follows')->pluck('user_id')->all())->toBe([$other->id]);
+        ->and(DB::table('pending_follows')->pluck('user_id')->all())->toBe([$other->id]);
 });

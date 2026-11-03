@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Queries\BioProfilesQuery;
 use App\Queries\ConversationsQuery;
 use App\Queries\DevelopersCountQuery;
+use App\Queries\HeadlineSummaryQuery;
 use App\Queries\HotHeadlinesQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
@@ -149,13 +150,16 @@ final class HandleInertiaRequests extends Middleware
                 // Drawn again when someone followed goes live or stops, never on its own, so it doesn't reshuffle.
                 'liveFollowing' => Inertia::once(fn (): Collection => resolve(LiveFollowingQuery::class)->get($user))->until(60)
                     ->live(UserUpdate::Live->value, new PrivateChannel($user)),
-                'hotTopics' => Inertia::once(fn (): array => array_map(
-                    fn (array $headline): array => [
+                'hotTopics' => Inertia::once(function () use ($user): array {
+                    $topics = resolve(HotHeadlinesQuery::class)->get($user);
+                    $summaries = resolve(HeadlineSummaryQuery::class)->getMany(array_column($topics, 'id'), $user);
+
+                    return array_map(fn (array $headline): array => [
                         'id' => $headline['id'],
                         'name' => $headline['name'],
-                    ],
-                    resolve(HotHeadlinesQuery::class)->get($user),
-                ))->until(60)
+                        'summary' => $summaries->get($headline['id']),
+                    ], $topics);
+                })->until(60)
                     // Read again at most once a minute however busy the headlines get, since everyone listens.
                     ->live('headlines', new Channel('headlines'), throttle: 60_000),
             ] : [],

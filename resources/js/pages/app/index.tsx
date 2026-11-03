@@ -2,6 +2,7 @@ import { Head } from '@inertiajs/react';
 import { Download } from 'lucide-react';
 import { useSyncExternalStore } from 'react';
 import type { ReactNode, SVGAttributes } from 'react';
+import { CopyableCode } from '@/components/copyable-code';
 import { Button } from '@/components/ui/button';
 import { WordmarkText } from '@/components/wordmark-text';
 import AppLayout from '@/layouts/app-layout';
@@ -323,6 +324,94 @@ export default function Index({
                         className="h-auto w-full"
                     />
                 </figure>
+
+                <section aria-labelledby="tui-title" className="border-t">
+                    <div className="px-4 pt-8 pb-6 sm:px-6 sm:pt-10">
+                        <div className="flex items-center gap-4">
+                            <picture className="size-16 shrink-0 sm:size-[72px]">
+                                <img
+                                    src="/images/apps/mac-icon-light.webp"
+                                    alt=""
+                                    width={256}
+                                    height={256}
+                                    className="size-full dark:hidden"
+                                />
+                                <img
+                                    src="/images/apps/mac-icon-dark.webp"
+                                    alt=""
+                                    width={256}
+                                    height={256}
+                                    className="hidden size-full dark:block"
+                                />
+                            </picture>
+                            <h2
+                                id="tui-title"
+                                className="text-[1.75rem] leading-tight font-semibold tracking-tight text-balance sm:text-3xl"
+                            >
+                                <WordmarkText>
+                                    /dev/null for your terminal
+                                </WordmarkText>
+                            </h2>
+                        </div>
+
+                        <p className="mt-4 max-w-prose text-pretty">
+                            Read the log, publish commits, and keep up with your
+                            notifications without leaving your terminal. Built
+                            by{' '}
+                            <a
+                                href="https://wendelladriel.com"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={textLink}
+                            >
+                                Wendell Adriel
+                            </a>
+                            .{' '}
+                            <a
+                                href="https://github.com/WendellAdriel/dev-null-tui"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={textLink}
+                            >
+                                Check the GitHub repository
+                            </a>
+                            .
+                        </p>
+
+                        <div className="mt-6 space-y-3">
+                            <p className="text-sm text-muted-foreground">
+                                Install on Linux, macOS, or Windows with WSL:
+                            </p>
+                            <CopyableCode
+                                code="curl -fsSL https://raw.githubusercontent.com/WendellAdriel/dev-null-tui/main/scripts/install.sh | sh"
+                                label="install command"
+                            />
+                            <p className="text-sm text-pretty text-muted-foreground">
+                                On Windows without WSL, follow the{' '}
+                                <a
+                                    href="https://github.com/WendellAdriel/dev-null-tui/blob/main/docs/installation.md#windows-powershell"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={textLink}
+                                >
+                                    Windows installation instructions
+                                </a>
+                                .
+                            </p>
+                        </div>
+                    </div>
+
+                    <figure className="px-4 pb-8 sm:px-6">
+                        <img
+                            src="/images/apps/tui.webp"
+                            alt="/dev/null TUI with the Following log, commit threads, keyboard shortcuts, and a profile in the terminal."
+                            width={2468}
+                            height={1469}
+                            loading="lazy"
+                            className="h-auto w-full"
+                        />
+                    </figure>
+                </section>
             </article>
         </>
     );

@@ -41,6 +41,7 @@ import { useIsListening } from '@/hooks/use-realtime';
 import { useTabSlide } from '@/hooks/use-tab-slide';
 import { signIn } from '@/lib/auth';
 import { backgroundPollOptions } from '@/lib/background-poll';
+import { isPageGone } from '@/lib/deleted-resources';
 import type { IssueKind } from '@/lib/issue-commands';
 import { userChannel } from '@/lib/realtime';
 import type { SearchAction } from '@/lib/search-actions';
@@ -127,6 +128,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                     <NotificationCountPolling
                         key={isHearingCounts ? 'heard' : 'polled'}
                         interval={isHearingCounts ? 300_000 : 30_000}
+                        component={component}
                         isInbox={component === 'notification/index'}
                         onNotFound={markPageDeleted}
                     />
@@ -251,10 +253,12 @@ function NotificationTitle() {
  */
 function NotificationCountPolling({
     interval,
+    component,
     isInbox,
     onNotFound,
 }: {
     interval: number;
+    component: string;
     isInbox: boolean;
     onNotFound: () => void;
 }) {
@@ -267,7 +271,9 @@ function NotificationCountPolling({
                     return;
                 }
 
-                onNotFound();
+                if (isPageGone(response, component)) {
+                    onNotFound();
+                }
 
                 return false;
             },

@@ -33,8 +33,8 @@ it('renders the not found page for signed in users', function (): void {
             ->where('auth.user.id', $user->id));
 });
 
-it('renders the not found page for a missing profile', function (): void {
-    $response = $this->actingAs(User::factory()->create())->get('/@nobody');
+it('renders the not found page for a profile GitHub could not have', function (): void {
+    $response = $this->actingAs(User::factory()->create())->get('/@no_body');
 
     $response->assertNotFound()
         ->assertInertia(fn ($page) => $page

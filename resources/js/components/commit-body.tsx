@@ -14,12 +14,17 @@ export function CommitBody({
     organizationMentions = null,
     className,
     isStatic = false,
+    linksEveryMention = true,
 }: {
     segments: BodySegment[];
     mentions: Commit['mentions'];
     organizationMentions?: Commit['organization_mentions'];
     className?: string;
     isStatic?: boolean;
+    /**
+     * Whether a mention of anyone else links to their page too, as in commits, or stays text, as in remotes.
+     */
+    linksEveryMention?: boolean;
 }) {
     return (
         <div
@@ -40,6 +45,7 @@ export function CommitBody({
                             mentions={mentions}
                             organizationMentions={organizationMentions}
                             isStatic={isStatic}
+                            linksEveryMention={linksEveryMention}
                         />
                     </blockquote>
                 ) : (
@@ -49,6 +55,7 @@ export function CommitBody({
                         mentions={mentions}
                         organizationMentions={organizationMentions}
                         isStatic={isStatic}
+                        linksEveryMention={linksEveryMention}
                     />
                 ),
             )}
@@ -61,11 +68,13 @@ export function BodySegments({
     mentions,
     organizationMentions = null,
     isStatic = false,
+    linksEveryMention = true,
 }: {
     segments: BodySegment[];
     mentions: Commit['mentions'];
     organizationMentions?: Commit['organization_mentions'];
     isStatic?: boolean;
+    linksEveryMention?: boolean;
 }) {
     const { auth } = usePage().props;
 
@@ -82,6 +91,7 @@ export function BodySegments({
                                 organizationMentions={organizationMentions}
                                 pasteisMode={Boolean(auth.pasteis)}
                                 isStatic={isStatic}
+                                linksEveryMention={linksEveryMention}
                             />
                         );
                     case 'code':

@@ -90,7 +90,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
     expect($data)->toBe([
-        'schema_version' => 5,
+        'schema_version' => 6,
         'exported_at' => now()->toIso8601String(),
         'profile' => [
             'github_id' => $user->github_id,
@@ -139,7 +139,7 @@ it('downloads a versioned private JSON file with an explicit profile and empty l
         'dismissed_suggestions' => [],
         'organizations' => [],
         'followed_organizations' => [],
-        'pending_organization_follows' => [],
+        'pending_follows' => [],
         'messages' => [],
         'reports' => [],
         'remote_mutes' => [],
@@ -517,9 +517,9 @@ it('exports the organizations the user follows, first follow first', function ()
     ]);
 });
 
-it('exports the github organizations the user waits to follow', function (): void {
+it('exports the GitHub accounts the user waits to follow', function (): void {
     $user = User::factory()->create();
-    DB::table('pending_organization_follows')->insert([
+    DB::table('pending_follows')->insert([
         ['user_id' => $user->id, 'github_id' => '958072', 'created_at' => now()],
         ['user_id' => $user->id, 'github_id' => '1', 'created_at' => now()],
         ['user_id' => User::factory()->create()->id, 'github_id' => '2', 'created_at' => now()],
@@ -528,7 +528,7 @@ it('exports the github organizations the user waits to follow', function (): voi
     $response = $this->actingAs($user)->get(route('export'));
     $data = json_decode($response->streamedContent(), true, flags: JSON_THROW_ON_ERROR);
 
-    expect($data['pending_organization_follows'])->toBe(['1', '958072']);
+    expect($data['pending_follows'])->toBe(['1', '958072']);
 });
 
 it('exports the devices approved for the app, oldest first', function (): void {

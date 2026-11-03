@@ -86,7 +86,12 @@ function PeopleList({
                                     )
                                     .visit(action.href, {
                                         preserveScroll: true,
-                                        onSuccess: clearMentionSuggestionsCache,
+                                        onSuccess: () => {
+                                            clearMentionSuggestionsCache();
+                                            router.reload({
+                                                only: ['hotTopics'],
+                                            });
+                                        },
                                     })
                             }
                             aria-label={`${action.label} @${person.handle}`}

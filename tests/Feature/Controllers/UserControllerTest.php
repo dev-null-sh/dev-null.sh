@@ -344,13 +344,6 @@ it('renders whether the user follows the viewer', function (): void {
             ->where('followsYou', true));
 });
 
-it('returns not found for unknown handles', function (): void {
-    $response = $this->actingAs(User::factory()->create())
-        ->get('/@missing');
-
-    $response->assertNotFound();
-});
-
 it('shows guests the profile with its approved commits and a link preview', function (): void {
     $user = User::factory()->create([
         'handle' => 'octocat',

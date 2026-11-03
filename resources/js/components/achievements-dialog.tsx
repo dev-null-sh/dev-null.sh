@@ -2,7 +2,6 @@ import {
     Bomb,
     BotOff,
     Box,
-    Cookie,
     FileCode,
     Flame,
     GitMerge,
@@ -17,6 +16,7 @@ import {
 import type { CSSProperties } from 'react';
 import { useState } from 'react';
 import { DragonBallIcon } from '@/components/dragon-ball-icon';
+import { PastelDeNataIcon } from '@/components/pastel-de-nata-icon';
 import {
     Dialog,
     DialogDescription,
@@ -42,7 +42,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
     sparkles: Sparkles,
     'git-merge': GitMerge,
     key: Key,
-    cookie: Cookie,
+    'pastel-de-nata': PastelDeNataIcon,
     'bot-off': BotOff,
     bomb: Bomb,
     'dragon-ball': DragonBallIcon,
