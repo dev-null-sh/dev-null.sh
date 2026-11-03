@@ -12,6 +12,40 @@ const listeners = new Set<() => void>();
 const watched = new Map<string, { count: number; stop: () => void }>();
 let version = 0;
 
+// When each stream on now runs out, as the last page said: pages show people's streams without their end.
+let deadlines: Record<string, string> = {};
+
+/**
+ * Called with each page's word on when the streams on now run out. A page that didn't say keeps the last word.
+ */
+export function rememberLiveDeadlines(
+    next: Record<string, string> | undefined,
+): void {
+    if (next === undefined || next === deadlines) {
+        return;
+    }
+
+    deadlines = next;
+    version++;
+    listeners.forEach((listener) => listener());
+}
+
+/**
+ * A stream as a page handed it, with when it runs out if the page said so.
+ */
+export function handedLiveStream(
+    userId: string,
+    handed: LiveStream | null | undefined,
+): LiveStream | null | undefined {
+    const endsAt = deadlines[userId];
+
+    return handed != null &&
+        handed.ends_at === undefined &&
+        endsAt !== undefined
+        ? { ...handed, ends_at: endsAt }
+        : handed;
+}
+
 export function liveStreamsVersion(): number {
     return version;
 }
@@ -37,6 +71,11 @@ function hear(userId: string, stream: LiveStream | null, at: number): void {
 
 let waiting = new Set<string>();
 let timer: ReturnType<typeof setTimeout> | undefined;
+// Streams handed without their end and not answered yet, with how many reads for them failed: each is read again,
+// less and less often, until it is answered or nothing shows the person any more.
+const undated = new Map<string, number>();
+const retryDelay = (failures: number) =>
+    Math.min(15_000 * 2 ** (failures - 1), 300_000);
 
 /**
  * Asks whether the people whose profiles were joined, at first or again, are live right now, together with everyone
@@ -65,17 +104,31 @@ async function read(ids: string[]): Promise<void> {
         });
 
         if (!response.ok) {
-            return;
+            throw new Error('Unable to read who is live');
         }
 
         const { streams } = (await response.json()) as {
             streams: Record<string, LiveStream | null>;
         };
 
-        ids.forEach((id) => hear(id, streams[id] ?? null, at));
+        ids.forEach((id) => {
+            undated.delete(id);
+            hear(id, streams[id] ?? null, at);
+        });
     } catch {
-        // What the page read stands until the next join.
+        // What the page read stands until the next join, except a stream handed without its end, read again later.
+        ids.filter((id) => undated.has(id)).forEach(retryLater);
     }
+}
+
+function retryLater(userId: string): void {
+    const failures = (undated.get(userId) ?? 0) + 1;
+    undated.set(userId, failures);
+    setTimeout(() => {
+        if (undated.has(userId) && watched.has(userId)) {
+            readLater(userId);
+        }
+    }, retryDelay(failures));
 }
 
 /**
@@ -87,7 +140,8 @@ export function watchLiveStream(
     userId: string,
     isHandedUndated = false,
 ): () => void {
-    if (isHandedUndated) {
+    if (isHandedUndated && !undated.has(userId)) {
+        undated.set(userId, 0);
         readLater(userId);
     }
 
@@ -126,6 +180,7 @@ export function watchLiveStream(
         if (entry && --entry.count === 0) {
             entry.stop();
             watched.delete(userId);
+            undated.delete(userId);
         }
     };
 }

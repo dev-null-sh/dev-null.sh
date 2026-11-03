@@ -18,6 +18,7 @@ use App\Queries\ConversationsQuery;
 use App\Queries\DevelopersCountQuery;
 use App\Queries\HeadlineSummaryQuery;
 use App\Queries\HotHeadlinesQuery;
+use App\Queries\LiveDeadlinesQuery;
 use App\Queries\LiveFollowingQuery;
 use App\Queries\NotificationGroupsQuery;
 use App\Queries\SuggestedUsersQuery;
@@ -144,6 +145,9 @@ final class HandleInertiaRequests extends Middleware
             // Guests see how many developers are here, next to the sign-in button...
             'developersCount' => fn (): ?int => $user instanceof User ? null : resolve(DevelopersCountQuery::class)->get(),
             'hasUnmoderatedCommits' => $isAdmin ? $live(fn (): bool => Commit::query()->pending()->exists(), UserUpdate::Moderation) : false,
+            // Pages show people's streams without their end: this says when each one on now runs out, so it stops
+            // showing then on a page left open, read again at most once a minute.
+            'liveDeadlines' => Inertia::once(fn (): array => resolve(LiveDeadlinesQuery::class)->get($user instanceof User ? $user : null))->until(60),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'showsWhoToFollow' => $showsWhoToFollow,
             ...$user instanceof User && $hasAside ? [

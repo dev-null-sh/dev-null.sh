@@ -522,3 +522,38 @@ it('suggests the round of people the user refreshed to', function (string $cooki
     'not a number' => ['abc', 0],
     'negative' => ['-3', 0],
 ]);
+
+it('tells every page when the streams on now run out, leaving out people across a block, for a minute at a time', function (): void {
+    $this->freezeSecond();
+    $viewer = User::factory()->create();
+    $live = fn (int $minutes): User => User::factory()->create([
+        'live_platform' => LivePlatform::Twitch,
+        'live_url' => 'https://www.twitch.tv/streamer',
+        'live_ends_at' => now()->addMinutes($minutes),
+    ]);
+    $streaming = $live(30);
+    $live(-1);
+    $blocked = $live(30);
+    $blocker = $live(30);
+    $viewer->blocking()->attach($blocked);
+    $blocker->blocking()->attach($viewer);
+    User::factory()->create();
+    $headers = ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request())];
+
+    $this->actingAs($viewer)->withHeaders($headers)->get(route('starred.index'))
+        ->assertOk()
+        ->assertJsonPath('props.liveDeadlines', [$streaming->id => $streaming->refresh()->live_ends_at?->toJSON()])
+        ->assertJsonPath('onceProps.liveDeadlines.expiresAt', now()->addMinute()->getTimestampMs());
+});
+
+it('tells guests too when the streams on now run out, the soonest hundred of them', function (): void {
+    $this->freezeSecond();
+    $soonest = User::factory()->create(['live_platform' => LivePlatform::Twitch, 'live_url' => 'https://www.twitch.tv/soon', 'live_ends_at' => now()->addMinute()]);
+    User::factory()->count(100)->create(['live_platform' => LivePlatform::Twitch, 'live_url' => 'https://www.twitch.tv/later', 'live_ends_at' => now()->addHour()]);
+    $headers = ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request())];
+
+    $deadlines = $this->withHeaders($headers)->get(route('about.show'))->assertOk()->json('props.liveDeadlines');
+
+    expect($deadlines)->toHaveCount(100)
+        ->and($deadlines[$soonest->id])->toBe(now()->addMinute()->toJSON());
+});

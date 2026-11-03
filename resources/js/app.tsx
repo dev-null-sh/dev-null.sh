@@ -15,6 +15,7 @@ import { initializeCommitState } from '@/lib/commit-state';
 import { trackCurrentPage } from '@/lib/current-page';
 import { createEcho } from '@/lib/echo';
 import { trackFollowRequests } from '@/lib/follow-requests';
+import { rememberLiveDeadlines } from '@/lib/live-streams';
 import { pageTitle } from '@/lib/page-title';
 import { trackPrefetchedPages } from '@/lib/prefetched-pages';
 import {
@@ -44,6 +45,12 @@ router.on('start', (event) => {
         only.length === 0 && except.length === 0 ? Date.now() : null;
 });
 router.on('navigate', (event) => {
+    rememberLiveDeadlines(
+        event.detail.page.props.liveDeadlines as
+            | Record<string, string>
+            | undefined,
+    );
+
     if (event.detail.type === 'history' || event.detail.cached === true) {
         catchUpAfterRestore();
     } else if (visitStartedAt !== null) {
@@ -68,6 +75,7 @@ void createInertiaApp({
         ),
     setup({ el, App, props }) {
         setServerTime(props.initialPage.props.now);
+        rememberLiveDeadlines(props.initialPage.props.liveDeadlines);
         trackFollowRequests(props.initialPage);
         registerServiceWorker(props.initialPage.version);
 

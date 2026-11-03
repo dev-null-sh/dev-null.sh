@@ -100,3 +100,27 @@ test('streams a page was handed without when they run out are read once, togethe
     assert.equal(currentLiveStream('first', handed, new Date(endsAt + 1_000)), null);
     stops.forEach((stop) => stop());
 });
+
+test('a stream handed without its end whose read failed is read again until it is answered, then stops showing when it should', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    let isHealthy = false;
+    const asked: number[] = [];
+    vi.stubGlobal('fetch', async () => {
+        asked.push(Date.now());
+
+        return isHealthy ? Response.json({ streams: { failed: null } }) : new Response('', { status: 503 });
+    });
+    const handed = { url: 'https://www.twitch.tv/failed', thumbnail_url: 'thumbnail' } as LiveStream;
+    pageReadAt(Date.now() - 1_000);
+    const stop = watchLiveStream('failed', true);
+    await vi.advanceTimersByTimeAsync(100);
+    assert.equal(asked.length, 1);
+
+    isHealthy = true;
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    assert.ok(asked.length >= 2, 'read again once the first read failed');
+    assert.equal(currentLiveStream('failed', handed, new Date(Date.now() + 86_400_000)), null);
+    stop();
+    vi.useRealTimers();
+});

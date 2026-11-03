@@ -4,6 +4,7 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, test, vi } from 'vite-plus/test';
 import { useListedLiveStreams } from '../../resources/js/hooks/use-live-stream';
+import { rememberLiveDeadlines } from '../../resources/js/lib/live-streams';
 import { connectRealtime } from '../../resources/js/lib/realtime';
 import type { LiveStream } from '../../resources/js/types';
 import { fakeConnection } from './FakeRealtime';
@@ -56,6 +57,11 @@ beforeEach(() => {
 
 afterEach(() => {
     connectRealtime(null);
+    rememberLiveDeadlines({});
+    vi.unstubAllGlobals();
+    vi.stubGlobal('window', globalThis);
+    vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+    vi.useRealTimers();
 });
 
 test('the live list keeps who it showed while the page is read, and changes on the next page', () => {
@@ -79,3 +85,27 @@ test('the live list keeps who it showed while the page is read, and changes on t
 
     act(() => root.unmount());
 });
+
+test('a stream the page handed without its end leaves the list when the page said it runs out, though nothing can be read', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] });
+    connectRealtime(null);
+    let reads = 0;
+    vi.stubGlobal('fetch', async () => {
+        reads++;
+
+        return new Response('', { status: 503 });
+    });
+    rememberLiveDeadlines({ maya: new Date(Date.now() + 60_000).toISOString() });
+    const handed = { url: 'https://twitch.tv/maya', thumbnail_url: 'thumbnail' } as LiveStream;
+    const root = createRoot(container());
+
+    act(() => root.render(<List people={[{ id: 'maya', live: handed }]} url="/log/latest" />));
+    assert.deepEqual(listed, [{ id: 'maya', live: 'https://twitch.tv/maya' }]);
+
+    await act(() => vi.advanceTimersByTimeAsync(90_000));
+
+    assert.deepEqual(listed, [{ id: 'maya', live: null }]);
+    assert.equal(reads, 0);
+    act(() => root.unmount());
+});
+
