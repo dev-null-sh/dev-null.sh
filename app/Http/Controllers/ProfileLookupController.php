@@ -23,6 +23,12 @@ final readonly class ProfileLookupController
 {
     public function show(ShowProfileLookupRequest $request, #[CurrentUser] ?User $currentUser, ProfileLookupQuery $lookups): Response
     {
+        // A missing page isn't remembered for after sign-in (RememberIntendedUrl), but this one is where the guest
+        // comes back to, to look the handle up...
+        if (! $currentUser instanceof User && ! $request->prefetch()) {
+            redirect()->setIntendedUrl($request->fullUrl());
+        }
+
         return Inertia::render('profile/lookup', [
             'handle' => $request->handle(),
             'lookup' => fn (): ?array => $currentUser instanceof User ? $lookups->get($request->handle()) : null,

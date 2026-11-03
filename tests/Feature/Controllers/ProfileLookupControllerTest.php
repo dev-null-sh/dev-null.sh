@@ -21,6 +21,7 @@ it('asks guests to sign in to look a handle up, on a missing page kept out of se
             ->where('lookup', null));
 
     Queue::assertNothingPushed();
+    expect(session('url.intended'))->toBe(url('/@octocat'));
 });
 
 it('shows members where looking the handle up stands', function (Closure $setUp, string $status, bool $resumes): void {
@@ -45,6 +46,10 @@ it('answers a missing page for handles GitHub could not have, or of people who d
     Cache::put('github-profiles:not-found:gone', 'deleted', 60);
 
     $this->actingAs(User::factory()->create())->get("/@{$handle}")->assertNotFound();
+    auth()->logout();
+    $this->get("/@{$handle}")->assertNotFound();
+
+    expect(session('url.intended'))->toBeNull();
 })->with(['an underscore' => 'oct_cat', 'a trailing dash' => 'octocat-', 'too long' => str_repeat('a', 40), 'deleted' => 'gone']);
 
 it('turns into the profile once the lookup finds it', function (): void {
