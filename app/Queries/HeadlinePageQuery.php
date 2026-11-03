@@ -12,7 +12,7 @@ use Illuminate\Support\Collection;
 
 final readonly class HeadlinePageQuery
 {
-    public function __construct(private CommitSearchQuery $search)
+    public function __construct(private CommitSearchQuery $search, private HeadlineSummaryQuery $summary)
     {
         //
     }
@@ -24,18 +24,7 @@ final readonly class HeadlinePageQuery
     {
         return [
             'name' => $headline->name,
-            'summary' => function () use ($headline, $viewer): ?string {
-                if ($headline->summary === null || ! $headline->summary_created_at?->gt(now()->subHours(Headline::SUMMARY_HOURS))) {
-                    return null;
-                }
-
-                // Without stored provenance, check all linked posts rather than risk repeating a hidden author's words.
-                $hasHiddenSources = $headline->commits()->topLevel()->approved()
-                    ->whereNotIn('commits.id', $headline->commits()->select('commits.id')->visibleTo($viewer)->withoutMutedAuthorsFor($viewer))
-                    ->exists();
-
-                return $hasHiddenSources ? null : $headline->summary;
-            },
+            'summary' => fn (): ?string => $this->summary->get($headline, $viewer),
             'commits' => fn (): Collection => $this->search->get($headline->name, $viewer, since: now()->subWeek()),
         ];
     }
