@@ -76,36 +76,30 @@ final readonly class NotificationGroupsQuery
     }
 
     /**
-     * The actor's reply, mention or quote can be starred from the inbox, so it says how starred it is and whether the
-     * recipient starred it.
+     * How starred the actor's reply, mention or quote is and whether the user starred it, by the commit's ID: the
+     * inbox lets the user star it from the notification.
      *
-     * @param  CursorPaginator<int, Notification>  $groups
-     * @return CursorPaginator<int, Notification>
+     * @param  iterable<int, Notification>  $notifications
+     * @return array<string, array{stars_count: int, starred: bool}>
      */
-    public function withCommitStars(User $user, CursorPaginator $groups): CursorPaginator
+    public function commitStars(User $user, iterable $notifications): array
     {
-        $commits = new Collection($groups->items())
+        $commitIds = new Collection($notifications)
             ->whereIn('type', [NotificationType::Replied, NotificationType::Mentioned, NotificationType::Quoted])
-            ->map(fn (Notification $notification): ?Commit => $notification->commit)
-            ->filter();
+            ->map(fn (Notification $notification): ?string => $notification->commit?->id)
+            ->filter()
+            ->all();
 
-        $stars = Commit::query()
-            ->whereKey($commits->pluck('id')->all())
+        return Commit::query()
+            ->whereKey($commitIds)
             ->select('commits.id')
             ->withStarsFor($user)
             ->get()
-            ->keyBy('id');
-
-        foreach ($commits as $commit) {
-            $counted = $stars->get($commit->id);
-
-            $commit->forceFill([
-                'stars_count' => $counted instanceof Commit ? $counted->stars_count : 0,
-                'starred' => $counted instanceof Commit && (bool) $counted->starred,
-            ]);
-        }
-
-        return $groups;
+            ->mapWithKeys(fn (Commit $commit): array => [$commit->id => [
+                'stars_count' => (int) $commit->stars_count,
+                'starred' => (bool) $commit->starred,
+            ]])
+            ->all();
     }
 
     /**
