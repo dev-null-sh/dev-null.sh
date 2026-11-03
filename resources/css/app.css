@@ -263,6 +263,10 @@
     --animate-node-out: node-out 700ms cubic-bezier(0.7, 0, 0.84, 0) both;
     --animate-rail-draw: rail-draw 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
     --animate-graph-draw: graph-draw 500ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    /* The draw-in backwards, its easing mirrored, as replies fold away; what the line led to fades along. */
+    --animate-graph-undraw: graph-undraw 500ms cubic-bezier(0.7, 0, 0.84, 0)
+        both;
+    --animate-graph-fold: graph-fold 500ms cubic-bezier(0.7, 0, 0.84, 0) both;
     --animate-commit-in: commit-in 300ms linear both;
     --animate-apps-shot-in: apps-shot-in 600ms cubic-bezier(0.16, 1, 0.3, 1)
         both;
@@ -317,6 +321,24 @@
         }
         to {
             stroke-dashoffset: 0;
+        }
+    }
+
+    @keyframes graph-undraw {
+        from {
+            stroke-dashoffset: 0;
+        }
+        to {
+            stroke-dashoffset: 1;
+        }
+    }
+
+    @keyframes graph-fold {
+        from {
+            opacity: 1;
+        }
+        to {
+            opacity: 0;
         }
     }
 
