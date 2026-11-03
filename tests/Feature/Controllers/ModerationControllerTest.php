@@ -7,6 +7,7 @@ use App\Contracts\Services\ModerationProvider;
 use App\Contracts\Services\TranslationProvider;
 use App\Enums\CommitStatus;
 use App\Enums\NotificationType;
+use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\DetectCommitLanguage;
 use App\Jobs\ModerateCommit;
 use App\Models\Commit;
@@ -290,4 +291,27 @@ it("shows moderators who posted an organization's commit, and no poster for a pe
             ->missing('commits.data.2.poster')
             ->missing('commits.data.0.user')
             ->missing('commits.data.0.user_id'));
+});
+
+it('lists the commits submitted since a queue last read, so a queue that started listening late can catch up', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $read = now()->subSeconds(30);
+    Commit::factory()->pending()->create(['updated_at' => now()->subMinute()]);
+    $submitted = Commit::factory()->pending()->create();
+    Commit::factory()->create();
+
+    $this->actingAs($admin)->get(route('moderation.show', ['since' => $read->getTimestampMs()]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'moderation/show',
+        'X-Inertia-Partial-Data' => 'arrivedCommitIds',
+    ])->assertOk()
+        ->assertJsonPath('props.arrivedCommitIds', [$submitted->id])
+        ->assertJsonMissingPath('props.commits');
+});
+
+it('does not list arrivals unless a queue asks', function (): void {
+    $this->actingAs(User::factory()->create(['handle' => 'admin']))
+        ->get(route('moderation.show'))
+        ->assertInertia(fn ($page) => $page->missing('arrivedCommitIds'));
 });

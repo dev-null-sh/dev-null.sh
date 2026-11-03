@@ -18,6 +18,7 @@ vi.doMock('react', () => ({
     ...React,
     useState: (initial: unknown) => [initial, () => {}],
     useEffect: () => {},
+    useRef: (current: unknown) => ({ current }),
     useEffectEvent: (callback: unknown) => callback,
     useSyncExternalStore: (_subscribe: unknown, read: () => unknown) => read(),
 }));

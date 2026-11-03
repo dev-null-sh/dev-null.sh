@@ -1,6 +1,6 @@
 import { Head, InfiniteScroll, router, usePage } from '@inertiajs/react';
 import { Check, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { store as reject } from '@/actions/App/Http/Controllers/CommitRejectionController';
 import { destroy } from '@/actions/App/Http/Controllers/CommitReportController';
@@ -13,9 +13,13 @@ import { Button } from '@/components/ui/button';
 import { useMarkCommitDeleted } from '@/hooks/use-deleted-resources';
 import { idsOf, useRealtime } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
+import { reloadInBackground } from '@/lib/background-poll';
+import { changesSince, readAt } from '@/lib/commit-changes';
 import { userChannel } from '@/lib/realtime';
 import { formatFullDateTime } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
+
+type ReportChanges = { filed: string[]; dismissed: string[] };
 
 type Report = {
     id: string;
@@ -39,8 +43,53 @@ export default function Reports({
     reasons: Record<string, string>;
 }) {
     const markCommitDeleted = useMarkCommitDeleted();
-    const { auth } = usePage().props;
+    const { auth, now } = usePage().props;
     const [hasChanged, setHasChanged] = useState(false);
+    const [readSince] = useState(() => Math.min(now - 5_000, readAt()));
+    const changesOf = useRef<
+        ((since: number) => Promise<ReportChanges | null>) | null
+    >(null);
+
+    useEffect(() => {
+        const controller = new AbortController();
+        changesOf.current = async (since) => {
+            let changes: ReportChanges | null = null;
+
+            await reloadInBackground(
+                {
+                    only: ['reportChanges'],
+                    data: { since: Math.floor(since) },
+                    preserveUrl: true,
+                    onSuccess: (page) => {
+                        changes =
+                            (page.props.reportChanges as
+                                | ReportChanges
+                                | undefined) ?? null;
+                    },
+                },
+                controller.signal,
+            );
+
+            return changes;
+        };
+
+        return () => {
+            controller.abort();
+            changesOf.current = null;
+        };
+    }, []);
+
+    const takeOff = (ids: string[]) => {
+        const loaded = new Set(reports.data.map((report) => report.id));
+        const dismissed = new Set(ids.filter((id) => loaded.has(id)));
+
+        if (dismissed.size > 0) {
+            router.replaceProp('reports', (value: CursorPaginated<Report>) => ({
+                ...value,
+                data: value.data.filter((report) => !dismissed.has(report.id)),
+            }));
+        }
+    };
 
     // A report another moderator dismissed leaves the queue where it is. New reports, and decisions on reported
     // commits that may take them off, wait for a deliberate refresh, keeping the pages loaded until then.
@@ -49,21 +98,8 @@ export default function Reports({
         ['moderation'],
         (_event, payload) => {
             const loaded = new Set(reports.data.map((report) => report.id));
-            const dismissed = new Set(
-                idsOf(payload, 'reports').filter((id) => loaded.has(id)),
-            );
 
-            if (dismissed.size > 0) {
-                router.replaceProp(
-                    'reports',
-                    (value: CursorPaginated<Report>) => ({
-                        ...value,
-                        data: value.data.filter(
-                            (report) => !dismissed.has(report.id),
-                        ),
-                    }),
-                );
-            }
+            takeOff(idsOf(payload, 'reports'));
 
             const commits = new Set(idsOf(payload, 'commits'));
 
@@ -77,7 +113,38 @@ export default function Reports({
         (isFirst) => {
             if (!isFirst) {
                 setHasChanged(true);
+
+                return;
             }
+
+            // Read before listening: reports dismissed since leave where they are, and those filed since, or decisions
+            // on the commits it shows, are offered as a refresh.
+            const loaded = new Set(reports.data.map((report) => report.id));
+
+            void changesOf.current?.(readSince).then((changes) => {
+                if (changes === null) {
+                    setHasChanged(true);
+
+                    return;
+                }
+
+                takeOff(changes.dismissed);
+
+                if (changes.filed.some((id) => !loaded.has(id))) {
+                    setHasChanged(true);
+                }
+            });
+            void Promise.all(
+                reports.data.map((report) =>
+                    changesSince(report.commit.id, readSince),
+                ),
+            ).then((changes) => {
+                if (
+                    changes.some((change) => change === null || change.changed)
+                ) {
+                    setHasChanged(true);
+                }
+            });
         },
     );
 

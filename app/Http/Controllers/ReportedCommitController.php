@@ -19,6 +19,7 @@ final readonly class ReportedCommitController
     {
         return Inertia::render('moderation/reports', [
             'reports' => Inertia::scroll(fn (): CursorPaginator => $reports->paginate($user)),
+            'reportChanges' => Inertia::optional(fn (): array => $reports->changedSince($user, $request->since())),
             'reasons' => CommitReport::REASONS,
         ]);
     }

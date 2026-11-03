@@ -155,12 +155,6 @@ function ModerationActions({
     );
 }
 
-/**
- * As many commits as the queue loads at a time. A queue with fewer and nothing after them is all there is, so
- * reading it again loses nothing the moderator had loaded.
- */
-const pageSize = 20;
-
 function withoutCommits(
     props: { commits: CursorPaginated<Commit> },
     ids: ReadonlySet<string>,
@@ -182,9 +176,11 @@ export default function Show({
     const { auth, now } = usePage().props;
     const [hasArrivals, setHasArrivals] = useState(false);
     const [readSince] = useState(() => Math.min(now - 5_000, readAt()));
-    const queueLoader = useRef<{ request: () => void } | null>(null);
-    const isWholeQueue =
-        commits.next_cursor === null && commits.data.length < pageSize;
+    const queue = useRef<{
+        load: () => void;
+        arrivedSince: (since: number) => Promise<string[]>;
+    } | null>(null);
+    const isEmpty = commits.data.length === 0 && commits.next_cursor === null;
 
     useEffect(() => {
         const controller = new AbortController();
@@ -199,18 +195,49 @@ export default function Show({
                 ),
             300,
         );
-        queueLoader.current = loader;
+        queue.current = {
+            load: loader.request,
+            arrivedSince: async (since) => {
+                let arrived: string[] = [];
+
+                await reloadInBackground(
+                    {
+                        only: ['arrivedCommitIds'],
+                        data: { since: Math.floor(since) },
+                        preserveUrl: true,
+                        onSuccess: (page) => {
+                            arrived =
+                                (page.props.arrivedCommitIds as
+                                    | string[]
+                                    | undefined) ?? [];
+                        },
+                    },
+                    controller.signal,
+                );
+
+                return arrived;
+            },
+        };
 
         return () => {
             loader.cancel();
             controller.abort();
-            queueLoader.current = null;
+            queue.current = null;
         };
     }, []);
 
+    // An empty queue shows what arrives straight away, and one showing commits offers it as a refresh, so nothing a
+    // moderator is reading moves under them.
+    const offerArrivals = () => {
+        if (isEmpty) {
+            queue.current?.load();
+        } else {
+            setHasArrivals(true);
+        }
+    };
+
     // Another moderator's decision, or the author deleting a commit, takes it off the queue where it is, keeping the
-    // pages loaded. New commits join the end of the queue: a queue that is all there is takes them in, and a longer
-    // one waits for a deliberate refresh instead, so the pages read stay.
+    // pages loaded. New commits join the end of the queue.
     useRealtime(
         auth.user === null ? null : userChannel(auth.user.id),
         ['moderation'],
@@ -232,26 +259,25 @@ export default function Show({
             }
 
             if (ids.some((id) => !loaded.has(id))) {
-                if (isWholeQueue) {
-                    queueLoader.current?.request();
-                } else {
-                    setHasArrivals(true);
-                }
+                offerArrivals();
             }
         },
         (isFirst) => {
-            if (isWholeQueue) {
-                queueLoader.current?.request();
-
-                return;
-            }
-
-            // Read before listening, the queue only offers a refresh when something it shows was decided since.
             if (!isFirst) {
-                setHasArrivals(true);
+                offerArrivals();
 
                 return;
             }
+
+            // Read before listening: commits submitted since are offered, and those it shows that were decided since
+            // are taken off with a refresh.
+            void queue.current?.arrivedSince(readSince).then((arrived) => {
+                const loaded = new Set(commits.data.map(({ id }) => id));
+
+                if (arrived.some((id) => !loaded.has(id))) {
+                    offerArrivals();
+                }
+            });
 
             void Promise.all(
                 commits.data.map((commit) =>

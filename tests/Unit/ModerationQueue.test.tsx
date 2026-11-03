@@ -10,7 +10,16 @@ type Handlers = {
 };
 
 let handlers: Handlers | null = null;
-const reloads: { only?: string[]; reset?: string[] }[] = [];
+type Reload = {
+    only?: string[];
+    reset?: string[];
+    data?: Record<string, unknown>;
+    onSuccess?: (page: { props: Record<string, unknown> }) => void;
+    onFinish?: () => void;
+};
+
+const reloads: Reload[] = [];
+let arrived: string[] = [];
 const offers: unknown[] = [];
 
 vi.doMock('react', () => ({
@@ -42,8 +51,14 @@ vi.doMock('@inertiajs/react', async () => ({
         props: { auth: { user: { id: 'mod' } }, now: Date.now() },
     }),
     router: {
-        reload: (options: { only?: string[]; reset?: string[] }) => {
+        reload: (options: Reload) => {
             reloads.push(options);
+
+            if (options.only?.includes('arrivedCommitIds')) {
+                options.onSuccess?.({ props: { arrivedCommitIds: arrived } });
+            }
+
+            options.onFinish?.();
         },
         replaceProp: () => {},
     },
@@ -70,12 +85,26 @@ function open(count: number, nextCursor: string | null): Handlers {
 
 beforeEach(() => {
     vi.useFakeTimers();
+    vi.stubGlobal('fetch', async (url: string) =>
+        Response.json({
+            changes: Object.fromEntries(
+                new URL(url, 'http://localhost').searchParams
+                    .getAll('ids[]')
+                    .map((id) => [
+                        id,
+                        { changed: false, replies: [], truncated: false },
+                    ]),
+            ),
+        }),
+    );
     handlers = null;
     reloads.length = 0;
     offers.length = 0;
+    arrived = [];
 });
 
 afterEach(() => {
+    vi.unstubAllGlobals();
     vi.useRealTimers();
 });
 
@@ -91,15 +120,48 @@ test('a commit submitted to an empty queue shows up without asking for a refresh
     assert.deepEqual(offers, []);
 });
 
-test('a queue that fits on one page joins what was submitted before it listened', () => {
+test('a queue that started listening late offers what was submitted before, without moving what it shows', async () => {
+    arrived = ['commit-0', 'late'];
     open(3, null).onSync(true);
-    vi.runAllTimers();
+    await vi.runAllTimersAsync();
+
+    assert.deepEqual(
+        reloads.map((reload) => reload.only),
+        [['arrivedCommitIds']],
+    );
+    assert.equal(typeof reloads[0].data?.since, 'number');
+    assert.deepEqual(offers, [true]);
+});
+
+test('an empty queue that started listening late shows what was submitted before', async () => {
+    arrived = ['late'];
+    open(0, null).onSync(true);
+    await vi.runAllTimersAsync();
+
+    assert.deepEqual(
+        reloads.map((reload) => reload.only),
+        [['arrivedCommitIds'], ['commits', 'hasUnmoderatedCommits']],
+    );
+    assert.deepEqual(offers, []);
+});
+
+test('a queue that started listening with nothing submitted since stays as it is', async () => {
+    open(3, null).onSync(true);
+    await vi.runAllTimersAsync();
 
     assert.equal(reloads.length, 1);
     assert.deepEqual(offers, []);
 });
 
-test('a queue longer than a page offers a refresh instead of dropping the pages read', () => {
+test('a commit submitted to a queue showing commits is offered as a refresh, so nothing it shows moves', () => {
+    open(3, null).onEvent('moderation', { commits: ['new'] });
+    vi.runAllTimers();
+
+    assert.equal(reloads.length, 0);
+    assert.deepEqual(offers, [true]);
+});
+
+test('a queue longer than a page offers a refresh, keeping the pages read', () => {
     const queue = open(20, 'next');
 
     queue.onEvent('moderation', { commits: ['new'] });

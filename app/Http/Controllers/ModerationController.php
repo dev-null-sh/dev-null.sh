@@ -40,6 +40,14 @@ final readonly class ModerationController
                 ->oldest('id')
                 ->cursorPaginate(20)
                 ->through($this->forModerators(...))),
+            'arrivedCommitIds' => Inertia::optional(fn (): array => Commit::query()
+                ->pending()
+                ->where('updated_at', '>', $request->since())
+                ->oldest()
+                ->oldest('id')
+                ->limit(100)
+                ->pluck('id')
+                ->all()),
         ]);
     }
 
