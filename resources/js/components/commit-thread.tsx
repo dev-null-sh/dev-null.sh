@@ -204,6 +204,7 @@ async function fetchReplies(
     newest: boolean,
     limit: number,
     except?: string,
+    signal?: AbortSignal,
 ): Promise<CursorPaginated<ThreadCommit>> {
     const response = await fetch(
         CommitReplyController.index(commit, {
@@ -219,6 +220,7 @@ async function fetchReplies(
                 Accept: 'application/json',
                 'X-Requested-With': 'XMLHttpRequest',
             },
+            signal,
         },
     );
 
@@ -236,16 +238,19 @@ async function fetchRepliesAfter(
     minimum: number,
     newest: boolean,
     except?: string,
+    signal?: AbortSignal,
 ): Promise<Pick<CursorPaginated<ThreadCommit>, 'data' | 'next_cursor'>> {
     let data = replies;
 
     while (cursor !== null && data.length < minimum) {
+        signal?.throwIfAborted();
         const next = await fetchReplies(
             commit,
             cursor,
             newest,
             Math.min(maxRepliesPerRequest, minimum - data.length),
             except,
+            signal,
         );
         data = [...data, ...next.data];
         cursor = next.next_cursor;
@@ -260,8 +265,16 @@ async function fetchRepliesUntil(
     perPage: number,
     newest: boolean,
     except?: string,
+    signal?: AbortSignal,
 ): Promise<Pick<CursorPaginated<ThreadCommit>, 'data' | 'next_cursor'>> {
-    const page = await fetchReplies(commit, null, newest, perPage, except);
+    const page = await fetchReplies(
+        commit,
+        null,
+        newest,
+        perPage,
+        except,
+        signal,
+    );
 
     return fetchRepliesAfter(
         commit,
@@ -270,6 +283,7 @@ async function fetchRepliesUntil(
         minimum,
         newest,
         except,
+        signal,
     );
 }
 
@@ -283,8 +297,16 @@ async function fetchRepliesThrough(
     depth: number,
     perPage: number,
     except?: string,
+    signal?: AbortSignal,
 ): Promise<Pick<CursorPaginated<ThreadCommit>, 'data' | 'next_cursor'>> {
-    const first = await fetchReplies(commit, null, false, perPage, except);
+    const first = await fetchReplies(
+        commit,
+        null,
+        false,
+        perPage,
+        except,
+        signal,
+    );
     let data = first.data;
     let cursor = first.next_cursor;
 
@@ -293,12 +315,14 @@ async function fetchRepliesThrough(
         data.length < depth * 2 &&
         (data.length < depth || !data.some((reply) => reply.id === lastId))
     ) {
+        signal?.throwIfAborted();
         const next = await fetchReplies(
             commit,
             cursor,
             false,
             Math.min(maxRepliesPerRequest, depth * 2 - data.length),
             except,
+            signal,
         );
         data = [...data, ...next.data];
         cursor = next.next_cursor;
@@ -364,6 +388,11 @@ export function useThread(
     );
     const [isLoading, setIsLoading] = useState(shouldLoadReplies);
     const replyRequest = useRef(0);
+    // Every read for this viewer, thread and excluded reply, from its first request to its last await: changing any of
+    // them, or leaving, aborts it, so no stage of it starts, lands or counts after that.
+    const lifetime = useRef<AbortController | null>(null);
+    const readsLifetime = () =>
+        (lifetime.current ??= new AbortController()).signal;
     // When the replies shown were read, on the server's clock, to ask what changed since after missing updates.
     const readSince = useRef(Math.min(serverNow - 5_000, readAt()));
     const [isReplying, setIsReplying] = useState(false);
@@ -401,13 +430,15 @@ export function useThread(
      * mute, block or unmute someone, or more changed than could be named: what was loaded is read again, keeping its
      * range, and anything after it waits for Load more.
      */
-    const recover = async (): Promise<void> => {
-        if (replies === null) {
+    const recover = async (
+        signal: AbortSignal = readsLifetime(),
+    ): Promise<void> => {
+        if (replies === null || signal.aborted) {
             return;
         }
 
         if (isPreview) {
-            return reload();
+            return reload(0, signal);
         }
 
         const request = ++replyRequest.current;
@@ -419,9 +450,10 @@ export function useThread(
             Math.max(replies.length, repliesPerPage),
             repliesPerPage,
             except,
+            signal,
         )
             .then((page) => {
-                if (request === replyRequest.current) {
+                if (!signal.aborted && request === replyRequest.current) {
                     applyPage(page.data, page.next_cursor);
                 }
             })
@@ -433,7 +465,14 @@ export function useThread(
             });
     };
 
-    const reload = (extra = 0): Promise<void> => {
+    const reload = async (
+        extra = 0,
+        signal: AbortSignal = readsLifetime(),
+    ): Promise<void> => {
+        if (signal.aborted) {
+            return;
+        }
+
         const minimum =
             replies === null || (isPreview && replies.length <= repliesPerPage)
                 ? repliesPerPage
@@ -450,9 +489,10 @@ export function useThread(
             repliesPerPage,
             isPreview,
             except,
+            signal,
         )
             .then((page) => {
-                if (request === replyRequest.current) {
+                if (!signal.aborted && request === replyRequest.current) {
                     applyPage(page.data, page.next_cursor);
                 }
             })
@@ -470,6 +510,7 @@ export function useThread(
         }
 
         const request = ++replyRequest.current;
+        const signal = readsLifetime();
         setIsLoading(true);
 
         fetchRepliesAfter(
@@ -479,9 +520,10 @@ export function useThread(
             minimum,
             isPreview,
             except,
+            signal,
         )
             .then((page) => {
-                if (request === replyRequest.current) {
+                if (!signal.aborted && request === replyRequest.current) {
                     applyPage(page.data, page.next_cursor);
                 }
             })
@@ -503,6 +545,7 @@ export function useThread(
 
         let isCurrent = true;
         const request = ++replyRequest.current;
+        const signal = readsLifetime();
         setIsLoading(true);
 
         fetchRepliesUntil(
@@ -511,6 +554,7 @@ export function useThread(
             repliesPerPage,
             isPreview,
             except,
+            signal,
         )
             .then((page) => {
                 if (isCurrent && request === replyRequest.current) {
@@ -600,6 +644,7 @@ export function useThread(
             }
 
             const request = replyRequest.current;
+            const signal = readsLifetime();
             const response = await fetch(
                 CommitReplyController.index(commit, {
                     query: {
@@ -613,6 +658,7 @@ export function useThread(
                         Accept: 'application/json',
                         'X-Requested-With': 'XMLHttpRequest',
                     },
+                    signal,
                 },
             );
 
@@ -625,7 +671,7 @@ export function useThread(
                 parent: { replies_count: number };
             };
 
-            if (request !== replyRequest.current) {
+            if (signal.aborted || request !== replyRequest.current) {
                 return true;
             }
 
@@ -653,13 +699,18 @@ export function useThread(
      * loaded when that can't be told.
      */
     const missedReplies = useEffectEvent(async (): Promise<string[] | null> => {
+        const signal = readsLifetime();
         const since = readSince.current;
         const startedAt = readAt();
         const change = await changesSince(commit.id, since);
 
+        if (signal.aborted) {
+            return null;
+        }
+
         if (change === null || change.truncated) {
             readSince.current = startedAt;
-            void recover();
+            void recover(signal);
 
             return [];
         }
@@ -669,7 +720,9 @@ export function useThread(
         return change.replies;
     });
     // Called when a read's turn comes, so it reads the range loaded by then, not the one loaded when it was asked for.
-    const recoverLoaded = useEffectEvent(() => recover());
+    const recoverLoaded = useEffectEvent((signal: AbortSignal) =>
+        recover(signal),
+    );
     const isLoaded = replies !== null;
     const viewerId = usePage().props.auth.user?.id ?? null;
 
@@ -677,6 +730,8 @@ export function useThread(
     // retires every read on its way, keeping what is shown until the new one reads again.
     useEffect(
         () => () => {
+            lifetime.current?.abort();
+            lifetime.current = null;
             ++replyRequest.current;
             setIsLoading(false);
         },
@@ -690,6 +745,7 @@ export function useThread(
 
         const channel = commitChannel(commitId);
         const changed = new Set<string>();
+        let isListening = true;
         const refresh = coalesce(async () => {
             const ids = [...changed].slice(0, maxRepliesPerRequest);
             ids.forEach((id) => changed.delete(id));
@@ -717,6 +773,10 @@ export function useThread(
             },
             () =>
                 void missedReplies().then((ids) => {
+                    if (!isListening) {
+                        return;
+                    }
+
                     ids?.forEach((id) => changed.add(id));
 
                     if (changed.size > 0) {
@@ -730,7 +790,6 @@ export function useThread(
         // missed meanwhile leaves no trace on its replies.
         // Read again after the visit that changed who the viewer sees, and once a place among the reads of other
         // threads frees up: changes heard meanwhile are one read, and none starts once this listener has stopped.
-        let isListening = true;
         let isWaiting = false;
         const recoverWhenFree = () => {
             if (isWaiting) {
@@ -738,12 +797,13 @@ export function useThread(
             }
 
             isWaiting = true;
+            const signal = readsLifetime();
             void afterVisits().then(() =>
                 relationshipReads(async () => {
                     isWaiting = false;
 
-                    if (isListening) {
-                        await recoverLoaded();
+                    if (isListening && !signal.aborted) {
+                        await recoverLoaded(signal);
                     }
                 }),
             );

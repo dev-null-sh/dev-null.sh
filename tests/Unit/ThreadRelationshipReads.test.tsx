@@ -36,10 +36,12 @@ const reply = (id: string, parent = 'root') =>
     ({ id, replies_count: 0, deleted_at: null, parent_id: parent }) as unknown as ThreadCommit;
 const visit = (event: 'start' | 'finish') => visitListeners[event].forEach((listener) => listener());
 
-type Held = { commit: string; viewer: string; settle: (replies: string[]) => void };
+type Held = { commit: string; viewer: string; settle: (replies: string[]) => void; aborted: boolean };
 let threads: Record<string, string[]>;
 let held: Held[];
 let holds: (commit: string) => boolean;
+let changes: (() => Response) | null;
+let heldChanges: ((response: Response) => void) | null;
 let replyReads: { commit: string; viewer: string; url: URL }[];
 let fake: ReturnType<typeof fakeConnection>;
 
@@ -59,14 +61,26 @@ beforeEach(() => {
     viewer = 'a';
     held = [];
     holds = () => false;
+    changes = () => Response.json({ changes: {} });
+    heldChanges = null;
     replyReads = [];
     threads = { root: ['r1', 'r2', 'r3', 'r4'] };
-    vi.stubGlobal('fetch', async (input: string) => {
+    vi.stubGlobal('fetch', async (input: string, init?: RequestInit) => {
         const url = new URL(input, 'http://localhost');
         const commit = url.pathname.match(/^\/commits\/([^/]+)\/replies$/)?.[1];
 
         if (url.pathname === '/commits/changes') {
-            return Response.json({ changes: {} });
+            const answer = changes;
+
+            return answer === null
+                ? new Promise<Response>((resolve) => {
+                      heldChanges = resolve;
+                  })
+                : answer();
+        }
+
+        if (init?.signal?.aborted) {
+            throw new DOMException('Aborted', 'AbortError');
         }
 
         if (commit === undefined) {
@@ -77,8 +91,13 @@ beforeEach(() => {
         replyReads.push({ commit, viewer: reader, url });
 
         if (holds(commit)) {
-            return new Promise<Response>((resolve) => {
-                held.push({ commit, viewer: reader, settle: (ids) => resolve(page(commit, url, ids)) });
+            return new Promise<Response>((resolve, reject) => {
+                const read: Held = { commit, viewer: reader, settle: (ids) => resolve(page(commit, url, ids)), aborted: false };
+                init?.signal?.addEventListener('abort', () => {
+                    read.aborted = true;
+                    reject(new DOMException('Aborted', 'AbortError'));
+                });
+                held.push(read);
             });
         }
 
@@ -256,4 +275,81 @@ test('a read made for one thread never lands on another the same place now shows
     await settle(Reused);
 
     assert.deepEqual(ids(), ['s1', 's2']);
+});
+
+test('catching up on what a thread missed, once it is gone, reads nothing and changes no count', async () => {
+    target = { id: 'caught', replies_count: 2, deleted_at: null } as unknown as ThreadCommit;
+    threads = { caught: ['c1', 'c2', 'late'] };
+    const caught = initial(['c1', 'c2'], 'caught', false);
+    function Caught() {
+        return { thread: useThread(target, caught, false) };
+    }
+
+    await settle(Caught);
+    changes = null;
+    fake.joined.get('commits.caught')?.join();
+    await settle(Caught);
+    assert.ok(heldChanges, 'asks what changed');
+
+    harness.unmount();
+    heldChanges?.(Response.json({ changes: { caught: { changed: true, replies: [], truncated: true } } }));
+    await settle(() => null);
+
+    assert.equal(replyReads.length, 0);
+    assert.equal(sharedValue(commitStateKey('replies_count', 'caught')), undefined);
+});
+
+test('reading a thread again a page at a time stops at the page on its way when another account signs in', async () => {
+    target = { id: 'paged', replies_count: 4, deleted_at: null } as unknown as ThreadCommit;
+    threads = { paged: ['p1', 'p2', 'p3', 'p4'] };
+    const paged = initial(['p1', 'p2', 'p3', 'p4'], 'paged', false);
+    function Paged() {
+        return { thread: useThread(target, paged, false) };
+    }
+
+    await settle(Paged);
+    holds = () => true;
+    relationshipsChanged();
+    await settle(Paged);
+    assert.equal(held.length, 1, 'the first page is on its way');
+
+    viewer = 'b';
+    await settle(Paged);
+    held[0].settle(['p1', 'p2', 'p3', 'p4']);
+    await settle(Paged);
+
+    assert.deepEqual(replyReads.map((read) => read.viewer), ['a'], 'no further page is read, for either account');
+    assert.deepEqual(ids(), ['p1', 'p2', 'p3', 'p4']);
+});
+
+test('reads given up when their thread changes free their places at once, while their responses are still held', async () => {
+    target = { id: 'root', replies_count: 4, deleted_at: null } as unknown as ThreadCommit;
+    let busy = ['busy1', 'busy2'];
+    threads = { ...threads, busy1: ['b1'], busy2: ['b2'], other1: ['o1'], other2: ['o2'] };
+    const thread = (id: string) => ({ id, replies_count: 1, deleted_at: null }) as unknown as ThreadCommit;
+    const pages: Record<string, ReturnType<typeof initial>> = {
+        busy1: initial(['b1'], 'busy1', false),
+        busy2: initial(['b2'], 'busy2', false),
+        other1: initial(['o1'], 'other1', false),
+        other2: initial(['o2'], 'other2', false),
+    };
+    function Three() {
+        useThread(thread(busy[0]), pages[busy[0]], false);
+        useThread(thread(busy[1]), pages[busy[1]], false);
+
+        return { thread: useThread(target, firstPage, false) };
+    }
+
+    await settle(Three);
+    holds = (commit) => commit.startsWith('busy');
+    relationshipsChanged();
+    await settle(Three);
+    assert.deepEqual(held.map((read) => read.commit).sort(), ['busy1', 'busy2'], 'both places taken');
+    assert.equal(replyReads.filter((read) => read.commit === 'root').length, 0, 'the root thread waits its turn');
+
+    busy = ['other1', 'other2'];
+    await settle(Three);
+
+    assert.ok(held.every((read) => read.aborted), 'the busy reads are given up');
+    assert.equal(replyReads.filter((read) => read.commit === 'root').length, 1, 'the root thread reads without waiting for them');
 });
