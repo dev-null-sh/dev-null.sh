@@ -25,6 +25,13 @@ it('may choose a timezone, and answers like me', function (): void {
         ->show_local_time->toBeFalse();
 });
 
+it('normalizes a browser timezone alias after verifying the signed request', function (): void {
+    signedApiRequest($this->keyPair, 'PUT', route('api-user-timezone.update'), ['timezone' => 'Asia/Calcutta'])
+        ->assertOk();
+
+    expect($this->user->refresh()->timezone)->toBe('Asia/Kolkata');
+});
+
 it('may opt in to and out of showing the local time', function (bool $show): void {
     $this->user->update(['show_local_time' => ! $show]);
 

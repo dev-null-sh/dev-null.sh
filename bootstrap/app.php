@@ -9,6 +9,7 @@ use App\Http\Middleware\AuthenticateSignedRequest;
 use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\NormalizeTimezone;
 use App\Http\Middleware\PreventFraming;
 use App\Http\Middleware\RedirectBannedUsers;
 use App\Http\Middleware\SerializePushSessions;
@@ -43,6 +44,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->prepend(StripNullBytes::class);
         // A call's offer and answer must end in a line break, which Firefox refuses to parse without.
         $middleware->trimStrings(except: ['sdp', 'signals.*.sdp']);
+        $middleware->append(NormalizeTimezone::class);
         $middleware->append(PreventFraming::class);
 
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state', 'who_to_follow', 'who_to_follow_round', 'lane_dimming', 'replies_per_page', 'time_zone', 'hour_cycle']);
