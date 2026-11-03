@@ -24,8 +24,9 @@ final readonly class ProfileLookupController
     public function show(ShowProfileLookupRequest $request, #[CurrentUser] ?User $currentUser, ProfileLookupQuery $lookups): Response
     {
         // A missing page isn't remembered for after sign-in (RememberIntendedUrl), but this one is where the guest
-        // comes back to, to look the handle up...
-        if (! $currentUser instanceof User && ! $request->prefetch()) {
+        // comes back to, to look the handle up. Like there, prefetches and partial reloads, such as the layout's
+        // notification polling, aren't the guest opening the page.
+        if (! $currentUser instanceof User && ! $request->prefetch() && ! $request->hasHeader('X-Inertia-Partial-Data')) {
             redirect()->setIntendedUrl($request->fullUrl());
         }
 

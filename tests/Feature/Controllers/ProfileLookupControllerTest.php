@@ -24,6 +24,17 @@ it('asks guests to sign in to look a handle up, on a missing page kept out of se
     expect(session('url.intended'))->toBe(url('/@octocat'));
 });
 
+it('leaves where guests return after sign-in alone when a lookup page polls in the background', function (): void {
+    $this->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'profile/lookup',
+        'X-Inertia-Partial-Data' => 'auth.unreadNotificationsCount',
+    ])->get('/@octocat')->assertNotFound();
+
+    expect(session('url.intended'))->toBeNull();
+});
+
 it('shows members where looking the handle up stands', function (Closure $setUp, string $status, bool $resumes): void {
     $setUp();
 
@@ -51,6 +62,29 @@ it('answers a missing page for handles GitHub could not have, or of people who d
 
     expect(session('url.intended'))->toBeNull();
 })->with(['an underscore' => 'oct_cat', 'a trailing dash' => 'octocat-', 'too long' => str_repeat('a', 40), 'deleted' => 'gone']);
+
+it('answers a missing page when a profile that was open is reloaded after it was deleted, instead of looking its handle up', function (?User $viewer): void {
+    Queue::fake();
+
+    if ($viewer instanceof User) {
+        $this->actingAs($viewer);
+    }
+
+    $this->withHeaders([
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request()),
+        'X-Inertia-Partial-Component' => 'user/show',
+        'X-Inertia-Partial-Data' => 'auth.unreadNotificationsCount',
+    ])
+        ->get('/@alice')
+        ->assertNotFound()
+        ->assertJsonPath('component', 'error');
+
+    Queue::assertNothingPushed();
+})->with([
+    'a guest' => fn (): null => null,
+    'a member' => fn (): User => User::factory()->create(),
+]);
 
 it('turns into the profile once the lookup finds it', function (): void {
     $member = User::factory()->create();

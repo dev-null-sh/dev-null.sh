@@ -13,13 +13,17 @@ final class ShowProfileLookupRequest extends FormRequest
 {
     /**
      * Only a handle GitHub could have can be looked up. Someone who deleted their account here left for good: their
-     * handle answers a missing page, like one GitHub could not have.
+     * handle answers a missing page, like one GitHub could not have. So does a reload from a profile that was open at
+     * this URL and has since gone, rather than turning it into a lookup of its handle.
      */
     public function authorize(): Response
     {
         $handle = Str::lower($this->handle());
+        $reloadedPage = $this->header('X-Inertia-Partial-Component');
 
-        return preg_match('/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/', $handle) === 1 && Cache::get("github-profiles:not-found:{$handle}") !== 'deleted'
+        return preg_match('/^[a-z0-9](?:[a-z0-9]|-(?=[a-z0-9])){0,38}$/', $handle) === 1
+            && Cache::get("github-profiles:not-found:{$handle}") !== 'deleted'
+            && in_array($reloadedPage, [null, 'profile/lookup'], true)
             ? Response::allow()
             : Response::denyAsNotFound();
     }
