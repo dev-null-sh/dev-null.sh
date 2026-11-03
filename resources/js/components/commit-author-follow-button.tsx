@@ -1,12 +1,13 @@
 import { usePage } from '@inertiajs/react';
 import { useRef } from 'react';
 import {
+    followVisitOptions,
     resolveIsFollowing,
     toggleFollow,
     useIsFollowing,
 } from '@/components/follow-button';
 import { signIn } from '@/lib/auth';
-import type { User } from '@/types';
+import type { Commit, CursorPaginated, User } from '@/types';
 
 /**
  * Keyboard target for `f` on a focused commit: follow or unfollow that commit's author.
@@ -18,7 +19,10 @@ export function CommitAuthorFollowButton({
     user: Pick<User, 'id' | 'handle'>;
     keyShortcut?: string;
 }) {
-    const { auth } = usePage().props;
+    const {
+        component,
+        props: { auth, log, commits },
+    } = usePage<{ commits?: CursorPaginated<Commit> }>();
     const [, setIsFollowing] = useIsFollowing(user, false);
     const isBusy = useRef(false);
 
@@ -46,9 +50,15 @@ export function CommitAuthorFollowButton({
                 return;
             }
 
-            toggleFollow(user, isFollowing, setIsFollowing, () => {
-                isBusy.current = false;
-            });
+            toggleFollow(
+                user,
+                isFollowing,
+                setIsFollowing,
+                () => {
+                    isBusy.current = false;
+                },
+                followVisitOptions(component, log, commits),
+            );
         });
     };
 

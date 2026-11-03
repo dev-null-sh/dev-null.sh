@@ -160,7 +160,9 @@ export async function resolveIsFollowing(
         }
 
         if (!response.ok) {
-            toastWhenThrottled(response);
+            if (!toastWhenThrottled(response)) {
+                toast.error(`Could not check @${user.handle}. Try again.`);
+            }
 
             return null;
         }
@@ -169,6 +171,15 @@ export async function resolveIsFollowing(
             isFollowing: boolean;
             isUnavailable: boolean;
         };
+
+        // A follow may have landed while response.json() was still pending.
+        const writtenWhileParsing = peekSharedState<boolean>(
+            isFollowingKey(user),
+        );
+
+        if (writtenWhileParsing !== undefined) {
+            return writtenWhileParsing;
+        }
 
         if (data.isUnavailable) {
             rememberBlock(user);
@@ -194,6 +205,7 @@ export function toggleFollow(
     isFollowing: boolean,
     setIsFollowing: (isFollowing: boolean) => void,
     onFinish?: () => void,
+    visitOptions: Pick<VisitOptions, 'only' | 'headers'> = {},
 ): void {
     const next = !isFollowing;
 
@@ -212,6 +224,8 @@ export function toggleFollow(
         {
             preserveScroll: true,
             preserveState: true,
+            async: true,
+            ...visitOptions,
             onSuccess: () => {
                 setIsFollowing(next);
                 router.flushAll();

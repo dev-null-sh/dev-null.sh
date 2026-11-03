@@ -8,6 +8,8 @@ import type { User } from '../../resources/js/types';
 type Props = Record<string, unknown> & { children?: ReactNode };
 
 type VisitOptions = {
+    async?: boolean;
+    headers?: Record<string, string>;
     onHttpException?: (response: { status: number }) => boolean | void;
     onSuccess?: () => void;
     onFinish?: () => void;
@@ -18,6 +20,7 @@ const toasts: string[] = [];
 const locations: string[] = [];
 let flushAllCount = 0;
 let authUser: { id: string } | null = { id: 'viewer' };
+let pageComponent = 'profile/show';
 let preview: {
     isFollowing: boolean;
     isUnavailable?: boolean;
@@ -25,6 +28,8 @@ let preview: {
 let fetchCount = 0;
 let holdFetch = false;
 let releaseFetch: (() => void) | null = null;
+let holdJson = false;
+let releaseJson: (() => void) | null = null;
 
 vi.doMock('react', () => ({
     ...React,
@@ -40,7 +45,10 @@ vi.doMock('react', () => ({
 
 vi.doMock('@inertiajs/react', async () => ({
     ...(await vi.importActual('@inertiajs/react')),
-    usePage: () => ({ props: { auth: { user: authUser } } }),
+    usePage: () => ({
+        component: pageComponent,
+        props: { auth: { user: authUser }, log: null },
+    }),
     router: {
         flushAll: () => {
             flushAllCount += 1;
@@ -98,10 +106,18 @@ vi.stubGlobal('fetch', async () => {
     return {
         ok: true,
         status: 200,
-        json: async () => ({
-            isUnavailable: false,
-            ...preview,
-        }),
+        json: async () => {
+            if (holdJson) {
+                await new Promise<void>((resolve) => {
+                    releaseJson = resolve;
+                });
+            }
+
+            return {
+                isUnavailable: false,
+                ...preview,
+            };
+        },
     };
 });
 afterAll(() => vi.unstubAllGlobals());
@@ -206,6 +222,8 @@ test('f follows an author who is not already followed', async () => {
 
     assert.equal(fetchCount, 1);
     assert.equal(visits.at(-1)?.method, 'post');
+    assert.equal(visits.at(-1)?.async, true);
+    assert.equal(visits.at(-1)?.headers?.['X-Follow-Request'], 'true');
     visits.at(-1)?.onSuccess?.();
     visits.at(-1)?.onFinish?.();
 });
@@ -240,6 +258,15 @@ test('resolveIsFollowing gives up when the author is unavailable', async () => {
     assert.equal(await resolveIsFollowing(author('blocked-author')), null);
 });
 
+test('resolveIsFollowing toasts when the preview fails for a reason other than throttling', async () => {
+    authUser = { id: 'viewer' };
+    preview = null;
+    toasts.length = 0;
+
+    assert.equal(await resolveIsFollowing(author('down')), null);
+    assert.equal(toasts.at(-1), 'Could not check @down. Try again.');
+});
+
 test('a follow that lands while the preview is pending wins over a stale response', async () => {
     authUser = { id: 'viewer' };
     const user = author('raced');
@@ -255,6 +282,25 @@ test('a follow that lands while the preview is pending wins over a stale respons
     followFromProfile(user);
     resume?.();
     holdFetch = false;
+
+    assert.equal(await pending, true);
+});
+
+test('a follow that lands while the preview body is parsing wins over a stale response', async () => {
+    authUser = { id: 'viewer' };
+    const user = author('json-raced');
+    preview = { isFollowing: false };
+    holdJson = true;
+
+    const pending = resolveIsFollowing(user);
+    await new Promise((resolve) => setTimeout(resolve));
+    const resume = releaseJson;
+
+    assert.equal(typeof resume, 'function');
+
+    followFromProfile(user);
+    resume?.();
+    holdJson = false;
 
     assert.equal(await pending, true);
 });

@@ -278,7 +278,7 @@ export function CommitCard({
             }
             onPointerLeave={onHover && ((event) => onHover(false, event))}
         >
-            {commit.author.type === 'user' && (
+            {!wasDeleted && commit.author.type === 'user' && (
                 <CommitAuthorFollowButton
                     user={commit.author}
                     keyShortcut="f"
