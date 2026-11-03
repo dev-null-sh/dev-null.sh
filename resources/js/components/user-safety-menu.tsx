@@ -85,6 +85,7 @@ export function UserSafetyMenu({
                 options.onSuccess?.(page);
 
                 router.flushAll();
+                router.reload({ only: ['hotTopics'] });
             },
         });
     };

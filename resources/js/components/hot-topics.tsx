@@ -23,12 +23,17 @@ export function HotTopics() {
                     <li key={topic.id}>
                         <Link
                             href={show(topic.id)}
-                            className="group -mx-2 flex min-h-8 items-center rounded-lg px-2 py-1 text-sm transition-[background-color] hover:bg-accent focus-visible:outline-ring"
+                            className="group -mx-2 flex min-h-8 flex-col justify-center rounded-lg px-2 py-1 text-sm transition-[background-color] hover:bg-accent focus-visible:outline-ring"
                             title={topic.name}
                         >
-                            <span className="min-w-0 flex-1 truncate group-hover:underline">
+                            <span className="w-full truncate font-bold group-hover:underline">
                                 {topic.name}
                             </span>
+                            {topic.summary !== null && (
+                                <span className="w-full truncate text-xs text-muted-foreground">
+                                    {topic.summary}
+                                </span>
+                            )}
                         </Link>
                     </li>
                 ))}
