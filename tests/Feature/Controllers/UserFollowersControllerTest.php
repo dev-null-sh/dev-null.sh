@@ -82,3 +82,53 @@ it('sends guests to the log, and back to the list once they sign in', function (
 
     expect(session('url.intended'))->toBe(route('user-followers.index', $user));
 });
+
+function loadedDigest(string $route, User $user, array $loaded): mixed
+{
+    return test()->get(route($route, ['user' => $user, 'loaded' => $loaded]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(App\Http\Middleware\HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'user/connections',
+        'X-Inertia-Partial-Data' => 'loadedDigest',
+    ])->assertOk()->assertJsonMissingPath('props.users')->json('props.loadedDigest');
+}
+
+function digestOf(string ...$ids): string
+{
+    sort($ids, SORT_STRING);
+
+    return hash('sha256', implode(',', $ids));
+}
+
+it('names which people the loaded followers are, so a page can tell they changed even at the same size', function (): void {
+    $user = User::factory()->create();
+    [$first, $second, $third] = User::factory()->count(3)->create()->all();
+    $user->followers()->attach($first, ['created_at' => now()->subMinutes(2)]);
+    $user->followers()->attach($second, ['created_at' => now()->subMinute()]);
+    $this->actingAs(User::factory()->create());
+
+    expect(loadedDigest('user-followers.index', $user, ['users' => 2]))->toBe(['users' => digestOf($first->id, $second->id)]);
+
+    $user->followers()->detach($first);
+    $user->followers()->attach($third);
+
+    expect(loadedDigest('user-followers.index', $user, ['users' => 2]))->toBe(['users' => digestOf($second->id, $third->id)]);
+});
+
+it('names who is in each list as far as a page loaded it', function (string $route): void {
+    $user = User::factory()->create();
+    $viewer = User::factory()->create();
+    $both = User::factory()->create();
+    $user->followers()->attach([$both->id, $viewer->id]);
+    $user->following()->attach($both);
+    $viewer->following()->attach($both);
+    $this->actingAs($viewer);
+
+    expect(loadedDigest($route, $user, ['users' => 1])['users'])->toBeString()->toHaveLength(64);
+})->with(['user-followers.index', 'user-following.index', 'user-mutuals.index', 'user-followers-you-know.index']);
+
+it('reads no more of a list than a page could have loaded', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->get(route('user-followers.index', ['user' => User::factory()->create(), 'loaded' => ['users' => 100_000]]))
+        ->assertSessionHasErrors('loaded.users');
+});

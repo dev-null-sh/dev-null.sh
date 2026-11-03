@@ -289,3 +289,23 @@ void test('a page coming back from history makes every listener joining it catch
     assert.equal(fresh, 0);
     assert.deepEqual(live, [{}]);
 });
+
+void test('a page coming back from history makes listeners already on it catch up too, once each', async () => {
+    mock.timers.enable({ apis: ['setTimeout', 'Date'], now: 1_000_000 });
+    const fake = fakeConnection();
+    connectRealtime(fake.connection);
+    const live: unknown[] = [];
+    let syncs = 0;
+    listen(userChannel('a'), { account: () => {} }, () => syncs++);
+    liveTransport.subscribe({ name: 'users.a', type: 'private' }, 'notifications', (payload) => live.push(payload));
+    fake.setStatus('connected');
+    fake.joined.get('private-users.a')?.join();
+    syncs = 0;
+    live.length = 0;
+
+    catchUpAfterRestore();
+    await Promise.resolve();
+
+    assert.equal(syncs, 1);
+    assert.deepEqual(live, [{}]);
+});

@@ -256,7 +256,10 @@ export function pageReadAt(at: number): void {
  */
 export function catchUpAfterRestore(): void {
     pageRead = null;
-    liveRefreshers.forEach((refresh) => refresh());
+    // The listeners already on the page catch up as well as the ones joining it, each once.
+    const syncs = new Set(liveRefreshers);
+    channels.forEach((entry) => entry.syncs.forEach((sync) => syncs.add(sync)));
+    syncs.forEach((sync) => queueMicrotask(sync));
 }
 
 /**

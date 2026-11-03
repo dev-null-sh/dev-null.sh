@@ -16,7 +16,9 @@ import { Spinner } from '@/components/ui/spinner';
 import { UserAvatar } from '@/components/user-avatar';
 import { useRealtime } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
+import { reloadInBackground } from '@/lib/background-poll';
 import { laneColor } from '@/lib/utils';
+import { windowDigest } from '@/lib/window-digest';
 import { show } from '@/routes/user';
 import type { CursorPaginated, Organization, User } from '@/types';
 
@@ -83,10 +85,45 @@ export default function Connections({
                 setHasChanged(true);
             }
         },
-        (isFirst) => {
-            if (!isFirst) {
-                setHasChanged(true);
-            }
+        // Joining the channel, at first or again, may follow changes nobody heard: the people loaded are compared
+        // with who the list holds now, as far as it was loaded, and a refresh is offered only if they differ.
+        () => {
+            const loaded = {
+                users: users.data.map((connection) => connection.id),
+                organizations: (organizations?.data ?? []).map(
+                    (organization) => organization.id,
+                ),
+            };
+
+            void reloadInBackground({
+                only: ['loadedDigest'],
+                data: {
+                    loaded: {
+                        users: loaded.users.length,
+                        organizations: loaded.organizations.length,
+                    },
+                },
+                preserveUrl: true,
+                onSuccess: (page) => {
+                    const expected = page.props.loadedDigest as
+                        | Partial<Record<keyof typeof loaded, string>>
+                        | undefined;
+
+                    void Promise.all(
+                        (Object.keys(loaded) as (keyof typeof loaded)[])
+                            .filter((list) => expected?.[list] !== undefined)
+                            .map(
+                                async (list) =>
+                                    (await windowDigest(loaded[list])) !==
+                                    expected?.[list],
+                            ),
+                    ).then((changes) => {
+                        if (expected === undefined || changes.some(Boolean)) {
+                            setHasChanged(true);
+                        }
+                    });
+                },
+            });
         },
     );
 
