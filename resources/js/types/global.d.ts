@@ -22,6 +22,7 @@ declare module '@inertiajs/core' {
             localSignIn?: boolean;
             signedUp?: boolean;
             claimFailed?: { message: string; githubUrl: string | null };
+            lookupThrottled?: true;
         };
         sharedPageProps: {
             name: string;

@@ -19,6 +19,10 @@ final readonly class UpdateOrCreateUser
         //
     }
 
+    /**
+     * Signing in makes the GitHub account's profile a user's: an unclaimed one, looked up from GitHub before, becomes
+     * theirs with its ID. Someone who deleted their account and comes back is no longer remembered as gone.
+     */
     public function handle(GitHubUser $githubUser): User
     {
         $githubId = (string) $githubUser->getId();
@@ -39,6 +43,8 @@ final readonly class UpdateOrCreateUser
                 ...$profile->attributes(),
                 'github_synced_at' => now(),
             ])->id;
+
+            DB::table('deleted_github_accounts')->where('github_id', $githubId)->delete();
 
             return User::query()->updateOrCreate([
                 'id' => $id,

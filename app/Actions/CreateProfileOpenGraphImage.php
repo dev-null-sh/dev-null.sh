@@ -6,10 +6,11 @@ namespace App\Actions;
 
 use App\Contracts\Services\GitHubProvider;
 use App\Models\Organization;
+use App\Models\Profile;
 use App\Services\OpenGraphCanvas;
 use Illuminate\Support\Facades\Cache;
 
-final readonly class CreateOrganizationOpenGraphImage
+final readonly class CreateProfileOpenGraphImage
 {
     private const int AVATAR_SIZE = 152;
 
@@ -24,26 +25,34 @@ final readonly class CreateOrganizationOpenGraphImage
         //
     }
 
-    public function handle(Organization $organization): string
+    /**
+     * The card of a profile no user owns: an organization's, or an unclaimed developer's.
+     */
+    public function handle(Organization|Profile $owner): string
     {
         return Cache::remember(
-            "open-graph-image:organization:{$organization->id}:{$organization->openGraphImageVersion()}",
+            "open-graph-image:profile:{$owner->id}:{$owner->openGraphImageVersion()}",
             now()->addHour(),
-            fn (): string => $this->render($organization),
+            fn (): string => $this->render($owner),
         );
     }
 
     /**
-     * Drawn like a profile's card, in the organization's lane, /dev/null's blue until its admins choose one.
+     * Drawn like a user's card, in the organization's lane, /dev/null's blue until its admins choose one. An unclaimed
+     * developer's is grey, with no lane of their own yet, and says they aren't here, where a user's shows their stats.
      */
-    private function render(Organization $organization): string
+    private function render(Organization|Profile $owner): string
     {
         $canvas = new OpenGraphCanvas($this->github);
-        $lane = $organization->lane() === null ? OpenGraphCanvas::PRIMARY : $canvas->lane($organization->lane());
+        $lane = match (true) {
+            $owner instanceof Profile => OpenGraphCanvas::INK_MUTED,
+            $owner->lane() === null => OpenGraphCanvas::PRIMARY,
+            default => $canvas->lane($owner->lane()),
+        };
         $width = OpenGraphCanvas::CONTENT_RIGHT - OpenGraphCanvas::CONTENT_X;
 
         $bio = $canvas->clamp(
-            $canvas->wrap($canvas->clean((string) $organization->bio), 'Geist-Regular', self::BIO_SIZE, $width),
+            $canvas->wrap($canvas->clean((string) $owner->bio), 'Geist-Regular', self::BIO_SIZE, $width),
             self::BIO_MAX_LINES, 'Geist-Regular', self::BIO_SIZE, $width,
         );
 
@@ -51,13 +60,13 @@ final readonly class CreateOrganizationOpenGraphImage
         $top = max(56, intdiv(OpenGraphCanvas::FOOTER_RULE_Y - $blockHeight, 2));
 
         $canvas->rail($top + intdiv(self::AVATAR_SIZE, 2), $lane);
-        $canvas->avatar($organization, OpenGraphCanvas::CONTENT_X + 10, $top, self::AVATAR_SIZE, $lane);
+        $canvas->avatar($owner, OpenGraphCanvas::CONTENT_X + 10, $top, self::AVATAR_SIZE, $lane);
 
         $textX = OpenGraphCanvas::CONTENT_X + 10 + self::AVATAR_SIZE + 10 + 36;
         $textWidth = OpenGraphCanvas::CONTENT_RIGHT - $textX;
 
-        $canvas->text($canvas->truncate($canvas->name($organization), 'Geist-SemiBold', 60, $textWidth), 'Geist-SemiBold', 60, $textX, $top + 74, OpenGraphCanvas::INK);
-        $canvas->handle($organization, 32, $textX, $top + 124, $textWidth, $lane);
+        $canvas->text($canvas->truncate($canvas->name($owner), 'Geist-SemiBold', 60, $textWidth), 'Geist-SemiBold', 60, $textX, $top + 74, OpenGraphCanvas::INK);
+        $canvas->handle($owner, 32, $textX, $top + 124, $textWidth, $lane);
 
         $bioTop = $top + self::AVATAR_SIZE + 48;
 
@@ -70,7 +79,7 @@ final readonly class CreateOrganizationOpenGraphImage
         }
 
         $canvas->footer();
-        $canvas->text('Organization', 'Geist-Regular', 30, OpenGraphCanvas::CONTENT_X, OpenGraphCanvas::FOOTER_BASELINE, OpenGraphCanvas::INK_MUTED);
+        $canvas->text($owner instanceof Profile ? 'Not on /dev/null yet' : 'Organization', 'Geist-Regular', 30, OpenGraphCanvas::CONTENT_X, OpenGraphCanvas::FOOTER_BASELINE, OpenGraphCanvas::INK_MUTED);
 
         return $canvas->png();
     }

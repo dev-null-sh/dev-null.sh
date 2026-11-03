@@ -44,6 +44,7 @@ it('may delete a user', function (): void {
     expect($user->exists)->toBeFalse();
     $this->assertModelMissing($user);
     $this->assertModelMissing($user->profile);
+    $this->assertDatabaseHas('deleted_github_accounts', ['github_id' => $user->github_id]);
 });
 
 it('erases the commits of a deleted user along with the replies under them', function (): void {

@@ -12,6 +12,7 @@ This file documents the platform's features, stack, and stories. Feature entries
   - [First-time setup](#first-time-setup)
   - [Profiles and GitHub sync](#profiles-and-github-sync)
   - [Organization pages](#organization-pages)
+  - [Developers not on /dev/null yet](#developers-not-on-devnull-yet)
   - [Going live](#going-live)
   - [Achievement badges and XP](#achievement-badges-and-xp)
   - [Following developers and suggestions](#following-developers-and-suggestions)
@@ -112,11 +113,11 @@ Sources: [profile page](resources/js/pages/user/show.tsx), [profile settings](re
 
 ### Organization pages
 
-GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with their GitHub avatar (square, so they never pass for a person), name, description, location, website, and a link to GitHub. An organization gets its page once an approved commit mentions it, from its public GitHub profile, and the profile refreshes when commits keep mentioning it, at most once a day. Nobody signs in as an organization: its members post for it. Everything on its page comes from GitHub, except its color and its commits. Shared links to an organization's page preview as a card with its square avatar, name, handle, and description, like a developer's profile.
+GitHub organizations, like `@laravel`, have a page at `/@{handle}` too, with their GitHub avatar (square, so they never pass for a person), name, description, location, website, and a link to GitHub. An organization gets its page once an approved commit mentions it, or once a signed-in member opens its address, from its public GitHub profile, and the profile refreshes when commits keep mentioning it, at most once a day. Nobody signs in as an organization: its members post for it. Everything on its page comes from GitHub, except its color and its commits. Shared links to an organization's page preview as a card with its square avatar, name, handle, and description, like a developer's profile.
 
 The **Commits** tab lists the organization's own commits, newest first. The **Mentions** tab lists the commits and replies that mention the organization, newest first, a reply with the commit it answers. A commit stays listed after the organization is renamed, since it is linked to the organization rather than to the handle. It follows the usual visibility: guests see approved commits only, its members also see its pending and rejected ones, and commits across a block or by people you muted are left out.
 
-A member of an organization can **Claim** its page, which lists them as its admin. Only the first member to claim it becomes its admin: once a page has one, it can't be claimed again, and the Claim button is gone. Claiming asks for no extra GitHub permission: it checks that GitHub lists you among the organization's public members. GitHub keeps membership private by default, so if yours is, the page links to the organization's People page on GitHub, where you make your membership public, then claim again. You can make it private again once you're the admin. GitHub is only the way in: leaving the organization on GitHub doesn't remove you as an admin on /dev/null.
+While nobody has claimed an organization's page, it says so to signed-in visitors, with a **Claim** button. A member of the organization can **Claim** its page, which lists them as its admin. Only the first member to claim it becomes its admin: once a page has one, it can't be claimed again, and the Claim button is gone. Claiming asks for no extra GitHub permission: it checks that GitHub lists you among the organization's public members. GitHub keeps membership private by default, so if yours is, the page links to the organization's People page on GitHub, where you make your membership public, then claim again. You can make it private again once you're the admin. GitHub is only the way in: leaving the organization on GitHub doesn't remove you as an admin on /dev/null.
 
 After that, members are managed on /dev/null, not mirrored from GitHub. An organization's members open its **Settings** from its page, where the **Members** tab lists everyone, each an **admin** or a **member**. Admins add people by their /dev/null handle, searching by handle or name as they type, except people they blocked or who blocked them, make them admins or members, and remove them. Any member can leave. Its last admin can't leave or become a member. Only its members see who its members are; its page lists its admins to everyone. Your organizations and your role in each are in your data export and go when you delete your account.
 
@@ -127,6 +128,14 @@ Every organization has a color, /dev/null's blue until an admin chooses another 
 Signed in, you can **Follow** an organization from its page, which shows how many people follow it. Once you follow it, the button opens a menu where you can unfollow. Following puts the organization's own commits in your Following log, and ranks them higher in Trending, like the people you follow. **Watch**, which will also show the commits that mention the organization, is planned and shown as coming soon. The organizations you follow are listed on your Following list, above the people, a few at a time with **Show more organizations**, and count toward your following count. They are in your data export and go when you delete your account.
 
 Sources: [organization page](resources/js/pages/organization/show.tsx), [commits](app/Queries/OrganizationCommitsQuery.php), [posting as an organization](app/Rules/OrganizationToPostAs.php), [mentions](app/Queries/OrganizationMentionsQuery.php), [organization lookups](app/Actions/UpdateCommitTopics.php), [claims](app/Http/Controllers/OrganizationAdminController.php), [color](app/Http/Controllers/OrganizationLaneController.php), [members](app/Http/Controllers/OrganizationMemberController.php).
+
+### Developers not on /dev/null yet
+
+Signed in, you can open the address of anyone on GitHub, like `/@octocat`, even if they never signed up. The first time, the page looks the handle up on GitHub while you wait, usually a few seconds, then shows what it found: a developer's page, or an organization's. Each member can look up to 30 handles an hour, since lookups share GitHub's limit with everyone; when that limit runs low, the page says when lookups resume. A handle that is no GitHub account says so, and isn't asked about again for a day. Guests and search engines can't look anyone up: they're asked to sign in.
+
+A developer who isn't here yet gets a page with their GitHub avatar, name, handle, bio and a link to GitHub, marked **Not on /dev/null yet**, but never their location or website. Anyone with the link can open it, and it shares as a card, but search engines are asked to leave it out. Signing in with that GitHub account makes the page yours: guests see an **I am @handle** button for that. If you delete your account, your page doesn't come back as one of these, until you sign in again.
+
+Sources: [looking handles up](app/Http/Controllers/ProfileLookupController.php), [lookup page](resources/js/pages/profile/lookup.tsx), [developer page](resources/js/pages/profile/unclaimed.tsx), [GitHub lookups](app/Actions/CreateGitHubProfile.php).
 
 ### Going live
 
@@ -634,7 +643,7 @@ Settings → Profile → **Delete account** opens a confirmation for permanent d
 
 You can sign in with GitHub again later, but start from a new account rather than restoring the deleted one. Export your data first if you want a copy. Deleting from /dev/null cannot retract copies of public content held elsewhere.
 
-As the privacy policy explains, timeout and ban records retain your GitHub account id, reason, and dates after account deletion, so deleting and recreating an account cannot evade those restrictions. Deleted content may also remain in backups and logs for a period.
+As the privacy policy explains, timeout and ban records retain your GitHub account id, reason, and dates after account deletion, so deleting and recreating an account cannot evade those restrictions. Your GitHub account id is also kept until you sign in again, only so that your page doesn't come back as one of a developer not on /dev/null yet. Deleted content may also remain in backups and logs for a period.
 
 Sources: [account deletion confirmation](resources/js/components/delete-user.tsx), [account deletion](app/Actions/DeleteUser.php), [privacy policy](resources/js/pages/privacy/show.tsx).
 
