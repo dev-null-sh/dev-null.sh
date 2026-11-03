@@ -25,8 +25,15 @@ final readonly class NormalizeTimezone
 
         if (is_string($timeZone)) {
             try {
-                // ICU maps legacy IDs to IANA names; only accept names in PHP's current list.
-                $iana = IntlTimeZone::getIanaID($timeZone);
+                // Older ICU releases lack getIanaID; keep common browser aliases working.
+                $iana = match ($timeZone) {
+                    'Asia/Calcutta' => 'Asia/Kolkata',
+                    'Europe/Kiev' => 'Europe/Kyiv',
+                    'US/Eastern' => 'America/New_York',
+                    default => method_exists(IntlTimeZone::class, 'getIanaID')
+                        ? IntlTimeZone::getIanaID($timeZone)
+                        : IntlTimeZone::getCanonicalID($timeZone),
+                };
 
                 if ($iana !== false && in_array($iana, DateTimeZone::listIdentifiers(), true)) {
                     if ($request->query->has('timezone') && ! $request->request->has('timezone') && ! $request->json()->has('timezone')) {
