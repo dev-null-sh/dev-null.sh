@@ -78,7 +78,7 @@ enum Achievement: string
             self::Superstar => 'sparkles',
             self::Pipe => 'git-merge',
             self::AuthorizedKeys => 'key',
-            self::SweetTooth => 'cookie',
+            self::SweetTooth => 'pastel-de-nata',
             self::Luddite => 'bot-off',
             self::ShellShocked => 'bomb',
             self::SuperSaiyan => 'dragon-ball',
