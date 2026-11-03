@@ -22,6 +22,11 @@ final readonly class CommitTranslations
 {
     public const int TTL_SECONDS = 604800;
 
+    /**
+     * How long a post whose language couldn't be detected, once every retry failed, waits before detection is tried again.
+     */
+    public const int UNDETECTABLE_TTL_SECONDS = 86400;
+
     public function __construct(private Features $features)
     {
         //
@@ -35,6 +40,16 @@ final readonly class CommitTranslations
     public function key(Commit $commit): string
     {
         return 'commit-translations:v1:'.hash('sha256', $commit->body);
+    }
+
+    public function undetectableKey(Commit $commit): string
+    {
+        return 'commit-translations:v1:undetectable:'.hash('sha256', $commit->body);
+    }
+
+    public function markUndetectable(Commit $commit): void
+    {
+        Cache::memo()->put($this->undetectableKey($commit), true, self::UNDETECTABLE_TTL_SECONDS);
     }
 
     /** @return list<string> */
@@ -71,7 +86,7 @@ final readonly class CommitTranslations
             return;
         }
 
-        Cache::memo()->many($commits->map($this->key(...))->all());
+        Cache::memo()->many([...$commits->map($this->key(...))->all(), ...$commits->map($this->undetectableKey(...))->all()]);
         $viewer = request()->user()?->id;
 
         foreach ($commits as $commit) {
@@ -91,7 +106,7 @@ final readonly class CommitTranslations
         /** @var CachedTranslations|null $cached */
         $cached = Cache::memo()->get($this->key($commit));
 
-        if ($cached === null) {
+        if ($cached === null && Cache::memo()->get($this->undetectableKey($commit)) === null) {
             try {
                 dispatch(new DetectCommitLanguage($commit->id))->afterCommit();
             } catch (Throwable $exception) {

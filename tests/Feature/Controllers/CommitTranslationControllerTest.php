@@ -249,6 +249,29 @@ it('isolates language detection from default workers and retries transient failu
     expect($attempts)->toBe(3);
 });
 
+it('stops queueing detection for a post once every try failed, until the mark expires', function (): void {
+    Exceptions::fake();
+    config(['queue.default' => 'database']);
+    $this->mock(TranslationProvider::class)->shouldReceive('translate')->times(3)->andThrow(new RuntimeException('Provider unavailable'));
+    $commit = Commit::factory()->create(['body' => 'Guten morgen']);
+    $url = route('commit.show', ['profile' => $commit->user, 'commit' => $commit]);
+    $this->get($url)->assertOk();
+
+    foreach ([0, 60, 600] as $delay) {
+        $this->travel($delay)->seconds();
+        $this->artisan('queue:work', ['connection' => 'database', '--queue' => 'translations', '--once' => true])->assertSuccessful();
+    }
+
+    $this->assertDatabaseCount('failed_jobs', 1);
+    $this->get($url)->assertOk();
+    $this->assertDatabaseCount('jobs', 0);
+
+    $this->travel(CommitTranslations::UNDETECTABLE_TTL_SECONDS)->seconds();
+    app()->forgetScopedInstances();
+    $this->get($url)->assertOk();
+    $this->assertDatabaseCount('jobs', 1);
+});
+
 it('requires sign in to generate translations', function (): void {
     $this->mock(TranslationProvider::class)->shouldNotReceive('translate');
 

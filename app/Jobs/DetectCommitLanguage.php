@@ -16,6 +16,7 @@ use Illuminate\Queue\Attributes\Queue;
 use Illuminate\Queue\Attributes\Timeout;
 use Illuminate\Queue\Attributes\Tries;
 use Illuminate\Queue\Attributes\UniqueFor;
+use Throwable;
 
 #[Backoff([60, 600])]
 #[Queue('translations')]
@@ -42,6 +43,18 @@ final class DetectCommitLanguage implements ShouldBeUnique, ShouldQueue
 
         if ($commit instanceof Commit && resolve(CommitTranslations::class)->enabled()) {
             $action->handle($commit);
+        }
+    }
+
+    /**
+     * Every try failed, so views stop queueing detection for this post until the mark expires.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        $commit = Commit::withTrashed()->find($this->commitId);
+
+        if ($commit instanceof Commit) {
+            resolve(CommitTranslations::class)->markUndetectable($commit);
         }
     }
 }
