@@ -454,18 +454,22 @@ it('omits expired recaps from hot topics', function (): void {
         ->where('hotTopics.0.id', $topic->id)->where('hotTopics.0.summary', null));
 });
 
-it('does not repeat hidden authors through sidebar recaps', function (string $relationship): void {
+it('does not repeat hidden authors through sidebar recaps', function (string $relationship, bool $isReply): void {
     $viewer = User::factory()->create();
     $hidden = User::factory()->create();
     $viewer->{$relationship}()->attach($hidden);
     $topic = Headline::factory()->create(['summary' => 'A recap with hidden contributions.', 'summary_created_at' => now()]);
-    Commit::factory()->for($hidden)->hasAttached($topic)->create();
-    Commit::factory()->hasAttached($topic)->create();
+    $root = Commit::factory()->hasAttached($topic)->create();
+    if ($isReply) {
+        Commit::factory()->for($hidden)->for($root, 'parent')->create();
+    } else {
+        Commit::factory()->for($hidden)->hasAttached($topic)->create();
+    }
 
     $this->actingAs($viewer)->get(route('starred.index'))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('hotTopics.0.id', $topic->id)->where('hotTopics.0.summary', null));
-})->with(['muting', 'blocking']);
+})->with(['muting', 'blocking'])->with(['root' => false, 'reply' => true]);
 
 it('keeps the live following list of the aside for a minute, unless a partial reload asks for it', function (): void {
     $this->freezeSecond();

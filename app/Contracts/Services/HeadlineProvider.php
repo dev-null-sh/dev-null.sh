@@ -37,7 +37,8 @@ interface HeadlineProvider
     public function deduplicate(array $headlines): array;
 
     /**
-     * Return a grounded recap only when the supplied public posts have enough substance to summarize.
+     * Return a grounded recap only when the supplied public posts and reply context have enough substance to summarize.
+     * A body may contain JSON with post and replies; neither contains account or commit identifiers.
      *
      * @param  list<string>  $bodies
      */
