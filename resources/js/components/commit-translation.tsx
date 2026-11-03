@@ -54,6 +54,7 @@ export function useCommitTranslation(commit: Commit) {
         const controller = new AbortController();
         const body = commit.body;
         const read = coalesce(async () => {
+            const since = readAt();
             const response = await fetch(
                 CommitTranslationController.show.url(commit.id, {
                     query: { language },
@@ -70,6 +71,7 @@ export function useCommitTranslation(commit: Commit) {
                     translation: CommitTranslation | null;
                 };
 
+                readSince.current = since;
                 setGenerated({ body, translation: fresh.translation });
             }
         }, 500);
@@ -77,11 +79,13 @@ export function useCommitTranslation(commit: Commit) {
         // translated since: joining does while none is shown yet, and reads again only those.
         const catchUp = async () => {
             const since = readSince.current;
-            readSince.current = readAt();
+            const checkedAt = readAt();
             const change = await changesSince(commit.id, since);
 
             if (change === null || change.translated) {
                 read.request();
+            } else {
+                readSince.current = checkedAt;
             }
         };
         const stop = listen(

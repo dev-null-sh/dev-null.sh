@@ -169,3 +169,76 @@ test('joining asks once what was translated among the commits shown, and reads a
     );
     connectRealtime(null);
 });
+
+for (const failure of ['503', 'network'] as const) {
+    test(`rejoining retries a completed translation whose read failed with ${failure}`, async () => {
+        const { fakeConnection } = await import('./FakeRealtime');
+        const { connectRealtime } =
+            await import('../../resources/js/lib/realtime');
+        const fake = fakeConnection();
+        connectRealtime(fake.connection);
+        const started = Date.now();
+        const translatedAt = started + 1_000;
+        const untranslated = {
+            ...commit,
+            translation: { ...translation('en', ''), translated: null },
+        } as unknown as Commit;
+        let gets = 0;
+        vi.stubGlobal('fetch', async (input: string) => {
+            const url = new URL(input, 'http://localhost');
+
+            if (url.pathname === '/commits/changes') {
+                return Response.json({
+                    changes: {
+                        c: {
+                            changed: false,
+                            replies: [],
+                            truncated: false,
+                            translated:
+                                translatedAt >
+                                Number(url.searchParams.get('since')),
+                        },
+                    },
+                });
+            }
+
+            if (++gets === 1) {
+                if (failure === 'network') {
+                    throw new Error('Synthetic network failure');
+                }
+
+                return new Response(null, { status: 503 });
+            }
+
+            return Response.json({ translation: translation('en', 'Hello') });
+        });
+        function Recovering() {
+            shown = useCommitTranslation(untranslated);
+
+            return null;
+        }
+
+        try {
+            void harness.render(Recovering, {});
+            vi.setSystemTime(started + 20_000);
+            fake.setStatus('connected');
+            fake.joined.get('commits.c')?.join();
+            await vi.advanceTimersByTimeAsync(600);
+            void harness.render(Recovering, {});
+            assert.equal(gets, 1);
+            assert.equal(text(), 'Olá');
+
+            vi.setSystemTime(started + 40_000);
+            fake.setStatus('unavailable');
+            fake.setStatus('connected');
+            fake.joined.get('commits.c')?.join();
+            await vi.advanceTimersByTimeAsync(600);
+            void harness.render(Recovering, {});
+
+            assert.equal(gets, 2);
+            assert.equal(text(), 'Hello');
+        } finally {
+            connectRealtime(null);
+        }
+    });
+}
