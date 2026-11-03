@@ -164,7 +164,10 @@ function followFromProfile(user: Pick<User, 'id' | 'handle'>): void {
         (props) => props['data-test'] === 'follow-button',
     );
     assert.ok(profileButton);
+
+    (profileButton.props.onStart as () => void)();
     (profileButton.props.onSuccess as () => void)();
+    (profileButton.props.onFinish as () => void)();
 }
 
 test('the focused commit exposes f as its follow shortcut', () => {
