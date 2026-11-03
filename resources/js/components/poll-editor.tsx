@@ -3,7 +3,6 @@ import InputError from '@/components/input-error';
 import { MentionTextarea } from '@/components/mention-textarea';
 import { Button } from '@/components/ui/button';
 import { bodyCharacterCount } from '@/lib/commit';
-import { maxUrlLength } from '@/lib/urls';
 import { characterCount, cn } from '@/lib/utils';
 
 export type PollDraft = {
@@ -15,8 +14,8 @@ export const emptyPollDraft: PollDraft = { options: ['', ''], duration: 1440 };
 
 const maxOptionLength = 50;
 
-/** Links count as at most 23 characters, so an option may be this long with the longest link. */
-const maxRawOptionLength = maxOptionLength + maxUrlLength;
+/** Links count as at most 23 characters, so an option may be longer, up to what its column holds. */
+const maxRawOptionLength = 255;
 
 /**
  * The limit an option goes over, checked in the server's order: its raw length first, then its length with each link

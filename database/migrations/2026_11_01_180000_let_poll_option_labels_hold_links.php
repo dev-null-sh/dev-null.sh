@@ -15,7 +15,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('poll_options', function (Blueprint $table): void {
-            $table->text('label')->change();
+            $table->string('label', 255)->change();
         });
     }
 };

@@ -176,6 +176,7 @@ it('rejects invalid times and bodies', function (array $payload, string $field):
     'whitespace' => [['body' => '    '], 'body'],
     'too long' => [['body' => str_repeat('a', 4001)], 'body'],
     'poll with one option' => [['poll' => ['options' => ['Tabs'], 'duration' => 1440]], 'poll.options'],
+    'poll option over 255 characters, with a link' => [['poll' => ['options' => ['Tabs', 'https://example.com/'.str_repeat('a', 236)], 'duration' => 1440]], 'poll.options.1'],
     'poll with images' => [['poll' => ['options' => ['Tabs', 'Spaces'], 'duration' => 1440], 'images' => [UploadedFile::fake()->image('a.png')]], 'poll'],
     'too many images' => [['images' => array_map(fn (int $i): UploadedFile => UploadedFile::fake()->image($i.'.png'), range(1, 4))], 'images'],
     'link card not in the body' => [['link_preview_url' => 'https://example.com/elsewhere'], 'link_preview_url'],

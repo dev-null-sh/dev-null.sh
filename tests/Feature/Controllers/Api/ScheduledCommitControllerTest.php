@@ -141,6 +141,7 @@ it('rejects invalid commits as the web does', function (array $payload, string $
     'a reply' => [['parent_id' => '01a1823b-8a82-70e9-abce-622eea7c82cf'], 'parent_id'],
     'a quote' => [['quoted_commit_id' => '01a1823b-8a82-70e9-abce-622eea7c82cf'], 'quoted_commit_id'],
     'a link card for a link not in the body' => [['link_preview_url' => 'https://example.com'], 'link_preview_url'],
+    'a poll option over 255 characters, with a link' => [['poll' => ['options' => ['Tabs', 'https://example.com/'.str_repeat('a', 236)], 'duration' => 1440]], 'poll.options.1'],
 ]);
 
 it('limits how many commits the user may have waiting', function (): void {

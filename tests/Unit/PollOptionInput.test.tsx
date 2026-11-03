@@ -78,10 +78,11 @@ test('counts a link in a poll option as at most 23 characters, as in the body', 
     assert.equal(isPollOptionTooLong(prose), true);
 });
 
-test('keeps an option over the raw limit whole and flags it, as the server rejects it', () => {
-    const link = (path: string) => `https://example.com/${path.repeat(1100)}`;
-    const option = `${link('a')} ${link('b')}`;
+test('keeps an option over 255 characters whole and flags it, as the server rejects it', () => {
+    const longest = `https://example.com/${'a'.repeat(235)}`;
+    const option = `${longest}a`;
 
+    assert.equal(isPollOptionTooLong(longest), false);
     assert.equal(isPollOptionTooLong(option), true);
     assert.ok(
         render(vi.fn(), {
@@ -90,7 +91,7 @@ test('keeps an option over the raw limit whole and flags it, as the server rejec
         }).some(
             (element) =>
                 element.props.message ===
-                'The option 2 field must not be greater than 2098 characters.',
+                'The option 2 field must not be greater than 255 characters.',
         ),
     );
 });

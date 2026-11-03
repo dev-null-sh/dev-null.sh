@@ -175,6 +175,17 @@ it('accepts a poll option of exactly 50 characters once its link is counted', fu
     expect(Poll::query()->sole()->options()->where('label', $option)->exists())->toBeTrue();
 });
 
+it('accepts a poll option of 255 characters, the longest a label holds', function (): void {
+    $option = 'https://example.com/'.str_repeat('a', 235);
+
+    $this->actingAs(User::factory()->create())
+        ->fromRoute('log.show', Log::Following)
+        ->post(route('commit.store'), ['body' => 'Tabs or spaces?', 'poll' => ['options' => ['Tabs', $option], 'duration' => 1440]])
+        ->assertSessionHasNoErrors();
+
+    expect(Poll::query()->sole()->options()->where('label', $option)->exists())->toBeTrue();
+});
+
 it('validates the length of a poll option with links', function (string $option, string $error): void {
     $this->actingAs(User::factory()->create())
         ->fromRoute('log.show', Log::Following)
@@ -184,7 +195,7 @@ it('validates the length of a poll option with links', function (string $option,
     expect(Commit::query()->count())->toBe(0);
 })->with([
     'one character over, with a link' => [str_repeat('a', 27).' https://example.com/'.str_repeat('b', 40), 'The option 2 field must not be greater than 50 characters.'],
-    'an oversized link' => ['https://example.com/'.str_repeat('a', 2048), 'Each link must not be greater than 2048 characters.'],
+    'one character over 255, with a link' => ['https://example.com/'.str_repeat('a', 236), 'The option 2 field must not be greater than 255 characters.'],
 ]);
 
 it('may not attach a poll to a reply', function (): void {

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Dto;
 
 use App\Enums\PollDuration;
-use App\Services\Urls;
 
 final readonly class NewPoll
 {
@@ -16,9 +15,9 @@ final readonly class NewPoll
     public const int MaxOptionLength = 50;
 
     /**
-     * Links count as at most 23 characters towards an option's length, so it may be this long with the longest link.
+     * Links count as at most 23 characters towards an option's length, so it may be longer, up to what its column holds.
      */
-    public const int MaxOptionRawLength = self::MaxOptionLength + Urls::MAX_LENGTH;
+    public const int MaxOptionRawLength = 255;
 
     /**
      * @param  list<string>  $options
