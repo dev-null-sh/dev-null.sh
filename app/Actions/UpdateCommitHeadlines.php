@@ -31,6 +31,8 @@ final readonly class UpdateCommitHeadlines
                 return null;
             }
 
+            $previousNames = collect();
+
             if ($reclassify) {
                 $previousNames = $current->headlines()->pluck('name');
                 Headline::query()->whereIn('name', $previousNames->diff($names)->merge(collect($names)->diff($previousNames)))
@@ -48,7 +50,7 @@ final readonly class UpdateCommitHeadlines
 
             $current->update(['headlines_classified_at' => now()]);
 
-            if ($names !== []) {
+            if ($names !== [] || $previousNames->isNotEmpty()) {
                 event(new HeadlinesUpdated());
             }
 
