@@ -10,8 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * The stream a person is on as the web shows it when it is asked for or heard of, with when it runs out, so a page
- * left open stops showing it then. Pages that show people get only the stream itself, and ask for this.
+ * The stream a person is on as the web shows it when it is asked for, with when it runs out, so a page left open stops
+ * showing it then. Pages that show people get only the stream itself, and ask for this.
  *
  * @mixin User
  */
@@ -22,7 +22,7 @@ final class LiveStreamResource extends JsonResource
      */
     public static function of(User $user): ?array
     {
-        return $user->liveStream() instanceof LiveStream ? (new self($user))->toArray(request()) : null;
+        return $user->liveStream() instanceof LiveStream ? new self($user)->toArray(request()) : null;
     }
 
     /**
