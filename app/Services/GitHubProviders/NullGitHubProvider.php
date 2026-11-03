@@ -66,7 +66,7 @@ final readonly class NullGitHubProvider implements GitHubProvider
         return null;
     }
 
-    public function closedPullRequests(string $repository, string $branch, int $page, int $perPage): array
+    public function commits(string $repository, string $branch, int $page, int $perPage): array
     {
         return [];
     }

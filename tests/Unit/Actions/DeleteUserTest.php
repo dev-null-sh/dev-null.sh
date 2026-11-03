@@ -26,6 +26,7 @@ use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\PushSubscription;
 use App\Models\User;
+use App\Queries\HeadlineSummaryQuery;
 use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
 use Illuminate\Http\UploadedFile;
@@ -43,6 +44,7 @@ it('may delete a user', function (): void {
     expect($user->exists)->toBeFalse();
     $this->assertModelMissing($user);
     $this->assertModelMissing($user->profile);
+    $this->assertDatabaseHas('deleted_github_accounts', ['github_id' => $user->github_id]);
 });
 
 it('erases the commits of a deleted user along with the replies under them', function (): void {
@@ -56,9 +58,15 @@ it('erases the commits of a deleted user along with the replies under them', fun
     resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => $organization->id]);
     resolve(CreateCommitTopics::class)->handle($unrelated, ['laravel' => $organization->id]);
 
+    $headline = $commit->headlines()->create(['name' => 'Laravel adds a new feature', 'summary' => 'A recap containing the deleted authors contribution.', 'summary_created_at' => now()]);
+    $headline->commits()->attach([$reply->id, $unrelated->id]);
+
     resolve(DeleteUser::class)->handle($user);
 
     expect(Commit::withTrashed()->pluck('id')->all())->toBe([$unrelated->id])
+        ->and($headline->commits->modelKeys())->toBe([$unrelated->id])
+        ->and($headline->refresh()->summary)->toBeNull()
+        ->and($headline->summary_created_at)->toBeNull()
         ->and(DB::table('commit_topics')->pluck('commit_id')->all())->toBe([$unrelated->id]);
 });
 
@@ -71,6 +79,26 @@ it('keeps the quotes of others when erasing the quoted commits of a deleted user
     $this->assertNotSoftDeleted($quote);
 
     expect($quote->refresh()->quoted_commit_id)->toBeNull();
+});
+
+it('lets a recap containing a deleted users replies expire within two hours', function (): void {
+    $user = User::factory()->create();
+    $viewer = User::factory()->create();
+    $root = Commit::factory()->create();
+    $headline = $root->headlines()->create(['name' => 'Vector index memory regression', 'summary' => 'A recap based on the reply.', 'summary_created_at' => now()]);
+    $reply = Commit::factory()->for($root, 'parent')->for($user)->create();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($headline->refresh()->summary)->toBe('A recap based on the reply.');
+    $this->assertModelMissing($reply);
+    $this->assertModelExists($root);
+
+    $this->travel(7199)->seconds();
+    expect(resolve(HeadlineSummaryQuery::class)->get($headline, $viewer))->toBe('A recap based on the reply.');
+
+    $this->travel(1)->seconds();
+    expect(resolve(HeadlineSummaryQuery::class)->get($headline, $viewer))->toBeNull();
 });
 
 it('leaves a tombstone for a reply of a deleted user that other people replied to', function (): void {
@@ -100,8 +128,10 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
         'body' => "@{$mentioned->handle} and @laravel have a look at https://example.com",
         'mentions' => [$mentioned->handle => $mentioned->id],
         'embedding' => embeddingVector(0),
+        'headlines_classified_at' => now(),
     ]);
     resolve(CreateCommitTopics::class)->handle($reply, ['laravel' => Organization::factory()->create()->id]);
+    $reply->headlines()->create(['name' => 'Laravel adds a new feature']);
     $deletedReply = Commit::factory()->for($user)->for($commit, 'parent')->create();
     Commit::factory()->for($reply, 'parent')->create();
     Commit::factory()->for($deletedReply, 'parent')->create();
@@ -115,7 +145,9 @@ it('erases what a deleted user wrote from the tombstones they leave', function (
         ->and($tombstones->pluck('body')->all())->toBe(['', ''])
         ->and($tombstones->pluck('mentions')->all())->toBe([null, null])
         ->and(DB::table('commit_topics')->where('commit_id', $reply->id)->exists())->toBeFalse()
+        ->and($reply->headlines()->exists())->toBeFalse()
         ->and($tombstones->pluck('embedding')->all())->toBe([null, null])
+        ->and($tombstones->pluck('headlines_classified_at')->all())->toBe([null, null])
         ->and($tombstones->pluck('link_preview_id')->all())->toBe([null, null]);
 });
 
@@ -230,17 +262,17 @@ it('erases the organizations a deleted user followed, keeping their other follow
     expect($organization->followers()->pluck('users.id')->all())->toBe([$other->id]);
 });
 
-it('erases the github organizations a deleted user waited to follow', function (): void {
+it('erases the accounts a deleted user waited to follow', function (): void {
     $user = User::factory()->create();
     $other = User::factory()->create();
-    DB::table('pending_organization_follows')->insert([
+    DB::table('pending_follows')->insert([
         ['user_id' => $user->id, 'github_id' => '958072', 'created_at' => now()],
         ['user_id' => $other->id, 'github_id' => '958072', 'created_at' => now()],
     ]);
 
     resolve(DeleteUser::class)->handle($user);
 
-    expect(DB::table('pending_organization_follows')->pluck('user_id')->all())->toBe([$other->id]);
+    expect(DB::table('pending_follows')->pluck('user_id')->all())->toBe([$other->id]);
 });
 
 it('erases the devices of a deleted user', function (): void {

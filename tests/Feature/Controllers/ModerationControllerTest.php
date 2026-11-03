@@ -11,6 +11,7 @@ use App\Jobs\DetectCommitLanguage;
 use App\Jobs\ModerateCommit;
 use App\Models\Commit;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 
@@ -271,4 +272,22 @@ it('may not approve many commits as a non admin', function (): void {
     $response->assertForbidden();
 
     expect($commit->refresh()->status)->toBe(CommitStatus::Pending);
+});
+
+it("shows moderators who posted an organization's commit, and no poster for a person's own", function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $organization = Organization::factory()->create();
+    $poster = User::factory()->create(['handle' => 'taylor']);
+
+    Commit::factory()->pending()->for($poster)->create(['author_id' => $organization->id, 'created_at' => now()->subMinutes(2)]);
+    Commit::factory()->pending()->create(['author_id' => $organization->id, 'user_id' => null, 'created_at' => now()->subMinute()]);
+    Commit::factory()->pending()->create();
+
+    $this->actingAs($admin)->get(route('moderation.show'))->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('commits.data.0.poster.handle', 'taylor')
+            ->where('commits.data.1.poster', null)
+            ->missing('commits.data.2.poster')
+            ->missing('commits.data.0.user')
+            ->missing('commits.data.0.user_id'));
 });

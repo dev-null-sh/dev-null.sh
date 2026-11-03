@@ -7,6 +7,7 @@ use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\LinkPreview;
+use App\Models\Organization;
 use App\Models\Poll;
 use App\Models\PollVote;
 use App\Models\User;
@@ -458,3 +459,16 @@ it('rejects invalid report images without storing a report', function (string $i
     expect(CommitReport::query()->count())->toBe(0);
     expect(Storage::disk()->allFiles())->toBeEmpty();
 })->with(['type', 'size', 'count']);
+
+it('shows moderators who posted a reported organization commit', function (): void {
+    $admin = User::factory()->create(['handle' => 'moderator-demo']);
+    $poster = User::factory()->create(['handle' => 'taylor']);
+    CommitReport::factory()->for(Commit::factory()->for($poster)->state(['author_id' => Organization::factory()]))->create(['created_at' => now()->subMinute()]);
+    CommitReport::factory()->create();
+
+    $this->actingAs($admin)->get(route('reported-commit.index'))->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('reports.data.0.commit.poster.handle', 'taylor')
+            ->missing('reports.data.0.commit.user')
+            ->missing('reports.data.1.commit.poster'));
+});

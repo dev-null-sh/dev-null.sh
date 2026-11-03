@@ -35,7 +35,7 @@ final class CreateCommitReportRequest extends FormRequest
             return Response::denyAsNotFound();
         }
 
-        return $commit->user_id !== $user->id
+        return ! $commit->isOwnedBy($user)
             ? Response::allow()
             : Response::deny('You cannot report your own commit.');
     }

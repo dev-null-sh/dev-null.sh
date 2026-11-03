@@ -174,7 +174,7 @@ const listOf = {
     stashed: 'archived',
 } as const;
 
-let state: ChatState = {
+const emptyChat: ChatState = {
     conversations: null,
     fetched: null,
     archived: null,
@@ -189,6 +189,7 @@ let state: ChatState = {
     pinPreferences: {},
     reactionUsage: null,
 };
+let state = emptyChat;
 const listeners = new Set<() => void>();
 const threadWatchers = new Map<string, number>();
 const threadPollVersions = new Map<string, number>();
@@ -547,7 +548,14 @@ function withoutKey(
     );
 }
 
+function forgetOtherServerRenders(): void {
+    if (typeof window === 'undefined') {
+        state = emptyChat;
+    }
+}
+
 export function seedInbox(inbox: InboxPage): void {
+    forgetOtherServerRenders();
     invalidatedInboxTabs.delete('open');
     updateDuringRender({
         pinPreferences: withPinPreferences(
@@ -2009,18 +2017,13 @@ export async function settleRequest(
     isMerging: boolean,
 ): Promise<boolean> {
     const key = partner.handle;
-
-    try {
-        await request(
-            isMerging
-                ? ConversationMergeController.store.url({ partner: key })
-                : ConversationDropController.store.url({ partner: key }),
-            'POST',
-        );
-    } catch {
-        return false;
-    }
-
+    const previous = {
+        conversations: state.conversations,
+        fetched: state.fetched,
+        requests: state.requests,
+        unread: state.unread,
+    };
+    const previousAccess = state.threads[key]?.access ?? 'request';
     const fetchedRequest = state.fetched?.find(
         (item) => summaryKey(item) === key,
     );
@@ -2040,7 +2043,21 @@ export async function settleRequest(
     });
     updateThread(key, () => ({ access: isMerging ? 'open' : 'waiting' }));
 
-    return true;
+    try {
+        await request(
+            isMerging
+                ? ConversationMergeController.store.url({ partner: key })
+                : ConversationDropController.store.url({ partner: key }),
+            'POST',
+        );
+
+        return true;
+    } catch {
+        update(previous);
+        updateThread(key, () => ({ access: previousAccess }));
+
+        return false;
+    }
 }
 
 /**
@@ -2114,27 +2131,40 @@ function invalidateConversationPages(): void {
     }
 }
 
-export async function setConversationPinned(
-    target: ChatTarget,
-    pinned: boolean,
-): Promise<void> {
-    const preference = await request<{ pinned_at: string | null }>(
-        urls(target).pin,
-        'PUT',
-        { pinned },
-    );
-    const key = targetKey(target);
-    invalidateConversationPages();
-    update({
-        pinPreferences: withPinPreferences([[key, preference.pinned_at]]),
-    });
+function applyConversationPin(key: string, at: string | null): void {
+    update({ pinPreferences: withPinPreferences([[key, at]]) });
     update({
         conversations:
             state.conversations && withConversationPins(state.conversations),
         fetched: state.fetched && withConversationPins(state.fetched),
         archived: state.archived && withConversationPins(state.archived),
     });
-    updateThread(key, () => preference);
+    updateThread(key, () => ({ pinned_at: at }));
+}
+
+export async function setConversationPinned(
+    target: ChatTarget,
+    pinned: boolean,
+): Promise<void> {
+    const key = targetKey(target);
+    const pin = state.pinPreferences[key];
+    const previous =
+        pin === undefined ? (state.threads[key]?.pinned_at ?? null) : pin.at;
+
+    applyConversationPin(key, pinned ? new Date().toISOString() : null);
+
+    const preference = await request<{ pinned_at: string | null }>(
+        urls(target).pin,
+        'PUT',
+        { pinned },
+    ).catch((error: unknown) => {
+        applyConversationPin(key, previous);
+
+        throw error;
+    });
+
+    invalidateConversationPages();
+    applyConversationPin(key, preference.pinned_at);
     await Promise.all(
         [...invalidatedInboxTabs].map((tab) => refreshConversationPages(tab)),
     );
@@ -2142,30 +2172,49 @@ export async function setConversationPinned(
 
 export type MuteDuration = 'hour' | 'tomorrow' | 'week' | 'forever' | 'off';
 
-export async function setConversationMute(
-    target: ChatTarget,
-    duration: MuteDuration,
-): Promise<void> {
-    const preference = await request<{ muted_until_at: string | null }>(
-        urls(target).mute,
-        'PUT',
-        { duration },
-    );
-    const key = targetKey(target);
+function applyConversationMute(key: string, until: string | null): void {
     const apply = (items: ConversationSummary[] | null) =>
         items?.map((item) =>
-            summaryKey(item) === key ? { ...item, ...preference } : item,
+            summaryKey(item) === key
+                ? { ...item, muted_until_at: until }
+                : item,
         ) ?? null;
 
     update({
-        mutePreferences: withMutePreferences([
-            [key, preference.muted_until_at],
-        ]),
+        mutePreferences: withMutePreferences([[key, until]]),
         conversations: apply(state.conversations),
         fetched: apply(state.fetched),
         archived: apply(state.archived),
     });
-    updateThread(key, () => preference);
+    updateThread(key, () => ({ muted_until_at: until }));
+}
+
+const mutedUntilAnswered = '9999-12-31T00:00:00.000Z';
+
+export async function setConversationMute(
+    target: ChatTarget,
+    duration: MuteDuration,
+): Promise<void> {
+    const key = targetKey(target);
+    const mute = state.mutePreferences[key];
+    const previous =
+        mute === undefined
+            ? (state.threads[key]?.muted_until_at ?? null)
+            : mute.until;
+
+    applyConversationMute(key, duration === 'off' ? null : mutedUntilAnswered);
+
+    const preference = await request<{ muted_until_at: string | null }>(
+        urls(target).mute,
+        'PUT',
+        { duration },
+    ).catch((error: unknown) => {
+        applyConversationMute(key, previous);
+
+        throw error;
+    });
+
+    applyConversationMute(key, preference.muted_until_at);
 }
 
 /**
@@ -2227,13 +2276,39 @@ async function refreshOrg(org: OrgRef): Promise<void> {
 }
 
 export async function renameOrg(org: OrgRef, name: string): Promise<void> {
-    await request(OrgController.update.url({ org: org.id }), 'PUT', { name });
-
     const key = targetKey({ kind: 'org', org });
     const renamed = { ...org, name: name.trim() || null };
 
     updateThread(key, () => ({ target: { kind: 'org', org: renamed } }));
+
+    await request(OrgController.update.url({ org: org.id }), 'PUT', {
+        name,
+    }).catch((error: unknown) => {
+        updateThread(key, () => ({ target: { kind: 'org', org } }));
+
+        throw error;
+    });
+
     await refreshOrg(renamed);
+}
+
+async function changeOrgMembers(
+    org: OrgRef,
+    change: (members: OrgMember[]) => OrgMember[],
+    save: () => Promise<unknown>,
+): Promise<void> {
+    const key = targetKey({ kind: 'org', org });
+    const previous = state.threads[key]?.members ?? [];
+
+    updateThread(key, (thread) => ({ members: change(thread.members) }));
+
+    await save().catch((error: unknown) => {
+        updateThread(key, () => ({ members: previous }));
+
+        throw error;
+    });
+
+    await refreshOrg(org);
 }
 
 export async function addOrgMembers(
@@ -2253,15 +2328,22 @@ export async function setOrgMemberRole(
     member: User,
     role: OrgRole,
 ): Promise<void> {
-    await request(
-        OrgMemberController.update.url({
-            org: org.id,
-            member: member.handle,
-        }),
-        'PUT',
-        { role },
+    await changeOrgMembers(
+        org,
+        (members) =>
+            members.map((item) =>
+                item.user.id === member.id ? { ...item, role } : item,
+            ),
+        () =>
+            request(
+                OrgMemberController.update.url({
+                    org: org.id,
+                    member: member.handle,
+                }),
+                'PUT',
+                { role },
+            ),
     );
-    await refreshOrg(org);
 }
 
 /**
@@ -2272,19 +2354,26 @@ export async function removeOrgMember(
     member: User,
     isLeaving: boolean,
 ): Promise<void> {
-    await request(
-        OrgMemberController.destroy.url({
-            org: org.id,
-            member: member.handle,
-        }),
-        'DELETE',
-    );
+    const remove = () =>
+        request(
+            OrgMemberController.destroy.url({
+                org: org.id,
+                member: member.handle,
+            }),
+            'DELETE',
+        );
 
     if (!isLeaving) {
-        await refreshOrg(org);
+        await changeOrgMembers(
+            org,
+            (members) => members.filter((item) => item.user.id !== member.id),
+            remove,
+        );
 
         return;
     }
+
+    await remove();
 
     const key = targetKey({ kind: 'org', org });
     const threads = { ...state.threads };

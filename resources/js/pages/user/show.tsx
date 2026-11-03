@@ -1,4 +1,4 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     Building2,
     CalendarDays,
@@ -20,7 +20,7 @@ import { ActivityStreaks } from '@/components/activity-streaks';
 import { BioText } from '@/components/bio-text';
 import { CommitFeed, EmptyFeed } from '@/components/commit-feed';
 import { EditProfileMenu } from '@/components/edit-profile-menu';
-import { FollowButton } from '@/components/follow-button';
+import { FollowButton, useIsFollowing } from '@/components/follow-button';
 import { FollowersYouKnow } from '@/components/followers-you-know';
 import type { FollowersYouKnowPreview } from '@/components/followers-you-know';
 import { GitHubIcon } from '@/components/github-icon';
@@ -42,7 +42,7 @@ import {
     UserModerationMenu,
     UserModerationStatus,
 } from '@/components/user-moderation-menu';
-import { UserSafetyMenu } from '@/components/user-safety-menu';
+import { useIsMuting, UserSafetyMenu } from '@/components/user-safety-menu';
 import { refreshSharedState, useSharedState } from '@/hooks/use-shared-state';
 import AppLayout from '@/layouts/app-layout';
 import { commitStateKey } from '@/lib/commit-state';
@@ -108,6 +108,10 @@ export default function Show({
     const headerRef = useRef<HTMLDivElement>(null);
     const avatarTargetRef = useRef<HTMLDivElement>(null);
     const [isHeaderVisible, setIsHeaderVisible] = useState(false);
+    const [isFollowingNow] = useIsFollowing(user, isFollowing);
+    const [isMutingNow] = useIsMuting(user, isMuting);
+    const followersCount =
+        user.followers_count + Number(isFollowingNow) - Number(isFollowing);
     const [pasteisCount] = useSharedState(
         commitStateKey('pasteis_received', user.id),
         pasteisReceived ?? 0,
@@ -325,7 +329,7 @@ export default function Show({
                                     isFollowing={isFollowing}
                                     followsYou={followsYou}
                                     className="min-w-28"
-                                    onSuccess={() => router.flushAll()}
+                                    only={['auth', 'user', 'isFollowing']}
                                 />
                             </>
                         )}
@@ -348,7 +352,7 @@ export default function Show({
                                 Follows you
                             </span>
                         )}
-                        {isMuting && (
+                        {isMutingNow && (
                             <span className="ml-1 rounded bg-muted px-1.5 py-0.5 font-sans text-xs">
                                 Muted
                             </span>
@@ -463,9 +467,9 @@ export default function Show({
                             isForMembers: true,
                         },
                         {
-                            count: user.followers_count,
+                            count: followersCount,
                             label: pluralize(
-                                user.followers_count,
+                                followersCount,
                                 'follower',
                                 'followers',
                             ),

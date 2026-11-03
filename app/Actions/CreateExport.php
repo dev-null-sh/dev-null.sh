@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions;
 
 use App\Enums\NotificationType;
+use App\Models\Commit;
 use App\Models\CommitImage;
 use App\Models\CommitReport;
 use App\Models\Conversation;
@@ -39,6 +40,7 @@ use Traversable;
  *     profile: array<string, bool|int|string|null>,
  *     active_days: Generator<int, string>,
  *     commits: Generator<int, array<string, mixed>>,
+ *     organization_commits: Generator<int, array<string, mixed>>,
  *     polls: Generator<int, ExportPoll>,
  *     poll_votes: Generator<int, ExportPollVote>,
  *     stars: Generator<int, string>,
@@ -49,7 +51,7 @@ use Traversable;
  *     dismissed_suggestions: Generator<int, ExportUser>,
  *     organizations: array<int, array{handle: string, role: string, joined_at: string}>,
  *     followed_organizations: array<int, array{handle: string, followed_at: string}>,
- *     pending_organization_follows: list<string>,
+ *     pending_follows: list<string>,
  *     messages: Generator<int, ExportMessage>,
  *     reports: Traversable<int, array<string, mixed>>,
  *     remote_pins: array<int, array{to: string|null, pinned_at: string|null}>,
@@ -72,7 +74,7 @@ final readonly class CreateExport
     public function handle(User $user): array
     {
         return [
-            'schema_version' => 4,
+            'schema_version' => 6,
             'exported_at' => now()->toIso8601String(),
             'profile' => [
                 'github_id' => $user->github_id,
@@ -110,6 +112,7 @@ final readonly class CreateExport
             ],
             'active_days' => $this->activeDays($user),
             'commits' => $this->commits($user),
+            'organization_commits' => $this->organizationCommits($user),
             'polls' => $this->polls($user),
             'poll_votes' => $this->pollVotes($user),
             'stars' => $this->stars($user),
@@ -120,7 +123,7 @@ final readonly class CreateExport
             'dismissed_suggestions' => $this->handles($user->dismissedSuggestions()),
             'organizations' => $this->organizations($user),
             'followed_organizations' => $this->followedOrganizations($user),
-            'pending_organization_follows' => $this->pendingOrganizationFollows($user),
+            'pending_follows' => $this->pendingFollows($user),
             'messages' => $this->messages($user),
             'reports' => CommitReport::query()->where('reporter_id', $user->id)->oldest('id')->cursor()->map(fn (CommitReport $report): array => [
                 'commit_id' => $report->commit_id,
@@ -214,12 +217,44 @@ final readonly class CreateExport
     }
 
     /**
+     * What the user posted for organizations, which is theirs to read back, though the organizations' own, even once
+     * GitHub no longer has the organization and its commits lost their author.
+     *
+     * @return Generator<int, array<string, mixed>>
+     */
+    private function organizationCommits(User $user): Generator
+    {
+        $commits = Commit::query()
+            ->withTrashed()
+            ->where('user_id', $user->id)
+            ->where(fn (CommitBuilder $query): CommitBuilder => $query->whereColumn('author_id', '!=', 'user_id')->orWhereNull('author_id'))
+            ->with(['author', 'images:id,commit_id'])
+            ->lazyById(500);
+
+        foreach ($commits as $commit) {
+            yield [
+                'id' => $commit->id,
+                'organization' => $commit->author?->handle,
+                'parent_id' => $commit->parent_id,
+                'quoted_commit_id' => $commit->quoted_commit_id,
+                'body' => $commit->body,
+                'status' => $commit->status->value,
+                'images' => $commit->images->map(fn (CommitImage $image): string => $image->url())->all(),
+                'created_at' => $commit->created_at->toIso8601String(),
+                'deleted_at' => $commit->deleted_at?->toIso8601String(),
+            ];
+        }
+    }
+
+    /**
+     * The polls of every commit the user posted, theirs or an organization's.
+     *
      * @return Generator<int, ExportPoll>
      */
     private function polls(User $user): Generator
     {
         $polls = Poll::query()
-            ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->where('author_id', $user->id))
+            ->whereHas('commit', fn (CommitBuilder $query): CommitBuilder => $query->where('user_id', $user->id))
             ->with('options')
             ->lazyById(500);
 
@@ -362,28 +397,30 @@ final readonly class CreateExport
     }
 
     /**
-     * The GitHub IDs of the organizations the user follows on GitHub, to follow here once they are on /dev/null.
+     * The GitHub IDs of the accounts the user waits to follow until they are on /dev/null: organizations and developers.
      *
      * @return list<string>
      */
-    private function pendingOrganizationFollows(User $user): array
+    private function pendingFollows(User $user): array
     {
         /** @var list<string> */
-        return DB::table('pending_organization_follows')->where('user_id', $user->id)->orderBy('github_id')->pluck('github_id')->all();
+        return DB::table('pending_follows')->where('user_id', $user->id)->orderBy('github_id')->pluck('github_id')->all();
     }
 
     /**
-     * Moderators stay anonymous, as they are on the notifications page, and level-ups are the user's own doing.
+     * Moderators stay anonymous, as they are on the notifications page, and level-ups are the user's own doing. An
+     * organization's notifications name the organization the user heard about it for.
      *
      * @return Generator<int, array<string, int|string|null>>
      */
     private function notifications(User $user): Generator
     {
-        /** @var LazyCollection<int, object{type: string, actor: string, commit_id: string|null, reason: string|null, level: int|string|null, read_at: string|null, created_at: string}> $notifications */
+        /** @var LazyCollection<int, object{type: string, actor: string, organization: string|null, commit_id: string|null, reason: string|null, level: int|string|null, read_at: string|null, created_at: string}> $notifications */
         $notifications = $user->notifications()
             ->join('profiles as actor_profiles', 'actor_profiles.id', '=', 'notifications.actor_id')
+            ->leftJoin('profiles as organization_profiles', 'organization_profiles.id', '=', 'notifications.organization_id')
             ->toBase()
-            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actor_profiles.handle as actor'])
+            ->select(['notifications.id', 'notifications.type', 'notifications.commit_id', 'notifications.reason', 'notifications.level', 'notifications.read_at', 'notifications.created_at', 'actor_profiles.handle as actor', 'organization_profiles.handle as organization'])
             ->lazyById(500, 'notifications.id', 'id');
 
         foreach ($notifications as $notification) {
@@ -392,6 +429,7 @@ final readonly class CreateExport
             yield [
                 'type' => $notification->type,
                 'actor' => $isModeration ? null : $notification->actor,
+                'organization' => $notification->organization,
                 'commit_id' => $notification->commit_id,
                 'reason' => $notification->reason,
                 'level' => $notification->level === null ? null : (int) $notification->level,

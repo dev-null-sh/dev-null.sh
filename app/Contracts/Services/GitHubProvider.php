@@ -12,7 +12,7 @@ use Carbon\CarbonImmutable;
  * GitHub doesn't answer.
  *
  * @phpstan-type Account array<array-key, mixed>
- * @phpstan-type PullRequest array{number: int, title: string, html_url: string, merged_at: string|null, updated_at: string, merge_commit_sha: string, user: array{id: int, login: string, avatar_url: string}}
+ * @phpstan-type Commit array{sha: string, message: string, url: string, committed_at: string, parents: list<string>, author: array{id: int|null, login: string, avatar_url: string}}
  * @phpstan-type SearchResults array{incomplete: bool, total: int, items: list<array<string, mixed>>}
  * @phpstan-type Issue array{number: int, title: string, url: string}
  * @phpstan-type RateLimit array{remaining: int, limit: int, resets_at: CarbonImmutable}
@@ -88,11 +88,12 @@ interface GitHubProvider
     public function readme(string $login): ?string;
 
     /**
-     * One page of the closed pull requests into the branch, most recently updated first.
+     * One page of the commits reachable from the branch, most recently committed first. The author has no ID when the
+     * commit's email belongs to no GitHub account.
      *
-     * @return list<PullRequest>
+     * @return list<Commit>
      */
-    public function closedPullRequests(string $repository, string $branch, int $page, int $perPage): array;
+    public function commits(string $repository, string $branch, int $page, int $perPage): array;
 
     /**
      * One page of the repository's contributors, most commits first, as GitHub lists them.

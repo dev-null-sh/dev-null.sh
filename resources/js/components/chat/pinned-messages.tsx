@@ -642,6 +642,7 @@ function PinnedItem({
                             >
                                 <Link
                                     href={show(message.user)}
+                                    prefetch
                                     onClick={(event) => {
                                         // The dock stays on every page, so its panel closes as a plain click leaves.
                                         if (

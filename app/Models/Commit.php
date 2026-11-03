@@ -39,6 +39,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read CommitStatus|null $ai_decision
  * @property-read list<string>|null $ai_categories
  * @property-read list<float>|null $embedding
+ * @property-read CarbonInterface|null $headlines_classified_at
  * @property-read CarbonInterface $created_at
  * @property-read CarbonInterface $updated_at
  * @property-read CarbonInterface|null $deleted_at
@@ -58,6 +59,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property-read Commit|null $quotedCommit
  * @property-read Collection<int, Commit> $quotes
  * @property-read Collection<int, CommitImage> $images
+ * @property-read Collection<int, Headline> $headlines
  */
 #[Hidden([
     'user',
@@ -66,6 +68,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'ai_decision',
     'ai_categories',
     'embedding',
+    'headlines_classified_at',
 ])]
 #[UseEloquentBuilder(CommitBuilder::class)]
 final class Commit extends Model
@@ -129,6 +132,7 @@ final class Commit extends Model
             'ai_decision' => CommitStatus::class,
             'ai_categories' => 'array',
             'embedding' => AsVector::class,
+            'headlines_classified_at' => 'datetime',
             'created_at' => 'datetime',
             'updated_at' => 'datetime',
             'deleted_at' => 'datetime',
@@ -186,6 +190,14 @@ final class Commit extends Model
     }
 
     /**
+     * @return BelongsToMany<Headline, $this>
+     */
+    public function headlines(): BelongsToMany
+    {
+        return $this->belongsToMany(Headline::class)->withTimestamps(updatedAt: false);
+    }
+
+    /**
      * The handles it mentions that aren't a user's, which may be GitHub organizations'.
      *
      * @return list<string>
@@ -203,8 +215,25 @@ final class Commit extends Model
     }
 
     /**
+     * A commit is its author's own: a person's, or each member's of the organization it is from.
+     */
+    public function isOwnedBy(User $user): bool
+    {
+        return $this->author_id !== null && ($this->author_id === $user->id || $user->organizations()->whereKey($this->author_id)->exists());
+    }
+
+    /**
+     * Shows who posted an organization's commit, which only moderators see, so they can time out or ban that account. Null
+     * once it is deleted. A person's own commit has no poster apart from its author.
+     */
+    public function withPoster(): self
+    {
+        return $this->author_id === $this->user_id ? $this : $this->setRelation('poster', $this->user);
+    }
+
+    /**
      * Approved commits are visible to everyone but people across a block with their author, which an organization never
-     * is. Whoever posted a commit can also see it.
+     * is. Whoever posted a commit can also see it, and the members of the organization it is from.
      */
     public function isVisibleTo(?User $user): bool
     {
@@ -212,10 +241,13 @@ final class Commit extends Model
             return true;
         }
 
+        if ($this->status !== CommitStatus::Approved) {
+            return $user instanceof User && $this->isOwnedBy($user);
+        }
+
         $author = $this->author?->user;
 
-        return $this->status === CommitStatus::Approved
-            && (! $user instanceof User || ! $author instanceof User || ! $user->hasBlockWith($author));
+        return ! $user instanceof User || ! $author instanceof User || ! $user->hasBlockWith($author);
     }
 
     /**
@@ -229,9 +261,14 @@ final class Commit extends Model
             && $this->created_at->greaterThan(now()->subMinutes(self::CHECKING_MINUTES));
     }
 
+    /**
+     * A deleted commit comes back within seconds, unless its author has gone since: a deleted account takes its own
+     * commits' authors with it, and an organization GitHub no longer has its own. Whoever posted an organization's
+     * commit may have gone, while its members still can bring it back.
+     */
     public function isRestorable(): bool
     {
-        return $this->user_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
+        return $this->author_id !== null && $this->deleted_at !== null && now()->lessThan($this->deleted_at->copy()->addSeconds(self::RESTORABLE_SECONDS));
     }
 
     /**
@@ -282,6 +319,17 @@ final class Commit extends Model
         return $this->belongsTo(self::class, 'quoted_commit_id');
     }
 
+    public function headlineBody(): string
+    {
+        $quoted = $this->quotedCommit;
+
+        if ($quoted === null || $quoted->trashed() || $quoted->status !== CommitStatus::Approved || $quoted->body === '') {
+            return $this->body;
+        }
+
+        return json_encode(['post' => $this->body, 'quoted_post' => $quoted->body], JSON_THROW_ON_ERROR);
+    }
+
     /**
      * @return HasMany<Commit, $this>
      */
@@ -311,7 +359,7 @@ final class Commit extends Model
             return true;
         }
 
-        return $user instanceof User && ($this->user_id === $user->id || $user->isAdmin());
+        return $user instanceof User && ($this->user_id === $user->id || $user->isAdmin() || $this->isOwnedBy($user));
     }
 
     /**

@@ -11,22 +11,21 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Fluent;
 
 /**
- * @phpstan-import-type ChangelogPullRequest from ChangelogQuery
+ * @phpstan-import-type ChangelogCommit from ChangelogQuery
  */
 final readonly class OpenCodeEmailDraftProvider implements EmailDraftProvider
 {
-    public function draft(int $days, array $pullRequests): array
+    public function draft(int $days, array $commits): array
     {
-        $response = new EmailWriter($days)->prompt(collect($pullRequests)
-            ->map(fn (array $pullRequest): string => sprintf(
-                '- [%s] %s (#%d, %s) by %s',
-                $pullRequest['type'] ?? 'other',
-                $pullRequest['title'],
-                $pullRequest['number'],
-                $pullRequest['url'],
-                $pullRequest['author']['mention'] ?? $pullRequest['author']['login'],
+        $response = new EmailWriter($days)->prompt(collect($commits)
+            ->map(fn (array $commit): string => sprintf(
+                '- [%s] %s (%s) by %s',
+                $commit['type'] ?? 'other',
+                $commit['title'],
+                $commit['pull_request']['url'] ?? $commit['url'],
+                $commit['author']['mention'] ?? $commit['author']['login'],
             ))
-            ->whenEmpty(fn (): Collection => collect(['No pull requests were merged.']))
+            ->whenEmpty(fn (): Collection => collect(['Nothing landed on production.']))
             ->implode("\n"));
 
         $email = new Fluent($response->structured);

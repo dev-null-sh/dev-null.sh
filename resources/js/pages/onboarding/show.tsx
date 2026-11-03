@@ -26,6 +26,7 @@ import { UserAvatar } from '@/components/user-avatar';
 import { SuggestedUserRow } from '@/components/who-to-follow';
 import { WordmarkText } from '@/components/wordmark-text';
 import { useClipboard } from '@/hooks/use-clipboard';
+import { useMediaQuery } from '@/hooks/use-media-query';
 import { useUser } from '@/hooks/use-user';
 import { useKeyLabels } from '@/lib/keyboard';
 import { formatCount } from '@/lib/numbers';
@@ -62,18 +63,15 @@ function orgs(count: number): string {
 
 const countUpDuration = 900;
 
-function prefersReducedMotion(): boolean {
-    return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 /**
  * Counts from 0 to the target, fast then settling, after the given delay.
  */
 function useCountUp(target: number, delay: number): number {
+    const isReducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
     const [value, setValue] = useState(0);
 
     useEffect(() => {
-        if (prefersReducedMotion()) {
+        if (isReducedMotion) {
             return;
         }
 
@@ -93,9 +91,9 @@ function useCountUp(target: number, delay: number): number {
         frame = requestAnimationFrame(tick);
 
         return () => cancelAnimationFrame(frame);
-    }, [target, delay]);
+    }, [target, delay, isReducedMotion]);
 
-    return prefersReducedMotion() ? target : value;
+    return isReducedMotion ? target : value;
 }
 
 /**

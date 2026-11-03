@@ -45,6 +45,7 @@ export default function Index({ devices }: { devices: Device[] }) {
                         as you through the app, since you approved it here on
                         the web. Revoke any you don't use or don't recognize.{' '}
                         <Link
+                            prefetch
                             href={AppController.index()}
                             className="underline decoration-rail underline-offset-4 hover:decoration-current"
                         >

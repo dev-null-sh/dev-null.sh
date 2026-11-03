@@ -18,7 +18,7 @@ use Illuminate\Support\Str;
 
 /**
  * @phpstan-import-type Account from GitHubProvider
- * @phpstan-import-type PullRequest from GitHubProvider
+ * @phpstan-import-type Commit from GitHubProvider
  * @phpstan-import-type SearchResults from GitHubProvider
  * @phpstan-import-type Issue from GitHubProvider
  * @phpstan-import-type RateLimit from GitHubProvider
@@ -145,19 +145,30 @@ final readonly class HttpGitHubProvider implements GitHubProvider
     }
 
     /**
-     * @return list<PullRequest>
+     * @return list<Commit>
      */
-    public function closedPullRequests(string $repository, string $branch, int $page, int $perPage): array
+    public function commits(string $repository, string $branch, int $page, int $perPage): array
     {
-        /** @var list<PullRequest> */
-        return $this->request()->get("repos/{$repository}/pulls", [
-            'state' => 'closed',
-            'base' => $branch,
-            'sort' => 'updated',
-            'direction' => 'desc',
+        return array_values($this->request()->get("repos/{$repository}/commits", [
+            'sha' => $branch,
             'per_page' => $perPage,
             'page' => $page,
-        ])->throw()->json();
+        ])->throw()->collect()->mapInto(Fluent::class)->map(fn (Fluent $commit): array => [
+            'sha' => $commit->string('sha')->value(),
+            'message' => $commit->string('commit.message')->value(),
+            'url' => $commit->string('html_url')->value(),
+            'committed_at' => $commit->string('commit.committer.date')->value(),
+            'parents' => array_values($commit->collect('parents')->mapInto(Fluent::class)->map(fn (Fluent $parent): string => $parent->string('sha')->value())->all()),
+            'author' => $commit->get('author') === null ? [
+                'id' => null,
+                'login' => $commit->string('commit.author.name')->value(),
+                'avatar_url' => 'https://avatars.githubusercontent.com/u/10137',
+            ] : [
+                'id' => $commit->integer('author.id'),
+                'login' => $commit->string('author.login')->value(),
+                'avatar_url' => $commit->string('author.avatar_url')->value(),
+            ],
+        ])->all());
     }
 
     public function contributors(string $repository, int $page, int $perPage): array

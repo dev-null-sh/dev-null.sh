@@ -11,13 +11,7 @@ import {
     updateQuotedCommits,
 } from '@/lib/commit-mutation-options';
 import { isDeliberateHover } from '@/lib/feed-hover';
-import {
-    authorLaneColor,
-    cn,
-    formatDayLabel,
-    laneColor,
-    localDayKey,
-} from '@/lib/utils';
+import { authorLaneColor, cn, formatDayLabel, localDayKey } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
 
 const interludeAfter = 5;

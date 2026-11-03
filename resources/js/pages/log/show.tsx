@@ -22,6 +22,7 @@ import { useComposerVisibility } from '@/hooks/use-composer-visibility';
 import { useFreshRows } from '@/hooks/use-fresh-rows';
 import { useLaneSwipe } from '@/hooks/use-lane-swipe';
 import { useLastVisit } from '@/hooks/use-last-visit';
+import { useOwnsCommit } from '@/hooks/use-owns-commit';
 import AppLayout from '@/layouts/app-layout';
 import { backgroundPollOptions } from '@/lib/background-poll';
 import { emojify } from '@/lib/emoji';
@@ -43,6 +44,7 @@ export default function Show({
         props: { auth },
     } = usePage();
     const user = auth.user;
+    const ownsCommit = useOwnsCommit();
     const [notice, setNotice] = useState<{
         commits: Commit[];
         leaving: boolean;
@@ -89,7 +91,7 @@ export default function Show({
         };
     }, [log]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         const tabs = tabsRef.current;
 
         if (!tabs) {
@@ -282,8 +284,7 @@ export default function Show({
                         .commits as CursorPaginated<Commit>;
                     const arrivals = incoming.data.filter(
                         (commit) =>
-                            !known.has(commit.id) &&
-                            commit.author.id !== user?.id,
+                            !known.has(commit.id) && !ownsCommit(commit),
                     );
                     if (
                         arrivals.length === 0 ||

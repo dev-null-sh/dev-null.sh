@@ -268,6 +268,27 @@
         both;
     --animate-star-pop: star-pop 450ms cubic-bezier(0.175, 0.885, 0.32, 1.275)
         both;
+    --animate-flame-flicker: flame-flicker 5s ease-in-out infinite;
+
+    @keyframes flame-flicker {
+        0%,
+        80%,
+        100% {
+            transform: scale(1) skewX(0deg);
+        }
+        84% {
+            transform: scale(0.94, 1.08) skewX(-3deg);
+        }
+        88% {
+            transform: scale(1.04, 0.96) skewX(2deg);
+        }
+        92% {
+            transform: scale(0.96, 1.05) skewX(-2deg);
+        }
+        96% {
+            transform: scale(1.02, 0.98) skewX(1deg);
+        }
+    }
 
     @keyframes star-pop {
         0% {
