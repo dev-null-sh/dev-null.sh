@@ -11,6 +11,7 @@ import {
     followVisitOptions,
     useFollow,
     useFollowHover,
+    useIsFollowing,
 } from '@/components/follow-button';
 import {
     LiveAvatarMarker,
@@ -18,6 +19,8 @@ import {
 } from '@/components/live-stream-card';
 import { LocalTime } from '@/components/local-time';
 import { MembersLink } from '@/components/members-link';
+import { OrganizationAvatar } from '@/components/organization-avatar';
+import { OrganizationFollowButton } from '@/components/organization-follow-button';
 import { Button } from '@/components/ui/button';
 import { UserAvatar } from '@/components/user-avatar';
 import { useIsMuting, UserSafetyMenu } from '@/components/user-safety-menu';
@@ -25,14 +28,16 @@ import { useLiveStream } from '@/hooks/use-live-stream';
 import { signIn } from '@/lib/auth';
 import { exactCountTitle, formatCount } from '@/lib/numbers';
 import { toastWhenThrottled } from '@/lib/throttle';
-import { cn, laneColor } from '@/lib/utils';
+import { cn, laneColor, organizationLaneColor } from '@/lib/utils';
 import { preview } from '@/routes/mention';
+import { show as organizationPreview } from '@/routes/organization-preview';
 import { show } from '@/routes/user';
 import { show as userPreview } from '@/routes/user-preview';
 import type {
     Commit,
     CommitAuthor,
     CursorPaginated,
+    OrganizationAuthor,
     Profile,
     User,
 } from '@/types';
@@ -49,6 +54,12 @@ type PreviewData = {
     | { isUnavailable: true; user: User }
 );
 
+type OrganizationPreviewData = {
+    commitsCount: number;
+    followersCount: number;
+    isFollowing: boolean;
+};
+
 type Position =
     | { left: number; top: number; bottom?: never }
     | { left: number; bottom: number; top?: never };
@@ -60,9 +71,11 @@ const previewHeight = 260;
 const viewportMargin = 8;
 // Where the centre of the preview's avatar sits: border, padding and half of the size-14 avatar.
 const avatarCentre = 45;
-const cache = new Map<string, PreviewData>();
+const cache = new Map<string, PreviewData | OrganizationPreviewData>();
 
-async function fetchPreview(url: string): Promise<PreviewData> {
+async function fetchPreview<
+    T extends PreviewData | OrganizationPreviewData = PreviewData,
+>(url: string): Promise<T> {
     const response = await fetch(url, {
         headers: {
             Accept: 'application/json',
@@ -76,10 +89,16 @@ async function fetchPreview(url: string): Promise<PreviewData> {
         throw new Error(`Unable to load ${url}`);
     }
 
-    const data = (await response.json()) as PreviewData;
+    const data = (await response.json()) as T;
     cache.set(url, data);
 
     return data;
+}
+
+function cached<T extends PreviewData | OrganizationPreviewData = PreviewData>(
+    url: string,
+): T | null {
+    return (cache.get(url) as T | undefined) ?? null;
 }
 
 export type Relationship = Pick<
@@ -95,8 +114,8 @@ export function usePreviewRelationship(
     isEnabled: boolean,
 ): Relationship | null {
     const url = userPreview(user).url;
-    const [relationship, setRelationship] = useState<Relationship | null>(
-        () => cache.get(url) ?? null,
+    const [relationship, setRelationship] = useState<Relationship | null>(() =>
+        cached<PreviewData>(url),
     );
 
     useEffect(() => {
@@ -150,9 +169,6 @@ export function UserPreview({
     anchor,
     onHoverChange,
 }: {
-    /**
-     * An organization's commits have no hover card, so they only report hovering.
-     */
     user: User | Pick<User, 'handle'> | CommitAuthor;
     userId?: string;
     children: ReactNode;
@@ -160,7 +176,13 @@ export function UserPreview({
     anchor?: RefObject<HTMLElement | null>;
     onHoverChange?: (isHovering: boolean) => void;
 }) {
-    const previewUrl = userId ? preview(userId).url : userPreview(user).url;
+    const organization =
+        'type' in user && user.type === 'organization' ? user : null;
+    const previewUrl = organization
+        ? organizationPreview(organization).url
+        : userId
+          ? preview(userId).url
+          : userPreview(user).url;
     const triggerRef = useRef<HTMLSpanElement>(null);
     const previewRef = useRef<HTMLDivElement>(null);
     const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -168,14 +190,16 @@ export function UserPreview({
     const isPointerOver = useRef(false);
     const [position, setPosition] = useState<Position | null>(null);
     const [isOpen, setIsOpen] = useState(false);
-    const [data, setData] = useState<PreviewData | null>(
-        () => cache.get(previewUrl) ?? null,
-    );
+    const [data, setData] = useState<
+        PreviewData | OrganizationPreviewData | null
+    >(() => cached(previewUrl));
+    const userData = data && 'user' in data ? data : null;
     const previewUser =
-        data?.user ??
+        userData?.user ??
         ('id' in user && !('type' in user && user.type === 'organization')
             ? user
             : null);
+    const previewHandle = organization?.handle ?? previewUser?.handle;
 
     const close = () => {
         setIsOpen(false);
@@ -203,7 +227,7 @@ export function UserPreview({
                     : positionFor(triggerRef.current),
             );
             setIsOpen(true);
-            setData(cache.get(previewUrl) ?? null);
+            setData(cached(previewUrl));
             fetchPreview(previewUrl).then(setData, () => undefined);
         }, openDelay);
     };
@@ -297,10 +321,7 @@ export function UserPreview({
                     }
 
                     changeHover(true);
-
-                    if (!('type' in user && user.type === 'organization')) {
-                        scheduleOpen();
-                    }
+                    scheduleOpen();
                 }}
                 onPointerLeave={(event) => {
                     if (event.pointerType !== 'mouse') {
@@ -316,12 +337,12 @@ export function UserPreview({
             </span>
 
             {position &&
-                previewUser &&
+                previewHandle &&
                 createPortal(
                     <div
                         ref={previewRef}
                         role="dialog"
-                        aria-label={`About @${previewUser.handle}`}
+                        aria-label={`About @${previewHandle}`}
                         onPointerEnter={(event) => {
                             if (event.pointerType !== 'mouse') {
                                 return;
@@ -348,24 +369,33 @@ export function UserPreview({
                         }}
                         data-test="user-preview"
                     >
-                        <UserPreviewContent
-                            user={previewUser}
-                            data={data}
-                            onMenuOpenChange={(isOpen) => {
-                                isMenuOpen.current = isOpen;
-                                clearTimeout(timer.current);
+                        {organization ? (
+                            <OrganizationPreviewContent
+                                organization={organization}
+                                data={data && !('user' in data) ? data : null}
+                            />
+                        ) : (
+                            previewUser && (
+                                <UserPreviewContent
+                                    user={previewUser}
+                                    data={userData}
+                                    onMenuOpenChange={(isOpen) => {
+                                        isMenuOpen.current = isOpen;
+                                        clearTimeout(timer.current);
 
-                                if (!isOpen && !isPointerOver.current) {
-                                    scheduleClose();
-                                }
-                            }}
-                            onBlockChange={() =>
-                                fetchPreview(previewUrl).then(
-                                    setData,
-                                    () => undefined,
-                                )
-                            }
-                        />
+                                        if (!isOpen && !isPointerOver.current) {
+                                            scheduleClose();
+                                        }
+                                    }}
+                                    onBlockChange={() =>
+                                        fetchPreview(previewUrl).then(
+                                            setData,
+                                            () => undefined,
+                                        )
+                                    }
+                                />
+                            )
+                        )}
                     </div>,
                     document.body,
                 )}
@@ -599,6 +629,108 @@ function UserPreviewContent({
                     <LiveStreamCard user={user} stream={stream} />
                 </div>
             )}
+        </div>
+    );
+}
+
+function OrganizationPreviewContent({
+    organization,
+    data,
+}: {
+    organization: OrganizationAuthor;
+    data: OrganizationPreviewData | null;
+}) {
+    const lane = organizationLaneColor(organization.lane);
+    const [isFollowing] = useIsFollowing(
+        organization,
+        data?.isFollowing ?? false,
+    );
+    const followsDelta =
+        Number(isFollowing) - Number(data?.isFollowing ?? false);
+
+    return (
+        <div style={{ '--lane': lane } as CSSProperties}>
+            <div className="flex items-start justify-between gap-3">
+                <Link href={show(organization)} prefetch className="rounded-lg">
+                    <OrganizationAvatar
+                        organization={organization}
+                        className="size-14 rounded-lg text-lg ring-2 ring-(--lane) ring-offset-2 ring-offset-popover"
+                        pixels={112}
+                    />
+                </Link>
+
+                {data ? (
+                    <OrganizationFollowButton
+                        organization={organization}
+                        isFollowing={data.isFollowing}
+                        size="sm"
+                        className="min-w-26"
+                    />
+                ) : (
+                    <span className="h-8 w-26 rounded-md bg-muted-foreground/15 motion-safe:animate-pulse" />
+                )}
+            </div>
+
+            <Link
+                href={show(organization)}
+                prefetch
+                className="mt-3 block truncate font-semibold hover:underline"
+            >
+                {organization.name}
+            </Link>
+            <p className="flex items-center gap-1.5 font-mono text-[13px] text-muted-foreground">
+                <span
+                    aria-hidden
+                    className="size-2 shrink-0 rounded-full bg-(--lane)"
+                />
+                <span className="truncate">@{organization.handle}</span>
+                <span className="ml-1 shrink-0 rounded-sm bg-muted px-1.5 py-0.5 font-sans text-xs">
+                    Organization
+                </span>
+            </p>
+
+            {organization.bio && (
+                <p className="mt-2 line-clamp-3 text-sm text-pretty">
+                    <BioText bio={organization.bio} />
+                </p>
+            )}
+
+            <div className="mt-3 flex gap-4 text-sm">
+                {data === null ? (
+                    <span className="my-0.5 h-4 w-40 rounded-sm bg-muted-foreground/15 motion-safe:animate-pulse" />
+                ) : (
+                    <>
+                        <span>
+                            <span
+                                className="font-mono font-medium"
+                                title={exactCountTitle(data.commitsCount)}
+                            >
+                                {formatCount(data.commitsCount)}
+                            </span>{' '}
+                            <span className="text-muted-foreground">
+                                {data.commitsCount === 1 ? 'commit' : 'commits'}
+                            </span>
+                        </span>
+                        <span>
+                            <span
+                                className="font-mono font-medium"
+                                title={exactCountTitle(
+                                    data.followersCount + followsDelta,
+                                )}
+                            >
+                                {formatCount(
+                                    data.followersCount + followsDelta,
+                                )}
+                            </span>{' '}
+                            <span className="text-muted-foreground">
+                                {data.followersCount + followsDelta === 1
+                                    ? 'follower'
+                                    : 'followers'}
+                            </span>
+                        </span>
+                    </>
+                )}
+            </div>
         </div>
     );
 }
