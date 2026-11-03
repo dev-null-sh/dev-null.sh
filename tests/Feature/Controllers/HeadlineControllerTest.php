@@ -41,18 +41,24 @@ it('omits unavailable or expired recaps without hiding the discussions', functio
     'exactly expired' => ['An old recap.', '-2 hours'],
 ]);
 
-it('does not repeat muted or blocked authors through a shared recap', function (string $relationship): void {
+it('does not repeat muted or blocked authors through a shared recap', function (string $relationship, bool $isReply): void {
     $viewer = User::factory()->create();
     $hidden = User::factory()->create();
     $viewer->{$relationship}()->attach($hidden);
     $headline = Headline::factory()->create(['summary' => 'A recap with hidden contributions.', 'summary_created_at' => now()]);
-    Commit::factory()->for($hidden)->hasAttached($headline)->create(['embedding' => embeddingVector(0)]);
+    if ($isReply) {
+        $root = Commit::factory()->hasAttached($headline)->create();
+        Commit::factory()->for($hidden)->for($root, 'parent')->create();
+    } else {
+        Commit::factory()->for($hidden)->hasAttached($headline)->create(['embedding' => embeddingVector(0)]);
+    }
+
     $visible = Commit::factory()->create(['embedding' => embeddingVector(0)]);
 
     $this->actingAs($viewer)->get(route('headline.show', $headline))
         ->assertOk()->assertInertia(fn ($page) => $page
         ->where('summary', null)->has('commits', 1)->where('commits.0.id', $visible->id));
-})->with(['muting', 'blocking']);
+})->with(['muting', 'blocking'])->with(['root' => false, 'reply' => true]);
 
 it('returns not found for an unknown headline', function (): void {
     $this->actingAs(User::factory()->create())->get('/headlines/00000000-0000-4000-8000-000000000000')->assertNotFound();

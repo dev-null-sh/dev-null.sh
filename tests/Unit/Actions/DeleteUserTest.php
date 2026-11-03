@@ -26,6 +26,7 @@ use App\Models\PollOption;
 use App\Models\PollVote;
 use App\Models\PushSubscription;
 use App\Models\User;
+use App\Queries\HeadlineSummaryQuery;
 use App\Services\CommitTranslations;
 use App\Services\TheAlgorithm;
 use Illuminate\Http\UploadedFile;
@@ -77,6 +78,26 @@ it('keeps the quotes of others when erasing the quoted commits of a deleted user
     $this->assertNotSoftDeleted($quote);
 
     expect($quote->refresh()->quoted_commit_id)->toBeNull();
+});
+
+it('lets a recap containing a deleted users replies expire within two hours', function (): void {
+    $user = User::factory()->create();
+    $viewer = User::factory()->create();
+    $root = Commit::factory()->create();
+    $headline = $root->headlines()->create(['name' => 'Vector index memory regression', 'summary' => 'A recap based on the reply.', 'summary_created_at' => now()]);
+    $reply = Commit::factory()->for($root, 'parent')->for($user)->create();
+
+    resolve(DeleteUser::class)->handle($user);
+
+    expect($headline->refresh()->summary)->toBe('A recap based on the reply.');
+    $this->assertModelMissing($reply);
+    $this->assertModelExists($root);
+
+    $this->travel(7199)->seconds();
+    expect(resolve(HeadlineSummaryQuery::class)->get($headline, $viewer))->toBe('A recap based on the reply.');
+
+    $this->travel(1)->seconds();
+    expect(resolve(HeadlineSummaryQuery::class)->get($headline, $viewer))->toBeNull();
 });
 
 it('leaves a tombstone for a reply of a deleted user that other people replied to', function (): void {
