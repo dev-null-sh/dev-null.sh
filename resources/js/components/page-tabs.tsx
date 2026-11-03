@@ -25,6 +25,10 @@ export function PageTabs({
         shortTitle?: string;
         href: NonNullable<InertiaLinkProps['href']>;
         isActive: boolean;
+        /**
+         * Overrides the tabs' prefetch for this one, for a page that does something each time it opens.
+         */
+        prefetch?: boolean;
     }[];
 }) {
     const indicatorName = `tab-indicator-${label.toLowerCase().replaceAll(/[^a-z0-9]+/gu, '-')}`;
@@ -35,7 +39,7 @@ export function PageTabs({
                 <Link
                     key={tab.title}
                     href={tab.href}
-                    prefetch={prefetch}
+                    prefetch={tab.prefetch ?? prefetch}
                     viewTransition
                     preserveScroll={preserveScroll}
                     preserveState={preserveState}

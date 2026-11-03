@@ -10,7 +10,8 @@ import { edit as editProfile } from '@/routes/user-profile';
 export const settingsTabs = [
     { title: 'Profile', href: editProfile() },
     { title: 'Appearance', href: editAppearance() },
-    { title: 'Terminal', href: showTerminal() },
+    // Opening it syncs the SSH keys from GitHub, which a prefetched (cached) page wouldn't.
+    { title: 'Terminal', href: showTerminal(), prefetch: false },
     { title: 'Safety', href: editSafety() },
     { title: 'Devices', href: devices() },
 ];
