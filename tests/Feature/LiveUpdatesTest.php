@@ -27,6 +27,8 @@ use App\Contracts\Services\LinkPreviewProvider;
 use App\Dto\AuthorizationCode;
 use App\Enums\CommitStatus;
 use App\Enums\CommitUpdate;
+use App\Enums\Feature;
+use App\Enums\Log;
 use App\Enums\ModerationReason;
 use App\Enums\RemoteStatus;
 use App\Enums\TimeoutDuration;
@@ -135,7 +137,7 @@ it('announces typing when it starts, not on every ping that keeps it alive', fun
         ->and(usersUpdated(UserUpdate::Conversation)[0]->userIds)->toBe([$recipient->id]);
 });
 
-it('tells the reader\'s other devices about a read, and the partner only when they would see it', function (bool $readerShares, bool $partnerShares, RemoteStatus $readerStatus, bool $partnerHears): void {
+it("tells the reader's other devices about a read, and the partner only when they would see it", function (bool $readerShares, bool $partnerShares, RemoteStatus $readerStatus, bool $partnerHears): void {
     $sender = User::factory()->withRemotes()->create(['pull_receipts' => $partnerShares]);
     $recipient = User::factory()->withRemotes()->create(['pull_receipts' => $readerShares]);
     $message = sendChatMessage($sender, $recipient);
@@ -157,7 +159,7 @@ it('tells the reader\'s other devices about a read, and the partner only when th
     'the reader has not merged the request' => [true, true, RemoteStatus::Fetched, false],
 ]);
 
-it('leaves the tab that read out of telling the reader\'s devices, which only the others need', function (): void {
+it("leaves the tab that read out of telling the reader's devices, which only the others need", function (): void {
     $sender = User::factory()->withRemotes()->create();
     $recipient = User::factory()->withRemotes()->create();
     $message = sendChatMessage($sender, $recipient);
@@ -481,19 +483,19 @@ it('tells everyone showing an organization when its color, followers or admins c
         ->and(recipientsOf(usersUpdated(UserUpdate::Relationships)))->toBe([$follower->id]);
 });
 
-it('tells the user\'s other pages when the log they read, the terms they accepted or a feature changes', function (): void {
+it("tells the user's other pages when the log they read, the terms they accepted or a feature changes", function (): void {
     Event::fake([UsersUpdated::class, FeaturesUpdated::class]);
     $user = User::factory()->create();
 
-    resolve(UpdateUserLog::class)->handle($user, App\Enums\Log::Latest);
+    resolve(UpdateUserLog::class)->handle($user, Log::Latest);
     resolve(UpdateUserTermsAcceptance::class)->handle($user);
-    resolve(UpdateFeature::class)->handle(App\Enums\Feature::OrganizationCommits, true);
+    resolve(UpdateFeature::class)->handle(Feature::OrganizationCommits, true);
 
     expect(usersUpdated(UserUpdate::Account))->toHaveCount(2);
     Event::assertDispatched(FeaturesUpdated::class);
 });
 
-it('refreshes an organization page from its public channel and the viewer\'s relationship to it from theirs', function (): void {
+it("refreshes an organization page from its public channel and the viewer's relationship to it from theirs", function (): void {
     $viewer = User::factory()->create();
     $organization = Organization::factory()->create();
     $headers = ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request())];

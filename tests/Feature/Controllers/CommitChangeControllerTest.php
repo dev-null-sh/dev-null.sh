@@ -9,8 +9,9 @@ use App\Models\LinkPreview;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 
-function changesSince(array $ids, int $since): Illuminate\Testing\TestResponse
+function changesSince(array $ids, int $since): TestResponse
 {
     return test()->getJson(route('commit-change.index', ['ids' => $ids, 'since' => $since]))->assertOk()->assertHeader('Cache-Control', 'no-store, private');
 }
@@ -38,7 +39,7 @@ it('names what changed about each commit since the page read it, and nothing els
         ->and($changes[$approved->id]['changed'])->toBeTrue();
 });
 
-it('names a reply deleted or approved since, and the viewer\'s own pending reply, but nobody else\'s', function (): void {
+it("names a reply deleted or approved since, and the viewer's own pending reply, but nobody else's", function (): void {
     $viewer = User::factory()->create();
     $commit = Commit::factory()->create();
     $deleted = Commit::factory()->for($commit, 'parent')->create(['created_at' => now()->subHour()]);
@@ -107,8 +108,8 @@ it('answers for a commit the viewer cannot see exactly as for one that does not 
     expect($changes[$commit->id])->toBe($changes[$missing])
         ->and($changes[$missing])->toBe(['changed' => true, 'replies' => [], 'truncated' => false]);
 })->with([
-    'someone else\'s pending commit' => [fn (User $viewer): Commit => Commit::factory()->pending()->create(['created_at' => now()->subHour()]), true],
-    'someone else\'s rejected commit' => [fn (User $viewer): Commit => Commit::factory()->rejected()->create(['created_at' => now()->subHour()]), true],
+    "someone else's pending commit" => [fn (User $viewer): Commit => Commit::factory()->pending()->create(['created_at' => now()->subHour()]), true],
+    "someone else's rejected commit" => [fn (User $viewer): Commit => Commit::factory()->rejected()->create(['created_at' => now()->subHour()]), true],
     'a pending commit, to a guest' => [fn (User $viewer): Commit => Commit::factory()->for($viewer)->pending()->create(['created_at' => now()->subHour()]), false],
     'a commit by someone the viewer blocks' => [function (User $viewer): Commit {
         $commit = Commit::factory()->create(['created_at' => now()->subHour()]);
@@ -122,7 +123,7 @@ it('answers for a commit the viewer cannot see exactly as for one that does not 
 
         return $commit;
     }, true],
-    'an organization\'s pending commit, once the viewer left it' => [function (User $viewer): Commit {
+    "an organization's pending commit, once the viewer left it" => [function (User $viewer): Commit {
         $organization = Organization::factory()->create();
         $organization->members()->attach($viewer->id, ['role' => OrganizationRole::Member]);
         $commit = Commit::factory()->pending()->create(['author_id' => $organization->id, 'created_at' => now()->subHour()]);
@@ -132,7 +133,7 @@ it('answers for a commit the viewer cannot see exactly as for one that does not 
     }, true],
 ]);
 
-it('checks the commits the viewer can see, their own unapproved ones, their organizations\' and tombstones', function (): void {
+it("checks the commits the viewer can see, their own unapproved ones, their organizations' and tombstones", function (): void {
     $viewer = User::factory()->create();
     $organization = Organization::factory()->create();
     $organization->members()->attach($viewer->id, ['role' => OrganizationRole::Member]);
@@ -140,6 +141,7 @@ it('checks the commits the viewer can see, their own unapproved ones, their orga
     $organizations = Commit::factory()->pending()->create(['author_id' => $organization->id, 'created_at' => now()->subHour()]);
     $tombstone = Commit::factory()->create(['created_at' => now()->subHour()]);
     $tombstone->delete();
+
     $since = now()->addSecond()->getTimestampMs();
     $this->travel(5)->seconds();
     $reply = Commit::factory()->for($tombstone, 'parent')->create();
@@ -168,6 +170,7 @@ it('names only the replies the viewer could see in the thread', function (): voi
     foreach ([$blocked, $blocker, $muted] as $author) {
         Commit::factory()->for($author)->for($commit, 'parent')->create();
     }
+
     Commit::factory()->for($commit, 'parent')->pending()->create();
     Commit::factory()->for($commit, 'parent')->rejected()->create();
 

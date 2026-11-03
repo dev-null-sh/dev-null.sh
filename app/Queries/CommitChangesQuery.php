@@ -49,7 +49,7 @@ final readonly class CommitChangesQuery
                     ->whereColumn('polls.commit_id', 'commits.id')
                     ->where(fn (Builder $poll): Builder => $poll
                         ->where('polls.opened_at', '>', $since)
-                        ->orWhereRaw('polls.opened_at + polls.duration * interval \'1 minute\' between ? and ?', [$since, now()])
+                        ->orWhereRaw("polls.opened_at + polls.duration * interval '1 minute' between ? and ?", [$since, now()])
                         ->orWhereExists(fn (Builder $votes): Builder => $votes->from('poll_votes')
                             ->whereColumn('poll_votes.poll_id', 'polls.id')
                             ->where('poll_votes.created_at', '>', $since)))))
