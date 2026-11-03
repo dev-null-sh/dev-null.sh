@@ -24,7 +24,8 @@ final class CreateApiDeviceAuthorizationRequest extends FormRequest
     /**
      * Once the signature checks out, each key may start a few sign-ins a minute, so no key fills the cache with codes.
      * Terminals behind one address would throttle each other if it went by address, which the route limits before
-     * any signature is checked.
+     * any signature is checked. The attempt is counted and checked in one step, so requests sent at once can't all
+     * slip under the limit.
      */
     public function authorize(SignedRequests $signedRequests): bool
     {
@@ -36,11 +37,9 @@ final class CreateApiDeviceAuthorizationRequest extends FormRequest
 
         $key = "device-authorizations:{$this->fingerprint}";
 
-        throw_if(RateLimiter::tooManyAttempts($key, self::SignInsPerKeyPerMinute), fn (): ApiException => new ApiException(ApiErrorCode::RateLimited, __('Too Many Attempts.'), [
+        throw_if(RateLimiter::hit($key) > self::SignInsPerKeyPerMinute, fn (): ApiException => new ApiException(ApiErrorCode::RateLimited, __('Too Many Attempts.'), [
             'Retry-After' => RateLimiter::availableIn($key),
         ]));
-
-        RateLimiter::hit($key);
 
         return true;
     }
