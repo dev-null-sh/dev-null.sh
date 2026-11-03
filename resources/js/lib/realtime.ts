@@ -324,11 +324,14 @@ export function commitChannel(commitId: string): RealtimeChannel {
 export const logChannel: RealtimeChannel = { name: 'log', type: 'public' };
 
 /**
- * Waits for the visits under way when asked, as the one that muted someone, so reading again for what it changed
- * doesn't hold it up. Listens from when it is made, so it knows of visits already under way when asked.
+ * Waits until no visit is under way, as the one that muted someone, so reading again for what it changed doesn't hold
+ * it up. A visit starting while it waits is waited for too, though never longer than `atMost` in all, so visits that
+ * keep overlapping can't put reading again off for good. Listens from when it is made, so it knows of visits already
+ * under way when asked.
  */
 export function visitsSettled(
     on: (event: 'start' | 'finish', listener: () => void) => unknown,
+    atMost = 5_000,
 ): () => Promise<void> {
     let active = 0;
     let waiting: (() => void)[] = [];
@@ -349,7 +352,18 @@ export function visitsSettled(
     return () =>
         active === 0
             ? Promise.resolve()
-            : new Promise((resolve) => waiting.push(resolve));
+            : new Promise((resolve) => {
+                  const timer = setTimeout(() => {
+                      waiting = waiting.filter((other) => other !== done);
+                      resolve();
+                  }, atMost);
+                  const done = () => {
+                      clearTimeout(timer);
+                      resolve();
+                  };
+
+                  waiting.push(done);
+              });
 }
 
 /**

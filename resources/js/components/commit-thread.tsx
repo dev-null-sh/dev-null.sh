@@ -668,11 +668,20 @@ export function useThread(
 
         return change.replies;
     });
-    const recoverLoaded = useEffectEvent(
-        () => void afterVisits().then(() => relationshipReads(() => recover())),
-    );
+    // Called when a read's turn comes, so it reads the range loaded by then, not the one loaded when it was asked for.
+    const recoverLoaded = useEffectEvent(() => recover());
     const isLoaded = replies !== null;
     const viewerId = usePage().props.auth.user?.id ?? null;
+
+    // A read started for another viewer, thread or excluded reply never lands: changing any of them, or leaving,
+    // retires every read on its way, keeping what is shown until the new one reads again.
+    useEffect(
+        () => () => {
+            ++replyRequest.current;
+            setIsLoading(false);
+        },
+        [viewerId, commitId, except],
+    );
 
     useEffect(() => {
         if (!isLoaded) {
@@ -719,16 +728,37 @@ export function useThread(
         // Muting, blocking or unmuting someone, or being blocked, changes which replies the viewer sees, including ones
         // never loaded: the loaded range is read again. A full thread also does once it listens again, as a change
         // missed meanwhile leaves no trace on its replies.
+        // Read again after the visit that changed who the viewer sees, and once a place among the reads of other
+        // threads frees up: changes heard meanwhile are one read, and none starts once this listener has stopped.
+        let isListening = true;
+        let isWaiting = false;
+        const recoverWhenFree = () => {
+            if (isWaiting) {
+                return;
+            }
+
+            isWaiting = true;
+            void afterVisits().then(() =>
+                relationshipReads(async () => {
+                    isWaiting = false;
+
+                    if (isListening) {
+                        await recoverLoaded();
+                    }
+                }),
+            );
+        };
         const stopRelationships =
             viewerId === null
                 ? () => {}
                 : listen(
                       userChannel(viewerId),
-                      { relationships: () => recoverLoaded() },
-                      isPreview ? undefined : () => recoverLoaded(),
+                      { relationships: recoverWhenFree },
+                      isPreview ? undefined : recoverWhenFree,
                   );
 
         return () => {
+            isListening = false;
             stop();
             stopRelationships();
             refresh.cancel();

@@ -374,7 +374,7 @@ void test('never runs one too many when a read is asked for as another finishes'
     assert.equal(most, 1);
 });
 
-void test('waits for the visits under way to finish, and not for ones that start later', async () => {
+void test('waits until no visit is under way, including one that starts while it waits', async () => {
     const listeners: Record<string, (() => void)[]> = { start: [], finish: [] };
     const settled = visitsSettled((event, listener) => listeners[event].push(listener));
     const emit = (event: 'start' | 'finish') => listeners[event].forEach((listener) => listener());
@@ -383,15 +383,36 @@ void test('waits for the visits under way to finish, and not for ones that start
     await settled();
 
     emit('start');
-    emit('start');
     const waiting = settled().then(() => {
         done = true;
     });
+    emit('start');
     emit('finish');
     await Promise.resolve();
-    assert.equal(done, false);
+    assert.equal(done, false, 'the visit that started meanwhile is still under way');
 
     emit('finish');
     await waiting;
     assert.equal(done, true);
+});
+
+void test('stops waiting after a while when visits keep overlapping, so reading again is never put off for good', async () => {
+    mock.timers.enable({ apis: ['setTimeout'] });
+    const listeners: Record<string, (() => void)[]> = { start: [], finish: [] };
+    const settled = visitsSettled((event, listener) => listeners[event].push(listener), 1_000);
+    const emit = (event: 'start' | 'finish') => listeners[event].forEach((listener) => listener());
+    let done = false;
+
+    emit('start');
+    const waiting = settled().then(() => {
+        done = true;
+    });
+    mock.timers.tick(999);
+    await Promise.resolve();
+    assert.equal(done, false);
+
+    mock.timers.tick(1);
+    await waiting;
+    assert.equal(done, true);
+    mock.timers.reset();
 });
