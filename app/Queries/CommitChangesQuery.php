@@ -34,8 +34,12 @@ final readonly class CommitChangesQuery
      */
     public function get(?User $viewer, array $ids, CarbonImmutable $since): array
     {
+        // Moderators review everything pending, so they check the queue's commits too; replies are named as anyone sees them.
         /** @var list<string> $visible */
-        $visible = Commit::withTrashed()->whereKey($ids)->visibleTo($viewer)->pluck('id')->all();
+        $visible = Commit::withTrashed()->whereKey($ids)
+            ->when($viewer?->isAdmin() !== true, fn (CommitBuilder $query): CommitBuilder => $query->visibleTo($viewer))
+            ->pluck('id')
+            ->all();
 
         $changed = Commit::withTrashed()
             ->whereKey($visible)

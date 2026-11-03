@@ -190,3 +190,20 @@ it('asks a thread to read again what it loaded when a reply it may have shown wa
     expect(changesSince([$commit->id], $since)->json("changes.{$commit->id}"))
         ->toBe(['changed' => false, 'replies' => [], 'truncated' => true]);
 });
+
+it("checks the queue's pending commits for the moderators who review them, and names their replies only as anyone could see them", function (): void {
+    config(['app.admins' => ['moderator']]);
+    $moderator = User::factory()->create(['handle' => 'moderator']);
+    $pending = Commit::factory()->pending()->create(['created_at' => now()->subHour()]);
+    $since = now()->addSecond()->getTimestampMs();
+    $this->travel(5)->seconds();
+    Commit::factory()->for($pending, 'parent')->pending()->create();
+
+    $this->actingAs($moderator);
+
+    expect(changesSince([$pending->id], $since)->json("changes.{$pending->id}"))->toBe(['changed' => false, 'replies' => [], 'truncated' => false]);
+
+    $pending->update(['status' => CommitStatus::Approved]);
+
+    expect(changesSince([$pending->id], $since)->json("changes.{$pending->id}.changed"))->toBeTrue();
+});
