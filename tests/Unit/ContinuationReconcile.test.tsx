@@ -210,3 +210,28 @@ test('changes to different parts are read one after the other, from the earliest
         'p11',
     ]);
 });
+
+test('a part deleted and brought back returns as many parts as the reader had loaded', async () => {
+    act(() => thread.loadMore());
+    await requests.at(-1)!.respond(ids(10, 20), 'p20');
+    assert.deepEqual(shownIds(), ids(0, 20));
+
+    changed('p10');
+    await settle();
+    await requests.at(-1)!.respond([], null);
+    assert.deepEqual(shownIds(), ids(0, 10));
+
+    act(() =>
+        fake.joined.get('commits.p9')?.emit('visibility', { ids: ['p10'] }),
+    );
+    await settle();
+    const back = requests.at(-1)!;
+    assert.equal(back.from, 'p9');
+    await back.respond(ids(10, 15), 'p15');
+    const rest = requests.at(-1)!;
+    assert.equal(rest.from, 'p14');
+    await rest.respond(ids(15, 20), 'p20');
+
+    assert.deepEqual(shownIds(), ids(0, 20));
+    assert.equal(thread.nextId, 'p20');
+});

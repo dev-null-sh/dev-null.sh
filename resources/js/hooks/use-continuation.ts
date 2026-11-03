@@ -23,6 +23,8 @@ export function useContinuation(continuation: ThreadContinuation) {
     const [isLoading, setIsLoading] = useState(false);
     const [focusId, setFocusId] = useState<string | null>(null);
     const request = useRef<AbortController | null>(null);
+    // As many parts as the reader loaded, so a part deleted and brought back returns the pages loaded after it.
+    const loadedLength = useRef(shown.length);
 
     // Reloads after a delete or an undo send the first page again: pages loaded since are kept unless the thread changed.
     if (loaded !== continuation) {
@@ -38,6 +40,7 @@ export function useContinuation(continuation: ThreadContinuation) {
                 ),
             }));
         } else {
+            loadedLength.current = continuation.data.length;
             setThread({
                 shown: continuation.data,
                 nextId: continuation.next_id,
@@ -94,7 +97,10 @@ export function useContinuation(continuation: ThreadContinuation) {
         const generation = state.generation;
         const controller = new AbortController();
         state.reading = controller;
-        const wanted = Math.max(current.length - index, 1);
+        const wanted = Math.max(
+            Math.max(current.length, loadedLength.current) - index,
+            1,
+        );
         const parts: Commit[] = [];
         let from = anchor;
         let first: ThreadContinuation | null = null;
@@ -279,6 +285,10 @@ export function useContinuation(continuation: ThreadContinuation) {
             })
             .then((page) => {
                 sync.current.generation++;
+                loadedLength.current = Math.max(
+                    loadedLength.current,
+                    shown.length + page.data.length,
+                );
                 setThread((current) => ({
                     shown: [...current.shown, ...page.data],
                     nextId: page.next_id,
