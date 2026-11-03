@@ -212,6 +212,7 @@ export default function Index({
     // groups are read again down to the oldest one shown, like a poll, and a hidden tab waits until it is shown, so
     // nothing arrives where it would be marked read unseen.
     const hasMissed = useRef(false);
+    const refreshGroups = useRef<(() => void) | null>(null);
     // Settles once the reload does, so the next one waits for it rather than racing it. Changing the filter cancels
     // it, and reads the groups afresh anyway.
     const reloadGroups = useEffectEvent(async (signal: AbortSignal) => {
@@ -233,6 +234,7 @@ export default function Index({
 
         const controller = new AbortController();
         const refresh = coalesce(() => reloadGroups(controller.signal), 500);
+        refreshGroups.current = refresh.request;
         const onVisible = () => {
             if (hasMissed.current) {
                 refresh.request();
@@ -247,6 +249,7 @@ export default function Index({
         document.addEventListener('visibilitychange', onVisible);
 
         return () => {
+            refreshGroups.current = null;
             stopListening();
             refresh.cancel();
             controller.abort();
@@ -284,6 +287,11 @@ export default function Index({
                 if (visit === filterVisit.current) {
                     setPendingTypes(null);
                     pollUnlessHearing();
+
+                    // What changed while the filter loaded, after it read the groups, is read once it has, with it.
+                    if (hasMissed.current) {
+                        refreshGroups.current?.();
+                    }
                 }
             },
         });
@@ -618,13 +626,18 @@ function NotificationGroupItem({
     // The groups being read again while this one is open, as when something in it is no longer relevant, reads again
     // what it showed: as many as were loaded, from the start, even when its counts stayed the same.
     const reloadOpen = useEffectEvent(async () => {
-        if (!open || items.length === 0) {
+        if (!open) {
             return;
         }
 
+        // Including the first load, which may have read the members before the change.
         if (loading) {
             isDirty.current = true;
 
+            return;
+        }
+
+        if (items.length === 0) {
             return;
         }
 
