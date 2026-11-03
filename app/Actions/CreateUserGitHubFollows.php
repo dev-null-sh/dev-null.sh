@@ -7,6 +7,7 @@ namespace App\Actions;
 use App\Contracts\Services\GitHubProvider;
 use App\Enums\ProfileType;
 use App\Enums\UserUpdate;
+use App\Events\ProfilesUpdated;
 use App\Events\UsersUpdated;
 use App\Models\Profile;
 use App\Models\User;
@@ -62,6 +63,8 @@ final readonly class CreateUserGitHubFollows
                 }
             }
 
+            $followedOrganizationIds = [];
+
             if ($importsOrganizations) {
                 // Waits for an organization being created from GitHub right now, which follows the pending rows it finds
                 // (UpdateOrCreateOrganization), so the follow is made on one side or the other.
@@ -69,7 +72,7 @@ final readonly class CreateUserGitHubFollows
 
                 $organizations = Profile::query()->where('type', ProfileType::Organization)->whereIn('github_id', $organizationIds)->get();
 
-                $user->followedOrganizations()->syncWithoutDetaching($organizations->modelKeys());
+                $followedOrganizationIds = $user->followedOrganizations()->syncWithoutDetaching($organizations->modelKeys())['attached'];
 
                 DB::table('pending_organization_follows')->insertOrIgnore($organizationIds
                     ->reject(fn (string $id): bool => $organizations->contains('github_id', $id))
@@ -86,6 +89,16 @@ final readonly class CreateUserGitHubFollows
             event(new UsersUpdated([$user->id], UserUpdate::Onboarding));
             event(new UsersUpdated([$user->id], UserUpdate::Live));
             event(new UsersUpdated($followers->only($followerIds)->modelKeys(), UserUpdate::Live));
+
+            // What following each one by one tells, for the follows actually made: counts and lists of everyone on
+            // either side, and who each new follower sees.
+            if ($followedIds !== [] || $followerIds !== [] || $followedOrganizationIds !== []) {
+                $people = [$user->id, ...$followedIds, ...$followerIds];
+
+                event(new UsersUpdated($people, UserUpdate::Account));
+                event(new UsersUpdated([...($followedIds !== [] || $followedOrganizationIds !== [] ? [$user->id] : []), ...$followerIds], UserUpdate::Relationships));
+                event(new ProfilesUpdated([...$people, ...$followedOrganizationIds], changesConnections: true));
+            }
         });
     }
 

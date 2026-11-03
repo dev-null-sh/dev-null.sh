@@ -208,3 +208,46 @@ it('keeps github imports from following across a block in either direction', fun
     expect(Notification::query()->count())->toBe(2);
     expect($user->refresh()->github_follows_imported_at)->not->toBeNull();
 });
+
+it('tells everyone whose follows it changed, even importing quietly, as following one by one would', function (): void {
+    Illuminate\Support\Facades\Event::fake([App\Events\UsersUpdated::class, App\Events\ProfilesUpdated::class]);
+    $user = User::factory()->create();
+    $followed = User::factory()->create();
+    $alreadyFollowed = User::factory()->create();
+    $follower = User::factory()->create();
+    $organization = Organization::factory()->create();
+    $user->following()->attach($alreadyFollowed);
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn(['users' => [$followed->github_id, $alreadyFollowed->github_id], 'organizations' => [$organization->profile->github_id]]);
+    $github->shouldReceive('followerIds')->with($user->handle, 10)->andReturn([$follower->github_id]);
+
+    resolve(CreateUserGitHubFollows::class)->handle($user, notify: false);
+
+    $usersUpdated = fn (App\Enums\UserUpdate $update): array => Illuminate\Support\Facades\Event::dispatched(App\Events\UsersUpdated::class, fn (App\Events\UsersUpdated $event): bool => $event->update === $update)
+        ->flatMap(fn (array $event): array => $event[0]->userIds)->unique()->sort()->values()->all();
+    $profiles = Illuminate\Support\Facades\Event::dispatched(App\Events\ProfilesUpdated::class, fn (App\Events\ProfilesUpdated $event): bool => $event->changesConnections)
+        ->flatMap(fn (array $event): array => $event[0]->profileIds)->unique()->sort()->values()->all();
+    $sorted = fn (string ...$ids): array => collect($ids)->sort()->values()->all();
+
+    expect($usersUpdated(App\Enums\UserUpdate::Account))->toBe($sorted($user->id, $followed->id, $follower->id))
+        ->and($usersUpdated(App\Enums\UserUpdate::Relationships))->toBe($sorted($user->id, $follower->id))
+        ->and($profiles)->toBe($sorted($user->id, $followed->id, $follower->id, $organization->id));
+});
+
+it('tells nobody but the user about an import that followed no one', function (): void {
+    Illuminate\Support\Facades\Event::fake([App\Events\UsersUpdated::class, App\Events\ProfilesUpdated::class]);
+    $user = User::factory()->create();
+
+    $github = $this->mock(GitHubProvider::class);
+    $github->shouldReceive('login')->with($user->github_id)->andReturn($user->handle);
+    $github->shouldReceive('followingIds')->with($user->handle, 10)->andReturn(['users' => [], 'organizations' => []]);
+    $github->shouldReceive('followerIds')->with($user->handle, 10)->andReturn([]);
+
+    resolve(CreateUserGitHubFollows::class)->handle($user);
+
+    Illuminate\Support\Facades\Event::assertNotDispatched(App\Events\ProfilesUpdated::class);
+    Illuminate\Support\Facades\Event::assertDispatched(App\Events\UsersUpdated::class, fn (App\Events\UsersUpdated $event): bool => $event->update === App\Enums\UserUpdate::Onboarding);
+    Illuminate\Support\Facades\Event::assertNotDispatched(App\Events\UsersUpdated::class, fn (App\Events\UsersUpdated $event): bool => in_array($event->update, [App\Enums\UserUpdate::Account, App\Enums\UserUpdate::Relationships], true));
+});
