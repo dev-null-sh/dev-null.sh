@@ -32,6 +32,15 @@ it('normalizes a browser timezone alias after verifying the signed request', fun
     expect($this->user->refresh()->timezone)->toBe('Asia/Kolkata');
 });
 
+it('keeps a query timezone out of an empty signed request body', function (): void {
+    $uri = route('api-user-timezone.update').'?timezone=Asia%2FCalcutta';
+
+    signedApiRequest($this->keyPair, 'PUT', $uri)
+        ->assertOk();
+
+    expect($this->user->refresh()->timezone)->toBe('Asia/Kolkata');
+});
+
 it('may opt in to and out of showing the local time', function (bool $show): void {
     $this->user->update(['show_local_time' => ! $show]);
 

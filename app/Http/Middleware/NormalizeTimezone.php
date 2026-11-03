@@ -25,11 +25,15 @@ final readonly class NormalizeTimezone
 
         if (is_string($timeZone)) {
             try {
-                // DateTimeZone::getName() preserves aliases; ICU supplies the current IANA name.
+                // ICU maps legacy IDs to IANA names; only accept names in PHP's current list.
                 $iana = IntlTimeZone::getIanaID($timeZone);
 
                 if ($iana !== false && in_array($iana, DateTimeZone::listIdentifiers(), true)) {
-                    $request->merge(['timezone' => (new DateTimeZone($iana))->getName()]);
+                    if ($request->query->has('timezone') && ! $request->request->has('timezone') && ! $request->json()->has('timezone')) {
+                        $request->query->set('timezone', $iana);
+                    } else {
+                        $request->merge(['timezone' => $iana]);
+                    }
                 }
             } catch (Throwable) {
                 // Leave invalid input unchanged for the request's normal validation.
