@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { useNow } from '@/hooks/use-now';
 import {
     currentLiveStream,
@@ -33,4 +33,44 @@ export function useLiveStream(
     useEffect(() => (id === undefined ? undefined : watchLiveStream(id)), [id]);
 
     return id === undefined ? null : currentLiveStream(id, user?.live, now);
+}
+
+/**
+ * The people a live list shows: those live when the page opened, for as long as it stays open, so nobody joining or
+ * leaving moves what is around it while it is read. Each one's stream stays current, and the next page lists whoever
+ * is live by then.
+ */
+export function useListedLiveStreams<
+    T extends { id: string; live?: LiveStream | null },
+>(users: T[], pageUrl: string): { user: T; live: LiveStream | null }[] {
+    const now = useNow();
+    const [listed, setListed] = useState<{ url: string; users: T[] } | null>(
+        null,
+    );
+    const shown =
+        listed?.url === pageUrl
+            ? listed.users
+            : users.filter(
+                  (user) => currentLiveStream(user.id, user.live, now) !== null,
+              );
+
+    if (listed?.url !== pageUrl) {
+        setListed({ url: pageUrl, users: shown });
+    }
+
+    useLiveStreamsVersion();
+    const ids = shown.map((user) => user.id).join(' ');
+    useEffect(() => {
+        const stops = ids === '' ? [] : ids.split(' ').map(watchLiveStream);
+
+        return () => stops.forEach((stop) => stop());
+    }, [ids]);
+
+    return shown.map((listedUser) => {
+        const user =
+            users.find((candidate) => candidate.id === listedUser.id) ??
+            listedUser;
+
+        return { user, live: currentLiveStream(user.id, user.live, now) };
+    });
 }
