@@ -315,3 +315,20 @@ it('does not list arrivals unless a queue asks', function (): void {
         ->get(route('moderation.show'))
         ->assertInertia(fn ($page) => $page->missing('arrivedCommitIds'));
 });
+
+it('names which commits a queue loaded were decided or deleted since, so a queue that listened late takes them off', function (): void {
+    $admin = User::factory()->create(['handle' => 'admin']);
+    $waiting = Commit::factory()->pending()->create();
+    $approved = Commit::factory()->pending()->create();
+    $deleted = Commit::factory()->pending()->create();
+    $approved->update(['status' => CommitStatus::Approved]);
+    $deleted->delete();
+
+    $this->actingAs($admin)->get(route('moderation.show', ['loaded' => [$waiting->id, $approved->id, $deleted->id]]), [
+        'X-Inertia' => 'true',
+        'X-Inertia-Version' => (string) resolve(HandleInertiaRequests::class)->version(request()),
+        'X-Inertia-Partial-Component' => 'moderation/show',
+        'X-Inertia-Partial-Data' => 'decidedCommitIds',
+    ])->assertOk()
+        ->assertJsonPath('props.decidedCommitIds', fn (array $ids): bool => collect($ids)->sort()->values()->all() === collect([$approved->id, $deleted->id])->sort()->values()->all());
+});

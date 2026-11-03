@@ -20,6 +20,8 @@ type Reload = {
 
 const reloads: Reload[] = [];
 let arrived: string[] = [];
+let decided: string[] = [];
+const takenOff: string[][] = [];
 const offers: unknown[] = [];
 
 // Hook state kept across renders by call order, as React does, so a page rendered again keeps what it held.
@@ -72,12 +74,21 @@ vi.doMock('@inertiajs/react', async () => ({
             reloads.push(options);
 
             if (options.only?.includes('arrivedCommitIds')) {
-                options.onSuccess?.({ props: { arrivedCommitIds: arrived } });
+                options.onSuccess?.({
+                    props: { arrivedCommitIds: arrived, decidedCommitIds: decided },
+                });
             }
 
             options.onFinish?.();
         },
-        replaceProp: () => {},
+        replaceProp: (
+            _prop: string,
+            update: (value: { data: { id: string }[] }) => { data: { id: string }[] },
+        ) => {
+            takenOff.push(
+                update({ data: [{ id: 'commit-0' }, { id: 'commit-1' }, { id: 'commit-2' }] }).data.map(({ id }) => id),
+            );
+        },
         optimistic: () => ({ visit: () => {} }),
     },
 }));
@@ -128,6 +139,8 @@ beforeEach(() => {
     reloads.length = 0;
     offers.length = 0;
     arrived = [];
+    decided = [];
+    takenOff.length = 0;
 });
 
 afterEach(() => {
@@ -154,9 +167,10 @@ test('a queue that started listening late offers what was submitted before, with
 
     assert.deepEqual(
         reloads.map((reload) => reload.only),
-        [['arrivedCommitIds']],
+        [['arrivedCommitIds', 'decidedCommitIds']],
     );
     assert.equal(typeof reloads[0].data?.since, 'number');
+    assert.deepEqual(reloads[0].data?.loaded, ['commit-0', 'commit-1', 'commit-2']);
     assert.deepEqual(offers, [true]);
 });
 
@@ -167,7 +181,10 @@ test('an empty queue that started listening late shows what was submitted before
 
     assert.deepEqual(
         reloads.map((reload) => reload.only),
-        [['arrivedCommitIds'], ['commits', 'hasUnmoderatedCommits']],
+        [
+            ['arrivedCommitIds', 'decidedCommitIds'],
+            ['commits', 'hasUnmoderatedCommits'],
+        ],
     );
     assert.deepEqual(offers, []);
 });
@@ -278,5 +295,14 @@ test('a commit approved here stays decided after approving reloads the queue afr
         commits: ['commit-1'],
     });
 
+    assert.deepEqual(offers, []);
+});
+
+test('a queue that started listening late takes off what was decided before, where it is, without offering a refresh', async () => {
+    decided = ['commit-1'];
+    open(3, null).onSync(true);
+    await vi.runAllTimersAsync();
+
+    assert.deepEqual(takenOff, [['commit-0', 'commit-2']]);
     assert.deepEqual(offers, []);
 });

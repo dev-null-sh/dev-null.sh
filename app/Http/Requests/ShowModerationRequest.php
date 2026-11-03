@@ -25,7 +25,22 @@ final class ShowModerationRequest extends FormRequest
     {
         return [
             'since' => ['nullable', 'integer', 'min:0'],
+            'loaded' => ['sometimes', 'array', 'list', 'max:100'],
+            'loaded.*' => ['required', 'uuid', 'distinct'],
         ];
+    }
+
+    /**
+     * The commits the queue showed, to tell which of them were decided since.
+     *
+     * @return list<string>
+     */
+    public function loaded(): array
+    {
+        /** @var list<string> $ids */
+        $ids = $this->validated('loaded', []);
+
+        return $ids;
     }
 
     /**

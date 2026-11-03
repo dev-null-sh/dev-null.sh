@@ -16,7 +16,7 @@ import { focusCommit } from '@/hooks/use-keyboard-shortcuts';
 import { idsOf, useRealtime } from '@/hooks/use-realtime';
 import AppLayout from '@/layouts/app-layout';
 import { reloadInBackground } from '@/lib/background-poll';
-import { changesSince, readAt } from '@/lib/commit-changes';
+import { readAt } from '@/lib/commit-changes';
 import { coalesce, userChannel } from '@/lib/realtime';
 import { cn } from '@/lib/utils';
 import type { Commit, CursorPaginated } from '@/types';
@@ -184,7 +184,10 @@ export default function Show({
     const [readSince] = useState(() => Math.min(now - 5_000, readAt()));
     const queue = useRef<{
         load: () => void;
-        arrivedSince: (since: number) => Promise<string[]>;
+        changedSince: (
+            since: number,
+            loaded: string[],
+        ) => Promise<{ arrived: string[]; decided: string[] }>;
     } | null>(null);
     const isEmpty = commits.data.length === 0 && commits.next_cursor === null;
 
@@ -203,25 +206,34 @@ export default function Show({
         );
         queue.current = {
             load: loader.request,
-            arrivedSince: async (since) => {
-                let arrived: string[] = [];
+            changedSince: async (since, loaded) => {
+                let changes = {
+                    arrived: [] as string[],
+                    decided: [] as string[],
+                };
 
                 await reloadInBackground(
                     {
-                        only: ['arrivedCommitIds'],
-                        data: { since: Math.floor(since) },
+                        only: ['arrivedCommitIds', 'decidedCommitIds'],
+                        data: { since: Math.floor(since), loaded },
                         preserveUrl: true,
                         onSuccess: (page) => {
-                            arrived =
-                                (page.props.arrivedCommitIds as
-                                    | string[]
-                                    | undefined) ?? [];
+                            changes = {
+                                arrived:
+                                    (page.props.arrivedCommitIds as
+                                        | string[]
+                                        | undefined) ?? [],
+                                decided:
+                                    (page.props.decidedCommitIds as
+                                        | string[]
+                                        | undefined) ?? [],
+                            };
                         },
                     },
                     controller.signal,
                 );
 
-                return arrived;
+                return changes;
             },
         };
 
@@ -231,6 +243,17 @@ export default function Show({
             queue.current = null;
         };
     }, []);
+
+    const takeOff = (gone: ReadonlySet<string>) => {
+        gone.forEach((id) => decided.add(id));
+
+        if (gone.size > 0) {
+            router.replaceProp('commits', (value: CursorPaginated<Commit>) => ({
+                ...value,
+                data: value.data.filter((commit) => !gone.has(commit.id)),
+            }));
+        }
+    };
 
     // An empty queue shows what arrives straight away, and one showing commits offers it as a refresh, so nothing a
     // moderator is reading moves under them.
@@ -250,20 +273,7 @@ export default function Show({
         (_event, payload) => {
             const ids = idsOf(payload, 'commits');
             const loaded = new Set(commits.data.map((commit) => commit.id));
-            const gone = new Set(ids.filter((id) => loaded.has(id)));
-            gone.forEach((id) => decided.add(id));
-
-            if (gone.size > 0) {
-                router.replaceProp(
-                    'commits',
-                    (value: CursorPaginated<Commit>) => ({
-                        ...value,
-                        data: value.data.filter(
-                            (commit) => !gone.has(commit.id),
-                        ),
-                    }),
-                );
-            }
+            takeOff(new Set(ids.filter((id) => loaded.has(id))));
 
             if (ids.some((id) => !loaded.has(id) && !decided.has(id))) {
                 offerArrivals();
@@ -276,27 +286,23 @@ export default function Show({
                 return;
             }
 
-            // Read before listening: commits submitted since are offered, and those it shows that were decided since
-            // are taken off with a refresh.
-            void queue.current?.arrivedSince(readSince).then((arrived) => {
-                const loaded = new Set(commits.data.map(({ id }) => id));
+            // Read before listening: those it shows that were decided since leave where they are, and commits
+            // submitted since are offered.
+            const shown = commits.data.map(({ id }) => id);
 
-                if (arrived.some((id) => !loaded.has(id))) {
-                    offerArrivals();
-                }
-            });
+            void queue.current
+                ?.changedSince(readSince, shown.slice(0, 100))
+                .then(({ arrived, decided: taken }) => {
+                    takeOff(new Set(taken));
 
-            void Promise.all(
-                commits.data.map((commit) =>
-                    changesSince(commit.id, readSince),
-                ),
-            ).then((changes) => {
-                if (
-                    changes.some((change) => change === null || change.changed)
-                ) {
-                    setHasArrivals(true);
-                }
-            });
+                    if (
+                        arrived.some(
+                            (id) => !shown.includes(id) && !decided.has(id),
+                        )
+                    ) {
+                        offerArrivals();
+                    }
+                });
         },
     );
 
