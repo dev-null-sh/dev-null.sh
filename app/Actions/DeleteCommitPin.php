@@ -16,6 +16,6 @@ final readonly class DeleteCommitPin
             ->where('pinned_commit_id', $commit->id)
             ->update(['pinned_commit_id' => null]));
 
-        ProfilesUpdated::dispatch([$user->id]);
+        event(new ProfilesUpdated([$user->id]));
     }
 }

@@ -17,6 +17,6 @@ final readonly class DeleteDevice
     {
         $device->delete();
 
-        UsersUpdated::dispatch([$device->user_id], UserUpdate::Account);
+        event(new UsersUpdated([$device->user_id], UserUpdate::Account));
     }
 }

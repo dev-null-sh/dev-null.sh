@@ -15,7 +15,7 @@ final readonly class DeleteUserLive
     {
         $user->update(['live_platform' => null, 'live_url' => null, 'live_ends_at' => null]);
 
-        ProfilesUpdated::dispatch([$user->id]);
-        UsersUpdated::dispatch($user->followers()->pluck('users.id'), UserUpdate::Live);
+        event(new ProfilesUpdated([$user->id]));
+        event(new UsersUpdated($user->followers()->pluck('users.id'), UserUpdate::Live));
     }
 }

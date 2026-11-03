@@ -69,6 +69,6 @@ final readonly class CreateQuoteNotifications
             'updated_at' => now(),
         ])->all());
 
-        UsersUpdated::dispatch($quotes->pluck('recipient_id')->all(), UserUpdate::Notifications);
+        event(new UsersUpdated($quotes->pluck('recipient_id')->all(), UserUpdate::Notifications));
     }
 }

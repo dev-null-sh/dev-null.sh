@@ -32,7 +32,7 @@ final readonly class UpdateOrganizationMemberRole
 
             $organization->members()->updateExistingPivot($member->id, ['role' => $role]);
 
-            UsersUpdated::dispatch([$member->id, ...$organization->members()->pluck('users.id')], UserUpdate::Account);
+            event(new UsersUpdated([$member->id, ...$organization->members()->pluck('users.id')], UserUpdate::Account));
         });
     }
 }

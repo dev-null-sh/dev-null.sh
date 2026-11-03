@@ -77,8 +77,8 @@ final readonly class CreateCommitTranslation
 
                 // Each reader shows it in their own language, so they read it again.
                 $current->status === CommitStatus::Approved
-                    ? CommitsUpdated::dispatch([$current], CommitUpdate::Translation)
-                    : UsersUpdated::dispatch(array_filter([$current->user_id]), UserUpdate::Commits);
+                    ? event(new CommitsUpdated([$current], CommitUpdate::Translation))
+                    : event(new UsersUpdated(array_filter([$current->user_id]), UserUpdate::Commits));
             });
         });
     }

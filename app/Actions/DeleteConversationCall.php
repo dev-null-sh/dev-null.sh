@@ -35,7 +35,7 @@ final readonly class DeleteConversationCall
 
             Cache::forget(CreateConversationCall::key($callee));
 
-            UsersUpdated::dispatch([$callee->id, $caller->id], UserUpdate::Calls);
+            event(new UsersUpdated([$callee->id, $caller->id], UserUpdate::Calls));
 
             if (! $call->isAnswered()) {
                 $event = match (true) {

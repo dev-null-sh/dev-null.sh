@@ -17,6 +17,6 @@ final readonly class DeleteUserTimeout
     {
         $user->timeouts()->where('ends_at', '>', now())->update(['ends_at' => now()]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
     }
 }

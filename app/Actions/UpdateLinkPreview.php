@@ -37,13 +37,13 @@ final readonly class UpdateLinkPreview
 
         $commits = Commit::query()->where('link_preview_id', $linkPreview->id)->get(['id', 'user_id', 'status']);
 
-        CommitsUpdated::dispatch($commits->where('status', CommitStatus::Approved), CommitUpdate::Preview);
-        UsersUpdated::dispatch($commits->where('status', '!==', CommitStatus::Approved)->pluck('user_id'), UserUpdate::Commits);
+        event(new CommitsUpdated($commits->where('status', CommitStatus::Approved), CommitUpdate::Preview));
+        event(new UsersUpdated($commits->where('status', '!==', CommitStatus::Approved)->pluck('user_id'), UserUpdate::Commits));
 
         ConversationParticipant::query()
             ->whereIn('conversation_id', Message::query()->where('link_preview_id', $linkPreview->id)->select('conversation_id'))
             ->get(['conversation_id', 'user_id'])
             ->groupBy('conversation_id')
-            ->each(fn (Collection $participants, string $conversationId) => UsersUpdated::dispatch($participants->pluck('user_id'), UserUpdate::Conversation, ['conversation' => $conversationId]));
+            ->each(fn (Collection $participants, string $conversationId) => event(new UsersUpdated($participants->pluck('user_id'), UserUpdate::Conversation, ['conversation' => $conversationId])));
     }
 }

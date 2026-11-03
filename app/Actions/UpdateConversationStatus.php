@@ -25,10 +25,6 @@ final readonly class UpdateConversationStatus
             ->update(['status' => $status]);
 
         // Settling a request changes the requests both of them see, and whether they share reads.
-        UsersUpdated::dispatch(
-            ConversationParticipant::query()->where('conversation_id', $conversation->id)->pluck('user_id'),
-            UserUpdate::Inbox,
-            ['conversation' => $conversation->id],
-        );
+        event(new UsersUpdated(ConversationParticipant::query()->where('conversation_id', $conversation->id)->pluck('user_id'), UserUpdate::Inbox, ['conversation' => $conversation->id]));
     }
 }

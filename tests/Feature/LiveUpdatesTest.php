@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Actions\CreateCommit;
 use App\Actions\CreateCommitStar;
 use App\Actions\CreateConversationCall;
+use App\Actions\CreateMessage;
 use App\Actions\CreateUserBlock;
 use App\Actions\DeleteUser;
 use App\Actions\UpdateLinkPreview;
@@ -70,7 +71,7 @@ it('announces nothing when the transaction that changed it rolls back', function
 
     try {
         DB::transaction(function () use ($sender, $conversation): void {
-            resolve(App\Actions\CreateMessage::class)->handle($sender, $conversation, 'never sent', Str::uuid()->toString());
+            resolve(CreateMessage::class)->handle($sender, $conversation, 'never sent', Str::uuid()->toString());
 
             throw new RuntimeException('Rolled back.');
         });
@@ -113,7 +114,7 @@ it('announces typing when it starts, not on every ping that keeps it alive', fun
         ->and(usersUpdated(UserUpdate::Conversation)[0]->userIds)->toBe([$recipient->id]);
 });
 
-it('tells the reader\'s devices and whoever shares reads when a conversation is read, and nobody when nothing changed', function (): void {
+it("tells the reader's devices and whoever shares reads when a conversation is read, and nobody when nothing changed", function (): void {
     $sender = User::factory()->withRemotes()->create();
     $recipient = User::factory()->withRemotes()->create();
     $message = sendChatMessage($sender, $recipient);
@@ -324,7 +325,7 @@ it('sends a wide audience through the queue instead of holding up the request', 
         ->and(new UsersUpdated([], UserUpdate::Live)->broadcastWhen())->toBeFalse();
 });
 
-it('refreshes the shared counts from the signed-in user\'s private channel, and gives guests none', function (): void {
+it("refreshes the shared counts from the signed-in user's private channel, and gives guests none", function (): void {
     $user = User::factory()->withRemotes()->create();
     $headers = ['X-Inertia' => 'true', 'X-Inertia-Version' => (string) new HandleInertiaRequests()->version(request())];
 

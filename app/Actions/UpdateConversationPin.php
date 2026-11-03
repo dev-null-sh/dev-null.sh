@@ -22,7 +22,7 @@ final readonly class UpdateConversationPin
 
         $participant->update(['pinned_at' => $pinned ? ($participant->pinned_at ?? now()) : null]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]);
+        event(new UsersUpdated([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]));
 
         return $participant->pinned_at;
     }

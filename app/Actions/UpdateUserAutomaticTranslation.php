@@ -14,6 +14,6 @@ final readonly class UpdateUserAutomaticTranslation
     {
         $user->update(['automatic_translation' => $enabled]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
     }
 }

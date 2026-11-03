@@ -96,6 +96,6 @@ final readonly class CreateFirstCommitNotifications
             Notification::query()->insertOrIgnore($chunk);
         }
 
-        UsersUpdated::dispatch(array_column($notifications, 'recipient_id'), UserUpdate::Notifications);
+        event(new UsersUpdated(array_column($notifications, 'recipient_id'), UserUpdate::Notifications));
     }
 }

@@ -30,11 +30,7 @@ final readonly class UpdateConversationReadThrough
         }
 
         // The reader's unread counts change on their other devices, and whoever shares reads sees how far they got.
-        UsersUpdated::dispatch([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]);
-        UsersUpdated::dispatch(
-            ConversationParticipant::query()->where('conversation_id', $conversation->id)->whereNot('user_id', $user->id)->pluck('user_id'),
-            UserUpdate::Conversation,
-            ['conversation' => $conversation->id],
-        );
+        event(new UsersUpdated([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]));
+        event(new UsersUpdated(ConversationParticipant::query()->where('conversation_id', $conversation->id)->whereNot('user_id', $user->id)->pluck('user_id'), UserUpdate::Conversation, ['conversation' => $conversation->id]));
     }
 }

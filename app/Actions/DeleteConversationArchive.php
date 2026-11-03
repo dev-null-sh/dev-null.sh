@@ -19,6 +19,6 @@ final readonly class DeleteConversationArchive
             ->where('conversation_id', $conversation->id)
             ->update(['archived_at' => null]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]);
+        event(new UsersUpdated([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]));
     }
 }

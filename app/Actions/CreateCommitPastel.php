@@ -41,9 +41,10 @@ final readonly class CreateCommitPastel
 
             // The count is everyone's to see, and the giver's other devices learn what they have left to give.
             if ($recipientCommit->status === CommitStatus::Approved) {
-                CommitsUpdated::dispatch([$recipientCommit], CommitUpdate::Engagement);
+                event(new CommitsUpdated([$recipientCommit], CommitUpdate::Engagement));
             }
-            UsersUpdated::dispatch([$sender->id], UserUpdate::Account);
+
+            event(new UsersUpdated([$sender->id], UserUpdate::Account));
 
             return true;
         }, 3);

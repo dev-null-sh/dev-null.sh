@@ -15,6 +15,6 @@ final readonly class DeleteOrganizationFollow
     {
         $user->followedOrganizations()->detach($organization->id);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
     }
 }

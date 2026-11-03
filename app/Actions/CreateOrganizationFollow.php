@@ -18,6 +18,6 @@ final readonly class CreateOrganizationFollow
     {
         $user->followedOrganizations()->syncWithoutDetaching([$organization->id]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
     }
 }

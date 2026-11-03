@@ -31,7 +31,7 @@ final readonly class DeleteCommitStar
                 $this->updateCommitHotScores->handle([$commit->id]);
 
                 if ($commit->status === CommitStatus::Approved) {
-                    CommitsUpdated::dispatch([$commit], CommitUpdate::Engagement);
+                    event(new CommitsUpdated([$commit], CommitUpdate::Engagement));
                 }
             }
         });

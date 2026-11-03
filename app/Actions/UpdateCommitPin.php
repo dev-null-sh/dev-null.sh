@@ -14,6 +14,6 @@ final readonly class UpdateCommitPin
     {
         User::withoutTimestamps(fn (): int => User::query()->whereKey($user->id)->update(['pinned_commit_id' => $commit->id]));
 
-        ProfilesUpdated::dispatch([$user->id]);
+        event(new ProfilesUpdated([$user->id]));
     }
 }

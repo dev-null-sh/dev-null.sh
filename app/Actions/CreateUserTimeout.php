@@ -18,7 +18,7 @@ final readonly class CreateUserTimeout
      */
     public function handle(User $user, ModerationReason $reason, TimeoutDuration $duration): UserTimeout
     {
-        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
 
         return $user->timeouts()->create([
             'reason' => $reason,

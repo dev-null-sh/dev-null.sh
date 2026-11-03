@@ -118,7 +118,7 @@ final readonly class CreateMentionNotifications
 
         Notification::query()->insertOrIgnore($notifications);
 
-        UsersUpdated::dispatch(array_column($notifications, 'recipient_id'), UserUpdate::Notifications);
+        event(new UsersUpdated(array_column($notifications, 'recipient_id'), UserUpdate::Notifications));
     }
 
     /**

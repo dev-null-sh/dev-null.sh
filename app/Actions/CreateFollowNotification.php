@@ -34,6 +34,6 @@ final readonly class CreateFollowNotification
             'updated_at' => now(),
         ]);
 
-        UsersUpdated::dispatch([$followed->id], UserUpdate::Notifications);
+        event(new UsersUpdated([$followed->id], UserUpdate::Notifications));
     }
 }

@@ -30,7 +30,7 @@ final readonly class CreateOrganizationAdmin
             // A member is left without an admin when the last one erased their account...
             $organization->members()->syncWithoutDetaching([$user->id => ['role' => OrganizationRole::Admin]]);
 
-            UsersUpdated::dispatch([$user->id, ...$organization->members()->pluck('users.id')], UserUpdate::Account);
+            event(new UsersUpdated([$user->id, ...$organization->members()->pluck('users.id')], UserUpdate::Account));
 
             return true;
         });

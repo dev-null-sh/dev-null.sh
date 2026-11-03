@@ -30,7 +30,7 @@ final readonly class DeleteOrgMember
             ConversationParticipant::query()->where('conversation_id', $org->id)->where('user_id', $member->id)->delete();
 
             // No longer a member, they hear nothing more from the org, so they are told to let go of what they showed.
-            UsersUpdated::dispatch([$member->id], UserUpdate::Inbox, ['conversation' => $org->id]);
+            event(new UsersUpdated([$member->id], UserUpdate::Inbox, ['conversation' => $org->id]));
 
             $remaining = $org->participants()->with('user')->oldest('id')->get();
 

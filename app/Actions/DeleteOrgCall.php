@@ -39,7 +39,7 @@ final readonly class DeleteOrgCall
 
             CreateOrgCall::forgetSignals($org, $user, array_keys($call['members']));
 
-            UsersUpdated::dispatch(array_keys($call['members']), UserUpdate::CallSignals, ['conversation' => $org->id]);
+            event(new UsersUpdated(array_keys($call['members']), UserUpdate::CallSignals, ['conversation' => $org->id]));
         });
     }
 }

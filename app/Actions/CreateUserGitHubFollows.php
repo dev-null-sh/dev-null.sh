@@ -83,9 +83,9 @@ final readonly class CreateUserGitHubFollows
             ]));
 
             // Even importing nobody completes it, so the onboarding stops waiting either way.
-            UsersUpdated::dispatch([$user->id], UserUpdate::Onboarding);
-            UsersUpdated::dispatch([$user->id], UserUpdate::Live);
-            UsersUpdated::dispatch($followers->only($followerIds)->modelKeys(), UserUpdate::Live);
+            event(new UsersUpdated([$user->id], UserUpdate::Onboarding));
+            event(new UsersUpdated([$user->id], UserUpdate::Live));
+            event(new UsersUpdated($followers->only($followerIds)->modelKeys(), UserUpdate::Live));
         });
     }
 

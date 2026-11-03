@@ -33,7 +33,7 @@ final readonly class CreateScheduledCommit
     {
         $body = mb_trim($body);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::ScheduledCommits);
+        event(new UsersUpdated([$user->id], UserUpdate::ScheduledCommits));
 
         return DB::transaction(fn (): ScheduledCommit => ScheduledCommit::query()->create([
             'user_id' => $user->id,

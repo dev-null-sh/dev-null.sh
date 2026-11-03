@@ -14,6 +14,6 @@ final readonly class UpdateUserTranslationLanguage
     {
         $user->update(['translation_language' => $language]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
     }
 }

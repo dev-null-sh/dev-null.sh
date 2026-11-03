@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Factories\Sequence;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 
 it('renders own commits and commits of followed users newest first', function (): void {
     $user = User::factory()->create();
@@ -841,7 +842,7 @@ it('rejects malformed pending commit identifiers', function (array $pending, str
  * @param  array<string, mixed>  $query
  * @param  array<string, string>  $headers
  */
-function probeLog(Log $log, string $props, array $query, array $headers = []): Illuminate\Testing\TestResponse
+function probeLog(Log $log, string $props, array $query, array $headers = []): TestResponse
 {
     return test()->get(route('log.show', [$log, ...$query]), [
         'X-Inertia' => 'true',

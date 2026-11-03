@@ -10,7 +10,6 @@ use Illuminate\Broadcasting\Channel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Broadcasting\ShouldRescue;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
-use Illuminate\Foundation\Events\Dispatchable;
 
 /**
  * Sent once the transaction commits, on each public commit's channel. Whoever shows the commit hears about it, and
@@ -19,8 +18,6 @@ use Illuminate\Foundation\Events\Dispatchable;
  */
 final class CommitsUpdated implements ShouldBroadcast, ShouldDispatchAfterCommit, ShouldRescue
 {
-    use Dispatchable;
-
     /**
      * @var list<string>
      */

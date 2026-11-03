@@ -70,6 +70,6 @@ final readonly class CreateReplyNotifications
             'updated_at' => now(),
         ])->all());
 
-        UsersUpdated::dispatch($replies->pluck('recipient_id')->all(), UserUpdate::Notifications);
+        event(new UsersUpdated($replies->pluck('recipient_id')->all(), UserUpdate::Notifications));
     }
 }

@@ -8,7 +8,6 @@ use Illuminate\Broadcasting\Channel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Broadcasting\ShouldRescue;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
-use Illuminate\Foundation\Events\Dispatchable;
 
 /**
  * Sent once the transaction commits, on the public headlines channel, when commits joined a headline, so the hot
@@ -16,8 +15,6 @@ use Illuminate\Foundation\Events\Dispatchable;
  */
 final class HeadlinesUpdated implements ShouldBroadcast, ShouldDispatchAfterCommit, ShouldRescue
 {
-    use Dispatchable;
-
     /**
      * @return list<Channel>
      */

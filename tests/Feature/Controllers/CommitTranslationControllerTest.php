@@ -522,7 +522,7 @@ it('lets readers translate on demand after disabling automatic translations with
         ->assertInertia(fn ($page) => $page->where('auth.automaticTranslation', true));
 });
 
-it('reads a finished translation again in each reader\'s own language, without translating anything itself', function (): void {
+it("reads a finished translation again in each reader's own language, without translating anything itself", function (): void {
     $this->mock(TranslationProvider::class)->shouldReceive('translate')->once()->with('Guten morgen', 'pt')
         ->andReturn(['source_language' => 'de', 'body' => 'Bom dia']);
     $commit = Commit::factory()->create(['body' => 'Guten morgen']);

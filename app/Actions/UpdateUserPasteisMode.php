@@ -14,6 +14,6 @@ final readonly class UpdateUserPasteisMode
     {
         $user->update(['pasteis_mode' => $enabled]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
     }
 }

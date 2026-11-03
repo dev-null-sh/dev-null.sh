@@ -30,7 +30,7 @@ it('signs the user into their own private channel', function (): void {
         ->assertExactJson(['auth' => 'local-key:'.hash_hmac('sha256', '123.456:'.$channel, 'local-secret')]);
 });
 
-it('refuses anyone else\'s channel, and channels that are not a user\'s', function (string $channel): void {
+it("refuses anyone else's channel, and channels that are not a user's", function (string $channel): void {
     $user = User::factory()->create();
     $other = User::factory()->create();
 
@@ -56,7 +56,7 @@ it('requires a signed-in user and a valid socket', function (): void {
         ->assertJsonValidationErrors('socket_id');
 });
 
-it('signs an approved device into its user\'s private channel through the API', function (): void {
+it("signs an approved device into its user's private channel through the API", function (): void {
     $user = User::factory()->create();
     $other = User::factory()->create();
     $key = apiKeyPairFor($user);

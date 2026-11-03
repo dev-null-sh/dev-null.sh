@@ -27,7 +27,7 @@ final readonly class CreateDevice
 
         Cache::forget($authorizationCode->key);
 
-        UsersUpdated::dispatch([$authorizationCode->userId], UserUpdate::Account);
+        event(new UsersUpdated([$authorizationCode->userId], UserUpdate::Account));
 
         return Device::query()->updateOrCreate(['fingerprint' => $authorizationCode->fingerprint], [
             'user_id' => $authorizationCode->userId,

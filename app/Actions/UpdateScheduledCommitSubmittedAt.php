@@ -64,7 +64,7 @@ final readonly class UpdateScheduledCommitSubmittedAt
 
             $scheduled->forceFill(['commit_id' => $commit->id, 'body' => null, 'poll' => null, 'images' => null, 'link_preview_url' => null])->save();
 
-            UsersUpdated::dispatch([$scheduled->user_id], UserUpdate::ScheduledCommits);
+            event(new UsersUpdated([$scheduled->user_id], UserUpdate::ScheduledCommits));
 
             return true;
         }, attempts: 5);

@@ -47,6 +47,6 @@ final readonly class CreateStarNotification
             'updated_at' => now(),
         ])->all());
 
-        UsersUpdated::dispatch($recipients->pluck('user_id')->all(), UserUpdate::Notifications);
+        event(new UsersUpdated($recipients->pluck('user_id')->all(), UserUpdate::Notifications));
     }
 }

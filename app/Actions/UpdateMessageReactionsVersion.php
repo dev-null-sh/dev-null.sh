@@ -26,10 +26,6 @@ final readonly class UpdateMessageReactionsVersion
 
         Message::query()->whereKey($message->id)->toBase()->update(['reactions_version' => $conversation->value('reactions_version')]);
 
-        UsersUpdated::dispatch(
-            ConversationParticipant::query()->where('conversation_id', $message->conversation_id)->pluck('user_id'),
-            UserUpdate::Conversation,
-            ['conversation' => $message->conversation_id],
-        );
+        event(new UsersUpdated(ConversationParticipant::query()->where('conversation_id', $message->conversation_id)->pluck('user_id'), UserUpdate::Conversation, ['conversation' => $message->conversation_id]));
     }
 }

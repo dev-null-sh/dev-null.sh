@@ -34,11 +34,7 @@ final readonly class UpdateConversationTyping
         Cache::put(self::key($user, $conversation), true, self::SECONDS);
 
         if ($started) {
-            UsersUpdated::dispatch(
-                ConversationParticipant::query()->where('conversation_id', $conversation->id)->whereNot('user_id', $user->id)->pluck('user_id'),
-                UserUpdate::Conversation,
-                ['conversation' => $conversation->id],
-            );
+            event(new UsersUpdated(ConversationParticipant::query()->where('conversation_id', $conversation->id)->whereNot('user_id', $user->id)->pluck('user_id'), UserUpdate::Conversation, ['conversation' => $conversation->id]));
         }
     }
 }

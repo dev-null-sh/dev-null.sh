@@ -86,14 +86,14 @@ final readonly class CreateOrgCall
             Cache::put(self::key($org), $call, self::SECONDS);
 
             // Whoever is already in checks in right away, to start talking to the newcomer.
-            UsersUpdated::dispatch(array_keys($call['members']), UserUpdate::CallSignals, ['conversation' => $org->id]);
+            event(new UsersUpdated(array_keys($call['members']), UserUpdate::CallSignals, ['conversation' => $org->id]));
 
             return $current === null;
         });
 
         if ($isStarting) {
             $this->events->handle($user, $org, OrgEvent::CallStarted);
-            UsersUpdated::dispatch($org->participants()->pluck('user_id'), UserUpdate::Calls, ['conversation' => $org->id]);
+            event(new UsersUpdated($org->participants()->pluck('user_id'), UserUpdate::Calls, ['conversation' => $org->id]));
         }
     }
 }

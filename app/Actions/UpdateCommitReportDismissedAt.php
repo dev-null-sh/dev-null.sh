@@ -20,6 +20,6 @@ final readonly class UpdateCommitReportDismissedAt
     {
         CommitReport::query()->whereKey($report->id)->whereNull('dismissed_at')->update(['dismissed_at' => now()]);
 
-        UsersUpdated::dispatch($this->admins->ids(), UserUpdate::Moderation, ['reports' => [$report->id]]);
+        event(new UsersUpdated($this->admins->ids(), UserUpdate::Moderation, ['reports' => [$report->id]]));
     }
 }

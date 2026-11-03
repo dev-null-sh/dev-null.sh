@@ -20,14 +20,11 @@ final readonly class UpdateUserRemotePreferences
         $user->update(['remotes_from' => $from, 'pull_receipts' => $pullReceipts]);
 
         // Sharing reads or not shows in every conversation they have.
-        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
-        UsersUpdated::dispatch(
-            ConversationParticipant::query()
-                ->whereIn('conversation_id', ConversationParticipant::query()->where('user_id', $user->id)->select('conversation_id'))
-                ->whereNot('user_id', $user->id)
-                ->distinct()
-                ->pluck('user_id'),
-            UserUpdate::Conversation,
-        );
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
+        event(new UsersUpdated(ConversationParticipant::query()
+            ->whereIn('conversation_id', ConversationParticipant::query()->where('user_id', $user->id)->select('conversation_id'))
+            ->whereNot('user_id', $user->id)
+            ->distinct()
+            ->pluck('user_id'), UserUpdate::Conversation));
     }
 }

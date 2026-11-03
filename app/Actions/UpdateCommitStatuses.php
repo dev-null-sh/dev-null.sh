@@ -138,14 +138,14 @@ final readonly class UpdateCommitStatuses
             }
 
             // The commits still have the status they had, so those everyone saw before or sees now are announced.
-            CommitsUpdated::dispatch($commits->filter(fn (Commit $commit): bool => $commit->status === CommitStatus::Approved || $status === CommitStatus::Approved), CommitUpdate::Visibility);
+            event(new CommitsUpdated($commits->filter(fn (Commit $commit): bool => $commit->status === CommitStatus::Approved || $status === CommitStatus::Approved), CommitUpdate::Visibility));
 
             $authors = $commits->pluck('user_id')->filter()->values()->all();
-            UsersUpdated::dispatch($authors, UserUpdate::Commits);
-            UsersUpdated::dispatch($authors, UserUpdate::ScheduledCommits);
-            UsersUpdated::dispatch(Notification::query()->whereIn('commit_id', $commits->modelKeys())->distinct()->pluck('recipient_id')->all(), UserUpdate::Notifications);
-            ProfilesUpdated::dispatch($commits->pluck('author_id'));
-            UsersUpdated::dispatch($this->admins->ids(), UserUpdate::Moderation, ['commits' => array_values($commits->map(fn (Commit $commit): string => $commit->id)->all())]);
+            event(new UsersUpdated($authors, UserUpdate::Commits));
+            event(new UsersUpdated($authors, UserUpdate::ScheduledCommits));
+            event(new UsersUpdated(Notification::query()->whereIn('commit_id', $commits->modelKeys())->distinct()->pluck('recipient_id')->all(), UserUpdate::Notifications));
+            event(new ProfilesUpdated($commits->pluck('author_id')));
+            event(new UsersUpdated($this->admins->ids(), UserUpdate::Moderation, ['commits' => array_values($commits->map(fn (Commit $commit): string => $commit->id)->all())]));
         });
     }
 }

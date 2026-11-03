@@ -26,7 +26,7 @@ final readonly class UpdateConversationMute
             ->where('conversation_id', $conversation->id)
             ->update(['muted_until_at' => $until]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]);
+        event(new UsersUpdated([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]));
 
         return $until;
     }

@@ -1040,6 +1040,7 @@ it('reads again only the replies a thread heard changed, leaving out those the v
     $hidden = Commit::factory()->for($commit, 'parent')->pending()->create();
     $deleted = Commit::factory()->for($commit, 'parent')->create();
     $deleted->delete();
+
     $quote = Commit::factory()->create(['quoted_commit_id' => $commit->id]);
     $unrelated = Commit::factory()->create();
 

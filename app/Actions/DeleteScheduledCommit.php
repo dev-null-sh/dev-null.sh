@@ -26,7 +26,7 @@ final readonly class DeleteScheduledCommit
         if ($canceled) {
             Storage::disk()->delete($imagePaths);
 
-            UsersUpdated::dispatch([$user->id], UserUpdate::ScheduledCommits);
+            event(new UsersUpdated([$user->id], UserUpdate::ScheduledCommits));
         }
 
         return $canceled;

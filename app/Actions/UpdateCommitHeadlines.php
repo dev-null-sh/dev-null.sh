@@ -42,7 +42,7 @@ final readonly class UpdateCommitHeadlines
             $current->update(['headlines_classified_at' => now()]);
 
             if ($names !== []) {
-                HeadlinesUpdated::dispatch();
+                event(new HeadlinesUpdated());
             }
 
             return $created;

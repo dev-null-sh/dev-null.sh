@@ -102,9 +102,9 @@ final readonly class DeleteUser
             $user->delete();
             $user->profile->delete();
 
-            $vanishing->chunk(100)->each(fn (Collection $commits) => CommitsUpdated::dispatch($commits, CommitUpdate::Visibility));
-            UsersUpdated::dispatch($notified, UserUpdate::Notifications);
-            UsersUpdated::dispatch($partners, UserUpdate::Inbox);
+            $vanishing->chunk(100)->each(fn (Collection $commits) => event(new CommitsUpdated($commits, CommitUpdate::Visibility)));
+            event(new UsersUpdated($notified, UserUpdate::Notifications));
+            event(new UsersUpdated($partners, UserUpdate::Inbox));
 
             foreach ($translationKeys as $key) {
                 Cache::forget($key);

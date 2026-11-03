@@ -142,10 +142,10 @@ final readonly class CreateCommit
             }
 
             $commit->status === CommitStatus::Approved
-                ? CommitsUpdated::dispatch([$commit], CommitUpdate::Visibility)
-                : UsersUpdated::dispatch($this->admins->ids(), UserUpdate::Moderation, ['commits' => [$commit->id]]);
-            UsersUpdated::dispatch([$user->id], UserUpdate::Commits);
-            ProfilesUpdated::dispatch([$commit->author_id]);
+                ? event(new CommitsUpdated([$commit], CommitUpdate::Visibility))
+                : event(new UsersUpdated($this->admins->ids(), UserUpdate::Moderation, ['commits' => [$commit->id]]));
+            event(new UsersUpdated([$user->id], UserUpdate::Commits));
+            event(new ProfilesUpdated([$commit->author_id]));
 
             return $commit;
         });

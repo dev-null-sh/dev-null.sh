@@ -24,7 +24,7 @@ final readonly class CreateUserBlock
 
             // Nothing crosses a block: notifications, follows and remotes all change for both of them.
             foreach ([UserUpdate::Notifications, UserUpdate::Account, UserUpdate::Live, UserUpdate::Inbox] as $update) {
-                UsersUpdated::dispatch([$user->id, $blocked->id], $update);
+                event(new UsersUpdated([$user->id, $blocked->id], $update));
             }
         });
     }

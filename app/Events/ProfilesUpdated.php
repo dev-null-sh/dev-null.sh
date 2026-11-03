@@ -8,7 +8,6 @@ use Illuminate\Broadcasting\Channel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Broadcasting\ShouldRescue;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
-use Illuminate\Foundation\Events\Dispatchable;
 
 /**
  * Sent once the transaction commits, on each public profile's channel, when what its page shows about it changed:
@@ -16,8 +15,6 @@ use Illuminate\Foundation\Events\Dispatchable;
  */
 final class ProfilesUpdated implements ShouldBroadcast, ShouldDispatchAfterCommit, ShouldRescue
 {
-    use Dispatchable;
-
     /**
      * @var list<string>
      */

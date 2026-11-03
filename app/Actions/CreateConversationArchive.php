@@ -23,6 +23,6 @@ final readonly class CreateConversationArchive
             ->whereNull('archived_at')
             ->update(['archived_at' => now()]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]);
+        event(new UsersUpdated([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]));
     }
 }

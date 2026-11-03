@@ -21,7 +21,7 @@ final readonly class UpdateNotificationsReadAt
             ->where('created_at', '<=', $through)
             ->update(['read_at' => $readAt]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Notifications);
+        event(new UsersUpdated([$user->id], UserUpdate::Notifications));
 
         return $readAt;
     }

@@ -9,7 +9,6 @@ use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Contracts\Broadcasting\ShouldRescue;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
-use Illuminate\Foundation\Events\Dispatchable;
 
 /**
  * Sent once the transaction that changed something commits, so a rolled back change is never announced, and a
@@ -18,8 +17,6 @@ use Illuminate\Foundation\Events\Dispatchable;
  */
 final class UsersUpdated implements ShouldBroadcast, ShouldDispatchAfterCommit, ShouldRescue
 {
-    use Dispatchable;
-
     /**
      * @var list<string>
      */

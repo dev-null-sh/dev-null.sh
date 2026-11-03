@@ -32,9 +32,9 @@ final readonly class CreateUserFollow
 
             $this->createFollowNotification->handle($follower, $followed);
 
-            UsersUpdated::dispatch([$follower->id], UserUpdate::Account);
-            UsersUpdated::dispatch([$follower->id], UserUpdate::Live);
-            ProfilesUpdated::dispatch([$follower->id, $followed->id]);
+            event(new UsersUpdated([$follower->id], UserUpdate::Account));
+            event(new UsersUpdated([$follower->id], UserUpdate::Live));
+            event(new ProfilesUpdated([$follower->id, $followed->id]));
         });
     }
 }

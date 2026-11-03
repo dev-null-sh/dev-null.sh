@@ -45,6 +45,6 @@ final readonly class CreateLevelNotification
             'updated_at' => now(),
         ]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Notifications);
+        event(new UsersUpdated([$user->id], UserUpdate::Notifications));
     }
 }

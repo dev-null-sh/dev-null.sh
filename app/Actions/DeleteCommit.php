@@ -47,7 +47,7 @@ final readonly class DeleteCommit
                 ->orWhere(fn (Builder $query): Builder => $query->where('type', NotificationType::Replied)->whereIn('commit_id', $commit->replies()->select('id')))
                 ->orWhere(fn (Builder $query): Builder => $query->where('type', NotificationType::Quoted)->whereIn('commit_id', $commit->quotes()->select('id')));
 
-            UsersUpdated::dispatch($notifications->clone()->distinct()->pluck('recipient_id')->all(), UserUpdate::Notifications);
+            event(new UsersUpdated($notifications->clone()->distinct()->pluck('recipient_id')->all(), UserUpdate::Notifications));
 
             $notifications->delete();
 
@@ -61,13 +61,13 @@ final readonly class DeleteCommit
             $this->updateCommitHotScores->handle([$commit->id]);
 
             $commit->status === CommitStatus::Approved
-                ? CommitsUpdated::dispatch([$commit], CommitUpdate::Visibility)
-                : UsersUpdated::dispatch($this->admins->ids(), UserUpdate::Moderation, ['commits' => [$commit->id]]);
+                ? event(new CommitsUpdated([$commit], CommitUpdate::Visibility))
+                : event(new UsersUpdated($this->admins->ids(), UserUpdate::Moderation, ['commits' => [$commit->id]]));
 
             // The author's other devices show it too, the queue of scheduled commits included.
-            UsersUpdated::dispatch(array_filter([$commit->user_id]), UserUpdate::Commits);
-            UsersUpdated::dispatch(array_filter([$commit->user_id]), UserUpdate::ScheduledCommits);
-            ProfilesUpdated::dispatch([$commit->author_id]);
+            event(new UsersUpdated(array_filter([$commit->user_id]), UserUpdate::Commits));
+            event(new UsersUpdated(array_filter([$commit->user_id]), UserUpdate::ScheduledCommits));
+            event(new ProfilesUpdated([$commit->author_id]));
 
             dispatch(new EraseDeletedCommit($commit))
                 ->delay(now()->addSeconds(Commit::RESTORABLE_SECONDS))

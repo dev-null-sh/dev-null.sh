@@ -20,7 +20,7 @@ final readonly class UpdateUserLive
             'live_ends_at' => now()->addHours($hours),
         ]);
 
-        ProfilesUpdated::dispatch([$user->id]);
-        UsersUpdated::dispatch($user->followers()->pluck('users.id'), UserUpdate::Live);
+        event(new ProfilesUpdated([$user->id]));
+        event(new UsersUpdated($user->followers()->pluck('users.id'), UserUpdate::Live));
     }
 }

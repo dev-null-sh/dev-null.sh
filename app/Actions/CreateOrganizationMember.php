@@ -19,6 +19,6 @@ final readonly class CreateOrganizationMember
     {
         $organization->members()->attach($user->id, ['role' => OrganizationRole::Member]);
 
-        UsersUpdated::dispatch([$user->id, ...$organization->members()->pluck('users.id')], UserUpdate::Account);
+        event(new UsersUpdated([$user->id, ...$organization->members()->pluck('users.id')], UserUpdate::Account));
     }
 }

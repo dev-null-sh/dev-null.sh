@@ -39,7 +39,7 @@ final readonly class UpdateOrgCall
             }
 
             // Each member a signal was left for checks in now to collect it, instead of at their next check-in.
-            UsersUpdated::dispatch(array_keys($signals), UserUpdate::CallSignals, ['conversation' => $org->id]);
+            event(new UsersUpdated(array_keys($signals), UserUpdate::CallSignals, ['conversation' => $org->id]));
         });
     }
 }

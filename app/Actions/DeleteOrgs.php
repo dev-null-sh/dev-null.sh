@@ -36,6 +36,6 @@ final readonly class DeleteOrgs
 
         $orgs->delete();
 
-        UsersUpdated::dispatch($members, UserUpdate::Inbox);
+        event(new UsersUpdated($members, UserUpdate::Inbox));
     }
 }

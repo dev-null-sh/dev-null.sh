@@ -30,13 +30,13 @@ final readonly class CreateCommitRestoration
                 $this->updateCommitHotScores->handle([$commit->threadRootId()]);
 
                 if ($commit->status === CommitStatus::Approved) {
-                    CommitsUpdated::dispatch([$commit], CommitUpdate::Visibility);
+                    event(new CommitsUpdated([$commit], CommitUpdate::Visibility));
                 }
 
                 // The author's other devices show it too, the queue of scheduled commits included.
-                UsersUpdated::dispatch(array_filter([$commit->user_id]), UserUpdate::Commits);
-                UsersUpdated::dispatch(array_filter([$commit->user_id]), UserUpdate::ScheduledCommits);
-                ProfilesUpdated::dispatch([$commit->author_id]);
+                event(new UsersUpdated(array_filter([$commit->user_id]), UserUpdate::Commits));
+                event(new UsersUpdated(array_filter([$commit->user_id]), UserUpdate::ScheduledCommits));
+                event(new ProfilesUpdated([$commit->author_id]));
             }
 
             return $commit;

@@ -14,6 +14,6 @@ final readonly class UpdateUserLane
     {
         $user->update(['preferred_lane' => $lane, 'lane_color' => $color]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
     }
 }

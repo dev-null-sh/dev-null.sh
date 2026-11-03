@@ -28,7 +28,7 @@ final readonly class CreateCommitPollVote
 
         // Results stay hidden from whoever hasn't voted, so the update only says to read them again.
         if ($voted) {
-            CommitsUpdated::dispatch(Commit::query()->approved()->whereRelation('poll', 'id', $option->poll_id)->get(['id']), CommitUpdate::Poll);
+            event(new CommitsUpdated(Commit::query()->approved()->whereRelation('poll', 'id', $option->poll_id)->get(['id']), CommitUpdate::Poll));
         }
 
         return $voted;

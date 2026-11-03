@@ -38,7 +38,7 @@ final readonly class CreateConversationCall
         Cache::put(self::key($callee), Crypt::encryptString(json_encode($call->toArray(), JSON_THROW_ON_ERROR)), self::SECONDS + 5);
 
         // The offer itself stays behind the call endpoint: the callee's browsers only hear that it rings.
-        UsersUpdated::dispatch([$callee->id, $caller->id], UserUpdate::Calls);
+        event(new UsersUpdated([$callee->id, $caller->id], UserUpdate::Calls));
 
         $this->events->handle($caller, Conversation::betweenOrFail($caller, $callee), OrgEvent::CallStarted);
     }

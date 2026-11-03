@@ -31,7 +31,7 @@ final readonly class DeleteOrganizationMember
 
             $organization->members()->detach($member->id);
 
-            UsersUpdated::dispatch([$member->id, ...$organization->members()->pluck('users.id')], UserUpdate::Account);
+            event(new UsersUpdated([$member->id, ...$organization->members()->pluck('users.id')], UserUpdate::Account));
         });
     }
 }

@@ -43,7 +43,7 @@ final readonly class CreateCommitStar
             $this->updateCommitHotScores->handle([$commit->id]);
 
             if ($commit->status === CommitStatus::Approved) {
-                CommitsUpdated::dispatch([$commit], CommitUpdate::Engagement);
+                event(new CommitsUpdated([$commit], CommitUpdate::Engagement));
             }
 
             if ($commit->user_id !== $user->id) {

@@ -48,11 +48,7 @@ final readonly class CreateMessage
             ->where('conversation_id', $conversation->id)
             ->update(['last_message_at' => $message->created_at, ...$unstash ? ['archived_at' => null] : []]);
 
-        UsersUpdated::dispatch(
-            ConversationParticipant::query()->where('conversation_id', $conversation->id)->pluck('user_id'),
-            UserUpdate::Messages,
-            ['conversation' => $conversation->id],
-        );
+        event(new UsersUpdated(ConversationParticipant::query()->where('conversation_id', $conversation->id)->pluck('user_id'), UserUpdate::Messages, ['conversation' => $conversation->id]));
     }
 
     /**

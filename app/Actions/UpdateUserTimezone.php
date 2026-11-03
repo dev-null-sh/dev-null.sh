@@ -17,6 +17,6 @@ final readonly class UpdateUserTimezone
             'show_local_time' => $timezone !== null && $showLocalTime,
         ]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
     }
 }

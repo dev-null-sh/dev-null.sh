@@ -27,7 +27,7 @@ final readonly class UpdateConversationCall
     {
         Cache::put(CreateConversationCall::key($callee), Crypt::encryptString(json_encode($call->answered($answer)->toArray(), JSON_THROW_ON_ERROR)), CreateConversationCall::SECONDS);
 
-        UsersUpdated::dispatch([$caller->id, $callee->id], UserUpdate::Calls);
+        event(new UsersUpdated([$caller->id, $callee->id], UserUpdate::Calls));
 
         $this->events->handle($callee, Conversation::betweenOrFail($callee, $caller), OrgEvent::CallAnswered);
     }

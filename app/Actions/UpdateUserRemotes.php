@@ -14,8 +14,8 @@ final readonly class UpdateUserRemotes
     {
         $user->update(['remotes_enabled' => $enabled]);
 
-        UsersUpdated::dispatch([$user->id], UserUpdate::Account);
-        UsersUpdated::dispatch([$user->id], UserUpdate::Inbox);
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
+        event(new UsersUpdated([$user->id], UserUpdate::Inbox));
 
         if (! $enabled) {
             $user->pushSubscriptions()->delete();
