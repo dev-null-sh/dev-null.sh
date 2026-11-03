@@ -15,8 +15,20 @@ export const certificateHashPattern = new RegExp(
     'gi',
 );
 
+const certificateHashCandidate = new RegExp(certificateHashPattern.source, 'i');
+
 /** Decorates only text in already escaped, server-highlighted code, never HTML attributes. */
 export function withCertificateHashes(html: string): string {
+    if (!html.includes('<')) {
+        return html.replace(
+            certificateHashPattern,
+            '<span class="certificate-hash"><span>$1</span></span>',
+        );
+    }
+
+    // Most highlighted code has no compromised fingerprint: avoid splitting all its tags.
+    if (!certificateHashCandidate.test(html)) return html;
+
     return html
         .split(/(<[^>]*>)/g)
         .map((part, index) =>

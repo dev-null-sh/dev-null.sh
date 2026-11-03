@@ -1,7 +1,7 @@
 /// <reference types="node" />
 import assert from 'node:assert/strict';
 import * as React from 'react';
-import { afterAll, test, vi } from 'vite-plus/test';
+import { afterAll, afterEach, test, vi } from 'vite-plus/test';
 
 type Subscribe = (listener: () => void) => () => void;
 
@@ -22,6 +22,12 @@ vi.doMock('react', () => ({
         return getSnapshot();
     },
 }));
+
+afterEach(() => {
+    while (unsubscribes.length) unsubscribes.pop()?.();
+    listener.mockClear();
+    vi.unstubAllGlobals();
+});
 
 afterAll(() => {
     vi.useRealTimers();
@@ -56,4 +62,44 @@ test('counts from the moment the server rendered the page, on the server and whi
     useNow();
 
     assert.equal(getServerSnapshot?.(), renderedAt);
+});
+
+test('does no timer work while hidden and refreshes immediately when visible', async () => {
+    vi.useFakeTimers();
+    const document = Object.assign(new EventTarget(), { hidden: false });
+    vi.stubGlobal('document', document);
+    const start = new Date('2026-10-27T12:00:00Z').getTime();
+    vi.setSystemTime(start);
+    const { useNow } = await import('../../resources/js/hooks/use-now');
+    useNow();
+    assert.equal(vi.getTimerCount(), 1);
+
+    document.hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    assert.equal(vi.getTimerCount(), 0);
+    vi.advanceTimersByTime(60 * 60_000);
+    assert.equal(listener.mock.calls.length, 0);
+
+    document.hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    assert.equal(listener.mock.calls.length, 1);
+    assert.equal(useNow().getTime(), start + 60 * 60_000);
+    assert.equal(vi.getTimerCount(), 1);
+    vi.advanceTimersByTime(30_000);
+    assert.equal(listener.mock.calls.length, 2);
+});
+
+test('subscribing in a hidden tab creates no timer and cleans up on the last unsubscribe', async () => {
+    vi.useFakeTimers();
+    const document = Object.assign(new EventTarget(), { hidden: true });
+    vi.stubGlobal('document', document);
+    const { useNow } = await import('../../resources/js/hooks/use-now');
+    useNow();
+    useNow();
+    assert.equal(vi.getTimerCount(), 0);
+    while (unsubscribes.length) unsubscribes.pop()?.();
+    document.hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    assert.equal(listener.mock.calls.length, 0);
+    assert.equal(vi.getTimerCount(), 0);
 });

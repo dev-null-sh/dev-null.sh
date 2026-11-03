@@ -566,3 +566,22 @@ void test('keeps nothing of a line from another node, from where its node stood 
     assert.equal(drawnStretch(toNext, [aside]), 0);
     assert.equal(drawnStretch(toNext, []), 0);
 });
+
+void test('indexes unsorted siblings without changing equal-height input-order ties', () => {
+    const nodes = [
+        node({ id: 'root', y: 0 }),
+        node({ id: 'last', y: 200, x: 96, parent: 'root' }),
+        node({ id: 'first-at-height', y: 100, x: 34, parent: 'root' }),
+        node({ id: 'second-at-height', y: 100, x: 96, parent: 'root' }),
+    ];
+    const original = structuredClone(nodes);
+    const edges = graphEdges(nodes);
+    assert.deepEqual(
+        edges.map((edge) => edge.id),
+        ['branch:last', 'branch:first-at-height', 'branch:second-at-height'],
+    );
+    assert.equal(edges[0].start.y, 98);
+    assert.equal(edges[1].start.y, 0);
+    assert.equal(edges[2].start.y, 0);
+    assert.deepEqual(nodes, original);
+});

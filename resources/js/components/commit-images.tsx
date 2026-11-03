@@ -80,17 +80,19 @@ function CommitImageThumbnail({
     alt,
     className,
     isSingle,
+    priority = false,
 }: {
     image: ShownImage;
     alt: string;
     className: string;
     isSingle: boolean;
+    priority?: boolean;
 }) {
     const [isLoaded, setIsLoaded] = useState(false);
 
     return (
         <>
-            {!isLoaded && (
+            {!priority && !isLoaded && (
                 <CommitImageLoading
                     hash={image.id.replace(/[^0-9a-f]/g, '').slice(-7)}
                 />
@@ -105,7 +107,8 @@ function CommitImageThumbnail({
                 alt={alt}
                 width={image.width}
                 height={image.height}
-                loading="lazy"
+                loading={priority ? 'eager' : 'lazy'}
+                fetchPriority={priority ? 'high' : undefined}
                 decoding="async"
                 data-single-image={isSingle || undefined}
                 onLoad={() => setIsLoaded(true)}
@@ -113,7 +116,7 @@ function CommitImageThumbnail({
                 className={cn(
                     className,
                     'transition-opacity duration-300',
-                    !isLoaded && 'opacity-0',
+                    !priority && !isLoaded && 'opacity-0',
                 )}
             />
         </>
@@ -123,13 +126,14 @@ function CommitImageThumbnail({
 /**
  * A commit's images open in its photo viewer. Other images, like a message's, open wherever `onOpen` shows them.
  */
-type CommitImagesProps =
+type CommitImagesProps = { priority?: boolean } & (
     | { commit: Commit; images?: never; onOpen?: never }
     | {
           commit?: never;
           images: ShownImage[];
           onOpen?: (index: number) => void;
-      };
+      }
+);
 
 const isModifiedClick = (event: MouseEvent): boolean =>
     event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
@@ -138,6 +142,7 @@ export function CommitImages({
     commit,
     images: draftImages,
     onOpen,
+    priority = false,
 }: CommitImagesProps) {
     const images = commit ? (commit.images ?? []) : draftImages;
 
@@ -167,6 +172,7 @@ export function CommitImages({
                     const thumbnail = (
                         <CommitImageThumbnail
                             image={image}
+                            priority={priority && index === 0}
                             isSingle={!hasMultipleImages}
                             alt={commitImageAlt(image, index, images.length)}
                             className={cn(

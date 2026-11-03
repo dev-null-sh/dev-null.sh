@@ -40,3 +40,19 @@ void test('preserves syntax highlighting, escaped code and HTML attributes', () 
         `<span class="hl-string" title="${hash}">&quot;<span class="certificate-hash"><span>${hash}</span></span>&quot;</span> &lt;script&gt;`,
     );
 });
+
+void test('leaves fingerprints in attributes alone even when no text contains one', () => {
+    const html = `<span title="${fingerprints[0]}">safe text</span>`;
+    assert.equal(withCertificateHashes(html), html);
+});
+
+void test('preserves ordinary highlighted code and escaped angle brackets verbatim', () => {
+    for (const html of [
+        '',
+        'const x = 1;',
+        '<span class="hl-keyword">const</span> x = &lt;tag&gt;',
+        'x < y',
+    ]) {
+        assert.equal(withCertificateHashes(html), html);
+    }
+});

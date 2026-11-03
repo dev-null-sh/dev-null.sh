@@ -12,6 +12,8 @@ import {
     formatFullDate,
     formatFullDateTime,
     formatRelativeTime,
+    formatSyncedAgo,
+    formatUtcOffset,
     formatZonedDate,
     formatZonedTime,
     localDayKey,
@@ -101,4 +103,113 @@ void test("tells this machine's clock", () => {
         Intl.DateTimeFormat().resolvedOptions().timeZone,
     );
     assert.match(clock.hourCycle, /^h(11|12|23|24)$/);
+});
+
+void test('cached formats match native output across readers, DST changes and cache eviction', () => {
+    const dates = [
+        '2025-12-31T23:30:00Z',
+        '2026-03-08T06:59:00Z',
+        '2026-03-08T07:01:00Z',
+        '2026-10-25T00:59:00Z',
+        '2026-10-25T01:01:00Z',
+        '2026-11-01T05:59:00Z',
+        '2026-11-01T06:01:00Z',
+    ];
+    // More distinct keys than the cache holds, followed by the same zones again.
+    const zones = [
+        'UTC',
+        ...Intl.supportedValuesOf('timeZone').slice(0, 140),
+        'America/New_York',
+        'Europe/Lisbon',
+        'Asia/Kathmandu',
+        'UTC',
+    ];
+
+    for (const timeZone of zones) {
+        for (const hourCycle of ['h11', 'h12', 'h23', 'h24'] as const) {
+            setReaderClock({ timeZone, hourCycle });
+            for (const date of dates) {
+                const value = new Date(date);
+                const time = value.toLocaleTimeString('en-US', {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    timeZone,
+                    hourCycle,
+                });
+                const day = value.toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    timeZone,
+                });
+                assert.equal(formatClockTime(date), time);
+                assert.equal(formatFullDate(date), day);
+                assert.equal(formatFullDateTime(date), `${time} · ${day}`);
+                assert.equal(
+                    formatClockDateTime(date),
+                    value.toLocaleString('en-US', {
+                        dateStyle: 'medium',
+                        timeStyle: 'short',
+                        timeZone,
+                        hourCycle,
+                    }),
+                );
+                assert.equal(
+                    formatClockMonth(date),
+                    value.toLocaleDateString('en-US', {
+                        month: 'long',
+                        year: 'numeric',
+                        timeZone,
+                    }),
+                );
+            }
+        }
+    }
+});
+
+void test('preserves invalid-date labels for locale string helpers', () => {
+    setReaderClock({ timeZone: 'UTC', hourCycle: 'h23' });
+    assert.equal(formatClockTime('invalid'), 'Invalid Date');
+    assert.equal(formatFullDate('invalid'), 'Invalid Date');
+    assert.equal(formatClockDateTime('invalid'), 'Invalid Date');
+    assert.equal(formatClockMonth('invalid'), 'Invalid Date');
+    assert.equal(formatFullDateTime('invalid'), 'Invalid Date · Invalid Date');
+});
+
+void test('reuses offset formats without freezing daylight-saving offsets', () => {
+    assert.equal(
+        formatUtcOffset(new Date('2026-03-08T06:59:00Z'), 'America/New_York'),
+        'UTC -05:00',
+    );
+    assert.equal(
+        formatUtcOffset(new Date('2026-03-08T07:01:00Z'), 'America/New_York'),
+        'UTC -04:00',
+    );
+    assert.equal(
+        formatUtcOffset(new Date('2026-03-08T07:01:00Z'), 'UTC'),
+        'UTC',
+    );
+    assert.equal(
+        formatUtcOffset(new Date('2026-03-08T07:01:00Z'), 'Asia/Kathmandu'),
+        'UTC +05:45',
+    );
+});
+
+void test('keeps synced-ago labels at minute, hour and day boundaries', () => {
+    const now = new Date('2026-10-27T12:00:00Z');
+    for (const [seconds, expected] of [
+        [59, 'just now'],
+        [60, '1 minute ago'],
+        [3600, '1 hour ago'],
+        [86400, 'yesterday'],
+        [172800, '2 days ago'],
+    ] as const) {
+        assert.equal(
+            formatSyncedAgo(
+                new Date(now.getTime() - seconds * 1000).toISOString(),
+                now,
+            ),
+            expected,
+        );
+    }
 });

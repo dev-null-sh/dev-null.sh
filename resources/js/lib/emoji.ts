@@ -39,6 +39,14 @@ export type EmojiSuggestion = {
     emoji: string;
 };
 
+const searchableShortcodes = Object.entries(shortcodeEmoji).map(
+    ([name, emoji]) => ({
+        name,
+        emoji,
+        words: name.split(/[_-]/),
+    }),
+);
+
 const emojiNames = new Map<string, string>();
 
 Object.entries(shortcodeEmoji).forEach(([name, emoji]) => {
@@ -57,12 +65,12 @@ export function emojiName(emoji: string): string | undefined {
 /**
  * 0 when the shortcode starts with the query, 1 when a later word does, 2 when it only contains it.
  */
-function matchRank(name: string, partial: string): number {
+function matchRank(name: string, words: string[], partial: string): number {
     if (name.startsWith(partial)) {
         return 0;
     }
 
-    return name.split(/[_-]/).some((word) => word.startsWith(partial)) ? 1 : 2;
+    return words.some((word) => word.startsWith(partial)) ? 1 : 2;
 }
 
 /**
@@ -80,21 +88,19 @@ export function searchEmoji(
         .replace(/^:+|:+$/g, '');
     const best = new Map<string, { name: string; rank: number }>();
 
-    Object.keys(shortcodeEmoji)
-        .filter((name) => name.includes(partial))
-        .forEach((name) => {
-            const emoji = shortcodeEmoji[name];
-            const rank = matchRank(name, partial);
-            const current = best.get(emoji);
+    for (const { name, emoji, words } of searchableShortcodes) {
+        if (!name.includes(partial)) continue;
+        const rank = matchRank(name, words, partial);
+        const current = best.get(emoji);
 
-            if (
-                current === undefined ||
-                rank < current.rank ||
-                (rank === current.rank && name.length < current.name.length)
-            ) {
-                best.set(emoji, { name, rank });
-            }
-        });
+        if (
+            current === undefined ||
+            rank < current.rank ||
+            (rank === current.rank && name.length < current.name.length)
+        ) {
+            best.set(emoji, { name, rank });
+        }
+    }
 
     return [...best.entries()]
         .sort(
