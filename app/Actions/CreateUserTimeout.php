@@ -18,11 +18,13 @@ final readonly class CreateUserTimeout
      */
     public function handle(User $user, ModerationReason $reason, TimeoutDuration $duration): UserTimeout
     {
-        event(new UsersUpdated([$user->id], UserUpdate::Account));
-
-        return $user->timeouts()->create([
+        $timeout = $user->timeouts()->create([
             'reason' => $reason,
             'ends_at' => now()->addMinutes($duration->value),
         ]);
+
+        event(new UsersUpdated([$user->id], UserUpdate::Account));
+
+        return $timeout;
     }
 }

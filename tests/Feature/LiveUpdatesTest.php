@@ -5,15 +5,23 @@ declare(strict_types=1);
 use App\Actions\CreateCommit;
 use App\Actions\CreateCommitStar;
 use App\Actions\CreateConversationCall;
+use App\Actions\CreateDevice;
 use App\Actions\CreateMessage;
+use App\Actions\CreateScheduledCommit;
 use App\Actions\CreateUserBlock;
+use App\Actions\CreateUserTimeout;
 use App\Actions\DeleteUser;
+use App\Actions\UpdateConversationReadThrough;
 use App\Actions\UpdateLinkPreview;
 use App\Actions\UpdateOrgCall;
 use App\Actions\UpdateScheduledCommitSubmittedAt;
 use App\Contracts\Services\LinkPreviewProvider;
+use App\Dto\AuthorizationCode;
 use App\Enums\CommitStatus;
 use App\Enums\CommitUpdate;
+use App\Enums\ModerationReason;
+use App\Enums\RemoteStatus;
+use App\Enums\TimeoutDuration;
 use App\Enums\UserUpdate;
 use App\Events\CommitsUpdated;
 use App\Events\ProfilesUpdated;
@@ -22,13 +30,16 @@ use App\Http\Middleware\HandleInertiaRequests;
 use App\Jobs\UnfurlLink;
 use App\Models\Commit;
 use App\Models\Conversation;
+use App\Models\ConversationParticipant;
 use App\Models\LinkPreview;
 use App\Models\Message;
 use App\Models\ScheduledCommit;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 beforeEach(function (): void {
     config(['app.admins' => ['admin'], 'remotes.requests' => true, 'remotes.everyone' => true]);
@@ -114,17 +125,39 @@ it('announces typing when it starts, not on every ping that keeps it alive', fun
         ->and(usersUpdated(UserUpdate::Conversation)[0]->userIds)->toBe([$recipient->id]);
 });
 
-it("tells the reader's devices and whoever shares reads when a conversation is read, and nobody when nothing changed", function (): void {
-    $sender = User::factory()->withRemotes()->create();
-    $recipient = User::factory()->withRemotes()->create();
+it('tells the reader\'s other devices about a read, and the partner only when they would see it', function (bool $readerShares, bool $partnerShares, RemoteStatus $readerStatus, bool $partnerHears): void {
+    $sender = User::factory()->withRemotes()->create(['pull_receipts' => $partnerShares]);
+    $recipient = User::factory()->withRemotes()->create(['pull_receipts' => $readerShares]);
     $message = sendChatMessage($sender, $recipient);
+    ConversationParticipant::query()->where('user_id', $recipient->id)->update(['status' => $readerStatus]);
+    $conversation = Conversation::between($sender, $recipient);
+    assert($conversation instanceof Conversation);
+    Event::fake([UsersUpdated::class]);
 
-    $this->actingAs($recipient)->putJson(route('conversation-read.update', $sender), ['through' => $message->id])->assertNoContent();
-    $this->actingAs($recipient)->putJson(route('conversation-read.update', $sender), ['through' => $message->id])->assertNoContent();
+    resolve(UpdateConversationReadThrough::class)->handle($recipient, $conversation, $message->id);
+    resolve(UpdateConversationReadThrough::class)->handle($recipient, $conversation, $message->id);
 
     expect(recipientsOf(usersUpdated(UserUpdate::Inbox)))->toBe([$recipient->id])
-        ->and(recipientsOf(usersUpdated(UserUpdate::Conversation)))->toBe([$sender->id])
-        ->and(usersUpdated(UserUpdate::Inbox))->toHaveCount(1);
+        ->and(usersUpdated(UserUpdate::Inbox))->toHaveCount(1)
+        ->and(recipientsOf(usersUpdated(UserUpdate::Conversation)))->toBe($partnerHears ? [$sender->id] : []);
+})->with([
+    'both share reads' => [true, true, RemoteStatus::Open, true],
+    'the reader keeps reads private' => [false, true, RemoteStatus::Open, false],
+    'the partner keeps reads private' => [true, false, RemoteStatus::Open, false],
+    'the reader has not merged the request' => [true, true, RemoteStatus::Fetched, false],
+]);
+
+it('tells only the org members who share reads with the reader about a read', function (): void {
+    $maintainer = User::factory()->withRemotes()->create();
+    [$sharing, $private] = followersOf($maintainer, 2);
+    $private->update(['pull_receipts' => false]);
+    $org = Conversation::query()->findOrFail(createOrg($maintainer, [$sharing, $private]));
+    $message = pushToOrg($maintainer, $org->id);
+    Event::fake([UsersUpdated::class]);
+
+    resolve(UpdateConversationReadThrough::class)->handle($sharing, $org->refresh(), $message->id);
+
+    expect(recipientsOf(usersUpdated(UserUpdate::Conversation)))->toBe([$maintainer->id]);
 });
 
 it('tells someone removed from an org to let go of it, and only the remaining members hear what comes next', function (): void {
@@ -338,4 +371,48 @@ it("refreshes the shared counts from the signed-in user's private channel, and g
         'events' => ['notifications'],
     ]])
         ->and($live['auth.unreadMessagesCount']['listeners'][0]['events'])->toBe(['remotes.messages', 'remotes.inbox']);
+});
+
+/**
+ * Listens for real, so what each update makes a page read again is what it finds.
+ *
+ * @return Closure(): list<mixed>
+ */
+function onUpdate(UserUpdate $update, Closure $read): Closure
+{
+    $seen = [];
+    Event::listen(UsersUpdated::class, function (UsersUpdated $event) use ($update, $read, &$seen): void {
+        if ($event->update === $update) {
+            $seen[] = $read();
+        }
+    });
+
+    return function () use (&$seen): array {
+        return $seen;
+    };
+}
+
+it('announces a scheduled commit, a device and a timeout only once they are stored', function (): void {
+    Event::fake([CommitsUpdated::class, ProfilesUpdated::class]);
+    $user = User::factory()->create();
+    $scheduled = onUpdate(UserUpdate::ScheduledCommits, fn (): int => ScheduledCommit::query()->where('user_id', $user->id)->count());
+    $account = onUpdate(UserUpdate::Account, fn (): array => [$user->devices()->count(), $user->timeouts()->count()]);
+
+    resolve(CreateScheduledCommit::class)->handle($user, 'Later.', now()->addHour()->toImmutable());
+    resolve(CreateDevice::class)->handle(new AuthorizationCode('authorization-code:test', $user->id, 'SHA256:fingerprint', 'Phone', 'challenge'));
+    resolve(CreateUserTimeout::class)->handle($user, ModerationReason::Spam, TimeoutDuration::cases()[0]);
+
+    expect($scheduled())->toBe([1])
+        ->and($account())->toBe([[1, 0], [1, 1]]);
+});
+
+it('announces nothing when storing a scheduled commit fails', function (): void {
+    Event::fake([UsersUpdated::class]);
+    $user = User::factory()->create();
+
+    expect(fn () => resolve(CreateScheduledCommit::class)->handle($user, 'Later.', now()->addHour()->toImmutable(), [UploadedFile::fake()->create('broken.jpg', 4)]))
+        ->toThrow(ValidationException::class);
+
+    Event::assertNotDispatched(UsersUpdated::class);
+    expect(ScheduledCommit::query()->count())->toBe(0);
 });

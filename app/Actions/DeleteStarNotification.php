@@ -20,8 +20,10 @@ final readonly class DeleteStarNotification
             ->where('actor_id', $stargazer->id)
             ->where('commit_id', $commit->id);
 
-        event(new UsersUpdated($notifications->clone()->pluck('recipient_id')->all(), UserUpdate::Notifications));
+        $recipients = $notifications->clone()->pluck('recipient_id');
 
         $notifications->delete();
+
+        event(new UsersUpdated($recipients, UserUpdate::Notifications));
     }
 }

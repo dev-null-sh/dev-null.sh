@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Actions;
 
+use App\Enums\RemoteStatus;
 use App\Enums\UserUpdate;
 use App\Events\UsersUpdated;
 use App\Models\Conversation;
@@ -29,8 +30,19 @@ final readonly class UpdateConversationReadThrough
             return;
         }
 
-        // The reader's unread counts change on their other devices, and whoever shares reads sees how far they got.
+        // The reader's unread counts change on their other devices. Only whoever would see how far they read hears that
+        // they read at all, by the same rules the conversation shows reads with: both share pulls, and in a direct
+        // conversation the reader merged it.
         event(new UsersUpdated([$user->id], UserUpdate::Inbox, ['conversation' => $conversation->id]));
-        event(new UsersUpdated(ConversationParticipant::query()->where('conversation_id', $conversation->id)->whereNot('user_id', $user->id)->pluck('user_id'), UserUpdate::Conversation, ['conversation' => $conversation->id]));
+
+        $participants = ConversationParticipant::query()->where('conversation_id', $conversation->id)->with('user')->get();
+        $reader = $participants->firstWhere('user_id', $user->id);
+        $sharesReads = $user->pull_receipts && ($conversation->isOrg() || $reader?->status === RemoteStatus::Open);
+
+        event(new UsersUpdated(
+            $sharesReads ? $participants->filter(fn (ConversationParticipant $participant): bool => $participant->user_id !== $user->id && $participant->user->pull_receipts)->pluck('user_id') : [],
+            UserUpdate::Conversation,
+            ['conversation' => $conversation->id, 'read' => 1],
+        ));
     }
 }

@@ -33,20 +33,24 @@ final readonly class CreateScheduledCommit
     {
         $body = mb_trim($body);
 
-        event(new UsersUpdated([$user->id], UserUpdate::ScheduledCommits));
+        return DB::transaction(function () use ($user, $organization, $body, $poll, $images, $imageDescriptions, $linkPreview, $scheduledAt): ScheduledCommit {
+            $scheduled = ScheduledCommit::query()->create([
+                'user_id' => $user->id,
+                'author_id' => $organization?->id,
+                'body' => $body,
+                'poll' => $poll instanceof NewPoll ? ['options' => $poll->options, 'duration' => $poll->duration->value] : null,
+                'images' => $images === [] ? null : $this->createImageFiles->handle($images, $imageDescriptions),
+                'link_preview_url' => match ($linkPreview) {
+                    true => $this->urls->first($body),
+                    false => null,
+                    default => $linkPreview,
+                },
+                'scheduled_at' => $scheduledAt->utc(),
+            ]);
 
-        return DB::transaction(fn (): ScheduledCommit => ScheduledCommit::query()->create([
-            'user_id' => $user->id,
-            'author_id' => $organization?->id,
-            'body' => $body,
-            'poll' => $poll instanceof NewPoll ? ['options' => $poll->options, 'duration' => $poll->duration->value] : null,
-            'images' => $images === [] ? null : $this->createImageFiles->handle($images, $imageDescriptions),
-            'link_preview_url' => match ($linkPreview) {
-                true => $this->urls->first($body),
-                false => null,
-                default => $linkPreview,
-            },
-            'scheduled_at' => $scheduledAt->utc(),
-        ]));
+            event(new UsersUpdated([$user->id], UserUpdate::ScheduledCommits));
+
+            return $scheduled;
+        });
     }
 }
