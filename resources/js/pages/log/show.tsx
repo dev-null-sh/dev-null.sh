@@ -69,7 +69,12 @@ export default function Show({
     const commitDialogClosedCount = useCommitDialogClosedCount();
     const viewerId = user?.id ?? 'guest';
     const newestId = isRanked ? undefined : commits.data[0]?.id;
-    const oldestLoadedId = commits.data.at(-1)?.id;
+    // The oldest loaded commits, oldest first: the range holds on the oldest the reader can still see.
+    const throughIds = commits.data
+        .slice(-20)
+        .map((commit) => commit.id)
+        .reverse()
+        .join(',');
     const tabsRef = useRef<HTMLDivElement>(null);
     const [tabsHeight, setTabsHeight] = useState(0);
     const feedRef = useRef<HTMLDivElement>(null);
@@ -361,7 +366,7 @@ export default function Show({
             reset: ['commits'],
             data: { since: '' },
             // Retain the loaded range so inserting new commits preserves the reader's row.
-            headers: { 'X-Log-Through': oldestLoadedId ?? '' },
+            headers: { 'X-Log-Through': throughIds },
             preserveUrl: true,
             onCancelToken: (token) => {
                 loadRequest.current = token;
@@ -442,7 +447,7 @@ export default function Show({
                 ].slice(0, 100),
                 arrived,
             },
-            headers: { 'X-Log-Through': oldestLoadedId ?? '' },
+            headers: { 'X-Log-Through': throughIds },
             preserveUrl: true,
             onSuccess: (page: { props: PageProps }) => {
                 const removed = new Set(
@@ -487,7 +492,8 @@ export default function Show({
                         []
                     ).length,
                 );
-                // The loaded window is read again, as deep as it was, when it no longer holds what it shows.
+                // The loaded window is read again, as deep as it was, when it no longer holds what it shows, or when it
+                // can't be told, as none of its oldest commits is still the reader's to see.
                 followUp =
                     typeof expected === 'string' && shown.length > 0
                         ? windowDigest(shown).then((digest) =>
@@ -497,7 +503,9 @@ export default function Show({
                                       : commits.data.length + 1,
                               ),
                           )
-                        : loadNewest(newest);
+                        : expected === null && shown.length > 0
+                          ? loadNewest(commits.data.length + 1)
+                          : loadNewest(newest);
             },
         };
 
@@ -614,12 +622,20 @@ export default function Show({
         const stopRelationships =
             viewerId === 'guest'
                 ? () => {}
-                : listen(userChannel(viewerId), {
-                      relationships: () => {
+                : listen(
+                      userChannel(viewerId),
+                      {
+                          relationships: () => {
+                              isCatchingUp = true;
+                              refresh.request();
+                          },
+                      },
+                      // A block or mute missed while not listening leaves no trace on the commits shown.
+                      () => {
                           isCatchingUp = true;
                           refresh.request();
                       },
-                  });
+                  );
 
         return () => {
             stop();

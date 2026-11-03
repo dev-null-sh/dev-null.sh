@@ -908,3 +908,33 @@ it('names which commits sit between the oldest and newest loaded, so a page can 
         ->not->toBe($digestOf($oldest, $middle, $newest))
         ->and(probeLog(Log::Trending, 'windowDigest', ['since' => $newest->id], ['X-Log-Through' => $oldest->id])->json('props.windowDigest'))->toBeNull();
 });
+
+it('keeps the loaded window anchored on the oldest commit still visible when older ones were hidden or erased since', function (string $change): void {
+    $viewer = User::factory()->create();
+    $author = User::factory()->create();
+    $this->actingAs($viewer);
+    $loaded = collect(range(1, 5))->map(fn (int $hours): Commit => Commit::factory()->create(['created_at' => now()->subHours($hours)]))->all();
+    $oldest = Commit::factory()->for($author)->create(['created_at' => now()->subHours(6)]);
+    Commit::factory()->create(['created_at' => now()->subHours(7)]);
+
+    match ($change) {
+        'blocked' => $viewer->blocking()->attach($author),
+        'blocked by' => $author->blocking()->attach($viewer),
+        'erased' => $oldest->forceDelete(),
+    };
+    $through = ['X-Log-Through' => implode(',', [$oldest->id, $loaded[4]->id, $loaded[3]->id])];
+    $sorted = collect($loaded)->pluck('id')->sort()->values()->all();
+
+    expect(probeLog(Log::Latest, 'windowDigest', ['since' => $loaded[0]->id], $through)->json('props.windowDigest'))
+        ->toBe(hash('sha256', implode(',', $sorted)))
+        ->and(array_slice(probeLog(Log::Latest, 'commits', [], $through)->json('props.commits.data.*.id'), 0, 5))
+        ->toBe(collect($loaded)->pluck('id')->all())
+        ->and(probeLog(Log::Latest, 'commits', [], $through)->json('props.commits.data.*.id'))->not->toContain($oldest->id);
+})->with(['blocked', 'blocked by', 'erased']);
+
+it('reads no more than twenty range boundaries', function (): void {
+    $this->actingAs(User::factory()->create())
+        ->withHeader('X-Log-Through', implode(',', array_map(fn (): string => (string) Str::uuid(), range(1, 21))))
+        ->getJson(route('log.show', Log::Latest))
+        ->assertUnprocessable()->assertJsonValidationErrors('through');
+});
