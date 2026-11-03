@@ -1293,7 +1293,10 @@ export function NotificationContent({
                             // Above the row's link, so starring doesn't open the commit.
                             <div className="relative z-10 mt-1 -ml-2 flex text-[13px]">
                                 <CommitStarButton
-                                    commit={notification.commit}
+                                    commit={{
+                                        ...notification.commit,
+                                        author: notification.actor,
+                                    }}
                                     className="px-2 py-0.5"
                                 />
                             </div>

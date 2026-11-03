@@ -63,6 +63,7 @@ async function renderPage(page: () => ReactElement): Promise<string> {
             props: {
                 auth: {
                     user: { id: 'recipient', handle: 'nunomaduro' },
+                    organizations: [],
                     log: {},
                 },
                 errors: {},
@@ -495,7 +496,6 @@ const starrableReply = {
     ...notification,
     commit: {
         ...notification.commit,
-        user_id: 'actor',
         status: 'approved',
         starred: false,
         stars_count: 2,
