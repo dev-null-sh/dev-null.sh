@@ -29,6 +29,7 @@ use App\Http\Controllers\Api\ConversationReadController;
 use App\Http\Controllers\Api\ConversationTypingController;
 use App\Http\Controllers\Api\CurrentUserController;
 use App\Http\Controllers\Api\DeviceController;
+use App\Http\Controllers\Api\IssueController;
 use App\Http\Controllers\Api\IssueSuggestionController;
 use App\Http\Controllers\Api\LiveFollowingController;
 use App\Http\Controllers\Api\LogController;
@@ -92,6 +93,7 @@ use App\Http\Middleware\AuthenticateSshSignature;
 use App\Http\Middleware\PreventPostingInTimeout;
 use App\Http\Middleware\RequireCommitRules;
 use App\Http\Middleware\ThrottleCommits;
+use App\Http\Middleware\ThrottleIssues;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Route;
 
@@ -209,6 +211,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function (): void {
         Route::get('search/issues', [IssueSuggestionController::class, 'index'])
             ->middleware('throttle:issue-suggestions')
             ->name('api-issue-suggestion.index');
+
+        // Issue: opened upstream by the GitHub App, as the web's /feature and /bug commands do...
+        Route::post('issues', [IssueController::class, 'store'])
+            ->middleware([PreventPostingInTimeout::class, 'throttle:10,1', ThrottleIssues::class])
+            ->name('api-issue.store');
 
         // User Remotes: the switch from the web's settings, and the settings menu on its Remotes page...
         Route::put('me/remotes', [UserRemotesController::class, 'update'])->name('api-user-remotes.update');

@@ -11,23 +11,15 @@ use Illuminate\Container\Attributes\CurrentUser;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\RateLimiter;
 
 final readonly class IssueController
 {
-    private const int MaxIssuesPerDay = 10;
-
     /**
-     * Only issues that were opened count towards the daily limit, so a rejected draft or a GitHub outage costs nothing.
+     * Only issues that were opened count towards the daily limit, so a rejected draft or a GitHub outage costs nothing
+     * (see ThrottleIssues).
      */
     public function store(CreateIssueRequest $request, #[CurrentUser] User $user, CreateIssue $action): JsonResponse
     {
-        $key = 'issues:'.$user->id;
-
-        if (RateLimiter::tooManyAttempts($key, self::MaxIssuesPerDay)) {
-            return response()->json(['message' => 'Issue limit reached: 10 a day. Try again tomorrow.'], 429);
-        }
-
         try {
             $issue = $action->handle(
                 $user,
@@ -44,8 +36,6 @@ final readonly class IssueController
                 'message' => 'GitHub did not create the issue. Your draft is safe.',
             ], 502);
         }
-
-        RateLimiter::hit($key, 86400);
 
         return response()->json($issue, 201);
     }
